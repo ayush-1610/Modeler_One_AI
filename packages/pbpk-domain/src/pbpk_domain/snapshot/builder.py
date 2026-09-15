@@ -145,7 +145,181 @@ class GlomerularFiltration(Spec):
         )
 
 
-ProcessSpec = Annotated[FirstOrderMetabolism | GlomerularFiltration, Field(discriminator="kind")]
+class MichaelisMentenMetabolism(Spec):
+    """Saturable enzyme metabolism (PK-Sim ``MetabolizationSpecific_MM``). Parameter names and units are
+    from the OSP Rifampicin model; Vmax and Km are the identifiable pair (MS-01 §2.2), kcat and enzyme
+    concentration are optional and only emitted when supplied."""
+
+    kind: Literal["MetabolizationSpecific_MM"] = "MetabolizationSpecific_MM"
+    molecule: str = Field(min_length=1)
+    data_source: str = Field(min_length=1)
+    metabolite: str | None = None
+    vmax: Measured
+    km: Measured
+    kcat: Measured | None = None
+    enzyme_concentration: Measured | None = None
+
+    @field_validator("vmax")
+    @classmethod
+    def _vmax(cls, v: Measured) -> Measured:
+        return _check(v, unit="µmol/l/min", label="Vmax")
+
+    @field_validator("km")
+    @classmethod
+    def _km(cls, v: Measured) -> Measured:
+        return _check(v, unit="µmol/l", label="Km")
+
+    @field_validator("kcat")
+    @classmethod
+    def _kcat(cls, v: Measured | None) -> Measured | None:
+        return _check(v, unit="1/min", label="kcat")
+
+    @field_validator("enzyme_concentration")
+    @classmethod
+    def _conc(cls, v: Measured | None) -> Measured | None:
+        return _check(v, unit="µmol/l", label="Enzyme concentration")
+
+    def to_process(self) -> CompoundProcess:
+        parameters = []
+        if self.enzyme_concentration is not None:
+            parameters.append(self.enzyme_concentration.to_parameter(name="Enzyme concentration"))
+        parameters.append(self.vmax.to_parameter(name="Vmax"))
+        parameters.append(self.km.to_parameter(name="Km"))
+        if self.kcat is not None:
+            parameters.append(self.kcat.to_parameter(name="kcat"))
+        fields: dict = {"internal_name": self.kind, "data_source": self.data_source, "molecule": self.molecule, "parameters": parameters}
+        if self.metabolite:
+            fields["metabolite"] = self.metabolite
+        return CompoundProcess(**fields)
+
+
+class TransporterMichaelisMenten(Spec):
+    """Saturable active transport (PK-Sim ``ActiveTransportSpecific_MM``). Names/units from the OSP
+    Rifampicin model. The transporter needs an expression profile (``ExpressionSpec`` type Transporter)."""
+
+    kind: Literal["ActiveTransportSpecific_MM"] = "ActiveTransportSpecific_MM"
+    molecule: str = Field(min_length=1)
+    data_source: str = Field(min_length=1)
+    vmax: Measured
+    km: Measured
+    transporter_concentration: Measured | None = None
+    kcat: Measured | None = None
+
+    @field_validator("vmax")
+    @classmethod
+    def _vmax(cls, v: Measured) -> Measured:
+        return _check(v, unit="µmol/l/min", label="Vmax")
+
+    @field_validator("km")
+    @classmethod
+    def _km(cls, v: Measured) -> Measured:
+        return _check(v, unit="µmol/l", label="Km")
+
+    @field_validator("transporter_concentration")
+    @classmethod
+    def _conc(cls, v: Measured | None) -> Measured | None:
+        return _check(v, unit="nmol/l", label="Transporter concentration")
+
+    @field_validator("kcat")
+    @classmethod
+    def _kcat(cls, v: Measured | None) -> Measured | None:
+        return _check(v, unit="1/min", label="kcat")
+
+    def to_process(self) -> CompoundProcess:
+        parameters = []
+        if self.transporter_concentration is not None:
+            parameters.append(self.transporter_concentration.to_parameter(name="Transporter concentration"))
+        parameters.append(self.vmax.to_parameter(name="Vmax"))
+        parameters.append(self.km.to_parameter(name="Km"))
+        if self.kcat is not None:
+            parameters.append(self.kcat.to_parameter(name="kcat"))
+        return CompoundProcess(
+            internal_name=self.kind, data_source=self.data_source, molecule=self.molecule, parameters=parameters
+        )
+
+
+class CompetitiveInhibition(Spec):
+    """Reversible competitive inhibition of an enzyme/transporter (PK-Sim ``CompetitiveInhibition``)."""
+
+    kind: Literal["CompetitiveInhibition"] = "CompetitiveInhibition"
+    molecule: str = Field(min_length=1)
+    data_source: str = Field(min_length=1)
+    ki: Measured
+
+    @field_validator("ki")
+    @classmethod
+    def _ki(cls, v: Measured) -> Measured:
+        return _check(v, unit="µmol/l", label="Ki")
+
+    def to_process(self) -> CompoundProcess:
+        return CompoundProcess(
+            internal_name=self.kind, data_source=self.data_source, molecule=self.molecule,
+            parameters=[self.ki.to_parameter(name="Ki")],
+        )
+
+
+class Induction(Spec):
+    """Enzyme/transporter induction (PK-Sim ``Induction``); Emax is dimensionless."""
+
+    kind: Literal["Induction"] = "Induction"
+    molecule: str = Field(min_length=1)
+    data_source: str = Field(min_length=1)
+    ec50: Measured
+    emax: Measured
+
+    @field_validator("ec50")
+    @classmethod
+    def _ec50(cls, v: Measured) -> Measured:
+        return _check(v, unit="µmol/l", label="EC50")
+
+    @field_validator("emax")
+    @classmethod
+    def _emax(cls, v: Measured) -> Measured:
+        return _check(v, unit=None, label="Emax")
+
+    def to_process(self) -> CompoundProcess:
+        return CompoundProcess(
+            internal_name=self.kind, data_source=self.data_source, molecule=self.molecule,
+            parameters=[self.ec50.to_parameter(name="EC50"), self.emax.to_parameter(name="Emax")],
+        )
+
+
+class SpecificBinding(Spec):
+    """Specific binding to a target (PK-Sim ``SpecificBinding``); names/units from the OSP Midazolam model."""
+
+    kind: Literal["SpecificBinding"] = "SpecificBinding"
+    molecule: str = Field(min_length=1)
+    data_source: str = Field(min_length=1)
+    koff: Measured
+    kd: Measured
+
+    @field_validator("koff")
+    @classmethod
+    def _koff(cls, v: Measured) -> Measured:
+        return _check(v, unit="1/min", label="koff")
+
+    @field_validator("kd")
+    @classmethod
+    def _kd(cls, v: Measured) -> Measured:
+        return _check(v, unit="nmol/l", label="Kd")
+
+    def to_process(self) -> CompoundProcess:
+        return CompoundProcess(
+            internal_name=self.kind, data_source=self.data_source, molecule=self.molecule,
+            parameters=[self.koff.to_parameter(name="koff"), self.kd.to_parameter(name="Kd")],
+        )
+
+
+ProcessSpec = Annotated[
+    FirstOrderMetabolism
+    | MichaelisMentenMetabolism
+    | TransporterMichaelisMenten
+    | CompetitiveInhibition
+    | Induction
+    | SpecificBinding
+    | GlomerularFiltration,
+    Field(discriminator="kind"),
+]
 
 
 class CompoundSpec(Spec):
@@ -267,13 +441,20 @@ class CompoundSpec(Spec):
 # --- subject --------------------------------------------------------------------------------------
 
 
+_ENZYME_LOCALIZATION = "Intracellular, BloodCellsIntracellular, VascEndosome"
+
+
 class ExpressionSpec(Spec):
-    # Transporter profiles carry extra fields (transport direction, membrane); add once harvested.
-    type: Literal["Enzyme"] = "Enzyme"
+    """An enzyme, transporter or other-protein expression profile. Real OSP transporter profiles carry no
+    Localization and no TransporterType (PK-Sim supplies both from its database for the named transporter),
+    so those are emitted only when set; enzymes keep the standard intracellular localization by default."""
+
+    type: Literal["Enzyme", "Transporter", "OtherProtein"] = "Enzyme"
     molecule: str = Field(min_length=1)
     species: str = "Human"
     category: str = "Healthy"
-    localization: str = "Intracellular, BloodCellsIntracellular, VascEndosome"
+    localization: str | None = None
+    transporter_type: str | None = None  # e.g. "Efflux", "Influx"; Transporter profiles only
     ontogeny: str | None = None
     reference_concentration: Measured | None = None
 
@@ -292,7 +473,11 @@ class ExpressionSpec(Spec):
             fields["parameters"] = [
                 self.reference_concentration.to_parameter(path=f"{self.molecule}|Reference concentration")
             ]
-        fields["localization"] = self.localization
+        localization = self.localization if self.localization is not None else (_ENZYME_LOCALIZATION if self.type == "Enzyme" else None)
+        if localization is not None:
+            fields["localization"] = localization
+        if self.transporter_type is not None:
+            fields["TransporterType"] = self.transporter_type
         if self.ontogeny:
             fields["ontogeny"] = {"Name": self.ontogeny}
         return ExpressionProfile(**fields)

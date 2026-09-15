@@ -10,6 +10,7 @@ invented. `build → parse → build` is stable: the same CPF always yields the 
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -17,16 +18,21 @@ from pydantic import BaseModel, ConfigDict
 
 from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus
 from pbpk_domain.snapshot.builder import (
+    CompetitiveInhibition,
     CompoundSpec,
     DissolvedFormulationSpec,
     FirstOrderMetabolism,
     GlomerularFiltration,
+    Induction,
     IntravenousProtocolSpec,
     Measured,
+    MichaelisMentenMetabolism,
     OralProtocolSpec,
     SimulationSpec,
     SnapshotBuilder,
+    SpecificBinding,
     SubjectSpec,
+    TransporterMichaelisMenten,
     WeibullFormulationSpec,
 )
 from pbpk_domain.snapshot.models import Snapshot, ValueOrigin
@@ -75,18 +81,89 @@ def _data_source(record: ParameterRecord) -> str:
     return "CPF"
 
 
-# CPF parameter ids the current builder cannot yet place; matched by suffix/prefix (extended in T-10).
-_UNSUPPORTED_SUFFIXES = (".km", ".vmax", ".kcat", ".ts_clspec")
-_UNSUPPORTED_PREFIXES = ("transp.", "ddi.", "pd.", "elim.hepatic.total_cl", "elim.biliary", "elim.ehc")
+def _measured_of(params: dict[str, ParameterRecord], engine_param: str) -> Measured | None:
+    record = params.get(engine_param)
+    return _measured(record) if record is not None else None
 
 
-def _is_unsupported(record: ParameterRecord) -> bool:
-    return record.id.endswith(_UNSUPPORTED_SUFFIXES) or record.id.startswith(_UNSUPPORTED_PREFIXES)
+def _group_data_source(params: dict[str, ParameterRecord]) -> str:
+    for record in params.values():
+        if record.engine_binding is not None and record.engine_binding.data_source:
+            return record.engine_binding.data_source
+    return _data_source(next(iter(params.values())))
+
+
+# Build one compound process from the CPF records that bind to it (keyed by engine parameter name).
+# Returns None when the required parameters for that process type are not all present. Every internal name
+# here comes from the harvested catalog (T-02); any other process type falls through to `unresolved`.
+def _build_process(internal_name: str, molecule: str | None, params: dict[str, ParameterRecord]):
+    ds = _group_data_source(params)
+    if internal_name == "MetabolizationSpecific_FirstOrder":
+        clspec = _measured_of(params, "CLspec/[Enzyme]")
+        return FirstOrderMetabolism(molecule=molecule, data_source=ds, clearance_per_enzyme=clspec) if clspec and molecule else None
+    if internal_name == "MetabolizationSpecific_MM":
+        vmax, km = _measured_of(params, "Vmax"), _measured_of(params, "Km")
+        if vmax and km and molecule:
+            return MichaelisMentenMetabolism(
+                molecule=molecule, data_source=ds, vmax=vmax, km=km,
+                kcat=_measured_of(params, "kcat"), enzyme_concentration=_measured_of(params, "Enzyme concentration"),
+            )
+        return None
+    if internal_name == "ActiveTransportSpecific_MM":
+        vmax, km = _measured_of(params, "Vmax"), _measured_of(params, "Km")
+        if vmax and km and molecule:
+            return TransporterMichaelisMenten(
+                molecule=molecule, data_source=ds, vmax=vmax, km=km,
+                kcat=_measured_of(params, "kcat"), transporter_concentration=_measured_of(params, "Transporter concentration"),
+            )
+        return None
+    if internal_name == "CompetitiveInhibition":
+        ki = _measured_of(params, "Ki")
+        return CompetitiveInhibition(molecule=molecule, data_source=ds, ki=ki) if ki and molecule else None
+    if internal_name == "Induction":
+        ec50, emax = _measured_of(params, "EC50"), _measured_of(params, "Emax")
+        return Induction(molecule=molecule, data_source=ds, ec50=ec50, emax=emax) if ec50 and emax and molecule else None
+    if internal_name == "SpecificBinding":
+        koff, kd = _measured_of(params, "koff"), _measured_of(params, "Kd")
+        return SpecificBinding(molecule=molecule, data_source=ds, koff=koff, kd=kd) if koff and kd and molecule else None
+    if internal_name == "GlomerularFiltration":
+        gfr = _measured_of(params, "GFR fraction")
+        return GlomerularFiltration(data_source=ds, gfr_fraction=gfr) if gfr else None
+    return None
+
+
+def _build_processes(cpf: CPF) -> tuple[list, list[str], list[str]]:
+    """Group process-bound CPF records by (process internal name, molecule) and build each process.
+    Returns (process specs, used ids, unresolved ids)."""
+    groups: dict[tuple[str, str | None], dict[str, ParameterRecord]] = defaultdict(dict)
+    order: list[tuple[str, str | None]] = []
+    for record in cpf.parameters:
+        if record.status is ParameterStatus.MISSING or record.engine_binding is None:
+            continue
+        internal = record.engine_binding.process_internal_name
+        if internal is None:
+            continue  # a compound scalar binding (mw, logp, …), handled by id elsewhere
+        key = (internal, record.engine_binding.molecule)
+        if key not in groups:
+            order.append(key)
+        groups[key][record.engine_binding.parameter] = record
+
+    processes: list = []
+    used: list[str] = []
+    unresolved: list[str] = []
+    for internal, molecule in order:
+        params = groups[(internal, molecule)]
+        spec = _build_process(internal, molecule, params)
+        if spec is None:
+            unresolved.extend(r.id for r in params.values())
+        else:
+            processes.append(spec)
+            used.extend(r.id for r in params.values())
+    return processes, used, unresolved
 
 
 def _compound_from_cpf(cpf: CPF) -> tuple[CompoundSpec, list[str], list[str]]:
     used: list[str] = []
-    unresolved: list[str] = []
 
     def take(param_id: str) -> ParameterRecord | None:
         record = cpf.get(param_id)
@@ -150,32 +227,11 @@ def _compound_from_cpf(cpf: CPF) -> tuple[CompoundSpec, list[str], list[str]]:
     if halogens:
         fields["halogens"] = halogens
 
-    # Elimination processes the builder currently supports.
-    processes: list = []
-    for record in cpf.parameters:
-        if record.status is ParameterStatus.MISSING or record.engine_binding is None:
-            continue
-        internal = record.engine_binding.process_internal_name
-        if internal == "MetabolizationSpecific_FirstOrder" and record.id.endswith(".clspec"):
-            molecule = record.engine_binding.molecule or record.id.split(".")[2]
-            processes.append(
-                FirstOrderMetabolism(molecule=molecule, data_source=_data_source(record), clearance_per_enzyme=_measured(record))
-            )
-            used.append(record.id)
-        elif internal == "GlomerularFiltration":
-            processes.append(GlomerularFiltration(data_source=_data_source(record), gfr_fraction=_measured(record)))
-            used.append(record.id)
-        elif _is_unsupported(record):
-            unresolved.append(record.id)
+    # Compound processes (metabolism, transport, inhibition, induction, binding, GFR), grouped by process.
+    processes, process_used, unresolved = _build_processes(cpf)
+    used.extend(process_used)
     if processes:
         fields["processes"] = processes
-
-    # Any remaining bound-but-unsupported parameters (no engine_binding path above) also go to unresolved.
-    for record in cpf.parameters:
-        if record.status is ParameterStatus.MISSING:
-            continue
-        if record.id not in used and _is_unsupported(record):
-            unresolved.append(record.id)
 
     return CompoundSpec(**fields), used, sorted(set(unresolved))
 
