@@ -25,6 +25,7 @@ from pbpk_domain.snapshot.builder import (
     GlomerularFiltration,
     Induction,
     IntravenousProtocolSpec,
+    MealEventSpec,
     Measured,
     MichaelisMentenMetabolism,
     OralProtocolSpec,
@@ -42,13 +43,14 @@ ProtocolSpec = OralProtocolSpec | IntravenousProtocolSpec
 
 
 class Scenario(BaseModel):
-    """One simulation and the protocol (and optional formulation) it references."""
+    """One simulation and the protocol (and optional formulation, meal events) it references."""
 
     model_config = ConfigDict(frozen=True, extra="forbid", arbitrary_types_allowed=True)
 
     simulation: SimulationSpec
     protocol: ProtocolSpec
     formulation: FormulationSpec | None = None
+    events: tuple[MealEventSpec, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -256,6 +258,7 @@ def build_from_cpf(
 
     seen_protocols: set[str] = set()
     seen_formulations: set[str] = set()
+    seen_events: set[str] = set()
     for scenario in scenarios:
         if scenario.protocol.name not in seen_protocols:
             builder.add_protocol(scenario.protocol)
@@ -263,6 +266,10 @@ def build_from_cpf(
         if scenario.formulation is not None and scenario.formulation.name not in seen_formulations:
             builder.add_formulation(scenario.formulation)
             seen_formulations.add(scenario.formulation.name)
+        for event in scenario.events:
+            if event.name not in seen_events:
+                builder.add_event(event)
+                seen_events.add(event.name)
         builder.add_simulation(scenario.simulation)
 
     snapshot = builder.build()

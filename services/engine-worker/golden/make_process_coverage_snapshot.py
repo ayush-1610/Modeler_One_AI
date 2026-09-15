@@ -25,6 +25,7 @@ from pbpk_domain.snapshot.builder import (
     GlomerularFiltration,
     IntravenousProtocolSpec,
     Measured,
+    MealEventSpec,
     MichaelisMentenMetabolism,
     OralProtocolSpec,
     SimulationSpec,
@@ -70,9 +71,16 @@ def build() -> dict:
         .add_subject(subject)
         .add_protocol(IntravenousProtocolSpec(name="IV 1 mg", dose=Measured(value=1.0, unit="mg"), infusion_time_min=15))
         .add_protocol(OralProtocolSpec(name="PO 10 mg", dose=Measured(value=10.0, unit="mg")))
+        # multiple-dose oral, twice daily for 2 days:
+        .add_protocol(OralProtocolSpec(name="PO 10 mg BID", dose=Measured(value=10.0, unit="mg"),
+                                       dosing_interval="DI_12_12", end_time=Measured(value=2, unit="day(s)")))
         .add_formulation(DissolvedFormulationSpec(name="Dissolved"))
+        .add_event(MealEventSpec(name="breakfast", template="Meal: High-fat breakfast (Human)"))
         .add_simulation(SimulationSpec(name="IV 1 mg", subject="Adult male", compound=COMPOUND, protocol="IV 1 mg", end_time_h=24))
         .add_simulation(SimulationSpec(name="PO 10 mg", subject="Adult male", compound=COMPOUND, protocol="PO 10 mg", formulation="Dissolved", end_time_h=24))
+        # fed, multiple-dose simulation exercising the meal event and DosingInterval:
+        .add_simulation(SimulationSpec(name="PO 10 mg fed BID", subject="Adult male", compound=COMPOUND,
+                                       protocol="PO 10 mg BID", formulation="Dissolved", end_time_h=72, events=("breakfast",)))
         .build()
     )
     return snapshot.to_json_dict()

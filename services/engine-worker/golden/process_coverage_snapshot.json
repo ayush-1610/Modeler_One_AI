@@ -211,6 +211,39 @@
           "Unit": "ml/kg"
         }
       ]
+    },
+    {
+      "Name": "PO 10 mg BID",
+      "ApplicationType": "Oral",
+      "DosingInterval": "DI_12_12",
+      "Parameters": [
+        {
+          "Name": "Start time",
+          "Value": 0.0,
+          "Unit": "h"
+        },
+        {
+          "Name": "InputDose",
+          "Value": 10.0,
+          "Unit": "mg"
+        },
+        {
+          "Name": "Volume of water/body weight",
+          "Value": 3.5,
+          "Unit": "ml/kg"
+        },
+        {
+          "Name": "End time",
+          "Value": 2.0,
+          "Unit": "day(s)"
+        }
+      ]
+    }
+  ],
+  "Events": [
+    {
+      "Name": "breakfast",
+      "Template": "Meal: High-fat breakfast (Human)"
     }
   ],
   "Simulations": [
@@ -340,6 +373,83 @@
                 "Key": "Formulation"
               }
             ]
+          }
+        }
+      ]
+    },
+    {
+      "Name": "PO 10 mg fed BID",
+      "Model": "4Comp",
+      "Solver": {},
+      "OutputSchema": [
+        {
+          "Parameters": [
+            {
+              "Name": "Start time",
+              "Value": 0.0,
+              "Unit": "h"
+            },
+            {
+              "Name": "End time",
+              "Value": 72.0,
+              "Unit": "h"
+            },
+            {
+              "Name": "Resolution",
+              "Value": 10.0,
+              "Unit": "pts/h"
+            }
+          ]
+        }
+      ],
+      "OutputSelections": [
+        "Organism|PeripheralVenousBlood|ProcessProbe|Plasma (Peripheral Venous Blood)"
+      ],
+      "Individual": "Adult male",
+      "Compounds": [
+        {
+          "Name": "ProcessProbe",
+          "CalculationMethods": [
+            "Cellular partition coefficient method - Rodgers and Rowland",
+            "Cellular permeability - PK-Sim Standard"
+          ],
+          "Alternatives": [
+            {
+              "AlternativeName": "Measured",
+              "GroupName": "COMPOUND_INTESTINAL_PERMEABILITY"
+            }
+          ],
+          "Processes": [
+            {
+              "Name": "CYP3A4-illustrative",
+              "MoleculeName": "CYP3A4"
+            },
+            {
+              "Name": "P-gp-illustrative",
+              "MoleculeName": "P-gp"
+            },
+            {
+              "Name": "Glomerular Filtration-assumed",
+              "SystemicProcessType": "GFR"
+            }
+          ],
+          "Protocol": {
+            "Name": "PO 10 mg BID",
+            "Formulations": [
+              {
+                "Name": "Dissolved",
+                "Key": "Formulation"
+              }
+            ]
+          }
+        }
+      ],
+      "Events": [
+        {
+          "Name": "breakfast",
+          "StartTime": {
+            "Value": 0.0,
+            "Unit": "h"
           }
         }
       ]

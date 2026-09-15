@@ -13,13 +13,14 @@ from __future__ import annotations
 import unicodedata
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pbpk_domain.issues import Issue
 from pbpk_domain.snapshot.models import (
     AlternativeSelection,
     Compound,
     CompoundProcess,
+    Event,
     ExpressionProfile,
     Formulation,
     FormulationSelection,
@@ -513,7 +514,37 @@ class SubjectSpec(Spec):
 # --- administration -------------------------------------------------------------------------------
 
 
-class OralProtocolSpec(Spec):
+def _check_end_time(v: Measured | None) -> Measured | None:
+    if v is None:
+        return None
+    if _nfc(v.unit) not in ("day(s)", "h"):
+        raise ValueError(f"End time must be in 'day(s)' or 'h' (got {v.unit!r})")
+    return v
+
+
+class _MultipleDoseMixin(Spec):
+    """Adds regular multiple-dose scheduling: a PK-Sim DosingInterval (e.g. ``DI_24`` once daily,
+    ``DI_12_12`` twice daily) plus the End time up to which dosing repeats. ``Single`` is one dose."""
+
+    dosing_interval: str = "Single"
+    end_time: Measured | None = None
+
+    @field_validator("end_time")
+    @classmethod
+    def _end(cls, v: Measured | None) -> Measured | None:
+        return _check_end_time(v)
+
+    @model_validator(mode="after")
+    def _md_needs_end_time(self):
+        if self.dosing_interval != "Single" and self.end_time is None:
+            raise ValueError(f"multiple-dose protocol (DosingInterval {self.dosing_interval!r}) needs an end_time")
+        return self
+
+    def _dosing_parameters(self) -> list[Parameter]:
+        return [self.end_time.to_parameter(name="End time")] if self.end_time is not None else []
+
+
+class OralProtocolSpec(_MultipleDoseMixin):
     kind: Literal["oral"] = "oral"
     name: str = Field(min_length=1)
     dose: Measured
@@ -529,16 +560,17 @@ class OralProtocolSpec(Spec):
         return Protocol(
             name=self.name,
             application_type="Oral",
-            dosing_interval="Single",
+            dosing_interval=self.dosing_interval,
             parameters=[
                 Parameter(name="Start time", value=self.start_time_h, unit="h"),
                 self.dose.to_parameter(name="InputDose"),
                 Parameter(name="Volume of water/body weight", value=self.water_volume_ml_per_kg, unit="ml/kg"),
+                *self._dosing_parameters(),
             ],
         )
 
 
-class IntravenousProtocolSpec(Spec):
+class IntravenousProtocolSpec(_MultipleDoseMixin):
     kind: Literal["intravenous"] = "intravenous"
     name: str = Field(min_length=1)
     dose: Measured
@@ -554,11 +586,12 @@ class IntravenousProtocolSpec(Spec):
         return Protocol(
             name=self.name,
             application_type="Intravenous",
-            dosing_interval="Single",
+            dosing_interval=self.dosing_interval,
             parameters=[
                 Parameter(name="Start time", value=self.start_time_h, unit="h"),
                 self.dose.to_parameter(name="InputDose"),
                 Parameter(name="Infusion time", value=self.infusion_time_min, unit="min"),
+                *self._dosing_parameters(),
             ],
         )
 
@@ -598,6 +631,16 @@ class WeibullFormulationSpec(Spec):
 FormulationSpec = Annotated[DissolvedFormulationSpec | WeibullFormulationSpec, Field(discriminator="kind")]
 
 
+class MealEventSpec(Spec):
+    """A meal event that applies a PK-Sim meal template (e.g. "Meal: High-fat breakfast (Human)")."""
+
+    name: str = Field(min_length=1)
+    template: str = Field(min_length=1)
+
+    def to_event(self) -> Event:
+        return Event(name=self.name, template=self.template)
+
+
 class SimulationSpec(Spec):
     name: str = Field(min_length=1)
     subject: str
@@ -608,6 +651,8 @@ class SimulationSpec(Spec):
     resolution_pts_per_h: float = Field(default=10.0, gt=0)
     model: str = "4Comp"
     additional_outputs: tuple[str, ...] = ()
+    events: tuple[str, ...] = ()  # meal-event names applied in this simulation, each starting at t=0
+    event_start_time_h: float = Field(default=0.0, ge=0)
 
 
 # --- builder --------------------------------------------------------------------------------------
@@ -622,6 +667,7 @@ class SnapshotBuilder:
         self._subjects: dict[str, SubjectSpec] = {}
         self._protocols: dict[str, OralProtocolSpec | IntravenousProtocolSpec] = {}
         self._formulations: dict[str, DissolvedFormulationSpec | WeibullFormulationSpec] = {}
+        self._events: dict[str, MealEventSpec] = {}
         self._simulations: dict[str, SimulationSpec] = {}
 
     @staticmethod
@@ -644,6 +690,10 @@ class SnapshotBuilder:
 
     def add_formulation(self, spec: DissolvedFormulationSpec | WeibullFormulationSpec) -> SnapshotBuilder:
         self._register(self._formulations, "formulation", spec)
+        return self
+
+    def add_event(self, spec: MealEventSpec) -> SnapshotBuilder:
+        self._register(self._events, "event", spec)
         return self
 
     def add_simulation(self, spec: SimulationSpec) -> SnapshotBuilder:
@@ -683,6 +733,7 @@ class SnapshotBuilder:
             "compounds": [c.to_compound() for c in self._compounds.values()],
             "formulations": [f.to_formulation() for f in self._formulations.values()],
             "protocols": [p.to_protocol() for p in self._protocols.values()],
+            "events": [e.to_event() for e in self._events.values()],
             "simulations": [self._simulation(s) for s in self._simulations.values()],
         }
         fields.update({key: items for key, items in sections.items() if items})
@@ -711,11 +762,11 @@ class SnapshotBuilder:
             protocol_fields["formulations"] = [FormulationSelection(name=spec.formulation, key="Formulation")]
         compound_fields["protocol"] = ProtocolSelection(**protocol_fields)
 
-        return Simulation(
-            name=spec.name,
-            model=spec.model,
-            solver={},
-            output_schema=[
+        sim_fields: dict = {
+            "name": spec.name,
+            "model": spec.model,
+            "solver": {},
+            "output_schema": [
                 OutputInterval(
                     parameters=[
                         Parameter(name="Start time", value=0.0, unit="h"),
@@ -724,7 +775,12 @@ class SnapshotBuilder:
                     ]
                 )
             ],
-            output_selections=[PLASMA_OUTPUT_PATH.format(compound=spec.compound), *spec.additional_outputs],
-            individual=spec.subject,
-            compounds=[SimulationCompound(**compound_fields)],
-        )
+            "output_selections": [PLASMA_OUTPUT_PATH.format(compound=spec.compound), *spec.additional_outputs],
+            "individual": spec.subject,
+            "compounds": [SimulationCompound(**compound_fields)],
+        }
+        if spec.events:
+            sim_fields["events"] = [
+                {"Name": name, "StartTime": {"Value": spec.event_start_time_h, "Unit": "h"}} for name in spec.events
+            ]
+        return Simulation(**sim_fields)
