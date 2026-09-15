@@ -1,0 +1,486 @@
+{
+  "Version": 80,
+  "ExpressionProfiles": [
+    {
+      "Type": "Enzyme",
+      "Species": "Human",
+      "Molecule": "CYP3A4",
+      "Category": "Healthy",
+      "Parameters": [
+        {
+          "Path": "CYP3A4|Reference concentration",
+          "Value": 4.32,
+          "Unit": "µmol/l"
+        }
+      ],
+      "Localization": "Intracellular, BloodCellsIntracellular, VascEndosome",
+      "Ontogeny": {
+        "Name": "CYP3A4"
+      }
+    }
+  ],
+  "Individuals": [
+    {
+      "Name": "Adult male",
+      "Seed": 12345,
+      "OriginData": {
+        "CalculationMethods": [
+          "SurfaceAreaPlsInt_VAR1",
+          "Body surface area - Mosteller"
+        ],
+        "Species": "Human",
+        "Population": "European_ICRP_2002",
+        "Gender": "MALE",
+        "Age": {
+          "Value": 30.0,
+          "Unit": "year(s)"
+        }
+      },
+      "ExpressionProfiles": [
+        "CYP3A4|Human|Healthy"
+      ]
+    }
+  ],
+  "Compounds": [
+    {
+      "Name": "Example-A",
+      "IsSmallMolecule": true,
+      "PlasmaProteinBindingPartner": "Albumin",
+      "Lipophilicity": [
+        {
+          "Name": "Measured",
+          "Parameters": [
+            {
+              "Name": "Lipophilicity",
+              "Value": 3.1,
+              "Unit": "Log Units"
+            }
+          ]
+        }
+      ],
+      "FractionUnbound": [
+        {
+          "Name": "Measured",
+          "Species": "Human",
+          "Parameters": [
+            {
+              "Name": "Fraction unbound (plasma, reference value)",
+              "Value": 0.03
+            }
+          ]
+        }
+      ],
+      "Solubility": [
+        {
+          "Name": "Measured",
+          "Parameters": [
+            {
+              "Name": "Solubility at reference pH",
+              "Value": 0.05,
+              "Unit": "mg/ml"
+            },
+            {
+              "Name": "Reference pH",
+              "Value": 7.0
+            }
+          ]
+        }
+      ],
+      "IntestinalPermeability": [
+        {
+          "Name": "Measured",
+          "Parameters": [
+            {
+              "Name": "Specific intestinal permeability (transcellular)",
+              "Value": 0.0002,
+              "Unit": "cm/min"
+            }
+          ]
+        }
+      ],
+      "PkaTypes": [
+        {
+          "Type": "Base",
+          "Pka": 6.0
+        }
+      ],
+      "Processes": [
+        {
+          "InternalName": "MetabolizationSpecific_FirstOrder",
+          "DataSource": "Example",
+          "Molecule": "CYP3A4",
+          "Parameters": [
+            {
+              "Name": "CLspec/[Enzyme]",
+              "Value": 0.5,
+              "Unit": "l/µmol/min"
+            }
+          ]
+        },
+        {
+          "InternalName": "GlomerularFiltration",
+          "DataSource": "assumed",
+          "Species": "Human",
+          "Parameters": [
+            {
+              "Name": "GFR fraction",
+              "Value": 1.0
+            }
+          ]
+        }
+      ],
+      "CalculationMethods": [
+        "Cellular partition coefficient method - Rodgers and Rowland",
+        "Cellular permeability - PK-Sim Standard"
+      ],
+      "Parameters": [
+        {
+          "Name": "Cl",
+          "Value": 1.0
+        },
+        {
+          "Name": "F",
+          "Value": 1.0
+        },
+        {
+          "Name": "Molecular weight",
+          "Value": 325.8,
+          "Unit": "g/mol"
+        }
+      ]
+    }
+  ],
+  "Formulations": [
+    {
+      "Name": "Solution",
+      "FormulationType": "Formulation_Dissolved"
+    }
+  ],
+  "Protocols": [
+    {
+      "Name": "IV 2 mg",
+      "ApplicationType": "Intravenous",
+      "DosingInterval": "Single",
+      "Parameters": [
+        {
+          "Name": "Start time",
+          "Value": 0.0,
+          "Unit": "h"
+        },
+        {
+          "Name": "InputDose",
+          "Value": 2.0,
+          "Unit": "mg"
+        },
+        {
+          "Name": "Infusion time",
+          "Value": 15.0,
+          "Unit": "min"
+        }
+      ]
+    },
+    {
+      "Name": "PO 7.5 mg",
+      "ApplicationType": "Oral",
+      "DosingInterval": "Single",
+      "Parameters": [
+        {
+          "Name": "Start time",
+          "Value": 0.0,
+          "Unit": "h"
+        },
+        {
+          "Name": "InputDose",
+          "Value": 7.5,
+          "Unit": "mg"
+        },
+        {
+          "Name": "Volume of water/body weight",
+          "Value": 3.5,
+          "Unit": "ml/kg"
+        }
+      ]
+    }
+  ],
+  "Simulations": [
+    {
+      "Name": "IV",
+      "Model": "4Comp",
+      "Solver": {},
+      "OutputSchema": [
+        {
+          "Parameters": [
+            {
+              "Name": "Start time",
+              "Value": 0.0,
+              "Unit": "h"
+            },
+            {
+              "Name": "End time",
+              "Value": 24.0,
+              "Unit": "h"
+            },
+            {
+              "Name": "Resolution",
+              "Value": 10.0,
+              "Unit": "pts/h"
+            }
+          ]
+        }
+      ],
+      "OutputSelections": [
+        "Organism|PeripheralVenousBlood|Example-A|Plasma (Peripheral Venous Blood)"
+      ],
+      "Individual": "Adult male",
+      "Compounds": [
+        {
+          "Name": "Example-A",
+          "CalculationMethods": [
+            "Cellular partition coefficient method - Rodgers and Rowland",
+            "Cellular permeability - PK-Sim Standard"
+          ],
+          "Alternatives": [
+            {
+              "AlternativeName": "Measured",
+              "GroupName": "COMPOUND_INTESTINAL_PERMEABILITY"
+            }
+          ],
+          "Processes": [
+            {
+              "Name": "CYP3A4-Example",
+              "MoleculeName": "CYP3A4"
+            },
+            {
+              "Name": "Glomerular Filtration-assumed",
+              "SystemicProcessType": "GFR"
+            }
+          ],
+          "Protocol": {
+            "Name": "IV 2 mg"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "PO",
+      "Model": "4Comp",
+      "Solver": {},
+      "OutputSchema": [
+        {
+          "Parameters": [
+            {
+              "Name": "Start time",
+              "Value": 0.0,
+              "Unit": "h"
+            },
+            {
+              "Name": "End time",
+              "Value": 24.0,
+              "Unit": "h"
+            },
+            {
+              "Name": "Resolution",
+              "Value": 10.0,
+              "Unit": "pts/h"
+            }
+          ]
+        }
+      ],
+      "OutputSelections": [
+        "Organism|PeripheralVenousBlood|Example-A|Plasma (Peripheral Venous Blood)"
+      ],
+      "Individual": "Adult male",
+      "Compounds": [
+        {
+          "Name": "Example-A",
+          "CalculationMethods": [
+            "Cellular partition coefficient method - Rodgers and Rowland",
+            "Cellular permeability - PK-Sim Standard"
+          ],
+          "Alternatives": [
+            {
+              "AlternativeName": "Measured",
+              "GroupName": "COMPOUND_INTESTINAL_PERMEABILITY"
+            }
+          ],
+          "Processes": [
+            {
+              "Name": "CYP3A4-Example",
+              "MoleculeName": "CYP3A4"
+            },
+            {
+              "Name": "Glomerular Filtration-assumed",
+              "SystemicProcessType": "GFR"
+            }
+          ],
+          "Protocol": {
+            "Name": "PO 7.5 mg",
+            "Formulations": [
+              {
+                "Name": "Solution",
+                "Key": "Formulation"
+              }
+            ]
+          }
+        }
+      ],
+      "ObservedData": [
+        "SYNTHETIC-EXAMPLE - 7.5 mg solution - Example-A - PO - 7.5 mg - Plasma - agg. (n=12)"
+      ],
+      "OutputMappings": [
+        {
+          "Scaling": "Linear",
+          "Path": "PO|Organism|PeripheralVenousBlood|Example-A|Plasma (Peripheral Venous Blood)",
+          "ObservedData": "SYNTHETIC-EXAMPLE - 7.5 mg solution - Example-A - PO - 7.5 mg - Plasma - agg. (n=12)"
+        }
+      ]
+    }
+  ],
+  "ObservedData": [
+    {
+      "Name": "SYNTHETIC-EXAMPLE - 7.5 mg solution - Example-A - PO - 7.5 mg - Plasma - agg. (n=12)",
+      "ExtendedProperties": [
+        {
+          "Name": "Study Id",
+          "Value": "SYNTHETIC-EXAMPLE",
+          "Type": "String"
+        },
+        {
+          "Name": "Grouping",
+          "Value": "7.5 mg solution",
+          "Type": "String"
+        },
+        {
+          "Name": "Data type",
+          "Value": "aggregated",
+          "Type": "String"
+        },
+        {
+          "Name": "N",
+          "Value": 12.0,
+          "Type": "Double"
+        },
+        {
+          "Name": "Molecule",
+          "Value": "Example-A",
+          "Type": "String"
+        },
+        {
+          "Name": "Species",
+          "Value": "Human",
+          "Type": "String"
+        },
+        {
+          "Name": "Organ",
+          "Value": "Peripheral Venous Blood",
+          "Type": "String"
+        },
+        {
+          "Name": "Compartment",
+          "Value": "Plasma",
+          "Type": "String"
+        },
+        {
+          "Name": "Route",
+          "Value": "PO",
+          "Type": "String"
+        },
+        {
+          "Name": "Dose",
+          "Value": "7.5 mg",
+          "Type": "String"
+        },
+        {
+          "Name": "Formulation",
+          "Value": ".",
+          "Type": "String"
+        },
+        {
+          "Name": "Food state",
+          "Value": "Fasted",
+          "Type": "String"
+        },
+        {
+          "Name": "Source",
+          "Value": "sha256:0000000000000000000000000000000000000000000000000000000000000000 cells PK!A2..PK!B8",
+          "Type": "String"
+        },
+        {
+          "Name": "Comment",
+          "Value": ".",
+          "Type": "String"
+        }
+      ],
+      "Columns": [
+        {
+          "Name": "Avg",
+          "QuantityInfo": {
+            "Path": "SYNTHETIC-EXAMPLE - 7.5 mg solution - Example-A - PO - 7.5 mg - Plasma - agg. (n=12)|ObservedData|Peripheral Venous Blood|Plasma|Example-A|ArithmeticMean"
+          },
+          "DataInfo": {
+            "Origin": "Observation",
+            "AuxiliaryType": "Undefined",
+            "MolWeight": 325.8
+          },
+          "Values": [
+            18.0,
+            31.0,
+            29.0,
+            19.0,
+            8.5,
+            4.1,
+            0.9
+          ],
+          "Dimension": "Concentration (mass)",
+          "Unit": "µg/l",
+          "RelatedColumns": [
+            {
+              "Name": "Var",
+              "QuantityInfo": {
+                "Path": "SYNTHETIC-EXAMPLE - 7.5 mg solution - Example-A - PO - 7.5 mg - Plasma - agg. (n=12)|ObservedData|Peripheral Venous Blood|Plasma|Example-A|ArithmeticStdDev"
+              },
+              "DataInfo": {
+                "Origin": "ObservationAuxiliary",
+                "AuxiliaryType": "ArithmeticStdDev",
+                "MolWeight": 325.8
+              },
+              "Values": [
+                5.0,
+                8.0,
+                7.5,
+                5.0,
+                2.5,
+                1.3,
+                0.4
+              ],
+              "Dimension": "Concentration (mass)",
+              "Unit": "µg/l"
+            }
+          ]
+        }
+      ],
+      "BaseGrid": {
+        "Name": "Time",
+        "QuantityInfo": {
+          "Path": "SYNTHETIC-EXAMPLE - 7.5 mg solution - Example-A - PO - 7.5 mg - Plasma - agg. (n=12)|Time",
+          "Type": "Time"
+        },
+        "DataInfo": {
+          "Origin": "BaseGrid",
+          "AuxiliaryType": "Undefined"
+        },
+        "Values": [
+          0.5,
+          1.0,
+          2.0,
+          4.0,
+          8.0,
+          12.0,
+          24.0
+        ],
+        "Dimension": "Time",
+        "Unit": "h"
+      }
+    }
+  ]
+}

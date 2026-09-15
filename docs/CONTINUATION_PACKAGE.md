@@ -1,0 +1,221 @@
+# Continuation Package
+
+**Purpose:** the bridge from this planning session (2026-09-15) to implementation. A model or engineer opening this
+cold should be able to start executing from the task list without reconstructing context.
+
+## 30-second system state
+
+Modeler One is an on-prem-first platform (three Ubuntu 24.04 servers, 24 physical cores / 251 GB each, root disk
+nearly full) that automates PBPK model development on the open-source OSP engine (ospsuite R 12.4.4 with PK-Sim
+12.3.173 and .NET 8, GPLv2, run as an isolated subprocess) and produces regulator-reproducible packages under ICH M15
+and 21 CFR Part 11. The repository at `/Users/ayush/Projects/Modeler_One_AI` (not yet a git repo) is a uv workspace:
+`packages/pbpk-domain` (snapshot models/builder/validation/transfer, metrics, tiered acceptance criteria, fitting
+planner/assessment, static DDI, VBE stats, M15 rules), `packages/data-intake` (raw vault, Excel grids with cell
+provenance, mapping recipes, validation, PK-Sim observed-data conversion), `packages/run-contracts`, `services/api`
+(FastAPI scaffold, hash-chained audit, Part 11 signatures, Postgres DDL with RLS), `services/orchestrator` (Temporal
+workflows incl. deadline-bounded fitting rounds), `services/engine-worker` (engine Dockerfile, `run_job.R`, `run_pi.R`,
+benchmark and golden scripts, Ubuntu install/check script), `services/agents` (Claude data-mapping, curation and
+MCP-based literature agents with word-for-word citation checks), `apps/web` (Next.js starter). 62 Python tests pass.
+Verified on macOS with the real engine: simulation ≈ 0.2 s, batch 0.17 s/run/core, OSP parameter identification end to
+end through `run_pi.R`. Not yet verified: snapshot execution on Linux (Docker image build in progress at the end of the
+session; see §4), Temporal against a live server, persistence, auth, live LLM/MCP calls. The scientific procedure is
+fixed in `docs/PBPK_MODELING_WORKFLOW.md` (MS-01); the engineering decisions in `docs/ENGINEERING_PLAN.md`.
+
+## 1. Decisions finalized in this session
+
+| ID | Decision |
+|---|---|
+| D1 | Engine: ospsuite 12.4.4 / PK-Sim 12.3.173 / .NET 8 on Linux x86-64 is the go-live engine, conditional on the Linux golden tests (T-01). ospsuite 13 only after formal release + qualification. Windows CLI path is fallback only |
+| D2 | Engine image: `rocker/r-ver:4.6.1` + OSP r-universe Linux binaries (`bin/linux/noble-x86_64/4.6`) + .NET 8; pinned by digest; golden tests inside the image gate every push |
+| D3 | The Compound Parameter Framework (CPF, MS-01 §2) is the system of record for all models; the builder regenerates every simulation from it; overrides only via parameter transfer with PI provenance |
+| D4 | The modeling loop is MS-01: S0 readiness → S1 IV → S2 oral fasted → S3 formulation/fed → S4 internal validation → S5 external validation (fasted and fed separately) → S6 prediction/application → S7 report. Data split by the deterministic algorithm in MS-01 §3, frozen in the MAP |
+| D5 | Human touchpoints are exactly: MAP signature, data exclusions, escalations, MAP deviations, final CPF acceptance, evaluation/MAR/M15 signatures. Everything else runs unattended |
+| D6 | Acceptance criteria are tiered by M15 model risk (high 1.25-fold all; medium 1.5-fold/Guest ≥ 80 %; low 2-fold ≥ 80 %), internal and external judged separately; stored as versioned ruleset awaiting SME sign-off; UNVERIFIED rulesets usable only in `exploratory` projects |
+| D7 | Diagnostics are a deterministic ruleset (MS-01 §5); the strategist agent may only choose among permitted actions |
+| D8 | Time budget: campaign budget → stage budgets → `plan_multistart` with measured seconds/simulation; deadline guaranteed; starts cancelled at the deadline; escalation with best-so-far |
+| D9 | Runtime: k3s on the 3 servers (Compose-first allowed for P0/P1 if the team lacks Kubernetes experience); all state on a `/data` disk per node; CloudNativePG, MinIO (single node → distributed in P2), Temporal self-hosted, Keycloak, kube-prometheus-stack, Loki, Tempo, Argo CD, KEDA |
+| D10 | Auth: Keycloak OIDC; realm roles + project membership; signatures require step-up (`acr=loa2`, `auth_time` ≤ 300 s); tenant from token claim |
+| D11 | Engine plane has no credentials: presigned MinIO URLs per job; no egress; cancellation honoured via heartbeat polling |
+| D12 | Agents: Claude Opus via Anthropic API now (Bedrock/Vertex/self-hosted endpoint supported by config); MCP servers self-hosted, allowlisted, every result stored as a citable record; REST fallbacks per source |
+| D13 | FDA-reviewable package: bundle with manifest, all inputs/outputs/specs, `rerun_all.R`; export blocked unless the reproducibility gate passes |
+| D14 | Data model as in ENGINEERING_PLAN §5; append-only compliance tables; Alembic with hand-written SQL |
+| D15 | API contracts as in ENGINEERING_PLAN §7 (envelope, idempotency keys, SSE, error codes) |
+| D16 | Testing gates as in ENGINEERING_PLAN §13; validation evidence from CI artifacts |
+
+## 2. Remaining tasks (ordered; dependencies in §3)
+
+Model routing: **SONNET** for well-specified mechanical work; **OPUS** for design-heavy or engine-discovery work.
+Each task lists what to build, inputs/outputs, constraints, acceptance criteria, and where it fits.
+
+### T-01 — Verify the engine on Linux · SONNET · P0
+- **Build:** run `services/engine-worker/scripts/ubuntu_engine_check.sh /data/modeler-engine` on one server (needs the results back), and run the golden scripts inside the Docker image `modeler-engine:ospsuite-12.4.4-dev` (`Rscript /engine/golden/golden_roundtrip.R /engine/golden/example_snapshot.json /tmp/g`, `pi_smoke.R`, `benchmark.R`).
+- **Outputs:** `benchmark.json`, `golden_report.json`, `pi_result.json`; record seconds/simulation and PI seconds/evaluation in `docs/WORKFLOW_AND_AUTOMATION.md §6` and in an `engine_images` row (once T-05 exists; until then in `deploy/engine-images.yaml`).
+- **Acceptance:** `run_from_snapshot`, `snapshot_to_project`, `project_to_snapshot`, `roundtrip_content` and PK steps all OK on Linux; PI smoke converged. If `run_from_snapshot` fails on Linux: file the OSP issue with the log and switch D1 to Track B for that step.
+
+### T-02 — Engine catalog harvest · OPUS · P0
+- **Build:** `services/engine-worker/r/harvest_catalog.R` that, inside the image, exports to JSON: available compound process types and their parameter names/units (metabolizing enzyme first-order and Michaelis-Menten, transporters, specific binding, total hepatic clearance, GFR, tubular secretion, biliary), formulation types with parameters, calculation-method names (partition, permeability), species and populations, meal/event templates, PK parameter names from `allPKParameterNames()`, dimensions/units, and the exact simulation-level naming of process selections (from a set of reference snapshots converted via `loadProjectFromSnapshot` and re-exported). Use OSP library snapshots (Dapagliflozin, Midazolam, Itraconazole, Rifampicin) as fixtures to discover naming.
+- **Outputs:** `catalog.json` per image (stored with the image, `engine_images.catalog`), plus golden fixtures under `services/engine-worker/golden/fixtures/`.
+- **Constraints:** never hand-invent names; every entry must come from an engine export. Unknown → omitted and listed under `unresolved`.
+- **Acceptance:** builder catalogs (T-03/T-10) load from this JSON; a snapshot built for each process type loads in the engine (dry run) without error.
+
+### T-03 — CPF schema, engine binding, builder regeneration · OPUS · P1
+- **Build:** `pbpk_domain/cpf/` with pydantic models for MS-01 §2.1/2.2 (parameter records, status, fit policy, plausibility, provenance), JSON Schema export, completeness check (S0 gate), `bind(cpf, catalog) -> BuildPlan`, and `SnapshotBuilder.from_cpf(cpf, system, scenarios)` that generates compound alternatives/processes, individuals/populations, protocols, formulations, events and simulations from the CPF and a scenario list. Parameter transfer updates the CPF (new version) and regenerates, instead of writing simulation overrides, except for the PK-Sim-native override written by `apply_identified_values` for traceability.
+- **Inputs:** CPF document, catalog (T-02), scenario list (from studies). **Outputs:** snapshot + `BuildReport` (bindings used, unresolved parameters).
+- **Constraints:** deterministic; units must be storage units; `NO_ENGINE_BINDING` error when a parameter has no binding for the image.
+- **Acceptance:** the example compound and a CPF reconstructed from the Dapagliflozin snapshot both regenerate snapshots that load in the engine; property test: build → parse → build is stable.
+
+### T-04 — Study classification and split · SONNET · P1
+- **Build:** `pbpk_domain/campaign/split.py`: classify studies (MS-01 §3.2), information score, split algorithm (§3.3) returning assignments plus the generated rationale sentences; fed-data decision from the question of interest.
+- **Acceptance:** unit tests for every rule in §3.3 incl. single-study classes, forced external categories, fed decision; output is stable for equal inputs.
+
+### T-05 — Persistence layer · SONNET · P1
+- **Build:** SQLAlchemy 2.0 async models and repositories for every table in ENGINEERING_PLAN §5; Alembic migrations (hand-written SQL, starting from `0001_core.sql`); `bind_tenant` on every session; audit event in the same transaction for every write; unique constraints and partitions as specified.
+- **Acceptance:** RLS isolation test with two tenants; append-only triggers tested; migrations up/down clean on Postgres 16.
+
+### T-06 — Authentication and authorization · SONNET · P1
+- **Build:** Keycloak realm export (`deploy/keycloak/realm-modeler.json`) with roles, `signing` step-up flow (password + TOTP → `acr=loa2`); FastAPI dependency validating JWT (JWKS cache), tenant claim, realm roles, project membership; `POST /signatures` enforcing `acr` and `auth_time`; web app login (Authorization Code + PKCE).
+- **Acceptance:** contract tests: no token 401; wrong project 403; signature without loa2 → 403 `STEP_UP_REQUIRED`; signature with stale `auth_time` → 403.
+
+### T-07 — Object store and presigned I/O · SONNET · P1
+- **Build:** `S3ObjectStore` (MinIO, boto3) implementing the `ObjectStore` protocol; orchestrator activity `prepare_engine_job` issues presigned GET/PUT URLs (2 h) per input/output prefix; engine runner downloads/uploads via HTTP with hash checks; bucket policies with Object Lock compliance mode and per-tenant prefixes.
+- **Acceptance:** engine worker test against a MinIO container: tampered object → `InputIntegrityError`; expired URL → retry path; no credentials in the engine pod env.
+
+### T-08 — Results ingestion · SONNET · P1
+- **Build:** activity `ingest_results`: read engine CSV outputs, write Parquet (columns: time, path, value, unit, individual_id) under `runs/{run_id}/results/`, write `run_results` and `pk_parameter_values` rows (from `pk_analyses.csv`), attach manifest and warnings to the `runs` row, audit event; DuckDB query helper for `GET /runs/{id}/results`.
+- **Acceptance:** ingestion of the golden run reproduces the PK table; idempotent on re-run.
+
+### T-09 — Engine tasks: population, sensitivity, pk_analysis; cancellation · OPUS · P1
+- **Build:** in `run_job.R`: `population` (createPopulation from demographic spec or load CSV, run, export results + PK), `sensitivity` (`runSensitivityAnalysis` on listed paths with variation range), `pk_analysis` (existing, plus user-defined PK parameters), `batch` (SimulationBatch over parameter sets for the evaluation of many scenarios); in `runner.py`: `activity.is_cancelled()` polling, process-group kill, `CANCELLED` manifest, partial outputs under `cancelled/`.
+- **Acceptance:** golden tests per task; cancellation test kills a sleeping fake engine within 25 s and uploads a `CANCELLED` manifest.
+
+### T-10 — Builder coverage from the catalog · OPUS · P1
+- **Build:** extend `pbpk_domain/snapshot/builder.py` with Michaelis-Menten metabolism, transporters, total hepatic/biliary/tubular-secretion clearances, inhibition/inactivation/induction processes, solubility tables, particle dissolution and table formulations, advanced protocols (multiple dose schemas), meal events, populations, expression profiles for transporters; all names from T-02 fixtures.
+- **Acceptance:** each new structure round-trips through the engine (dry run + run) in the golden suite; the Dapagliflozin snapshot can be rebuilt from its CPF with identical simulation outputs within 1e-6.
+
+### T-11 — Observed data coverage · SONNET · P1
+- **Build:** extend `modeler_intake/pksim.py` for urine/feces fractions (`Fraction` dimension), molar units (needs MW), geometric statistics, individual series, and the LLOQ encoding verified by an engine golden test (`DataSet$LLOQ` round trip through a snapshot).
+- **Acceptance:** golden test loads the converted observed data in PK-Sim and PI uses it with LLOQ handling.
+
+### T-12 — Engine image CI and registration · SONNET · P0/P1
+- **Build:** GitHub Actions job: build amd64 image, run golden scripts and benchmark inside, Syft SBOM, cosign sign, push to GHCR by digest, register `engine_images` (status `BUILT`) with catalog and benchmark; `deploy/vendor/` monthly refresh of R binaries.
+- **Acceptance:** a PR that breaks a golden test cannot publish an image; digest and benchmark appear in the registry row.
+
+### T-13 — Campaign workflows · OPUS · P1/P2
+- **Build:** `ModelingCampaignWorkflow`, `StageLoopWorkflow`, activities (`plan_campaign` from MAP, `build_round_snapshot`, `run_round`, `evaluate_round`, `diagnose_round`, `choose_action`, `record_round`, `resume_campaign`), signals (`map_signed`, `escalation_decided`, `deviation_recorded`, `accept_final_cpf`), continue-as-new per stage, stage budgets and deadlines, MS-01 stage rules S0–S5 (S6/S7 in T-31/T-24).
+- **Acceptance:** Temporal test-server tests for the state machine, deadline cancellation, escalation pause/resume, resume from rows after worker restart; integration run of S0→S2 on the example compound within its budget.
+
+### T-14 — Diagnostics ruleset and evaluator · OPUS · P2
+- **Build:** `rulesets/diag_rules.yaml` (MS-01 §5 with thresholds, status UNVERIFIED) and `pbpk_domain/diagnostics.py` computing evidence (t½ ratio, early-phase error, tmax/Cmax pattern, dose-normalized AUC trend, secondary peaks, accumulation ratio, bound proximity, correlations, start agreement) and returning permitted actions per stage.
+- **Acceptance:** 20 golden cases (synthetic profiles with known causes) map to the expected first action.
+
+### T-15 — Strategist agent · SONNET · P2
+- **Build:** `modeler_agents/strategist.py`: structured-output call with `output_format` = `{action_id ∈ permitted, rationale, parameters_to_fit[], bounds_override?}`; validation against the permitted set; fallback to the first permitted action; persisted in `agent_runs/steps`.
+- **Acceptance:** disallowed choices are rejected; eval set of 20 diagnostics cases agrees with the ruleset's first action ≥ 80 %.
+
+### T-16 — MAP generator · SONNET · P1
+- **Build:** `pbpk_domain/campaign/map.py` producing the MAP document (MS-01 §9) from CPF, studies, split, question, tier, engine image and budget; `POST /questions/{id}/map:generate`; docx/PDF rendering via the report renderer (T-24) later, JSON first.
+- **Acceptance:** generated MAP contains every field in MS-01 §9; changes after signing create a new version and invalidate campaigns.
+
+### T-17 — Escalations, deviations, decisions API · SONNET · P2
+- **Build:** endpoints from ENGINEERING_PLAN §7 for escalations/deviations; decision options served from MS-01; signals to workflows; review-inbox feed.
+- **Acceptance:** an escalated campaign resumes only through a decision with the required signature role.
+
+### T-18 — Evaluation activity and plots · OPUS · P1/P2
+- **Build:** `evaluate_round`/`evaluate_stage`: PK parameters from runs vs observed NCA (deterministic NCA on observed data: linear-up/log-down AUC, Cmax, tmax, t½ by terminal regression with ≥ 3 points), `acceptance.evaluate`, GMFE, GOF datasets, VPC bands from population runs, Plotly JSON + static SVG/PNG.
+- **Acceptance:** NCA validated against known datasets (e.g. OSP Aciclovir profiles) within 1 %; plots render in the web app.
+
+### T-19 — Figure digitizer · OPUS · P3
+- **Build:** tool that takes a PDF page image, user-set axis calibration (two points per axis, linear/log), and extracts marker coordinates → observations draft with overlay image for verification.
+- **Acceptance:** synthetic figure round trip within 2 % of axis range.
+
+### T-20 — Agent persistence, budgets, provider fallback · SONNET · P2
+- **Build:** `agent_runs/agent_steps/proposals` writes through the API; token/cost budgets per agent; provider selection per tenant; `LLM_UNAVAILABLE` handling; retry queue.
+- **Acceptance:** every agent step visible in the audit viewer; budget stop produces `INCOMPLETE`.
+
+### T-21 — Agent evaluation sets · OPUS · P2/P3
+- **Build:** golden sets (30 messy sheets, 50 parameter extractions, 20 diagnostics cases) and a runner comparing outputs; weekly live run.
+- **Acceptance:** citation precision ≥ 0.95; report published per prompt/model version.
+
+### T-22 — MCP servers deployment and REST fallbacks · SONNET · P2
+- **Build:** Helm subcharts for BioMCP (`serve-http`), ChEMBL and PubChem servers (pinned images), NetworkPolicies allowing only their upstreams; `modeler_agents/sources/` REST fallback clients (Europe PMC, ChEMBL, PubChem PUG) producing `retrieved_records`; circuit breaker per source.
+- **Acceptance:** with BioMCP down, a research run completes using fallbacks and the coverage report marks the source unavailable.
+
+### T-23 — Reproducibility gate and bundle · OPUS · P2
+- **Build:** `BundleWorkflow`: assemble the package (ENGINEERING_PLAN §4.6), generate `rerun_all.R`, run it in a fresh engine pod, compare hashes and PK tables (1e-6), write `bundles` row and manifest; export as ZIP with PDF/A reports.
+- **Acceptance:** a bundle of the example campaign re-runs identically; a tampered file fails the gate with a diff.
+
+### T-24 — MAR generation and report rendering · SONNET · P3
+- **Build:** MAR skeleton (M15 Appendix 2) filled from campaign artifacts; numbers as references resolved at render time; Pandoc → DOCX and PDF/A-2b with signature manifestation blocks; M15 table rendering.
+- **Acceptance:** rendered MAR contains every table/figure referenced; no number in the text that is not in evidence.
+
+### T-25 — CI pipeline and validation evidence · SONNET · P1
+- **Build:** GitHub Actions per ENGINEERING_PLAN §9.5; pytest `req` marker plugin producing the trace matrix; Trivy, secret scan; release artifacts.
+- **Acceptance:** green pipeline on the main branch; trace matrix lists every feature ID with test IDs.
+
+### T-26 / T-27 / T-28 — Web app · SONNET · P1–P3
+- **Build:** T-26 auth, projects, compound/CPF screen with provenance chips and completeness; T-27 intake (grid + mapping side by side, questions, confirm) and review inbox (proposals, escalations, signatures with step-up); T-28 campaign monitor (stage timeline, round table, GOF/VPC plots via Plotly, budget bar), evaluation and M15/MAP/MAR editors, audit viewer.
+- **Acceptance:** Playwright flows for the seven user flows in ENGINEERING_PLAN §3.
+
+### T-29 — Helm umbrella, k3s runbook, observability · SONNET · P3
+- **Build:** `deploy/` Helm umbrella (api, orchestrator, agents, engine pools with KEDA, web, MCP servers) + values per environment; runbook for the 3-node k3s install with `/data`; kube-prometheus-stack, Loki, Tempo, alert rules from ENGINEERING_PLAN §11; Argo CD app-of-apps; SOPS.
+- **Acceptance:** staging namespace deploys from a tag; all alerts fire in a fault-injection test (disk fill, engine failure, Keycloak down).
+
+### T-30 — SME sign-off packets · HUMAN (PBPK lead, clinical pharmacology, QA)
+- Review `pbpk_acceptance_criteria.yaml`, `ddi_static_screening.yaml`, MS-01 [SME] defaults, `diag_rules.yaml`; sign; set `status: SME_APPROVED` with version bump and signature record.
+
+### T-31 — Application templates · OPUS · P3
+- **Build:** DDI (victim/perpetrator with OSP library models pinned by tag), pediatrics (age bins, ontogeny), special populations, VBE (uses `bioequivalence.py`), FIH translation; each as YAML template + workflow steps + gate + M15 row generator.
+- **Acceptance:** OSP DDI qualification subset reproduced within reported GMFE; pediatric template reproduces a published OSP pediatric evaluation.
+
+### T-32 — Validation pack generator · SONNET · P4
+- **Build:** URS/FS from feature specs, trace matrix, OQ evidence from CI, IQ from Helm/k3s state, PQ from staging campaign runs; DOCX/PDF output.
+
+## 3. Dependency order
+
+```
+T-01 ─┬─► T-02 ─► T-03 ─┬─► T-10 ─► T-13 ─► T-14 ─► T-15 ─► T-17
+      │                 ├─► T-04 ─► T-16 ─┘        │
+      │                 └─► T-11                   └─► T-23 ─► T-24 ─► T-31
+      └─► T-12
+T-05 ─┬─► T-06 ─► T-26 ─► T-27 ─► T-28
+      ├─► T-07 ─► T-08 ─► T-18 ─► (T-13)
+      ├─► T-09 ─► (T-13)
+      └─► T-20 ─► T-21, T-22
+T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) · T-32 (P4)
+```
+Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
+T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
+
+## 4. Session end state
+
+**T-01 done (2026-09-15).** Engine verified on the project server (Intel Xeon Silver 4510, 48 logical cores, Ubuntu
+24.04). The server has no sudo and no `/data`; the engine was installed under `~/modeler-engine` via Miniforge R 4.6.1
+(`ubuntu_engine_check.sh` was made sudo-optional and conda-R aware). Golden round trip + fitting smoke test pass;
+benchmark: single run 0.506 s, 1-core batch 0.4214 s/run, **47-core batch 0.00555 s/run (75.9× speedup)**, PI 0.36
+s/eval. The 1-hour campaign budget is met comfortably (full IV→oral→fed with 32 multistart each ≈ 20 min). D1 confirmed.
+Engine image also passes the same golden tests; `initPKSim()` needs a writable cwd (image sets `WORKDIR /home/engine`).
+
+**T-02 done (2026-09-15).** `services/engine-worker/r/harvest_catalog.R` + `scripts/fetch_reference_snapshots.sh` +
+`scripts/harvest_catalog.sh`; Python loader `pbpk_domain.catalog` (17 tests). Validated end-to-end (R→JSON→Python)
+against the OSP Dapagliflozin/Midazolam/Itraconazole/Rifampicin models. Key harvested facts (see the
+`osp-engine-facts` memory): compound processes have no Name (identified by InternalName+Molecule+DataSource); the
+simulation selection Name is `{Molecule}-{DataSource}` / `Glomerular Filtration-{DataSource}` (SystemicProcessType=GFR)
+— confirmed across all 4 models, validating `validation.process_selection_for`. The authoritative
+`golden/catalog.json` was harvested on the Linux server (2026-09-15): all four OSP models + the example snapshot load
+in the engine (`roundtrip_ok=true`), and its content matches the macOS harvest exactly (cross-platform check). Committed
+with `golden/fixtures/*.json`; `tests/test_engine_catalog.py` pins its invariants in CI. Re-run
+`scripts/harvest_catalog.sh ~/modeler-engine` whenever the engine image changes.
+
+**T-03 done (2026-09-15).** `pbpk_domain.cpf`: versioned parameter document + record (§2.1), S0 completeness gate
+(§2.2), catalog binding (`bind` → `BuildPlan`, `BindingError`/NO_ENGINE_BINDING), `build_from_cpf` /
+`SnapshotBuilder.from_cpf` snapshot regeneration (deterministic; unsupported processes reported in `unresolved` for
+T-10), JSON Schema at `packages/pbpk-domain/schemas/cpf.schema.json` (20 tests). **Remaining acceptance (server):** a
+CPF reconstructed from the Dapagliflozin snapshot regenerates a snapshot that loads in the engine.
+
+**T-04 done (2026-09-15).** `pbpk_domain.campaign.split`: classification (§3.2), information score, split algorithm
+(§3.3) with rationale sentences and documented limitations (23 tests).
+
+122 Python tests pass, lint clean. **Repository still not under git** — first commit is the first action of the next
+session (T-25 sets up CI). Critical path continues at **T-10** (builder coverage from the catalog: Michaelis-Menten,
+transporters, DDI, particle dissolution) and **T-13** (campaign workflows), with **T-05/T-07/T-08** (persistence,
+object store, results) in parallel.

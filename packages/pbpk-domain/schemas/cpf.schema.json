@@ -1,0 +1,319 @@
+{
+  "$defs": {
+    "EngineBinding": {
+      "additionalProperties": false,
+      "description": "Where a parameter lives in a PK-Sim snapshot (MS-01 \u00a72.1).\n\n`building_block` is Compound/Individual/Formulation/Protocol. For a compound process the `process`\nfield carries the process internal name and, for molecule-based processes, the molecule after a\ncolon, e.g. \"MetabolizationSpecific_FirstOrder:CYP3A4\"; `parameter` is the engine parameter name.",
+      "properties": {
+        "building_block": {
+          "title": "Building Block",
+          "type": "string"
+        },
+        "parameter": {
+          "title": "Parameter",
+          "type": "string"
+        },
+        "process": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Process"
+        },
+        "data_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Data Source"
+        }
+      },
+      "required": [
+        "building_block",
+        "parameter"
+      ],
+      "title": "EngineBinding",
+      "type": "object"
+    },
+    "FitPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Stage",
+          "type": "array"
+        },
+        "lower": {
+          "title": "Lower",
+          "type": "number"
+        },
+        "upper": {
+          "title": "Upper",
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/Scale",
+          "default": "linear"
+        }
+      },
+      "required": [
+        "lower",
+        "upper"
+      ],
+      "title": "FitPolicy",
+      "type": "object"
+    },
+    "ParameterRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "status": {
+          "$ref": "#/$defs/ParameterStatus"
+        },
+        "fitted_at_stage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fitted At Stage"
+        },
+        "fit_policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FitPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "plausibility": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Plausibility"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "engine_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EngineBinding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "title": "ParameterRecord",
+      "type": "object"
+    },
+    "ParameterStatus": {
+      "enum": [
+        "FIXED",
+        "FITTED",
+        "DERIVED",
+        "PREDICTED",
+        "MISSING"
+      ],
+      "title": "ParameterStatus",
+      "type": "string"
+    },
+    "Plausibility": {
+      "additionalProperties": false,
+      "properties": {
+        "lower": {
+          "title": "Lower",
+          "type": "number"
+        },
+        "upper": {
+          "title": "Upper",
+          "type": "number"
+        },
+        "source": {
+          "default": "",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lower",
+        "upper"
+      ],
+      "title": "Plausibility",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "source_type": {
+          "title": "Source Type",
+          "type": "string"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "supersedes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Supersedes"
+        }
+      },
+      "required": [
+        "source_type"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Scale": {
+      "enum": [
+        "linear",
+        "log"
+      ],
+      "title": "Scale",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "An immutable, versioned parameter document for one compound.",
+  "properties": {
+    "compound": {
+      "minLength": 1,
+      "title": "Compound",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "parameters": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ParameterRecord"
+      },
+      "title": "Parameters",
+      "type": "array"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    }
+  },
+  "required": [
+    "compound"
+  ],
+  "title": "CPF",
+  "type": "object"
+}

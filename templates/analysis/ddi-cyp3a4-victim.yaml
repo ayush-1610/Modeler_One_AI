@@ -1,0 +1,50 @@
+# Analysis Template: victim drug with a CYP3A4-mediated interaction (APP-03).
+# Templates are versioned records; a question of interest pins one template version.
+id: ddi-cyp3a4-victim
+version: 1.0.0-draft
+applies_to: [APP-03]
+status: DRAFT   # becomes APPROVED after PBPK SME + QA sign-off
+
+requires:
+  victim_model:
+    status: EVALUATED
+  perpetrators:
+    library: osp-pbpk-model-library
+    mechanisms: [competitive_inhibition, mechanism_based_inactivation, induction]
+    min_qualification: DDI-CYP3A4
+  inputs:
+    - fm_cyp3a4            # with provenance
+    - observed_ddi_studies # optional; used for model verification when present
+
+steps:
+  - id: static_screen
+    uses: pbpk_domain.ddi_static.screen
+    with: {ruleset: ddi-static-screening@2026.1-draft}
+  - id: build_ddi_snapshots
+    uses: snapshot_builder.merge_victim_perpetrator
+  - id: simulate
+    uses: engine.population
+    with: {n: 1000, arms: [control, ddi]}
+  - id: metrics
+    uses: pbpk_domain.metrics
+    with: {compute: [aucr, cmaxr, guest_within, gmfe], guest_delta: 2}
+  - id: sensitivity
+    uses: engine.sensitivity
+    with: {parameters: [victim.fm_cyp3a4, perpetrator.ki], method: local}
+  - id: evaluation_review
+    uses: gate.review
+    with: {meaning: Reviewed, roles: [scientific_reviewer]}
+
+default_technical_criteria:
+  - metric: guest_within
+    delta: 2
+    threshold: ">= 0.8"   # fraction of observed DDI studies within Guest limits
+  - metric: gmfe
+    parameter: AUCR
+    threshold: "<= 1.25"
+
+report_sections:
+  - data_and_methods.ddi
+  - results.ddi_ratios
+  - results.sensitivity
+  - discussion.ddi

@@ -1,0 +1,82 @@
+# PBPK model acceptance criteria, tiered by ICH M15 model risk.
+#
+# There is no single numeric acceptance limit set by FDA, EMA or PMDA:
+# - EMA/CHMP/458101/2016, Appendix 2: "The acceptance criteria (adequacy of prediction) ... depends on the
+#   regulatory impact and needs to be considered separately for each application."
+# - ICH M15 (Step 4, 29 Jan 2026) §2.2.1 and §3: technical criteria are pre-defined by the sponsor in the
+#   Model Analysis Plan and must be commensurate with model risk.
+# - FDA review practice: predictions within 0.8-1.25-fold of observed AUC and Cmax are the benchmark
+#   repeatedly accepted in recent FDA reviews of DDI submissions (Li, Sun, Zhang. Pharmaceutics
+#   2025;17(11):1413, doi:10.3390/pharmaceutics17111413 - a secondary analysis of FDA review documents).
+#
+# The numbers below are the platform defaults a MAP starts from. status stays UNVERIFIED until PBPK and
+# regulatory SMEs approve them; high-risk uses should be confirmed with the agency (scientific advice /
+# pre-submission meeting). A MAP may tighten any limit; loosening one requires a documented justification.
+id: pbpk-acceptance-criteria
+version: "2026.1-draft"
+status: UNVERIFIED
+
+sources:
+  ema_pbpk_reporting: "EMA Guideline on the reporting of PBPK modelling and simulation, EMA/CHMP/458101/2016 (effective 1 July 2019)"
+  ich_m15: "ICH M15 General Principles for Model-Informed Drug Development, Step 4, 29 January 2026"
+  fda_review_practice: "Li Y, Sun H, Zhang Z. The Evolution and Future Directions of PBPK Modeling in FDA Regulatory Review. Pharmaceutics 2025;17(11):1413"
+  guest_2011: "Guest EJ et al. Assessment of algorithms for predicting drug-drug interactions via inhibition mechanisms. Drug Metab Dispos 2011;39:170-173"
+
+tiers:
+  high:
+    description: "PBPK replaces clinical data or is the key source for labeling (e.g. waiving a DDI study, pediatric dosing without pediatric PK)"
+    pk_parameters:
+      AUC: {max_fold: 1.25, source: fda_review_practice}
+      Cmax: {max_fold: 1.25, source: fda_review_practice}
+    ddi_ratios:
+      AUCR: {max_fold: 1.25, source: fda_review_practice}
+      CmaxR: {max_fold: 1.25, source: fda_review_practice}
+    min_fraction_within: 1.0
+  medium:
+    description: "PBPK supports a decision together with substantial clinical evidence"
+    pk_parameters:
+      AUC: {max_fold: 1.5, source: ema_pbpk_reporting}
+      Cmax: {max_fold: 1.5, source: ema_pbpk_reporting}
+    ddi_ratios:
+      AUCR: {guest_delta: 2, source: guest_2011}
+      CmaxR: {guest_delta: 2, source: guest_2011}
+    min_fraction_within: 0.8
+  low:
+    description: "Exploratory or internal decisions; mechanistic understanding"
+    pk_parameters:
+      AUC: {max_fold: 2.0, source: ema_pbpk_reporting}
+      Cmax: {max_fold: 2.0, source: ema_pbpk_reporting}
+    ddi_ratios:
+      AUCR: {max_fold: 2.0, source: guest_2011}
+      CmaxR: {max_fold: 2.0, source: guest_2011}
+    min_fraction_within: 0.8
+
+# Evidence the report must contain regardless of tier (checked by the report generator).
+evidence_requirements:
+  - id: vpc_percentiles
+    text: "Visual predictive plots of simulated central tendency and variability vs observed data, linear and semi-log, with observed 5th/95th percentiles and 95% confidence intervals around the simulated percentiles"
+    source: "ema_pbpk_reporting App. 2"
+  - id: virtual_population_size
+    text: "Population simulations use more than 100 virtual individuals"
+    source: "ema_pbpk_reporting App. 2"
+    min_individuals: 100
+  - id: pk_parameters_reported
+    text: "Cmax, tmax, t1/2 and AUC compared and poor prediction in any part of the profile discussed"
+    source: "ema_pbpk_reporting App. 2"
+  - id: sensitivity_ranges
+    text: "Worst-case sensitivity ranges pre-specified, e.g. 10-fold for CYP enzymes and 30-fold for transporters"
+    source: "ema_pbpk_reporting §4.7.1"
+    cyp_fold: 10
+    transporter_fold: 30
+  - id: identifiability
+    text: "Estimation method, objective function, error model and identifiability of estimated parameters described"
+    source: "ema_pbpk_reporting §4.4.3"
+  - id: victim_ddi_verification
+    text: "For a victim drug, predict an in vivo DDI study with a known strong inhibitor of the enzyme"
+    source: "ema_pbpk_reporting App. 2 Example 1"
+  - id: executable_model_files
+    text: "Model files used for the final simulations submitted in executable format"
+    source: "ema_pbpk_reporting §4.8; ich_m15 §4.3"
+  - id: platform_version
+    text: "Platform name and version stated; differences between platform versions discussed"
+    source: "ema_pbpk_reporting §4.3 and App. 1"

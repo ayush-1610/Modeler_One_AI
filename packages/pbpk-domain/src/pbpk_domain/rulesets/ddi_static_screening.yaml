@@ -1,0 +1,25 @@
+# Static DDI screening ruleset.
+# status must be SME_APPROVED before GxP use. Every number below has to be checked by clinical
+# pharmacology against the adopted ICH M12 "Drug Interaction Studies" text; the values are the
+# commonly cited basic-model cut-offs and are NOT yet verified for this platform.
+id: ddi-static-screening
+version: "2026.1-draft"
+status: UNVERIFIED
+source: "ICH M12 Drug Interaction Studies (Step 4) - basic static models; verify section/table references"
+models:
+  reversible_inhibition:
+    cutoff: 1.02
+    flag_when: ">="
+  reversible_inhibition_gut:
+    cutoff: 11
+    flag_when: ">="
+    gut_volume_l: 0.25
+  time_dependent_inhibition:
+    cutoff: 1.25
+    flag_when: ">="
+    imax_multiplier: 5
+  induction:
+    cutoff: 0.8
+    flag_when: "<="
+    imax_multiplier: 10
+    d: 1.0

@@ -1,0 +1,18 @@
+[project]
+name = "pbpk-domain"
+version = "0.1.0"
+description = "Deterministic PBPK domain logic for Modeler One: PK-Sim snapshot models and builder, evaluation metrics, DDI screening, VBE statistics, ICH M15 rules"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.11",
+  "numpy>=2.0",
+  "scipy>=1.14",
+  "pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pbpk_domain"]

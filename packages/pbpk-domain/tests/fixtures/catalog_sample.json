@@ -1,0 +1,62 @@
+{
+  "engine": {
+    "ospsuite": "12.4.4",
+    "parameter_identification": "2.2.0",
+    "rSharp": "1.2.2",
+    "r_version": "R version 4.6.1 (2026-06-24)",
+    "platform": "x86_64-conda-linux-gnu",
+    "harvested_at": "2026-09-15T17:30:00+0000",
+    "snapshot_version": 80
+  },
+  "dimensions": [
+    {"name": "Concentration (mass)", "base_unit": null, "units": ["g/l", "mg/l", "µg/l", "ng/l", "pg/l", "mg/dl", "mg/ml", "µg/ml", "ng/ml", "pg/ml", "kg/l"]},
+    {"name": "Molecular weight", "base_unit": null, "units": ["kg/µmol", "kg/mol", "kDa", "g/mol"]},
+    {"name": "Log Units", "base_unit": null, "units": ["Log Units"]},
+    {"name": "Solubility", "base_unit": null, "units": ["mg/ml", "mg/l", "g/l", "µg/ml"]},
+    {"name": "Permeability", "base_unit": null, "units": ["cm/min", "dm/min", "cm/s"]},
+    {"name": "CLspecific per enzyme concentration", "base_unit": null, "units": ["l/µmol/min", "ml/µmol/min"]},
+    {"name": "Dose", "base_unit": null, "units": ["mg", "g", "µg", "kg"]},
+    {"name": "Time", "base_unit": null, "units": ["min", "h", "s", "day(s)"]},
+    {"name": "Amount", "base_unit": null, "units": ["mol", "mmol", "µmol", "nmol", "pmol"]},
+    {"name": "Fraction", "base_unit": null, "units": ["", "%"]},
+    {"name": "Dimensionless", "base_unit": null, "units": [""]}
+  ],
+  "pk_parameters": ["C_max", "C_max_norm", "t_max", "C_tEnd", "AUC_inf", "AUC_tEnd", "AUC_inf_norm", "t_half", "MRT", "CL", "Vss", "Vd"],
+  "species": ["Human", "Dog", "Rat", "Mouse", "Monkey", "Rabbit", "Minipig"],
+  "populations": {
+    "Human": ["European_ICRP_2002", "White_American_NHANES_1997", "BlackAmerican_NHANES_1997", "MexicanAmericanWhite_NHANES_1997", "Asian_Tanaka_1996", "Preterm", "Pregnant"]
+  },
+  "process_types": [
+    {"internal_name": "MetabolizationSpecific_FirstOrder", "kind": null, "parameters": [{"name": "Enzyme concentration", "unit": "µmol/l"}, {"name": "Specific clearance", "unit": "l/µmol/min"}, {"name": "CLspec/[Enzyme]", "unit": "l/µmol/min"}], "seen_in": ["Dapagliflozin-Model"]},
+    {"internal_name": "MetabolizationLiverMicrosomes_MM", "kind": null, "parameters": [{"name": "In vitro Vmax for liver microsomes", "unit": "µmol/l/min"}, {"name": "Km", "unit": "µmol/l"}, {"name": "kcat", "unit": "1/min"}], "seen_in": ["Midazolam-Model"]},
+    {"internal_name": "SpecificBinding", "kind": null, "parameters": [{"name": "koff", "unit": "1/min"}, {"name": "Kd", "unit": "µmol/l"}], "seen_in": ["Midazolam-Model"]},
+    {"internal_name": "GlomerularFiltration", "kind": null, "parameters": [{"name": "GFR fraction", "unit": null}], "seen_in": ["Dapagliflozin-Model", "Midazolam-Model", "example_snapshot"]}
+  ],
+  "formulation_types": [
+    {"internal_name": "Formulation_Dissolved", "parameters": [], "seen_in": ["example_snapshot"]},
+    {"internal_name": "Formulation_Tablet_Weibull", "parameters": [{"name": "Dissolution time (50% dissolved)", "unit": "min"}, {"name": "Lag time", "unit": "min"}, {"name": "Dissolution shape", "unit": null}, {"name": "Use as suspension", "unit": null}], "seen_in": ["Dapagliflozin-Model"]}
+  ],
+  "calculation_methods": {
+    "compound": ["Cellular partition coefficient method - Rodgers and Rowland", "Cellular permeability - PK-Sim Standard"],
+    "individual": ["SurfaceAreaPlsInt_VAR1", "Body surface area - Mosteller"]
+  },
+  "expression_types": [
+    {"type": "Enzyme", "fields": ["Type", "Species", "Molecule", "Category", "Localization"], "seen_in": ["Midazolam-Model"]},
+    {"type": "Transporter", "fields": ["Type", "Species", "Molecule", "Category", "TransporterType", "Localization"], "seen_in": ["Dapagliflozin-Model"]}
+  ],
+  "event_templates": [
+    {"name": "Meal", "seen_in": ["Itraconazole-Model"]}
+  ],
+  "process_selection_naming": [
+    {"internal_name": null, "name": "UGT1A9-Optimized", "molecule": "UGT1A9", "data_source": "Optimized", "systemic_process_type": null, "matches_molecule_dash_source": true, "seen_in": "Dapagliflozin-Model"},
+    {"internal_name": null, "name": "Hepatic-CYP-Optimized", "molecule": "Hepatic-CYP", "data_source": "Optimized", "systemic_process_type": null, "matches_molecule_dash_source": true, "seen_in": "Dapagliflozin-Model"},
+    {"internal_name": null, "name": "Glomerular Filtration-assumed", "molecule": null, "data_source": null, "systemic_process_type": "GFR", "matches_molecule_dash_source": false, "seen_in": "Dapagliflozin-Model"}
+  ],
+  "fixtures": [
+    {"name": "Dapagliflozin-Model", "file": "Dapagliflozin-Model.json", "sha256": "0000000000000000000000000000000000000000000000000000000000000001", "version": 80, "roundtrip_ok": true},
+    {"name": "Midazolam-Model", "file": "Midazolam-Model.json", "sha256": "0000000000000000000000000000000000000000000000000000000000000002", "version": 80, "roundtrip_ok": true},
+    {"name": "Itraconazole-Model", "file": "Itraconazole-Model.json", "sha256": "0000000000000000000000000000000000000000000000000000000000000003", "version": 80, "roundtrip_ok": true},
+    {"name": "Rifampicin-Model", "file": "Rifampicin-Model.json", "sha256": "0000000000000000000000000000000000000000000000000000000000000004", "version": 80, "roundtrip_ok": true}
+  ],
+  "unresolved": []
+}

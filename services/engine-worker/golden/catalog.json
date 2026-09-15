@@ -1,0 +1,1634 @@
+{
+  "engine": {
+    "ospsuite": "12.4.4",
+    "parameter_identification": "2.2.0",
+    "rSharp": "1.2.2",
+    "r_version": "R version 4.6.1 (2026-06-24)",
+    "platform": "x86_64-conda-linux-gnu",
+    "harvested_at": "2026-09-15T18:28:25+0000",
+    "snapshot_version": 80
+  },
+  "dimensions": [
+    {
+      "name": "Abundance per mass protein",
+      "base_unit": null,
+      "units": [
+        "pmol/mg mic. protein",
+        "nmol/mg mic. protein",
+        "µmol/mg mic. protein",
+        "µmol/kg mic. protein"
+      ]
+    },
+    {
+      "name": "Abundance per tissue",
+      "base_unit": null,
+      "units": [
+        "pmol/g tissue",
+        "nmol/g tissue",
+        "µmol/g tissue",
+        "µmol/kg tissue"
+      ]
+    },
+    {
+      "name": "Age in weeks",
+      "base_unit": null,
+      "units": [
+        "week(s)",
+        "year(s)",
+        "month(s)",
+        "day(s)"
+      ]
+    },
+    {
+      "name": "Age in years",
+      "base_unit": null,
+      "units": [
+        "year(s)",
+        "month(s)",
+        "week(s)",
+        "day(s)"
+      ]
+    },
+    {
+      "name": "Amount",
+      "base_unit": null,
+      "units": [
+        "mol",
+        "mmol",
+        "µmol",
+        "nmol",
+        "pmol"
+      ]
+    },
+    {
+      "name": "Amount per area",
+      "base_unit": null,
+      "units": [
+        "µmol/µm²",
+        "µmol/mm²",
+        "µmol/cm²",
+        "µmol/dm²",
+        "nmol/µm²",
+        "nmol/mm²",
+        "nmol/cm²",
+        "nmol/dm²"
+      ]
+    },
+    {
+      "name": "Amount per area per time",
+      "base_unit": null,
+      "units": [
+        "µmol/cm²/h",
+        "mmol/cm²/h",
+        "mmol/m²/h",
+        "µmol/dm²/min"
+      ]
+    },
+    {
+      "name": "Amount per time",
+      "base_unit": null,
+      "units": [
+        "mmol/s",
+        "mmol/min",
+        "mmol/h",
+        "mmol/day(s)",
+        "µmol/s",
+        "µmol/min",
+        "µmol/h",
+        "µmol/day(s)",
+        "nmol/s",
+        "nmol/min",
+        "nmol/h",
+        "nmol/day(s)",
+        "pmol/s",
+        "pmol/min",
+        "pmol/h",
+        "pmol/day(s)"
+      ]
+    },
+    {
+      "name": "Ampere",
+      "base_unit": null,
+      "units": [
+        "A"
+      ]
+    },
+    {
+      "name": "Area",
+      "base_unit": null,
+      "units": [
+        "dm²",
+        "cm²",
+        "m²"
+      ]
+    },
+    {
+      "name": "Area per amount per time",
+      "base_unit": null,
+      "units": [
+        "dm²/µmol/min",
+        "cm²/µmol/s",
+        "µm²/µmol/s",
+        "m²/mol/s"
+      ]
+    },
+    {
+      "name": "AUC (mass)",
+      "base_unit": null,
+      "units": [
+        "mg*h/ml",
+        "µg*h/ml",
+        "ng*h/ml",
+        "pg*h/ml",
+        "mg*h/l",
+        "µg*h/l",
+        "ng*h/l",
+        "pg*h/l",
+        "mg*min/ml",
+        "µg*min/ml",
+        "ng*min/ml",
+        "pg*min/ml",
+        "mg*min/l",
+        "µg*min/l",
+        "ng*min/l",
+        "pg*min/l",
+        "kg*min/l",
+        "kg*h/l",
+        "kg*h/ml",
+        "kg*min/ml"
+      ]
+    },
+    {
+      "name": "AUC (molar)",
+      "base_unit": null,
+      "units": [
+        "mmol*h/ml",
+        "µmol*h/ml",
+        "nmol*h/ml",
+        "pmol*h/ml",
+        "mmol*h/l",
+        "µmol*h/l",
+        "nmol*h/l",
+        "pmol*h/l",
+        "mmol*min/ml",
+        "µmol*min/ml",
+        "nmol*min/ml",
+        "pmol*min/ml",
+        "µmol*min/l",
+        "mmol*min/l",
+        "nmol*min/l",
+        "pmol*min/l"
+      ]
+    },
+    {
+      "name": "AUCM (molar)",
+      "base_unit": null,
+      "units": [
+        "mmol*h²/ml",
+        "µmol*h²/ml",
+        "nmol*h²/ml",
+        "pmol*h²/ml",
+        "mmol*h²/l",
+        "µmol*h²/l",
+        "nmol*h²/l",
+        "pmol*h²/l",
+        "mmol*min²/ml",
+        "µmol*min²/ml",
+        "nmol*min²/ml",
+        "pmol*min²/ml",
+        "µmol*min²/l",
+        "mmol*min²/l",
+        "nmol*min²/l",
+        "pmol*min²/l"
+      ]
+    },
+    {
+      "name": "Becquerel",
+      "base_unit": null,
+      "units": [
+        "Bq",
+        "1/min",
+        "1/h",
+        "1/s"
+      ]
+    },
+    {
+      "name": "BMI",
+      "base_unit": null,
+      "units": [
+        "kg/m²",
+        "kg/dm²"
+      ]
+    },
+    {
+      "name": "Candela",
+      "base_unit": null,
+      "units": [
+        "cd"
+      ]
+    },
+    {
+      "name": "CL per mass protein",
+      "base_unit": null,
+      "units": [
+        "pl/min/mg mic. protein",
+        "nl/min/mg mic. protein",
+        "µl/min/mg mic. protein",
+        "l/min/kg mic. protein"
+      ]
+    },
+    {
+      "name": "CL per recombinant enzyme",
+      "base_unit": null,
+      "units": [
+        "µl/min/pmol rec. enzyme",
+        "ml/min/pmol rec. enzyme",
+        "l/min/µmol rec. enzyme"
+      ]
+    },
+    {
+      "name": "Compliance",
+      "base_unit": null,
+      "units": [
+        "ml/mmHg",
+        "ml/Pa",
+        "ml/(N/m²)",
+        "ml/(dyn/cm²)",
+        "ml/(kg/(m*s²))",
+        "l/(kg/(dm*min²))"
+      ]
+    },
+    {
+      "name": "Compliance (Area)",
+      "base_unit": null,
+      "units": [
+        "cm²/mmHg",
+        "cm²/Pa",
+        "cm²/(N/m²)",
+        "cm²/(dyn/cm²)",
+        "cm²/(kg/(m*s²))",
+        "dm²/(kg/(dm*min²))"
+      ]
+    },
+    {
+      "name": "Concentration (mass)",
+      "base_unit": null,
+      "units": [
+        "g/l",
+        "mg/l",
+        "µg/l",
+        "ng/l",
+        "pg/l",
+        "mg/dl",
+        "mg/ml",
+        "µg/ml",
+        "ng/ml",
+        "pg/ml",
+        "kg/l"
+      ]
+    },
+    {
+      "name": "Concentration (molar)",
+      "base_unit": null,
+      "units": [
+        "mol/l",
+        "mmol/l",
+        "µmol/l",
+        "nmol/l",
+        "pmol/l",
+        "fmol/l",
+        "M",
+        "mM",
+        "µM",
+        "nM",
+        "pM",
+        "fM",
+        "mol/ml",
+        "mmol/ml",
+        "µmol/ml",
+        "nmol/ml",
+        "pmol/ml",
+        "fmol/ml"
+      ]
+    },
+    {
+      "name": "Concentration (molar) per time",
+      "base_unit": null,
+      "units": [
+        "µmol/l/min",
+        "mol/l/s",
+        "mmol/l/s",
+        "µmol/l/s",
+        "nmol/l/s",
+        "pmol/l/s",
+        "µmol/ml/min",
+        "nmol/ml/min",
+        "pmol/ml/min"
+      ]
+    },
+    {
+      "name": "Coulomb",
+      "base_unit": null,
+      "units": [
+        "C",
+        "A*min",
+        "A*s",
+        "A*h"
+      ]
+    },
+    {
+      "name": "Count",
+      "base_unit": null,
+      "units": [
+        "#",
+        "x10^6"
+      ]
+    },
+    {
+      "name": "Count per mass",
+      "base_unit": null,
+      "units": [
+        "x10^6/g",
+        "x10^6/kg"
+      ]
+    },
+    {
+      "name": "Count per volume",
+      "base_unit": null,
+      "units": [
+        "x10^6/ml",
+        "1/nl",
+        "x10^6/l",
+        "1/µl"
+      ]
+    },
+    {
+      "name": "CV mmHg*s²/ml",
+      "base_unit": null,
+      "units": [
+        "(kg/dm)/l",
+        "mmHg*s²/ml"
+      ]
+    },
+    {
+      "name": "CV Viscosity",
+      "base_unit": null,
+      "units": [
+        "kg/(dm*min)",
+        "s*mmHg"
+      ]
+    },
+    {
+      "name": "CV Viscosity per Volume",
+      "base_unit": null,
+      "units": [
+        "(kg/(dm*min))/l",
+        "s*mmHg/ml"
+      ]
+    },
+    {
+      "name": "Density",
+      "base_unit": null,
+      "units": [
+        "g/cm³",
+        "kg/m³",
+        "kg/dm³"
+      ]
+    },
+    {
+      "name": "Diffusion coefficient",
+      "base_unit": null,
+      "units": [
+        "cm²/min",
+        "cm²/s",
+        "dm²/min",
+        "m²/s"
+      ]
+    },
+    {
+      "name": "Dimensionless",
+      "base_unit": null,
+      "units": [
+        ""
+      ]
+    },
+    {
+      "name": "Dose per body surface area",
+      "base_unit": null,
+      "units": [
+        "mg/m²",
+        "kg/dm²",
+        "µg/cm²",
+        "mg/cm²"
+      ]
+    },
+    {
+      "name": "Dose per body weight",
+      "base_unit": null,
+      "units": [
+        "ng/kg",
+        "µg/kg",
+        "mg/kg",
+        "g/kg",
+        "kg/kg"
+      ]
+    },
+    {
+      "name": "Elastance",
+      "base_unit": null,
+      "units": [
+        "mmHg/ml",
+        "(kg/(dm*min²))/l",
+        "Pa/ml",
+        "(N/m²)/ml",
+        "(dyn/cm²)/ml",
+        "(kg/(m*s²))/ml"
+      ]
+    },
+    {
+      "name": "Energy",
+      "base_unit": null,
+      "units": [
+        "kcal",
+        "cal",
+        "kg*dm²/min²",
+        "J",
+        "kJ"
+      ]
+    },
+    {
+      "name": "Farad",
+      "base_unit": null,
+      "units": [
+        "F",
+        "s/Ohm",
+        "min/Ohm",
+        "(A²*s^4)/(kg*m²)",
+        "(A²*min^4)/(kg*dm²)"
+      ]
+    },
+    {
+      "name": "Flow",
+      "base_unit": null,
+      "units": [
+        "l/h",
+        "l/min",
+        "l/s",
+        "ml/h",
+        "ml/min",
+        "ml/s"
+      ]
+    },
+    {
+      "name": "Flow per body surface area",
+      "base_unit": null,
+      "units": [
+        "l/min/dm²",
+        "ml/min/1.73m²"
+      ]
+    },
+    {
+      "name": "Flow per weight",
+      "base_unit": null,
+      "units": [
+        "l/min/kg",
+        "l/h/kg",
+        "ml/min/kg",
+        "ml/h/kg"
+      ]
+    },
+    {
+      "name": "Flow per weight organ",
+      "base_unit": null,
+      "units": [
+        "ml/min/100g organ",
+        "ml/min/g organ",
+        "ml/min/kg organ",
+        "l/h/100g organ",
+        "l/h/g organ",
+        "l/h/kg organ",
+        "l/min/kg organ"
+      ]
+    },
+    {
+      "name": "Flow²",
+      "base_unit": null,
+      "units": [
+        "(l/min)²",
+        "(ml/min)²",
+        "(l/h)²",
+        "(ml/h)²"
+      ]
+    },
+    {
+      "name": "Fraction",
+      "base_unit": null,
+      "units": [
+        "",
+        "%"
+      ]
+    },
+    {
+      "name": "Gray",
+      "base_unit": null,
+      "units": [
+        "Gy",
+        "J/kg",
+        "m²/s²",
+        "dm²/min²"
+      ]
+    },
+    {
+      "name": "Henry",
+      "base_unit": null,
+      "units": [
+        "H",
+        "Wb/A",
+        "Ohm*s",
+        "Ohm*min",
+        "(kg*m²)/(A²*s²)",
+        "(kg*dm²)/(A²*min²)"
+      ]
+    },
+    {
+      "name": "Hertz",
+      "base_unit": null,
+      "units": [
+        "Hz",
+        "1/min",
+        "1/s",
+        "1/h"
+      ]
+    },
+    {
+      "name": "Hydraulic conductivity",
+      "base_unit": null,
+      "units": [
+        "l/min/(kg*dm/min²)",
+        "ml/min/N"
+      ]
+    },
+    {
+      "name": "Inversed area",
+      "base_unit": null,
+      "units": [
+        "1/µm²",
+        "1/mm²",
+        "1/cm²",
+        "1/dm²"
+      ]
+    },
+    {
+      "name": "Inversed concentration (molar)",
+      "base_unit": null,
+      "units": [
+        "l/mol",
+        "l/mmol",
+        "l/µmol",
+        "l/nmol",
+        "l/pmol",
+        "l/fmol",
+        "1/M",
+        "1/mM",
+        "1/µM",
+        "1/nM",
+        "1/pM",
+        "1/fM",
+        "ml/mol",
+        "ml/mmol",
+        "ml/µmol",
+        "ml/nmol",
+        "ml/pmol",
+        "ml/fmol"
+      ]
+    },
+    {
+      "name": "Inversed length",
+      "base_unit": null,
+      "units": [
+        "1/cm",
+        "1/dm",
+        "1/m"
+      ]
+    },
+    {
+      "name": "Inversed mol",
+      "base_unit": null,
+      "units": [
+        "1/µmol",
+        "1/mol"
+      ]
+    },
+    {
+      "name": "Inversed time",
+      "base_unit": null,
+      "units": [
+        "1/min",
+        "1/h",
+        "1/s"
+      ]
+    },
+    {
+      "name": "Inversed volume",
+      "base_unit": null,
+      "units": [
+        "1/l",
+        "1/ml",
+        "1/µl"
+      ]
+    },
+    {
+      "name": "Joule",
+      "base_unit": null,
+      "units": [
+        "J",
+        "N*m",
+        "N*dm",
+        "V*A*s",
+        "V*A*min",
+        "C*V",
+        "W*s",
+        "W*min",
+        "(kg*m²)/s²",
+        "(kg*dm²)/min²"
+      ]
+    },
+    {
+      "name": "Katal",
+      "base_unit": null,
+      "units": [
+        "kat",
+        "mol/min",
+        "mol/s",
+        "mol/h",
+        "µmol/min"
+      ]
+    },
+    {
+      "name": "Kelvin",
+      "base_unit": null,
+      "units": [
+        "K"
+      ]
+    },
+    {
+      "name": "Length",
+      "base_unit": null,
+      "units": [
+        "m",
+        "dm",
+        "cm",
+        "mm",
+        "µm",
+        "nm",
+        "pm"
+      ]
+    },
+    {
+      "name": "Log Units",
+      "base_unit": null,
+      "units": [
+        "Log Units"
+      ]
+    },
+    {
+      "name": "Lumen",
+      "base_unit": null,
+      "units": [
+        "lm",
+        "cd*sr"
+      ]
+    },
+    {
+      "name": "Lux",
+      "base_unit": null,
+      "units": [
+        "lx",
+        "lm/m²",
+        "lm/dm²",
+        "(cd*sr)/m²",
+        "(cd*sr)/dm²",
+        "(cd*sr)/cm²"
+      ]
+    },
+    {
+      "name": "Mass",
+      "base_unit": null,
+      "units": [
+        "kg",
+        "g",
+        "mg",
+        "µg",
+        "ng",
+        "pg"
+      ]
+    },
+    {
+      "name": "Mass per area",
+      "base_unit": null,
+      "units": [
+        "µg/cm²",
+        "mg/cm²",
+        "mg/m²",
+        "kg/dm²"
+      ]
+    },
+    {
+      "name": "Mass per area per time",
+      "base_unit": null,
+      "units": [
+        "µg/cm²/h",
+        "mg/cm²/h",
+        "mg/m²/h",
+        "kg/dm²/min"
+      ]
+    },
+    {
+      "name": "Mass per time",
+      "base_unit": null,
+      "units": [
+        "kg/min",
+        "g/min",
+        "mg/min",
+        "µg/min",
+        "ng/min",
+        "pg/min",
+        "kg/s",
+        "g/s",
+        "mg/s",
+        "µg/s",
+        "ng/s",
+        "pg/s"
+      ]
+    },
+    {
+      "name": "Mass per tissue",
+      "base_unit": null,
+      "units": [
+        "mg/g",
+        "kg/kg"
+      ]
+    },
+    {
+      "name": "Molecular weight",
+      "base_unit": null,
+      "units": [
+        "kg/µmol",
+        "kg/mol",
+        "kDa",
+        "g/mol"
+      ]
+    },
+    {
+      "name": "Newton",
+      "base_unit": null,
+      "units": [
+        "(kg*dm)/min²",
+        "N",
+        "(kg*cm)/s²",
+        "(g*cm)/s²"
+      ]
+    },
+    {
+      "name": "Ohm",
+      "base_unit": null,
+      "units": [
+        "Ohm",
+        "V/A",
+        "(kg*m²)/(A²*s³)",
+        "(kg*dm²)/(A²*min³)"
+      ]
+    },
+    {
+      "name": "Pressure",
+      "base_unit": null,
+      "units": [
+        "mmHg",
+        "Pa",
+        "N/m²",
+        "dyn/cm²",
+        "kg/(m*s²)",
+        "kg/(dm*min²)"
+      ]
+    },
+    {
+      "name": "Radian",
+      "base_unit": null,
+      "units": [
+        "rad",
+        "dm/dm",
+        "m/m"
+      ]
+    },
+    {
+      "name": "Resistance",
+      "base_unit": null,
+      "units": [
+        "mmHg*s/ml",
+        "Pa*s/ml",
+        "N/m²*s/ml",
+        "dyn/cm²*s/ml",
+        "kg/(m*s²)*s/ml",
+        "W",
+        "HRU",
+        "MPa*s/m³",
+        "Pa*s/m³",
+        "kg/(dm*min²)*s/m³",
+        "dyn*s*cm−5",
+        "kg/(dm*min²)*min/l"
+      ]
+    },
+    {
+      "name": "Resolution",
+      "base_unit": null,
+      "units": [
+        "pts/s",
+        "pts/min",
+        "pts/h",
+        "pts/day"
+      ]
+    },
+    {
+      "name": "RT",
+      "base_unit": null,
+      "units": [
+        "N*cm/mol",
+        "(kg*dm/min²)*dm/µmol"
+      ]
+    },
+    {
+      "name": "Second order rate constant",
+      "base_unit": null,
+      "units": [
+        "l/mol/h",
+        "l/mmol/h",
+        "l/µmol/h",
+        "l/nmol/h",
+        "l/pmol/h",
+        "l/mol/min",
+        "l/mmol/min",
+        "l/µmol/min",
+        "l/nmol/min",
+        "l/pmol/min",
+        "l/mol/s",
+        "l/mmol/s",
+        "l/µmol/s",
+        "l/nmol/s",
+        "l/pmol/s"
+      ]
+    },
+    {
+      "name": "Siemens",
+      "base_unit": null,
+      "units": [
+        "S",
+        "A/V",
+        "(A²*s³)/(kg*m²)",
+        "(A²*min³)/(kg*dm²)"
+      ]
+    },
+    {
+      "name": "Sievert",
+      "base_unit": null,
+      "units": [
+        "Sv",
+        "J/kg",
+        "dm²/min²",
+        "m²/s²"
+      ]
+    },
+    {
+      "name": "Slope",
+      "base_unit": null,
+      "units": [
+        "ml/mmHg/m²",
+        "ml/(kg/(dm*min²))/m²",
+        "l/(kg/(dm*min²))/dm²"
+      ]
+    },
+    {
+      "name": "Steradian",
+      "base_unit": null,
+      "units": [
+        "sr",
+        "dm²/dm²",
+        "m²/m²"
+      ]
+    },
+    {
+      "name": "Temperature",
+      "base_unit": null,
+      "units": [
+        "°C",
+        "°F",
+        "K"
+      ]
+    },
+    {
+      "name": "Tesla",
+      "base_unit": null,
+      "units": [
+        "T",
+        "(V*s)/m²",
+        "(V*min)/dm²",
+        "kg/(A*min²)",
+        "kg/(A*s²)"
+      ]
+    },
+    {
+      "name": "Time",
+      "base_unit": null,
+      "units": [
+        "s",
+        "min",
+        "h",
+        "day(s)",
+        "week(s)",
+        "month(s)",
+        "year(s)",
+        "ks"
+      ]
+    },
+    {
+      "name": "Time²",
+      "base_unit": null,
+      "units": [
+        "s²",
+        "min²",
+        "h²"
+      ]
+    },
+    {
+      "name": "Velocity",
+      "base_unit": null,
+      "units": [
+        "cm/min",
+        "cm/s",
+        "dm/min"
+      ]
+    },
+    {
+      "name": "Viscosity",
+      "base_unit": null,
+      "units": [
+        "s/ml",
+        "min/ml",
+        "min/l"
+      ]
+    },
+    {
+      "name": "Vmax per mass protein",
+      "base_unit": null,
+      "units": [
+        "pmol/min/mg mic. protein",
+        "nmol/min/mg mic. protein",
+        "µmol/min/mg mic. protein",
+        "µmol/min/kg mic. protein"
+      ]
+    },
+    {
+      "name": "Vmax per recombinant enzyme",
+      "base_unit": null,
+      "units": [
+        "nmol/min/pmol rec. enzyme",
+        "pmol/min/pmol rec. enzyme",
+        "µmol/min/µmol rec. enzyme"
+      ]
+    },
+    {
+      "name": "Vmax per transporter",
+      "base_unit": null,
+      "units": [
+        "nmol/min/pmol transporter",
+        "pmol/min/pmol transporter",
+        "µmol/min/µmol transporter"
+      ]
+    },
+    {
+      "name": "Vmax per weight organ tissue",
+      "base_unit": null,
+      "units": [
+        "µmol/min/kg tissue",
+        "µmol/min/g tissue",
+        "nmol/min/g tissue",
+        "pmol/min/g tissue"
+      ]
+    },
+    {
+      "name": "Volt",
+      "base_unit": null,
+      "units": [
+        "V",
+        "W/A",
+        "J/C",
+        "(N*m)/(A*s)",
+        "(N*dm)/(A*min)",
+        "(kg*m²)/(A*s³)",
+        "(kg*dm²)/(A*min³)"
+      ]
+    },
+    {
+      "name": "Volume",
+      "base_unit": null,
+      "units": [
+        "l",
+        "ml",
+        "µl"
+      ]
+    },
+    {
+      "name": "Volume per body weight",
+      "base_unit": null,
+      "units": [
+        "l/kg",
+        "ml/kg",
+        "µl/kg"
+      ]
+    },
+    {
+      "name": "Watt",
+      "base_unit": null,
+      "units": [
+        "W",
+        "J/s",
+        "J/min",
+        "V*A",
+        "(kg*dm²)/min³",
+        "(kg*m²)/s³",
+        "(g*cm²)/s³"
+      ]
+    },
+    {
+      "name": "Weber",
+      "base_unit": null,
+      "units": [
+        "Wb",
+        "V*s",
+        "V*min",
+        "(kg*dm²)/(A*min²)",
+        "(kg*m²)/(A*s²)"
+      ]
+    }
+  ],
+  "pk_parameters": [
+    "C_max",
+    "C_max_norm",
+    "C_max_tD1_tD2",
+    "C_max_tD1_tD2_norm",
+    "C_max_tDLast_tEnd",
+    "C_max_tDLast_tEnd_norm",
+    "t_max",
+    "t_max_tD1_tD2",
+    "t_max_tDLast_tEnd",
+    "C_tEnd",
+    "C_trough_tD2",
+    "C_trough_tDLast",
+    "AUC_tEnd",
+    "AUC_tEnd_norm",
+    "AUC_inf",
+    "AUC_inf_norm",
+    "AUC_tD1_tD2",
+    "AUC_tD1_tD2_norm",
+    "AUC_tDLast_minus_1_tDLast",
+    "AUC_tDLast_minus_1_tDLast_norm",
+    "AUC_inf_tD1",
+    "AUC_inf_tD1_norm",
+    "AUC_inf_tDLast",
+    "AUC_inf_tDLast_norm",
+    "MRT",
+    "Thalf",
+    "Thalf_tDLast_tEnd",
+    "FractionAucLastToInf",
+    "CL",
+    "Vss",
+    "Vd"
+  ],
+  "species": [
+    "Beagle",
+    "Dog",
+    "Human",
+    "Minipig",
+    "Monkey",
+    "Mouse",
+    "Rabbit",
+    "Rat"
+  ],
+  "populations": {
+    "Human": [
+      "Asian_Tanaka_1996",
+      "BlackAmerican_NHANES_1997",
+      "European_ICRP_2002",
+      "Japanese_Population",
+      "MexicanAmericanWhite_NHANES_1997",
+      "Pregnant",
+      "Preterm",
+      "WhiteAmerican_NHANES_1997"
+    ]
+  },
+  "process_types": [
+    {
+      "internal_name": "MetabolizationSpecific_FirstOrder",
+      "kind": null,
+      "parameters": [
+        {
+          "name": "Enzyme concentration",
+          "unit": "µmol/l"
+        },
+        {
+          "name": "Specific clearance",
+          "unit": "1/min"
+        },
+        {
+          "name": "CLspec/[Enzyme]",
+          "unit": "l/µmol/min"
+        }
+      ],
+      "seen_in": [
+        "Dapagliflozin-Model",
+        "example_snapshot"
+      ]
+    },
+    {
+      "internal_name": "GlomerularFiltration",
+      "kind": null,
+      "parameters": [
+        {
+          "name": "GFR fraction",
+          "unit": null
+        }
+      ],
+      "seen_in": [
+        "Dapagliflozin-Model",
+        "Itraconazole-Model",
+        "Midazolam-Model",
+        "Rifampicin-Model",
+        "example_snapshot"
+      ]
+    },
+    {
+      "internal_name": "rCYP450_MM",
+      "kind": null,
+      "parameters": [
+        {
+          "name": "In vitro Vmax/recombinant enzyme",
+          "unit": "pmol/min/pmol rec. enzyme"
+        },
+        {
+          "name": "Km",
+          "unit": "nmol/l"
+        },
+        {
+          "name": "kcat",
+          "unit": "1/min"
+        }
+      ],
+      "seen_in": [
+        "Itraconazole-Model"
+      ]
+    },
+    {
+      "internal_name": "CompetitiveInhibition",
+      "kind": null,
+      "parameters": [
+        {
+          "name": "Ki",
+          "unit": "nmol/l"
+        }
+      ],
+      "seen_in": [
+        "Itraconazole-Model",
+        "Rifampicin-Model"
+      ]
+    },
+    {
+      "internal_name": "SpecificBinding",
+      "kind": null,
+      "parameters": [
+        {
+          "name": "koff",
+          "unit": "1/min"
+        },
+        {
+          "name": "Kd",
+          "unit": "nmol/l"
+        }
+      ],
+      "seen_in": [
+        "Midazolam-Model"
+      ]
+    },
+    {
+      "internal_name": "MetabolizationLiverMicrosomes_MM",
+      "kind": null,
+      "parameters": [
+        {
+          "name": "In vitro Vmax for liver microsomes",
+          "unit": "pmol/min/mg mic. protein"
+        },
+        {
+          "name": "Km",
+          "unit": "µmol/l"
+        },
+        {
+          "name": "kcat",
+          "unit": "1/min"
+        }
+      ],
+      "seen_in": [
+        "Midazolam-Model"
+      ]
+    },
+    {
+      "internal_name": "MetabolizationSpecific_MM",
+      "kind": null,
+      "parameters": [
+        {
+          "name": "Enzyme concentration",
+          "unit": "µmol/l"
+        },
+        {
+          "name": "Vmax",
+          "unit": "µmol/l/min"
+        },
+        {
+          "name": "Km",
+          "unit": "µmol/l"
+        },
+        {
+          "name": "kcat",
+          "unit": "1/min"
+        }
+      ],
+      "seen_in": [
+        "Rifampicin-Model"
+      ]
+    },
+    {
+      "internal_name": "ActiveTransportSpecific_MM",
+      "kind": null,
+      "parameters": [
+        {
+          "name": "Transporter concentration",
+          "unit": "nmol/l"
+        },
+        {
+          "name": "Vmax",
+          "unit": "µmol/l/min"
+        },
+        {
+          "name": "Km",
+          "unit": "µmol/l"
+        },
+        {
+          "name": "kcat",
+          "unit": "1/min"
+        }
+      ],
+      "seen_in": [
+        "Rifampicin-Model"
+      ]
+    },
+    {
+      "internal_name": "Induction",
+      "kind": null,
+      "parameters": [
+        {
+          "name": "EC50",
+          "unit": "µmol/l"
+        },
+        {
+          "name": "Emax",
+          "unit": null
+        }
+      ],
+      "seen_in": [
+        "Rifampicin-Model"
+      ]
+    }
+  ],
+  "formulation_types": [
+    {
+      "internal_name": "Formulation_Dissolved",
+      "parameters": [],
+      "seen_in": [
+        "Dapagliflozin-Model",
+        "Itraconazole-Model",
+        "Midazolam-Model",
+        "Rifampicin-Model",
+        "example_snapshot"
+      ]
+    },
+    {
+      "internal_name": "Formulation_Tablet_Weibull",
+      "parameters": [
+        {
+          "name": "Dissolution time (50% dissolved)",
+          "unit": "min"
+        },
+        {
+          "name": "Lag time",
+          "unit": "min"
+        },
+        {
+          "name": "Dissolution shape",
+          "unit": null
+        },
+        {
+          "name": "Use as suspension",
+          "unit": null
+        }
+      ],
+      "seen_in": [
+        "Dapagliflozin-Model",
+        "Itraconazole-Model",
+        "Midazolam-Model"
+      ]
+    }
+  ],
+  "calculation_methods": {
+    "compound": [
+      "Cellular partition coefficient method - Rodgers and Rowland",
+      "Cellular permeability - PK-Sim Standard"
+    ],
+    "individual": [
+      "SurfaceAreaPlsInt_VAR1",
+      "Body surface area - Mosteller"
+    ]
+  },
+  "expression_types": [
+    {
+      "type": "Enzyme",
+      "fields": [
+        "Type",
+        "Species",
+        "Molecule",
+        "Category",
+        "Parameters",
+        "Localization",
+        "Ontogeny"
+      ],
+      "seen_in": [
+        "Dapagliflozin-Model",
+        "Itraconazole-Model",
+        "Midazolam-Model",
+        "Rifampicin-Model",
+        "example_snapshot"
+      ]
+    },
+    {
+      "type": "Transporter",
+      "fields": [
+        "Type",
+        "Species",
+        "Molecule",
+        "Category",
+        "Parameters",
+        "TransportType",
+        "Expression",
+        "Ontogeny"
+      ],
+      "seen_in": [
+        "Dapagliflozin-Model",
+        "Itraconazole-Model",
+        "Midazolam-Model",
+        "Rifampicin-Model"
+      ]
+    },
+    {
+      "type": "OtherProtein",
+      "fields": [
+        "Type",
+        "Species",
+        "Molecule",
+        "Category",
+        "Parameters",
+        "Localization"
+      ],
+      "seen_in": [
+        "Itraconazole-Model",
+        "Midazolam-Model",
+        "Rifampicin-Model"
+      ]
+    }
+  ],
+  "event_templates": [
+    {
+      "name": "Meal: High-fat breakfast (Human)",
+      "seen_in": [
+        "Dapagliflozin-Model",
+        "Itraconazole-Model",
+        "Midazolam-Model"
+      ]
+    },
+    {
+      "name": "Meal: Standard (Human)",
+      "seen_in": [
+        "Itraconazole-Model"
+      ]
+    }
+  ],
+  "process_selection_naming": [
+    {
+      "internal_name": null,
+      "name": "UGT1A9-Optimized",
+      "molecule": "UGT1A9",
+      "data_source": "Optimized",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Dapagliflozin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "UGT2B7-Optimized",
+      "molecule": "UGT2B7",
+      "data_source": "Optimized",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Dapagliflozin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "Hepatic-CYP-Optimized",
+      "molecule": "Hepatic-CYP",
+      "data_source": "Optimized",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Dapagliflozin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "Glomerular Filtration-assumed",
+      "molecule": null,
+      "data_source": null,
+      "systemic_process_type": "GFR",
+      "matches_molecule_dash_source": false,
+      "seen_in": "Dapagliflozin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "CYP3A4-Isoherranen 2004",
+      "molecule": "CYP3A4",
+      "data_source": "Isoherranen 2004",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Itraconazole-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "Glomerular Filtration-GFR",
+      "molecule": null,
+      "data_source": null,
+      "systemic_process_type": "GFR",
+      "matches_molecule_dash_source": false,
+      "seen_in": "Itraconazole-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "CYP3A4-Optimized",
+      "molecule": "CYP3A4",
+      "data_source": "Optimized",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Midazolam-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "UGT1A4-Optimized",
+      "molecule": "UGT1A4",
+      "data_source": "Optimized",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Midazolam-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "Glomerular Filtration-Optimized",
+      "molecule": null,
+      "data_source": null,
+      "systemic_process_type": "GFR",
+      "matches_molecule_dash_source": false,
+      "seen_in": "Midazolam-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "GABRG2-Buhr 1997",
+      "molecule": "GABRG2",
+      "data_source": "Buhr 1997",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Midazolam-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "AADAC-Nakajima 2011",
+      "molecule": "AADAC",
+      "data_source": "Nakajima 2011",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Rifampicin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "P-gp-Collett 2004",
+      "molecule": "P-gp",
+      "data_source": "Collett 2004",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Rifampicin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "OATP1B1-Tirona 2003",
+      "molecule": "OATP1B1",
+      "data_source": "Tirona 2003",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "Rifampicin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "Glomerular Filtration-GFR",
+      "molecule": null,
+      "data_source": null,
+      "systemic_process_type": "GFR",
+      "matches_molecule_dash_source": false,
+      "seen_in": "Rifampicin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": null,
+      "molecule": "CYP3A4",
+      "data_source": null,
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": false,
+      "seen_in": "Rifampicin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": null,
+      "molecule": "UGT1A4",
+      "data_source": null,
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": false,
+      "seen_in": "Rifampicin-Model"
+    },
+    {
+      "internal_name": null,
+      "name": "CYP3A4-Example",
+      "molecule": "CYP3A4",
+      "data_source": "Example",
+      "systemic_process_type": null,
+      "matches_molecule_dash_source": true,
+      "seen_in": "example_snapshot"
+    },
+    {
+      "internal_name": null,
+      "name": "Glomerular Filtration-assumed",
+      "molecule": null,
+      "data_source": null,
+      "systemic_process_type": "GFR",
+      "matches_molecule_dash_source": false,
+      "seen_in": "example_snapshot"
+    }
+  ],
+  "fixtures": [
+    {
+      "name": "Dapagliflozin-Model",
+      "file": "Dapagliflozin-Model.json",
+      "sha256": "3ceed52cde39ccedad43f05aa07e9d1e39178260fe6385e8fe2a4971da78ae70",
+      "version": 80,
+      "roundtrip_ok": true
+    },
+    {
+      "name": "Itraconazole-Model",
+      "file": "Itraconazole-Model.json",
+      "sha256": "f37f81b4d900c6715d6399323a971a2a253e29c28a978374ab68509adc5d1b91",
+      "version": 80,
+      "roundtrip_ok": true
+    },
+    {
+      "name": "Midazolam-Model",
+      "file": "Midazolam-Model.json",
+      "sha256": "9d6c3a281176e9c52dcc3faa278cced2c251b2b7d28869fc1184fe956fd1b5f3",
+      "version": 80,
+      "roundtrip_ok": true
+    },
+    {
+      "name": "Rifampicin-Model",
+      "file": "Rifampicin-Model.json",
+      "sha256": "aa4516d170623073498bb661c3d231592b13bdeeb16d4d9bbe66af77e2fcd7d2",
+      "version": 80,
+      "roundtrip_ok": true
+    },
+    {
+      "name": "example_snapshot",
+      "file": "example_snapshot.json",
+      "sha256": "a5895cf95b6803b914bd1f3df1b67ad55deff5f5fa56452a6906d272f6815a8e",
+      "version": 80,
+      "roundtrip_ok": true
+    }
+  ],
+  "unresolved": [
+    "non_human_populations: ospsuite exposes population lists only for Human (HumanPopulation); other species' populations must be harvested from fixtures"
+  ]
+}
