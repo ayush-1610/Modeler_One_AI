@@ -73,6 +73,26 @@ class CampaignRepository:
 
     # --- stages ----------------------------------------------------------------------------------
 
+    async def get_stage(self, campaign: Campaign, stage: str) -> CampaignStage | None:
+        result = await self.session.execute(
+            select(CampaignStage).where(
+                CampaignStage.tenant_id == self.tenant_id,
+                CampaignStage.campaign_id == campaign.id,
+                CampaignStage.stage == stage,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def completed_stages(self, campaign: Campaign) -> list[str]:
+        result = await self.session.execute(
+            select(CampaignStage.stage).where(
+                CampaignStage.tenant_id == self.tenant_id,
+                CampaignStage.campaign_id == campaign.id,
+                CampaignStage.status.in_(("PASSED", "ACCEPTED")),
+            )
+        )
+        return [row[0] for row in result.all()]
+
     async def create_stage(self, campaign: Campaign, *, stage: str, budget_seconds: int, max_rounds: int) -> CampaignStage:
         row = CampaignStage(
             tenant_id=self.tenant_id, campaign_id=campaign.id, stage=stage, status="RUNNING",

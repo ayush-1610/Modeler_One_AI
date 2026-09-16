@@ -1,12 +1,13 @@
 """Activities for the campaign workflows (task T-13).
 
-Two kinds live here. Deterministic, domain-only steps are implemented now: `plan_campaign` runs the S0
-completeness gate from the CPF, and `choose_action` picks the first permitted action (the deterministic
-fallback the strategist agent in T-15 will replace). The rest are boundaries to subsystems still being
-built — `build_round_snapshot` needs the MAP's scenarios (T-16) and the CPF builder, `run_round` the
-engine (T-09), `evaluate_round` the engine results and `acceptance.evaluate`, `diagnose_round` the
-diagnostics ruleset (T-14), and `resume_campaign`/`record_round` persistence (T-05). They have final
-signatures and honest placeholder behaviour so the workflow state machine is complete and testable today.
+Some steps are wired to real subsystems: `plan_campaign` runs the S0 completeness gate from the CPF,
+`choose_action` picks the first permitted action (the deterministic fallback the strategist agent in T-15
+will refine), and `resume_campaign`/`record_round` read and write durable, audited campaign state through
+the persistence layer (T-05) when `MODELER_DATABASE_URL` is set — resuming past finished stages and
+appending each round. The rest are still boundaries: `build_round_snapshot` needs the MAP's scenarios
+(T-16) and the CPF builder, `run_round` the engine (T-09), `evaluate_round` the engine results and
+`acceptance.evaluate`, and `diagnose_round` the diagnostics ruleset (T-14). Every activity has its final
+signature, so the workflow state machine is complete and testable today.
 """
 
 from __future__ import annotations
@@ -29,6 +30,19 @@ from modeler_contracts.runs import (
     RoundRunResult,
     S0Readiness,
 )
+from modeler_orchestrator.campaign_store import CampaignStore
+
+_store: CampaignStore | None = None
+_store_checked = False
+
+
+def _campaign_store() -> CampaignStore | None:
+    """The campaign store from MODELER_DATABASE_URL, created once; None when no database is configured."""
+    global _store, _store_checked
+    if not _store_checked:
+        _store = CampaignStore.from_env()
+        _store_checked = True
+    return _store
 
 
 def _load_local_text(uri: str) -> str | None:
@@ -52,10 +66,13 @@ def plan_campaign(request: CampaignRequest) -> S0Readiness:
 
 
 @activity.defn(name="resume_campaign")
-def resume_campaign(request: CampaignRequest) -> ResumeState:
-    """Reconstruct progress from persisted rows so a re-started campaign is idempotent. Until the
-    persistence layer (T-05) exists, every campaign starts fresh from its request CPF."""
-    return ResumeState(last_completed_stage=None, cpf_uri=request.cpf_uri, cpf_sha256=request.cpf_sha256)
+async def resume_campaign(request: CampaignRequest) -> ResumeState:
+    """Reconstruct progress from persisted rows (create the campaign row on first run) so a re-started
+    campaign resumes past the stages it already finished. Without a database, every campaign starts fresh."""
+    store = _campaign_store()
+    if store is None:
+        return ResumeState(last_completed_stage=None, cpf_uri=request.cpf_uri, cpf_sha256=request.cpf_sha256)
+    return await store.resume(request)
 
 
 @activity.defn(name="build_round_snapshot")
@@ -102,15 +119,19 @@ def choose_action(ctx: RoundContext, diagnosis: RoundDiagnosis) -> ActionChoice:
 
 
 @activity.defn(name="record_round")
-def record_round(record: RoundRecord) -> None:
-    """Persist the full round record (CPF before/after, fit specs, metrics, diagnostics, chosen action,
-    manifests, wall time) with an audit event. Persistence is T-05; for now the round is logged."""
-    ctx = record.context
-    activity.logger.info(
-        "record_round %s %s round %d gate=%s action=%s",
-        ctx.campaign_id, ctx.stage, ctx.round_index, record.evaluation.gate_passed,
-        record.choice.action_id if record.choice else None,
-    )
+async def record_round(record: RoundRecord) -> None:
+    """Persist the round as an append-only, audited record (CPF before/after, chosen action, metrics),
+    getting-or-creating the campaign and stage rows. Without a database the round is only logged."""
+    store = _campaign_store()
+    if store is None:
+        ctx = record.context
+        activity.logger.info(
+            "record_round %s %s round %d gate=%s action=%s",
+            ctx.campaign_id, ctx.stage, ctx.round_index, record.evaluation.gate_passed,
+            record.choice.action_id if record.choice else None,
+        )
+        return
+    await store.record_round(record)
 
 
 CAMPAIGN_ACTIVITIES = [

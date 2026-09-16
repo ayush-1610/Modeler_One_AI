@@ -7,12 +7,14 @@ dependencies = [
   "temporalio>=1.7",
   "modeler-contracts",
   "pbpk-domain",
+  "modeler-api",
   "boto3>=1.35",
 ]
 
 [tool.uv.sources]
 modeler-contracts = { workspace = true }
 pbpk-domain = { workspace = true }
+modeler-api = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
