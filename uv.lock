@@ -1030,6 +1030,7 @@ name = "modeler-orchestrator"
 version = "0.1.0"
 source = { editable = "services/orchestrator" }
 dependencies = [
+    { name = "boto3" },
     { name = "modeler-contracts" },
     { name = "pbpk-domain" },
     { name = "temporalio" },
@@ -1037,6 +1038,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "boto3", specifier = ">=1.35" },
     { name = "modeler-contracts", editable = "packages/run-contracts" },
     { name = "pbpk-domain", editable = "packages/pbpk-domain" },
     { name = "temporalio", specifier = ">=1.7" },

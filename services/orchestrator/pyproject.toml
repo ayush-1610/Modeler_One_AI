@@ -7,6 +7,7 @@ dependencies = [
   "temporalio>=1.7",
   "modeler-contracts",
   "pbpk-domain",
+  "boto3>=1.35",
 ]
 
 [tool.uv.sources]
