@@ -99,10 +99,11 @@ async def append_audit_event(
     head = (await session.execute(_HEAD_SQL, params)).first()
     seq, prev_hash = (head.seq + 1, head.row_hash) if head else (1, GENESIS_HASH)
 
+    now = datetime.now(UTC)
     event = AuditEvent(
         tenant_id=str(tenant_id),
         seq=seq,
-        occurred_at=datetime.now(UTC).isoformat(),
+        occurred_at=now.isoformat(),  # string form is what the hash chain covers
         actor=actor,
         action=action,
         resource_type=resource_type,
@@ -117,6 +118,7 @@ async def append_audit_event(
         _INSERT_SQL,
         {
             **asdict(event),
+            "occurred_at": now,  # the timestamptz column needs a datetime, not the ISO string
             "before": json.dumps(before, default=str),
             "after": json.dumps(after, default=str),
             "prev_hash": chained.prev_hash,
