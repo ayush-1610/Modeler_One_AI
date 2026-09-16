@@ -8,6 +8,10 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from modeler_orchestrator.activities import ingest_results, notify_reviewers, prepare_engine_job
+from modeler_orchestrator.campaign import ModelingCampaignWorkflow, StageLoopWorkflow
+from modeler_orchestrator.campaign_activities import CAMPAIGN_ACTIVITIES
+from modeler_orchestrator.fitting import FitRoundWorkflow
+from modeler_orchestrator.fitting_activities import assess_fit_round, plan_fit_round
 from modeler_orchestrator.workflows import PopulationRunWorkflow, ReviewGateWorkflow, SimulationRunWorkflow
 
 
@@ -19,8 +23,15 @@ async def main() -> None:
         worker = Worker(
             client,
             task_queue="orchestrator",
-            workflows=[SimulationRunWorkflow, PopulationRunWorkflow, ReviewGateWorkflow],
-            activities=[prepare_engine_job, ingest_results, notify_reviewers],
+            workflows=[
+                SimulationRunWorkflow,
+                PopulationRunWorkflow,
+                ReviewGateWorkflow,
+                FitRoundWorkflow,
+                ModelingCampaignWorkflow,
+                StageLoopWorkflow,
+            ],
+            activities=[prepare_engine_job, ingest_results, notify_reviewers, plan_fit_round, assess_fit_round, *CAMPAIGN_ACTIVITIES],
             activity_executor=executor,
         )
         await worker.run()

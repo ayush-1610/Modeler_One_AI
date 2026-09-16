@@ -52,6 +52,7 @@ testpaths = [
   "services/api/tests",
   "services/engine-worker/tests",
   "services/agents/tests",
+  "services/orchestrator/tests",
 ]
 
 [tool.ruff]

@@ -153,3 +153,154 @@ def derive_chunk_seed(run_seed: int, chunk_index: int) -> int:
     """Deterministic per-chunk seed; stays within a signed 32-bit int for R and PK-Sim."""
     digest = hashlib.sha256(f"{run_seed}:{chunk_index}".encode()).digest()
     return int.from_bytes(digest[:4], "big") & 0x7FFFFFFF
+
+
+# --- campaign (MS-01 stage pipeline S0–S5; task T-13) --------------------------------------------
+
+# Stages in order. S0 is readiness (no engine), S1–S3 fit, S4/S5 validate. S6/S7 (application, report)
+# are separate tasks (T-31, T-24) and not run by ModelingCampaignWorkflow.
+CAMPAIGN_STAGES = ("S0", "S1", "S2", "S3", "S4", "S5")
+STAGE_STATUS = ("PASSED", "ACCEPTED", "ESCALATED", "ABORTED", "FAILED")
+
+
+@dataclass
+class CampaignRequest:
+    campaign_id: str
+    tenant_id: str
+    compound: str
+    map_id: str
+    cpf_uri: str
+    cpf_sha256: str
+    stages: list[str] = field(default_factory=lambda: list(CAMPAIGN_STAGES))
+    stage_budgets_seconds: dict[str, int] = field(default_factory=dict)
+    max_rounds_per_stage: int = 4
+    seed: int = 1
+    signature_timeout_days: int = 14
+
+
+@dataclass
+class StageRequest:
+    campaign_id: str
+    tenant_id: str
+    stage: str
+    cpf_uri: str
+    cpf_sha256: str
+    budget_seconds: int
+    max_rounds: int = 4
+    seed: int = 1
+    signature_timeout_days: int = 14
+
+
+@dataclass
+class RoundContext:
+    campaign_id: str
+    tenant_id: str
+    stage: str
+    round_index: int
+    cpf_uri: str
+    cpf_sha256: str
+    pending_action: str | None  # action chosen last round to apply now (None on round 1)
+    actions_tried: list[str] = field(default_factory=list)
+    deadline_seconds: float = 0.0
+    seed: int = 1
+
+
+@dataclass
+class RoundBuild:
+    snapshot_uri: str
+    snapshot_sha256: str
+    needs_fit: bool = False
+    fit_request: FitRoundRequest | None = None
+
+
+@dataclass
+class RoundRun:
+    context: RoundContext
+    build: RoundBuild
+    fit_outcome: FitRoundOutcome | None = None  # present when the round fitted parameters
+
+
+@dataclass
+class RoundRunResult:
+    results_uri: str
+    cpf_uri: str  # updated CPF when a fit was applied, else unchanged
+    cpf_sha256: str
+
+
+@dataclass
+class RoundEvaluation:
+    gate_passed: bool
+    acceptable: bool
+    metrics: dict[str, Any] = field(default_factory=dict)
+    findings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RoundDiagnosis:
+    evidence: list[str] = field(default_factory=list)
+    permitted_actions: list[str] = field(default_factory=list)
+    escalate: bool = False
+    escalation_reason: str | None = None
+
+
+@dataclass
+class ActionChoice:
+    action_id: str | None
+    rationale: str = ""
+
+
+@dataclass
+class RoundRecord:
+    context: RoundContext
+    run_result: RoundRunResult
+    evaluation: RoundEvaluation
+    diagnosis: RoundDiagnosis | None = None
+    choice: ActionChoice | None = None
+
+
+@dataclass
+class StageOutcome:
+    stage: str
+    status: str  # one of STAGE_STATUS
+    rounds_run: int
+    cpf_uri: str
+    cpf_sha256: str
+    findings: list[str] = field(default_factory=list)
+    escalation_reason: str | None = None
+
+
+@dataclass
+class CampaignOutcome:
+    campaign_id: str
+    status: str  # COMPLETED | ESCALATED | REJECTED
+    stages: list[StageOutcome]
+    final_cpf_uri: str
+    final_cpf_sha256: str
+    reason: str = ""
+
+
+@dataclass
+class EscalationDecision:
+    action: str  # "retry" | "accept_best" | "abort"
+    note: str = ""
+    signature_id: str | None = None
+
+
+@dataclass
+class DeviationRecord:
+    stage: str
+    description: str
+    signature_id: str | None = None
+
+
+@dataclass
+class ResumeState:
+    last_completed_stage: str | None
+    cpf_uri: str
+    cpf_sha256: str
+
+
+@dataclass
+class S0Readiness:
+    ready: bool
+    findings: list[str] = field(default_factory=list)
