@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import tempfile
 import threading
@@ -47,6 +48,21 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _terminate_group(proc: subprocess.Popen) -> int:
+    """Kill the engine and its whole process group: SIGTERM, then SIGKILL if it lingers past 5 s."""
+    def send(sig: int) -> None:
+        try:
+            os.killpg(os.getpgid(proc.pid), sig)
+        except (ProcessLookupError, PermissionError):
+            proc.send_signal(sig)  # process gone, or no group: fall back to the direct child
+    send(signal.SIGTERM)
+    try:
+        return proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        send(signal.SIGKILL)
+        return proc.wait()
+
+
 class ObjectStore(Protocol):
     def download(self, uri: str, destination: Path) -> None: ...
 
@@ -79,6 +95,7 @@ class EngineRunner:
     engine_id: str
     image_digest: str
     on_heartbeat: Callable[[float], None] | None = None
+    is_cancelled: Callable[[], bool] | None = None  # polled during the run; e.g. Temporal activity.is_cancelled
     heartbeat_interval_s: float = 15.0
 
     def run(self, job: EngineJob) -> EngineManifest:
@@ -109,7 +126,11 @@ class EngineRunner:
                 encoding="utf-8",
             )
 
-            warnings, stderr_tail, returncode, timed_out = self._execute(job_file, workdir, job.timeout_s)
+            warnings, stderr_tail, returncode, timed_out, cancelled = self._execute(job_file, workdir, job.timeout_s)
+            if cancelled:
+                # Whatever the engine wrote before it was killed is uploaded under cancelled/ for inspection.
+                partial = self._upload_outputs(outputs_dir, f"{job.outputs_uri.rstrip('/')}/cancelled")
+                return self._manifest(job, "CANCELLED", started, partial, {}, warnings, stderr_tail)
             if timed_out:
                 raise EngineTimeoutError(f"engine exceeded {job.timeout_s}s; stderr: {stderr_tail}")
             if returncode != 0:
@@ -117,17 +138,24 @@ class EngineRunner:
 
             info_path = outputs_dir / "engine_manifest.json"
             engine_info = json.loads(info_path.read_text(encoding="utf-8")) if info_path.exists() else {}
+            outputs = self._upload_outputs(outputs_dir, job.outputs_uri.rstrip("/"))
 
-            outputs = []
-            for path in sorted(p for p in outputs_dir.rglob("*") if p.is_file()):
-                relative = path.relative_to(outputs_dir).as_posix()
-                uri = f"{job.outputs_uri.rstrip('/')}/{relative}"
-                self.store.upload(path, uri)
-                outputs.append(OutputFile(name=relative, uri=uri, sha256=sha256_file(path), size_bytes=path.stat().st_size))
+        return self._manifest(job, "SUCCEEDED", started, outputs, engine_info, warnings, stderr_tail)
 
+    def _upload_outputs(self, outputs_dir: Path, base_uri: str) -> list[OutputFile]:
+        outputs = []
+        for path in sorted(p for p in outputs_dir.rglob("*") if p.is_file()):
+            relative = path.relative_to(outputs_dir).as_posix()
+            uri = f"{base_uri}/{relative}"
+            self.store.upload(path, uri)
+            outputs.append(OutputFile(name=relative, uri=uri, sha256=sha256_file(path), size_bytes=path.stat().st_size))
+        return outputs
+
+    def _manifest(self, job: EngineJob, status: str, started: datetime, outputs: list[OutputFile],
+                  engine_info: dict, warnings: list[str], stderr_tail: str) -> EngineManifest:
         return EngineManifest(
             job_id=job.job_id,
-            status="SUCCEEDED",
+            status=status,
             engine_id=self.engine_id,
             image_digest=self.image_digest,
             started_at=started.isoformat(),
@@ -139,7 +167,7 @@ class EngineRunner:
             stderr_tail=stderr_tail,
         )
 
-    def _execute(self, job_file: Path, workdir: Path, timeout_s: int) -> tuple[list[str], str, int, bool]:
+    def _execute(self, job_file: Path, workdir: Path, timeout_s: int) -> tuple[list[str], str, int, bool, bool]:
         env = {key: os.environ[key] for key in _PASSTHROUGH_ENV if key in os.environ}
         proc = subprocess.Popen(
             [*self.command, str(job_file)],
@@ -148,6 +176,7 @@ class EngineRunner:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            start_new_session=True,  # own process group, so cancellation kills the engine and its children
         )
         progress = [0.0]
         warnings: list[str] = []
@@ -175,16 +204,19 @@ class EngineRunner:
 
         # Heartbeats are sent from this (activity) thread; Temporal's activity context is thread-local.
         deadline = time.monotonic() + timeout_s
-        timed_out = False
+        timed_out = cancelled = False
         while True:
             remaining = deadline - time.monotonic()
             try:
                 returncode = proc.wait(timeout=max(0.05, min(self.heartbeat_interval_s, remaining)))
                 break
             except subprocess.TimeoutExpired:
+                if self.is_cancelled is not None and self.is_cancelled():
+                    returncode = _terminate_group(proc)
+                    cancelled = True
+                    break
                 if time.monotonic() >= deadline:
-                    proc.kill()
-                    returncode = proc.wait()
+                    returncode = _terminate_group(proc)
                     timed_out = True
                     break
                 if self.on_heartbeat:
@@ -194,4 +226,4 @@ class EngineRunner:
             reader.join(timeout=5)
         if self.on_heartbeat:
             self.on_heartbeat(progress[0])
-        return warnings, "".join(stderr_lines)[-4000:], returncode, timed_out
+        return warnings, "".join(stderr_lines)[-4000:], returncode, timed_out, cancelled

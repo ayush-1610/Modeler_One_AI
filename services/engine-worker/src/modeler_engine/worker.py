@@ -34,8 +34,10 @@ def _runner() -> EngineRunner:
 
 @activity.defn(name="run_engine_job")
 def run_engine_job(job: EngineJob) -> EngineManifest:
+    runner = _runner()
+    runner.is_cancelled = activity.is_cancelled  # honour Temporal cancellation (heartbeat-delivered)
     try:
-        return _runner().run(job)
+        return runner.run(job)
     except InputIntegrityError as exc:
         raise ApplicationError(str(exc), type="InputIntegrityError", non_retryable=True) from exc
     except EngineTimeoutError as exc:

@@ -1,6 +1,7 @@
 import hashlib
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -13,9 +14,10 @@ FAKE_ENGINE = textwrap.dedent(
     import json, sys, time
     from pathlib import Path
     job = json.loads(Path(sys.argv[1]).read_text())
-    if job["task"] == "sleep":
-        time.sleep(10)
     out = Path(job["outputs_dir"])
+    if job["task"] == "sleep":
+        (out / "partial.txt").write_text("partial work")  # written before the engine blocks
+        time.sleep(30)
     print("PROGRESS 0.5", flush=True)
     print("WARNING solver tolerance relaxed", flush=True)
     snapshot = Path(job["inputs"][0]["path"]).read_text()
@@ -86,3 +88,22 @@ def test_timeout_kills_engine(workspace):
     sha = hashlib.sha256(snapshot.read_bytes()).hexdigest()
     with pytest.raises(EngineTimeoutError):
         runner.run(make_job(snapshot, tmp_path, sha, task="sleep", timeout_s=1))
+
+
+def test_cancellation_kills_engine_and_returns_cancelled_manifest(workspace):
+    engine, snapshot, tmp_path = workspace
+    runner = EngineRunner(
+        command=[sys.executable, str(engine)], store=LocalObjectStore(), engine_id="fake", image_digest="x",
+        is_cancelled=lambda: True,  # cancel as soon as the run is polled
+        heartbeat_interval_s=0.1,
+    )
+    sha = hashlib.sha256(snapshot.read_bytes()).hexdigest()
+    started = time.monotonic()
+    # the fake engine sleeps 30s; cancellation must kill it far sooner (acceptance: within 25s)
+    manifest = runner.run(make_job(snapshot, tmp_path, sha, task="sleep", timeout_s=300))
+    assert time.monotonic() - started < 25
+    assert manifest.status == "CANCELLED"
+    # whatever the engine wrote before it was killed is uploaded under cancelled/
+    partial = tmp_path / "outputs" / "cancelled" / "partial.txt"
+    assert partial.exists() and partial.read_text() == "partial work"
+    assert {o.name for o in manifest.outputs} == {"partial.txt"}
