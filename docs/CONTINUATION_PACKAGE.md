@@ -215,7 +215,22 @@ CPF reconstructed from the Dapagliflozin snapshot regenerates a snapshot that lo
 **T-04 done (2026-09-15).** `pbpk_domain.campaign.split`: classification (§3.2), information score, split algorithm
 (§3.3) with rationale sentences and documented limitations (23 tests).
 
-122 Python tests pass, lint clean. **Repository still not under git** — first commit is the first action of the next
-session (T-25 sets up CI). Critical path continues at **T-10** (builder coverage from the catalog: Michaelis-Menten,
-transporters, DDI, particle dissolution) and **T-13** (campaign workflows), with **T-05/T-07/T-08** (persistence,
-object store, results) in parallel.
+**T-10 mostly done (2026-09-16).** `pbpk_domain.snapshot.builder` extended with Michaelis-Menten metabolism
+(`MetabolizationSpecific_MM`), active transport (`ActiveTransportSpecific_MM`), competitive inhibition, induction,
+specific binding — exact catalog names/units; transporter/other-protein expression profiles; multiple-dose protocols
+(DosingInterval + End time) and meal events. CPF→snapshot mapper groups records by (process, molecule). Engine
+round-trip of MM+transporter+MD+meal **passed on the server** (`golden/process_coverage_snapshot.json`). **Remaining
+T-10** (not in the 4 OSP fixtures, need a reference model or engine-API harvest): particle-dissolution/Table/Lint80
+formulations, Populations block, total-hepatic/biliary/tubular-secretion clearances.
+
+**T-13 done (2026-09-16).** `modeler_orchestrator.campaign`: `ModelingCampaignWorkflow` (S0 readiness → MAP signature
+gate → per-stage `StageLoopWorkflow` children → final CPF acceptance; resume + escalation) and `StageLoopWorkflow`
+(round loop build→fit-child/run→evaluate→diagnose→choose→record, stage budget/deadline, escalation retry/accept/abort).
+Campaign contracts in run-contracts; `campaign_activities` (plan_campaign completeness + choose_action fallback
+implemented; build/run/evaluate/diagnose/record/resume are boundaries pending T-05/07/08/09/14/15). Temporal
+time-skipping tests cover the state machine, deadline, escalation, signature gates and resume.
+
+**Repository is under git** (first commit 2026-09-16). 164 Python tests pass, lint clean. Critical path next: the
+services lane **T-05** (persistence) → **T-07** (object store) → **T-08** (results) → **T-09** (engine population/
+sensitivity/cancellation), which turn the T-13 activity boundaries into real behaviour, then **T-14/T-15** (diagnostics
+ruleset + strategist) and **T-16** (MAP generator). Finish the T-10 tail (populations) alongside T-09.
