@@ -19,7 +19,13 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict
 
 from pbpk_domain.acceptance import load_acceptance_ruleset
-from pbpk_domain.campaign.split import Assignment, SplitResult, StudyClass, StudyRecord
+from pbpk_domain.campaign.split import (
+    DEFAULT_DEMOGRAPHICS,
+    Assignment,
+    SplitResult,
+    StudyClass,
+    StudyRecord,
+)
 from pbpk_domain.cpf.models import CPF
 from pbpk_domain.m15 import Rating
 
@@ -100,16 +106,25 @@ class MapStagePlan(BaseModel):
 
 
 class MapScenario(BaseModel):
-    """One internal study's simulation plan — what `build_round_snapshot` turns into a simulation."""
+    """One internal study's simulation plan — what `build_round_snapshot` turns into a simulation.
+
+    Carries the studied individual's demographics (population, sex, age) so the round build can construct the
+    PK-Sim individual; ``infusion_time_min`` is the IV infusion duration (required for an IV scenario)."""
     model_config = ConfigDict(frozen=True)
     study_id: str
     stage: str
     route: str
     dose_mg: float
+    infusion_time_min: float | None
     formulation: str
     food_state: str
     meal_template: str | None
     n_subjects: int
+    population: str
+    sex: str
+    age_years: float
+    weight_kg: float | None = None
+    height_cm: float | None = None
 
 
 class MapAcceptance(BaseModel):
@@ -201,10 +216,14 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
         if stage is None:
             continue
         study = by_id[row.study_id]
+        demo = study.demographics or DEFAULT_DEMOGRAPHICS
         scenarios.append(MapScenario(
             study_id=study.study_id, stage=stage, route=study.route.value, dose_mg=study.dose_mg,
+            infusion_time_min=study.infusion_time_min,
             formulation=study.formulation.value, food_state=study.food_state.value,
             meal_template=meal_template if study.food_state.value == "fed" else None, n_subjects=study.n,
+            population=demo.population, sex=demo.sex.value, age_years=demo.age_years,
+            weight_kg=demo.weight_kg, height_cm=demo.height_cm,
         ))
     return tuple(scenarios)
 

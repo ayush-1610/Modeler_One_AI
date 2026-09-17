@@ -96,6 +96,7 @@ class StageLoopWorkflow:
                 round_index=round_index, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
                 pending_action=pending_action, actions_tried=list(actions_tried),
                 deadline_seconds=remaining, seed=request.seed,
+                map_uri=request.map_uri, map_sha256=request.map_sha256,
             )
             rounds_run = round_index
             run_result, evaluation, diagnosis, choice = await self._run_round(ctx, remaining)
@@ -243,6 +244,7 @@ class ModelingCampaignWorkflow:
             stage_req = StageRequest(
                 campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=stage,
                 cpf_uri=cpf_uri, cpf_sha256=cpf_sha, budget_seconds=_stage_budget(request, stage),
+                map_uri=request.map_uri, map_sha256=request.map_sha256,
                 max_rounds=request.max_rounds_per_stage, seed=request.seed,
                 signature_timeout_days=request.signature_timeout_days,
             )

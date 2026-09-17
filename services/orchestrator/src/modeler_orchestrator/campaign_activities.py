@@ -1,13 +1,14 @@
 """Activities for the campaign workflows (task T-13).
 
-Some steps are wired to real subsystems: `plan_campaign` runs the S0 completeness gate from the CPF,
-`choose_action` picks the first permitted action (the deterministic fallback the strategist agent in T-15
-will refine), and `resume_campaign`/`record_round` read and write durable, audited campaign state through
-the persistence layer (T-05) when `MODELER_DATABASE_URL` is set — resuming past finished stages and
-appending each round. The rest are still boundaries: `build_round_snapshot` needs the MAP's scenarios
-(T-16) and the CPF builder, `run_round` the engine (T-09), `evaluate_round` the engine results and
-`acceptance.evaluate`, and `diagnose_round` the diagnostics ruleset (T-14). Every activity has its final
-signature, so the workflow state machine is complete and testable today.
+Most steps are wired to real subsystems: `plan_campaign` runs the S0 completeness gate from the CPF,
+`build_round_snapshot` regenerates the stage snapshot from the CPF and the MAP's scenarios (T-16 +
+`pbpk_domain.campaign.round_build`), `choose_action` picks the first permitted action (the deterministic
+fallback the strategist agent in T-15 will refine), and `resume_campaign`/`record_round` read and write
+durable, audited campaign state through the persistence layer (T-05) when `MODELER_DATABASE_URL` is set —
+resuming past finished stages and appending each round. The rest are still boundaries: `run_round` needs the
+engine (T-09), `evaluate_round` the engine results and `acceptance.evaluate`, and `diagnose_round` the
+diagnostics ruleset (T-14). Every activity has its final signature, so the workflow state machine is
+complete and testable today.
 """
 
 from __future__ import annotations
@@ -45,11 +46,16 @@ def _campaign_store() -> CampaignStore | None:
     return _store
 
 
-def _load_local_text(uri: str) -> str | None:
+def _local_path(uri: str) -> Path | None:
     parsed = urlparse(uri)
     if parsed.scheme != "file":
         return None
-    return Path(unquote(parsed.path)).read_text(encoding="utf-8")
+    return Path(unquote(parsed.path))
+
+
+def _load_local_text(uri: str) -> str | None:
+    path = _local_path(uri)
+    return None if path is None else path.read_text(encoding="utf-8")
 
 
 @activity.defn(name="plan_campaign")
@@ -77,12 +83,50 @@ async def resume_campaign(request: CampaignRequest) -> ResumeState:
 
 @activity.defn(name="build_round_snapshot")
 def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
-    """Build the round's snapshot from the CPF and the MAP's scenarios, and, when the pending action is a
-    fit, the fit request. Full implementation needs the MAP scenarios (T-16) and engine benchmark; for now
-    it decides only whether the round fits (any 'fit …' action) and echoes the CPF as the snapshot."""
+    """Regenerate the round's snapshot from the CPF and the MAP's scenarios for this stage.
+
+    Loads the CPF and MAP (local `file://` today; the object store lands with the run wiring), builds the
+    stage snapshot via `pbpk_domain.campaign.round_build.build_stage_snapshot`, writes it next to the CPF and
+    returns its URI and content hash. The fit request itself (the PI spec) is a separate task, so `needs_fit`
+    only flags that the pending action is a fit. When the CPF or MAP is not locally loadable, or no scenario
+    trains this stage (e.g. the validation stages), the round falls back to echoing the CPF so the workflow
+    still advances; the reason is logged."""
     needs_fit = bool(ctx.pending_action and ctx.pending_action.startswith("fit"))
-    activity.logger.info("build_round_snapshot %s %s round %d fit=%s", ctx.campaign_id, ctx.stage, ctx.round_index, needs_fit)
-    return RoundBuild(snapshot_uri=ctx.cpf_uri, snapshot_sha256=ctx.cpf_sha256, needs_fit=needs_fit, fit_request=None)
+
+    def _echo(reason: str) -> RoundBuild:
+        activity.logger.info(
+            "build_round_snapshot %s %s round %d: echoing CPF (%s)", ctx.campaign_id, ctx.stage, ctx.round_index, reason
+        )
+        return RoundBuild(snapshot_uri=ctx.cpf_uri, snapshot_sha256=ctx.cpf_sha256, needs_fit=needs_fit, fit_request=None)
+
+    cpf_text = _load_local_text(ctx.cpf_uri)
+    map_text = _load_local_text(ctx.map_uri) if ctx.map_uri else None
+    if cpf_text is None or map_text is None:
+        return _echo("CPF or MAP not locally loadable (object-store I/O pending)")
+
+    from pbpk_domain.campaign.map import MapDocument
+    from pbpk_domain.campaign.round_build import ScenarioBuildError, build_stage_snapshot
+    from pbpk_domain.cpf import CPF
+
+    cpf = CPF.model_validate_json(cpf_text)
+    map_doc = MapDocument.model_validate_json(map_text)
+    try:
+        stage = build_stage_snapshot(cpf, list(map_doc.scenarios), stage=ctx.stage, seed=ctx.seed)
+    except ScenarioBuildError as exc:
+        return _echo(str(exc))
+
+    out = _local_path(ctx.cpf_uri).parent / "snapshots" / f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    stage.snapshot.dump(out)
+    for note in stage.notes:
+        activity.logger.info("build_round_snapshot %s %s: %s", ctx.campaign_id, ctx.stage, note)
+    activity.logger.info(
+        "build_round_snapshot %s %s round %d: built %d simulation(s) fit=%s",
+        ctx.campaign_id, ctx.stage, ctx.round_index, len(stage.simulations), needs_fit,
+    )
+    return RoundBuild(
+        snapshot_uri=out.as_uri(), snapshot_sha256=stage.snapshot.sha256(), needs_fit=needs_fit, fit_request=None
+    )
 
 
 @activity.defn(name="run_round")

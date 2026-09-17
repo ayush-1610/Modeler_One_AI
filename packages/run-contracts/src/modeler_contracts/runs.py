@@ -171,6 +171,8 @@ class CampaignRequest:
     map_id: str
     cpf_uri: str
     cpf_sha256: str
+    map_uri: str = ""       # the signed MAP JSON (its scenarios drive build_round_snapshot)
+    map_sha256: str = ""
     stages: list[str] = field(default_factory=lambda: list(CAMPAIGN_STAGES))
     stage_budgets_seconds: dict[str, int] = field(default_factory=dict)
     max_rounds_per_stage: int = 4
@@ -186,6 +188,8 @@ class StageRequest:
     cpf_uri: str
     cpf_sha256: str
     budget_seconds: int
+    map_uri: str = ""
+    map_sha256: str = ""
     max_rounds: int = 4
     seed: int = 1
     signature_timeout_days: int = 14
@@ -203,6 +207,8 @@ class RoundContext:
     actions_tried: list[str] = field(default_factory=list)
     deadline_seconds: float = 0.0
     seed: int = 1
+    map_uri: str = ""       # the MAP whose scenarios this round builds a snapshot from
+    map_sha256: str = ""
 
 
 @dataclass

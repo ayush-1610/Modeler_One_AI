@@ -79,6 +79,35 @@ class SpecialPopulation(str, Enum):
     ELDERLY = "elderly"
 
 
+class Sex(str, Enum):
+    MALE = "MALE"
+    FEMALE = "FEMALE"
+
+
+class Demographics(BaseModel):
+    """The representative individual a study is simulated with (MS-01 §2.3).
+
+    Age, sex and population (ethnicity) define a typical PK-Sim individual; PK-Sim derives weight, height
+    and organ sizes from the population physiology for that age and sex. Study mean ``weight_kg`` /
+    ``height_cm`` are recorded here for the record but are not yet written into the snapshot: the OSP
+    reference models set no explicit ``Weight`` / ``Height`` in ``OriginData`` (only Species / Population /
+    Gender / Age), so those keys await harvest from an engine snapshot that uses them (harvest rule) before
+    the builder may emit them. When a weight is recorded, the round build carries a note so it is not lost.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    population: str = "European_ICRP_2002"
+    sex: Sex = Sex.MALE
+    age_years: float = Field(default=30.0, gt=0)
+    weight_kg: float | None = Field(default=None, gt=0)  # recorded; not yet emitted (see class docstring)
+    height_cm: float | None = Field(default=None, gt=0)  # recorded; not yet emitted (see class docstring)
+
+
+# The documented default when a study reports no demographics: the OSP reference 30-year-old European male.
+DEFAULT_DEMOGRAPHICS = Demographics()
+
+
 _ORAL_ROUTES = (Route.ORAL,)
 _IV_ROUTES = (Route.IV_BOLUS, Route.IV_INFUSION)
 _SOLUTION_FORMS = (FormulationKind.SOLUTION, FormulationKind.SUSPENSION)
@@ -101,9 +130,11 @@ class StudyRecord(BaseModel):
     crossover: bool = False
     route: Route = Route.ORAL
     dose_mg: float = Field(gt=0)
+    infusion_time_min: float | None = Field(default=None, gt=0)  # required to simulate an IV study
     formulation: FormulationKind = FormulationKind.SOLUTION
     food_state: FoodState = FoodState.FASTED
     meal_type: str | None = None
+    demographics: Demographics | None = None  # the studied individual; DEFAULT_DEMOGRAPHICS when absent
     statistic: Statistic = Statistic.MEAN_SD
     n_timepoints: int = Field(gt=0)
     lloq: float | None = None
