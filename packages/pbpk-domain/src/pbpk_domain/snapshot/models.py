@@ -16,7 +16,33 @@ import json
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# PK-Sim's ValueOrigin.Source is an enum; a value outside it makes PK-Sim silently reject the building block
+# (VERIFIED on the Linux engine 2026-09-17: a compound parameter with Source "measured" caused the whole
+# simulation to be dropped from runSimulationsFromSnapshot). These are the values harvested from the OSP
+# reference models (Dapagliflozin/Rifampicin/Midazolam/Itraconazole).
+VALUE_ORIGIN_SOURCES = ("ParameterIdentification", "Unknown", "Publication", "Database", "Other")
+_VALUE_ORIGIN_ALIASES = {
+    "parameteridentification": "ParameterIdentification", "fitted": "ParameterIdentification",
+    "optimized": "ParameterIdentification", "optimised": "ParameterIdentification", "pi": "ParameterIdentification",
+    "publication": "Publication", "paper": "Publication", "literature": "Publication", "reference": "Publication",
+    "database": "Database", "db": "Database",
+    "unknown": "Unknown", "undefined": "Unknown", "": "Unknown",
+}
+
+
+def value_origin_source(raw: str | None) -> str | None:
+    """Map an arbitrary source label to a valid OSP ``ValueOrigin.Source`` (None stays None, unknown -> Other).
+
+    The enum is coarse, so callers should keep the exact label (e.g. "measured", "assumed") in the
+    ValueOrigin description where a reviewer can still read it."""
+    if raw is None:
+        return None
+    text = raw.strip()
+    if text in VALUE_ORIGIN_SOURCES:
+        return text
+    return _VALUE_ORIGIN_ALIASES.get(text.lower(), "Other")
 
 
 class SnapshotModel(BaseModel):
@@ -35,6 +61,11 @@ class ValueOrigin(SnapshotModel):
     source: str | None = Field(default=None, alias="Source")
     method: str | None = Field(default=None, alias="Method")
     description: str | None = Field(default=None, alias="Description")
+
+    @field_validator("source")
+    @classmethod
+    def _valid_source(cls, v: str | None) -> str | None:
+        return value_origin_source(v)
 
 
 class Quantity(SnapshotModel):

@@ -36,7 +36,7 @@ from pbpk_domain.snapshot.builder import (
     TransporterMichaelisMenten,
     WeibullFormulationSpec,
 )
-from pbpk_domain.snapshot.models import Snapshot, ValueOrigin
+from pbpk_domain.snapshot.models import Snapshot, ValueOrigin, value_origin_source
 
 FormulationSpec = DissolvedFormulationSpec | WeibullFormulationSpec
 ProtocolSpec = OralProtocolSpec | IntravenousProtocolSpec
@@ -65,7 +65,13 @@ def _origin(record: ParameterRecord) -> ValueOrigin | None:
     prov = record.provenance
     if prov is None:
         return None
-    return ValueOrigin(source=prov.source_type, description=prov.reference)
+    # ValueOrigin.Source is coerced to the OSP enum by the model; keep the exact CPF source label (e.g.
+    # "measured", "assumed") in the description so a reviewer still sees it when the enum is coarser.
+    raw = prov.source_type
+    description = prov.reference or None
+    if raw and value_origin_source(raw) != raw:
+        description = raw if not description else f"{raw} — {description}"
+    return ValueOrigin(source=raw, description=description)
 
 
 def _measured(record: ParameterRecord) -> Measured:

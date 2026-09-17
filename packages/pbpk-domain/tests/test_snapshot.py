@@ -19,8 +19,20 @@ from pbpk_domain.snapshot.builder import (
     SnapshotBuildError,
     SubjectSpec,
 )
-from pbpk_domain.snapshot.models import Snapshot, ValueOrigin
+from pbpk_domain.snapshot.models import VALUE_ORIGIN_SOURCES, Snapshot, ValueOrigin, value_origin_source
 from pbpk_domain.snapshot.validation import validate_references
+
+
+def test_value_origin_source_maps_to_the_osp_enum() -> None:
+    assert value_origin_source(None) is None
+    assert value_origin_source("Publication") == "Publication"  # already valid, unchanged
+    assert value_origin_source("fitted") == "ParameterIdentification"
+    assert value_origin_source("measured") == "Other"  # unknown label -> Other, never left invalid
+    assert value_origin_source("assumed") == "Other"
+    assert value_origin_source("") == "Unknown"
+    # the model coerces on construction, so a snapshot can never carry an invalid Source
+    assert ValueOrigin(source="measured").source == "Other"
+    assert set(VALUE_ORIGIN_SOURCES) == {"ParameterIdentification", "Unknown", "Publication", "Database", "Other"}
 
 REFERENCE_SNAPSHOT = os.environ.get("PBPK_REFERENCE_SNAPSHOT")
 

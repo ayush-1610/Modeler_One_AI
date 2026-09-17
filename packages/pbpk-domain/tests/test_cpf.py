@@ -216,6 +216,41 @@ def test_build_from_cpf_produces_valid_snapshot() -> None:
     assert "elim.renal.gfr_fraction" in report.bindings_used
 
 
+def _value_origin_sources(snapshot) -> list[str]:
+    found: list[str] = []
+
+    def walk(obj):
+        if isinstance(obj, dict):
+            vo = obj.get("ValueOrigin")
+            if isinstance(vo, dict) and vo.get("Source") is not None:
+                found.append(vo["Source"])
+            for v in obj.values():
+                walk(v)
+        elif isinstance(obj, list):
+            for x in obj:
+                walk(x)
+
+    walk(snapshot.to_json_dict())
+    return found
+
+
+def test_build_emits_only_valid_value_origin_sources() -> None:
+    # Every parameter here has provenance source "measured"; the engine rejects a ValueOrigin.Source outside
+    # its enum and silently drops the simulation (verified on the Linux engine), so the builder must map it.
+    from pbpk_domain.snapshot.models import VALUE_ORIGIN_SOURCES
+
+    cpf = minimal_cpf()
+    subjects, scenarios = _subjects_and_scenarios()
+    snapshot, _ = build_from_cpf(cpf, subjects, scenarios)
+    sources = _value_origin_sources(snapshot)
+    assert sources  # provenance did produce ValueOrigins
+    assert all(s in VALUE_ORIGIN_SOURCES for s in sources)
+    assert "measured" not in sources  # the raw CPF label must not leak into Source
+    # the raw label is preserved for a reviewer in the description
+    logp = snapshot.compounds[0].lipophilicity[0].parameters[0]
+    assert logp.value_origin is not None and "measured" in (logp.value_origin.description or "")
+
+
 def test_build_reports_unresolved_for_unsupported_process() -> None:
     cpf = minimal_cpf(extra=[
         rec("elim.hepatic.CYP3A4.km", 3.0, "µmol/l",
