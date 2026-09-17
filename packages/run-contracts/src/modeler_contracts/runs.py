@@ -230,6 +230,7 @@ class RoundRun:
     context: RoundContext
     build: RoundBuild
     fit_outcome: FitRoundOutcome | None = None  # present when the round fitted parameters
+    manifest: EngineManifest | None = None      # the engine run of the built snapshot (None when it was skipped)
 
 
 @dataclass

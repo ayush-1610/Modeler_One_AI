@@ -8,14 +8,17 @@ durable, audited campaign state through the persistence layer (T-05) when `MODEL
 resuming past finished stages and appending each round, `evaluate_round` reduces the round's simulated
 profiles to PK and judges them against the tier gate (`pbpk_domain.campaign.evaluate` over T-18 NCA +
 `acceptance`), and `diagnose_round` maps the round's evidence to permitted actions with the deterministic
-diagnostics ruleset (`pbpk_domain.diagnostics`, T-14). The one remaining boundary is `run_round`, which needs
-the engine (T-09) to produce the simulated profiles `evaluate_round` reads. Every activity has its final
-signature, so the workflow state machine is complete and testable today.
+diagnostics ruleset (`pbpk_domain.diagnostics`, T-14). The round's snapshot is simulated on the engine: the
+workflow schedules `run_engine_job` (task `simulate`) on the engine task queue with the job `prepare_round_job`
+builds, and `run_round` finalizes the round by pointing the result at the engine's `profiles.json` (the bundle
+`evaluate_round` reads). Applying a fit's estimates into a new CPF version is the last piece, and lands with
+the fitting spec (T-11); every activity already has its final signature.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -24,6 +27,8 @@ from temporalio import activity
 from modeler_contracts.runs import (
     ActionChoice,
     CampaignRequest,
+    EngineInput,
+    EngineJob,
     ResumeState,
     RoundBuild,
     RoundContext,
@@ -34,6 +39,11 @@ from modeler_contracts.runs import (
     RoundRunResult,
     S0Readiness,
 )
+
+# The round simulates one built snapshot (a few small simulations) on the small engine class.
+ROUND_RESOURCE_CLASS = "s"
+# Canonical result the engine writes and evaluate_round reads: {"profiles": {study_id: {times_min, concentrations}}}.
+ROUND_PROFILES_NAME = "profiles.json"
 from modeler_orchestrator.campaign_store import CampaignStore
 
 _store: CampaignStore | None = None
@@ -140,12 +150,44 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     )
 
 
+@activity.defn(name="prepare_round_job")
+def prepare_round_job(ctx: RoundContext, build: RoundBuild) -> EngineJob:
+    """Build the engine job that simulates the round's snapshot. The engine writes the canonical profile
+    bundle (`profiles.json`) plus the raw OSP CSVs under the job's outputs prefix in the object store."""
+    root = os.environ.get("MODELER_OBJECT_STORE_URI", "file:///tmp/modeler-object-store").rstrip("/")
+    return EngineJob(
+        job_id=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}",
+        tenant_id=ctx.tenant_id,
+        task="simulate",
+        inputs=[EngineInput(name="snapshot.json", uri=build.snapshot_uri, sha256=build.snapshot_sha256)],
+        outputs_uri=f"{root}/tenants/{ctx.tenant_id}/campaigns/{ctx.campaign_id}/{ctx.stage}/r{ctx.round_index}",
+        options={},
+        timeout_s=int(max(60.0, ctx.deadline_seconds)) if ctx.deadline_seconds else 600,
+    )
+
+
 @activity.defn(name="run_round")
 def run_round(run: RoundRun) -> RoundRunResult:
-    """Apply the fit (parameter transfer, new CPF version) when one ran, then simulate the INTERNAL
-    studies for evaluation. Engine and persistence wiring lands with T-09/T-05; for now it echoes the CPF."""
+    """Finalize the round from the engine run: point the result at the engine's `profiles.json` (what
+    `evaluate_round` reads) and carry the CPF forward.
+
+    When a fit ran this round its estimates would be transferred into a new CPF version here; that lands with
+    the fitting spec (T-11), so for now the CPF is unchanged. When the engine step was skipped (no snapshot
+    was built for this stage) or produced no profile bundle, the result points at a marker URI so evaluate
+    reports it has nothing to judge rather than a false pass."""
     ctx = run.context
-    return RoundRunResult(results_uri=f"{ctx.cpf_uri}#results-r{ctx.round_index}", cpf_uri=ctx.cpf_uri, cpf_sha256=ctx.cpf_sha256)
+    manifest = run.manifest
+    if manifest is not None and manifest.status == "SUCCEEDED":
+        for output in manifest.outputs:
+            if Path(output.name).name == ROUND_PROFILES_NAME:
+                activity.logger.info(
+                    "run_round %s %s round %d: profiles at %s", ctx.campaign_id, ctx.stage, ctx.round_index, output.uri
+                )
+                return RoundRunResult(results_uri=output.uri, cpf_uri=ctx.cpf_uri, cpf_sha256=ctx.cpf_sha256)
+        activity.logger.warning(
+            "run_round %s %s round %d: engine manifest has no %s output", ctx.campaign_id, ctx.stage, ctx.round_index, ROUND_PROFILES_NAME
+        )
+    return RoundRunResult(results_uri=f"{ctx.cpf_uri}#no-results-r{ctx.round_index}", cpf_uri=ctx.cpf_uri, cpf_sha256=ctx.cpf_sha256)
 
 
 @activity.defn(name="evaluate_round")
@@ -294,6 +336,7 @@ CAMPAIGN_ACTIVITIES = [
     plan_campaign,
     resume_campaign,
     build_round_snapshot,
+    prepare_round_job,
     run_round,
     evaluate_round,
     diagnose_round,

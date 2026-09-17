@@ -26,6 +26,8 @@ with workflow.unsafe.imports_passed_through():
         CampaignOutcome,
         CampaignRequest,
         DeviationRecord,
+        EngineJob,
+        EngineManifest,
         EscalationDecision,
         FitRoundOutcome,
         ResumeState,
@@ -44,6 +46,9 @@ with workflow.unsafe.imports_passed_through():
     )
 
 ACT_RETRY = RetryPolicy(maximum_attempts=3)
+# Engine errors are deterministic for a given input; only infrastructure failures are retried.
+ENGINE_RETRY = RetryPolicy(maximum_attempts=2, non_retryable_error_types=["InputIntegrityError", "EngineError", "EngineTimeout"])
+ROUND_ENGINE_QUEUE = "engine-s"  # one built snapshot, a few small simulations
 _MIN = timedelta(minutes=1)
 
 
@@ -150,9 +155,24 @@ class StageLoopWorkflow:
             fit_outcome = await workflow.execute_child_workflow(
                 FitRoundWorkflow.run, build.fit_request, id=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}-fit",
             )
+
+        # Simulate the built snapshot on the engine. build_round_snapshot echoes the CPF (snapshot_uri ==
+        # cpf_uri) when no scenario trains this stage; there is then nothing to simulate, so the engine step
+        # is skipped and run_round reports no results (evaluate cannot judge the gate) rather than a false pass.
+        manifest: EngineManifest | None = None
+        if build.snapshot_uri != ctx.cpf_uri:
+            job: EngineJob = await workflow.execute_activity(
+                "prepare_round_job", args=[ctx, build], start_to_close_timeout=_MIN, retry_policy=ACT_RETRY, result_type=EngineJob,
+            )
+            manifest = await workflow.execute_activity(
+                "run_engine_job", job, task_queue=ROUND_ENGINE_QUEUE,
+                start_to_close_timeout=timedelta(seconds=max(60.0, remaining)), heartbeat_timeout=_MIN * 2,
+                retry_policy=ENGINE_RETRY, result_type=EngineManifest,
+            )
+
         run_result: RoundRunResult = await workflow.execute_activity(
-            "run_round", RoundRun(context=ctx, build=build, fit_outcome=fit_outcome),
-            start_to_close_timeout=timedelta(seconds=max(60.0, remaining)), retry_policy=ACT_RETRY, result_type=RoundRunResult,
+            "run_round", RoundRun(context=ctx, build=build, fit_outcome=fit_outcome, manifest=manifest),
+            start_to_close_timeout=_MIN * 5, retry_policy=ACT_RETRY, result_type=RoundRunResult,
         )
         evaluation: RoundEvaluation = await workflow.execute_activity(
             "evaluate_round", args=[ctx, run_result], start_to_close_timeout=_MIN * 10, retry_policy=ACT_RETRY,
