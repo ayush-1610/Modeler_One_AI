@@ -58,8 +58,12 @@ PLASMA_TEMPLATE <- "Organism|PeripheralVenousBlood|%s|Plasma (Peripheral Venous 
 # mapping is derived from the file name; confirm PK-Sim's naming on the Linux engine (F-405 golden run).
 write_profiles <- function(snapshot_path, out_dir) {
   snap <- fromJSON(snapshot_path, simplifyVector = FALSE)
-  result_csvs <- list.files(out_dir, pattern = "\\.csv$", full.names = TRUE)
-  result_csvs <- result_csvs[!grepl("pk_analys", basename(result_csvs), ignore.case = TRUE)]
+  all_csvs <- list.files(out_dir, pattern = "\\.csv$", full.names = TRUE)
+  all_csvs <- all_csvs[!grepl("pk_analys", basename(all_csvs), ignore.case = TRUE)]
+  # PK-Sim's runSimulationsFromSnapshot writes one file per simulation named "<snapshot>-<SimName>-Results.csv"
+  # (plus an outputs.csv index); prefer those, and fall back to any CSV if the naming ever changes.
+  result_csvs <- all_csvs[grepl("-Results\\.csv$", basename(all_csvs))]
+  if (length(result_csvs) == 0) result_csvs <- all_csvs[basename(all_csvs) != "outputs.csv"]
   sims <- snap$Simulations
   profiles <- list()
 
@@ -68,8 +72,9 @@ write_profiles <- function(snapshot_path, out_dir) {
     compound <- if (length(sim$Compounds)) sim$Compounds[[1]]$Name else NA_character_
     plasma_path <- if (!is.na(compound)) sprintf(PLASMA_TEMPLATE, compound) else ""
 
-    csv <- result_csvs[basename(tools::file_path_sans_ext(result_csvs)) == sim_name]
-    if (length(csv) == 0) csv <- result_csvs[startsWith(basename(result_csvs), sim_name)]
+    csv <- result_csvs[endsWith(basename(result_csvs), paste0("-", sim_name, "-Results.csv"))]
+    if (length(csv) == 0) csv <- result_csvs[basename(tools::file_path_sans_ext(result_csvs)) == sim_name]  # "<SimName>.csv"
+    if (length(csv) == 0) csv <- result_csvs[endsWith(basename(tools::file_path_sans_ext(result_csvs)), paste0("-", sim_name))]
     if (length(csv) == 0 && length(sims) == 1 && length(result_csvs) == 1) csv <- result_csvs
     if (length(csv) == 0) {
       cat("WARNING ", sprintf("no results CSV found for simulation '%s'", sim_name), "\n", sep = "")
