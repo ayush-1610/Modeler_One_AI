@@ -77,7 +77,7 @@ def build() -> dict:
     observations = [
         ConcentrationObservation(
             study_id="SYNTHETIC-EXAMPLE", analyte=COMPOUND, matrix="plasma", series="7.5 mg solution", statistic="arithmetic_mean",
-            time=t, time_unit="h", value=mean, unit="ng/ml", sd=sd, n=12, dose=7.5, dose_unit="mg", route="oral", food_state="Fasted",
+            time=t, time_unit="h", value=mean, unit="ng/ml", sd=sd, lloq=0.5, n=12, dose=7.5, dose_unit="mg", route="oral", food_state="Fasted",
             source=SourceRef(file_sha256="0" * 64, recipe_id="synthetic", recipe_version=1, cells={"time": f"PK!A{i}", "value": f"PK!B{i}"}),
         )
         for i, (t, mean, sd) in enumerate(SYNTHETIC_PO, start=2)

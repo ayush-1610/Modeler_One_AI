@@ -420,7 +420,8 @@
           "DataInfo": {
             "Origin": "Observation",
             "AuxiliaryType": "Undefined",
-            "MolWeight": 325.8
+            "MolWeight": 325.8,
+            "LLOQ": 0.5
           },
           "Values": [
             18.0,

@@ -8,12 +8,24 @@ from collections import defaultdict
 from modeler_intake.records import ConcentrationObservation, DissolutionObservation
 from pbpk_domain.issues import Issue
 
-# Canonical spellings follow OSP unit names; aliases cover common spreadsheet spellings.
-CONCENTRATION_UNITS = {
+# Canonical spellings follow OSP unit names; aliases cover common spreadsheet spellings. Mass and molar are
+# separate OSP dimensions (Concentration (mass) / Concentration (molar)); PK-Sim converts between them with the
+# molecular weight. Fraction (dimensionless) is used for urine/feces excretion. Units are from the engine catalog.
+MASS_CONCENTRATION_UNITS = {
+    "pg/l": "pg/l", "ng/l": "ng/l", "µg/l": "µg/l", "ug/l": "µg/l", "mg/l": "mg/l", "g/l": "g/l",
     "pg/ml": "pg/ml", "ng/ml": "ng/ml", "µg/ml": "µg/ml", "ug/ml": "µg/ml", "mcg/ml": "µg/ml", "mg/ml": "mg/ml",
-    "ng/l": "ng/l", "µg/l": "µg/l", "ug/l": "µg/l", "mg/l": "mg/l",
-    "nmol/l": "nmol/l", "nm": "nmol/l", "µmol/l": "µmol/l", "umol/l": "µmol/l", "µm": "µmol/l",
 }
+MOLAR_CONCENTRATION_UNITS = {
+    "fmol/l": "fmol/l", "pmol/l": "pmol/l", "nmol/l": "nmol/l", "µmol/l": "µmol/l", "umol/l": "µmol/l", "mmol/l": "mmol/l", "mol/l": "mol/l",
+    "fmol/ml": "fmol/ml", "pmol/ml": "pmol/ml", "nmol/ml": "nmol/ml", "µmol/ml": "µmol/ml", "mmol/ml": "mmol/ml", "mol/ml": "mol/ml",
+    # molar shorthand (nM/µM/mM); lower-cased by canonical_unit, so keep the folded keys
+    "nm": "nmol/l", "µm": "µmol/l", "um": "µmol/l", "mm": "mmol/l", "pm": "pmol/l", "fm": "fmol/l",
+}
+CONCENTRATION_UNITS = {**MASS_CONCENTRATION_UNITS, **MOLAR_CONCENTRATION_UNITS}
+# Fraction of dose (urine/feces excretion): OSP Fraction dimension, dimensionless or percent.
+FRACTION_UNITS = {"": "", "fraction": "", "frac": "", "%": "%", "percent": "%"}
+# Matrices whose value is a fraction of dose rather than a concentration.
+FRACTION_MATRICES = {"urine", "feces"}
 TIME_UNITS = {"min": "min", "minute": "min", "minutes": "min", "h": "h", "hr": "h", "hrs": "h", "hour": "h", "hours": "h",
               "day": "day(s)", "days": "day(s)", "d": "day(s)"}
 
@@ -31,8 +43,9 @@ def validate_concentrations(records: list[ConcentrationObservation]) -> list[Iss
         for field in ("study_id", "analyte", "matrix"):
             if not getattr(record, field):
                 issues.append(Issue("MISSING_CONSTANT", where, f"{field} is required for concentration data"))
-        if canonical_unit(record.unit, CONCENTRATION_UNITS) is None:
-            issues.append(Issue("UNKNOWN_UNIT", where, f"concentration unit {record.unit!r} is not recognised"))
+        unit_table = FRACTION_UNITS if (record.matrix or "").lower() in FRACTION_MATRICES else CONCENTRATION_UNITS
+        if canonical_unit(record.unit, unit_table) is None:
+            issues.append(Issue("UNKNOWN_UNIT", where, f"unit {record.unit!r} is not recognised for matrix {record.matrix!r}"))
         if canonical_unit(record.time_unit, TIME_UNITS) is None:
             issues.append(Issue("UNKNOWN_UNIT", where, f"time unit {record.time_unit!r} is not recognised"))
         if record.time < 0:
