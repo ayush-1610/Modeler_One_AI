@@ -246,19 +246,32 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
         ctx.campaign_id, ctx.stage, ctx.round_index, list(diagnosis.causes), len(diagnosis.permitted_actions), diagnosis.escalate,
     )
     return RoundDiagnosis(
-        evidence=list(diagnosis.evidence), permitted_actions=list(diagnosis.permitted_actions),
+        evidence=list(diagnosis.evidence), causes=list(diagnosis.causes),
+        permitted_actions=list(diagnosis.permitted_actions),
         escalate=diagnosis.escalate, escalation_reason=diagnosis.reason,
     )
 
 
 @activity.defn(name="choose_action")
 def choose_action(ctx: RoundContext, diagnosis: RoundDiagnosis) -> ActionChoice:
-    """Pick the next action from the permitted set, skipping ones already tried. This is the deterministic
-    fallback (first permitted action); the strategist agent (T-15) refines the choice and its rationale."""
-    for action in diagnosis.permitted_actions:
-        if action not in ctx.actions_tried:
-            return ActionChoice(action_id=action, rationale="first permitted action not yet tried (deterministic fallback)")
-    return ActionChoice(action_id=None, rationale="no permitted action left to try")
+    """Choose the next action from the diagnostics' permitted set via the strategist (T-15).
+
+    The strategist may only choose among `diagnosis.permitted_actions`; with no per-tenant model configured it
+    returns the first not-yet-tried permitted action (the deterministic path the workflow uses today). Enabling
+    the LLM strategist means passing `decider=strategist.llm_decider(make_llm(policy))` and a `log_step` that
+    appends to `agent_steps` — both land when per-tenant agents and that table are wired."""
+    from modeler_agents.strategist import StrategyContext, decide
+
+    choice = decide(StrategyContext(
+        stage=ctx.stage, permitted_actions=tuple(diagnosis.permitted_actions), actions_tried=tuple(ctx.actions_tried),
+        evidence=tuple(diagnosis.evidence), causes=tuple(diagnosis.causes),
+    ))
+    return ActionChoice(
+        action_id=choice.action_id, rationale=choice.rationale,
+        parameters_to_fit=list(choice.parameters_to_fit),
+        bounds_override={k: list(v) for k, v in choice.bounds_override.items()} if choice.bounds_override else None,
+        source=choice.source,
+    )
 
 
 @activity.defn(name="record_round")

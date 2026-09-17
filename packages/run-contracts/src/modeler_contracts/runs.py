@@ -250,6 +250,7 @@ class RoundEvaluation:
 @dataclass
 class RoundDiagnosis:
     evidence: list[str] = field(default_factory=list)
+    causes: list[str] = field(default_factory=list)
     permitted_actions: list[str] = field(default_factory=list)
     escalate: bool = False
     escalation_reason: str | None = None
@@ -259,6 +260,9 @@ class RoundDiagnosis:
 class ActionChoice:
     action_id: str | None
     rationale: str = ""
+    parameters_to_fit: list[str] = field(default_factory=list)   # advisory; the fit step validates vs the CPF
+    bounds_override: dict[str, list[float]] | None = None
+    source: str = "fallback"                                     # "strategist" | "fallback" | "none"
 
 
 @dataclass

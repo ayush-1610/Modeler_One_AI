@@ -8,6 +8,7 @@ dependencies = [
   "modeler-contracts",
   "pbpk-domain",
   "modeler-api",
+  "modeler-agents",
   "boto3>=1.35",
 ]
 
@@ -15,6 +16,7 @@ dependencies = [
 modeler-contracts = { workspace = true }
 pbpk-domain = { workspace = true }
 modeler-api = { workspace = true }
+modeler-agents = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
