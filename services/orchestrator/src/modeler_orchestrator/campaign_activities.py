@@ -5,14 +5,16 @@ Most steps are wired to real subsystems: `plan_campaign` runs the S0 completenes
 `pbpk_domain.campaign.round_build`), `choose_action` picks the first permitted action (the deterministic
 fallback the strategist agent in T-15 will refine), and `resume_campaign`/`record_round` read and write
 durable, audited campaign state through the persistence layer (T-05) when `MODELER_DATABASE_URL` is set —
-resuming past finished stages and appending each round. The rest are still boundaries: `run_round` needs the
-engine (T-09), `evaluate_round` the engine results and `acceptance.evaluate`, and `diagnose_round` the
-diagnostics ruleset (T-14). Every activity has its final signature, so the workflow state machine is
-complete and testable today.
+resuming past finished stages and appending each round, and `evaluate_round` reduces the round's simulated
+profiles to PK and judges them against the tier gate (`pbpk_domain.campaign.evaluate` over T-18 NCA +
+`acceptance`). The rest are still boundaries: `run_round` needs the engine (T-09) to produce the simulated
+profiles `evaluate_round` reads, and `diagnose_round` the diagnostics ruleset (T-14). Every activity has its
+final signature, so the workflow state machine is complete and testable today.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -56,6 +58,14 @@ def _local_path(uri: str) -> Path | None:
 def _load_local_text(uri: str) -> str | None:
     path = _local_path(uri)
     return None if path is None else path.read_text(encoding="utf-8")
+
+
+def _load_local_json(uri: str) -> dict | None:
+    """Parse a local `file://` JSON document, or None when it is not a loadable local file."""
+    path = _local_path(uri)
+    if path is None or not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @activity.defn(name="plan_campaign")
@@ -139,10 +149,53 @@ def run_round(run: RoundRun) -> RoundRunResult:
 
 @activity.defn(name="evaluate_round")
 def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvaluation:
-    """Compute PK metrics from the run and judge them against the tier gate (`acceptance.evaluate`).
-    Needs engine results (T-08/T-18); until then no gate can pass, so a round always proceeds to
-    diagnostics (the workflow logic under test) rather than falsely passing."""
-    return RoundEvaluation(gate_passed=False, acceptable=False, metrics={}, findings=["evaluation not wired to engine results yet (T-18)"])
+    """Reduce the round's simulated profiles to PK and judge them against the tier gate.
+
+    Reads the MAP (tier + each study's fitting/validation role), the run's normalized profile bundle
+    (``results_uri`` -> ``{"profiles": {study_id: {"times_min", "concentrations"}}}``, written by `run_round`
+    once the engine is wired) and the observed PK (``ctx.observed_uri`` -> ``{study_id: {"auc", "cmax"}}``),
+    then calls `pbpk_domain.campaign.evaluate.assess_round`. When the MAP, results or observed PK are not yet
+    available, no gate can pass, so the round proceeds to diagnostics rather than falsely passing; the reason
+    is recorded in the findings."""
+
+    def _cannot(reason: str) -> RoundEvaluation:
+        return RoundEvaluation(gate_passed=False, acceptable=False, metrics={}, findings=[reason])
+
+    map_text = _load_local_text(ctx.map_uri) if ctx.map_uri else None
+    if map_text is None:
+        return _cannot("evaluation: MAP not locally loadable (object-store I/O pending)")
+    profiles_doc = _load_local_json(run_result.results_uri)
+    if not profiles_doc or "profiles" not in profiles_doc:
+        return _cannot("evaluation: no simulated profile bundle from the run yet (run_round/engine pending)")
+
+    from pbpk_domain.campaign.evaluate import ObservedPK, SimulatedProfile, assess_round
+    from pbpk_domain.campaign.map import MapDocument
+
+    map_doc = MapDocument.model_validate_json(map_text)
+    role_of = {s.study_id: ("fitting" if s.assignment == "INTERNAL" else "validation") for s in map_doc.studies}
+
+    simulated = [
+        SimulatedProfile(
+            study_id=study_id, role=role_of.get(study_id, "validation"),
+            times=prof.get("times_min", []), concentrations=prof.get("concentrations", []),
+        )
+        for study_id, prof in profiles_doc["profiles"].items()
+    ]
+    observed_doc = _load_local_json(ctx.observed_uri) if ctx.observed_uri else {}
+    observed = {
+        study_id: ObservedPK(auc=pk.get("auc"), cmax=pk.get("cmax"))
+        for study_id, pk in (observed_doc or {}).items()
+    }
+
+    assessment = assess_round(simulated, observed, model_risk=map_doc.model_risk)
+    activity.logger.info(
+        "evaluate_round %s %s round %d: gate=%s studies=%d",
+        ctx.campaign_id, ctx.stage, ctx.round_index, assessment.gate_passed, len(assessment.studies),
+    )
+    return RoundEvaluation(
+        gate_passed=assessment.gate_passed, acceptable=assessment.gate_passed,
+        metrics=assessment.metrics, findings=list(assessment.findings),
+    )
 
 
 @activity.defn(name="diagnose_round")
