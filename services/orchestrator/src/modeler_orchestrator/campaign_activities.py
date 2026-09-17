@@ -5,11 +5,12 @@ Most steps are wired to real subsystems: `plan_campaign` runs the S0 completenes
 `pbpk_domain.campaign.round_build`), `choose_action` picks the first permitted action (the deterministic
 fallback the strategist agent in T-15 will refine), and `resume_campaign`/`record_round` read and write
 durable, audited campaign state through the persistence layer (T-05) when `MODELER_DATABASE_URL` is set —
-resuming past finished stages and appending each round, and `evaluate_round` reduces the round's simulated
+resuming past finished stages and appending each round, `evaluate_round` reduces the round's simulated
 profiles to PK and judges them against the tier gate (`pbpk_domain.campaign.evaluate` over T-18 NCA +
-`acceptance`). The rest are still boundaries: `run_round` needs the engine (T-09) to produce the simulated
-profiles `evaluate_round` reads, and `diagnose_round` the diagnostics ruleset (T-14). Every activity has its
-final signature, so the workflow state machine is complete and testable today.
+`acceptance`), and `diagnose_round` maps the round's evidence to permitted actions with the deterministic
+diagnostics ruleset (`pbpk_domain.diagnostics`, T-14). The one remaining boundary is `run_round`, which needs
+the engine (T-09) to produce the simulated profiles `evaluate_round` reads. Every activity has its final
+signature, so the workflow state machine is complete and testable today.
 """
 
 from __future__ import annotations
@@ -183,7 +184,7 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
     ]
     observed_doc = _load_local_json(ctx.observed_uri) if ctx.observed_uri else {}
     observed = {
-        study_id: ObservedPK(auc=pk.get("auc"), cmax=pk.get("cmax"))
+        study_id: ObservedPK(auc=pk.get("auc"), cmax=pk.get("cmax"), tmax=pk.get("tmax"), thalf=pk.get("thalf"))
         for study_id, pk in (observed_doc or {}).items()
     }
 
@@ -198,11 +199,56 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
     )
 
 
+def _ratio(predicted: float | None, observed: float | None) -> float | None:
+    return predicted / observed if predicted and observed and observed > 0 else None
+
+
 @activity.defn(name="diagnose_round")
 def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagnosis:
-    """Map round evidence to permitted actions (MS-01 §5). The deterministic ruleset is T-14; until then
-    a round with no evidence escalates rather than inventing an action."""
-    return RoundDiagnosis(evidence=[], permitted_actions=[], escalate=True, escalation_reason="diagnostics ruleset not available (T-14)")
+    """Map the round's evidence to permitted actions with the deterministic diagnostics ruleset (MS-01 §5).
+
+    Builds each study's PK residuals from the evaluation metrics and the MAP scenario (route, dose), then
+    calls `pbpk_domain.diagnostics.diagnose` with the stage's permitted candidates/branches, skipping actions
+    already tried. Evidence that needs a profile-shape or fit analysis not yet wired (early-phase residuals,
+    secondary peaks, at-bound / correlation / optimiser-agreement signals) simply does not fire; the
+    PK-ratio-driven rules (clearance, absorption rate, dose dependence) are active now. With no MAP, or no
+    rule matching, the round escalates rather than inventing an action."""
+    map_text = _load_local_text(ctx.map_uri) if ctx.map_uri else None
+    if map_text is None:
+        return RoundDiagnosis(evidence=[], permitted_actions=[], escalate=True,
+                              escalation_reason="diagnostics: MAP not locally loadable (object-store I/O pending)")
+
+    from pbpk_domain.campaign.map import STAGE_PLAN, MapDocument
+    from pbpk_domain.diagnostics import StudyResidual, diagnose
+
+    map_doc = MapDocument.model_validate_json(map_text)
+    plan = STAGE_PLAN.get(ctx.stage, {})
+    scenarios = {s.study_id: s for s in map_doc.scenarios}
+    residuals = [
+        StudyResidual(
+            study_id=st["study_id"], role=st.get("role", "fitting"),
+            route="iv" if (scenarios.get(st["study_id"]) and scenarios[st["study_id"]].route.startswith("iv")) else "oral",
+            dose_mg=scenarios[st["study_id"]].dose_mg if st["study_id"] in scenarios else None,
+            auc_ratio=_ratio(st.get("predicted_auc"), st.get("observed_auc")),
+            cmax_ratio=_ratio(st.get("predicted_cmax"), st.get("observed_cmax")),
+            tmax_ratio=_ratio(st.get("predicted_tmax"), st.get("observed_tmax")),
+            thalf_ratio=_ratio(st.get("predicted_thalf"), st.get("observed_thalf")),
+            observed_auc=st.get("observed_auc"), auc_in_limits=st.get("auc_in_limits"),
+        )
+        for st in evaluation.metrics.get("studies", [])
+    ]
+    diagnosis = diagnose(
+        residuals, stage=ctx.stage, stage_candidates=plan.get("fit_candidates", ()),
+        stage_branches=plan.get("branches", ()), actions_tried=ctx.actions_tried,
+    )
+    activity.logger.info(
+        "diagnose_round %s %s round %d: causes=%s actions=%d escalate=%s",
+        ctx.campaign_id, ctx.stage, ctx.round_index, list(diagnosis.causes), len(diagnosis.permitted_actions), diagnosis.escalate,
+    )
+    return RoundDiagnosis(
+        evidence=list(diagnosis.evidence), permitted_actions=list(diagnosis.permitted_actions),
+        escalate=diagnosis.escalate, escalation_reason=diagnosis.reason,
+    )
 
 
 @activity.defn(name="choose_action")

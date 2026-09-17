@@ -242,10 +242,14 @@ def generate_map(
     software_versions: dict[str, str],
     seed: int = 1,
     campaign_budget_seconds: int = 3600,
-    diagnostics_ruleset_version: str = "diag-rules@0.1-UNVERIFIED",
+    diagnostics_ruleset_version: str | None = None,
     meal_template: str = "Meal: High-fat breakfast (Human)",
 ) -> MapDocument:
     """Produce the MAP (version 1, DRAFT) from the standard and the campaign's inputs (MS-01 §9)."""
+    if diagnostics_ruleset_version is None:
+        from pbpk_domain.diagnostics import diag_ruleset_version
+
+        diagnostics_ruleset_version = diag_ruleset_version()
     parameters = tuple(
         MapParameter(
             id=p.id, value=p.value, unit=p.unit, status=p.status.value,

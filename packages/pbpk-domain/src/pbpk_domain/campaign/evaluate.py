@@ -37,9 +37,14 @@ class SimulatedProfile:
 
 @dataclass(frozen=True)
 class ObservedPK:
-    """Observed PK for one study, in the same units and AUC kind as the predicted profile."""
+    """Observed PK for one study, in the same units and AUC kind as the predicted profile.
+
+    ``tmax`` and ``thalf`` are optional and feed the diagnostics ruleset (T-14); they take no part in the
+    acceptance gate, which compares AUC and Cmax only."""
     auc: float | None = None
     cmax: float | None = None
+    tmax: float | None = None
+    thalf: float | None = None
 
 
 @dataclass(frozen=True)
@@ -49,8 +54,11 @@ class StudyPK:
     predicted_auc: float | None
     predicted_cmax: float
     predicted_tmax: float
+    predicted_thalf: float | None
     observed_auc: float | None
     observed_cmax: float | None
+    observed_tmax: float | None
+    observed_thalf: float | None
 
 
 @dataclass(frozen=True)
@@ -88,7 +96,9 @@ def assess_round(
         studies.append(StudyPK(
             study_id=profile.study_id, role=profile.role,
             predicted_auc=pred_auc, predicted_cmax=result.c_max, predicted_tmax=result.t_max,
+            predicted_thalf=result.t_half,
             observed_auc=obs.auc if obs else None, observed_cmax=obs.cmax if obs else None,
+            observed_tmax=obs.tmax if obs else None, observed_thalf=obs.thalf if obs else None,
         ))
         if obs is None:
             findings.append(f"{profile.study_id}: no observed PK; not compared")
@@ -119,13 +129,18 @@ def assess_round(
 
 
 def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None) -> dict[str, Any]:
+    # per (study, quantity) pass/fail, so diagnostics can read whether each study's AUC/Cmax was in limits
+    passed = {(v.comparison.study, v.comparison.quantity): v.passes for v in report.verdicts} if report else {}
     metrics: dict[str, Any] = {
         "studies": [
             {
                 "study_id": s.study_id, "role": s.role,
                 "predicted_auc": s.predicted_auc, "observed_auc": s.observed_auc,
                 "predicted_cmax": s.predicted_cmax, "observed_cmax": s.observed_cmax,
-                "predicted_tmax": s.predicted_tmax,
+                "predicted_tmax": s.predicted_tmax, "observed_tmax": s.observed_tmax,
+                "predicted_thalf": s.predicted_thalf, "observed_thalf": s.observed_thalf,
+                "auc_in_limits": passed.get((s.study_id, "AUC")),
+                "cmax_in_limits": passed.get((s.study_id, "Cmax")),
             }
             for s in studies
         ],

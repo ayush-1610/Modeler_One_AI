@@ -1,0 +1,164 @@
+# PBPK diagnostics ruleset (MS-01 §5): deterministic mapping from a round's evidence to a cause and an
+# ordered list of permitted actions. The strategist agent (T-15) chooses among the permitted actions and
+# writes the rationale; it may not add actions outside this set. Evidence is computed by
+# `pbpk_domain.diagnostics.compute_evidence` from the round's PK metrics and fit signals; thresholds below
+# are ruleset data and stay UNVERIFIED until a PBPK SME approves them.
+#
+# Each rule's `evidence` is a named signal the evaluator computes. `type: fit` rules contribute their
+# actions (ordered) when they fire; `type: escalate` rules force a human decision when they fire. Actions
+# name a candidate/branch by the same token used in the MAP stage plan (STAGE_PLAN); an action is only
+# offered when that token is a permitted fit candidate / branch for the current stage and has not been tried.
+id: diag-rules
+version: "0.1"
+status: UNVERIFIED
+
+sources:
+  ms01: "PBPK Modeling Standard MS-01 §5 (diagnostics ruleset), this repository"
+  ema_pbpk_reporting: "EMA Guideline on the reporting of PBPK modelling and simulation, EMA/CHMP/458101/2016"
+
+# Diagnostic thresholds (ratios are predicted/observed). Distinct from the acceptance limits: these decide
+# which cause is most likely, not whether the model passes.
+thresholds:
+  ratio_high: 1.25          # a ratio above this reads as "high / too slow"
+  ratio_low: 0.8            # a ratio below this reads as "low / too fast"
+  dose_norm_auc_rel: 0.25   # relative change in dose-normalized AUC across the dose range to call a trend
+  starts_agreement_min: 0.5 # below this the optimiser starts disagree (multiple optima)
+
+# Rules are evaluated in order; every rule whose evidence is present fires. Escalate rules take precedence.
+rules:
+  - id: clearance
+    cause: "Systemic clearance mis-specified"
+    type: fit
+    stages: [S1, S2]
+    routes: [iv, oral]
+    evidence: clearance_off        # |terminal t1/2 ratio| out of [low, high] AND AUC off in the same direction
+    actions:
+      - {op: fit, target: "elim.hepatic.{enzyme}.clspec"}
+      - {op: fit, target: "phys.logp"}
+
+  - id: distribution
+    cause: "Distribution volume mis-specified"
+    type: fit
+    stages: [S1]
+    routes: [iv]
+    evidence: distribution_off     # AUC within limits, early concentrations off, Vss off
+    actions:
+      - {op: branch, target: "dist.partition_method"}
+      - {op: fit, target: "phys.logp"}
+
+  - id: permeability_limited
+    cause: "Permeability-limited tissue distribution"
+    type: fit
+    stages: [S1]
+    routes: [iv]
+    evidence: permeability_limited # early distribution-phase shape off with Vss fine
+    actions:
+      - {op: branch, target: "dist.permeability_method"}
+      - {op: fit, target: "perm.cellular"}
+
+  - id: absorption_too_fast
+    cause: "Oral absorption too fast"
+    type: fit
+    stages: [S2]
+    routes: [oral]
+    evidence: absorption_fast      # Cmax high and tmax early
+    actions:
+      - {op: fit, target: "perm.intestinal"}
+
+  - id: absorption_too_slow
+    cause: "Oral absorption too slow"
+    type: fit
+    stages: [S2]
+    routes: [oral]
+    evidence: absorption_slow      # Cmax low and tmax late, AUC fine
+    actions:
+      - {op: fit, target: "perm.intestinal"}
+      - {op: fit, target: "phys.solubility.ref"}
+
+  - id: bioavailability_solubility
+    cause: "Low oral bioavailability: solubility-limited"
+    type: fit
+    stages: [S2]
+    routes: [oral]
+    evidence: auc_low_dose_dependent   # AUC low and dose-normalized AUC decreases with dose
+    actions:
+      - {op: fit, target: "phys.solubility.ref"}
+
+  - id: bioavailability_firstpass
+    cause: "Low oral bioavailability: first-pass or permeability"
+    type: fit
+    stages: [S2]
+    routes: [oral]
+    evidence: auc_low_dose_independent # AUC low with no dose dependence (intestinal enzyme expression flagged, not fitted)
+    actions:
+      - {op: fit, target: "perm.intestinal"}
+
+  - id: saturable_elimination
+    cause: "Saturable elimination or first-pass (nonlinear)"
+    type: fit
+    stages: [S2]
+    routes: [oral]
+    evidence: dose_norm_auc_increasing # dose-normalized AUC increases with dose
+    actions:
+      - {op: switch, target: "elim.hepatic.{enzyme}.mm"}   # switch dominant enzyme to Michaelis-Menten (fit Km bounded, Vmax)
+
+  - id: enterohepatic_recycling
+    cause: "Enterohepatic recycling"
+    type: fit
+    stages: [S2, S3]
+    routes: [oral]
+    evidence: secondary_peak       # secondary peak(s) after absorption in the observed profile
+    actions:
+      - {op: fit, target: "elim.ehc_fraction"}
+
+  - id: fed_solubility
+    cause: "Fed-state solubility"
+    type: fit
+    stages: [S3]
+    routes: [oral]
+    evidence: fed_solubility        # fed/fasted AUC ratio off with a consistent Cmax ratio
+    actions:
+      - {op: fit, target: "food.fed_solubility_factor"}
+
+  - id: non_identifiable_pair
+    cause: "Non-identifiable parameter pair"
+    type: fit
+    stages: [S1, S2, S3]
+    routes: [iv, oral]
+    evidence: correlated_pair       # correlation > 0.95 between two fitted parameters
+    actions:
+      - {op: fix_and_refit, target: "correlated_pair"}   # fix the one with the more reliable source, refit
+
+  - id: multiple_optima
+    cause: "Multiple optima (optimiser starts disagree)"
+    type: fit
+    stages: [S1, S2, S3]
+    routes: [iv, oral]
+    evidence: starts_disagree       # agreement between optimiser starts < starts_agreement_min
+    actions:
+      - {op: switch_algorithm, target: "DEoptim"}        # one round; if unchanged the next round escalates
+
+  # --- conditions that require a person (MS-01 §5, §4) -----------------------------------------------
+  - id: time_dependent_clearance
+    cause: "Time-dependent clearance (auto-induction / TDI)"
+    type: escalate
+    stages: [S2, S3]
+    routes: [oral]
+    evidence: accumulation_off      # MD accumulation ratio off with the single dose fine
+    actions: []
+
+  - id: gastric_emptying
+    cause: "Gastric emptying / meal template"
+    type: escalate
+    stages: [S3]
+    routes: [oral]
+    evidence: fed_tmax_off          # fed tmax off
+    actions: []
+
+  - id: parameter_at_bound
+    cause: "A fitted parameter sits at its bound"
+    type: escalate
+    stages: [S1, S2, S3]
+    routes: [iv, oral]
+    evidence: param_at_bound
+    actions: []
