@@ -132,6 +132,15 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
         activity.logger.info("build_round_snapshot %s %s: no fittable CPF parameter for %r", ctx.campaign_id, ctx.stage, target)
         return None
 
+    # The strategist's bounds are keyed by the (possibly templated) action target; apply them to every
+    # concrete parameter that target resolves to. Absent an override, build_fit_spec uses the CPF's policy.
+    pending = ctx.pending_bounds_override or {}
+    override: dict[str, tuple[float, float]] = {}
+    for cid in fit_ids:
+        bounds = pending.get(cid) or pending.get(target)
+        if bounds and len(bounds) == 2:
+            override[cid] = (float(bounds[0]), float(bounds[1]))
+
     observed_doc = _load_local_json(ctx.observed_uri) if ctx.observed_uri else {}
     mw = cpf.get("phys.mw")
     mol_weight = mw.numeric_value if mw is not None else None
@@ -151,7 +160,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
         return None
 
     try:
-        spec = build_fit_spec(cpf, fit_ids, simulations, seed=ctx.seed)
+        spec = build_fit_spec(cpf, fit_ids, simulations, bounds_override=override or None, seed=ctx.seed)
     except FitSpecError as exc:
         activity.logger.info("build_round_snapshot %s %s: fit spec not built (%s)", ctx.campaign_id, ctx.stage, exc)
         return None

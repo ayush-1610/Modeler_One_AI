@@ -209,6 +209,7 @@ class RoundContext:
     cpf_sha256: str
     pending_action: str | None  # action chosen last round to apply now (None on round 1)
     actions_tried: list[str] = field(default_factory=list)
+    pending_bounds_override: dict[str, list[float]] | None = None  # strategist bounds for the pending fit
     deadline_seconds: float = 0.0
     seed: int = 1
     map_uri: str = ""       # the MAP whose scenarios this round builds a snapshot from

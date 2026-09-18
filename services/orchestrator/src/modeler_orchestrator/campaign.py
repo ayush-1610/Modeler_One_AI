@@ -86,6 +86,7 @@ class StageLoopWorkflow:
         best_cpf_uri, best_cpf_sha = cpf_uri, cpf_sha
         actions_tried: list[str] = []
         pending_action: str | None = None
+        pending_bounds: dict[str, list[float]] | None = None
         rounds_run = 0
 
         for round_index in range(1, request.max_rounds + 1):
@@ -102,6 +103,7 @@ class StageLoopWorkflow:
                 campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=request.stage,
                 round_index=round_index, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
                 pending_action=pending_action, actions_tried=list(actions_tried),
+                pending_bounds_override=pending_bounds,
                 deadline_seconds=remaining, seed=request.seed,
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
@@ -135,10 +137,12 @@ class StageLoopWorkflow:
                     )
                 # "retry": clear the decision and continue without a new action.
                 pending_action = None
+                pending_bounds = None
                 continue
 
             actions_tried.append(choice.action_id)
             pending_action = choice.action_id
+            pending_bounds = choice.bounds_override  # strategist's bounds for this fit, applied next round
 
         return StageOutcome(
             stage=request.stage, status="ESCALATED", rounds_run=rounds_run,

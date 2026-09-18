@@ -165,3 +165,17 @@ def test_fit_action_without_observed_profile_has_no_fit_request(tmp_path: Path) 
     cpf_uri, map_uri, _ = _fittable_inputs(tmp_path, with_observed=False)
     build = build_round_snapshot(_fit_ctx(cpf_uri, map_uri, "", "fit phys.logp"))
     assert build.needs_fit is True and build.fit_request is None  # nothing to fit against -> round simulates
+
+
+def test_fit_request_uses_strategist_bounds_override(tmp_path: Path) -> None:
+    cpf_uri, map_uri, observed_uri = _fittable_inputs(tmp_path, with_observed=True)
+    ctx = RoundContext(campaign_id="camp1", tenant_id="t1", stage="S1", round_index=1, cpf_uri=cpf_uri,
+                       cpf_sha256="a" * 64, pending_action="fit phys.logp", map_uri=map_uri, observed_uri=observed_uri,
+                       pending_bounds_override={"phys.logp": [0.5, 3.0]})  # strategist's bounds, tighter than the policy's 1..4
+    build = build_round_snapshot(ctx)
+    assert build.fit_request is not None
+    assert build.fit_request.parameters[0].lower == 0.5 and build.fit_request.parameters[0].upper == 3.0
+    spec = json.loads(Path(build.fit_request.base_spec_uri.removeprefix("file://")).read_text())
+    p = spec["parameters"][0]
+    assert p["min"] == 0.5 and p["max"] == 3.0
+    assert p["start"] == 2.6  # within the override bounds -> unchanged
