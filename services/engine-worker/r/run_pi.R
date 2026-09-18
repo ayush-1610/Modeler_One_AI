@@ -35,7 +35,10 @@ build_dataset <- function(observed) {
   sd <- if (length(observed$sd) > 0) num(observed$sd) else NULL
   dataset$setValues(xValues = num(observed$time), yValues = num(observed$values), yErrorValues = sd)
   dataset$xUnit <- observed$time_unit
-  dataset$yDimension <- ospDimensions$`Concentration (mass)`
+  # dimension defaults to mass; a molar observed series (e.g. µmol/l, matching the simulated plasma output)
+  # sets dimension "Concentration (molar)" so no MW conversion is needed.
+  dim_name <- if (!is.null(observed$dimension)) observed$dimension else "Concentration (mass)"
+  dataset$yDimension <- ospDimensions[[dim_name]]
   dataset$yUnit <- observed$unit
   if (!is.null(sd)) {
     dataset$yErrorType <- "ArithmeticStdDev"
@@ -111,6 +114,13 @@ run_parameter_identification <- function(spec_path, out_dir) {
   estimates <- result$toDataFrame()
   estimates <- estimates[!duplicated(estimates$group), ]
 
+  # Map each estimated parameter back to the CPF id the platform fit (spec$parameters[[i]]$name), matched by
+  # the PK-Sim parameter path, so the result is keyed by the CPF id (what apply_fit_estimates expects) rather
+  # than the PK-Sim parameter name. The original name is kept as pksim_name.
+  # The result reports each path prefixed with its simulation id ("<sim>|<parameter path>").
+  id_by_path <- list()
+  for (p in spec$parameters) for (x in p$paths) id_by_path[[paste0(x$simulation, "|", x$path)]] <- p$name
+
   output <- list(
     start_index = spec$start_index,
     algorithm = details$algorithm,
@@ -119,7 +129,10 @@ run_parameter_identification <- function(spec_path, out_dir) {
     function_evaluations = details$fnEvaluations,
     wall_seconds = proc.time()[["elapsed"]] - started,
     estimates = lapply(seq_len(nrow(estimates)), function(i) {
-      as.list(estimates[i, c("name", "path", "unit", "estimate", "sd", "cv", "lowerCI", "upperCI", "initialValue")])
+      row <- as.list(estimates[i, c("name", "path", "unit", "estimate", "sd", "cv", "lowerCI", "upperCI", "initialValue")])
+      cpf_id <- id_by_path[[row$path]]
+      if (!is.null(cpf_id)) { row$pksim_name <- row$name; row$name <- cpf_id }
+      row
     }),
     ospsuite = as.character(packageVersion("ospsuite")),
     parameteridentification = as.character(packageVersion("ospsuite.parameteridentification"))

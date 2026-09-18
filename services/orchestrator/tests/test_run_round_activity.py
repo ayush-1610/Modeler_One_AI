@@ -184,3 +184,15 @@ def test_manifest_flows_through_run_round_into_evaluate(tmp_path: Path) -> None:
     evaluation = evaluate_round(ctx, run_result)
     assert evaluation.gate_passed is True
     assert evaluation.metrics["AUC"]["n"] == 1
+
+
+def test_collect_pkml_inputs_from_manifest() -> None:
+    from modeler_contracts.runs import EngineInput
+    from modeler_orchestrator.campaign_activities import collect_pkml_inputs
+    manifest = _manifest([
+        OutputFile(name="camp1-S1-r1-iv.pkml", uri="file:///o/camp1-S1-r1-iv.pkml", sha256="e" * 64, size_bytes=100),
+        OutputFile(name="profiles.json", uri="file:///o/profiles.json", sha256="d" * 64, size_bytes=20),
+        OutputFile(name="camp1-S1-r1-iv-Results.csv", uri="file:///o/x.csv", sha256="c" * 64, size_bytes=30),
+    ])
+    inputs = collect_pkml_inputs(manifest)
+    assert inputs == [EngineInput(name="camp1-S1-r1-iv.pkml", uri="file:///o/camp1-S1-r1-iv.pkml", sha256="e" * 64)]

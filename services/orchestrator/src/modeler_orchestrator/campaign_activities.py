@@ -13,8 +13,8 @@ workflow schedules `run_engine_job` (task `simulate`) on the engine task queue w
 builds, and `run_round` finalizes the round by pointing the result at the engine's `profiles.json` (the bundle
 `evaluate_round` reads) and applying any fit estimates into a new CPF version. On a fit round `build_round_snapshot`
 also assembles the `FitRoundRequest` (parameters resolved to PK-Sim paths, PI spec built against the observed
-profiles); `convert_snapshot_to_pkml` (the snapshot->pkml engine step) is stubbed, so until it is wired the fit
-is skipped and the round simulates instead.
+profiles). On a fit round the simulate step also exports one pkml per simulation, `collect_pkml_inputs` turns
+them into the fit's model inputs, and the fitting child runs; run_round then applies the winning estimates.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ from modeler_contracts.runs import (
     CampaignRequest,
     EngineInput,
     EngineJob,
+    EngineManifest,
     FitParameterBounds,
     FitRoundRequest,
     ResumeState,
@@ -181,18 +182,17 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     )
 
 
-@activity.defn(name="convert_snapshot_to_pkml")
-def convert_snapshot_to_pkml(ctx: RoundContext, build: RoundBuild) -> list[EngineInput]:
-    """STUB (fit-loop step 4): convert the built snapshot to one pkml per simulation for parameter identification.
+@activity.defn(name="collect_pkml_inputs")
+def collect_pkml_inputs(manifest: EngineManifest) -> list[EngineInput]:
+    """The per-simulation pkml the engine exported (``<snapshot>-<Sim>.pkml``), as the fit's model inputs.
 
-    The real implementation runs the engine (``runSimulationsFromSnapshot(exportPKML=TRUE)`` -> ``<snapshot>-<Sim>.pkml``)
-    and returns those files as EngineInputs. Until that engine task is wired it returns [] so the workflow skips the
-    fit and simulates the round instead — the fit request is still built and persisted for inspection."""
-    activity.logger.info(
-        "convert_snapshot_to_pkml %s %s round %d: not wired yet; returning no pkml (fit skipped)",
-        ctx.campaign_id, ctx.stage, ctx.round_index,
-    )
-    return []
+    The simulate step runs with ``export_pkml`` on a fit round, so its manifest carries one pkml per
+    simulation; each becomes an EngineInput named by its bare file name (which matches the pkml names the PI
+    spec's `simulations[].pkml` reference). Empty when the engine produced no pkml, so the fit is skipped."""
+    return [
+        EngineInput(name=Path(o.name).name, uri=o.uri, sha256=o.sha256)
+        for o in manifest.outputs if o.name.endswith(".pkml")
+    ]
 
 
 @activity.defn(name="build_round_snapshot")
@@ -248,7 +248,9 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
 @activity.defn(name="prepare_round_job")
 def prepare_round_job(ctx: RoundContext, build: RoundBuild) -> EngineJob:
     """Build the engine job that simulates the round's snapshot. The engine writes the canonical profile
-    bundle (`profiles.json`) plus the raw OSP CSVs under the job's outputs prefix in the object store."""
+    bundle (`profiles.json`) plus the raw OSP CSVs under the job's outputs prefix. On a fit round it also
+    exports one pkml per simulation (`export_pkml`) — the per-simulation model the parameter identification
+    fits — which `collect_pkml_inputs` turns into the fit's model inputs."""
     root = os.environ.get("MODELER_OBJECT_STORE_URI", "file:///tmp/modeler-object-store").rstrip("/")
     return EngineJob(
         job_id=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}",
@@ -256,7 +258,7 @@ def prepare_round_job(ctx: RoundContext, build: RoundBuild) -> EngineJob:
         task="simulate",
         inputs=[EngineInput(name="snapshot.json", uri=build.snapshot_uri, sha256=build.snapshot_sha256)],
         outputs_uri=f"{root}/tenants/{ctx.tenant_id}/campaigns/{ctx.campaign_id}/{ctx.stage}/r{ctx.round_index}",
-        options={},
+        options={"export_pkml": True} if (build.needs_fit and build.fit_request is not None) else {},
         timeout_s=int(max(60.0, ctx.deadline_seconds)) if ctx.deadline_seconds else 600,
     )
 
@@ -471,8 +473,8 @@ CAMPAIGN_ACTIVITIES = [
     plan_campaign,
     resume_campaign,
     build_round_snapshot,
-    convert_snapshot_to_pkml,
     prepare_round_job,
+    collect_pkml_inputs,
     run_round,
     evaluate_round,
     diagnose_round,

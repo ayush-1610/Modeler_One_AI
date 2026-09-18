@@ -36,12 +36,15 @@ class FitSimulation:
 
 def pi_observed(
     name: str, times: list[float], values: list[float], *, time_unit: str, unit: str, mol_weight: float,
-    sd: list[float] | None = None, lloq: float | None = None,
+    dimension: str = "Concentration (mass)", sd: list[float] | None = None, lloq: float | None = None,
 ) -> dict[str, Any]:
-    """The observed block run_pi.R's build_dataset expects for one output mapping."""
+    """The observed block run_pi.R's build_dataset expects for one output mapping.
+
+    ``dimension`` is the OSP quantity dimension of the values — "Concentration (mass)" (default) or
+    "Concentration (molar)" when the series is in molar units (e.g. µmol/l, matching the simulated plasma)."""
     observed: dict[str, Any] = {
         "name": name, "time": list(times), "time_unit": time_unit,
-        "values": list(values), "unit": unit, "mol_weight": mol_weight,
+        "values": list(values), "unit": unit, "dimension": dimension, "mol_weight": mol_weight,
     }
     observed["sd"] = list(sd) if sd else []
     if lloq is not None:
