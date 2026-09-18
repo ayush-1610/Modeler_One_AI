@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from modeler_api.auth import AuthError, Principal, get_verifier, principal_from_claims
@@ -60,7 +61,6 @@ def test_principal_from_claims():
 
 
 def test_principal_requires_tenant():
-    import pytest
     with pytest.raises(AuthError, match="no tenant"):
         principal_from_claims({"sub": "u1"})
 
@@ -112,6 +112,7 @@ def test_signature_with_stale_auth_time_is_403():
 # --- happy path ----------------------------------------------------------------------------------
 
 
+@pytest.mark.req("T-06", "F-403")
 def test_valid_step_up_signature_is_created():
     r = client_with(claims()).post(SIG_URL, json=BODY, headers=_auth())
     assert r.status_code == 201

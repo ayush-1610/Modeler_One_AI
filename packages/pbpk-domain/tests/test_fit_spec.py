@@ -90,6 +90,7 @@ def test_unmapped_parameter_raises():
 # --- apply_fit_estimates -------------------------------------------------------------------------
 
 
+@pytest.mark.req("T-13")
 def test_apply_estimates_creates_fitted_new_version():
     cpf = _cpf()
     updated = apply_fit_estimates(cpf, {"phys.logp": 3.1, "elim.hepatic.CYP3A4.clspec": 1.4}, stage="S1", run="round-3")

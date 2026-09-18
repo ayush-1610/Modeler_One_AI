@@ -47,6 +47,7 @@ modeler-agents = { workspace = true }
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
+markers = ["req: requirement/feature id(s) this test verifies (T-25 trace matrix)"]
 testpaths = [
   "packages/pbpk-domain/tests",
   "packages/data-intake/tests",

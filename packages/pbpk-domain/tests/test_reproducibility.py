@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import zipfile
 
+import pytest
+
 from pbpk_domain.reproducibility import (
     assemble_bundle,
     sha256_bytes,
@@ -44,6 +46,7 @@ def test_integrity_passes_for_untouched_bundle():
     assert verify_bundle_integrity(m, _files()).passes
 
 
+@pytest.mark.req("T-23")
 def test_tampered_file_fails_integrity_with_a_diff():
     m = _manifest()
     tampered = _files()

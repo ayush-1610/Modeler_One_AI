@@ -30,6 +30,7 @@ def test_compound_parameter_paths(pid, name):
 # --- molecule-based process (harvested {compound}-{molecule}-{data_source}|<name>) ----------------
 
 
+@pytest.mark.req("T-13")
 def test_first_order_clearance_path():
     b = EngineBinding(building_block="Compound", process="MetabolizationSpecific_FirstOrder:CYP3A4",
                       parameter="CLspec/[Enzyme]", data_source="Optimized")

@@ -1,0 +1,130 @@
+name: CI
+
+# Continuous integration and validation evidence (task T-25, ENGINEERING_PLAN §9.5).
+# Every push and pull request runs lint, the full test suite (emitting the requirement trace
+# matrix as a validation-evidence artifact), a secret scan and a Trivy filesystem scan.
+# Tagged releases (v*) additionally publish the validation evidence pack.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# One in-flight run per ref; a newer push cancels the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.5.11"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Sync workspace
+        run: uv sync --all-packages --frozen
+      - name: ruff check
+        run: uv run ruff check .
+
+  test:
+    name: Tests + trace matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Sync workspace
+        run: uv sync --all-packages --frozen
+      - name: Run tests and emit the requirement trace matrix
+        run: uv run pytest -q --trace-matrix reports/trace-matrix.md --junit-xml reports/junit.xml
+      - name: Upload validation evidence (trace matrix + junit)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-evidence
+          path: |
+            reports/trace-matrix.md
+            reports/trace-matrix.json
+            reports/junit.xml
+          if-no-files-found: warn
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # gitleaks scans full history
+      - name: Install gitleaks
+        run: |
+          version=8.21.2
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Scan repository history for secrets
+        run: gitleaks detect --source . --redact --verbose --exit-code 1
+
+  trivy:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # upload SARIF to the Security tab
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy vulnerability + misconfig scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: "0"  # report-only; dependency CVEs do not block the pipeline
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+        continue-on-error: true
+
+  release-evidence:
+    name: Publish validation evidence pack
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, test, secret-scan, trivy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # attach assets to the GitHub Release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download validation evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: validation-evidence
+          path: evidence
+      - name: Package the evidence pack
+        run: |
+          tar -czf "validation-evidence-${GITHUB_REF_NAME}.tar.gz" -C evidence .
+      - name: Attach evidence pack to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: validation-evidence-*.tar.gz

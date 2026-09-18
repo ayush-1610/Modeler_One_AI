@@ -31,6 +31,7 @@ def test_predicted_pk_matches_engine() -> None:
     assert pk.predicted_tmax == pytest.approx(11.0, rel=1e-6)  # minutes
 
 
+@pytest.mark.req("D6", "T-18")
 def test_gate_passes_when_prediction_matches_observed() -> None:
     obs = {"aciclovir": ObservedPK(auc=GOLDEN_AUC, cmax=GOLDEN_CMAX)}
     a = assess_round([_golden_profile()], obs, model_risk=Rating.HIGH)

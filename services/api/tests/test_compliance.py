@@ -37,6 +37,7 @@ def build_chain(n: int) -> list[ChainedEvent]:
     return events
 
 
+@pytest.mark.req("T-05", "F-401")
 def test_intact_chain_verifies():
     assert verify_chain(build_chain(5)) is None
 
@@ -69,6 +70,7 @@ class FakeVerifier:
         return self.ok
 
 
+@pytest.mark.req("F-403")
 def test_signature_binds_to_record_hash_and_manifests():
     signature = sign_record(
         signer=Signer(user_id="u1", printed_name="Dr. A. Reviewer"),

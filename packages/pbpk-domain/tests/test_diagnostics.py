@@ -193,6 +193,7 @@ def test_first_action_matches_ruleset(stage, residuals, kw, expected_first) -> N
     assert d.permitted_actions and d.permitted_actions[0] == expected_first
 
 
+@pytest.mark.req("T-14", "D7")
 def test_case_agreement_at_least_80_percent() -> None:
     agree = 0
     for stage, residuals, kw, expected_first in CASES:
