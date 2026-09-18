@@ -56,10 +56,34 @@ def test_m15_validation_reports_allowed_model_risk():
     assert data["allowed_model_risk"] == ["low", "medium", "high"]
 
 
+def _fake_curator():
+    import time
+
+    from modeler_api.auth import get_verifier
+
+    class _V:
+        def verify(self, token):
+            return {"sub": "u1", "name": "Dr Lead", "tenant_id": "t1", "realm_access": {"roles": ["modeler-curator"]},
+                    "projects": ["proj-1"], "acr": "loa2", "auth_time": int(time.time())}
+
+    app.dependency_overrides[get_verifier] = lambda: _V()
+
+
+RUN_BODY = {"snapshot_uri": "file:///tmp/s.json", "snapshot_sha256": "a" * 64}
+
+
+def test_run_submission_needs_a_token():
+    _fake_curator()
+    try:
+        assert client.post("/api/v1/runs", json=RUN_BODY).status_code == 401  # no Authorization header
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_run_submission_requires_orchestrator():
-    response = client.post(
-        "/api/v1/runs",
-        headers={"X-Tenant-Id": "t1"},
-        json={"snapshot_uri": "file:///tmp/s.json", "snapshot_sha256": "a" * 64},
-    )
-    assert response.status_code == 503
+    _fake_curator()
+    try:
+        response = client.post("/api/v1/runs", json=RUN_BODY, headers={"Authorization": "Bearer tok"})
+        assert response.status_code == 503  # authenticated, but MODELER_TEMPORAL_ADDRESS unset
+    finally:
+        app.dependency_overrides.clear()

@@ -11,13 +11,15 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from modeler_api.auth import Principal, require_role
 from modeler_api.campaign_api import router as campaign_router
 from modeler_api.config import get_settings
 from modeler_api.escalations import router as escalations_router
+from modeler_api.results_api import router as results_router
 from modeler_api.signatures_api import router as signatures_router
 from modeler_contracts.runs import RUN_TASKS, RunRequest
 from pbpk_domain.m15 import AssessmentTable, Stage, allowed_model_risk, validate_table
@@ -37,6 +39,7 @@ app = FastAPI(title="Modeler One API", version="0.1.0")
 app.include_router(escalations_router)
 app.include_router(signatures_router)
 app.include_router(campaign_router)
+app.include_router(results_router)
 
 
 def envelope(data: Any = None, errors: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -122,7 +125,10 @@ class RunSubmission(BaseModel):
 
 
 @app.post("/api/v1/runs", status_code=202)
-async def submit_run(submission: RunSubmission, x_tenant_id: Annotated[str, Header()]):
+async def submit_run(
+    submission: RunSubmission,
+    principal: Annotated[Principal, Depends(require_role("modeler-curator", "modeler-reviewer"))],
+):
     if submission.task not in RUN_TASKS:
         raise HTTPException(status_code=422, detail=f"task must be one of {', '.join(RUN_TASKS)}")
     settings = get_settings()
@@ -137,7 +143,7 @@ async def submit_run(submission: RunSubmission, x_tenant_id: Annotated[str, Head
         "SimulationRunWorkflow",
         RunRequest(
             run_id=run_id,
-            tenant_id=x_tenant_id,
+            tenant_id=principal.tenant_id,
             snapshot_uri=submission.snapshot_uri,
             snapshot_sha256=submission.snapshot_sha256,
             task=submission.task,

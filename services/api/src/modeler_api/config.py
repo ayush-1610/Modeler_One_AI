@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     temporal_address: str | None = None
     temporal_namespace: str = "default"
     object_store_uri: str = "s3://modeler-dev"
+    results_root: str = ""  # where ingested result Parquet lives; a file:// root serves reads directly
     # Keycloak OIDC (T-06 / D10); auth is enabled when the JWKS URL is set.
     oidc_jwks_url: str | None = None
     oidc_issuer: str | None = None
