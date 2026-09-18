@@ -6,6 +6,7 @@
 #   1. benchmark.R            model load, single runs, batch runs on 1 core and all cores, a real fitting run
 #   2. golden_roundtrip.R     platform snapshot -> PK-Sim project -> snapshot; run from snapshot; PK (Linux only)
 #   3. pi_smoke.R             one fitting start through run_pi.R
+#   4. golden_tasks.R         population, sensitivity and batch tasks through run_job.R (T-09)
 #
 #   bash services/engine-worker/scripts/ubuntu_engine_check.sh /data/modeler-engine
 #
@@ -117,8 +118,10 @@ echo "== golden round trip"
 Rscript "$REPO/services/engine-worker/golden/golden_roundtrip.R" "$REPO/services/engine-worker/golden/example_snapshot.json" "$OUT/golden" > "$OUT/golden.log" 2>&1 || status=1
 echo "== fitting smoke test"
 Rscript "$REPO/services/engine-worker/golden/pi_smoke.R" "$OUT/pi_smoke" > "$OUT/pi_smoke.log" 2>&1 || status=1
+echo "== engine tasks (population, sensitivity, batch)"
+( cd "$REPO" && Rscript "$REPO/services/engine-worker/golden/golden_tasks.R" ) > "$OUT/golden_tasks.log" 2>&1 || status=1
 
-tail -n 5 "$OUT/golden.log" "$OUT/pi_smoke.log"
+tail -n 5 "$OUT/golden.log" "$OUT/pi_smoke.log" "$OUT/golden_tasks.log"
 echo
 echo "Results in $OUT (benchmark.json, golden/golden_report.json, pi_smoke/out/pi_result.json, host.txt)."
 exit "$status"

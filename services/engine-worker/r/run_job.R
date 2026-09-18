@@ -4,8 +4,14 @@
 # stdout protocol read by the worker: "PROGRESS <0..1>" and "WARNING <text>".
 # Verified in the released ospsuite 12.4.4 (needs .NET 8 and LC_ALL=en_US.UTF-8): initPKSim,
 # loadProjectFromSnapshot, exportProjectToSnapshot, runSimulationsFromSnapshot (Linux/Windows only, not macOS),
-# createSimulationBatch, runSimulationBatches. convertSnapshot is deprecated. Golden tests in the engine image
-# (golden/golden_roundtrip.R, golden/pi_smoke.R) must pass before an image is qualified (F-405).
+# loadSimulation, runSimulations(simulation, population=...), createPopulationCharacteristics/createPopulation
+# (returns list(population, derivedParameters, seed)), loadPopulation/exportPopulationToCSV,
+# SensitivityAnalysis$new(simulation=)/$addParameterPaths/$numberOfSteps/$variationRange, runSensitivityAnalysis,
+# SensitivityAnalysisRunOptions$new()/$numberOfCores/$showProgress, exportSensitivityAnalysisResultsToCSV,
+# createSimulationBatch(simulation, parametersOrPaths, moleculesOrPaths) + $addRunValues(parameterValues, initialValues)
+# + runSimulationBatches (returns list keyed by batch id then run id), exportResultsToCSV, calculatePKAnalyses,
+# exportPKAnalysesToCSV. convertSnapshot is deprecated. Golden tests in the engine image (golden/golden_roundtrip.R,
+# golden/golden_tasks.R, golden/pi_smoke.R) must pass before an image is qualified (F-405).
 
 suppressPackageStartupMessages({
   library(jsonlite)
@@ -116,7 +122,9 @@ write_profiles <- function(snapshot_path, out_dir) {
 
 run_task <- function() {
   task <- job$task
-  if (task %in% c("simulate", "dry_run", "convert_to_project")) initPKSim()
+  # PK-Sim is only needed to build models/populations from scratch; loading a pkml and running
+  # simulations/sensitivity/batches are ospsuite Core operations that do not require the PK-Sim database.
+  if (task %in% c("simulate", "dry_run", "convert_to_project", "population")) initPKSim()
   progress(0.05)
 
   if (identical(task, "simulate")) {
@@ -143,6 +151,85 @@ run_task <- function() {
     exportResultsToCSV(results, file.path(out_dir, "results.csv"))
     exportPKAnalysesToCSV(calculatePKAnalyses(results), file.path(out_dir, "pk_analyses.csv"))
     return(list())
+  }
+  if (identical(task, "population")) {
+    # Run one simulation across a virtual population. The population is either supplied as a PK-Sim
+    # population CSV input, or built here from a demographic spec (options$population).
+    sim <- loadSimulation(input_path("simulation.pkml"))
+    if (any(vapply(job$inputs, function(i) identical(i$name, "population.csv"), logical(1)))) {
+      population <- loadPopulation(input_path("population.csv"))
+    } else {
+      p <- job$options$population
+      # JSON round-trips whole numbers as R integers, but the .NET bindings want Nullable<Double> for the
+      # weight/height/age/percentage ranges; coerce so PK-Sim does not reject an Int32 for a Double property.
+      dbl <- function(x) if (is.null(x)) NULL else as.numeric(x)
+      characteristics <- createPopulationCharacteristics(
+        species = if (!is.null(p$species)) p$species else Species$Human,
+        population = p$population, numberOfIndividuals = as.integer(p$number_of_individuals),
+        proportionOfFemales = if (!is.null(p$proportion_of_females)) dbl(p$proportion_of_females) else 50,
+        weightMin = dbl(p$weight_min), weightMax = dbl(p$weight_max),
+        heightMin = dbl(p$height_min), heightMax = dbl(p$height_max),
+        ageMin = dbl(p$age_min), ageMax = dbl(p$age_max),
+        seed = if (!is.null(job$options$seed)) as.integer(job$options$seed) else NULL
+      )
+      created <- createPopulation(characteristics)
+      population <- created$population
+    }
+    progress(0.2)
+    exportPopulationToCSV(population, file.path(out_dir, "population.csv"))  # the exact individuals that ran
+    results <- runSimulations(sim, population = population)[[1]]
+    progress(0.85)
+    exportResultsToCSV(results, file.path(out_dir, "results.csv"))
+    exportPKAnalysesToCSV(calculatePKAnalyses(results), file.path(out_dir, "pk_analyses.csv"))
+    return(list(individuals = population$count))
+  }
+  if (identical(task, "sensitivity")) {
+    # Local sensitivity of the PK parameters to the listed model parameters.
+    sim <- loadSimulation(input_path("simulation.pkml"))
+    paths <- as.character(unlist(job$options$parameter_paths))
+    if (length(paths) == 0) stop("sensitivity task needs options.parameter_paths")
+    analysis <- SensitivityAnalysis$new(simulation = sim)
+    analysis$addParameterPaths(paths)
+    if (!is.null(job$options$number_of_steps)) analysis$numberOfSteps <- as.integer(job$options$number_of_steps)
+    if (!is.null(job$options$variation_range)) analysis$variationRange <- as.numeric(job$options$variation_range)
+    options <- SensitivityAnalysisRunOptions$new()
+    if (!is.null(job$options$number_of_cores)) options$numberOfCores <- as.integer(job$options$number_of_cores)
+    options$showProgress <- FALSE
+    progress(0.2)
+    results <- runSensitivityAnalysis(analysis, options)
+    progress(0.85)
+    exportSensitivityAnalysisResultsToCSV(results, file.path(out_dir, "sensitivity.csv"))
+    return(list(parameters = as.list(paths), steps = analysis$numberOfSteps))
+  }
+  if (identical(task, "batch")) {
+    # Evaluate many scenarios by varying the listed parameters over a set of runs (one SimulationBatch,
+    # kept warm across runs). options.parameter_paths lists the paths; options.runs[i] gives the aligned
+    # parameter values (and optional molecule initial values) for run i.
+    sim <- loadSimulation(input_path("simulation.pkml"))
+    param_paths <- as.character(unlist(job$options$parameter_paths))
+    molecule_paths <- if (!is.null(job$options$molecule_paths)) as.character(unlist(job$options$molecule_paths)) else NULL
+    batch <- createSimulationBatch(simulation = sim, parametersOrPaths = param_paths, moleculesOrPaths = molecule_paths)
+    runs <- job$options$runs
+    if (length(runs) == 0) stop("batch task needs options.runs")
+    run_ids <- character(length(runs))
+    for (i in seq_along(runs)) {
+      values <- as.numeric(unlist(runs[[i]]$parameter_values))
+      initials <- if (!is.null(runs[[i]]$initial_values)) as.numeric(unlist(runs[[i]]$initial_values)) else NULL
+      run_ids[[i]] <- batch$addRunValues(parameterValues = values, initialValues = initials)
+    }
+    progress(0.2)
+    batch_results <- runSimulationBatches(list(batch))[[batch$id]]
+    progress(0.85)
+    index <- list()
+    for (i in seq_along(runs)) {
+      results <- batch_results[[run_ids[[i]]]]
+      csv_name <- sprintf("batch-%03d-results.csv", i)
+      exportResultsToCSV(results, file.path(out_dir, csv_name))
+      index[[i]] <- list(run = i, run_id = run_ids[[i]], parameter_values = runs[[i]]$parameter_values, results = csv_name)
+    }
+    write_json(list(parameter_paths = as.list(param_paths), runs = index),
+               file.path(out_dir, "batch_index.json"), auto_unbox = TRUE, digits = NA)
+    return(list(runs = length(runs)))
   }
   if (identical(task, "parameter_identification")) {
     source(file.path(script_dir, "run_pi.R"))

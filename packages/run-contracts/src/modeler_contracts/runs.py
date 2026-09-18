@@ -10,7 +10,10 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
-RUN_TASKS = ("simulate", "dry_run", "convert_to_project", "pk_analysis", "population")
+RUN_TASKS = (
+    "simulate", "dry_run", "convert_to_project", "pk_analysis",
+    "parameter_identification", "population", "sensitivity", "batch",
+)
 
 
 @dataclass
