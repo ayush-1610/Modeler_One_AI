@@ -15,6 +15,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from modeler_api.campaign_api import router as campaign_router
 from modeler_api.config import get_settings
 from modeler_api.escalations import router as escalations_router
 from modeler_api.signatures_api import router as signatures_router
@@ -35,6 +36,7 @@ API_VERSION = "1"
 app = FastAPI(title="Modeler One API", version="0.1.0")
 app.include_router(escalations_router)
 app.include_router(signatures_router)
+app.include_router(campaign_router)
 
 
 def envelope(data: Any = None, errors: list[dict[str, Any]] | None = None) -> dict[str, Any]:
