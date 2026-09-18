@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from modeler_api.config import get_settings
 from modeler_api.escalations import router as escalations_router
+from modeler_api.signatures_api import router as signatures_router
 from modeler_contracts.runs import RUN_TASKS, RunRequest
 from pbpk_domain.m15 import AssessmentTable, Stage, allowed_model_risk, validate_table
 from pbpk_domain.snapshot.builder import (
@@ -33,6 +34,7 @@ API_VERSION = "1"
 
 app = FastAPI(title="Modeler One API", version="0.1.0")
 app.include_router(escalations_router)
+app.include_router(signatures_router)
 
 
 def envelope(data: Any = None, errors: list[dict[str, Any]] | None = None) -> dict[str, Any]:

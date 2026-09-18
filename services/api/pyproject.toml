@@ -12,6 +12,7 @@ dependencies = [
   "temporalio>=1.7",
   "pyarrow>=17",
   "duckdb>=1.1",
+  "pyjwt[crypto]>=2.9",
   "pbpk-domain",
   "modeler-contracts",
 ]

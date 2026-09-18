@@ -1,0 +1,95 @@
+{
+  "realm": "modeler",
+  "enabled": true,
+  "displayName": "Modeler One",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "attributes": {
+    "acr.loa.map": "{\"loa1\":1,\"loa2\":2}"
+  },
+  "roles": {
+    "realm": [
+      {"name": "modeler-viewer", "description": "Read-only access to projects the user is a member of."},
+      {"name": "modeler-curator", "description": "Propose parameter values; edit CPFs before signing."},
+      {"name": "modeler-reviewer", "description": "Review and sign MAPs, escalation decisions and CPF acceptance."},
+      {"name": "modeler-qa", "description": "QA release of the submission bundle."},
+      {"name": "modeler-admin", "description": "Tenant administration."}
+    ]
+  },
+  "clientScopes": [
+    {
+      "name": "modeler-claims",
+      "description": "Adds the tenant and project-membership claims to Modeler tokens.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"},
+      "protocolMappers": [
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant_id", "claim.name": "tenant_id", "jsonType.label": "String",
+            "id.token.claim": "true", "access.token.claim": "true", "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "projects",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "projects", "claim.name": "projects", "jsonType.label": "String",
+            "multivalued": "true", "id.token.claim": "true", "access.token.claim": "true", "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "modeler-web",
+      "name": "Modeler One web app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "+"},
+      "redirectUris": ["https://app.modeler.local/*", "http://localhost:3000/*"],
+      "webOrigins": ["+"],
+      "defaultClientScopes": ["openid", "profile", "email", "modeler-claims"]
+    },
+    {
+      "clientId": "modeler-api",
+      "name": "Modeler One API",
+      "enabled": true,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "publicClient": false,
+      "defaultClientScopes": ["modeler-claims"]
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "signing",
+      "description": "Step-up for electronic signatures: re-enter password and TOTP to obtain acr=loa2 (D10).",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {"authenticator": "auth-username-password-form", "requirement": "REQUIRED", "priority": 10, "userSetupAllowed": false},
+        {"authenticator": "auth-otp-form", "requirement": "REQUIRED", "priority": 20, "userSetupAllowed": false}
+      ]
+    }
+  ],
+  "__comment": "The signing flow is referenced by the web app as the acr-values request for loa2 (Authorization Code + PKCE). The realm attribute acr.loa.map binds acr=loa2 to LoA 2; API step-up checks require acr=loa2 and auth_time within 300 s. Passwords/TOTP are managed in Keycloak; the platform never sees them."
+}
