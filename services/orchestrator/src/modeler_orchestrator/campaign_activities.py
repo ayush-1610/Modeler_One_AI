@@ -11,12 +11,15 @@ profiles to PK and judges them against the tier gate (`pbpk_domain.campaign.eval
 diagnostics ruleset (`pbpk_domain.diagnostics`, T-14). The round's snapshot is simulated on the engine: the
 workflow schedules `run_engine_job` (task `simulate`) on the engine task queue with the job `prepare_round_job`
 builds, and `run_round` finalizes the round by pointing the result at the engine's `profiles.json` (the bundle
-`evaluate_round` reads). Applying a fit's estimates into a new CPF version is the last piece, and lands with
-the fitting spec (T-11); every activity already has its final signature.
+`evaluate_round` reads) and applying any fit estimates into a new CPF version. On a fit round `build_round_snapshot`
+also assembles the `FitRoundRequest` (parameters resolved to PK-Sim paths, PI spec built against the observed
+profiles); `convert_snapshot_to_pkml` (the snapshot->pkml engine step) is stubbed, so until it is wired the fit
+is skipped and the round simulates instead.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -29,6 +32,8 @@ from modeler_contracts.runs import (
     CampaignRequest,
     EngineInput,
     EngineJob,
+    FitParameterBounds,
+    FitRoundRequest,
     ResumeState,
     RoundBuild,
     RoundContext,
@@ -39,12 +44,17 @@ from modeler_contracts.runs import (
     RoundRunResult,
     S0Readiness,
 )
+from modeler_orchestrator.campaign_store import CampaignStore
 
 # The round simulates one built snapshot (a few small simulations) on the small engine class.
 ROUND_RESOURCE_CLASS = "s"
 # Canonical result the engine writes and evaluate_round reads: {"profiles": {study_id: {times_min, concentrations}}}.
 ROUND_PROFILES_NAME = "profiles.json"
-from modeler_orchestrator.campaign_store import CampaignStore
+# Fit-round sizing from the engine benchmark (osp-engine-facts): 0.506 s/simulation.
+FIT_SECONDS_PER_SIM = 0.506
+FIT_EVALUATIONS_PER_START = 40
+# The plasma output every simulation selects (matches builder.PLASMA_OUTPUT_PATH).
+PLASMA_OUTPUT_PATH = "Organism|PeripheralVenousBlood|{compound}|Plasma (Peripheral Venous Blood)"
 
 _store: CampaignStore | None = None
 _store_checked = False
@@ -102,16 +112,91 @@ async def resume_campaign(request: CampaignRequest) -> ResumeState:
     return await store.resume(request)
 
 
+def _is_log_scale(cpf, param_id: str) -> bool:
+    record = cpf.get(param_id)
+    return bool(record and record.fit_policy and record.fit_policy.scale.value == "log")
+
+
+def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, out_dir: Path) -> FitRoundRequest | None:
+    """Assemble the round's FitRoundRequest from the chosen action, the CPF and the observed profiles.
+
+    Returns None (the round then simulates instead of fitting) when there is no fittable parameter, no
+    observed profile to fit against, or the spec cannot be built. The pkml model inputs are left empty here
+    and filled by the snapshot->pkml conversion step before the fit runs."""
+    from pbpk_domain.campaign.round_build import scenarios_for_stage
+    from pbpk_domain.fit_spec import FitSimulation, FitSpecError, build_fit_spec, pi_observed, resolve_fit_ids
+
+    target = ctx.pending_action.split(" ", 1)[1] if ctx.pending_action and " " in ctx.pending_action else ""
+    fit_ids = list(resolve_fit_ids(cpf, target))
+    if not fit_ids:
+        activity.logger.info("build_round_snapshot %s %s: no fittable CPF parameter for %r", ctx.campaign_id, ctx.stage, target)
+        return None
+
+    observed_doc = _load_local_json(ctx.observed_uri) if ctx.observed_uri else {}
+    mw = cpf.get("phys.mw")
+    mol_weight = mw.numeric_value if mw is not None else None
+    output_path = PLASMA_OUTPUT_PATH.format(compound=cpf.compound)
+    simulations = []
+    for scenario in scenarios_for_stage(map_doc.scenarios, ctx.stage):
+        profile = (observed_doc or {}).get(scenario.study_id, {}).get("profile")
+        if not profile or mol_weight is None:
+            continue
+        simulations.append(FitSimulation(
+            study_id=scenario.study_id, pkml=f"{snapshot_stem}-{scenario.study_id}.pkml", output_path=output_path,
+            observed=pi_observed(scenario.study_id, profile["times"], profile["values"], time_unit=profile["time_unit"],
+                                 unit=profile["unit"], mol_weight=mol_weight, sd=profile.get("sd"), lloq=profile.get("lloq")),
+        ))
+    if not simulations:
+        activity.logger.info("build_round_snapshot %s %s: no observed profile to fit against", ctx.campaign_id, ctx.stage)
+        return None
+
+    try:
+        spec = build_fit_spec(cpf, fit_ids, simulations, seed=ctx.seed)
+    except FitSpecError as exc:
+        activity.logger.info("build_round_snapshot %s %s: fit spec not built (%s)", ctx.campaign_id, ctx.stage, exc)
+        return None
+
+    spec_path = out_dir / f"{snapshot_stem}-pi_spec.json"
+    payload = json.dumps(spec, ensure_ascii=False, indent=2).encode("utf-8")
+    spec_path.write_bytes(payload)
+    bounds = [FitParameterBounds(name=p["name"], lower=p["min"], upper=p["max"], log_scale=_is_log_scale(cpf, p["name"]))
+              for p in spec["parameters"]]
+    activity.logger.info("build_round_snapshot %s %s round %d: fit request for %s over %d study(ies)",
+                         ctx.campaign_id, ctx.stage, ctx.round_index, ",".join(fit_ids), len(simulations))
+    return FitRoundRequest(
+        round_id=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}", tenant_id=ctx.tenant_id,
+        base_spec_uri=spec_path.as_uri(), base_spec_sha256=hashlib.sha256(payload).hexdigest(),
+        parameters=bounds, simulations_per_evaluation=len(simulations), evaluations_per_start=FIT_EVALUATIONS_PER_START,
+        seconds_per_simulation=FIT_SECONDS_PER_SIM, cores=int(os.environ.get("MODELER_ENGINE_CORES", "48")),
+        budget_seconds=int(max(60.0, ctx.deadline_seconds)) if ctx.deadline_seconds else 3600, seed=ctx.seed, model_inputs=[],
+    )
+
+
+@activity.defn(name="convert_snapshot_to_pkml")
+def convert_snapshot_to_pkml(ctx: RoundContext, build: RoundBuild) -> list[EngineInput]:
+    """STUB (fit-loop step 4): convert the built snapshot to one pkml per simulation for parameter identification.
+
+    The real implementation runs the engine (``runSimulationsFromSnapshot(exportPKML=TRUE)`` -> ``<snapshot>-<Sim>.pkml``)
+    and returns those files as EngineInputs. Until that engine task is wired it returns [] so the workflow skips the
+    fit and simulates the round instead — the fit request is still built and persisted for inspection."""
+    activity.logger.info(
+        "convert_snapshot_to_pkml %s %s round %d: not wired yet; returning no pkml (fit skipped)",
+        ctx.campaign_id, ctx.stage, ctx.round_index,
+    )
+    return []
+
+
 @activity.defn(name="build_round_snapshot")
 def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     """Regenerate the round's snapshot from the CPF and the MAP's scenarios for this stage.
 
     Loads the CPF and MAP (local `file://` today; the object store lands with the run wiring), builds the
     stage snapshot via `pbpk_domain.campaign.round_build.build_stage_snapshot`, writes it next to the CPF and
-    returns its URI and content hash. The fit request itself (the PI spec) is a separate task, so `needs_fit`
-    only flags that the pending action is a fit. When the CPF or MAP is not locally loadable, or no scenario
-    trains this stage (e.g. the validation stages), the round falls back to echoing the CPF so the workflow
-    still advances; the reason is logged."""
+    returns its URI and content hash. When the pending action is a fit, it also assembles the round's
+    FitRoundRequest (`_build_fit_request`: resolve the parameters, build the PI spec against the observed
+    profiles, persist it) — None when nothing is fittable, so the round simulates instead. When the CPF or MAP
+    is not locally loadable, or no scenario trains this stage (e.g. the validation stages), the round falls
+    back to echoing the CPF so the workflow still advances; the reason is logged."""
     needs_fit = bool(ctx.pending_action and ctx.pending_action.startswith("fit"))
 
     def _echo(reason: str) -> RoundBuild:
@@ -141,12 +226,13 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     stage.snapshot.dump(out)
     for note in stage.notes:
         activity.logger.info("build_round_snapshot %s %s: %s", ctx.campaign_id, ctx.stage, note)
+    fit_request = _build_fit_request(ctx, cpf, map_doc, snapshot_stem=out.stem, out_dir=out.parent) if needs_fit else None
     activity.logger.info(
-        "build_round_snapshot %s %s round %d: built %d simulation(s) fit=%s",
-        ctx.campaign_id, ctx.stage, ctx.round_index, len(stage.simulations), needs_fit,
+        "build_round_snapshot %s %s round %d: built %d simulation(s) fit=%s fit_request=%s",
+        ctx.campaign_id, ctx.stage, ctx.round_index, len(stage.simulations), needs_fit, fit_request is not None,
     )
     return RoundBuild(
-        snapshot_uri=out.as_uri(), snapshot_sha256=stage.snapshot.sha256(), needs_fit=needs_fit, fit_request=None
+        snapshot_uri=out.as_uri(), snapshot_sha256=stage.snapshot.sha256(), needs_fit=needs_fit, fit_request=fit_request
     )
 
 
@@ -166,16 +252,56 @@ def prepare_round_job(ctx: RoundContext, build: RoundBuild) -> EngineJob:
     )
 
 
+def _best_estimates(fit_outcome) -> dict[str, float]:
+    """The winning start's parameter estimates, or {} when the fit produced none."""
+    if fit_outcome is None or fit_outcome.best_start_index is None:
+        return {}
+    best = next((s for s in fit_outcome.starts if s.start_index == fit_outcome.best_start_index), None)
+    return dict(best.estimates) if best and best.estimates else {}
+
+
+def _apply_round_fit(ctx: RoundContext, fit_outcome) -> tuple[str, str]:
+    """Transfer a fit's estimates into a new CPF version written next to the CPF; returns (cpf_uri, sha256).
+
+    Falls back to the unchanged CPF when no estimates were produced or the CPF is not locally loadable."""
+    estimates = _best_estimates(fit_outcome)
+    cpf_text = _load_local_text(ctx.cpf_uri) if estimates else None
+    if not estimates or cpf_text is None:
+        return ctx.cpf_uri, ctx.cpf_sha256
+
+    from pbpk_domain.cpf import CPF
+    from pbpk_domain.fit_spec import FitSpecError, apply_fit_estimates
+
+    try:
+        updated = apply_fit_estimates(CPF.model_validate_json(cpf_text), estimates, stage=ctx.stage,
+                                      run=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}")
+    except FitSpecError as exc:
+        activity.logger.warning("run_round %s %s round %d: fit not applied (%s)", ctx.campaign_id, ctx.stage, ctx.round_index, exc)
+        return ctx.cpf_uri, ctx.cpf_sha256
+
+    payload = updated.model_dump_json().encode("utf-8")
+    out = _local_path(ctx.cpf_uri).parent / "cpf" / f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(payload)
+    activity.logger.info(
+        "run_round %s %s round %d: applied %d estimate(s) -> CPF v%d",
+        ctx.campaign_id, ctx.stage, ctx.round_index, len(estimates), updated.version,
+    )
+    return out.as_uri(), hashlib.sha256(payload).hexdigest()
+
+
 @activity.defn(name="run_round")
 def run_round(run: RoundRun) -> RoundRunResult:
-    """Finalize the round from the engine run: point the result at the engine's `profiles.json` (what
-    `evaluate_round` reads) and carry the CPF forward.
+    """Finalize the round: apply any fit estimates into a new CPF version, and point the result at the
+    engine's `profiles.json` (what `evaluate_round` reads).
 
-    When a fit ran this round its estimates would be transferred into a new CPF version here; that lands with
-    the fitting spec (T-11), so for now the CPF is unchanged. When the engine step was skipped (no snapshot
-    was built for this stage) or produced no profile bundle, the result points at a marker URI so evaluate
+    When the round fitted parameters, the winning start's estimates are transferred into a new CPF version
+    (status FITTED) carried forward to the next round. When the engine step was skipped (no snapshot was
+    built for this stage) or produced no profile bundle, the result points at a marker URI so evaluate
     reports it has nothing to judge rather than a false pass."""
     ctx = run.context
+    cpf_uri, cpf_sha = _apply_round_fit(ctx, run.fit_outcome)
+
     manifest = run.manifest
     if manifest is not None and manifest.status == "SUCCEEDED":
         for output in manifest.outputs:
@@ -183,11 +309,11 @@ def run_round(run: RoundRun) -> RoundRunResult:
                 activity.logger.info(
                     "run_round %s %s round %d: profiles at %s", ctx.campaign_id, ctx.stage, ctx.round_index, output.uri
                 )
-                return RoundRunResult(results_uri=output.uri, cpf_uri=ctx.cpf_uri, cpf_sha256=ctx.cpf_sha256)
+                return RoundRunResult(results_uri=output.uri, cpf_uri=cpf_uri, cpf_sha256=cpf_sha)
         activity.logger.warning(
             "run_round %s %s round %d: engine manifest has no %s output", ctx.campaign_id, ctx.stage, ctx.round_index, ROUND_PROFILES_NAME
         )
-    return RoundRunResult(results_uri=f"{ctx.cpf_uri}#no-results-r{ctx.round_index}", cpf_uri=ctx.cpf_uri, cpf_sha256=ctx.cpf_sha256)
+    return RoundRunResult(results_uri=f"{ctx.cpf_uri}#no-results-r{ctx.round_index}", cpf_uri=cpf_uri, cpf_sha256=cpf_sha)
 
 
 @activity.defn(name="evaluate_round")
@@ -336,6 +462,7 @@ CAMPAIGN_ACTIVITIES = [
     plan_campaign,
     resume_campaign,
     build_round_snapshot,
+    convert_snapshot_to_pkml,
     prepare_round_job,
     run_round,
     evaluate_round,

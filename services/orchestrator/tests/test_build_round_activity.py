@@ -22,7 +22,7 @@ from pbpk_domain.campaign.split import (
     StudyRecord,
     split_studies,
 )
-from pbpk_domain.cpf import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.cpf import CPF, EngineBinding, FitPolicy, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.m15 import Rating
 from pbpk_domain.snapshot.models import Snapshot
 
@@ -109,3 +109,59 @@ def test_snapshot_is_valid_pksim_json(tmp_path: Path) -> None:
     doc = json.loads(Path(build.snapshot_uri.removeprefix("file://")).read_text())
     assert doc["Version"] == 80
     assert doc["Simulations"][0]["Name"] == "po"
+
+
+# --- fit request (fit-apply loop step 2) ---------------------------------------------------------
+
+
+def _fittable_inputs(tmp_path: Path, *, with_observed: bool) -> tuple[str, str, str]:
+    prov = Provenance(source_type="measured", reference="x")
+    cpf = CPF(compound="Example-A", parameters=(
+        ParameterRecord(id="phys.mw", value=408.5, unit="g/mol", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="phys.logp", value=2.6, unit="Log Units", status=ParameterStatus.PREDICTED, provenance=prov,
+                        fit_policy=FitPolicy(stage=("S1",), lower=1.0, upper=4.0)),
+        ParameterRecord(id="bind.fu", value=0.02, status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="phys.solubility.ref", value=0.1, unit="mg/ml", status=ParameterStatus.FIXED, provenance=prov),
+    ))
+    adult = Demographics(sex=Sex.MALE, age_years=35.0)
+    studies = [StudyRecord(study_id="iv", n=12, design="SD", route=Route.IV_BOLUS, dose_mg=5.0, infusion_time_min=5.0,
+                           formulation=FormulationKind.SOLUTION, food_state=FoodState.FASTED, n_timepoints=15, demographics=adult)]
+    m = generate_map(compound="Example-A", cpf=cpf, studies=studies, split=split_studies(studies, QuestionOfInterest()),
+                     objective="o", context_of_use="c", food_effect_in_question=False, model_risk=Rating.HIGH,
+                     engine_image_digest="sha256:abcd", software_versions={"ospsuite": "12.4.4"})
+    (tmp_path / "cpf.json").write_text(cpf.model_dump_json(), encoding="utf-8")
+    (tmp_path / "map.json").write_text(m.model_dump_json(), encoding="utf-8")
+    observed_uri = ""
+    if with_observed:
+        obs = {"iv": {"auc": 100.0, "cmax": 20.0,
+                      "profile": {"times": [0.5, 1, 4], "values": [12.0, 20.0, 5.0], "time_unit": "h", "unit": "ng/ml",
+                                  "sd": [1, 2, 0.5], "lloq": 0.1}}}
+        (tmp_path / "observed.json").write_text(json.dumps(obs), encoding="utf-8")
+        observed_uri = (tmp_path / "observed.json").as_uri()
+    return (tmp_path / "cpf.json").as_uri(), (tmp_path / "map.json").as_uri(), observed_uri
+
+
+def _fit_ctx(cpf_uri, map_uri, observed_uri, action) -> RoundContext:
+    return RoundContext(campaign_id="camp1", tenant_id="t1", stage="S1", round_index=1, cpf_uri=cpf_uri,
+                        cpf_sha256="a" * 64, pending_action=action, map_uri=map_uri, observed_uri=observed_uri)
+
+
+def test_fit_action_emits_a_fit_request(tmp_path: Path) -> None:
+    cpf_uri, map_uri, observed_uri = _fittable_inputs(tmp_path, with_observed=True)
+    build = build_round_snapshot(_fit_ctx(cpf_uri, map_uri, observed_uri, "fit phys.logp"))
+    assert build.needs_fit is True and build.fit_request is not None
+    fr = build.fit_request
+    assert [p.name for p in fr.parameters] == ["phys.logp"]
+    assert fr.parameters[0].lower == 1.0 and fr.parameters[0].upper == 4.0
+    assert fr.base_spec_uri.endswith("-pi_spec.json")
+    assert fr.model_inputs == []  # pkml filled by the convert step
+    # the persisted PI spec has the resolved PK-Sim path and the observed profile
+    spec = json.loads(Path(fr.base_spec_uri.removeprefix("file://")).read_text())
+    assert spec["parameters"][0]["paths"][0]["path"] == "Example-A|Lipophilicity"
+    assert spec["output_mappings"][0]["observed"]["lloq"] == 0.1
+
+
+def test_fit_action_without_observed_profile_has_no_fit_request(tmp_path: Path) -> None:
+    cpf_uri, map_uri, _ = _fittable_inputs(tmp_path, with_observed=False)
+    build = build_round_snapshot(_fit_ctx(cpf_uri, map_uri, "", "fit phys.logp"))
+    assert build.needs_fit is True and build.fit_request is None  # nothing to fit against -> round simulates

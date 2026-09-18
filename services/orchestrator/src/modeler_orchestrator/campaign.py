@@ -13,6 +13,7 @@ rows via `resume_campaign`; a worker restart replays from Temporal history, so n
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import timedelta
 
 from temporalio import workflow
@@ -26,6 +27,7 @@ with workflow.unsafe.imports_passed_through():
         CampaignOutcome,
         CampaignRequest,
         DeviationRecord,
+        EngineInput,
         EngineJob,
         EngineManifest,
         EscalationDecision,
@@ -150,11 +152,20 @@ class StageLoopWorkflow:
         build: RoundBuild = await workflow.execute_activity(
             "build_round_snapshot", ctx, start_to_close_timeout=_MIN * 5, retry_policy=ACT_RETRY, result_type=RoundBuild,
         )
+        # Fit round: convert the built snapshot to per-simulation pkml (the PI's model inputs), then run the
+        # fitting child. The conversion is a separate engine step; until it is wired it returns no pkml, so the
+        # fit is skipped and the round simulates instead. The fit request is still built and persisted.
         fit_outcome: FitRoundOutcome | None = None
         if build.needs_fit and build.fit_request is not None:
-            fit_outcome = await workflow.execute_child_workflow(
-                FitRoundWorkflow.run, build.fit_request, id=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}-fit",
+            pkml_inputs: list[EngineInput] = await workflow.execute_activity(
+                "convert_snapshot_to_pkml", args=[ctx, build], start_to_close_timeout=_MIN * 5,
+                retry_policy=ACT_RETRY, result_type=list[EngineInput],
             )
+            if pkml_inputs:
+                fit_request = replace(build.fit_request, model_inputs=pkml_inputs)
+                fit_outcome = await workflow.execute_child_workflow(
+                    FitRoundWorkflow.run, fit_request, id=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}-fit",
+                )
 
         # Simulate the built snapshot on the engine. build_round_snapshot echoes the CPF (snapshot_uri ==
         # cpf_uri) when no scenario trains this stage; there is then nothing to simulate, so the engine step

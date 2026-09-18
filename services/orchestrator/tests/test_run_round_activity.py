@@ -13,6 +13,8 @@ from pathlib import Path
 
 from modeler_contracts.runs import (
     EngineManifest,
+    FitRoundOutcome,
+    FitStartOutcome,
     OutputFile,
     RoundBuild,
     RoundContext,
@@ -29,7 +31,7 @@ from pbpk_domain.campaign.split import (
     StudyRecord,
     split_studies,
 )
-from pbpk_domain.cpf import CPF, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.cpf import CPF, FitPolicy, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.m15 import Rating
 
 GOLDEN = Path(__file__).parents[2] / "engine-worker" / "golden" / "results_sample" / "results.csv"
@@ -133,6 +135,43 @@ def _map_and_observed(tmp_path: Path) -> tuple[str, str]:
     obs_p = tmp_path / "observed.json"
     obs_p.write_text(json.dumps({"iv": {"auc": GOLDEN_AUC, "cmax": GOLDEN_CMAX}}))
     return map_p.as_uri(), obs_p.as_uri()
+
+
+def _fit_outcome(estimates: dict, *, best: int | None = 0) -> FitRoundOutcome:
+    return FitRoundOutcome(
+        round_id="c1-S1-r1", planned_starts=1,
+        starts=[FitStartOutcome(start_index=0, status="SUCCEEDED", estimates=estimates, objective=0.1, converged=True, evaluations=30)],
+        acceptable=True, findings=[], best_start_index=best, deadline_reached=False,
+    )
+
+
+def test_run_round_applies_fit_estimates_to_a_new_cpf(tmp_path: Path) -> None:
+    prov = Provenance(source_type="measured", reference="x")
+    cpf = CPF(compound="Drug", parameters=(
+        ParameterRecord(id="phys.mw", value=300.0, unit="g/mol", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="phys.logp", value=2.5, unit="Log Units", status=ParameterStatus.PREDICTED, provenance=prov,
+                        fit_policy=FitPolicy(stage=("S1",), lower=1.0, upper=4.0)),
+    ))
+    cpf_path = tmp_path / "cpf.json"
+    cpf_path.write_text(cpf.model_dump_json(), encoding="utf-8")
+    ctx = _ctx(cpf_uri=cpf_path.as_uri(), cpf_sha256="a" * 64)
+    manifest = _manifest([OutputFile(name="profiles.json", uri=_golden_profiles(tmp_path), sha256="d" * 64, size_bytes=20)])
+
+    result = run_round(RoundRun(context=ctx, build=_build(), manifest=manifest, fit_outcome=_fit_outcome({"phys.logp": 3.3})))
+
+    assert result.cpf_uri != ctx.cpf_uri  # a new CPF version was written
+    from pbpk_domain.cpf import CPF as _CPF
+    updated = _CPF.model_validate_json(Path(result.cpf_uri.removeprefix("file://")).read_text())
+    assert updated.version == cpf.version + 1
+    logp = updated.require("phys.logp")
+    assert logp.numeric_value == 3.3 and logp.status.value == "FITTED"
+
+
+def test_run_round_no_estimates_carries_cpf_forward(tmp_path: Path) -> None:
+    ctx = _ctx()
+    manifest = _manifest([OutputFile(name="profiles.json", uri=_golden_profiles(tmp_path), sha256="d" * 64, size_bytes=20)])
+    result = run_round(RoundRun(context=ctx, build=_build(), manifest=manifest, fit_outcome=_fit_outcome({}, best=None)))
+    assert result.cpf_uri == ctx.cpf_uri and result.cpf_sha256 == ctx.cpf_sha256
 
 
 def test_manifest_flows_through_run_round_into_evaluate(tmp_path: Path) -> None:
