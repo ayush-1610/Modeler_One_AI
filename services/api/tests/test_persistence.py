@@ -35,7 +35,7 @@ MIGRATIONS = Path(__file__).parents[1] / "migrations"
 async def _setup(host: str, port: str) -> None:
     admin = await asyncpg.connect(host=host, port=int(port), user="test", password="test", database="test")
     try:
-        for name in ("0001_core.sql", "0002_campaigns.sql"):
+        for name in ("0001_core.sql", "0002_campaigns.sql", "0003_agents.sql"):
             await admin.execute((MIGRATIONS / name).read_text())
         await admin.execute("DROP ROLE IF EXISTS modeler")
         await admin.execute("CREATE ROLE modeler LOGIN PASSWORD 'modeler' NOSUPERUSER")
@@ -92,6 +92,7 @@ def test_migrations_apply_and_tables_exist(pg):
                 ))
                 names = {r[0] for r in rows}
             assert {"campaigns", "campaign_stages", "campaign_rounds", "escalations", "deviations", "audit_events"} <= names
+            assert {"agent_runs", "agent_steps", "proposals"} <= names  # T-20
         finally:
             await db.dispose()
     run(scenario())
