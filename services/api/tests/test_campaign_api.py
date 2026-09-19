@@ -82,3 +82,56 @@ def test_wrong_project_is_403():
 def test_viewer_role_is_forbidden():
     r = client_with(claims(roles=("modeler-viewer",))).post(URL, json=_body(), headers=_auth())
     assert r.status_code == 403  # generating a MAP needs curator/reviewer
+
+
+# --- start campaign: execution backend ------------------------------------------------------------
+
+from types import SimpleNamespace
+
+from modeler_api import campaign_api
+
+CAMPAIGN_URL = "/api/v1/projects/proj-1/campaigns"
+
+
+def _start_body() -> dict:
+    return {"compound": "Drug-A", "map_id": "map-1", "cpf_uri": "file:///x/cpf.json",
+            "cpf_sha256": "a" * 64, "map_uri": "file:///x/map.json", "observed_uri": "file:///x/obs.json",
+            "question": "predict exposure", "model_risk": "medium"}
+
+
+def test_start_campaign_local_backend_launches_runner(monkeypatch):
+    launched = {}
+
+    def fake_launch(request, *, read_root, project, question, model_risk):
+        launched.update(campaign_id=request.campaign_id, read_root=read_root, project=project)
+
+    monkeypatch.setattr(campaign_api, "_launch_local_campaign", fake_launch)
+    monkeypatch.setattr(campaign_api, "get_settings", lambda: SimpleNamespace(
+        execution_backend="local", read_root="/tmp/read-root", temporal_address=None, temporal_namespace="default"))
+
+    r = client_with(claims()).post(CAMPAIGN_URL, json=_start_body(), headers=_auth())
+    assert r.status_code == 202
+    assert r.json()["status"] == "QUEUED"
+    assert launched["project"] == "proj-1" and launched["read_root"] == "/tmp/read-root"
+    assert launched["campaign_id"].startswith("camp_")
+
+
+def test_start_campaign_local_without_read_root_is_503(monkeypatch):
+    monkeypatch.setattr(campaign_api, "get_settings", lambda: SimpleNamespace(
+        execution_backend="local", read_root="", temporal_address=None, temporal_namespace="default"))
+    r = client_with(claims()).post(CAMPAIGN_URL, json=_start_body(), headers=_auth())
+    assert r.status_code == 503
+
+
+def test_start_campaign_temporal_backend_without_address_is_503(monkeypatch):
+    monkeypatch.setattr(campaign_api, "get_settings", lambda: SimpleNamespace(
+        execution_backend="temporal", read_root="/tmp/read-root", temporal_address=None, temporal_namespace="default"))
+    r = client_with(claims()).post(CAMPAIGN_URL, json=_start_body(), headers=_auth())
+    assert r.status_code == 503
+
+
+def test_start_campaign_wrong_project_is_403(monkeypatch):
+    monkeypatch.setattr(campaign_api, "get_settings", lambda: SimpleNamespace(
+        execution_backend="local", read_root="/tmp/read-root", temporal_address=None, temporal_namespace="default"))
+    r = client_with(claims(projects=("other",))).post(CAMPAIGN_URL, json=_start_body(), headers=_auth())
+    assert r.status_code == 403

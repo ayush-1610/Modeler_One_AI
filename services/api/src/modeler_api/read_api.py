@@ -3,24 +3,25 @@
 These serve the operator UI's read models. The CPF is the system of record: a GET returns the parsed CPF
 projected for display (parameters with value/unit/provenance/status/fittable stages) plus the S0 completeness
 computed from it. Data is fetched through a ``ReadStore`` protocol so the authorization and projection are
-tested without a datastore; ``FileReadStore`` reads per-tenant JSON from a configured root (file://), which
-is the seam the Postgres-backed store will replace when the §5 read tables land.
+tested without a datastore; ``FileReadStore`` (in ``modeler_api.filestore``) reads per-tenant JSON from a
+configured root, the seam the Postgres §5 read tables will replace.
 """
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Annotated, Any, Protocol
-from urllib.parse import unquote, urlparse
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import get_settings
+from modeler_api.filestore import FileReadStore, ReadStore
 from modeler_api.responses import envelope
 from pbpk_domain.cpf import CPF
 from pbpk_domain.cpf.completeness import check_completeness
+
+# re-exported so existing imports (`from modeler_api.read_api import FileReadStore`) keep working
+__all__ = ["FileReadStore", "ReadStore", "get_read_store", "project_cpf_view", "router"]
 
 router = APIRouter(prefix="/api/v1", tags=["read"])
 
@@ -29,26 +30,6 @@ _READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer")
 
 # The S0 completeness rule checks six requirement groups; completeness is the fraction satisfied.
 _COMPLETENESS_TOTAL = 6
-
-
-class ProjectNotFound(Exception):
-    pass
-
-
-class ReadStore(Protocol):
-    def list_projects(self, tenant_id: str) -> list[dict[str, Any]]: ...
-
-    def get_project(self, tenant_id: str, project_id: str) -> dict[str, Any] | None: ...
-
-    def get_cpf(self, tenant_id: str, project_id: str, compound: str) -> CPF | None: ...
-
-    def list_campaigns(self, tenant_id: str) -> list[dict[str, Any]]: ...
-
-    def get_campaign(self, tenant_id: str, campaign_id: str) -> dict[str, Any] | None: ...
-
-    def list_escalations(self, tenant_id: str) -> list[dict[str, Any]]: ...
-
-    def list_proposals(self, tenant_id: str) -> list[dict[str, Any]]: ...
 
 
 def project_cpf_view(cpf: CPF) -> dict[str, Any]:
@@ -75,55 +56,6 @@ def project_cpf_view(cpf: CPF) -> dict[str, Any]:
         "missing": list(report.missing),
         "parameters": parameters,
     }
-
-
-class FileReadStore:
-    """Reads per-tenant JSON under a root.
-
-    Layout: ``<root>/<tenant>/projects.json``, ``<root>/<tenant>/cpf/<compound>.json``, and the review/monitor
-    read models ``<root>/<tenant>/{campaigns,escalations,proposals}.json`` (each ``{"<key>": [...]}`` of
-    display-shaped rows, the same seam the Postgres §5 read tables will replace).
-    """
-
-    def __init__(self, root: str):
-        parsed = urlparse(root)
-        self.root = Path(unquote(parsed.path) if parsed.scheme == "file" else root)
-
-    def _read_json(self, path: Path) -> Any | None:
-        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
-
-    def _read_list(self, tenant_id: str, filename: str, key: str) -> list[dict[str, Any]]:
-        """Read ``<root>/<tenant>/<filename>`` and return its ``key`` array ([] when the file is absent)."""
-        data = self._read_json(self.root / tenant_id / filename)
-        return list(data.get(key, [])) if data else []
-
-    def list_projects(self, tenant_id: str) -> list[dict[str, Any]]:
-        return self._read_list(tenant_id, "projects.json", "projects")
-
-    def get_project(self, tenant_id: str, project_id: str) -> dict[str, Any] | None:
-        for project in self.list_projects(tenant_id):
-            if project.get("id") == project_id:
-                return project
-        return None
-
-    def get_cpf(self, tenant_id: str, project_id: str, compound: str) -> CPF | None:
-        data = self._read_json(self.root / tenant_id / "cpf" / f"{compound}.json")
-        return CPF.model_validate(data) if data else None
-
-    def list_campaigns(self, tenant_id: str) -> list[dict[str, Any]]:
-        return self._read_list(tenant_id, "campaigns.json", "campaigns")
-
-    def get_campaign(self, tenant_id: str, campaign_id: str) -> dict[str, Any] | None:
-        for campaign in self.list_campaigns(tenant_id):
-            if campaign.get("id") == campaign_id:
-                return campaign
-        return None
-
-    def list_escalations(self, tenant_id: str) -> list[dict[str, Any]]:
-        return self._read_list(tenant_id, "escalations.json", "escalations")
-
-    def list_proposals(self, tenant_id: str) -> list[dict[str, Any]]:
-        return self._read_list(tenant_id, "proposals.json", "proposals")
 
 
 def get_read_store() -> ReadStore:

@@ -11,6 +11,9 @@ class Settings(BaseSettings):
 
     tenancy_mode: Literal["saas-pooled", "cro-silo", "onprem-single"] = "saas-pooled"
     database_url: str = "postgresql+asyncpg://modeler:modeler@localhost:5432/modeler"
+    # How campaigns and runs execute. "local" runs the single-node headless executor in-process (no Temporal
+    # cluster needed — the permanent no-Docker path); "temporal" submits to a Temporal cluster (P2/P3 stack).
+    execution_backend: Literal["local", "temporal"] = "local"
     temporal_address: str | None = None
     temporal_namespace: str = "default"
     object_store_uri: str = "s3://modeler-dev"

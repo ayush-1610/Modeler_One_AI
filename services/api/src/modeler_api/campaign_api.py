@@ -2,11 +2,13 @@
 
 `map:generate` runs the MS-01 MAP generator (`pbpk_domain.campaign.map.generate_map`) for a question's CPF,
 studies and context; the split is computed deterministically here. Both endpoints require an authenticated
-project member (T-06). Starting a campaign submits the ModelingCampaignWorkflow to Temporal.
+project member (T-06). Starting a campaign runs it through the configured execution backend: the single-node
+``local`` executor in-process (the no-Docker path — no Temporal needed) or the Temporal cluster (``temporal``).
 """
 
 from __future__ import annotations
 
+import threading
 import uuid
 from typing import Annotated, Any
 
@@ -23,6 +25,22 @@ from pbpk_domain.m15 import Rating
 router = APIRouter(prefix="/api/v1", tags=["campaigns"])
 
 Author = Annotated[Principal, Depends(require_role("modeler-curator", "modeler-reviewer"))]
+
+
+def _launch_local_campaign(campaign_request: Any, *, read_root: str, project: str, question: str, model_risk: str) -> None:
+    """Run the campaign single-node on a background thread (the local execution backend).
+
+    Imported lazily because the orchestrator depends on this package (importing it at module load would be a
+    cycle). The runner writes the live monitor view under ``read_root`` as it progresses.
+    """
+    from modeler_orchestrator.local_runner import run_campaign
+
+    threading.Thread(
+        target=run_campaign,
+        kwargs={"request": campaign_request, "read_root": read_root, "project": project,
+                "question": question, "model_risk": model_risk},
+        daemon=True,
+    ).start()
 
 
 class MapGenerateRequest(BaseModel):
@@ -59,29 +77,41 @@ class CampaignStartRequest(BaseModel):
     cpf_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     map_uri: str = ""
     observed_uri: str = ""
+    question: str = ""
+    model_risk: str = "medium"
+    stages: list[str] | None = None
+    stage_budgets_seconds: dict[str, int] = Field(default_factory=dict)
 
 
 @router.post("/projects/{project_id}/campaigns", status_code=202)
 async def start_campaign(project_id: str, request: CampaignStartRequest, principal: Author) -> dict[str, Any]:
-    """Submit a modeling campaign to the orchestrator (ModelingCampaignWorkflow)."""
+    """Start a modeling campaign through the configured execution backend (local single-node, or Temporal)."""
     require_project(project_id, principal)
     settings = get_settings()
-    if not settings.temporal_address:
-        raise HTTPException(status_code=503, detail="Campaign orchestration is not configured. Set MODELER_TEMPORAL_ADDRESS.")
 
-    from temporalio.client import Client
-
-    from modeler_contracts.runs import CampaignRequest
+    from modeler_contracts.runs import CAMPAIGN_STAGES, CampaignRequest
 
     campaign_id = f"camp_{uuid.uuid4().hex}"
-    client = await Client.connect(settings.temporal_address, namespace=settings.temporal_namespace)
-    await client.start_workflow(
-        "ModelingCampaignWorkflow",
-        CampaignRequest(
-            campaign_id=campaign_id, tenant_id=principal.tenant_id, compound=request.compound, map_id=request.map_id,
-            cpf_uri=request.cpf_uri, cpf_sha256=request.cpf_sha256, map_uri=request.map_uri, observed_uri=request.observed_uri,
-        ),
-        id=campaign_id,
-        task_queue="orchestrator",
+    campaign_request = CampaignRequest(
+        campaign_id=campaign_id, tenant_id=principal.tenant_id, compound=request.compound, map_id=request.map_id,
+        cpf_uri=request.cpf_uri, cpf_sha256=request.cpf_sha256, map_uri=request.map_uri, observed_uri=request.observed_uri,
+        stages=request.stages or list(CAMPAIGN_STAGES), stage_budgets_seconds=request.stage_budgets_seconds,
     )
+
+    if settings.execution_backend == "temporal":
+        if not settings.temporal_address:
+            raise HTTPException(status_code=503, detail="Campaign orchestration is not configured. Set MODELER_TEMPORAL_ADDRESS.")
+        from temporalio.client import Client
+
+        client = await Client.connect(settings.temporal_address, namespace=settings.temporal_namespace)
+        await client.start_workflow(
+            "ModelingCampaignWorkflow", campaign_request, id=campaign_id, task_queue="orchestrator",
+        )
+        return {"campaign_id": campaign_id, "status": "QUEUED", "status_url": f"/api/v1/campaigns/{campaign_id}"}
+
+    # local backend: run single-node in-process (no Temporal). Requires a read root for the monitor artifacts.
+    if not settings.read_root:
+        raise HTTPException(status_code=503, detail="Local execution needs a read root. Set MODELER_READ_ROOT.")
+    _launch_local_campaign(campaign_request, read_root=settings.read_root, project=project_id,
+                           question=request.question, model_risk=request.model_risk)
     return {"campaign_id": campaign_id, "status": "QUEUED", "status_url": f"/api/v1/campaigns/{campaign_id}"}
