@@ -1,0 +1,134 @@
+name: Engine image
+
+# Build, qualify, sign and register the OSP engine image (task T-12, ENGINEERING_PLAN §9).
+# The golden scripts run INSIDE the freshly built image and are the qualification gate: on a pull request
+# they must pass but nothing is published, so a change that breaks a golden test can never publish an image.
+# On main / tags the qualified image is pushed to GHCR by digest, an SBOM is attached, the image is signed
+# with cosign (keyless), and an engine_images registration record is produced as a validation artifact.
+
+on:
+  push:
+    branches: [main]
+    tags: ["engine-*"]
+    paths:
+      - "services/engine-worker/**"
+      - "packages/run-contracts/**"
+      - ".github/workflows/engine-image.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/engine-worker/**"
+      - "packages/run-contracts/**"
+      - ".github/workflows/engine-image.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: engine-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/modeler-engine
+  DOCKERFILE: services/engine-worker/Dockerfile
+
+jobs:
+  build-qualify:
+    name: Build, qualify (golden), publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write       # push to GHCR
+      id-token: write        # cosign keyless signing
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build engine image (amd64)
+        run: docker build --platform linux/amd64 -f "$DOCKERFILE" -t modeler-engine:ci .
+
+      - name: Qualify — golden scripts inside the image (the publish gate)
+        run: |
+          mkdir -p artifacts && chmod 777 artifacts
+          set -euo pipefail
+          run() { docker run --rm -v "$PWD/artifacts:/out" modeler-engine:ci "$@"; }
+          echo "== golden round trip";  run Rscript /engine/golden/golden_roundtrip.R /engine/golden/example_snapshot.json /out/golden
+          echo "== fitting smoke";      run Rscript /engine/golden/pi_smoke.R /out/pi_smoke
+          echo "== engine tasks";       run Rscript /engine/golden/golden_tasks.R
+          echo "== benchmark";          run Rscript /engine/benchmark.R "" "" 400 /out/benchmark.json
+          # every golden script exited 0 (set -e); record the gate result for the registration step
+          printf '{"roundtrip": true, "pi_smoke": true, "tasks": true}\n' > artifacts/golden.json
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image by digest
+        id: push
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_SHA::12}"
+          docker tag modeler-engine:ci "$IMAGE:$tag"
+          docker push "$IMAGE:$tag"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$tag" | cut -d@ -f2)"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "ref=$IMAGE@$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SBOM (Syft)
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.push.outputs.ref }}
+          format: spdx-json
+          output-file: artifacts/sbom.spdx.json
+
+      - name: Sign image (cosign keyless)
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3
+      - name: cosign sign
+        if: github.event_name != 'pull_request'
+        run: cosign sign --yes "${{ steps.push.outputs.ref }}"
+
+      # modeler_engine.registration is pure-python (no engine needed); install it on the runner for the record step.
+      - name: Install run-contracts + engine worker for the record step
+        if: github.event_name != 'pull_request'
+        run: pip install ./packages/run-contracts ./services/engine-worker
+
+      - name: Build engine_images registration record
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          IMAGE_REF: ${{ steps.push.outputs.ref }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from modeler_engine.registration import build_engine_image_registration
+          catalog = json.load(open("services/engine-worker/golden/catalog.json"))
+          benchmark = json.load(open("artifacts/benchmark.json"))
+          golden = json.load(open("artifacts/golden.json"))
+          rec = build_engine_image_registration(
+              digest="sha256:" + os.environ["DIGEST"].split(":")[-1],
+              catalog=catalog, benchmark=benchmark, golden=golden,
+              sbom_ref=os.environ["IMAGE_REF"],
+          )
+          json.dump(rec, open("artifacts/engine_image_registration.json", "w"), indent=2, sort_keys=True)
+          print(json.dumps(rec, indent=2))
+          PY
+
+      - name: Upload qualification + registration artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-image-evidence
+          path: |
+            artifacts/golden/**
+            artifacts/pi_smoke/**
+            artifacts/benchmark.json
+            artifacts/sbom.spdx.json
+            artifacts/engine_image_registration.json
+          if-no-files-found: warn

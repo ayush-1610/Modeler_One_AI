@@ -14,9 +14,13 @@ suppressPackageStartupMessages({
   library(ospsuite)
 })
 
-repo <- normalizePath(file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))), "..", "..", ".."))
-run_job <- file.path(repo, "services", "engine-worker", "r", "run_job.R")
-snapshot <- file.path(repo, "services", "engine-worker", "golden", "example_snapshot.json")
+# Locate run_job.R and the snapshot relative to this script, so the test works both in the repo checkout
+# (golden/ beside r/) and inside the engine image (golden/ beside run_job.R at /engine).
+here <- dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)))
+first_existing <- function(...) { for (p in c(...)) if (file.exists(p)) return(normalizePath(p)); c(...)[[1]] }
+run_job <- first_existing(file.path(here, "..", "run_job.R"),              # image: /engine/run_job.R
+                          file.path(here, "..", "r", "run_job.R"))          # repo: services/engine-worker/r/run_job.R
+snapshot <- file.path(here, "example_snapshot.json")                        # ships beside this script in both layouts
 stopifnot(file.exists(run_job), file.exists(snapshot))
 
 fail <- function(...) { cat("FAIL:", ..., "\n"); quit(status = 1) }
