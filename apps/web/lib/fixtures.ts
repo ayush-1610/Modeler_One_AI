@@ -54,6 +54,7 @@ export type Stage = {
 
 export type Campaign = {
   id: string;
+  project?: string;
   compound: string;
   question: string;
   modelRisk: Rating;
@@ -64,6 +65,9 @@ export type Campaign = {
 };
 
 export type GofSeries = { name: string; time_h: number[]; concentration: number[]; unit: string; kind: "simulated" | "observed" };
+
+// The campaign monitor's full read view: the campaign plus its goodness-of-fit series.
+export type CampaignDetail = Campaign & { gof?: GofSeries[] };
 
 export type Escalation = {
   id: string;

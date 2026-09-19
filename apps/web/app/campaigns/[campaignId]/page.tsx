@@ -1,6 +1,7 @@
 import { Card, RiskChip, StatusChip } from "@/components/ui";
 import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
 import { CAMPAIGN, GOF } from "@/lib/fixtures";
+import { getCampaign } from "@/lib/reads";
 
 function mmss(s: number) {
   const m = Math.floor(s / 60);
@@ -8,8 +9,10 @@ function mmss(s: number) {
 }
 
 export default async function CampaignPage({ params }: { params: Promise<{ campaignId: string }> }) {
-  await params;
-  const c = CAMPAIGN;
+  const { campaignId } = await params;
+  const live = await getCampaign(campaignId);
+  const c = live ?? CAMPAIGN;
+  const gof = live?.gof ?? GOF;
   const budgetPct = Math.min(100, Math.round((c.elapsedSeconds / c.budgetSeconds) * 100));
   const rows = c.stages.flatMap((s) => s.rounds.map((r) => ({ stage: s.stage, ...r })));
 
@@ -20,6 +23,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
         <RiskChip rating={c.modelRisk} />
       </div>
       <p className="muted">{c.question}</p>
+      {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
 
       <Card title="Stage progress" action={<span className="muted">current: {c.currentStage}</span>}>
         <div className="timeline">
@@ -44,7 +48,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
 
       <div className="cols-2">
         <Card title="Goodness of fit — stage S2">
-          <ConcentrationTimePlot series={GOF} />
+          <ConcentrationTimePlot series={gof} />
         </Card>
 
         <Card title="Round history">

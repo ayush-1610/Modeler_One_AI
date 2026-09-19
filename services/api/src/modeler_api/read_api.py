@@ -42,6 +42,14 @@ class ReadStore(Protocol):
 
     def get_cpf(self, tenant_id: str, project_id: str, compound: str) -> CPF | None: ...
 
+    def list_campaigns(self, tenant_id: str) -> list[dict[str, Any]]: ...
+
+    def get_campaign(self, tenant_id: str, campaign_id: str) -> dict[str, Any] | None: ...
+
+    def list_escalations(self, tenant_id: str) -> list[dict[str, Any]]: ...
+
+    def list_proposals(self, tenant_id: str) -> list[dict[str, Any]]: ...
+
 
 def project_cpf_view(cpf: CPF) -> dict[str, Any]:
     """Project a CPF for the compound screen: parameter rows plus the S0 completeness fraction."""
@@ -70,7 +78,12 @@ def project_cpf_view(cpf: CPF) -> dict[str, Any]:
 
 
 class FileReadStore:
-    """Reads per-tenant JSON under a root: <root>/<tenant>/projects.json and <root>/<tenant>/cpf/<compound>.json."""
+    """Reads per-tenant JSON under a root.
+
+    Layout: ``<root>/<tenant>/projects.json``, ``<root>/<tenant>/cpf/<compound>.json``, and the review/monitor
+    read models ``<root>/<tenant>/{campaigns,escalations,proposals}.json`` (each ``{"<key>": [...]}`` of
+    display-shaped rows, the same seam the Postgres §5 read tables will replace).
+    """
 
     def __init__(self, root: str):
         parsed = urlparse(root)
@@ -79,9 +92,13 @@ class FileReadStore:
     def _read_json(self, path: Path) -> Any | None:
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
+    def _read_list(self, tenant_id: str, filename: str, key: str) -> list[dict[str, Any]]:
+        """Read ``<root>/<tenant>/<filename>`` and return its ``key`` array ([] when the file is absent)."""
+        data = self._read_json(self.root / tenant_id / filename)
+        return list(data.get(key, [])) if data else []
+
     def list_projects(self, tenant_id: str) -> list[dict[str, Any]]:
-        data = self._read_json(self.root / tenant_id / "projects.json")
-        return list(data.get("projects", [])) if data else []
+        return self._read_list(tenant_id, "projects.json", "projects")
 
     def get_project(self, tenant_id: str, project_id: str) -> dict[str, Any] | None:
         for project in self.list_projects(tenant_id):
@@ -92,6 +109,21 @@ class FileReadStore:
     def get_cpf(self, tenant_id: str, project_id: str, compound: str) -> CPF | None:
         data = self._read_json(self.root / tenant_id / "cpf" / f"{compound}.json")
         return CPF.model_validate(data) if data else None
+
+    def list_campaigns(self, tenant_id: str) -> list[dict[str, Any]]:
+        return self._read_list(tenant_id, "campaigns.json", "campaigns")
+
+    def get_campaign(self, tenant_id: str, campaign_id: str) -> dict[str, Any] | None:
+        for campaign in self.list_campaigns(tenant_id):
+            if campaign.get("id") == campaign_id:
+                return campaign
+        return None
+
+    def list_escalations(self, tenant_id: str) -> list[dict[str, Any]]:
+        return self._read_list(tenant_id, "escalations.json", "escalations")
+
+    def list_proposals(self, tenant_id: str) -> list[dict[str, Any]]:
+        return self._read_list(tenant_id, "proposals.json", "proposals")
 
 
 def get_read_store() -> ReadStore:
@@ -126,3 +158,34 @@ def get_compound_cpf(project_id: str, compound: str, principal: PrincipalDep, st
     if cpf is None:
         raise HTTPException(status_code=404, detail=f"no CPF for {compound} in project {project_id}")
     return envelope(project_cpf_view(cpf))
+
+
+@router.get("/campaigns")
+def list_campaigns(principal: PrincipalDep, store: StoreDep):
+    """List the tenant's campaigns (summary + stage/round detail) for the campaign monitor."""
+    return envelope({"campaigns": store.list_campaigns(principal.tenant_id)})
+
+
+@router.get("/campaigns/{campaign_id}")
+def get_campaign(campaign_id: str, principal: PrincipalDep, store: StoreDep):
+    """One campaign's monitor view. 404 when it is not in the tenant; 403 when the caller is not a member of
+    the campaign's project (checked after the lookup, since the project is a property of the campaign, not the URL)."""
+    campaign = store.get_campaign(principal.tenant_id, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail=f"campaign {campaign_id} not found")
+    project_id = campaign.get("project")
+    if project_id:
+        require_project(project_id, principal)
+    return envelope(campaign)
+
+
+@router.get("/escalations")
+def list_escalations(principal: PrincipalDep, store: StoreDep):
+    """Open campaign escalations awaiting a signed decision (review inbox)."""
+    return envelope({"escalations": store.list_escalations(principal.tenant_id)})
+
+
+@router.get("/proposals")
+def list_proposals(principal: PrincipalDep, store: StoreDep):
+    """Pending agent parameter proposals awaiting curator acceptance (review inbox)."""
+    return envelope({"proposals": store.list_proposals(principal.tenant_id)})

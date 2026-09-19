@@ -2,7 +2,7 @@
 // the backend, or null when the API is unreachable, so pages can fall back to sample data and still render.
 
 import { serverGet } from "@/lib/api";
-import type { Compound, Project, ProjectDetail } from "@/lib/fixtures";
+import type { Campaign, CampaignDetail, Compound, Escalation, Project, ProjectDetail, Proposal } from "@/lib/fixtures";
 
 export async function getProjects(): Promise<Project[] | null> {
   const data = await serverGet<{ projects: Project[] }>("/api/v1/projects");
@@ -30,4 +30,23 @@ export async function getCompoundCpf(projectId: string, compound: string): Promi
     completeness: view.completeness,
     parameters: view.parameters,
   };
+}
+
+export async function getCampaigns(): Promise<Campaign[] | null> {
+  const data = await serverGet<{ campaigns: Campaign[] }>("/api/v1/campaigns");
+  return data ? data.campaigns : null;
+}
+
+export async function getCampaign(campaignId: string): Promise<CampaignDetail | null> {
+  return serverGet<CampaignDetail>(`/api/v1/campaigns/${campaignId}`);
+}
+
+export async function getEscalations(): Promise<Escalation[] | null> {
+  const data = await serverGet<{ escalations: Escalation[] }>("/api/v1/escalations");
+  return data ? data.escalations : null;
+}
+
+export async function getProposals(): Promise<Proposal[] | null> {
+  const data = await serverGet<{ proposals: Proposal[] }>("/api/v1/proposals");
+  return data ? data.proposals : null;
 }

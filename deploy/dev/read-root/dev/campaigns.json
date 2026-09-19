@@ -1,0 +1,38 @@
+{
+  "campaigns": [
+    {
+      "id": "camp-101",
+      "project": "example-a",
+      "compound": "Example-A",
+      "question": "AUC ratio of Example-A with itraconazole 200 mg QD; label dose adjustment?",
+      "modelRisk": "high",
+      "budgetSeconds": 3600,
+      "elapsedSeconds": 2340,
+      "currentStage": "S3",
+      "stages": [
+        { "stage": "S0", "label": "Readiness", "status": "PASSED", "rounds": [] },
+        { "stage": "S1", "label": "IV disposition", "status": "PASSED", "rounds": [
+          { "round": 1, "action": "fit elim.hepatic.CYP3A4.clspec", "aucGmfe": 1.42, "cmaxGmfe": 1.31, "verdict": "improved" },
+          { "round": 2, "action": "fit phys.logp", "aucGmfe": 1.08, "cmaxGmfe": 1.12, "verdict": "passed" }
+        ] },
+        { "stage": "S2", "label": "Oral fasted", "status": "PASSED", "rounds": [
+          { "round": 1, "action": "fit perm.intestinal", "aucGmfe": 1.21, "cmaxGmfe": 1.5, "verdict": "improved" },
+          { "round": 2, "action": "fit phys.solubility.ref", "aucGmfe": 1.05, "cmaxGmfe": 1.09, "verdict": "passed" }
+        ] },
+        { "stage": "S3", "label": "Formulation / fed", "status": "RUNNING", "rounds": [
+          { "round": 1, "action": "fit food.fed_solubility_factor", "aucGmfe": 1.33, "cmaxGmfe": 1.28, "verdict": "improved" }
+        ] },
+        { "stage": "S4", "label": "Internal validation", "status": "PENDING", "rounds": [] },
+        { "stage": "S5", "label": "External validation", "status": "PENDING", "rounds": [] }
+      ],
+      "gof": [
+        { "name": "Predicted (S2)", "unit": "µmol/l", "kind": "simulated",
+          "time_h": [0, 0.25, 0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 24],
+          "concentration": [0, 8, 22, 38, 41, 36, 27, 20, 11, 6.2, 2.1, 0.35] },
+        { "name": "Observed", "unit": "µmol/l", "kind": "observed",
+          "time_h": [0.5, 1, 2, 4, 8, 24],
+          "concentration": [24, 40, 34, 19, 6.6, 0.4] }
+      ]
+    }
+  ]
+}

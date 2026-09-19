@@ -40,6 +40,12 @@ def _cpf() -> CPF:
     ))  # note: no phys.pka -> 5/6 complete
 
 
+def _campaign() -> dict:
+    return {"id": "camp-101", "project": "example-a", "compound": "Example-A", "modelRisk": "high",
+            "budgetSeconds": 3600, "elapsedSeconds": 2340, "currentStage": "S3", "stages": [],
+            "gof": [{"name": "Observed", "kind": "observed", "unit": "µmol/l", "time_h": [1], "concentration": [40]}]}
+
+
 class FakeStore:
     def list_projects(self, tenant_id):
         return [{"id": "example-a", "name": "Example-A program", "compounds": ["Example-A"], "openQuestions": 2, "risk": "high"}]
@@ -49,6 +55,20 @@ class FakeStore:
 
     def get_cpf(self, tenant_id, project_id, compound):
         return _cpf() if compound == "Example-A" else None
+
+    def list_campaigns(self, tenant_id):
+        return [_campaign()]
+
+    def get_campaign(self, tenant_id, campaign_id):
+        return next((c for c in self.list_campaigns(tenant_id) if c["id"] == campaign_id), None)
+
+    def list_escalations(self, tenant_id):
+        return [{"id": "esc-1", "campaignId": "camp-101", "stage": "S3", "reasonCode": "MAX_ROUNDS_NO_PASS",
+                 "evidence": "no pass", "options": [{"id": "retry", "label": "Retry", "requiresSignature": False}]}]
+
+    def list_proposals(self, tenant_id):
+        return [{"id": "prop-1", "parameterId": "phys.logp", "value": "2.5", "unit": "Log Units",
+                 "quote": "log P 2.5", "reference": "doi:x", "agent": "parameter_curation"}]
 
 
 def client_with(claims_dict, store=None) -> TestClient:
@@ -113,6 +133,36 @@ def test_non_member_project_is_403():
     assert r.status_code == 403
 
 
+# --- campaigns / escalations / proposals ---------------------------------------------------------
+
+
+def test_list_campaigns():
+    r = client_with(claims()).get("/api/v1/campaigns", headers=_auth())
+    assert r.status_code == 200
+    assert r.json()["data"]["campaigns"][0]["id"] == "camp-101"
+
+
+def test_get_campaign_and_404():
+    c = client_with(claims(projects=("example-a",)))
+    ok = c.get("/api/v1/campaigns/camp-101", headers=_auth())
+    assert ok.status_code == 200 and ok.json()["data"]["gof"][0]["kind"] == "observed"
+    assert c.get("/api/v1/campaigns/ghost", headers=_auth()).status_code == 404
+
+
+def test_get_campaign_non_member_project_is_403():
+    # the campaign belongs to example-a, but this principal is only a member of "other"
+    r = client_with(claims(projects=("other",))).get("/api/v1/campaigns/camp-101", headers=_auth())
+    assert r.status_code == 403
+
+
+def test_list_escalations_and_proposals():
+    c = client_with(claims())
+    esc = c.get("/api/v1/escalations", headers=_auth())
+    assert esc.status_code == 200 and esc.json()["data"]["escalations"][0]["id"] == "esc-1"
+    prop = c.get("/api/v1/proposals", headers=_auth())
+    assert prop.status_code == 200 and prop.json()["data"]["proposals"][0]["parameterId"] == "phys.logp"
+
+
 def test_missing_token_is_401():
     assert client_with(claims()).get("/api/v1/projects").status_code == 401
 
@@ -141,3 +191,19 @@ def test_file_read_store_roundtrip(tmp_path):
     assert store.get_cpf("dev", "example-a", "Example-A").compound == "Example-A"
     assert store.get_cpf("dev", "example-a", "Ghost") is None
     assert store.list_projects("other-tenant") == []  # tenant isolation by path
+
+
+def test_file_read_store_campaigns_escalations_proposals(tmp_path):
+    (tmp_path / "dev").mkdir()
+    (tmp_path / "dev" / "campaigns.json").write_text(json.dumps({"campaigns": [_campaign()]}))
+    (tmp_path / "dev" / "escalations.json").write_text(json.dumps({"escalations": [{"id": "esc-1"}]}))
+    (tmp_path / "dev" / "proposals.json").write_text(json.dumps({"proposals": [{"id": "prop-1"}]}))
+
+    store = FileReadStore(str(tmp_path))
+    assert store.get_campaign("dev", "camp-101")["project"] == "example-a"
+    assert store.get_campaign("dev", "ghost") is None
+    assert store.list_escalations("dev")[0]["id"] == "esc-1"
+    assert store.list_proposals("dev")[0]["id"] == "prop-1"
+    # absent files and tenant isolation both yield []
+    assert store.list_campaigns("other-tenant") == []
+    assert store.list_proposals("other-tenant") == []

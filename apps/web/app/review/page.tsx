@@ -1,21 +1,29 @@
 import { Card } from "@/components/ui";
 import { EscalationDecision } from "@/components/EscalationDecision";
 import { ESCALATIONS, PROPOSALS } from "@/lib/fixtures";
+import { getEscalations, getProposals } from "@/lib/reads";
 
-export default function ReviewInbox() {
+export default async function ReviewInbox() {
+  const liveProposals = await getProposals();
+  const liveEscalations = await getEscalations();
+  const offline = liveProposals === null && liveEscalations === null;
+  const proposals = liveProposals ?? PROPOSALS;
+  const escalations = liveEscalations ?? ESCALATIONS;
+
   return (
     <main>
       <h1>Review inbox</h1>
       <p className="muted">Curator and reviewer actions: agent parameter proposals awaiting acceptance, and campaign
         escalations that resume only through a signed decision.</p>
+      {offline && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
 
-      <Card title="Parameter proposals" action={<span className="chip medium">{PROPOSALS.length} pending</span>}>
+      <Card title="Parameter proposals" action={<span className="chip medium">{proposals.length} pending</span>}>
         <table>
           <thead>
             <tr><th>Parameter</th><th className="num">Value</th><th>Citation</th><th>Agent</th><th></th></tr>
           </thead>
           <tbody>
-            {PROPOSALS.map((p) => (
+            {proposals.map((p) => (
               <tr key={p.id}>
                 <td><code>{p.parameterId}</code></td>
                 <td className="num">{p.value} {p.unit}</td>
@@ -40,7 +48,7 @@ export default function ReviewInbox() {
         </p>
       </Card>
 
-      {ESCALATIONS.map((e) => (
+      {escalations.map((e) => (
         <Card key={e.id} title={`Escalation — campaign ${e.campaignId}, stage ${e.stage}`}>
           <EscalationDecision escalation={e} />
         </Card>
