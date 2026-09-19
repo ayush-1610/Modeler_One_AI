@@ -55,7 +55,21 @@ jobs:
         run: uv sync --all-packages --frozen
       - name: Run tests and emit the requirement trace matrix
         run: uv run pytest -q --trace-matrix reports/trace-matrix.md --junit-xml reports/junit.xml
-      - name: Upload validation evidence (trace matrix + junit)
+      - name: Generate the validation pack (URS/FS + RTM + OQ)
+        if: always()
+        run: |
+          uv run python - <<'PY'
+          from pbpk_domain.report.validation_pack import (
+              build_pack, load_requirements, load_trace_matrix, parse_junit_summary, render_validation_pack,
+          )
+          reqs = load_requirements("docs/validation/requirements.yaml")
+          trace = load_trace_matrix("reports/trace-matrix.json")
+          oq = parse_junit_summary(open("reports/junit.xml").read())
+          pack = build_pack(reqs, trace, oq=oq)
+          open("reports/validation-pack.md", "w").write(render_validation_pack(pack, version="${{ github.sha }}"))
+          print(f"validation pack: {len(reqs)} requirements, gaps={[r.id for r in pack.gaps()]}, OQ green={oq.green}")
+          PY
+      - name: Upload validation evidence (trace matrix + junit + pack)
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -64,6 +78,7 @@ jobs:
             reports/trace-matrix.md
             reports/trace-matrix.json
             reports/junit.xml
+            reports/validation-pack.md
           if-no-files-found: warn
 
   secret-scan:

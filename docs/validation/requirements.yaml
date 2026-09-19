@@ -1,0 +1,81 @@
+# User Requirements Specification / Functional Specification catalogue (task T-32).
+# Each id matches an @pytest.mark.req(...) id, so the validation pack traces every requirement to the tests
+# that verify it (via the T-25 trace matrix) and to the OQ evidence (CI JUnit). Extend as requirements and
+# their tagged tests grow. Categories: functional | regulatory | performance. GAMP risk: low | medium | high.
+
+- id: T-05
+  title: Tamper-evident audit trail
+  user_requirement: Every change to a regulated record must be recorded in a tamper-evident, verifiable trail.
+  functional_spec: Hash-chained audit_events; verify_chain detects any edited, re-hashed or deleted link.
+  category: regulatory
+  risk: high
+
+- id: T-06
+  title: Authentication and authorization
+  user_requirement: Only authorised project members may act, and electronic signatures require re-authentication.
+  functional_spec: Keycloak OIDC; realm roles plus project membership; loa2 step-up (auth_time <= 300 s) for signatures.
+  category: regulatory
+  risk: high
+
+- id: T-12
+  title: Qualified engine image
+  user_requirement: Simulations must run on a qualified, immutable engine referenced by digest.
+  functional_spec: CI builds the engine image, runs the golden scripts inside it as the publish gate, signs it and registers an engine_images row; a broken golden test cannot publish.
+  category: regulatory
+  risk: high
+
+- id: T-13
+  title: Parameter identification and CPF versioning
+  user_requirement: Fitted parameters must be applied to the model with full provenance and versioning.
+  functional_spec: apply_fit_estimates creates a new FITTED CPF version with ParameterIdentification provenance; PK-Sim paths resolved from the harvested map.
+  category: functional
+  risk: medium
+
+- id: T-14
+  title: Diagnostics ruleset
+  user_requirement: When the model misfits, the platform must propose only mechanistically permitted actions.
+  functional_spec: diag_rules.yaml plus diagnostics.diagnose return the permitted actions per stage; >= 80% of golden cases agree on the first action.
+  category: functional
+  risk: medium
+
+- id: T-18
+  title: Deterministic NCA and acceptance gate
+  user_requirement: Predicted vs observed PK must be judged by a deterministic, tiered acceptance gate.
+  functional_spec: nca computes Cmax/tmax/AUC/t-half; assess_round applies the M15 model-risk-tiered acceptance criteria.
+  category: functional
+  risk: medium
+
+- id: T-20
+  title: Auditable, budgeted agent runs
+  user_requirement: Every agent decision must be auditable and bounded by a token/cost budget.
+  functional_spec: agent_runs/agent_steps record each turn; Budget stops a run INCOMPLETE at its limit; provider failure yields LLM_UNAVAILABLE with retry.
+  category: regulatory
+  risk: medium
+
+- id: T-23
+  title: Reproducibility gate
+  user_requirement: A submitted model package must reproduce identically on an independent re-run.
+  functional_spec: Hashed bundle plus generated rerun_all.R; verify_reproduction compares hashes and PK tables within 1e-6.
+  category: regulatory
+  risk: high
+
+- id: T-24
+  title: Traceable Modeling Analysis Report
+  user_requirement: The report must contain no quantitative claim that is not traceable to computed evidence.
+  functional_spec: MAR references values/tables/figures by token resolved from an evidence set; render refuses on any unresolved reference or bare number in prose.
+  category: regulatory
+  risk: high
+
+- id: F-401
+  title: Audit trail integrity (21 CFR Part 11)
+  user_requirement: The audit trail must be verifiable and detect tampering.
+  functional_spec: Hash-chained events; verify_chain returns the index of the first broken link.
+  category: regulatory
+  risk: high
+
+- id: F-403
+  title: Electronic signature binding (21 CFR Part 11)
+  user_requirement: An electronic signature must bind to the exact record it approves and manifest signer, meaning and time.
+  functional_spec: sign_record binds record_sha256; manifestation renders name, meaning and timestamp; step-up enforced.
+  category: regulatory
+  risk: high
