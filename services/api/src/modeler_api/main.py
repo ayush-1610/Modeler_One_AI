@@ -8,7 +8,6 @@ must be replaced before any non-local deployment.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -19,6 +18,8 @@ from modeler_api.auth import Principal, require_role
 from modeler_api.campaign_api import router as campaign_router
 from modeler_api.config import get_settings
 from modeler_api.escalations import router as escalations_router
+from modeler_api.read_api import router as read_router
+from modeler_api.responses import envelope
 from modeler_api.results_api import router as results_router
 from modeler_api.signatures_api import router as signatures_router
 from modeler_contracts.runs import RUN_TASKS, RunRequest
@@ -33,21 +34,12 @@ from pbpk_domain.snapshot.builder import (
     SubjectSpec,
 )
 
-API_VERSION = "1"
-
 app = FastAPI(title="Modeler One API", version="0.1.0")
 app.include_router(escalations_router)
 app.include_router(signatures_router)
 app.include_router(campaign_router)
 app.include_router(results_router)
-
-
-def envelope(data: Any = None, errors: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    return {
-        "data": data,
-        "meta": {"request_id": str(uuid.uuid4()), "timestamp": datetime.now(UTC).isoformat(), "api_version": API_VERSION},
-        "errors": errors or [],
-    }
+app.include_router(read_router)
 
 
 @app.get("/health")

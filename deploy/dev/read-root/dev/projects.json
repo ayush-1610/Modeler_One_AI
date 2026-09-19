@@ -1,0 +1,50 @@
+{
+  "projects": [
+    {
+      "id": "example-a",
+      "name": "Example-A program",
+      "compounds": [
+        "Example-A"
+      ],
+      "openQuestions": 2,
+      "risk": "high",
+      "questions": [
+        {
+          "id": "qoi-1",
+          "question": "AUC ratio of Example-A with itraconazole 200 mg QD; label dose adjustment?",
+          "application": "DDI (CYP3A4)",
+          "modelRisk": "high",
+          "stage": "evaluation",
+          "failingCriteria": 1
+        },
+        {
+          "id": "qoi-2",
+          "question": "Dose for children 2 to <6 years matching adult AUC",
+          "application": "Pediatric extrapolation",
+          "modelRisk": "medium",
+          "stage": "planning",
+          "failingCriteria": 0
+        }
+      ]
+    },
+    {
+      "id": "renal-drug",
+      "name": "RenalDrug FIH",
+      "compounds": [
+        "RenalDrug"
+      ],
+      "openQuestions": 1,
+      "risk": "medium",
+      "questions": [
+        {
+          "id": "qoi-3",
+          "question": "First-in-human starting dose from allometry + PBPK",
+          "application": "FIH translation",
+          "modelRisk": "medium",
+          "stage": "planning",
+          "failingCriteria": 0
+        }
+      ]
+    }
+  ]
+}

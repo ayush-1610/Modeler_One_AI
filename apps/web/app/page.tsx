@@ -2,12 +2,16 @@ import Link from "next/link";
 
 import { Card, RiskChip } from "@/components/ui";
 import { PROJECTS } from "@/lib/fixtures";
+import { getProjects } from "@/lib/reads";
 
-export default function ProjectsPage() {
+export default async function ProjectsPage() {
+  const live = await getProjects();
+  const projects = live ?? PROJECTS;
   return (
     <main>
       <h1>Projects</h1>
       <p className="muted">PBPK modeling programs on the Open Systems Pharmacology Suite. Each project holds its compounds, questions of interest and campaigns.</p>
+      {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
       <Card>
         <table>
           <thead>
@@ -19,7 +23,7 @@ export default function ProjectsPage() {
             </tr>
           </thead>
           <tbody>
-            {PROJECTS.map((p) => (
+            {projects.map((p) => (
               <tr key={p.id}>
                 <td><Link href={`/projects/${p.id}`}>{p.name}</Link></td>
                 <td>{p.compounds.join(", ")}</td>

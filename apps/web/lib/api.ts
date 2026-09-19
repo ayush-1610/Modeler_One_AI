@@ -7,6 +7,25 @@ export type Envelope<T> = {
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+// Server components fetch through the server-side base (falls back to the public one), with a dev bearer.
+// In production the user's forwarded OIDC token replaces MODELER_WEB_TOKEN.
+const SERVER_API_BASE = process.env.MODELER_API_BASE ?? API_BASE;
+const WEB_TOKEN = process.env.MODELER_WEB_TOKEN ?? "dev";
+
+/** Server-side GET returning the envelope's `data`, or null if the API is unreachable or returns an error. */
+export async function serverGet<T>(path: string): Promise<T | null> {
+  try {
+    const response = await fetch(`${SERVER_API_BASE}${path}`, {
+      headers: { Authorization: `Bearer ${WEB_TOKEN}` },
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const env = (await response.json()) as Envelope<T>;
+    return env.errors?.length ? null : env.data;
+  } catch {
+    return null; // API not running — caller falls back to sample data so the UI still renders
+  }
+}
 
 export async function apiPost<T>(path: string, body: unknown): Promise<Envelope<T>> {
   const response = await fetch(`${API_BASE}${path}`, {

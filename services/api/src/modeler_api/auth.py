@@ -84,11 +84,25 @@ class JwksTokenVerifier:
             raise AuthError(f"token rejected: {exc}") from exc
 
 
+class DevVerifier:
+    """DEV ONLY: accepts any bearer token and returns a fixed development principal (all roles, the demo
+    projects). Enabled by MODELER_DEV_AUTH so the web app can exercise the read APIs without Keycloak."""
+
+    def verify(self, token: str) -> dict[str, Any]:
+        return {
+            "sub": "dev-user", "name": "Dev User", "tenant_id": "dev",
+            "realm_access": {"roles": ["modeler-viewer", "modeler-curator", "modeler-reviewer"]},
+            "projects": ["example-a", "renal-drug"], "acr": "loa1",
+        }
+
+
 @lru_cache
 def _configured_verifier() -> TokenVerifier | None:
     from modeler_api.config import get_settings
 
     settings = get_settings()
+    if settings.dev_auth:
+        return DevVerifier()
     if not settings.oidc_jwks_url or not settings.oidc_issuer:
         return None
     return JwksTokenVerifier(jwks_url=settings.oidc_jwks_url, issuer=settings.oidc_issuer, audience=settings.oidc_audience)

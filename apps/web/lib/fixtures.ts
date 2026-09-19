@@ -5,16 +5,20 @@
 import type { Rating } from "@/lib/api";
 
 export type Project = { id: string; name: string; compounds: string[]; openQuestions: number; risk: Rating };
+export type ProjectDetail = Project & { questions?: Question[] };
 
 export type CpfParameter = {
   id: string;
-  value: string;
+  value: string | null;
   unit: string | null;
-  status: "fixed" | "measured" | "predicted" | "fitted";
-  source: string; // provenance source_type
+  status: string; // CPF status: fixed | fitted | predicted | derived
+  source: string; // provenance source_type (drives the provenance chip)
   reference: string;
   fittableStages: string[];
 };
+
+// provenance sources that count as measured / literature evidence (vs fitted or predicted)
+export const MEASURED_SOURCES = ["measured", "Publication", "Database", "Other"];
 
 export type Compound = {
   name: string;

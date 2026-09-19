@@ -1,0 +1,163 @@
+{
+  "compound": "Example-A",
+  "version": 4,
+  "parameters": [
+    {
+      "id": "phys.mw",
+      "value": 300.0,
+      "unit": "g/mol",
+      "status": "FIXED",
+      "fitted_at_stage": null,
+      "fit_policy": null,
+      "plausibility": null,
+      "provenance": {
+        "source_type": "Publication",
+        "reference": "Smith 2019",
+        "run": null,
+        "supersedes": null
+      },
+      "engine_binding": null
+    },
+    {
+      "id": "phys.logp",
+      "value": 2.5,
+      "unit": "Log Units",
+      "status": "FITTED",
+      "fitted_at_stage": null,
+      "fit_policy": {
+        "stage": [
+          "S1"
+        ],
+        "lower": 0.01,
+        "upper": 100.0,
+        "scale": "linear"
+      },
+      "plausibility": null,
+      "provenance": {
+        "source_type": "ParameterIdentification",
+        "reference": "S1 round 3",
+        "run": null,
+        "supersedes": null
+      },
+      "engine_binding": null
+    },
+    {
+      "id": "bind.fu",
+      "value": 0.12,
+      "unit": "",
+      "status": "FIXED",
+      "fitted_at_stage": null,
+      "fit_policy": {
+        "stage": [
+          "S1"
+        ],
+        "lower": 0.01,
+        "upper": 100.0,
+        "scale": "linear"
+      },
+      "plausibility": null,
+      "provenance": {
+        "source_type": "Publication",
+        "reference": "Smith 2019",
+        "run": null,
+        "supersedes": null
+      },
+      "engine_binding": null
+    },
+    {
+      "id": "phys.solubility.ref",
+      "value": 1.4,
+      "unit": "mg/ml",
+      "status": "FIXED",
+      "fitted_at_stage": null,
+      "fit_policy": {
+        "stage": [
+          "S2"
+        ],
+        "lower": 0.01,
+        "upper": 100.0,
+        "scale": "linear"
+      },
+      "plausibility": null,
+      "provenance": {
+        "source_type": "Database",
+        "reference": "OSP DB",
+        "run": null,
+        "supersedes": null
+      },
+      "engine_binding": null
+    },
+    {
+      "id": "perm.intestinal",
+      "value": 3.1e-6,
+      "unit": "cm/min",
+      "status": "FITTED",
+      "fitted_at_stage": null,
+      "fit_policy": {
+        "stage": [
+          "S2"
+        ],
+        "lower": 0.01,
+        "upper": 100.0,
+        "scale": "linear"
+      },
+      "plausibility": null,
+      "provenance": {
+        "source_type": "ParameterIdentification",
+        "reference": "S2 round 2",
+        "run": null,
+        "supersedes": null
+      },
+      "engine_binding": null
+    },
+    {
+      "id": "elim.hepatic.CYP3A4.clspec",
+      "value": 0.8,
+      "unit": "l/µmol/min",
+      "status": "FITTED",
+      "fitted_at_stage": null,
+      "fit_policy": {
+        "stage": [
+          "S1",
+          "S2"
+        ],
+        "lower": 0.01,
+        "upper": 100.0,
+        "scale": "linear"
+      },
+      "plausibility": null,
+      "provenance": {
+        "source_type": "ParameterIdentification",
+        "reference": "S1 round 4",
+        "run": null,
+        "supersedes": null
+      },
+      "engine_binding": null
+    },
+    {
+      "id": "elim.renal.gfr_fraction",
+      "value": 1.0,
+      "unit": "",
+      "status": "PREDICTED",
+      "fitted_at_stage": null,
+      "fit_policy": {
+        "stage": [
+          "S1"
+        ],
+        "lower": 0.01,
+        "upper": 100.0,
+        "scale": "linear"
+      },
+      "plausibility": null,
+      "provenance": {
+        "source_type": "assumed",
+        "reference": "GFR assumption",
+        "run": null,
+        "supersedes": null
+      },
+      "engine_binding": null
+    }
+  ],
+  "created_at": "2026-09-19T07:30:27.651420Z",
+  "note": null
+}

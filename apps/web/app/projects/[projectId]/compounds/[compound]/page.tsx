@@ -1,11 +1,13 @@
 import { Card, Completeness, ProvenanceChip } from "@/components/ui";
-import { COMPOUND } from "@/lib/fixtures";
+import { COMPOUND, MEASURED_SOURCES } from "@/lib/fixtures";
+import { getCompoundCpf } from "@/lib/reads";
 
 export default async function CompoundPage({ params }: { params: Promise<{ projectId: string; compound: string }> }) {
-  await params;
-  const cpf = COMPOUND;
-  const fitted = cpf.parameters.filter((p) => p.status === "fitted").length;
-  const measured = cpf.parameters.filter((p) => p.status === "measured").length;
+  const { projectId, compound } = await params;
+  const live = await getCompoundCpf(projectId, compound);
+  const cpf = live ?? COMPOUND;
+  const fitted = cpf.parameters.filter((p) => p.source === "ParameterIdentification").length;
+  const measured = cpf.parameters.filter((p) => MEASURED_SOURCES.includes(p.source)).length;
 
   return (
     <main>
@@ -17,6 +19,7 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
         The CPF is the system of record: every simulation is regenerated from it. Each parameter shows its value,
         provenance and the stages in which it may be fitted.
       </p>
+      {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
 
       <Card>
         <div className="kpi">
@@ -43,10 +46,10 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
             {cpf.parameters.map((p) => (
               <tr key={p.id}>
                 <td><code>{p.id}</code></td>
-                <td className="num">{p.value}</td>
+                <td className="num">{p.value ?? "—"}</td>
                 <td>{p.unit || <span className="muted">—</span>}</td>
                 <td><ProvenanceChip source={p.source} /></td>
-                <td className="muted">{p.reference}</td>
+                <td className="muted">{p.reference || "—"}</td>
                 <td>{p.fittableStages.length ? p.fittableStages.join(", ") : <span className="muted">fixed</span>}</td>
               </tr>
             ))}

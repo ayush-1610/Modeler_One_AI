@@ -1,26 +1,32 @@
 import Link from "next/link";
 
 import { Card, RiskChip } from "@/components/ui";
-import { COMPOUND, PROJECTS, QUESTIONS } from "@/lib/fixtures";
+import { PROJECTS, QUESTIONS } from "@/lib/fixtures";
+import { getProject } from "@/lib/reads";
 
 export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const project = PROJECTS.find((p) => p.id === projectId) ?? PROJECTS[0];
+  const live = await getProject(projectId);
+  const project = live ?? PROJECTS.find((p) => p.id === projectId) ?? PROJECTS[0];
+  const questions = live?.questions ?? QUESTIONS;
+  const compound = project.compounds[0] ?? "Example-A";
 
   return (
     <main>
       <h1>{project.name}</h1>
       <p className="muted">Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table.</p>
+      {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
 
       <Card title="Compounds">
         <table>
-          <thead><tr><th>Compound</th><th>CPF version</th><th>S0 completeness</th></tr></thead>
+          <thead><tr><th>Compound</th><th>Compounds in scope</th></tr></thead>
           <tbody>
-            <tr>
-              <td><Link href={`/projects/${project.id}/compounds/${COMPOUND.name}`}>{COMPOUND.name}</Link></td>
-              <td>v{COMPOUND.version}</td>
-              <td>{Math.round(COMPOUND.completeness * 100)}%</td>
-            </tr>
+            {project.compounds.map((c) => (
+              <tr key={c}>
+                <td><Link href={`/projects/${project.id}/compounds/${c}`}>{c}</Link></td>
+                <td className="muted">open its CPF →</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </Card>
@@ -31,7 +37,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
             <tr><th>Question</th><th>Application</th><th>Model risk</th><th>Stage</th><th className="num">Failing criteria</th></tr>
           </thead>
           <tbody>
-            {QUESTIONS.map((q) => (
+            {questions.map((q) => (
               <tr key={q.id}>
                 <td>{q.question}</td>
                 <td>{q.application}</td>
