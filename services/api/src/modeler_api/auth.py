@@ -85,14 +85,18 @@ class JwksTokenVerifier:
 
 
 class DevVerifier:
-    """DEV ONLY: accepts any bearer token and returns a fixed development principal (all roles, the demo
-    projects). Enabled by MODELER_DEV_AUTH so the web app can exercise the read APIs without Keycloak."""
+    """DEV ONLY: accepts any bearer token and returns a fixed development principal (all roles, all projects).
+
+    Enabled by MODELER_DEV_AUTH so the single-node web app can exercise the read/write APIs and sign records
+    without Keycloak. The principal carries a fresh loa2 step-up so the guided flow's MAP / final-CPF
+    signatures pass; this stands in for real OIDC step-up and must never be used outside local development.
+    """
 
     def verify(self, token: str) -> dict[str, Any]:
         return {
             "sub": "dev-user", "name": "Dev User", "tenant_id": "dev",
             "realm_access": {"roles": ["modeler-viewer", "modeler-curator", "modeler-reviewer"]},
-            "projects": ["example-a", "renal-drug"], "acr": "loa1",
+            "projects": ["*", "example-a", "renal-drug"], "acr": STEP_UP_ACR, "auth_time": int(time.time()),
         }
 
 
@@ -144,8 +148,9 @@ def require_role(*roles: str):
 
 
 def require_project(project_id: str, principal: Principal) -> None:
-    """403 unless the principal is a member of `project_id`."""
-    if project_id not in principal.projects:
+    """403 unless the principal is a member of `project_id`. A ``"*"`` membership (the single-node dev
+    principal) grants every project in the tenant; real Keycloak principals never carry it."""
+    if project_id not in principal.projects and "*" not in principal.projects:
         raise HTTPException(status_code=403, detail=f"not a member of project {project_id}")
 
 

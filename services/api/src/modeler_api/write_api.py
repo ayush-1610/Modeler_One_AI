@@ -1,0 +1,217 @@
+"""Write APIs for the guided create-project flow (backs the "New project" wizard).
+
+A project is created, its compound's CPF is put, observed studies are uploaded, and ``campaign:prepare``
+turns the stored CPF + studies into the self-contained inputs the single-node runner reads (a staged CPF,
+the generated MAP, and observed PK from deterministic NCA). The MAP is then signed (Part 11) and the campaign
+started. Every write is role-gated (curator/reviewer) and scoped to a project the caller is a member of, and
+persisted through ``FileWriteStore`` — the seam the Postgres §5 tables replace.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import uuid
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from modeler_api.auth import Principal, require_project, require_role
+from modeler_api.config import get_settings
+from modeler_api.filestore import FileReadStore, FileWriteStore
+from modeler_api.read_api import project_cpf_view
+from modeler_api.responses import envelope
+from pbpk_domain.cpf.models import CPF
+from pbpk_domain.m15 import Rating
+
+router = APIRouter(prefix="/api/v1", tags=["write"])
+
+Author = Annotated[Principal, Depends(require_role("modeler-curator", "modeler-reviewer"))]
+
+_ENGINE_DIGEST = os.environ.get("MODELER_IMAGE_DIGEST", "sha256:" + "0" * 64)
+
+
+def _stores() -> tuple[FileReadStore, FileWriteStore]:
+    settings = get_settings()
+    if not settings.read_root:
+        raise HTTPException(status_code=503, detail="Write models are not configured. Set MODELER_READ_ROOT.")
+    return FileReadStore(settings.read_root), FileWriteStore(settings.read_root)
+
+
+StoresDep = Annotated[tuple[FileReadStore, FileWriteStore], Depends(_stores)]
+
+
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or f"project-{uuid.uuid4().hex[:8]}"
+
+
+# --- create project -------------------------------------------------------------------------------
+
+
+class ProjectCreate(BaseModel):
+    name: str = Field(min_length=1)
+    compound: str = Field(min_length=1)
+    risk: str = "medium"
+    question: str = ""
+    application: str = ""
+    model_risk: str = "medium"
+
+
+@router.post("/projects", status_code=201)
+def create_project(body: ProjectCreate, principal: Author, stores: StoresDep) -> dict[str, Any]:
+    _read, write = stores
+    project_id = _slug(body.name)
+    questions = []
+    if body.question:
+        questions.append({"id": f"qoi-{uuid.uuid4().hex[:6]}", "question": body.question,
+                          "application": body.application or "PBPK", "modelRisk": body.model_risk,
+                          "stage": "planning", "failingCriteria": 0})
+    project = {"id": project_id, "name": body.name, "compounds": [body.compound],
+               "openQuestions": len(questions), "risk": body.risk, "questions": questions}
+    write.put_project(principal.tenant_id, project)
+    return envelope(project)
+
+
+# --- put the compound's CPF -----------------------------------------------------------------------
+
+
+@router.put("/projects/{project_id}/compounds/{compound}/cpf")
+def put_cpf(project_id: str, compound: str, cpf: CPF, principal: Author, stores: StoresDep) -> dict[str, Any]:
+    require_project(project_id, principal)
+    if cpf.compound != compound:
+        raise HTTPException(status_code=422, detail=f"CPF compound {cpf.compound!r} does not match {compound!r} in the path")
+    _read, write = stores
+    write.put_cpf(principal.tenant_id, compound, cpf)
+    return envelope(project_cpf_view(cpf))
+
+
+# --- upload observed studies ----------------------------------------------------------------------
+
+
+class ObservedProfile(BaseModel):
+    times: list[float] = Field(min_length=1)
+    values: list[float] = Field(min_length=1)
+    time_unit: str = "min"
+    unit: str = "µmol/l"
+    sd: list[float] | None = None
+    lloq: float | None = None
+
+
+class StudyUpload(BaseModel):
+    study_id: str = Field(min_length=1)
+    reference: str = ""
+    n: int = Field(default=12, gt=0)
+    design: str = "SD"
+    route: str = "oral"
+    dose_mg: float = Field(gt=0)
+    infusion_time_min: float | None = None
+    formulation: str = "solution"
+    food_state: str = "fasted"
+    n_timepoints: int = Field(default=10, gt=0)
+    lloq: float | None = None
+    profile: ObservedProfile
+
+
+class StudiesUpload(BaseModel):
+    studies: list[StudyUpload] = Field(min_length=1)
+
+
+@router.post("/projects/{project_id}/studies", status_code=201)
+def upload_studies(project_id: str, body: StudiesUpload, principal: Author, stores: StoresDep) -> dict[str, Any]:
+    require_project(project_id, principal)
+    _read, write = stores
+    rows = [s.model_dump() for s in body.studies]
+    write.put_studies(principal.tenant_id, project_id, rows)
+    return envelope({"stored": len(rows)})
+
+
+# --- prepare the campaign inputs (CPF + MAP + observed) -------------------------------------------
+
+
+class PrepareRequest(BaseModel):
+    compound: str = Field(min_length=1)
+    objective: str = "Predict exposure for the question of interest"
+    context_of_use: str = "Model-informed decision"
+    food_effect_in_question: bool = False
+    model_risk: str = "medium"
+    stages: list[str] | None = None
+
+
+def _study_record(row: dict[str, Any]):
+    from pbpk_domain.campaign.split import StudyRecord
+
+    fields = {k: v for k, v in row.items() if k in StudyRecord.model_fields}
+    return StudyRecord.model_validate(fields)
+
+
+def _observed_from_studies(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Deterministic NCA per uploaded profile → the observed PK the gate (auc/cmax) and the fit (profile) read."""
+    from pbpk_domain.nca import nca
+
+    observed: dict[str, Any] = {}
+    for row in rows:
+        profile = row.get("profile")
+        if not profile:
+            continue
+        result = nca(list(profile["times"]), list(profile["values"]))
+        observed[row["study_id"]] = {
+            "auc": result.auc_last, "cmax": result.c_max, "tmax": result.t_max, "thalf": result.t_half,
+            "profile": profile,
+        }
+    return observed
+
+
+@router.post("/projects/{project_id}/questions/{question_id}/campaign:prepare")
+def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, principal: Author,
+                     stores: StoresDep) -> dict[str, Any]:
+    """Stage the CPF, generate + persist the MAP, and derive observed PK, returning the runner's inputs."""
+    read, write = stores
+    require_project(project_id, principal)
+
+    cpf = read.get_cpf(principal.tenant_id, project_id, body.compound)
+    if cpf is None:
+        raise HTTPException(status_code=404, detail=f"no CPF for {body.compound}; put it before preparing a campaign")
+    rows = read.list_studies(principal.tenant_id, project_id)
+    if not rows:
+        raise HTTPException(status_code=422, detail="no observed studies uploaded for this project")
+
+    from pbpk_domain.campaign.map import generate_map
+    from pbpk_domain.campaign.split import QuestionOfInterest, split_studies
+
+    studies = [_study_record(r) for r in rows]
+    try:
+        risk = Rating(body.model_risk)
+    except ValueError:
+        risk = Rating.MEDIUM
+    question = QuestionOfInterest(food_effect=body.food_effect_in_question)
+    map_doc = generate_map(
+        compound=body.compound, cpf=cpf, studies=studies, split=split_studies(studies, question),
+        objective=body.objective, context_of_use=body.context_of_use,
+        food_effect_in_question=body.food_effect_in_question, model_risk=risk,
+        engine_image_digest=_ENGINE_DIGEST, software_versions={"ospsuite": "12.4.4"},
+    )
+
+    # Stage a self-contained input set the single-node runner reads (build_round_snapshot writes its
+    # snapshots and fitted-CPF versions next to the CPF, so keep them in the prep dir, not the canonical cpf/).
+    prep = f"prep/{question_id}"
+    cpf_bytes = cpf.model_dump_json().encode("utf-8")
+    map_bytes = map_doc.model_dump_json().encode("utf-8")
+    observed_bytes = json.dumps(_observed_from_studies(rows), ensure_ascii=False).encode("utf-8")
+    cpf_path = write.materialize(principal.tenant_id, f"{prep}/cpf.json", cpf_bytes)
+    map_path = write.materialize(principal.tenant_id, f"{prep}/map.json", map_bytes)
+    observed_path = write.materialize(principal.tenant_id, f"{prep}/observed.json", observed_bytes)
+
+    map_id = f"map_{uuid.uuid4().hex[:8]}"
+    return envelope({
+        "map_id": map_id,
+        "compound": body.compound,
+        "cpf_uri": cpf_path.as_uri(), "cpf_sha256": hashlib.sha256(cpf_bytes).hexdigest(),
+        "map_uri": map_path.as_uri(), "map_sha256": hashlib.sha256(map_bytes).hexdigest(),
+        "observed_uri": observed_path.as_uri(),
+        "stages": body.stages or ["S0", "S1", "S2"],
+        "tier": map_doc.acceptance.tier,
+        "studies": [{"study_id": s.study_id, "assignment": s.assignment} for s in map_doc.studies],
+    })

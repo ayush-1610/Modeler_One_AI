@@ -46,6 +46,8 @@ class ReadStore(Protocol):
 
     def list_proposals(self, tenant_id: str) -> list[dict[str, Any]]: ...
 
+    def list_studies(self, tenant_id: str, project_id: str) -> list[dict[str, Any]]: ...
+
 
 class WriteStore(Protocol):
     def put_project(self, tenant_id: str, project: dict[str, Any]) -> None: ...
@@ -110,6 +112,9 @@ class FileReadStore(_FileStoreBase):
     def list_proposals(self, tenant_id: str) -> list[dict[str, Any]]:
         return self._read_list(tenant_id, "proposals.json", "proposals")
 
+    def list_studies(self, tenant_id: str, project_id: str) -> list[dict[str, Any]]:
+        return [s for s in self._read_list(tenant_id, "studies.json", "studies") if s.get("project") == project_id]
+
 
 class FileWriteStore(_FileStoreBase):
     """Writes the same per-tenant JSON documents the ``FileReadStore`` reads.
@@ -152,3 +157,13 @@ class FileWriteStore(_FileStoreBase):
 
     def upsert_proposal(self, tenant_id: str, proposal: dict[str, Any]) -> None:
         self._upsert(tenant_id, "proposals.json", "proposals", proposal)
+
+    def materialize(self, tenant_id: str, relpath: str, data: bytes) -> Path:
+        """Write a raw file under ``<root>/<tenant>/<relpath>`` and return its path (for a file:// URI).
+
+        Used to stage the self-contained campaign inputs (CPF, MAP, observed data) the single-node runner reads.
+        """
+        path = self.root / tenant_id / relpath
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return path
