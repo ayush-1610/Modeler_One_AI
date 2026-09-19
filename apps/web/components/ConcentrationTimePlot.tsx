@@ -42,17 +42,23 @@ export function ConcentrationTimePlot({ series }: { series: Series[] }) {
         return [band, main];
       });
       const unit = series[0]?.unit ?? "";
-      Plotly.react(
+      void Plotly.react(
         container.current,
         traces,
         {
+          autosize: true,
           margin: { l: 64, r: 16, t: 16, b: 48 },
           xaxis: { title: { text: "Time (h)" } },
           yaxis: { title: { text: `Plasma concentration (${unit})` }, type: logScale ? "log" : "linear" },
           legend: { orientation: "h" },
+          paper_bgcolor: "rgba(0,0,0,0)",
+          plot_bgcolor: "rgba(0,0,0,0)",
         },
         { responsive: true, displaylogo: false },
-      );
+      ).then(() => {
+        // the grid column is sized after this effect runs; force Plotly to measure the settled width
+        if (container.current) Plotly.Plots.resize(container.current);
+      });
     });
     return () => {
       cancelled = true;
@@ -60,12 +66,12 @@ export function ConcentrationTimePlot({ series }: { series: Series[] }) {
   }, [series, logScale]);
 
   return (
-    <figure>
-      <label>
-        <input id="log-scale" type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} /> Log
-        scale
+    <figure style={{ margin: 0 }}>
+      <label style={{ display: "inline-flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
+        <input id="log-scale" type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
+        Log scale
       </label>
-      <div ref={container} style={{ width: "100%", minHeight: 360 }} />
+      <div ref={container} style={{ width: "100%", height: 360 }} />
     </figure>
   );
 }
