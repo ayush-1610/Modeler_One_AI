@@ -125,3 +125,38 @@ def test_zip_export_contains_files_and_manifest():
         manifest = json.loads(zf.read("manifest.json"))
         assert manifest["content_sha256"] == m.content_sha256()
         assert manifest["campaign"] == "Drug"
+
+# --- rerun driver generation (T-23 BundleWorkflow) -----------------------------------------------
+
+
+def test_bundle_snapshots_are_listed_in_order():
+    from pbpk_domain.reproducibility import bundle_snapshots
+
+    files = {
+        "snapshots/S2-r1.json": b"{}", "snapshots/S1-r1.json": b"{}",
+        "results/S1-r1.csv": RESULTS, "cpf.json": b"{}",
+    }
+    m = assemble_bundle("b", "Drug", files, numeric_paths={"results/S1-r1.csv"})
+    assert bundle_snapshots(m) == ("snapshots/S1-r1.json", "snapshots/S2-r1.json")
+
+
+@pytest.mark.req("T-23")
+def test_generate_rerun_script_covers_every_snapshot():
+    from pbpk_domain.reproducibility import generate_rerun_script
+
+    files = {"snapshots/S1-r1.json": b'{"Version":80}', "snapshots/S2-r1.json": b'{"Version":80}',
+             "results/S1-r1.csv": RESULTS}
+    m = assemble_bundle("bnd-1", "Aciclovir", files, numeric_paths={"results/S1-r1.csv"},
+                        engine_image_digest="sha256:abc")
+    script = generate_rerun_script(m)
+    assert "runSimulationsFromSnapshot" in script and "initPKSim()" in script
+    assert '"snapshots/S1-r1.json"' in script and '"snapshots/S2-r1.json"' in script
+    assert "sha256:abc" in script  # pins the engine image in a comment
+
+
+def test_zip_includes_rerun_driver_when_snapshots_present():
+    files = {"snapshots/S1-r1.json": b'{"Version":80}', "results/S1-r1.csv": RESULTS, "cpf.json": b"{}"}
+    m = assemble_bundle("b", "Drug", files, numeric_paths={"results/S1-r1.csv"})
+    with zipfile.ZipFile(io.BytesIO(write_bundle_zip(m, files))) as zf:
+        assert "rerun_all.R" in zf.namelist()
+        assert b"RERUN COMPLETE" in zf.read("rerun_all.R")

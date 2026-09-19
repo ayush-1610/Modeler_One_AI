@@ -147,6 +147,45 @@ def verify_reproduction(
     return ReproReport(passes=all(v.ok for v in verdicts), verdicts=tuple(verdicts))
 
 
+def bundle_snapshots(manifest: BundleManifest) -> tuple[str, ...]:
+    """The snapshot files in the bundle (``snapshots/*.json``), in a stable order."""
+    return tuple(sorted(f.path for f in manifest.files if f.path.startswith("snapshots/") and f.path.endswith(".json")))
+
+
+def generate_rerun_script(manifest: BundleManifest) -> str:
+    """Emit ``rerun_all.R``: it re-runs every snapshot in the bundle in a fresh engine, so a reviewer can
+    reproduce the results independently. Usage inside the engine pod: ``Rscript rerun_all.R <bundle_dir> <out_dir>``.
+    Each snapshot's canonical result CSVs land in ``<out_dir>/<snapshot stem>/`` for comparison against the
+    bundle's numeric tables (verify_reproduction, 1e-6 tolerance)."""
+    snapshots = bundle_snapshots(manifest)
+    listed = ",\n  ".join(f'"{path}"' for path in snapshots)
+    return f'''#!/usr/bin/env Rscript
+# rerun_all.R — regenerate every simulation in bundle {manifest.bundle_id} ({manifest.campaign}) and export
+# results for an independent reproduction check (task T-23). Generated from the bundle manifest; do not edit.
+# Requires the pinned engine image (digest {manifest.engine_image_digest or "UNSET"}).
+suppressPackageStartupMessages({{ library(ospsuite); library(jsonlite) }})
+
+args <- commandArgs(trailingOnly = TRUE)
+bundle_dir <- if (length(args) >= 1) args[[1]] else "."
+out_dir <- if (length(args) >= 2) args[[2]] else file.path(bundle_dir, "rerun")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+initPKSim()
+snapshots <- c(
+  {listed}
+)
+for (rel in snapshots) {{
+  snap <- file.path(bundle_dir, rel)
+  stem <- tools::file_path_sans_ext(basename(rel))
+  od <- file.path(out_dir, stem)
+  dir.create(od, recursive = TRUE, showWarnings = FALSE)
+  cat(sprintf("RERUN %s\\n", rel)); flush(stdout())
+  runSimulationsFromSnapshot(snap, output = od, exportCSV = TRUE, exportPKML = FALSE)
+}}
+cat("RERUN COMPLETE\\n")
+'''
+
+
 def write_bundle_zip(manifest: BundleManifest, files: dict[str, bytes]) -> bytes:
     """Pack the bundle (files + a manifest.json) into a deterministic ZIP for export."""
     import json
@@ -163,6 +202,8 @@ def write_bundle_zip(manifest: BundleManifest, files: dict[str, bytes]) -> bytes
     ).encode("utf-8")
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("manifest.json", manifest_json)
+        if bundle_snapshots(manifest):  # ship the reproduction driver so the bundle is self-contained (T-23)
+            zf.writestr("rerun_all.R", generate_rerun_script(manifest))
         for path in sorted(files):
             zf.writestr(path, files[path])
     return buffer.getvalue()
