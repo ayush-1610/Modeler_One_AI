@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # DEV ONLY: when true, a fixed development principal is accepted for any bearer token, so the web app can
     # run against live read APIs without Keycloak. Never enable outside local development.
     dev_auth: bool = False
+    # Browser origins allowed to call the API directly (the web app's client-side writes are cross-origin).
+    # Comma-separated; when empty and dev_auth is on, any localhost origin is allowed.
+    cors_origins: str = ""
 
 
 @lru_cache

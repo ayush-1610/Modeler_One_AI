@@ -11,6 +11,7 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -36,6 +37,17 @@ from pbpk_domain.snapshot.builder import (
 )
 
 app = FastAPI(title="Modeler One API", version="0.1.0")
+
+# The web app calls the API directly from the browser for client-side writes (a separate origin), so CORS is
+# part of the single-node stack. Explicit origins in production; any localhost origin under dev auth.
+_cors = get_settings()
+_origins = [o.strip() for o in _cors.cors_origins.split(",") if o.strip()]
+if _origins:
+    app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["*"], allow_headers=["*"])
+elif _cors.dev_auth:
+    app.add_middleware(CORSMiddleware, allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+                       allow_methods=["*"], allow_headers=["*"])
+
 app.include_router(escalations_router)
 app.include_router(signatures_router)
 app.include_router(campaign_router)

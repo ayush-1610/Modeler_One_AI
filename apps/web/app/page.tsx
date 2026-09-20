@@ -9,7 +9,10 @@ export default async function ProjectsPage() {
   const projects = live ?? PROJECTS;
   return (
     <main>
-      <h1>Projects</h1>
+      <div className="spread">
+        <h1>Projects</h1>
+        <Link className="btn primary" href="/projects/new">+ New project</Link>
+      </div>
       <p className="muted">PBPK modeling programs on the Open Systems Pharmacology Suite. Each project holds its compounds, questions of interest and campaigns.</p>
       {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
       <Card>

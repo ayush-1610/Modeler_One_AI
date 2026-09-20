@@ -1,3 +1,4 @@
+import { AutoRefresh } from "@/components/AutoRefresh";
 import { Card, RiskChip, StatusChip } from "@/components/ui";
 import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
 import { CAMPAIGN, GOF } from "@/lib/fixtures";
@@ -20,10 +21,14 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
     <main>
       <div className="spread">
         <h1>Campaign {c.id}</h1>
-        <RiskChip rating={c.modelRisk} />
+        <div className="row" style={{ gap: 8 }}>
+          {c.status && <StatusChip status={c.status} />}
+          <RiskChip rating={c.modelRisk} />
+        </div>
       </div>
       <p className="muted">{c.question}</p>
       {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
+      <AutoRefresh active={!!live && (c.status === "RUNNING" || c.status === "QUEUED")} />
 
       <Card title="Stage progress" action={<span className="muted">current: {c.currentStage}</span>}>
         <div className="timeline">

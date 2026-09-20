@@ -233,6 +233,9 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     out = _local_path(ctx.cpf_uri).parent / "snapshots" / f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     stage.snapshot.dump(out)
+    # The hash the engine job carries must be of the exact file bytes the engine downloads (dump() writes the
+    # pretty PK-Sim form), not the canonical content hash — otherwise the runner's integrity check rejects it.
+    snapshot_sha = hashlib.sha256(out.read_bytes()).hexdigest()
     for note in stage.notes:
         activity.logger.info("build_round_snapshot %s %s: %s", ctx.campaign_id, ctx.stage, note)
     fit_request = _build_fit_request(ctx, cpf, map_doc, snapshot_stem=out.stem, out_dir=out.parent) if needs_fit else None
@@ -241,7 +244,7 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
         ctx.campaign_id, ctx.stage, ctx.round_index, len(stage.simulations), needs_fit, fit_request is not None,
     )
     return RoundBuild(
-        snapshot_uri=out.as_uri(), snapshot_sha256=stage.snapshot.sha256(), needs_fit=needs_fit, fit_request=fit_request
+        snapshot_uri=out.as_uri(), snapshot_sha256=snapshot_sha, needs_fit=needs_fit, fit_request=fit_request
     )
 
 

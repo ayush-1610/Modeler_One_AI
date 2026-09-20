@@ -83,7 +83,10 @@ def test_builds_snapshot_for_a_training_stage(tmp_path: Path) -> None:
     out = tmp_path / "snapshots" / "camp1-S1-r1.json"
     assert build.snapshot_uri == out.as_uri()
     snapshot = Snapshot.load(out)
-    assert build.snapshot_sha256 == snapshot.sha256()
+    # the build hash is of the exact file bytes the engine downloads (the integrity check compares that), not
+    # the canonical content hash — so a snapshot round-trips through EngineRunner's sha256 verification
+    import hashlib
+    assert build.snapshot_sha256 == hashlib.sha256(out.read_bytes()).hexdigest()
     # S1 trains from the IV study
     assert [s.name for s in snapshot.simulations] == ["iv"]
     assert snapshot.compounds[0].name == "Example-A"

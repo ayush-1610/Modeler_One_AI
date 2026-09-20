@@ -55,6 +55,7 @@ export type Stage = {
 export type Campaign = {
   id: string;
   project?: string;
+  status?: string; // QUEUED | RUNNING | COMPLETED | ESCALATED (from the runner)
   compound: string;
   question: string;
   modelRisk: Rating;
