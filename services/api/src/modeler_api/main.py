@@ -45,8 +45,9 @@ _origins = [o.strip() for o in _cors.cors_origins.split(",") if o.strip()]
 if _origins:
     app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["*"], allow_headers=["*"])
 elif _cors.dev_auth:
-    app.add_middleware(CORSMiddleware, allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
-                       allow_methods=["*"], allow_headers=["*"])
+    # dev only: any origin (localhost, 127.0.0.1, a LAN/Tailscale IP). Safe because auth is bearer-token, not
+    # cookie-based, so allow_credentials stays false. Set MODELER_CORS_ORIGINS explicitly outside dev.
+    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(escalations_router)
 app.include_router(signatures_router)

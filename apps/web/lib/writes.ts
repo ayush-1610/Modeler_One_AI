@@ -3,11 +3,12 @@
 
 import type { Envelope } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+// Browser writes go to this same origin ("/api/..."); next.config proxies them to the backend, so there is
+// one URL and no CORS. The dev bearer is accepted by dev auth; in production the user's OIDC token is used.
 export const WEB_TOKEN = process.env.NEXT_PUBLIC_DEMO_TOKEN ?? "dev";
 
 async function authed<T>(path: string, method: "POST" | "PUT", body: unknown): Promise<Envelope<T>> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(path, {
     method,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${WEB_TOKEN}` },
     body: JSON.stringify(body),
@@ -52,7 +53,7 @@ export function prepareCampaign(
 
 // The signatures and campaign-start endpoints return a raw object (not the envelope), so read them directly.
 async function rawPost<T>(path: string, body: unknown): Promise<{ ok: boolean; body: T }> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${WEB_TOKEN}` },
     body: JSON.stringify(body),

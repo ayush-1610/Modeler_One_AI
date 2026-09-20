@@ -6,10 +6,9 @@ export type Envelope<T> = {
   errors: ApiError[];
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
-// Server components fetch through the server-side base (falls back to the public one), with a dev bearer.
-// In production the user's forwarded OIDC token replaces MODELER_WEB_TOKEN.
-const SERVER_API_BASE = process.env.MODELER_API_BASE ?? API_BASE;
+// Server components fetch the API directly (server-to-server); the browser uses same-origin "/api/..." paths
+// that next.config proxies to the backend. In production the user's forwarded OIDC token replaces the dev one.
+const SERVER_API_BASE = process.env.MODELER_API_BASE ?? "http://127.0.0.1:8000";
 const WEB_TOKEN = process.env.MODELER_WEB_TOKEN ?? "dev";
 
 /** Server-side GET returning the envelope's `data`, or null if the API is unreachable or returns an error. */
@@ -28,7 +27,7 @@ export async function serverGet<T>(path: string): Promise<T | null> {
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<Envelope<T>> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -64,7 +63,7 @@ export async function decideEscalation(
 }
 
 async function apiPostAuth<T>(path: string, body: unknown, token: string): Promise<Envelope<T>> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
