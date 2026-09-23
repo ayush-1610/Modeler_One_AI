@@ -121,11 +121,14 @@ class StudiesUpload(BaseModel):
 
 @router.post("/projects/{project_id}/studies", status_code=201)
 def upload_studies(project_id: str, body: StudiesUpload, principal: Author, stores: StoresDep) -> dict[str, Any]:
+    """Add observed studies to the project, replacing any with the same ``study_id`` and keeping the rest."""
     require_project(project_id, principal)
-    _read, write = stores
+    read, write = stores
     rows = [s.model_dump() for s in body.studies]
-    write.put_studies(principal.tenant_id, project_id, rows)
-    return envelope({"stored": len(rows)})
+    incoming = {r["study_id"] for r in rows}
+    kept = [s for s in read.list_studies(principal.tenant_id, project_id) if s.get("study_id") not in incoming]
+    write.put_studies(principal.tenant_id, project_id, kept + rows)
+    return envelope({"stored": len(rows), "total": len(kept) + len(rows)})
 
 
 # --- prepare the campaign inputs (CPF + MAP + observed) -------------------------------------------

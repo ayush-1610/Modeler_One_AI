@@ -1,23 +1,35 @@
 #!/usr/bin/env python3
 """A stub OSP engine for the Mac / no-engine demo (macOS cannot run PK-Sim).
 
-The single-node runner invokes the engine as ``<command> <job.json>``. On a ``simulate`` job this writes the
-canonical ``profiles.json`` — the Aciclovir IV template curve keyed by the simulation name ``iv`` — so the
-tier gate can pass without a real engine. Point ``MODELER_ENGINE_COMMAND`` at ``python3 deploy/dev/stub_engine.py``
-for the browser demo; real runs on the Linux server use ``Rscript services/engine-worker/r/run_job.R`` instead.
+The single-node runner invokes the engine as ``<command> <job.json>``. On a ``simulate`` job this reads the
+built snapshot, finds every simulation in it, and writes the canonical ``profiles.json`` with a plausible
+mono-exponential plasma curve per simulation — so the whole loop (evaluate → diagnose → escalate/pass) can be
+exercised without a real engine. Point ``MODELER_ENGINE_COMMAND`` at ``python3 deploy/dev/stub_engine.py``.
 
-This only knows the ``iv`` study of the built-in Aciclovir template; it is a demo aid, not a general engine.
+Real runs on the Linux server use ``Rscript services/engine-worker/r/run_job.R`` instead. This is a demo aid,
+not an engine: the curve is synthetic and must never be mistaken for a simulation result.
 """
 import json
+import math
 import sys
 from pathlib import Path
 
-# The Aciclovir IV template profile the wizard uploads; echoing it makes predicted == observed so S1 passes.
-PROFILE = {
-    "times_min": [5, 15, 30, 60, 120, 240, 360, 480],
-    "concentrations": [45.2, 33.1, 24.0, 15.2, 7.1, 2.3, 0.9, 0.35],
-    "unit": "µmol/l",
-}
+# Synthetic curve shape: Cmax at the first sample, terminal half-life ~2.9 h (Aciclovir-like).
+TIMES_MIN = [5, 15, 30, 60, 90, 120, 180, 240, 360, 480, 600, 720]
+C0 = 60.0
+HALF_LIFE_MIN = 174.0
+
+
+def _simulation_names(job: dict) -> list[str]:
+    for item in job.get("inputs", []):
+        if Path(item.get("name", "")).name != "snapshot.json":
+            continue
+        try:
+            snap = json.loads(Path(item["path"]).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        return [s.get("Name") for s in snap.get("Simulations", []) if s.get("Name")]
+    return []
 
 
 def main() -> int:
@@ -25,7 +37,12 @@ def main() -> int:
     out_dir = Path(job["outputs_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
     if job.get("task") == "simulate":
-        (out_dir / "profiles.json").write_text(json.dumps({"profiles": {"iv": PROFILE}}))
+        concs = [C0 * math.pow(0.5, t / HALF_LIFE_MIN) for t in TIMES_MIN]
+        profiles = {
+            name: {"times_min": TIMES_MIN, "concentrations": concs, "unit": "µmol/l"}
+            for name in _simulation_names(job)
+        }
+        (out_dir / "profiles.json").write_text(json.dumps({"profiles": profiles}))
     (out_dir / "engine_manifest.json").write_text(json.dumps({"engine": "stub"}))
     print("PROGRESS 1.0")
     return 0

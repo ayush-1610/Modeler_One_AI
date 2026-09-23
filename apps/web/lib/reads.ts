@@ -32,8 +32,29 @@ export async function getCompoundCpf(projectId: string, compound: string): Promi
   };
 }
 
-export async function getCampaigns(): Promise<Campaign[] | null> {
-  const data = await serverGet<{ campaigns: Campaign[] }>("/api/v1/campaigns");
+export type StudyRow = {
+  study_id: string;
+  reference?: string;
+  route: string;
+  dose_mg: number;
+  infusion_time_min?: number | null;
+  formulation: string;
+  food_state: string;
+  n?: number;
+  n_timepoints?: number;
+  profile?: { times: number[]; values: number[]; time_unit: string; unit: string };
+};
+
+/** The observed clinical studies uploaded for a project (what a campaign fits and validates against). */
+export async function getStudies(projectId: string): Promise<StudyRow[] | null> {
+  const data = await serverGet<{ studies: StudyRow[] }>(`/api/v1/projects/${projectId}/studies`);
+  return data ? data.studies : null;
+}
+
+/** Campaigns for the tenant, or just one project's when `project` is given. */
+export async function getCampaigns(project?: string): Promise<Campaign[] | null> {
+  const query = project ? `?project=${encodeURIComponent(project)}` : "";
+  const data = await serverGet<{ campaigns: Campaign[] }>(`/api/v1/campaigns${query}`);
   return data ? data.campaigns : null;
 }
 

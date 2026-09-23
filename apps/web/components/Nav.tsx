@@ -8,11 +8,11 @@ const LINKS = [
   { href: "/review", label: "Review inbox", group: "" },
 ];
 
-const DEMO = [
-  { href: "/projects/example-a", label: "Example-A program" },
-  { href: "/projects/example-a/compounds/Example-A", label: "Compound / CPF" },
-  { href: "/projects/example-a/intake", label: "Data intake" },
-  { href: "/campaigns/camp-101", label: "Campaign monitor" },
+// The pre-loaded example project: real CPF + observed data, runnable from its project page.
+const EXAMPLE = [
+  { href: "/projects/aciclovir-example", label: "Aciclovir FIH" },
+  { href: "/projects/aciclovir-example/compounds/Aciclovir", label: "Compound / CPF" },
+  { href: "/projects/aciclovir-example/intake", label: "Data intake" },
 ];
 
 export function Nav() {
@@ -31,8 +31,8 @@ export function Nav() {
           </Link>
         ))}
         <div className="group">
-          <h3>Example-A</h3>
-          {DEMO.map((l) => (
+          <h3>Example project</h3>
+          {EXAMPLE.map((l) => (
             <Link key={l.href} href={l.href} className={is(l.href) ? "active" : ""}>
               {l.label}
             </Link>

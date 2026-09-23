@@ -93,9 +93,12 @@ def get_compound_cpf(project_id: str, compound: str, principal: PrincipalDep, st
 
 
 @router.get("/campaigns")
-def list_campaigns(principal: PrincipalDep, store: StoreDep):
-    """List the tenant's campaigns (summary + stage/round detail) for the campaign monitor."""
-    return envelope({"campaigns": store.list_campaigns(principal.tenant_id)})
+def list_campaigns(principal: PrincipalDep, store: StoreDep, project: str | None = None):
+    """List the tenant's campaigns (summary + stage/round detail); ``?project=`` narrows to one project."""
+    campaigns = store.list_campaigns(principal.tenant_id)
+    if project:
+        campaigns = [c for c in campaigns if c.get("project") == project]
+    return envelope({"campaigns": campaigns})
 
 
 @router.get("/campaigns/{campaign_id}")
@@ -109,6 +112,13 @@ def get_campaign(campaign_id: str, principal: PrincipalDep, store: StoreDep):
     if project_id:
         require_project(project_id, principal)
     return envelope(campaign)
+
+
+@router.get("/projects/{project_id}/studies")
+def list_studies(project_id: str, principal: PrincipalDep, store: StoreDep):
+    """The observed clinical studies uploaded for this project (what the campaign fits and validates against)."""
+    require_project(project_id, principal)
+    return envelope({"studies": store.list_studies(principal.tenant_id, project_id)})
 
 
 @router.get("/escalations")
