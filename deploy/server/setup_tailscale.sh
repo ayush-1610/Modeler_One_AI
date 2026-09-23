@@ -31,11 +31,9 @@ echo "== no sudo: installing Tailscale static binaries in userspace mode =="
 mkdir -p "$TS_DIR" "$STATE_DIR" "$HOME/modeler-logs"
 
 if [ ! -x "$TS_DIR/tailscaled" ]; then
-  echo "-- resolving the current stable version"
-  VER="$(curl -fsSL 'https://pkgs.tailscale.com/stable/?mode=json' \
-        | python3 -c 'import sys,json; print(json.load(sys.stdin)["Version"])')"
-  echo "-- downloading tailscale ${VER} (amd64)"
-  curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${VER}_amd64.tgz" -o "$TS_DIR/ts.tgz"
+  # "latest" is a redirect to the current stable tarball, so no version parsing is needed (-L follows it).
+  echo "-- downloading the current stable tailscale (amd64)"
+  curl -fsSL -o "$TS_DIR/ts.tgz" "https://pkgs.tailscale.com/stable/tailscale_latest_amd64.tgz"
   tar -xzf "$TS_DIR/ts.tgz" -C "$TS_DIR" --strip-components=1
   rm -f "$TS_DIR/ts.tgz"
 fi
