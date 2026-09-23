@@ -25,7 +25,7 @@ import shlex
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -66,8 +66,10 @@ STAGE_LABELS = {
 _STOP_STATUSES = ("ESCALATED", "ABORTED", "FAILED")
 _DEFAULT_STAGE_BUDGET_S = 1800
 # The decision options MS-01 §4 offers on any stage escalation (mirrors the escalations API / review inbox).
+# Every one of them resumes or ends the stage, so every one is an approval and carries a Part 11 signature —
+# matching `escalations.decision_options()`, which requires the "Approved" meaning for all three.
 _ESCALATION_OPTIONS = [
-    {"id": "retry", "label": "Retry with a wider bound", "requiresSignature": False},
+    {"id": "retry", "label": "Retry the stage", "requiresSignature": True},
     {"id": "accept_best", "label": "Accept the best round", "requiresSignature": True},
     {"id": "abort", "label": "Abort the stage", "requiresSignature": True},
 ]
@@ -139,6 +141,7 @@ class CampaignArtifactWriter:
     model_risk: str
     budget_seconds: int
     stages: list[str]
+    resume: dict | None = None  # how to continue this campaign after a human decision (set on escalation)
     _started: float = field(default_factory=time.monotonic)
     _rounds: dict[str, list[dict]] = field(default_factory=dict)
     _status: dict[str, str] = field(default_factory=dict)
@@ -148,6 +151,23 @@ class CampaignArtifactWriter:
         for stage in self.stages:
             self._rounds.setdefault(stage, [])
             self._status.setdefault(stage, "PENDING")
+
+    @classmethod
+    def from_campaign(cls, store: WriteStore, tenant_id: str, campaign: dict) -> CampaignArtifactWriter:
+        """Rebuild a writer from a persisted monitor record, so resuming keeps the earlier stages and rounds."""
+        stages = [s["stage"] for s in campaign.get("stages", [])] or list(STAGE_LABELS)
+        writer = cls(
+            store=store, tenant_id=tenant_id, campaign_id=campaign["id"], project=campaign.get("project", ""),
+            compound=campaign.get("compound", ""), question=campaign.get("question", ""),
+            model_risk=campaign.get("modelRisk", "medium"), budget_seconds=int(campaign.get("budgetSeconds", 3600)),
+            stages=stages, resume=campaign.get("resume"),
+        )
+        for row in campaign.get("stages", []):
+            writer._status[row["stage"]] = row.get("status", "PENDING")
+            writer._rounds[row["stage"]] = list(row.get("rounds", []))
+        writer._gof = list(campaign.get("gof", []))
+        writer._started = time.monotonic() - float(campaign.get("elapsedSeconds", 0))
+        return writer
 
     def _elapsed(self) -> int:
         return int(time.monotonic() - self._started)
@@ -181,6 +201,7 @@ class CampaignArtifactWriter:
                 for s in self.stages
             ],
             "gof": self._gof,
+            "resume": self.resume,
         })
 
     def record_escalation(self, stage: str, reason: str, findings: list[str]) -> None:
@@ -198,7 +219,14 @@ class LocalExecutor:
     engine: EngineRun
     writer: CampaignArtifactWriter | None = None
 
-    def run(self, request: CampaignRequest) -> CampaignOutcome:
+    def run(
+        self, request: CampaignRequest, *,
+        original: CampaignRequest | None = None, completed_before: list[str] | None = None,
+    ) -> CampaignOutcome:
+        """Run `request`'s stages. On a resumed campaign, `original` is the full request the campaign started
+        from and `completed_before` the stages already finished, so the persisted resume state stays complete."""
+        original = original or request
+        completed = list(completed_before or [])
         cpf_uri, cpf_sha = request.cpf_uri, request.cpf_sha256
         outcomes: list[StageOutcome] = []
 
@@ -216,6 +244,7 @@ class LocalExecutor:
                     reason="S0 readiness failed: " + "; ".join(readiness.findings),
                 )
             outcomes.append(StageOutcome(stage="S0", status="PASSED", rounds_run=0, cpf_uri=cpf_uri, cpf_sha256=cpf_sha))
+            completed.append("S0")
             if self.writer:
                 self.writer.stage_status("S0", "PASSED")
                 self.writer.flush(current_stage="S0", status="RUNNING")
@@ -229,11 +258,18 @@ class LocalExecutor:
             outcome = self._run_stage(request, stage, cpf_uri, cpf_sha)
             outcomes.append(outcome)
             cpf_uri, cpf_sha = outcome.cpf_uri, outcome.cpf_sha256
+            if outcome.status not in _STOP_STATUSES:
+                completed.append(stage)
             if self.writer:
                 self.writer.stage_status(stage, outcome.status)
                 self.writer.flush(current_stage=stage, status="RUNNING")
             if outcome.status in _STOP_STATUSES:
                 if self.writer:
+                    # Persist how to continue, so a signed review-inbox decision can retry, accept or abort.
+                    self.writer.resume = {
+                        "request": asdict(original), "cpf_uri": cpf_uri, "cpf_sha256": cpf_sha,
+                        "completed_stages": completed, "escalated_stage": stage,
+                    }
                     self.writer.record_escalation(stage, outcome.escalation_reason or "escalated", outcome.findings)
                     self.writer.flush(current_stage=stage, status="ESCALATED")
                 return CampaignOutcome(
@@ -244,7 +280,8 @@ class LocalExecutor:
 
         # All stages passed. Final CPF acceptance is a human review-inbox action (MS-01 §1), collected after.
         if self.writer:
-            self.writer.flush(current_stage=request.stages[-1], status="COMPLETED")
+            self.writer.resume = None  # nothing left to resume
+            self.writer.flush(current_stage=(request.stages or completed or ["S0"])[-1], status="COMPLETED")
         return CampaignOutcome(
             campaign_id=request.campaign_id, status="COMPLETED", stages=outcomes,
             final_cpf_uri=cpf_uri, final_cpf_sha256=cpf_sha,
@@ -339,6 +376,79 @@ def run_campaign(
     )
     writer.flush(current_stage=request.stages[0], status="RUNNING")
     return LocalExecutor(engine=engine or default_engine(), writer=writer).run(request)
+
+
+# MS-01 §4 decisions a reviewer may take on an escalated stage.
+ESCALATION_ACTIONS = ("retry", "accept_best", "abort")
+
+
+def resolve_escalation(
+    *, read_root: str, tenant_id: str, campaign_id: str, stage: str, action: str,
+    engine: EngineRun | None = None, background: bool = True,
+) -> dict:
+    """Apply a signed review-inbox decision to a single-node campaign (MS-01 §4).
+
+    ``abort``       — the stage is abandoned and the campaign ends there.
+    ``accept_best`` — the best CPF found so far is accepted and the remaining stages continue.
+    ``retry``       — the stage runs again from the CPF it escalated with (e.g. after new data or a wider bound).
+
+    Continuing runs the remaining stages on a background thread, exactly as starting a campaign does, so the
+    caller returns immediately and the monitor fills in live. Raises LookupError/ValueError for a campaign that
+    is not there or has no open escalation at that stage.
+    """
+    from modeler_api.filestore import FileReadStore
+
+    if action not in ESCALATION_ACTIONS:
+        raise ValueError(f"unknown escalation action {action!r}; expected one of {', '.join(ESCALATION_ACTIONS)}")
+
+    read, write = FileReadStore(read_root), FileWriteStore(read_root)
+    campaign = read.get_campaign(tenant_id, campaign_id)
+    if campaign is None:
+        raise LookupError(f"campaign {campaign_id} not found")
+    resume = campaign.get("resume")
+    if not resume or resume.get("escalated_stage") != stage:
+        raise ValueError(f"campaign {campaign_id} has no open escalation at stage {stage}")
+
+    request = CampaignRequest(**resume["request"])
+    writer = CampaignArtifactWriter.from_campaign(write, tenant_id, campaign)
+    write.remove_escalation(tenant_id, f"{campaign_id}-{stage}")  # the decision resolves it
+    completed = list(resume.get("completed_stages", []))
+    cpf_uri, cpf_sha = resume["cpf_uri"], resume["cpf_sha256"]
+
+    if action == "abort":
+        writer.stage_status(stage, "ABORTED")
+        writer.resume = None
+        writer.flush(current_stage=stage, status="ABORTED")
+        return {"campaign_id": campaign_id, "stage": stage, "action": action, "status": "ABORTED"}
+
+    if action == "accept_best":
+        writer.stage_status(stage, "ACCEPTED")
+        completed.append(stage)
+
+    remaining = [s for s in request.stages if s != "S0" and s not in completed]
+    writer.resume = None
+    if not remaining:
+        writer.flush(current_stage=stage, status="COMPLETED")
+        return {"campaign_id": campaign_id, "stage": stage, "action": action, "status": "COMPLETED"}
+
+    for pending in remaining:  # a retried/continued stage starts from PENDING again in the monitor
+        writer.stage_status(pending, "PENDING")
+    writer.flush(current_stage=remaining[0], status="RUNNING")
+
+    continuation = replace(request, stages=remaining, cpf_uri=cpf_uri, cpf_sha256=cpf_sha)
+    executor = LocalExecutor(engine=engine or default_engine(), writer=writer)
+
+    def _continue() -> None:
+        executor.run(continuation, original=request, completed_before=completed)
+
+    if background:
+        import threading
+
+        threading.Thread(target=_continue, daemon=True).start()
+    else:
+        _continue()
+    return {"campaign_id": campaign_id, "stage": stage, "action": action, "status": "RUNNING",
+            "remaining_stages": remaining}
 
 
 def _request_from_spec(spec: dict) -> CampaignRequest:

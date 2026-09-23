@@ -1,49 +1,47 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { decideEscalation } from "@/lib/api";
 import type { Escalation } from "@/lib/fixtures";
+import { resolveEscalation } from "@/lib/writes";
 
 type Result = { kind: "ok" | "err"; message: string } | null;
 
 export function EscalationDecision({ escalation }: { escalation: Escalation }) {
+  const router = useRouter();
   const [choice, setChoice] = useState<string>("");
   const [rationale, setRationale] = useState("");
-  const [steppingUp, setSteppingUp] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result>(null);
 
   const option = escalation.options.find((o) => o.id === choice);
-  const needsSignature = option?.requiresSignature ?? false;
 
-  async function submit(signatureId?: string) {
+  async function submit() {
     setBusy(true);
     setResult(null);
     try {
-      // In production the loa2 step-up token comes from Keycloak (OIDC re-authentication); the app never
-      // handles the password itself. Here we forward whatever bearer the session holds.
-      const token = process.env.NEXT_PUBLIC_DEMO_TOKEN ?? "session";
-      const env = await decideEscalation(
-        escalation.campaignId,
-        escalation.stage,
-        { option_id: choice, rationale, signature_id: signatureId },
-        token,
-      );
-      if (env.errors?.length) setResult({ kind: "err", message: env.errors[0].message });
-      else setResult({ kind: "ok", message: `Decision '${choice}' submitted to the campaign workflow.` });
+      const res = await resolveEscalation(escalation.campaignId, escalation.stage, {
+        action: choice as "retry" | "accept_best" | "abort",
+        note: rationale,
+      });
+      if (!res.ok) {
+        setResult({ kind: "err", message: res.detail ?? "The decision was rejected." });
+        return;
+      }
+      setResult({
+        kind: "ok",
+        message: `Decision recorded — the campaign is now ${res.status ?? "updated"}.` +
+          (res.signature ? ` Signed: ${res.signature.manifestation}` : ""),
+      });
+      router.refresh(); // the escalation is resolved; the inbox and monitor move on
     } catch {
-      setResult({ kind: "err", message: "Could not reach the API (start the backend to submit for real)." });
+      setResult({ kind: "err", message: "Could not reach the API to submit the decision." });
     } finally {
       setBusy(false);
-      setSteppingUp(false);
+      setConfirming(false);
     }
-  }
-
-  function onDecide() {
-    if (!choice) return;
-    if (needsSignature) setSteppingUp(true);
-    else void submit();
   }
 
   return (
@@ -57,9 +55,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
         <select value={choice} onChange={(e) => setChoice(e.target.value)}>
           <option value="">Select an option…</option>
           {escalation.options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}{o.requiresSignature ? " (signature required)" : ""}
-            </option>
+            <option key={o.id} value={o.id}>{o.label}</option>
           ))}
         </select>
       </div>
@@ -71,10 +67,10 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
       </div>
 
       <div className="row">
-        <button className="btn primary" disabled={!choice || busy} onClick={onDecide}>
-          {needsSignature ? "Sign & submit" : "Submit decision"}
+        <button className="btn primary" disabled={!choice || busy} onClick={() => setConfirming(true)}>
+          Sign &amp; submit
         </button>
-        {needsSignature && <span className="muted">Signed decisions require Keycloak re-authentication (loa2).</span>}
+        <span className="muted">Every decision is an approval and is signed (Part 11).</span>
       </div>
 
       {result && (
@@ -83,22 +79,22 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
         </div>
       )}
 
-      {steppingUp && (
+      {confirming && (
         <div role="dialog" aria-modal="true"
           style={{ position: "fixed", inset: 0, background: "rgba(10,15,22,0.45)", display: "grid", placeItems: "center", zIndex: 50 }}>
-          <div className="card" style={{ maxWidth: 420 }}>
+          <div className="card" style={{ maxWidth: 460 }}>
             <h2>Electronic signature</h2>
             <p className="muted">
-              You are about to sign the decision <strong>{option?.label}</strong> for stage {escalation.stage}.
-              This requires step-up re-authentication with Keycloak; your password is never entered into Modeler One.
+              You are about to sign the decision <strong>{option?.label}</strong> for stage {escalation.stage} of
+              campaign {escalation.campaignId}. This is recorded as an <em>Approved</em> signature bound to the
+              decision; your password is never entered into Modeler One — the signature is taken from your
+              session&apos;s step-up authentication.
             </p>
-            <div className="banner ok" style={{ marginBottom: 12 }}>
-              Manifestation: <em>signer • {choice} • {new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</em>
-            </div>
             <div className="row">
-              <button className="btn primary" disabled={busy}
-                onClick={() => void submit("sig-step-up")}>Re-authenticate & sign</button>
-              <button className="btn" disabled={busy} onClick={() => setSteppingUp(false)}>Cancel</button>
+              <button className="btn primary" disabled={busy} onClick={() => void submit()}>
+                {busy ? "Submitting…" : "Sign & submit"}
+              </button>
+              <button className="btn" disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
             </div>
           </div>
         </div>

@@ -62,6 +62,8 @@ class WriteStore(Protocol):
 
     def upsert_proposal(self, tenant_id: str, proposal: dict[str, Any]) -> None: ...
 
+    def remove_escalation(self, tenant_id: str, escalation_id: str) -> None: ...
+
 
 class _FileStoreBase:
     """Shared root resolution and JSON I/O for the file-backed stores."""
@@ -157,6 +159,11 @@ class FileWriteStore(_FileStoreBase):
 
     def upsert_proposal(self, tenant_id: str, proposal: dict[str, Any]) -> None:
         self._upsert(tenant_id, "proposals.json", "proposals", proposal)
+
+    def remove_escalation(self, tenant_id: str, escalation_id: str) -> None:
+        """Drop a resolved escalation so the review inbox no longer shows it as awaiting a decision."""
+        rows = [e for e in self._read_list(tenant_id, "escalations.json", "escalations") if e.get("id") != escalation_id]
+        self._write_json(self.root / tenant_id / "escalations.json", {"escalations": rows})
 
     def materialize(self, tenant_id: str, relpath: str, data: bytes) -> Path:
         """Write a raw file under ``<root>/<tenant>/<relpath>`` and return its path (for a file:// URI).

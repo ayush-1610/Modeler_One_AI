@@ -161,3 +161,83 @@ def test_executor_stops_when_s0_not_ready(tmp_path: Path) -> None:
     outcome = LocalExecutor(engine=engine, writer=None).run(request)
     assert outcome.status == "ESCALATED" and "S0 readiness failed" in outcome.reason
     assert engine.calls == 0
+
+
+# --- review-inbox decisions on an escalated campaign (MS-01 §4) -----------------------------------
+
+
+def _escalated(tmp_path: Path):
+    """Run a campaign that cannot pass the gate, leaving an open escalation to decide on."""
+    request, root = _seed_campaign(tmp_path, observed={"iv": {"auc": GOLDEN_AUC * 10, "cmax": GOLDEN_CMAX * 10}})
+    outcome = run_campaign(request, read_root=root, project="renal-demo", engine=StubEngine())
+    assert outcome.status == "ESCALATED"
+    return root
+
+
+def test_abort_decision_ends_the_campaign_and_clears_the_review_item(tmp_path: Path) -> None:
+    from modeler_orchestrator.local_runner import resolve_escalation
+
+    root = _escalated(tmp_path)
+    assert FileReadStore(root).list_escalations("t1")  # awaiting a decision
+
+    result = resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S1",
+                                action="abort", engine=StubEngine(), background=False)
+
+    assert result["status"] == "ABORTED"
+    campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
+    assert campaign["status"] == "ABORTED"
+    assert next(s for s in campaign["stages"] if s["stage"] == "S1")["status"] == "ABORTED"
+    assert FileReadStore(root).list_escalations("t1") == []  # resolved, no longer in the inbox
+    assert campaign["resume"] is None
+
+
+def test_accept_best_closes_the_stage_and_finishes_the_campaign(tmp_path: Path) -> None:
+    from modeler_orchestrator.local_runner import resolve_escalation
+
+    root = _escalated(tmp_path)
+    result = resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S1",
+                                action="accept_best", engine=StubEngine(), background=False)
+
+    # S1 was the last stage, so accepting it completes the campaign
+    assert result["status"] == "COMPLETED"
+    campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
+    assert next(s for s in campaign["stages"] if s["stage"] == "S1")["status"] == "ACCEPTED"
+    assert campaign["status"] == "COMPLETED"
+    assert FileReadStore(root).list_escalations("t1") == []
+
+
+def test_retry_reruns_the_stage_and_keeps_earlier_history(tmp_path: Path) -> None:
+    from modeler_orchestrator.local_runner import resolve_escalation
+
+    root = _escalated(tmp_path)
+    before = FileReadStore(root).get_campaign("t1", "camp-loc")
+    assert next(s for s in before["stages"] if s["stage"] == "S0")["status"] == "PASSED"
+
+    engine = StubEngine()
+    resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S1",
+                       action="retry", engine=engine, background=False)
+
+    after = FileReadStore(root).get_campaign("t1", "camp-loc")
+    assert engine.calls >= 1  # the stage actually ran again on the engine
+    assert next(s for s in after["stages"] if s["stage"] == "S0")["status"] == "PASSED"  # earlier stage kept
+    # the observed data is still far off, so it escalates again and is back in the inbox for another decision
+    assert FileReadStore(root).list_escalations("t1")
+
+
+def test_decision_on_a_campaign_with_no_open_escalation_is_rejected(tmp_path: Path) -> None:
+    from modeler_orchestrator.local_runner import resolve_escalation
+
+    request, root = _seed_campaign(tmp_path, observed={"iv": {"auc": GOLDEN_AUC, "cmax": GOLDEN_CMAX}})
+    run_campaign(request, read_root=root, project="renal-demo", engine=StubEngine())  # completes, no escalation
+    import pytest
+    with pytest.raises(ValueError, match="no open escalation"):
+        resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S1",
+                           action="retry", engine=StubEngine(), background=False)
+
+
+def test_unknown_action_is_rejected(tmp_path: Path) -> None:
+    import pytest
+
+    from modeler_orchestrator.local_runner import resolve_escalation
+    with pytest.raises(ValueError, match="unknown escalation action"):
+        resolve_escalation(read_root=str(tmp_path), tenant_id="t1", campaign_id="c", stage="S1", action="nope")

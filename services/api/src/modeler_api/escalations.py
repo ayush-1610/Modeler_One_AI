@@ -12,16 +12,19 @@ startup. Decision options come from MS-01 §4.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Annotated, Any, Literal, Protocol
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from modeler_api.auth import CurrentPrincipal, ensure_step_up, require_project
 from modeler_api.compliance.signatures import (
     SignatureAuthenticationError,
     SignatureMeaning,
     Signer,
     StepUpVerifier,
+    sign_after_step_up,
     sign_record,
 )
 from modeler_contracts.runs import DeviationRecord, EscalationDecision
@@ -171,3 +174,65 @@ async def record_deviation(
         "campaign_id": campaign_id, "stage": request.stage,
         "signature": {"signature_id": signature.signature_id, "manifestation": signature.manifestation()},
     }
+
+
+# --- single-node (local execution backend) ---------------------------------------------------------
+#
+# The endpoint above signals a running Temporal workflow and authenticates the signature with a password-based
+# step-up verifier. Under the `local` backend there is no workflow to signal, and signatures are taken from the
+# OIDC token's step-up (`acr=loa2`), the same way the MAP is signed — so no password crosses the wire. This
+# endpoint applies the decision to the persisted campaign instead: retry / accept_best / abort (MS-01 §4).
+
+
+class ResolveRequest(BaseModel):
+    action: Literal["retry", "accept_best", "abort"]
+    note: str = ""
+
+
+@router.post("/campaigns/{campaign_id}/stages/{stage}/escalation:resolve")
+def resolve_escalation_decision(
+    campaign_id: str, stage: str, request: ResolveRequest, principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    """Resume, accept or abort an escalated stage of a single-node campaign, with a Part 11 signature."""
+    from modeler_api.config import get_settings
+    from modeler_api.filestore import FileReadStore
+
+    settings = get_settings()
+    if settings.execution_backend != "local":
+        raise HTTPException(status_code=409,
+                            detail="This deployment runs campaigns on Temporal; use escalation:decide instead.")
+    if not settings.read_root:
+        raise HTTPException(status_code=503, detail="Campaign state is not configured. Set MODELER_READ_ROOT.")
+
+    campaign = FileReadStore(settings.read_root).get_campaign(principal.tenant_id, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail=f"campaign {campaign_id} not found")
+    project_id = campaign.get("project")
+    if project_id:
+        require_project(project_id, principal)
+
+    # Every decision that resumes or ends a stage is an approval (MS-01 §4 / 21 CFR 11), so it is signed
+    # before anything is applied — an unsigned decision must not be able to move the campaign.
+    ensure_step_up(principal)
+    signature = sign_after_step_up(
+        signer=Signer(user_id=principal.user_id, printed_name=principal.printed_name),
+        meaning=DECISION_MEANING, record_type="escalation", record_id=f"{campaign_id}-{stage}",
+        record_sha256=hashlib.sha256(
+            f"{campaign_id}:{stage}:{request.action}".encode()).hexdigest(),
+        acr=principal.acr or "",
+    )
+
+    from modeler_orchestrator.local_runner import resolve_escalation  # lazy: orchestrator depends on this package
+
+    try:
+        result = resolve_escalation(
+            read_root=settings.read_root, tenant_id=principal.tenant_id,
+            campaign_id=campaign_id, stage=stage, action=request.action,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return {**result, "note": request.note,
+            "signature": {"signature_id": signature.signature_id, "manifestation": signature.manifestation()}}

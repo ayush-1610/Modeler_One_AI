@@ -88,3 +88,15 @@ export async function startCampaign(
     `/api/v1/projects/${projectId}/campaigns`, body);
   return data;
 }
+
+/** Resolve an escalated stage from the review inbox (retry / accept_best / abort). Every decision is an
+ *  approval and is signed server-side from the session's step-up, so nothing moves without a signature. */
+export async function resolveEscalation(
+  campaignId: string,
+  stage: string,
+  body: { action: "retry" | "accept_best" | "abort"; note?: string },
+): Promise<{ ok: boolean; status?: string; detail?: string; signature?: { manifestation: string } }> {
+  const { ok, body: data } = await rawPost<{ status?: string; detail?: string; signature?: { manifestation: string } }>(
+    `/api/v1/campaigns/${campaignId}/stages/${stage}/escalation:resolve`, body);
+  return { ok, ...data };
+}
