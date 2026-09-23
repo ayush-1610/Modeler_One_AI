@@ -1,134 +1,243 @@
+/* Modeler One — an instrument for building models a regulator will scrutinise.
+ *
+ * Governing idea: the interface recedes, the data advances. Chrome is a deep blue-slate so that the only
+ * saturated things on screen are the ones carrying scientific meaning. The two accents are not decoration —
+ * teal is the predicted profile, amber the observed one, the pair every PBPK judgement is made on — so the
+ * palette itself teaches the comparison.
+ *
+ * Verdict colours are deliberately separated in both hue and lightness so a pass/fail is never carried by
+ * hue alone, and every verdict is also written out in words.
+ */
+
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-2: #f0f2f5;
-  --border: #dfe3e8;
-  --text: #1a2230;
-  --text-muted: #5b6472;
-  --brand: #1f5f8b;
-  --brand-ink: #133c58;
-  --accent: #2e7d6b;
-  --low: #2e7d32;
-  --medium: #b7791f;
-  --high: #c0392b;
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+  color-scheme: dark;
+
+  /* surfaces: a lab screen, not a black page */
+  --bg: #0b1116;
+  --surface: #121b22;
+  --raised: #18242f;
+  --line: #223040;
+  --line-soft: #1a2631;
+
+  /* ink */
+  --ink: #dce7ef;
+  --ink-dim: #8ea3b3;
+  --ink-faint: #5d7284;
+
+  /* the two series under comparison */
+  --sim: #5bd1c4;      /* predicted — the model */
+  --obs: #f2a65a;      /* observed — the clinic */
+
+  /* verdicts */
+  --pass: #57c98a;
+  --warn: #e8b84b;
+  --fail: #e8705a;
+
+  /* risk ratings (ICH M15) */
+  --low: var(--pass);
+  --medium: var(--warn);
+  --high: var(--fail);
+  --brand: var(--sim);
+  --brand-ink: #9ae8de;
+  --accent: var(--sim);
+  --text: var(--ink);
+  --text-muted: var(--ink-dim);
+  --border: var(--line);
+  --surface-2: var(--raised);
+
+  --radius-sm: 6px;
   --radius: 10px;
+  --radius-lg: 14px;
+  --measure: 68ch;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f141b;
-    --surface: #161d27;
-    --surface-2: #1e2733;
-    --border: #2a3644;
-    --text: #e6eaf0;
-    --text-muted: #9aa6b6;
-    --brand: #5aa6d6;
-    --brand-ink: #cfe4f2;
-    --accent: #4fb79c;
-    --low: #5cc264;
-    --medium: #e0a53f;
-    --high: #e2685a;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  }
+/* The instrument is dark by default. Light is available for printing an appendix or a bright bench. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --raised: #eef2f5;
+  --line: #d9e0e7;
+  --line-soft: #e6ebf0;
+  --ink: #12202b;
+  --ink-dim: #566876;
+  --ink-faint: #8497a5;
+  --sim: #10897d;
+  --obs: #b96a15;
+  --pass: #17794a;
+  --warn: #9a7112;
+  --fail: #b8402c;
+  --brand-ink: #0c5f57;
 }
 
 * { box-sizing: border-box; }
 
+html { -webkit-text-size-adjust: 100%; }
+
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
-a { color: var(--brand); text-decoration: none; }
-a:hover { text-decoration: underline; }
-h1 { font-size: 22px; margin: 0 0 4px; }
-h2 { font-size: 16px; margin: 0 0 12px; }
-h3 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+/* Identifiers you may need to read character by character: parameter ids, engine paths, campaign ids. */
+code, .mono { font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace); font-size: 0.92em; }
+code { color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 10%, transparent);
+       padding: 1px 5px; border-radius: var(--radius-sm); }
+
+a { color: var(--brand-ink); text-decoration-color: color-mix(in srgb, var(--sim) 45%, transparent);
+    text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--sim);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Type scale, ~1.25 modular. Headings are tight and quiet; the data is what should shout. */
+h1 { font-size: 26px; line-height: 1.2; letter-spacing: -0.02em; font-weight: 600; margin: 0 0 6px; }
+h2 { font-size: 17px; line-height: 1.3; letter-spacing: -0.01em; font-weight: 600; margin: 0 0 12px; }
+h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-faint); margin: 0 0 8px; }
+p { max-width: var(--measure); }
 
 .app { display: flex; min-height: 100vh; }
+
 .sidebar {
-  width: 232px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border);
-  padding: 20px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  width: 236px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line);
+  padding: 22px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
-.brand { font-weight: 700; font-size: 16px; color: var(--brand-ink); display: flex; gap: 8px; align-items: center; margin-bottom: 20px; }
-.brand-mark { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(135deg, var(--brand), var(--accent)); }
-.nav a { display: block; padding: 8px 10px; border-radius: 8px; color: var(--text); font-weight: 500; }
-.nav a:hover { background: var(--surface-2); text-decoration: none; }
-.nav a.active { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand-ink); }
-.nav .group { margin-top: 16px; }
+.brand { display: flex; gap: 9px; align-items: center; font-weight: 600; font-size: 15px;
+         letter-spacing: -0.01em; margin-bottom: 22px; }
+/* the mark is a decaying curve — the shape the whole product is about */
+.brand-mark {
+  width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+  background:
+    radial-gradient(circle at 18% 22%, var(--sim) 0 2.2px, transparent 2.4px),
+    radial-gradient(circle at 44% 46%, var(--sim) 0 2.2px, transparent 2.4px),
+    radial-gradient(circle at 72% 66%, var(--obs) 0 2.2px, transparent 2.4px),
+    var(--raised);
+  border: 1px solid var(--line);
+}
+.nav a { display: block; padding: 7px 10px; border-radius: var(--radius-sm); color: var(--ink-dim);
+         font-weight: 500; text-decoration: none; transition: background 120ms var(--ease), color 120ms var(--ease); }
+.nav a:hover { background: var(--raised); color: var(--ink); }
+.nav a.active { background: color-mix(in srgb, var(--sim) 12%, transparent); color: var(--brand-ink); font-weight: 600; }
+.nav .group { margin-top: 18px; }
 
-.content { flex: 1; min-width: 0; padding: 28px 32px; max-width: 1160px; }
+.content { flex: 1; min-width: 0; padding: 30px 34px 64px; max-width: 1180px; }
 
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
-.card + .card { margin-top: 18px; }
-.grid { display: grid; gap: 16px; }
-.cols-2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 18px; }
+/* Panels are flat with a hairline. Radius encodes role rather than being sprayed everywhere. */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
+.card + .card { margin-top: 16px; }
+.cols-2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 16px; }
 .cols-2 > .card { margin-top: 0; min-width: 0; }
 .cols-2 table { display: block; overflow-x: auto; }
-.cols-intake { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
-@media (max-width: 900px) {
-  .cols-2, .cols-intake { grid-template-columns: 1fr; }
-  .app { flex-direction: column; }
-  .content { padding: 20px 16px; }
-  .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
-}
-.muted { color: var(--text-muted); }
-.row { display: flex; align-items: center; gap: 10px; }
+.cols-intake { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
+
+.muted { color: var(--ink-dim); }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .spread { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 600; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+thead th { font-size: 11px; font-weight: 600; color: var(--ink-faint); letter-spacing: 0.02em;
+           border-bottom-color: var(--line); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-tbody tr:hover { background: var(--surface-2); }
+tbody tr { transition: background 100ms var(--ease); }
+tbody tr:hover { background: color-mix(in srgb, var(--raised) 60%, transparent); }
+tbody tr:last-child td { border-bottom: none; }
 
-.chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
-.chip-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.chip.low { color: var(--low); background: color-mix(in srgb, var(--low) 12%, transparent); }
-.chip.medium { color: var(--medium); background: color-mix(in srgb, var(--medium) 14%, transparent); }
-.chip.high { color: var(--high); background: color-mix(in srgb, var(--high) 12%, transparent); }
-.chip.neutral { color: var(--text-muted); background: var(--surface-2); }
-.chip.brand { color: var(--brand-ink); background: color-mix(in srgb, var(--brand) 14%, transparent); }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px;
+        font-size: 12px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip.low { color: var(--pass); background: color-mix(in srgb, var(--pass) 14%, transparent); }
+.chip.medium { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.chip.high { color: var(--fail); background: color-mix(in srgb, var(--fail) 14%, transparent); }
+.chip.neutral { color: var(--ink-faint); background: var(--raised); }
+.chip.brand { color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 14%, transparent); }
 
-.prov { font-size: 11px; padding: 1px 7px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); font-weight: 600; }
-.prov.fitted { color: var(--brand-ink); background: color-mix(in srgb, var(--brand) 12%, transparent); border-color: transparent; }
-.prov.measured { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: transparent; }
-.prov.predicted { color: var(--medium); background: color-mix(in srgb, var(--medium) 12%, transparent); border-color: transparent; }
+.prov { font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); font-weight: 600;
+        border: 1px solid var(--line); background: var(--raised); color: var(--ink-dim); }
+.prov.fitted { color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 13%, transparent); border-color: transparent; }
+.prov.measured { color: var(--pass); background: color-mix(in srgb, var(--pass) 13%, transparent); border-color: transparent; }
+.prov.predicted { color: var(--warn); background: color-mix(in srgb, var(--warn) 13%, transparent); border-color: transparent; }
 
-.meter { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
-.meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--brand)); }
+.meter { height: 6px; border-radius: 999px; background: var(--raised); overflow: hidden; }
+.meter > span { display: block; height: 100%; background: var(--sim); transition: width 400ms var(--ease); }
 
-.btn { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
-.btn:hover { background: var(--surface-2); }
-.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-.btn.primary:hover { background: var(--brand-ink); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: var(--radius-sm);
+       border: 1px solid var(--line); background: var(--raised); color: var(--ink); cursor: pointer;
+       transition: background 120ms var(--ease), border-color 120ms var(--ease), transform 80ms var(--ease); }
+.btn:hover:not(:disabled) { background: color-mix(in srgb, var(--sim) 10%, var(--raised)); border-color: color-mix(in srgb, var(--sim) 40%, var(--line)); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn.primary { background: var(--sim); border-color: var(--sim); color: #04191c; }
+.btn.primary:hover:not(:disabled) { background: var(--brand-ink); border-color: var(--brand-ink); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-.timeline { display: flex; gap: 0; overflow-x: auto; }
-.stage { flex: 1; min-width: 108px; text-align: center; padding: 12px 8px; border-top: 3px solid var(--border); }
-.stage.passed, .stage.accepted { border-top-color: var(--low); }
-.stage.running { border-top-color: var(--brand); }
-.stage.escalated { border-top-color: var(--high); }
-.stage .st-name { font-weight: 700; }
-.stage .st-sub { font-size: 12px; color: var(--text-muted); }
+/* Stage rail: the campaign's progress through the MS-01 gates. The top edge carries the verdict. */
+.timeline { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 2px; }
+.stage { flex: 1; min-width: 104px; text-align: center; padding: 12px 8px;
+         border-top: 3px solid var(--line); background: color-mix(in srgb, var(--raised) 40%, transparent);
+         border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+.stage.passed, .stage.accepted { border-top-color: var(--pass); }
+.stage.running { border-top-color: var(--sim); }
+.stage.escalated, .stage.failed, .stage.aborted { border-top-color: var(--fail); }
+.stage .st-name { font-weight: 600; letter-spacing: -0.01em; }
+.stage .st-sub { font-size: 12px; color: var(--ink-dim); }
 
-.kpi { display: flex; gap: 22px; flex-wrap: wrap; }
-.kpi .k { }
-.kpi .k .v { font-size: 22px; font-weight: 700; }
-.kpi .k .l { font-size: 12px; color: var(--text-muted); }
+.kpi { display: flex; gap: 26px; flex-wrap: wrap; }
+.kpi .k .v { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.kpi .k .l { font-size: 12px; color: var(--ink-dim); }
 
 .field { display: block; margin-bottom: 12px; }
-.field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); margin-bottom: 5px; }
 .field input, .field select, .field textarea {
-  width: 100%; font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--surface); color: var(--text);
+  width: 100%; font: inherit; padding: 8px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  transition: border-color 120ms var(--ease);
 }
-.banner { padding: 10px 14px; border-radius: 8px; font-weight: 500; }
-.banner.warn { background: color-mix(in srgb, var(--medium) 14%, transparent); color: var(--medium); }
-.banner.ok { background: color-mix(in srgb, var(--low) 12%, transparent); color: var(--low); }
-.banner.err { background: color-mix(in srgb, var(--high) 12%, transparent); color: var(--high); }
+.field input:hover, .field select:hover, .field textarea:hover { border-color: var(--ink-faint); }
+.field textarea { resize: vertical; }
+
+.banner { padding: 10px 14px; border-radius: var(--radius-sm); font-weight: 500; border: 1px solid transparent; }
+.banner.warn { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn);
+               border-color: color-mix(in srgb, var(--warn) 28%, transparent); }
+.banner.ok { background: color-mix(in srgb, var(--pass) 12%, transparent); color: var(--pass);
+             border-color: color-mix(in srgb, var(--pass) 28%, transparent); }
+.banner.err { background: color-mix(in srgb, var(--fail) 12%, transparent); color: var(--fail);
+              border-color: color-mix(in srgb, var(--fail) 28%, transparent); }
+
+/* Fold-error gauge — how a modeller actually reads a model: where does predicted/observed sit against the
+ * acceptance limit? The scale is logarithmic and centred on 1.0, so a 2-fold over- and under-prediction sit
+ * symmetrically. The band is the tier the question was rated at. */
+.fold { display: flex; align-items: center; gap: 9px; }
+.fold-track { position: relative; width: 108px; height: 16px; border-radius: var(--radius-sm);
+              background: var(--raised); overflow: hidden; flex-shrink: 0; }
+.fold-band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--pass) 20%, transparent);
+             border-left: 1px solid color-mix(in srgb, var(--pass) 45%, transparent);
+             border-right: 1px solid color-mix(in srgb, var(--pass) 45%, transparent); }
+.fold-unity { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ink-faint); opacity: 0.6; }
+.fold-mark { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px;
+             border-radius: 50%; background: var(--sim); border: 1.5px solid var(--surface);
+             transition: left 350ms var(--ease); }
+.fold-mark.out { background: var(--fail); }
+.fold-value { font-variant-numeric: tabular-nums; font-weight: 600; }
+.fold-value.out { color: var(--fail); }
+
+@media (max-width: 900px) {
+  .cols-2, .cols-intake { grid-template-columns: 1fr; }
+  .app { flex-direction: column; }
+  .content { padding: 20px 16px 48px; }
+  .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

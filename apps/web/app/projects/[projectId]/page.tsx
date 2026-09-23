@@ -51,7 +51,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
               {project.compounds.map((c) => (
                 <tr key={c}>
                   <td><Link href={`/projects/${project.id}/compounds/${c}`}>{c}</Link></td>
-                  <td className="muted">open its CPF →</td>
+                  <td className="muted">parameter framework</td>
                 </tr>
               ))}
             </tbody>

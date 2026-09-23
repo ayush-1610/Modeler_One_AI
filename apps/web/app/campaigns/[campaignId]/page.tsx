@@ -1,4 +1,5 @@
 import { AutoRefresh } from "@/components/AutoRefresh";
+import { FoldError } from "@/components/FoldError";
 import { Card, RiskChip, StatusChip } from "@/components/ui";
 import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
 import { CAMPAIGN, GOF } from "@/lib/fixtures";
@@ -15,18 +16,25 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
   const c = live ?? CAMPAIGN;
   const gof = live?.gof ?? GOF;
   const budgetPct = Math.min(100, Math.round((c.elapsedSeconds / c.budgetSeconds) * 100));
+  // ICH M15 acceptance tiers: the stricter the model risk, the tighter the fold limit the model must meet.
+  const foldLimit = c.modelRisk === "high" ? 1.25 : c.modelRisk === "low" ? 2 : 1.5;
   const rows = c.stages.flatMap((s) => s.rounds.map((r) => ({ stage: s.stage, ...r })));
 
   return (
     <main>
       <div className="spread">
-        <h1>Campaign {c.id}</h1>
-        <div className="row" style={{ gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <h1>{c.compound}</h1>
+          <p className="muted" style={{ margin: 0 }}>{c.question}</p>
+        </div>
+        <div className="row" style={{ gap: 8, flexShrink: 0 }}>
           {c.status && <StatusChip status={c.status} />}
           <RiskChip rating={c.modelRisk} />
         </div>
       </div>
-      <p className="muted">{c.question}</p>
+      <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+        Campaign <code>{c.id}</code> · acceptance within {foldLimit}-fold at {c.modelRisk} model risk
+      </p>
       {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
       <AutoRefresh active={!!live && (c.status === "RUNNING" || c.status === "QUEUED")} />
 
@@ -51,15 +59,14 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
         </div>
       </Card>
 
-      <div className="cols-2">
-        <Card title="Goodness of fit — stage S2">
-          <ConcentrationTimePlot series={gof} />
-        </Card>
+      <Card title="Goodness of fit" action={<span className="muted">predicted vs observed</span>}>
+        <ConcentrationTimePlot series={gof} />
+      </Card>
 
-        <Card title="Round history">
+      <Card title="Round history" action={<span className="muted">each round&apos;s agreement with the observed data</span>}>
           <table>
             <thead>
-              <tr><th>Stage</th><th className="num">Round</th><th>Action</th><th className="num">AUC GMFE</th><th className="num">Cmax GMFE</th><th>Verdict</th></tr>
+              <tr><th>Stage</th><th className="num">Round</th><th>Action</th><th>AUC vs observed</th><th>Cmax vs observed</th><th>Verdict</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
@@ -67,15 +74,14 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
                   <td>{r.stage}</td>
                   <td className="num">{r.round}</td>
                   <td><code>{r.action}</code></td>
-                  <td className="num">{r.aucGmfe?.toFixed(2) ?? "—"}</td>
-                  <td className="num">{r.cmaxGmfe?.toFixed(2) ?? "—"}</td>
+                  <td><FoldError ratio={r.aucGmfe ?? null} limit={foldLimit} label={`${r.stage} round ${r.round} AUC`} /></td>
+                  <td><FoldError ratio={r.cmaxGmfe ?? null} limit={foldLimit} label={`${r.stage} round ${r.round} Cmax`} /></td>
                   <td>{r.verdict === "passed" ? <span className="chip low">passed</span> : r.verdict}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </Card>
-      </div>
+        </table>
+      </Card>
     </main>
   );
 }
