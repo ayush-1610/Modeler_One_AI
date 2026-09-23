@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import math
 from pathlib import Path
 
 import pytest
@@ -82,3 +83,31 @@ def test_short_profile_is_skipped_with_finding() -> None:
     a = assess_round([SimulatedProfile("x", "fitting", [0.0], [1.0])], {}, model_risk=Rating.MEDIUM)
     assert a.studies == ()
     assert any("fewer than two" in f for f in a.findings)
+
+
+def test_prediction_is_reduced_over_the_observed_window():
+    """A perfect model must not be scored as wrong just because the simulation runs longer than the study
+    sampled. Comparing AUC-to-last across different intervals biases the ratio — badly for a slow compound."""
+    from pbpk_domain.campaign.evaluate import ObservedPK, SimulatedProfile, assess_round
+    from pbpk_domain.m15 import Rating
+    from pbpk_domain.nca import nca
+
+    # a slowly eliminated profile simulated to 24 h, but only sampled to 12 h
+    times = [i * 30.0 for i in range(49)]
+    concs = [100.0 * math.exp(-0.0005 * t) for t in times]
+    sampled = [(t, c) for t, c in zip(times, concs, strict=True) if t <= 720]
+    observed_auc = nca([t for t, _ in sampled], [c for _, c in sampled]).auc_last
+
+    profile = SimulatedProfile(study_id="s", role="fitting", times=times, concentrations=concs)
+    obs = ObservedPK(auc=observed_auc, cmax=concs[0], t_last=720.0)
+
+    assessment = assess_round([profile], {"s": obs}, model_risk=Rating.HIGH)
+
+    study = assessment.studies[0]
+    assert study.predicted_auc == pytest.approx(observed_auc, rel=1e-6)  # identical model, identical window
+    assert assessment.gate_passed, assessment.findings
+
+    # and without the window it is scored as roughly twice the observed exposure
+    naive = assess_round([profile], {"s": ObservedPK(auc=observed_auc, cmax=concs[0])}, model_risk=Rating.HIGH)
+    assert naive.studies[0].predicted_auc > observed_auc * 1.5
+    assert not naive.gate_passed

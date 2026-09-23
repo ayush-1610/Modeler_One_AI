@@ -255,7 +255,15 @@ class LocalExecutor:
             if self.writer:
                 self.writer.stage_status(stage, "RUNNING")
                 self.writer.flush(current_stage=stage, status="RUNNING")
-            outcome = self._run_stage(request, stage, cpf_uri, cpf_sha)
+            try:
+                outcome = self._run_stage(request, stage, cpf_uri, cpf_sha)
+            except Exception as exc:  # noqa: BLE001 - an engine or activity failure must surface, not hang
+                # Without this the background thread dies silently and the campaign sits at RUNNING forever,
+                # which looks like a hang to the user and hides the real error.
+                outcome = StageOutcome(
+                    stage=stage, status="FAILED", rounds_run=0, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
+                    findings=[f"{type(exc).__name__}: {exc}"], escalation_reason="stage_failed",
+                )
             outcomes.append(outcome)
             cpf_uri, cpf_sha = outcome.cpf_uri, outcome.cpf_sha256
             if outcome.status not in _STOP_STATUSES:
@@ -272,10 +280,14 @@ class LocalExecutor:
                     }
                     self.writer.record_escalation(stage, outcome.escalation_reason or "escalated", outcome.findings)
                     self.writer.flush(current_stage=stage, status="ESCALATED")
+                # Carry the findings into the reason: a bare code like "stage_failed" tells the user nothing.
+                detail = outcome.escalation_reason or ""
+                if outcome.findings:
+                    detail = f"{detail}: {'; '.join(outcome.findings)}" if detail else "; ".join(outcome.findings)
                 return CampaignOutcome(
                     campaign_id=request.campaign_id, status="ESCALATED", stages=outcomes,
                     final_cpf_uri=cpf_uri, final_cpf_sha256=cpf_sha,
-                    reason=f"stage {stage} {outcome.status}: {outcome.escalation_reason or ''}".strip(),
+                    reason=f"stage {stage} {outcome.status}: {detail}".strip().rstrip(":"),
                 )
 
         # All stages passed. Final CPF acceptance is a human review-inbox action (MS-01 §1), collected after.

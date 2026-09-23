@@ -78,8 +78,16 @@ def _local_path(uri: str) -> Path | None:
 
 
 def _load_local_text(uri: str) -> str | None:
+    """The text of a local ``file://`` document, or None when it is not a loadable local file.
+
+    Callers treat None as "not available here" and degrade gracefully, so a missing file must not raise."""
     path = _local_path(uri)
-    return None if path is None else path.read_text(encoding="utf-8")
+    if path is None or not path.exists():
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
 
 
 def _load_local_json(uri: str) -> dict | None:
@@ -365,8 +373,14 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
         for study_id, prof in profiles_doc["profiles"].items()
     ]
     observed_doc = _load_local_json(ctx.observed_uri) if ctx.observed_uri else {}
+    def _t_last(pk: dict) -> float | None:
+        """The last sampled time, so the prediction is reduced over the same interval as the observation."""
+        times = ((pk.get("profile") or {}).get("times")) or []
+        return max(times) if times else None
+
     observed = {
-        study_id: ObservedPK(auc=pk.get("auc"), cmax=pk.get("cmax"), tmax=pk.get("tmax"), thalf=pk.get("thalf"))
+        study_id: ObservedPK(auc=pk.get("auc"), cmax=pk.get("cmax"), tmax=pk.get("tmax"), thalf=pk.get("thalf"),
+                             t_last=_t_last(pk))
         for study_id, pk in (observed_doc or {}).items()
     }
 
@@ -383,6 +397,37 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
 
 def _ratio(predicted: float | None, observed: float | None) -> float | None:
     return predicted / observed if predicted and observed and observed > 0 else None
+
+
+def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str) -> tuple[str, ...]:
+    """Keep only the stage's fit candidates this CPF can actually fit.
+
+    A candidate that resolves to no parameter (a hepatic enzyme clearance on a renally cleared compound), or
+    to one with no bounds, or one whose fit policy does not permit this stage, or one with no harvested engine
+    path, cannot change anything. Offering it anyway burns a round on a no-op and can exhaust the round budget
+    before the candidate that would have worked is ever tried.
+    """
+    from pbpk_domain.fit_spec import resolve_fit_ids
+    from pbpk_domain.pksim_paths import ParameterPathError, pksim_parameter_path
+
+    keep: list[str] = []
+    for target in candidates:
+        for pid in resolve_fit_ids(cpf, target):
+            record = cpf.get(pid)
+            if record is None or record.value is None:
+                continue
+            policy = record.fit_policy
+            if policy is not None and policy.stage and stage not in policy.stage:
+                continue  # MS-01: this parameter may not be fitted at this stage
+            if policy is None and record.plausibility is None:
+                continue  # nothing to bound the fit with
+            try:
+                pksim_parameter_path(record, compound=cpf.compound)
+            except ParameterPathError:
+                continue  # no engine path: the fit could not be applied even if it ran
+            keep.append(target)
+            break
+    return tuple(keep)
 
 
 @activity.defn(name="diagnose_round")
@@ -405,6 +450,20 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
 
     map_doc = MapDocument.model_validate_json(map_text)
     plan = STAGE_PLAN.get(ctx.stage, {})
+    candidates = tuple(plan.get("fit_candidates", ()))
+    cpf_text = _load_local_text(ctx.cpf_uri)
+    if cpf_text is not None:
+        from pbpk_domain.cpf import CPF
+
+        cpf = CPF.model_validate_json(cpf_text)
+        usable = _fittable_candidates(cpf, candidates, ctx.stage)
+        if usable != candidates:
+            activity.logger.info(
+                "diagnose_round %s %s: fit candidates usable for this CPF: %s (dropped %s)",
+                ctx.campaign_id, ctx.stage, ",".join(usable) or "none",
+                ",".join(c for c in candidates if c not in usable) or "none",
+            )
+        candidates = usable
     scenarios = {s.study_id: s for s in map_doc.scenarios}
     residuals = [
         StudyResidual(
@@ -420,7 +479,7 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
         for st in evaluation.metrics.get("studies", [])
     ]
     diagnosis = diagnose(
-        residuals, stage=ctx.stage, stage_candidates=plan.get("fit_candidates", ()),
+        residuals, stage=ctx.stage, stage_candidates=candidates,
         stage_branches=plan.get("branches", ()), actions_tried=ctx.actions_tried,
     )
     activity.logger.info(

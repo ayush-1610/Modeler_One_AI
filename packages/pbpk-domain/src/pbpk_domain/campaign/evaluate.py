@@ -40,11 +40,17 @@ class ObservedPK:
     """Observed PK for one study, in the same units and AUC kind as the predicted profile.
 
     ``tmax`` and ``thalf`` are optional and feed the diagnostics ruleset (T-14); they take no part in the
-    acceptance gate, which compares AUC and Cmax only."""
+    acceptance gate, which compares AUC and Cmax only.
+
+    ``t_last`` is the last observed sampling time. AUC to the last measurement is only comparable when both
+    sides cover the same interval, so the simulated profile is truncated to this time before it is reduced;
+    without it a study that stopped sampling early is scored against a longer simulated window and the ratio
+    is biased (severely so for a slowly eliminated compound)."""
     auc: float | None = None
     cmax: float | None = None
     tmax: float | None = None
     thalf: float | None = None
+    t_last: float | None = None
 
 
 @dataclass(frozen=True)
@@ -90,8 +96,20 @@ def assess_round(
         if len(profile.times) < 2:
             findings.append(f"{profile.study_id}: fewer than two simulated points; skipped")
             continue
-        result = nca(list(profile.times), list(profile.concentrations))
         obs = observed.get(profile.study_id)
+        times, concs = list(profile.times), list(profile.concentrations)
+        if obs is not None and obs.t_last is not None:
+            # Compare like with like: reduce the prediction over the interval that was actually sampled.
+            kept = [(t, c) for t, c in zip(times, concs, strict=False) if t <= obs.t_last]
+            if len(kept) >= 2:
+                times = [t for t, _ in kept]
+                concs = [c for _, c in kept]
+            else:
+                findings.append(
+                    f"{profile.study_id}: the observed window ends at {obs.t_last:g}, before the simulation has "
+                    f"two points; comparing over the full simulated window instead"
+                )
+        result = nca(times, concs)
         pred_auc = _predicted_auc(result, auc_kind)
         studies.append(StudyPK(
             study_id=profile.study_id, role=profile.role,

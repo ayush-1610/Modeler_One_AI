@@ -241,3 +241,19 @@ def test_unknown_action_is_rejected(tmp_path: Path) -> None:
     from modeler_orchestrator.local_runner import resolve_escalation
     with pytest.raises(ValueError, match="unknown escalation action"):
         resolve_escalation(read_root=str(tmp_path), tenant_id="t1", campaign_id="c", stage="S1", action="nope")
+
+
+def test_an_engine_failure_is_recorded_rather_than_hanging(tmp_path: Path) -> None:
+    """A crashing engine used to kill the background thread silently, leaving the campaign stuck at RUNNING."""
+    request, root = _seed_campaign(tmp_path, observed={"iv": {"auc": GOLDEN_AUC, "cmax": GOLDEN_CMAX}})
+
+    def exploding_engine(job):
+        raise RuntimeError("engine exited with status 1")
+
+    outcome = run_campaign(request, read_root=root, project="renal-demo", engine=exploding_engine)
+
+    assert outcome.status == "ESCALATED"
+    assert "engine exited with status 1" in outcome.reason
+    campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
+    assert campaign["status"] == "ESCALATED"          # not left RUNNING
+    assert next(s for s in campaign["stages"] if s["stage"] == "S1")["status"] == "FAILED"
