@@ -114,8 +114,15 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
     raise ScenarioBuildError(f"scenario {sid!r}: route {scenario.route!r} is not supported by the round builder")
 
 
-def _deferral_notes(snapshot: Snapshot, scenarios: Sequence[MapScenario]) -> tuple[str, ...]:
+def _deferral_notes(snapshot: Snapshot, scenarios: Sequence[MapScenario], report: BuildReport | None = None) -> tuple[str, ...]:
     notes: list[str] = []
+    # Parameters the builder could not place: they are in the CPF but not in the model, so the simulation does
+    # not behave as the CPF describes (a missing elimination pathway is the dangerous case).
+    if report is not None and report.unresolved:
+        notes.append(
+            "NOT PLACED IN THE MODEL: " + ", ".join(report.unresolved) + " — these CPF parameters have no engine "
+            "binding the builder can use, so the simulation does not include them"
+        )
     molecules = sorted({
         p.molecule
         for c in snapshot.compounds
@@ -171,5 +178,5 @@ def build_stage_snapshot(
         build_report=report,
         subjects=tuple(subjects),
         simulations=tuple(s.simulation.name for s in built),
-        notes=_deferral_notes(snapshot, stage_scenarios),
+        notes=_deferral_notes(snapshot, stage_scenarios, report),
     )

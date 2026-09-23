@@ -61,6 +61,11 @@ class BuildReport:
     unresolved: tuple[str, ...]      # CPF parameter ids the current builder cannot place (need T-10)
 
 
+# CPF id prefixes that must reach the engine as a process; anything here that the builder does not place
+# changes the model's behaviour (e.g. a missing clearance), so it is reported rather than dropped quietly.
+_PROCESS_FAMILIES = ("elim.", "transp.")
+
+
 def _origin(record: ParameterRecord) -> ValueOrigin | None:
     prov = record.provenance
     if prov is None:
@@ -241,7 +246,19 @@ def _compound_from_cpf(cpf: CPF) -> tuple[CompoundSpec, list[str], list[str]]:
     if processes:
         fields["processes"] = processes
 
-    return CompoundSpec(**fields), used, sorted(set(unresolved))
+    # A process-family parameter with no engine binding is placed by nothing above: without this it would be
+    # dropped in silence and the model would simply not eliminate the drug. Report it so S0/the round sees it.
+    placed = set(used)
+    unbound = [
+        record.id
+        for record in cpf.parameters
+        if record.id.startswith(_PROCESS_FAMILIES)
+        and record.status is not ParameterStatus.MISSING
+        and record.value is not None
+        and record.id not in placed
+    ]
+
+    return CompoundSpec(**fields), used, sorted(set(unresolved) | set(unbound))
 
 
 def build_from_cpf(

@@ -288,3 +288,43 @@ def test_build_missing_required_parameter_raises() -> None:
     subjects, scenarios = _subjects_and_scenarios()
     with pytest.raises(ValueError, match="missing required parameter"):
         build_from_cpf(cpf, subjects, scenarios)
+
+
+# --- a process parameter with no engine binding must never be dropped in silence -------------------
+
+
+def test_unbound_process_parameter_is_reported_not_silently_dropped():
+    """A clearance in the CPF that the builder cannot place changes the model (the drug stops being
+    eliminated). It must surface in the build report rather than vanish."""
+    from pbpk_domain.cpf.build import _compound_from_cpf
+
+    prov = Provenance(source_type="measured", reference="x")
+    cpf = CPF(compound="Drug", parameters=(
+        ParameterRecord(id="phys.mw", value=300.0, unit="g/mol", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="phys.logp", value=2.0, unit="Log Units", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="bind.fu", value=0.1, status=ParameterStatus.FIXED, provenance=prov),
+        # no engine_binding -> the builder has nothing to place it with
+        ParameterRecord(id="elim.renal.gfr_fraction", value=1.0, status=ParameterStatus.FIXED, provenance=prov),
+    ))
+    compound, _used, unresolved = _compound_from_cpf(cpf)
+    assert list(compound.processes) == []  # nothing was placed
+    assert "elim.renal.gfr_fraction" in unresolved
+
+
+def test_bound_renal_parameter_places_a_glomerular_filtration_process():
+    from pbpk_domain.cpf.build import _compound_from_cpf
+    from pbpk_domain.cpf.models import EngineBinding
+
+    prov = Provenance(source_type="measured", reference="x")
+    cpf = CPF(compound="Drug", parameters=(
+        ParameterRecord(id="phys.mw", value=300.0, unit="g/mol", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="phys.logp", value=2.0, unit="Log Units", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="bind.fu", value=0.1, status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="elim.renal.gfr_fraction", value=1.0, status=ParameterStatus.FIXED, provenance=prov,
+                        engine_binding=EngineBinding(building_block="Compound", parameter="GFR fraction",
+                                                     process="GlomerularFiltration", data_source="Literature")),
+    ))
+    compound, used, unresolved = _compound_from_cpf(cpf)
+    assert unresolved == []
+    assert [p.kind for p in compound.processes] == ["GlomerularFiltration"]
+    assert "elim.renal.gfr_fraction" in used
