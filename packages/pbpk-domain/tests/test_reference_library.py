@@ -19,8 +19,12 @@ FIXTURES = Path(__file__).resolve().parents[3] / "services" / "engine-worker" / 
 pytestmark = pytest.mark.req("T-03")
 
 
+def _import(model: str):
+    return import_osp_snapshot(json.loads((FIXTURES / f"{model}-Model.json").read_text(encoding="utf-8")))
+
+
 def _built(model: str):
-    imported = import_osp_snapshot(json.loads((FIXTURES / f"{model}-Model.json").read_text(encoding="utf-8")))
+    imported = _import(model)
     ours, pairs, _notes = roundtrip_inputs(imported)
     return imported, ours, pairs
 
@@ -96,7 +100,7 @@ def test_metformin_renal_transporters_and_hill_kinetics():
     assert {q["Name"] for q in hill["Parameters"]} == {"Vmax", "Km", "Transporter concentration", "Hill coefficient"}
     profiles = {e["Molecule"] for e in ours["ExpressionProfiles"]}
     assert {"OCT1", "OCT2", "MATE1", "PMAT"} <= profiles  # harvested into the library from the OSP model library
-    assert len(imported.studies) == 40
+    assert len(imported.studies) == 41  # with the Gormsen 2016 PET microdose, an IV bolus
 
 
 def test_raltegravir_ph_solubility_table():
@@ -176,3 +180,59 @@ def test_a_binned_product_splits_every_dose_and_only_monodisperse_particles_are_
     with pytest.raises(ValueError, match="monodisperse"):
         ParticleFormulationSpec(name="f", thickness=Measured(value=0.02, unit="mm"), radius=Measured(value=10.0, unit="µm"),
                                 distribution_type=1.0)
+
+
+def test_alfentanil_iv_bolus_studies_are_simulated_as_boluses():
+    imported = _import("Alfentanil")
+    boluses = [s for s in imported.studies if s["route"] == "iv_bolus"]
+    assert len(boluses) >= 10 and all(s.get("infusion_time_min") is None for s in boluses)
+    ours, pairs, _notes = roundtrip_inputs(imported)
+    bolus_pairs = [p for p in pairs if p["ours"] in {s["study_id"] for s in boluses}]
+    assert bolus_pairs
+    protocols = {p["Name"]: p for p in ours["Protocols"]}
+    sims = {s["Name"]: s for s in ours["Simulations"]}
+    for pair in bolus_pairs:
+        protocol = protocols[sims[pair["ours"]]["Compounds"][0]["Protocol"]["Name"]]
+        assert "IntravenousBolus" in json.dumps(protocol) and "Infusion time" not in json.dumps(protocol)
+
+
+def test_simulation_values_are_imported_per_route():
+    """OSP Alfentanil sets its gut-wall permeabilities in 3 of its 4 oral simulations and none of its 8 IV ones: an
+    oral-only record. OSP Alprazolam sets its PI intestinal permeability in every IV simulation and no oral one: an
+    IV-only record, so its oral simulations keep the compound's own permeability."""
+    from pbpk_domain.cpf.build import simulation_parameters
+
+    alfentanil = _import("Alfentanil").cpf
+    oral = [r for r in alfentanil.parameters if r.id.startswith("sim[oral].")]
+    assert oral and all(r.engine_binding.route == "oral" for r in oral)
+    assert not [r for r in alfentanil.parameters if r.id.startswith(("sim.", "sim[iv]."))]
+    assert simulation_parameters(alfentanil, "iv") == {} and len(simulation_parameters(alfentanil, "oral")) == len(oral)
+
+    alprazolam = _import("Alprazolam")
+    path = "Alprazolam|Intestinal permeability (transcellular)"
+    assert alprazolam.cpf.get(f"sim[iv].{path}").value == pytest.approx(0.4575114982)
+    assert path not in simulation_parameters(alprazolam.cpf, "oral")
+    ours, _pairs, _notes = roundtrip_inputs(alprazolam)
+    protocols = {p["Name"]: p for p in ours["Protocols"]}
+    for sim in ours["Simulations"]:
+        oral_sim = "Oral" in json.dumps(protocols[sim["Compounds"][0]["Protocol"]["Name"]])
+        assert any(p["Path"] == path for p in sim.get("Parameters", [])) is (not oral_sim), sim["Name"]
+
+
+def test_an_unset_binding_partner_stays_unset():
+    """OSP Alprazolam leaves PlasmaProteinBindingPartner unset (PK-Sim stores 2); an explicit Albumin stores 1."""
+    from pbpk_domain.cpf.build import UNSPECIFIED_PARTNER
+
+    alprazolam = _import("Alprazolam")
+    assert alprazolam.cpf.get("bind.partner").value == UNSPECIFIED_PARTNER
+    ours, _pairs, _notes = roundtrip_inputs(alprazolam)
+    assert "PlasmaProteinBindingPartner" not in ours["Compounds"][0]
+    assert _import("Alfentanil").cpf.get("bind.partner").value == "Glycoprotein"
+
+
+def test_loading_dose_regimens_are_named_not_simulated_as_repeated_doses():
+    alprazolam = _import("Alprazolam")
+    assert not [s for s in alprazolam.studies if s["study_id"].startswith("kroboth-1988-1-0-mg")]
+    assert any("IV_1mg_2min_0.576mg_8h" in s and "loading dose" in s for s in alprazolam.skipped)
+    # a binned product's bins at one moment are one administration, not differing doses
+    assert len(_import("Ketoconazole").studies) == 53

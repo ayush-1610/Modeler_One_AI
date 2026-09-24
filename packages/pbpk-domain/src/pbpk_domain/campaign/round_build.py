@@ -26,6 +26,7 @@ from pbpk_domain.cpf.models import CPF
 from pbpk_domain.snapshot.builder import (
     CoCompoundSpec,
     DissolvedFormulationSpec,
+    IntravenousBolusProtocolSpec,
     IntravenousProtocolSpec,
     MealEventSpec,
     Measured,
@@ -194,14 +195,18 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
                         extra_formulations=tuple(extra))
 
     if scenario.route in _IV_ROUTES:
-        if scenario.infusion_time_min is None:
+        if scenario.infusion_time_min is None and scenario.route != "iv_bolus":
             raise ScenarioBuildError(
-                f"scenario {sid!r}: an IV study needs an infusion time (even a short one for a bolus); "
+                f"scenario {sid!r}: an IV infusion study needs an infusion time; "
                 "the scenario carries none, so it is surfaced rather than invented"
             )
-        protocol = IntravenousProtocolSpec(
-            name=protocol_name(sid), dose=dose, infusion_time_min=scenario.infusion_time_min, **schedule,
-        )
+        protocol: IntravenousProtocolSpec | IntravenousBolusProtocolSpec
+        if scenario.infusion_time_min is None:  # a bolus: PK-Sim IntravenousBolus, no infusion time
+            protocol = IntravenousBolusProtocolSpec(name=protocol_name(sid), dose=dose, **schedule)
+        else:
+            protocol = IntravenousProtocolSpec(
+                name=protocol_name(sid), dose=dose, infusion_time_min=scenario.infusion_time_min, **schedule,
+            )
         simulation = SimulationSpec(
             name=sid, subject=subject_name, compound=compound, protocol=protocol.name, end_time_h=sim_end_time_h,
         )

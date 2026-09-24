@@ -474,10 +474,16 @@ class CompoundSpec(Spec):
     permeability: Measured | None = None
     pka: list[PkaSpec] = Field(default_factory=list, max_length=3)  # PK-Sim supports up to 3 pKa values [VERIFY]
     halogens: dict[Literal["F", "Cl", "Br", "I"], int] = Field(default_factory=dict)
-    binding_partner: Literal["Albumin", "Glycoprotein", "Unknown"] = "Albumin"
+    # None leaves the partner unset, so PK-Sim applies its own default: as a published compound that does not set it
+    # does (OSP Alprazolam, Verapamil; PK-Sim stores 2 there, where an explicit "Albumin" stores 1)
+    binding_partner: Literal["Albumin", "Glycoprotein", "Unknown"] | None = "Albumin"
     processes: list[ProcessSpec] = Field(default_factory=list)
     calculation_methods: tuple[str, ...] = DEFAULT_COMPOUND_CALCULATION_METHODS
     alternative_name: str = "Measured"
+    # A process selection the published simulations run on another molecule of the individual than the process
+    # names (selection name -> MoleculeName): the OSP Dabigatran model selects its ``ABCB1-FIT`` transport on the
+    # individual's ``P-gp``. Unset, a selection runs on the process's own molecule.
+    selected_molecules: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("molecular_weight")
     @classmethod
@@ -519,7 +525,6 @@ class CompoundSpec(Spec):
         fields: dict = {
             "name": self.name,
             "is_small_molecule": True,
-            "plasma_protein_binding_partner": self.binding_partner,
             "lipophilicity": [
                 ParameterAlternative(name=alt, parameters=[self.lipophilicity.to_parameter(name="Lipophilicity")])
             ],
@@ -531,6 +536,8 @@ class CompoundSpec(Spec):
                 )
             ],
         }
+        if self.binding_partner is not None:
+            fields["plasma_protein_binding_partner"] = self.binding_partner
         if self.solubility is not None:
             fields["solubility"] = [
                 ParameterAlternative(
@@ -839,7 +846,37 @@ class IntravenousProtocolSpec(_MultipleDoseMixin):
         )
 
 
-ProtocolSpec = Annotated[OralProtocolSpec | IntravenousProtocolSpec, Field(discriminator="kind")]
+class IntravenousBolusProtocolSpec(_MultipleDoseMixin):
+    """An IV bolus: PK-Sim ``IntravenousBolus`` with a start time and InputDose, no infusion time (harvested from the
+    OSP Alfentanil, Midazolam, Digoxin, Metformin and Verapamil protocols, simple and schema form)."""
+
+    kind: Literal["intravenous_bolus"] = "intravenous_bolus"
+    name: str = Field(min_length=1)
+    dose: Measured
+    start_time_h: float = Field(default=0.0, ge=0)
+
+    @field_validator("dose")
+    @classmethod
+    def _dose(cls, v: Measured) -> Measured:
+        return _check(v, unit="mg/kg" if _nfc(v.unit) == "mg/kg" else "mg", label="InputDose")
+
+    def to_protocol(self) -> Protocol:
+        schema = self._schema_protocol("IntravenousBolus", [self.dose.to_parameter(name="InputDose")], None)
+        if schema is not None:
+            return schema
+        return Protocol(
+            name=self.name,
+            application_type="IntravenousBolus",
+            dosing_interval=self.dosing_interval,
+            parameters=[
+                Parameter(name="Start time", value=self.start_time_h, unit="h"),
+                self.dose.to_parameter(name="InputDose"),
+                *self._dosing_parameters(),
+            ],
+        )
+
+
+ProtocolSpec = Annotated[OralProtocolSpec | IntravenousProtocolSpec | IntravenousBolusProtocolSpec, Field(discriminator="kind")]
 
 
 class DissolvedFormulationSpec(Spec):
@@ -1081,8 +1118,9 @@ class SnapshotBuilder:
         compound = self._compounds.get(name)
         interactions: list[dict] = []
         if compound is not None:
+            mapped = compound.selected_molecules
             interactions = [
-                sel for p in compound.processes
+                {**sel, "MoleculeName": mapped[sel["Name"]]} if sel["Name"] in mapped else sel for p in compound.processes
                 if (sel := interaction_selection_for(p.to_process(), name)) is not None
             ]
             compound_fields["calculation_methods"] = list(compound.calculation_methods)
@@ -1090,7 +1128,8 @@ class SnapshotBuilder:
             if alternatives:
                 compound_fields["alternatives"] = alternatives
             selections = [
-                sel for p in compound.processes if (sel := process_selection_for(p.to_process())) is not None
+                sel.model_copy(update={"molecule_name": mapped[sel.name]}) if sel.molecule_name and sel.name in mapped else sel
+                for p in compound.processes if (sel := process_selection_for(p.to_process())) is not None
             ]
             if selections:
                 compound_fields["processes"] = selections

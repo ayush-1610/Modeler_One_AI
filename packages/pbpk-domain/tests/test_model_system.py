@@ -19,8 +19,12 @@ FIXTURES = Path(__file__).resolve().parents[3] / "services" / "engine-worker" / 
 pytestmark = pytest.mark.req("T-03")
 
 
+def _snapshot(model: str) -> dict:
+    return json.loads((FIXTURES / f"{model}-Model.json").read_text(encoding="utf-8"))
+
+
 def _system(model: str):
-    return import_osp_system(json.loads((FIXTURES / f"{model}-Model.json").read_text(encoding="utf-8")))
+    return import_osp_system(_snapshot(model))
 
 
 def test_a_single_compound_is_a_system_of_one():
@@ -97,6 +101,65 @@ def test_dabigatran_prodrug_chain_and_mass_sum():
     assert "Rifampicin" not in s.roles  # a DDI perpetrator, not part of the system
     sums = [st for st in imported.studies if st["analyte"] == "SUM"]
     assert sums and any("observer is defined" in st["reference"] for st in sums)  # those reporting no compartment
+
+
+def test_dabigatran_runs_its_abcb1_transport_on_the_individuals_pgp():
+    """The published simulations select DabiEtex's ``ABCB1-FIT`` transport on the individual's ``P-gp`` (a modified
+    profile): selected on ABCB1 with the library's ABCB1 profile, every oral exposure came out ~2-fold off on PK-Sim."""
+    from pbpk_domain.cpf.build import PROCESS_SELECTION, process_molecules, selected_molecules
+    from pbpk_domain.reference.roundtrip import system_roundtrip_inputs
+
+    imported = _system("Dabigatran")
+    etex = imported.system.cpf("DabiEtex")
+    record = etex.get("molecule.ABCB1-FIT")
+    assert record.value == "P-gp" and record.engine_binding.building_block == PROCESS_SELECTION
+    assert selected_molecules(etex) == {"ABCB1-FIT": "P-gp"}
+    assert "P-gp" in process_molecules(etex) and "ABCB1" not in process_molecules(etex)
+    ours, _pairs, _notes = system_roundtrip_inputs(imported)
+    sim = next(s for s in ours["Simulations"] if s["Name"] == "1160-0001-mean-953-200mg")
+    etex_sel = next(c for c in sim["Compounds"] if c["Name"] == "DabiEtex")["Processes"]
+    assert {"Name": "ABCB1-FIT", "MoleculeName": "P-gp"} in etex_sel
+    individual = next(i for i in ours["Individuals"] if i["Name"] == sim["Individual"])
+    molecules = {ref.split("|")[0] for ref in individual["ExpressionProfiles"]}
+    assert "P-gp" in molecules and "ABCB1" not in molecules
+    # the published P-gp profile's values (its "new ref. conc.") reach the individual
+    published = next(p for p in _snapshot("Dabigatran")["ExpressionProfiles"] if p["Molecule"] == "P-gp")
+    mine = next(p for p in ours["ExpressionProfiles"] if p["Molecule"] == "P-gp"
+                and f"P-gp|{p['Species']}|{p['Category']}" in individual["ExpressionProfiles"])
+    values = {q["Path"]: q["Value"] for q in mine["Parameters"] if q.get("Value") is not None}
+    for q in published["Parameters"]:
+        if q.get("Value") is not None:
+            assert values[q["Path"]] == pytest.approx(q["Value"], rel=1e-12), q["Path"]
+
+
+def test_a_selection_mapping_applies_to_interactions_and_leaves_others_alone():
+    from pbpk_domain.snapshot.builder import CompetitiveInhibition, CompoundSpec, Measured, SnapshotBuilder
+
+    base = dict(name="K", molecular_weight=Measured(value=500.0, unit="g/mol"),
+                lipophilicity=Measured(value=3.0, unit="Log Units"), fraction_unbound=Measured(value=0.1))
+    processes = [CompetitiveInhibition(molecule="ABCB1", data_source="W", ki=Measured(value=1.0, unit="µmol/l")),
+                 CompetitiveInhibition(molecule="CYP3A4", data_source="W", ki=Measured(value=1.0, unit="µmol/l"))]
+    builder = SnapshotBuilder()
+    builder.add_compound(CompoundSpec(**base, processes=processes, selected_molecules={"ABCB1-W": "P-gp"}))
+    _entry, interactions = builder._simulation_compound("K", None, None)
+    assert {"Name": "ABCB1-W", "MoleculeName": "P-gp", "CompoundName": "K"} in interactions
+    assert {"Name": "CYP3A4-W", "MoleculeName": "CYP3A4", "CompoundName": "K"} in interactions
+
+
+def test_a_minority_or_tied_selection_mapping_is_not_imported():
+    from pbpk_domain.reference.osp_import import _selection_molecules
+
+    compound = {"Name": "K", "Processes": [{"InternalName": "ActiveTransportSpecific_MM", "Molecule": "ABCB1",
+                                            "DataSource": "W"}]}
+
+    def sim(name, molecule):
+        return {"Name": name, "Compounds": [{"Name": "K", "Protocol": {"Name": "p"},
+                                             "Processes": [{"Name": "ABCB1-W", "MoleculeName": molecule}]}]}
+
+    assert _selection_molecules({"Simulations": [sim("a", "P-gp"), sim("b", "P-gp"), sim("c", "ABCB1")]},
+                                compound) == {"ABCB1-W": "P-gp"}
+    assert _selection_molecules({"Simulations": [sim("a", "P-gp"), sim("b", "ABCB1")]}, compound) == {}
+    assert _selection_molecules({"Simulations": [sim("a", "ABCB1")]}, compound) == {}
 
 
 def test_itraconazole_imports_its_metabolite_data():

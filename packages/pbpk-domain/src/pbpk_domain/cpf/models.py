@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -87,7 +88,8 @@ class EngineBinding(BaseModel):
     `building_block` is Compound/Individual/Formulation/Protocol. For a compound process the `process`
     field carries the process internal name and, for molecule-based processes, the molecule after a
     colon, e.g. "MetabolizationSpecific_FirstOrder:CYP3A4"; `parameter` is the engine parameter name.
-    Individual, Simulation and ExpressionProfile bindings carry the full PK-Sim path in `parameter`.
+    Individual, Simulation and ExpressionProfile bindings carry the full PK-Sim path in `parameter`. A Simulation
+    binding's `route` limits it to the simulations dosed that way (the published model sets it only there).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -96,6 +98,7 @@ class EngineBinding(BaseModel):
     parameter: str
     process: str | None = None
     data_source: str | None = None
+    route: Literal["oral", "iv"] | None = None
 
     @property
     def process_internal_name(self) -> str | None:

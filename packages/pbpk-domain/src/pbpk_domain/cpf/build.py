@@ -29,6 +29,7 @@ from pbpk_domain.snapshot.builder import (
     GlomerularFiltration,
     HarvestedProcess,
     Induction,
+    IntravenousBolusProtocolSpec,
     IntravenousProtocolSpec,
     MealEventSpec,
     Measured,
@@ -47,7 +48,7 @@ from pbpk_domain.snapshot.models import Snapshot, ValueOrigin, value_origin_sour
 from pbpk_domain.system import ModelSystem
 
 FormulationSpec = DissolvedFormulationSpec | WeibullFormulationSpec | ParticleFormulationSpec
-ProtocolSpec = OralProtocolSpec | IntravenousProtocolSpec
+ProtocolSpec = OralProtocolSpec | IntravenousProtocolSpec | IntravenousBolusProtocolSpec
 
 
 class Scenario(BaseModel):
@@ -75,16 +76,33 @@ class BuildReport:
     missing_expression: tuple[str, ...] = ()   # proteins a process names but the library has no profile for
 
 
+# `bind.partner` of a published compound that does not set its plasma protein binding partner.
+UNSPECIFIED_PARTNER = "unspecified"
+
+# A CPF record choosing the individual's molecule a process selection runs on (``molecule.<selection>``, the
+# selection name in `parameter`, the molecule as its value); harvested from the simulations' ``MoleculeName``.
+PROCESS_SELECTION = "ProcessSelection"
+
+
+def selected_molecules(cpf: CPF) -> dict[str, str]:
+    """Selection name -> the individual's molecule it runs on, where the published model maps a process onto another
+    molecule than the process names (OSP Dabigatran: ``ABCB1-FIT`` on ``P-gp``)."""
+    return {eb.parameter: str(r.value) for r in cpf.parameters if (eb := r.engine_binding) is not None
+            and r.status is not ParameterStatus.MISSING and eb.building_block == PROCESS_SELECTION}
+
+
 def process_molecules(cpf: CPF) -> tuple[str, ...]:
-    """The proteins (enzymes, transporters, binding partners) the CPF's processes act through, in CPF order.
+    """The proteins (enzymes, transporters, binding partners) the CPF's processes act through, in CPF order: the
+    individual's molecule a selection runs on where the CPF maps it (`selected_molecules`), else the process's own.
     Each needs an expression profile on the individual, or its process does nothing (MS-01 §S0)."""
+    mapped = selected_molecules(cpf)
     seen: dict[str, None] = {}
     for record in cpf.parameters:
         eb = record.engine_binding
         if record.status is ParameterStatus.MISSING or eb is None or eb.process_internal_name is None:
             continue
         if eb.molecule:
-            seen.setdefault(eb.molecule, None)
+            seen.setdefault(mapped.get(f"{eb.molecule}-{eb.data_source or ''}", eb.molecule), None)
     return tuple(seen)
 
 
@@ -204,16 +222,40 @@ def individual_seed(cpf: CPF) -> ParameterRecord | None:
                  and r.engine_binding.building_block == "Individual" and r.engine_binding.parameter == INDIVIDUAL_SEED), None)
 
 
-def simulation_parameters(cpf: CPF) -> dict[str, ParameterRecord]:
-    """CPF records bound to the Simulation building block (``sim.*`` ids), keyed by full path; they apply to every
-    simulation, as the published Dapagliflozin model sets ``Dapagliflozin|logP (veg.oil/water)`` in each of its."""
+def simulation_parameters(cpf: CPF, route: str | None = None) -> dict[str, ParameterRecord]:
+    """CPF records bound to the Simulation building block (``sim.*`` ids), keyed by full path, for a simulation dosed
+    by ``route`` ("oral", "iv"; None: mixed or unknown): the records for every simulation, as the published
+    Dapagliflozin model sets ``Dapagliflozin|logP (veg.oil/water)`` in each of its, and that route's own records
+    (``sim[oral].*``: OSP Alfentanil's gut-wall permeabilities, set only in its oral simulations)."""
     out: dict[str, ParameterRecord] = {}
+    scoped: dict[str, ParameterRecord] = {}
     for record in cpf.parameters:
         eb = record.engine_binding
         if record.status is ParameterStatus.MISSING or eb is None or eb.building_block != "Simulation":
             continue
-        out[eb.parameter] = record
-    return out
+        if eb.route is None:
+            out[eb.parameter] = record
+        elif eb.route == route:
+            scoped[eb.parameter] = record
+    return {**out, **scoped}
+
+
+def scenario_route(scenario: Scenario) -> str | None:
+    return {"oral": "oral", "intravenous": "iv", "intravenous_bolus": "iv"}.get(scenario.protocol.kind)
+
+
+def _with_simulation_parameters(scenarios: Sequence[Scenario], cpf: CPF) -> tuple[list[Scenario], list[str]]:
+    """Each scenario with the CPF's simulation-level values for its route; the ids placed."""
+    out, used = [], []
+    for scenario in scenarios:
+        records = simulation_parameters(cpf, scenario_route(scenario))
+        if records:
+            overrides = {path: _measured(record) for path, record in records.items()}
+            scenario = scenario.model_copy(update={"simulation": scenario.simulation.model_copy(
+                update={"parameters": {**scenario.simulation.parameters, **overrides}})})
+            used.extend(r.id for r in records.values())
+        out.append(scenario)
+    return out, list(dict.fromkeys(used))
 
 
 def _with_individual_parameters(subjects: Sequence[SubjectSpec], cpf: CPF) -> tuple[list[SubjectSpec], list[str]]:
@@ -399,7 +441,8 @@ def _compound_from_cpf(cpf: CPF) -> tuple[CompoundSpec, list[str], list[str]]:
 
     partner = take("bind.partner")
     if partner is not None and isinstance(partner.value, str):
-        fields["binding_partner"] = partner.value
+        # UNSPECIFIED_PARTNER: the published compound leaves it unset; so does the snapshot (PK-Sim's default applies)
+        fields["binding_partner"] = None if partner.value == UNSPECIFIED_PARTNER else partner.value
 
     # Calculation methods: the CPF stores engine-exact method names (validated against the catalog).
     methods = []
@@ -450,6 +493,11 @@ def _compound_from_cpf(cpf: CPF) -> tuple[CompoundSpec, list[str], list[str]]:
         and record.id not in placed
     ]
 
+    mapped = selected_molecules(cpf)
+    if mapped:
+        fields["selected_molecules"] = mapped
+        used.extend(r.id for r in cpf.parameters if r.engine_binding is not None
+                    and r.engine_binding.building_block == PROCESS_SELECTION and r.status is not ParameterStatus.MISSING)
     return CompoundSpec(**fields), used, sorted(set(unresolved) | set(unbound))
 
 
@@ -469,13 +517,9 @@ def build_from_cpf(
     expr_records = expression_parameters(cpf)
     subjects, expressed, missing = _with_expression(subjects, process_molecules(cpf), expr_records)
     subjects, individual_used = _with_individual_parameters(subjects, cpf)
-    sim_records = simulation_parameters(cpf)
-    if sim_records:
-        overrides = {path: _measured(record) for path, record in sim_records.items()}
-        scenarios = [s.model_copy(update={"simulation": s.simulation.model_copy(
-            update={"parameters": {**s.simulation.parameters, **overrides}})}) for s in scenarios]
+    scenarios, sim_used = _with_simulation_parameters(scenarios, cpf)
     expr_used = [r.id for m in expressed for r in expr_records.get(m, {}).values()]
-    used = [*used, *individual_used, *expr_used, *(r.id for r in sim_records.values())]
+    used = [*used, *individual_used, *expr_used, *sim_used]
 
     builder = SnapshotBuilder(snapshot_version) if snapshot_version is not None else SnapshotBuilder()
     builder.add_compound(compound)
@@ -549,15 +593,12 @@ def build_from_system(
 
     scenarios = list(scenarios)
     for cpf in system.compounds:
-        records = simulation_parameters(cpf)
-        if not records:
-            continue
-        overrides = {path: _measured(record) for path, record in records.items()}
-        scenarios = [s.model_copy(update={"simulation": s.simulation.model_copy(
-            update={"parameters": {**s.simulation.parameters, **overrides}})})
-            if cpf.compound in (s.simulation.compound, *(c.name for c in s.simulation.co_compounds)) else s
-            for s in scenarios]
-        used.extend(r.id for r in records.values())
+        taking = [i for i, s in enumerate(scenarios)
+                  if cpf.compound in (s.simulation.compound, *(c.name for c in s.simulation.co_compounds))]
+        updated, sim_used = _with_simulation_parameters([scenarios[i] for i in taking], cpf)
+        for i, scenario in zip(taking, updated, strict=True):
+            scenarios[i] = scenario
+        used.extend(sim_used)
 
     builder = SnapshotBuilder(snapshot_version) if snapshot_version is not None else SnapshotBuilder()
     for compound in compounds:

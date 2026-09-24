@@ -115,9 +115,17 @@ def test_study_weight_and_height_are_written_into_the_individual() -> None:
 # --- gaps surfaced, never invented ---------------------------------------------------------------
 
 
-def test_iv_without_infusion_time_raises() -> None:
+def test_iv_infusion_without_infusion_time_raises() -> None:
     with pytest.raises(ScenarioBuildError, match="infusion time"):
-        build_stage_snapshot(_cpf(), [_scenario(infusion_time_min=None)], stage="S1")
+        build_stage_snapshot(_cpf(), [_scenario(route="iv_infusion", infusion_time_min=None)], stage="S1")
+
+
+def test_iv_bolus_without_infusion_time_is_a_pksim_bolus() -> None:
+    """Harvested from the OSP Alfentanil protocols: ``IntravenousBolus`` with Start time and InputDose only."""
+    built = build_stage_snapshot(_cpf(), [_scenario(route="iv_bolus", infusion_time_min=None)], stage="S1")
+    protocol = next(p for p in built.snapshot.to_json_dict()["Protocols"])
+    assert protocol["ApplicationType"] == "IntravenousBolus"
+    assert [q["Name"] for q in protocol["Parameters"]] == ["Start time", "InputDose"]
 
 
 def test_tablet_without_a_cpf_formulation_raises() -> None:

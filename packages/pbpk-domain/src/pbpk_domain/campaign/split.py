@@ -157,7 +157,7 @@ class StudyRecord(BaseModel):
     route: Route = Route.ORAL
     dose_mg: float = Field(gt=0)
     dose_per_kg: bool = False  # dose_mg is mg per kg body weight (PK-Sim scales it by the individual's weight)
-    infusion_time_min: float | None = Field(default=None, gt=0)  # required to simulate an IV study
+    infusion_time_min: float | None = Field(default=None, gt=0)  # required for an IV infusion; none: an IV bolus
     formulation: FormulationKind = FormulationKind.SOLUTION
     formulation_name: str | None = None  # the CPF formulation (form.{name}.*) a solid oral study used
     food_state: FoodState = FoodState.FASTED

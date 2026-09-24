@@ -15,6 +15,40 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — round-trip defects found on PK-Sim (CI run 14): Dabigatran oral 2-fold, Alfentanil/Alprazolam/Midazolam
+- **A process can run on another molecule of the individual than it names.** The OSP Dabigatran simulations select
+  DabiEtex's `ABCB1-FIT` transport on the individual's `P-gp`, which has its own modified profile ("new ref. conc.").
+  We selected it on `ABCB1` with the library's ABCB1 profile, so every oral curve was ~2-fold off although all 10 640
+  parameters compared equal (the paths differ by molecule name, so the diff could not see it). The importer now records
+  a selection the compound's own simulations run elsewhere, by majority, as a categorical CPF record
+  `molecule.<selection>` (binding `ProcessSelection`); the builder selects the process and interactions on that
+  molecule and expresses it instead. A simulation that maps it differently is labelled (Ketoconazole's DDI arms).
+- **IV bolus.** Published `IntravenousBolus` protocols (Start time and InputDose, no infusion time; harvested from
+  Alfentanil, Midazolam, Digoxin, Metformin, Verapamil) were rejected as "IV with no infusion time": every Alfentanil
+  IV study was skipped. New `IntravenousBolusProtocolSpec`; an `iv_bolus` study without an infusion time is built as
+  a bolus (an infusion study without one still raises). Alfentanil 7 -> 18 studies, Midazolam +16 IV studies,
+  Metformin +1.
+- **Simulation values are decided per route.** Alfentanil sets its gut-wall permeabilities in 3 of 4 oral simulations
+  and none of 8 IV ones, so the all-simulation majority dropped them (22 parameters off in every oral round trip).
+  Alprazolam sets its PI permeability in all IV simulations and no oral one, and the majority applied it to the oral
+  ones too (0.046 instead of the compound's 0.76 cm/min). Now: a value common to every route stays `sim.<path>`;
+  otherwise a route gets `sim[oral].<path>` / `sim[iv].<path>` (`EngineBinding.route`), applied only to its
+  simulations. CPF JSON schema regenerated.
+- **An unset plasma protein binding partner stays unset.** Alprazolam and all Verapamil compounds leave it unset
+  (PK-Sim stores 2); we wrote "Albumin" (stored 1). The CPF records `bind.partner = unspecified` and the builder omits
+  the field, as the published snapshot does; no enum value is guessed.
+- **Schedules of mixed or loading-dose protocols.** A schedule taken from a published protocol now counts only the
+  study's own route: Midazolam's IV Mikus 2017 study was simulated as two IV doses (the protocol gives oral 4 mg at 0 h
+  and IV 2 mg at 6 h); now one IV dose, and both arms labelled "the published simulation also gives an oral /
+  intravenous dose". A protocol whose administrations differ in dose or infusion time (Alprazolam Kroboth 1988, 1 mg
+  over 2 min then 0.576 mg over 8 h; Digoxin Kirch 1986 loading doses) was simulated as repeated identical doses
+  (2-fold off); such studies are now skipped with the reason. A binned product's bins at one moment count as one
+  administration.
+- A model system's import now labels its studies with the link's feedback (alternatives, selection mappings) as the
+  single-compound import does.
+- Run 14 results otherwise: every parameter identical for Dapagliflozin, Rifampicin, Midazolam; remaining curve
+  differences are labelled by design or solver noise (<= 2e-5 of the peak at 250-500 mg Dapagliflozin).
+
 ### Added — particle dissolution and binned products (OSP Ketoconazole: 5 -> 53 importable studies)
 - `Formulation_Particles` (Noyes-Whitney, monodisperse), harvested from the Ketoconazole model: the unstirred water
   layer thickness (mm), the size distribution type (only 0, monodisperse, is placed; another is named), the mean

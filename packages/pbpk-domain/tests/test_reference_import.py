@@ -234,7 +234,7 @@ def test_the_regenerated_rifampicin_simulations_select_its_interactions_and_valu
     assert params["Dapagliflozin|logP (veg.oil/water)"] == 2.0831076805
 
 
-def test_midazolam_edge_cases_per_kg_doses_populations_brand_names_and_q6h():
+def test_midazolam_edge_cases_per_kg_doses_populations_brand_names_and_mixed_route():
     from pbpk_domain.reference.roundtrip import roundtrip_inputs
 
     imported = import_osp_snapshot(_snapshot("Midazolam"))
@@ -245,9 +245,13 @@ def test_midazolam_edge_cases_per_kg_doses_populations_brand_names_and_q6h():
     ids = {p.id for p in imported.cpf.parameters}
     assert {"elim.hepatic.CYP3A4.kcat", "elim.hepatic.UGT1A4.km", "bind.specific.GABRG2.kd"} <= ids
     ours, _pairs, notes = roundtrip_inputs(imported)
-    q6h = next(p for p in ours["Protocols"] if p["Name"] == "mikus-2017-midazolam-control-iv protocol")
-    params = {p["Name"]: p["Value"] for p in q6h["Schemas"][0]["Parameters"]}
-    assert params["TimeBetweenRepetitions"] == 6.0 and params["NumberOfRepetitions"] == 2.0
+    # the published "Mikus 2017" protocol gives oral 4 mg at 0 h and IV 2 mg at 6 h: the IV study is that one IV dose
+    # (its times shifted to it), never two IV doses 6 h apart; both arms are labelled as differing by design
+    iv = next(p for p in ours["Protocols"] if p["Name"] == "mikus-2017-midazolam-control-iv protocol")
+    assert iv["ApplicationType"] == "Intravenous" and iv["DosingInterval"] == "Single"
+    assert imported.offset_min["mikus-2017-midazolam-control-iv"] == 360.0
+    assert "also gives an oral dose" in imported.differs_by_design["mikus-2017-midazolam-control-iv"]
+    assert "also gives an intravenous dose" in imported.differs_by_design["mikus-2017-midazolam-control-po"]
     per_kg_protocol = next(p for p in ours["Protocols"] if p["Name"] == f"{per_kg[0]['study_id']} protocol")
     assert any(p.get("Unit") == "mg/kg" for p in per_kg_protocol["Parameters"] if p["Name"] == "InputDose")
     assert not [n for n in notes if n.startswith("NOT SIMULATED")]

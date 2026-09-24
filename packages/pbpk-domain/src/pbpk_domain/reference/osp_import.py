@@ -278,6 +278,12 @@ def _compound_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _
 
     if compound.get("PlasmaProteinBindingPartner"):
         out.add("bind.partner", compound["PlasmaProteinBindingPartner"])
+    else:
+        # unset in the published compound: kept unset, never replaced by a named partner (an explicit "Albumin" is
+        # stored by PK-Sim as another value than the default, OSP Alprazolam)
+        from pbpk_domain.cpf.build import UNSPECIFIED_PARTNER
+
+        out.add("bind.partner", UNSPECIFIED_PARTNER)
 
     counts: dict[str, int] = {}
     for pka in compound.get("PkaTypes", []):
@@ -324,6 +330,41 @@ def _selected_interactions(snapshot: dict[str, Any], compound: str) -> set[str]:
     inhibition of the victim drug's enzyme) is not part of the compound's own model."""
     return {i.get("Name") for sim in _own_simulations(snapshot, compound) for i in sim.get("Interactions", []) or []
             if i.get("CompoundName") == compound}
+
+
+def _selection_molecules_of(sim: dict[str, Any], compound: str) -> dict[str, str]:
+    """The individual's molecule each of the compound's process and interaction selections runs on in a simulation."""
+    out = {p["Name"]: p["MoleculeName"] for c in sim.get("Compounds", []) if c.get("Name") == compound
+           for p in c.get("Processes", []) or [] if p.get("Name") and p.get("MoleculeName")}
+    out.update({i["Name"]: i["MoleculeName"] for i in sim.get("Interactions", []) or []
+                if i.get("CompoundName") == compound and i.get("Name") and i.get("MoleculeName")})
+    return out
+
+
+def _selection_molecules(snapshot: dict[str, Any], compound: dict[str, Any]) -> dict[str, str]:
+    """Selections the compound's own simulations run on another molecule of the individual than the process names
+    (OSP Dabigatran: ``ABCB1-FIT`` on ``P-gp``), by majority of those simulations; a tie imports nothing."""
+    own = {_selection_name(p): p["Molecule"] for p in compound.get("Processes", []) if p.get("Molecule")}
+    votes: dict[str, Counter[str]] = {}
+    for sim in _own_simulations(snapshot, compound["Name"]):
+        for name, molecule in _selection_molecules_of(sim, compound["Name"]).items():
+            if name in own:
+                votes.setdefault(name, Counter())[molecule] += 1
+    out = {}
+    for name, counted in votes.items():
+        ranked = counted.most_common()
+        if (len(ranked) == 1 or ranked[0][1] > ranked[1][1]) and ranked[0][0] != own[name]:
+            out[name] = ranked[0][0]
+    return out
+
+
+def _selection_molecule_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _Records) -> None:
+    """Each selection the model runs on another molecule than its process names becomes a categorical
+    ``molecule.<selection>`` record; the builder selects it on that molecule and expresses that molecule."""
+    from pbpk_domain.cpf.build import PROCESS_SELECTION
+
+    for name, molecule in _selection_molecules(snapshot, compound).items():
+        out.add(f"molecule.{name}", molecule, binding=EngineBinding(building_block=PROCESS_SELECTION, parameter=name))
 
 
 def _selection_name(process: dict[str, Any]) -> str:
@@ -445,32 +486,69 @@ def _process_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _R
                      "for the DDI application: " + ", ".join(not_selected) + ".")
 
 
+def _sim_route(snapshot: dict[str, Any], sim: dict[str, Any]) -> str | None:
+    """"oral" or "iv" when every dose of the simulation is given that way; None for a mixed-route protocol."""
+    protocols = {p.get("Name"): p for p in snapshot.get("Protocols", [])}
+    kinds = set()
+    for entry in sim.get("Compounds", []):
+        protocol = protocols.get((entry.get("Protocol") or {}).get("Name"))
+        if protocol is None:
+            continue
+        kinds |= {t for t in [protocol.get("ApplicationType"), *(i.get("ApplicationType") for sc in protocol.get("Schemas", [])
+                                                                   or [] for i in sc.get("SchemaItems", []))] if t}
+    routes = {"oral" if k == "Oral" else "iv" if k.startswith("Intravenous") else k for k in kinds}
+    return routes.pop() if len(routes) == 1 and routes <= {"oral", "iv"} else None
+
+
 def _simulation_parameter_records(snapshot: dict[str, Any], compound: str, out: _Records, notes: list[str]) -> None:
     """Compound values the published simulations set themselves: ``<Compound>|logP (veg.oil/water)``, or a path
     through the compound such as ``Neighborhoods|Duodenum_int_Duodenum_cell|<Compound>|P (interstitial->intracellular)``
-    (a gut-wall permeability identified by PI). One that the simulations setting it all set to the same value, in at
-    least half of the simulations, is part of the model and becomes a ``sim.*`` record (the simulations that leave it
-    at the default are named); one that varies between simulations is named, not imported."""
+    (a gut-wall permeability identified by PI). Decided per route (oral, IV): one that the simulations of a route
+    setting it all set to the same value, in at least half of that route's simulations, is part of the model for that
+    route. The same value on every route that has simulations becomes a ``sim.*`` record for all; otherwise a
+    route's own ``sim[<route>].*`` record, applied only to its simulations (OSP Alfentanil sets gut-wall permeabilities
+    in its oral simulations only; OSP Alprazolam its PI permeability in its IV ones only, while its oral ones use the
+    compound's). The simulations of a route that leave it at the default are named; values that vary are named, not
+    imported."""
     sims = [s for s in snapshot.get("Simulations", []) if any(c.get("Name") == compound for c in s.get("Compounds", []))]
-    values: dict[str, list[dict[str, Any]]] = {}
+    route_of = {id(sim): _sim_route(snapshot, sim) for sim in sims}
+    by_route: dict[str | None, list[dict[str, Any]]] = {
+        r: group for r in ("oral", "iv") if (group := [s for s in sims if route_of[id(s)] == r])}
+    if not by_route:  # only mixed-route simulations: one group, records for all
+        by_route, route_of = {None: sims}, {id(s): None for s in sims}
+    present = list(by_route)
+    values: dict[str, dict[str | None, list[dict[str, Any]]]] = {}
     without: dict[str, list[str]] = {}
     for sim in sims:
         for parameter in sim.get("Parameters", []) or []:
             path = parameter.get("Path") or ""
             if compound in path.split("|")[:-1] and not path.startswith(("Events|", "Applications|")):
-                values.setdefault(path, []).append(parameter)
-    for path, found in values.items():
-        distinct = {(p.get("Value"), p.get("Unit")) for p in found}
-        if len(distinct) == 1 and 2 * len(found) >= len(sims):
-            parameter = found[0]
-            out.add(f"sim.{path}", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
-                    binding=EngineBinding(building_block="Simulation", parameter=path))
-            setting = {id(p) for p in found}
-            for sim in sims:
+                values.setdefault(path, {}).setdefault(route_of[id(sim)], []).append(parameter)
+    for path, found_by in values.items():
+        chosen: dict[str | None, dict[str, Any]] = {}
+        varies = False
+        for route in present:
+            found = found_by.get(route, [])
+            distinct = {(p.get("Value"), p.get("Unit")) for p in found}
+            if len(distinct) > 1:
+                varies = True
+            elif found and 2 * len(found) >= len(by_route[route]):
+                chosen[route] = found[0]
+        if varies or not chosen:
+            if varies or any(found_by.values()):
+                notes.append(f"Simulation parameter {path!r} differs between the published simulations; not imported.")
+            continue
+        same = {(p.get("Value"), p.get("Unit")) for p in chosen.values()}
+        scoped: list[str | None] = [None] if len(chosen) == len(present) and len(same) == 1 else list(chosen)
+        for route in scoped:
+            parameter = chosen[route] if route is not None else next(iter(chosen.values()))
+            pid = f"sim.{path}" if route is None else f"sim[{route}].{path}"
+            out.add(pid, parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
+                    binding=EngineBinding(building_block="Simulation", parameter=path, route=route))
+            setting = {id(p) for group in found_by.values() for p in group}
+            for sim in sims if route is None else by_route[route]:
                 if not any(id(p) in setting for p in sim.get("Parameters", []) or []):
                     without.setdefault(sim.get("Name", "?"), []).append(path)
-        else:
-            notes.append(f"Simulation parameter {path!r} differs between the published simulations; not imported.")
     for name, paths in without.items():
         notes.append(f"Published simulation {name!r} leaves {len(paths)} simulation parameter(s) at the default "
                      f"(e.g. {paths[0]!r}); it is regenerated with the model's value.")
@@ -732,6 +810,17 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
             link["doses"] = {c["Name"]: _protocol_dose(protocols.get((c.get("Protocol") or {}).get("Name"), {}))
                              for c in sim.get("Compounds", []) if c.get("Protocol") and c["Name"] in members}
             link["compounds"] = [c["Name"] for c in sim.get("Compounds", []) if c["Name"] in members]
+        # a selection this simulation runs on another molecule than the model does
+        for name in [compound] if members is None else link["compounds"]:
+            model = next((c for c in snapshot.get("Compounds", []) if c["Name"] == name), None)
+            if model is None:
+                continue
+            imported_on = {_selection_name(p): p["Molecule"] for p in model.get("Processes", []) if p.get("Molecule")}
+            imported_on.update(_selection_molecules(snapshot, model))
+            for selection, molecule in sorted(_selection_molecules_of(sim, name).items()):
+                if selection in imported_on and molecule != imported_on[selection]:
+                    link["feedback"].append(f"the published simulation runs {name} {selection} on {molecule}; "
+                                            f"the model runs it on {imported_on[selection]}")
         # a property alternative this simulation uses that differs from the one imported
         for group in _ALTERNATIVE_GROUPS:
             if len(parent.get(group) or []) > 1:
@@ -771,8 +860,17 @@ def _dose_times(administered: Any) -> list[float] | None:
     return sorted(set(times)) or None
 
 
-def _protocol_dose_times(protocol: dict[str, Any]) -> list[float] | None:
-    """Dose times (h) of a published protocol: a simple one-dose protocol, or schemas repeated at an interval."""
+def _family(application_type: str | None) -> str | None:
+    """"Oral" or "Intravenous" (infusion and bolus alike) for a PK-Sim ApplicationType."""
+    if application_type and application_type.startswith("Intravenous"):
+        return "Intravenous"
+    return application_type
+
+
+def _protocol_dose_times(protocol: dict[str, Any], application: str | None = None) -> list[float] | None:
+    """Dose times (h) of a published protocol: a simple one-dose protocol, or schemas repeated at an interval. With
+    ``application`` ("Intravenous", "Oral"), only the doses given that way: a mixed-route protocol (OSP Midazolam
+    ``Mikus 2017``: oral 4 mg at 0 h, IV 2 mg at 6 h) gives an IV study one dose, not two."""
     def hours(params: list[dict[str, Any]], name: str, default: float = 0.0) -> float:
         p = next((q for q in params if q.get("Name") == name), None)
         if p is None:
@@ -782,6 +880,9 @@ def _protocol_dose_times(protocol: dict[str, Any]) -> list[float] | None:
     if not protocol:
         return None
     if not protocol.get("Schemas"):
+        if application is not None and protocol.get("ApplicationType") is not None \
+                and _family(protocol.get("ApplicationType")) != application:
+            return None
         return [hours(protocol.get("Parameters", []), "Start time")] if protocol.get("DosingInterval") == "Single" else None
     times: list[float] = []
     for schema in protocol["Schemas"]:
@@ -790,9 +891,42 @@ def _protocol_dose_times(protocol: dict[str, Any]) -> list[float] | None:
         n = int(next((q["Value"] for q in params if q.get("Name") == "NumberOfRepetitions"), 1))
         interval = hours(params, "TimeBetweenRepetitions")
         for item in schema.get("SchemaItems", []):
+            if application is not None and _family(item.get("ApplicationType")) != application:
+                continue
             item_start = hours(item.get("Parameters", []), "Start time")
             times.extend(start + item_start + k * interval for k in range(n))
-    return sorted(set(times))
+    return sorted(set(times)) or None
+
+
+def _uniform_administrations(protocol: dict[str, Any]) -> bool:
+    """Whether every administration of a published protocol gives the same dose the same way (one total dose and
+    infusion time; the items of a binned product given at one moment are one administration): only then is its
+    schedule a regular multiple-dose regimen (OSP Alprazolam ``IV_1mg_2min_0.576mg_8h`` is not: 1 mg over 2 min, then
+    0.576 mg over 8 h; nor OSP Digoxin's 0.5 mg loading doses before 0.25 mg)."""
+    def value(item: dict[str, Any], name: str) -> tuple[float | None, str | None]:
+        q = next((q for q in item.get("Parameters", []) if q.get("Name") == name), None)
+        return (None, None) if q is None else (round(float(q["Value"]), 12), q.get("Unit"))
+
+    if not protocol.get("Schemas"):
+        return True
+    shapes = set()
+    for schema in protocol["Schemas"]:
+        moments: dict[tuple[float | None, str | None], list[dict[str, Any]]] = {}
+        for item in schema.get("SchemaItems", []):
+            moments.setdefault(value(item, "Start time"), []).append(item)
+        for items in moments.values():
+            doses = [value(i, "InputDose") for i in items]
+            shapes.add((round(sum(d or 0.0 for d, _u in doses), 9), frozenset(u for _d, u in doses),
+                        frozenset(value(i, "Infusion time") for i in items)))
+    return len(shapes) <= 1
+
+
+def _mixed_route(protocol: dict[str, Any], application: str) -> str | None:
+    """A label when a published protocol also doses another way than the study (its curve carries that dose too)."""
+    others = sorted({_family(i.get("ApplicationType")) for s in protocol.get("Schemas", []) or []
+                     for i in s.get("SchemaItems", []) if i.get("ApplicationType") and _family(i.get("ApplicationType")) != application})
+    return (f"the published simulation also gives an {' and '.join(o.lower() for o in others)} dose"
+            if others else None)
 
 
 def _infusion_time_min(protocol: dict[str, Any]) -> float | None:
@@ -806,10 +940,11 @@ def _infusion_time_min(protocol: dict[str, Any]) -> float | None:
 
 
 # Reported "Route" values across the OSP model library (2026-09-24). "EM"/"PM" (a genotype filed as a route), "na" and
-# none fall back to the published simulation's protocol; bolus, intracolonic and mixed routes are not placed.
+# none fall back to the published simulation's protocol (an IV bolus is recognised there: IntravenousBolus); intracolonic
+# and mixed routes are not placed.
 _ROUTE_WORDS = {"po": "PO", "oral": "PO", "capsule": "PO", "iv": "IV"}
 _INFUSION_ROUTE = re.compile(r"^(iv_)?(?P<value>[\d.]+)[- ]?min[_ ]infusion$")
-_PROTOCOL_ROUTE = {"Oral": "PO", "Intravenous": "IV"}
+_PROTOCOL_ROUTE = {"Oral": "PO", "Intravenous": "IV", "IntravenousBolus": "IV"}
 _NAMED_DOSE = r"(?<!\d)(?<!\d\.){value}\s*mg(?![a-z/])"
 
 
@@ -902,7 +1037,10 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
             said.append(f"route {props.get('Route')!r} not usable; {route} as in the published simulation")
     if route is None:
         return None, f"route {props.get('Route')!r} is not IV or PO"
-    if route == "IV":
+    if route == "IV" and link is not None and _application_type(link["protocol"]) == "IntravenousBolus":
+        # the published simulation gives a bolus (PK-Sim IntravenousBolus: no infusion time)
+        row.update(route="iv_bolus", formulation="solution")
+    elif route == "IV":
         if infusion_named is not None and not (link and (link.get("infusion_min") or _infusion_time_min(link["protocol"]))):
             said.append(f"infusion time {infusion_named:g} min from the reported route")
         # The infusion time the published simulation uses, else its protocol's, else the one the dataset names.
@@ -925,8 +1063,13 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     # Regimen: the dataset's own administration times, else the linked published protocol's. One dose is a single
     # dose given then (times are shifted to it); a regular schedule is a multiple-dose study; an irregular one cannot
     # be placed by the builder (regular schedules only) and is named.
+    application = "Intravenous" if route == "IV" else "Oral"
+    if link is not None and len(_protocol_dose_times(link["protocol"], application) or []) > 1 \
+            and not _uniform_administrations(link["protocol"]):
+        return None, (f"the published protocol {link['protocol'].get('Name')!r} gives administrations that differ in "
+                      "dose or infusion time (a loading dose then maintenance); such regimens are not placed yet")
     doses = _dose_times(props.get("Times of Administration [h]"))
-    if doses is None and link is not None and (published := _protocol_dose_times(link["protocol"])):
+    if doses is None and link is not None and (published := _protocol_dose_times(link["protocol"], application)):
         doses = published
         said.append(f"administration times not reported; the schedule of the published protocol "
                     f"{link['protocol'].get('Name')!r}")
@@ -935,7 +1078,7 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     if len(doses) == 1 and link is not None:
         # Only when the dataset was sampled after the second dose: a day-1 profile the paper fitted against a
         # multiple-dose simulation is still a single-dose profile (and is classified as one).
-        linked = _protocol_dose_times(link["protocol"])
+        linked = _protocol_dose_times(link["protocol"], application)
         last_h = max(float(t) for t in dataset["BaseGrid"]["Values"]) * (1 / 60.0 if dataset["BaseGrid"].get("Unit") == "min" else 1.0)
         if linked and len(linked) > 1 and last_h > linked[1]:
             doses = linked
@@ -1059,6 +1202,7 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, 
     unplaced: list[str] = []
     _compound_records(snapshot, compound, records, notes)
     _process_records(snapshot, compound, records, unplaced, notes)
+    _selection_molecule_records(snapshot, compound, records)
     _simulation_parameter_records(snapshot, name, records, notes)
     _formulation_records(snapshot, records, unplaced)
     _individual_records(snapshot, records, notes)
@@ -1119,6 +1263,8 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, 
                            f"{len(published_doses)}")
             if row.get("food_state") == "fed" and not link.get("fed"):
                 why.append("simulated fed as reported; the published simulation has no meal")
+            if (mixed := _mixed_route(link["protocol"], "Oral" if row.get("route") == "oral" else "Intravenous")):
+                why.append(mixed)
             why.extend(link.get("feedback") or [])
             if why:
                 differs_by_design[row["study_id"]] = "; ".join(why)
@@ -1261,6 +1407,7 @@ def import_osp_system(snapshot: dict[str, Any], *, source: str | None = None,
             records = _Records(source)
             _compound_records(snapshot, compounds[name], records, notes)
             _process_records(snapshot, compounds[name], records, unplaced, notes)
+            _selection_molecule_records(snapshot, compounds[name], records)
             _simulation_parameter_records(snapshot, name, records, notes)
             if name == parent_names[0]:  # shared by the system: the formulations and the published individual
                 _formulation_records(snapshot, records, unplaced)
@@ -1342,6 +1489,9 @@ def import_osp_system(snapshot: dict[str, Any], *, source: str | None = None,
                        f"{len(published_doses)}")
         if row.get("food_state") == "fed" and not link.get("fed"):
             why.append("simulated fed as reported; the published simulation has no meal")
+        if (mixed := _mixed_route(link["protocol"], "Oral" if row.get("route") == "oral" else "Intravenous")):
+            why.append(mixed)
+        why.extend(link.get("feedback") or [])
         if why:
             differs_by_design[row["study_id"]] = "; ".join(why)
 
