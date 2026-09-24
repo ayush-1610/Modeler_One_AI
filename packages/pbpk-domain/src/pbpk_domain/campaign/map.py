@@ -157,6 +157,7 @@ class MapScenario(BaseModel):
     inactive_processes: dict[str, tuple[str, ...]] = Field(default_factory=dict)  # StudyRecord.inactive_processes
     default_simulation_values: tuple[str, ...] = ()  # StudyRecord.default_simulation_values
     solver: dict[str, float] = Field(default_factory=dict)  # StudyRecord.solver
+    water_ml_per_kg: float | None = None  # StudyRecord.water_ml_per_kg
     n_subjects: int
     population: str
     sex: str
@@ -320,7 +321,8 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
                 formulation=study.formulation.value, food_state=study.food_state.value,
                 meal_template=meal_template if study.food_state.value == "fed" else None,
                 meals=study.meals, inactive_processes=study.inactive_processes,
-                default_simulation_values=study.default_simulation_values, solver=study.solver, n_subjects=study.n,
+                default_simulation_values=study.default_simulation_values, solver=study.solver,
+                water_ml_per_kg=study.water_ml_per_kg, n_subjects=study.n,
                 population=demo.population, sex=demo.sex.value, age_years=demo.age_years,
                 weight_kg=demo.weight_kg, height_cm=demo.height_cm, study_class=row.study_class.value,
                 formulation_name=study.formulation_name,

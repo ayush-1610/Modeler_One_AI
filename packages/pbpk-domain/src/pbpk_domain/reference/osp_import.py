@@ -156,6 +156,7 @@ _INFUSION_IN_NAME = re.compile(r"(?P<value>[\d.]+)\s*(?P<unit>h|min) infusion")
 _FOOD_STATE = {"fasted": "fasted", "fed": "fed", "breakfast": "fed", "light breakfast": "fed", "semifed": "fed"}
 # Co-medication named in a dataset's grouping: such an arm is not the drug alone and must not train it (MS-01 §3.2).
 _CO_MEDICATION_WORDS = ("antacid",)
+_DEFAULT_WATER_ML_PER_KG = 3.5  # PK-Sim's "Volume of water/body weight" default (every OSP library protocol that keeps it)
 _PERPETRATOR = re.compile(r"perpetrator\s*\(([^)]+)\)")
 _DOSE = re.compile(r"^\s*(?P<value>[\d.]+)\s*(?P<unit>mg|µg|ug|mg/kg|µg/kg|ug/kg)\s*$")
 _TO_MG = {"mg": 1.0, "µg": 1e-3, "ug": 1e-3, "mg/kg": 1.0, "µg/kg": 1e-3, "ug/kg": 1e-3}
@@ -844,6 +845,15 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
                          for p in sim.get("Parameters", []) or []
                          if str(p.get("Path", "")).endswith("|Application_1|ProtocolSchemaItem|Infusion time")), None)
         individual = individuals.get(sim.get("Individual"), {})
+        # the water drunk with an oral dose: the simulation's own value, else its protocol's (OSP Verapamil Maeda 2011:
+        # 2 ml/kg; Itraconazole: 1.37 and 2.82 ml/kg; the PK-Sim default is 3.5)
+        protocol_doc = protocols.get(protocol_ref.get("Name"), {})
+        water = next((p for p in sim.get("Parameters", []) or []
+                      if str(p.get("Path", "")).endswith("|Application_1|ProtocolSchemaItem|Volume of water/body weight")),
+                     None) or next((q for q in [*protocol_doc.get("Parameters", []),
+                                                *[q for sc in protocol_doc.get("Schemas", []) or []
+                                                  for item in sc.get("SchemaItems", [])[:1] for q in item.get("Parameters", [])]]
+                                    if q.get("Name") == "Volume of water/body weight"), None)
         link = {
             "demographics": _demographics(individual.get("OriginData", {})),
             "published_individual": (_published_individual(snapshot, individual)
@@ -859,6 +869,7 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
                               events.get(e.get("Name"), {"Name": e.get("Name")})) for e in sim.get("Events") or []),
                             key=lambda m: m[0]),
             "infusion_min": infusion,
+            "water_ml_per_kg": float(water["Value"]) if water and water.get("Unit") == "ml/kg" else None,
             # the process selections each compound has in this simulation
             "selections": {c["Name"]: {q["Name"] for q in c.get("Processes", []) or [] if q.get("Name")}
                            for c in sim.get("Compounds", [])},
@@ -1508,6 +1519,10 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     # metabolisers) is switched off here too; the study is then a genotype study (MS-01: never fitted in S1-S3).
     inactive = {name: tuple(sorted(common - selected)) for name, selected in ((link or {}).get("selections") or {}).items()
                 if (common := (link or {}).get("common_selections", {}).get(name)) and common - selected}
+    water = (link or {}).get("water_ml_per_kg")
+    if row.get("route") == "oral" and water is not None and water != _DEFAULT_WATER_ML_PER_KG:
+        row["water_ml_per_kg"] = water
+        said.append(f"{water:g} ml/kg of water with the dose, as the published simulation gives it")
     if inactive:
         row["inactive_processes"] = inactive
         row.setdefault("genotype", "; ".join(f"{name} without {', '.join(off)}" for name, off in inactive.items()))

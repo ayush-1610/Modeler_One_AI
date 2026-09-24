@@ -537,3 +537,22 @@ def test_a_snapshot_written_before_pksim_10_keeps_its_individuals_expression_and
     jejunum = {p["Category"]: q["Value"] for p in ours["ExpressionProfiles"] if p["Molecule"] == "CYP2C19"
                for q in p["Parameters"] if q["Path"] == "Organism|SmallIntestine|Mucosa|UpperJejunum|Intracellular|CYP2C19|Relative expression"}
     assert jejunum and all(v == pytest.approx(0.3238009746) for v in jejunum.values())
+
+
+def test_the_water_given_with_an_oral_dose_is_the_published_one():
+    """OSP Verapamil gives 2 ml/kg with its oral doses, Itraconazole 1.37 and 2.82 ml/kg (PK-Sim default 3.5); run 26
+    built every oral dose with 3.5 (Maeda 2011: 10 % off, every parameter identical)."""
+    from pbpk_domain.reference.roundtrip import system_roundtrip_inputs as system_inputs
+
+    verapamil = import_osp_system(_snapshot("Verapamil"))
+    assert _study(verapamil, "maeda-2011-verapamil-16-mg")["water_ml_per_kg"] == 2.0
+    ours, _pairs, _notes = system_inputs(verapamil)
+    sim = next(s for s in ours["Simulations"] if s["Name"] == "maeda-2011-verapamil-16-mg")
+    protocols = {p["Name"]: p for p in ours["Protocols"]}
+    water = {q["Value"] for c in sim["Compounds"] if c.get("Protocol")
+             for q in [*protocols[c["Protocol"]["Name"]].get("Parameters", []),
+                       *[q for sc in protocols[c["Protocol"]["Name"]].get("Schemas", []) for i in sc["SchemaItems"]
+                         for q in i["Parameters"]]]
+             if q["Name"] == "Volume of water/body weight"}
+    assert water == {2.0}
+    assert "water_ml_per_kg" not in _study(import_osp_snapshot(_snapshot("Dapagliflozin")), "komoroski-2009-sad-10-mg")

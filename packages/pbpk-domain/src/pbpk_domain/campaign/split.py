@@ -211,6 +211,8 @@ class StudyRecord(BaseModel):
     # PK-Sim's default: OSP Alfentanil's Kharasch 2012 oral simulation keeps the default gut-wall permeabilities that
     # its other oral simulations set to the identified values
     default_simulation_values: tuple[str, ...] = ()
+    # the water drunk with an oral dose (PK-Sim "Volume of water/body weight"); None: PK-Sim's default, 3.5 ml/kg
+    water_ml_per_kg: float | None = Field(default=None, ge=0)
     # solver settings the study's published simulation sets (OSP Dabigatran Härtter 2012: {"RelTol": 1e-09})
     solver: dict[str, float] = Field(default_factory=dict)
     demographics: Demographics | None = None  # the studied individual; DEFAULT_DEMOGRAPHICS when absent

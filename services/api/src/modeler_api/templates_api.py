@@ -63,8 +63,8 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
         ("Digoxin", "P-gp transport, glomerular filtration, hepatic clearance"),
         ("Metformin", "OCT1 / OCT2 / MATE1 / PMAT transport, fed studies"),
         ("Raltegravir", "UGT1A1 / UGT1A9 metabolism, tablet and granule formulations"),
-        ("Ketoconazole", "particle dissolution, fed permeability; parent only here: the published model's metabolites "
-                         "inhibit its CYP3A4 / P-gp clearance, so this differs from it by design"),
+        ("Ketoconazole", ("particle dissolution, fed permeability; parent only here: the published model's metabolites "
+                          "inhibit its CYP3A4 / P-gp clearance, so this differs from it by design")),
         ("Voriconazole", "CYP2C19 / CYP3A4 metabolism, loading-dose regimens, pH-solubility table"),
         ("Itraconazole", "CYP3A4 metabolism, solubility per product and food state; parent only here"),
     )},

@@ -211,14 +211,16 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
         first_meal = min((m.time_h for m in scenario.meals), default=0.0)
         offset = min(first_meal, 0.0)
         dose_start = {"start_time_h": -offset} if offset < 0 else {}
+        water = {"water_volume_ml_per_kg": scenario.water_ml_per_kg} if scenario.water_ml_per_kg is not None else {}
         if dose_start and schedule.get("phases"):  # phases carry their own start times
             schedule = {**schedule, "phases": tuple(p.model_copy(update={"start_h": p.start_h - offset})
                                                     for p in schedule["phases"])}
             dose_start = {}
         if bins:
-            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, bins=bins, **_bin_schedule(scenario), **dose_start)
+            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, bins=bins, **_bin_schedule(scenario), **dose_start,
+                                        **water)
         else:
-            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, **schedule, **dose_start)
+            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, **schedule, **dose_start, **water)
         meal_events: tuple[MealEventSpec, ...] = ()
         event_names: tuple[str, ...] = ()
         event_times: tuple[tuple[str, float], ...] = ()

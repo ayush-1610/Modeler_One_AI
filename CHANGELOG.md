@@ -15,6 +15,13 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the water given with an oral dose is the published one (found by run 26)
+- Every oral protocol was built with PK-Sim's default "Volume of water/body weight" (3.5 ml/kg). The OSP models set
+  others: Verapamil 2 ml/kg, Itraconazole 1.37 and 2.82, Dabigatran 2, Ketoconazole 0. The importer reads the
+  published simulation's value (else its protocol's) into `StudyRecord.water_ml_per_kg`, and the build writes it on
+  every dosed compound's protocol. Run 26: Verapamil Maeda 2011 and Blume 1989 were ~10 % off with every compared
+  parameter identical (the protocol is not part of that comparison).
+
 ### Added — the Ketoconazole model system
 - A metabolite the published simulations form (their `MetaboliteName`) is a member and a formation link even when the
   building block names none (OSP Ketoconazole: n-deacetyl-ketoconazole → n-deacetyl-n-hydroxy-ketoconazole by FMO3);
