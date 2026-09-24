@@ -1044,6 +1044,19 @@ def _own_sim_values(snapshot: dict[str, Any], simulation: str, cpf: CPF, route: 
             f"(e.g. {own[0]!r})")
 
 
+def _default_sim_values(snapshot: dict[str, Any], simulation: str, cpf: CPF, route: str | None) -> tuple[str, ...]:
+    """The model's simulation-level values (full paths) the published simulation does not set: it keeps PK-Sim's
+    default there (OSP Alfentanil's Kharasch 2012 oral simulation, without the gut-wall permeabilities its other oral
+    simulations set)."""
+    from pbpk_domain.cpf.build import simulation_parameters
+
+    sim = next((s for s in snapshot.get("Simulations", []) if s.get("Name") == simulation), None)
+    if sim is None:
+        return ()
+    own = {q.get("Path") for q in sim.get("Parameters", []) or []}
+    return tuple(sorted(path for path in simulation_parameters(cpf, route) if path not in own))
+
+
 # Property groups a simulation of the regenerated model selects per product and food state (cpf.build.alternatives_for)
 # and the CPF ids of their values.
 _SELECTABLE_GROUPS = {"Solubility": ("phys.solubility.ref", "phys.solubility.ref_ph"),
@@ -1570,6 +1583,8 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, 
                 why.append(mixed)
             if (own := _own_sim_values(snapshot, link["simulation"], cpf, "oral" if row.get("route") == "oral" else "iv")):
                 why.append(own)
+            if (unset := _default_sim_values(snapshot, link["simulation"], cpf, "oral" if row.get("route") == "oral" else "iv")):
+                row["default_simulation_values"] = unset
             why.extend(link.get("feedback") or [])
             if why:
                 differs_by_design[row["study_id"]] = "; ".join(why)
@@ -1797,9 +1812,14 @@ def import_osp_system(snapshot: dict[str, Any], *, source: str | None = None,
             why.append("simulated fed as reported; the published simulation has no meal")
         if (mixed := _mixed_route(link["protocol"], "Oral" if row.get("route") == "oral" else "Intravenous")):
             why.append(mixed)
+        unset: list[str] = []
         for member in cpfs:
             if (own := _own_sim_values(snapshot, link["simulation"], member, "oral" if row.get("route") == "oral" else "iv")):
                 why.append(own)
+            unset.extend(_default_sim_values(snapshot, link["simulation"], member,
+                                             "oral" if row.get("route") == "oral" else "iv"))
+        if unset:
+            row["default_simulation_values"] = tuple(unset)
         why.extend(link.get("feedback") or [])
         if why:
             differs_by_design[row["study_id"]] = "; ".join(why)

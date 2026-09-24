@@ -15,6 +15,15 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a model value the published simulation leaves at its default stays default
+- The model's simulation-level values (`sim.*`, `sim[route].*`) were applied to every simulation of the route. A
+  published simulation that does not set one keeps PK-Sim's default. The study now names those paths
+  (`StudyRecord.default_simulation_values`), and the build leaves them out of that simulation only
+  (`SimulationSpec.default_parameters`).
+- Found by run 24: OSP Alfentanil's Kharasch 2012 oral simulation keeps the default gut-wall permeabilities (22 paths),
+  and our curve was off (AUC ratio 0.32). Also affects Metformin Caille 1993 fed (3 paths).
+- Impact: round-trip fidelity only; a campaign fit of these values is unchanged for the other studies.
+
 ### Fixed — a process the published simulation switches off stays off (poor metabolisers)
 - A study whose published simulation leaves out processes the model's other simulations use now carries them as
   `inactive_processes` (per compound; the importer compares each simulation's process selection with the one most of

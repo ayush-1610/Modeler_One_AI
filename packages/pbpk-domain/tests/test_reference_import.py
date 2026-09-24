@@ -456,3 +456,19 @@ def test_a_process_the_published_simulation_switches_off_stays_off():
     assert set(morrissey["inactive_processes"]["Metformin"]) == {"MATE1-Paper", "OCT1-Paper", "OCT2-Paper", "PMAT-Paper"}
     ours, _pairs, _notes = roundtrip_inputs(metformin)
     assert not {n for n in _processes(ours, morrissey["study_id"])["Metformin"] if n.endswith("-Paper")}
+
+
+def test_a_simulation_value_the_published_simulation_leaves_at_default_stays_default():
+    """OSP Alfentanil sets identified gut-wall permeabilities in its oral simulations, except Kharasch 2012, which keeps
+    PK-Sim's defaults (run 24: AUC ratio 0.32 when they were applied)."""
+    from pbpk_domain.reference.roundtrip import roundtrip_inputs
+
+    alfentanil = import_osp_snapshot(_snapshot("Alfentanil"))
+    k2012 = _study(alfentanil, "kharasch2012-alfentanil-alone-po")
+    assert len(k2012["default_simulation_values"]) == 22
+    assert all(p.startswith("Neighborhoods|") for p in k2012["default_simulation_values"])
+    assert "default_simulation_values" not in _study(alfentanil, "kharasch-2011-po-control-perpetrator-placebo")
+    ours, _pairs, _notes = roundtrip_inputs(alfentanil)
+    sims = {s["Name"]: s for s in ours["Simulations"]}
+    assert not sims["kharasch2012-alfentanil-alone-po"].get("Parameters")
+    assert len(sims["kharasch-2011-po-control-perpetrator-placebo"]["Parameters"]) == 22

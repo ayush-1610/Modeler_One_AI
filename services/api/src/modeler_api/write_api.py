@@ -150,6 +150,8 @@ class StudyUpload(BaseModel):
     # process selections the study's simulation leaves out (compound -> names): a phenotype such as a CYP2C19 poor
     # metaboliser; such a study is a genotype (PGx) study
     inactive_processes: dict[str, list[str]] = Field(default_factory=dict)
+    # simulation-level model values (full paths) the study's simulation leaves at PK-Sim's default
+    default_simulation_values: list[str] = Field(default_factory=list)
     # Who was studied: a patient or special population (e.g. renal impairment) is classified SPECIAL by the split
     # (MS-01 §3.2) and never fits the healthy-volunteer model; without these it would be taken as healthy.
     population_type: str = "healthy"

@@ -207,6 +207,10 @@ class StudyRecord(BaseModel):
     # process selections (compound -> names) the study's simulation leaves out: a phenotype the model represents by
     # switching a pathway off (OSP Omeprazole CYP2C19 poor metabolisers: "CYP2C19-2C19 Linear Fit" not selected)
     inactive_processes: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+    # simulation-level model values (full paths, `sim.*` / `sim[route].*` records) the study's simulation leaves at
+    # PK-Sim's default: OSP Alfentanil's Kharasch 2012 oral simulation keeps the default gut-wall permeabilities that
+    # its other oral simulations set to the identified values
+    default_simulation_values: tuple[str, ...] = ()
     demographics: Demographics | None = None  # the studied individual; DEFAULT_DEMOGRAPHICS when absent
     statistic: Statistic = Statistic.MEAN_SD
     n_timepoints: int = Field(gt=0)

@@ -1089,6 +1089,8 @@ class SimulationSpec(Spec):
     alternatives: dict[str, str] = Field(default_factory=dict)
     # process selections left out of this simulation, per compound (a phenotype: CYP2C19 poor metabolisers)
     inactive_processes: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+    # simulation-level values of the model (full paths) this simulation leaves at PK-Sim's default
+    default_parameters: tuple[str, ...] = ()
     observer_sets: tuple[str, ...] = ()  # ObserverSets (added with SnapshotBuilder.add_observer_set) this computes
 
 

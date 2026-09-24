@@ -325,10 +325,12 @@ def scenario_route(scenario: Scenario) -> str | None:
 
 
 def _with_simulation_parameters(scenarios: Sequence[Scenario], cpf: CPF) -> tuple[list[Scenario], list[str]]:
-    """Each scenario with the CPF's simulation-level values for its route; the ids placed."""
+    """Each scenario with the CPF's simulation-level values for its route, except those its simulation leaves at the
+    default (`SimulationSpec.default_parameters`); the ids placed."""
     out, used = [], []
     for scenario in scenarios:
-        records = simulation_parameters(cpf, scenario_route(scenario))
+        records = {path: record for path, record in simulation_parameters(cpf, scenario_route(scenario)).items()
+                   if path not in scenario.simulation.default_parameters}
         if records:
             overrides = {path: _measured(record) for path, record in records.items()}
             scenario = scenario.model_copy(update={"simulation": scenario.simulation.model_copy(
