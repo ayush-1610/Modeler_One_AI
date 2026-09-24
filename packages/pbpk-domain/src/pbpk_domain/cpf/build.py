@@ -113,6 +113,29 @@ def _with_expression(subjects: Sequence[SubjectSpec], molecules: Sequence[str]) 
     return out, placed, missing
 
 
+def individual_parameters(cpf: CPF) -> dict[str, ParameterRecord]:
+    """CPF records bound to the Individual building block, keyed by their full PK-Sim path (``indiv.*`` ids).
+
+    These are physiology values a model changed from the database default — e.g. the published Dapagliflozin
+    model's ``Organism|Liver|EHC continuous fraction`` — and apply to every subject the CPF is simulated in."""
+    out: dict[str, ParameterRecord] = {}
+    for record in cpf.parameters:
+        eb = record.engine_binding
+        if record.status is ParameterStatus.MISSING or eb is None or eb.building_block != "Individual":
+            continue
+        out[eb.parameter] = record
+    return out
+
+
+def _with_individual_parameters(subjects: Sequence[SubjectSpec], cpf: CPF) -> tuple[list[SubjectSpec], list[str]]:
+    records = individual_parameters(cpf)
+    if not records:
+        return list(subjects), []
+    overrides = {path: _measured(record) for path, record in records.items()}
+    out = [s.model_copy(update={"parameters": {**s.parameters, **overrides}}) for s in subjects]
+    return out, [r.id for r in records.values()]
+
+
 # CPF id prefixes that must reach the engine as a process; anything here that the builder does not place
 # changes the model's behaviour (e.g. a missing clearance), so it is reported rather than dropped quietly.
 _PROCESS_FAMILIES = ("elim.", "transp.")
@@ -327,6 +350,8 @@ def build_from_cpf(
     compound, used, unresolved = _compound_from_cpf(cpf)
     # Each process's protein must be expressed in the individual, or the process eliminates nothing.
     subjects, expressed, missing = _with_expression(subjects, process_molecules(cpf))
+    subjects, individual_used = _with_individual_parameters(subjects, cpf)
+    used = [*used, *individual_used]
 
     builder = SnapshotBuilder(snapshot_version) if snapshot_version is not None else SnapshotBuilder()
     builder.add_compound(compound)

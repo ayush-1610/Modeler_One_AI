@@ -114,6 +114,10 @@ class StudyUpload(BaseModel):
     formulation: str = "solution"
     formulation_name: str | None = None  # a tablet/capsule study: the CPF formulation it used (form.{name}.*)
     food_state: str = "fasted"
+    # Who was studied: a patient or special population (e.g. renal impairment) is classified SPECIAL by the split
+    # (MS-01 §3.2) and never fits the healthy-volunteer model; without these it would be taken as healthy.
+    population_type: str = "healthy"
+    special_population: str | None = None
     n_timepoints: int = Field(default=10, gt=0)
     lloq: float | None = None
     profile: ObservedProfile

@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-09-24 (HEAD 0854342 + change docs).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-09-24 (HEAD 62bceff + Phase 4 importer).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -23,8 +23,10 @@ built and tested in code but not deployed.
 generate and sign the analysis plan (MAP) → run a campaign → watch it live → decide escalations in the review inbox
 (signed).
 
-**The honest limit:** the pipeline only really runs **S0 → S1 (S2 for an oral solution)**. S3–S7 are unbuilt, stubbed
-or silently skipped — see the coverage table in §4.1. Closing that is the active plan:
+**The honest limit:** every stage S0 → S7 now runs on real PK-Sim, but only on known-truth (synthetic) data so
+far — see the coverage table in §4.1. Real clinical data is the open item: the Phase 4 reference importer turns the
+published OSP Dapagliflozin model into a CPF and 40 real clinical studies (`pbpk_domain.reference`), and every stage
+builds from it; running that campaign on the server's PK-Sim is next. Active plan:
 `docs/plans/2026-09-24-s0-s7-real-pbpk.md`.
 
 **Engine:** runs only on Linux — on macOS snapshot execution is unsupported and `loadProjectFromSnapshot` segfaults.
@@ -233,7 +235,8 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 |---|---|
 | T-01 → T-09, T-11, T-12, T-18, T-25 | Done |
 | T-03 | Done — server acceptance (a CPF reconstructed from Dapagliflozin regenerates it) folds into the Phase 4 importer |
-| T-10 | Partial — missing particle/Table formulations, Populations block, total-hepatic / biliary / tubular-secretion clearance, `MetabolizationLiverMicrosomes_MM`, `rCYP450_MM` |
+| T-10 | Partial — Weibull/Dissolved formulations and individual physiology overrides (`indiv.*`) done; missing particle/Table formulations, Populations block, total-hepatic / biliary / tubular-secretion clearance, `MetabolizationLiverMicrosomes_MM`, `rCYP450_MM` |
+| Phase 4 importer | Built — Dapagliflozin imports complete (28 CPF records, 40 real studies, every stage builds); Rifampicin/Midazolam/Itraconazole gaps named in `CHANGELOG.md`. Engine proof pending |
 | T-13 | Done (Temporal) + single-node `LocalExecutor` |
 | T-14 | Done — ruleset **UNVERIFIED** pending SME sign-off (T-30) |
 | T-15, T-17, T-20 | Done — agent `RunStore` still file-backed |

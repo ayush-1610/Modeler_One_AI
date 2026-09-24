@@ -513,6 +513,9 @@ class SubjectSpec(Spec):
     seed: int = Field(ge=0, le=2**31 - 1)
     expression: list[ExpressionSpec] = Field(default_factory=list)
     calculation_methods: tuple[str, ...] = DEFAULT_INDIVIDUAL_CALCULATION_METHODS
+    # Physiology overrides addressed by full path (e.g. "Organism|Liver|EHC continuous fraction"), as the OSP
+    # reference individuals carry them in `Individuals[].Parameters`; paths are copied from a reference, never made up.
+    parameters: dict[str, Measured] = Field(default_factory=dict)
 
     def to_individual(self) -> Individual:
         fields: dict = {
@@ -526,6 +529,8 @@ class SubjectSpec(Spec):
                 age=Quantity(value=self.age_years, unit="year(s)"),
             ),
         }
+        if self.parameters:
+            fields["parameters"] = [m.to_parameter(path=path) for path, m in self.parameters.items()]
         if self.expression:
             fields["expression_profiles"] = [e.reference for e in self.expression]
         return Individual(**fields)

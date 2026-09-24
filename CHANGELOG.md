@@ -15,6 +15,39 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the reference importer: a published OSP model becomes a CPF and its real clinical studies (Phase 4)
+- **`pbpk_domain.reference.import_osp_snapshot`** turns a published single-compound OSP model snapshot into a CPF
+  plus its plasma studies in the API's upload shape. The data are real: they are the OSP model's own clinical
+  datasets. Values, units and provenance are copied from the snapshot (a value the published model identified stays
+  `FITTED`, a literature value `FIXED`); no fit policy is invented. A study's route, dose, formulation, food state
+  and regimen come from the dataset's metadata. Where a dataset leaves one open, the published simulation that runs
+  it fills the gap, and the study's reference says so. Display units of the same dimension (e.g. fu in %, solubility
+  in mg/l, a transporter concentration in µmol/l) are converted to the unit the builder requires. Any other unit
+  pair raises an error.
+- **Dapagliflozin imports complete and S0-ready**: 28 CPF records (3 UGT/CYP clearances, GFR, physchem, both
+  permeabilities, the Weibull tablet, 7 individual physiology values) and 40 plasma studies from 13 publications
+  (IV microdose, solution, capsules, tablet, fed, multiple dose, renal impairment). The MS-01 split assigns the IV
+  microdose to S1, solution / Dissolved-capsule studies to S2, the fed tablet to S3, and 32 external studies to S5.
+  The four T2DM / renal-impairment arms are SPECIAL and never fitted. Every stage's snapshot builds, and it carries
+  the published process values and individual physiology exactly (asserted in the tests). The 15 datasets not
+  imported (urine/feces fractions → T-11, metabolites) are each named with the reason. **Not yet proven on PK-Sim**:
+  the 1e-6 round trip against OSP's own outputs and the full campaign need the engine host.
+- **Gaps the other reference models expose (named, not fixed):** Rifampicin's DDI targets (CYP2C8, CYP2C9, BCRP,
+  OATP1B3, OATP2B1, CYP1A2, CYP2E1) have no harvested expression profile, so S0 refuses it; its capsules are
+  described in free text; 33 of its IV datasets link to no simulation that gives an infusion time. Midazolam needs
+  `MetabolizationLiverMicrosomes_MM` and `SpecificBinding` placement and per-kg doses. The Itraconazole snapshot holds
+  4 compounds.
+- **The CPF can carry an individual's changed physiology** (`indiv.<PK-Sim path>` records bound to the Individual
+  building block). Every subject the CPF is simulated in gets them as path-addressed `Individuals[].Parameters`,
+  the structure the OSP reference snapshots use. The published Dapagliflozin model sets the gallbladder's EHC
+  continuous fraction to 1 and fits the colon's effective surface-area factors. Without these the regenerated
+  model would not be the published one.
+
+### Fixed — the study upload dropped who was studied
+- **`POST /projects/{id}/studies` silently discarded `population_type` and `special_population`**, although the MAP's
+  split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
+  healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
+
 ### Docs
 - **Added `CHANGELOG.md` (this file) and `CLAUDE.md`.** There was no change log and the continuation doc was 50
   commits out of date; project context lived only in commit messages and a private assistant memory, so it was lost
@@ -328,3 +361,4 @@ record it here so a reader knows which context produced which work.
 | 2026-09-16 → 20 | Claude Opus 4.8 | Planning (MS-01, engineering plan), T-01 → T-32 core, web app, single-node execution, create-project flow |
 | 2026-09-23 → 24 | Claude Opus 5 | Real example, calibration, review decisions, server scripts, autostart, case studies, redesign |
 | 2026-09-24 → | Claude Opus 5.5 | Diagnosis of the S1 stop; S0 → S7 plan and execution; this change log |
+| 2026-09-24 (cloud session) | Claude Opus 5.5 | Phase 4 reference importer (Dapagliflozin real data), wizard templates, e2e flow. No PK-Sim in this container (CRAN / r-universe blocked): engine proof stays on the server |
