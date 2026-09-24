@@ -15,6 +15,16 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — model systems, phase 1 step 4 (engine): every selected output in the result bundle
+- `run_job.R` keeps each peripheral-venous output a simulation selects (every compound's plasma, the sum observers)
+  under `profiles[<sim>].outputs[<path>]` with its own unit (a mass-sum observer reports mass concentration); the
+  first compound's plasma stays the top-level curve, so existing readers are unchanged. Columns are matched exactly
+  (`<path> [<unit>]`); a selected output without a column is a warning in the engine log. The engine image must be
+  rebuilt (CI builds it per job).
+- Still to do for campaigns on a system: store the `ModelSystem` with the project (API), carry the analyte's output
+  path in the MAP scenario, and evaluate each study on its analyte's curve (report only for non-parent analytes, owner
+  decision 3).
+
 ### Added — model systems, phase 1 step 3: building and round-tripping systems
 - Builder: a simulation holds several compounds (`SimulationSpec.co_compounds`, each dosed by its own protocol or only
   formed); a process forming a metabolite carries `Metabolite` and is selected with `MetaboliteName`; published
