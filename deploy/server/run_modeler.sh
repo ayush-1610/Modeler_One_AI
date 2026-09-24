@@ -22,11 +22,8 @@ fi
 # A human start clears the flag; the stack is expected up from now on.
 rm -f "$STOPPED_FLAG"
 
-# Seed the read models on first run so the UI has the example project to open.
-if [ ! -e "$MODELER_READ_ROOT/dev/projects.json" ] && [ -d "$REPO/deploy/dev/read-root/dev" ]; then
-  cp -r "$REPO/deploy/dev/read-root/dev" "$MODELER_READ_ROOT/"
-  echo "seeded read models from deploy/dev/read-root"
-fi
+# No demo project is seeded: a user starts every project from the wizard (a published model's real data, or the
+# clearly labelled illustrative quick check), so nothing in the tool is pre-made and unexplained.
 
 cd "$REPO"
 

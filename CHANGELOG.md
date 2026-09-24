@@ -43,6 +43,43 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   continuous fraction to 1 and fits the colon's effective surface-area factors. Without these the regenerated
   model would not be the published one.
 
+### Fixed — "create a new project" failed where the user could not see why, and showed made-up data
+Found by driving the wizard end to end in a browser (new Playwright flows, below).
+- **The wizard's own starting CPF could not start a campaign.** The pre-filled Aciclovir set had
+  `elim.renal.gfr_fraction` with no engine binding. Since S0 began refusing unplaceable clearance parameters, it
+  was refused at S0. Fixed: the template carries the GFR binding (tested).
+- **Errors vanished.** The web client parsed every answer as a success envelope. A FastAPI refusal (`{"detail": …}`,
+  e.g. 422) had neither `data` nor `errors`, so the wizard did nothing and said nothing. A proxy failure was reported
+  as "Could not reach the API" with no status. Every write now reports the API's own reason (validation errors
+  field by field), or the HTTP status with a hint when the web server cannot reach the API. MAP-signature and
+  campaign-start refusals carry their reason too. The Run button checked `if (!signed)` on what is now a result
+  object; corrected.
+- **"Showing sample data — the API is not reachable" was wrong and hid the real state.** Any failed read (including
+  a 404 for a campaign whose monitor record had not been written yet, right after Start) made the page show a
+  hard-coded sample campaign/project with that banner. Pages now show the actual problem (unreachable with its
+  cause, the API's error, or "not recorded yet — this page checks again"), never sample data. The sample data are
+  deleted (`lib/fixtures.ts` → `lib/types.ts`, types only).
+- **No pre-made demo project.** The sidebar's hard-coded "Example project: Aciclovir FIH" links and the server's
+  first-run seeding of that project (`deploy/server/run_modeler.sh`, `deploy/dev/read-root/`) are removed. Every
+  project is created in the wizard.
+
+### Added — project templates from the API, and a monitor that says what produced the numbers
+- **`GET /api/v1/templates`, `GET /api/v1/templates/{id}`** serve the wizard's starting points. The first is the
+  published **Dapagliflozin OSP model with its real clinical data** (imported live from the reference snapshot;
+  `MODELER_REFERENCE_MODELS_DIR` overrides the location). The second is the Aciclovir illustrative quick check,
+  labelled "not clinical data". The wizard gains a step 0 "Start from", shows the CPF and the studies as tables (JSON
+  still editable), lists the source datasets not used and why, and lets the modeler set the M15 model risk.
+- **Every campaign records its engine** (`engine`: PK-Sim / software fixture / injected, from
+  `MODELER_ENGINE_COMMAND`). A campaign run on `stub_engine.py` or `analytical_engine.py` carries a red "Not a PBPK
+  result" banner on the monitor, so a software-fixture run cannot be mistaken for model evidence (CLAUDE.md rule).
+- **Playwright acceptance flows** (`apps/web/e2e`, `npm --prefix apps/web run e2e`). The config starts its own API
+  and web server on a fresh data directory. On the stub engine by default the flows prove the software path only:
+  wizard from the published model → CPF → 40 studies → MAP (S0 → S7) → signature → campaign → monitor. The same
+  flow runs on PK-Sim with `E2E_ENGINE_COMMAND`. Three more flows: the API not answering, the API refusing a step,
+  and an unknown campaign. On the stub engine the Dapagliflozin campaign passes S0 and escalates at S1 (the
+  synthetic curve is 13 000-fold off), which is the gate working. No fit is tried because the imported published
+  CPF has no fit policies.
+
 ### Fixed — the study upload dropped who was studied
 - **`POST /projects/{id}/studies` silently discarded `population_type` and `special_population`**, although the MAP's
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the

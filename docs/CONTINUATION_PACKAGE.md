@@ -227,7 +227,7 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 | Object store | `file://` — used. MinIO presigned I/O — not built |
 | Engine | Real PK-Sim on the server, and on the Mac through Docker (`deploy/dev/docker_engine.sh`, image from `services/engine-worker/Dockerfile`; set `MODELER_ENGINE_COMMAND="bash <repo>/deploy/dev/docker_engine.sh"`). `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
 | Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog, installed 2026-09-24) / Tailscale (installed userspace, awaiting the owner's login). Redeploy from the Mac: `bash deploy/dev/deploy_to_server.sh` |
-| Web | Dark design system, project wizard, data intake, campaign monitor with fold-error gauge, review inbox. Playwright acceptance flows not written |
+| Web | Dark design system, project wizard (starting points from `GET /templates`: the published Dapagliflozin model with real data, or the labelled illustrative quick check), data intake, campaign monitor with fold-error gauge and engine label (red banner for a software-fixture run), review inbox. No sample-data fallback: pages state the real problem. Playwright flows in `apps/web/e2e` (4, pass on the stub engine; the PK-Sim run of the same flow is pending) |
 
 ### 4.3 Task status (specs in §2)
 
@@ -242,7 +242,7 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 | T-15, T-17, T-20 | Done — agent `RunStore` still file-backed |
 | T-16 | Done — but the MAP never schedules S4/S5 work (R1) |
 | T-23, T-24, T-32 | Done as libraries — not wired into campaigns (R9) |
-| T-26 / T-27 / T-28 | Built — Playwright acceptance missing |
+| T-26 / T-27 / T-28 | Built — Playwright create-project flow + failure-mode flows written and passing (stub engine); intake / review-inbox decision flows not yet |
 | T-19, T-21, T-22, T-29 | Not started |
 | T-30 | Human (SME / QA sign-off) — pending |
 | T-31 | Not started — next phase after S0 → S7 |
@@ -253,6 +253,8 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 make sync && make test && make lint          # Python: uv workspace, pytest, ruff
 npm --prefix apps/web run typecheck           # web
 npm --prefix apps/web run build
+npm --prefix apps/web run e2e                 # Playwright: starts its own API + web; stub engine unless
+                                              # E2E_ENGINE_COMMAND="Rscript $PWD/services/engine-worker/r/run_job.R"
 ```
 
 On the server (one URL, `http://<server>:3000`): `deploy/server/run_modeler.sh`, `stop_modeler.sh`,

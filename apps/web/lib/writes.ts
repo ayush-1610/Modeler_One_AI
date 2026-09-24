@@ -7,13 +7,47 @@ import type { Envelope } from "@/lib/api";
 // one URL and no CORS. The dev bearer is accepted by dev auth; in production the user's OIDC token is used.
 export const WEB_TOKEN = process.env.NEXT_PUBLIC_DEMO_TOKEN ?? "dev";
 
-async function authed<T>(path: string, method: "POST" | "PUT", body: unknown): Promise<Envelope<T>> {
-  const res = await fetch(path, {
-    method,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${WEB_TOKEN}` },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
+/** Turn any non-success answer into a readable message: the API's own `detail` when it sent one, else the HTTP
+ *  status, with a hint when the web server's proxy could not reach the API at all. */
+async function failure(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  try {
+    const body = JSON.parse(text) as { detail?: unknown; errors?: { message: string }[] };
+    if (body.errors?.length) return body.errors[0].message;
+    if (typeof body.detail === "string") return body.detail;
+    if (Array.isArray(body.detail)) {
+      // FastAPI validation errors: [{loc: [...], msg}] -> "studies.0.dose_mg: field required"
+      return body.detail
+        .map((d: { loc?: unknown[]; msg?: string }) => `${(d.loc ?? []).slice(1).join(".")}: ${d.msg ?? "invalid"}`)
+        .join("; ");
+    }
+  } catch {
+    // not JSON: the proxy's own error page
+  }
+  if (res.status >= 500) {
+    return `The API did not answer (HTTP ${res.status}). Is the backend running, and does the web server's ` +
+      "MODELER_API_BASE point at it?";
+  }
+  return `HTTP ${res.status} ${res.statusText}`.trim();
+}
+
+function errorEnvelope<T>(message: string): Envelope<T> {
+  return { data: null, meta: { request_id: "", timestamp: "", api_version: "" }, errors: [{ code: "HTTP", message }] };
+}
+
+async function authed<T>(path: string, method: "GET" | "POST" | "PUT", body?: unknown): Promise<Envelope<T>> {
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${WEB_TOKEN}` },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch {
+    return errorEnvelope("The web server could not be reached. Check your connection to it.");
+  }
+  if (!res.ok) return errorEnvelope(await failure(res));
   return (await res.json()) as Envelope<T>;
 }
 
@@ -52,22 +86,31 @@ export function prepareCampaign(
 }
 
 // The signatures and campaign-start endpoints return a raw object (not the envelope), so read them directly.
-async function rawPost<T>(path: string, body: unknown): Promise<{ ok: boolean; body: T }> {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${WEB_TOKEN}` },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  return { ok: res.ok, body: (await res.json()) as T };
+async function rawPost<T>(path: string, body: unknown): Promise<{ ok: boolean; body: T; error?: string }> {
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${WEB_TOKEN}` },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, body: {} as T, error: "The web server could not be reached. Check your connection to it." };
+  }
+  if (!res.ok) return { ok: false, body: {} as T, error: await failure(res) };
+  return { ok: true, body: (await res.json()) as T };
 }
 
-/** Sign the MAP (Part 11). Returns whether the signature was accepted (loa2 step-up satisfied). */
-export async function signMap(projectId: string, body: { record_id: string; record_sha256: string }): Promise<boolean> {
-  const { ok } = await rawPost(`/api/v1/projects/${projectId}/signatures`, {
+/** Sign the MAP (Part 11). Returns whether the signature was accepted (loa2 step-up satisfied), and why not. */
+export async function signMap(
+  projectId: string,
+  body: { record_id: string; record_sha256: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const { ok, error } = await rawPost(`/api/v1/projects/${projectId}/signatures`, {
     meaning: "Approved", record_type: "map_approval", record_id: body.record_id, record_sha256: body.record_sha256,
   });
-  return ok;
+  return { ok, error };
 }
 
 export async function startCampaign(
@@ -83,10 +126,10 @@ export async function startCampaign(
     model_risk?: string;
     stages?: string[];
   },
-): Promise<{ campaign_id?: string; status?: string }> {
-  const { body: data } = await rawPost<{ campaign_id?: string; status?: string }>(
+): Promise<{ campaign_id?: string; status?: string; error?: string }> {
+  const { body: data, error } = await rawPost<{ campaign_id?: string; status?: string }>(
     `/api/v1/projects/${projectId}/campaigns`, body);
-  return data;
+  return { ...data, error };
 }
 
 /** Resolve an escalated stage from the review inbox (retry / accept_best / abort). Every decision is an
@@ -96,7 +139,49 @@ export async function resolveEscalation(
   stage: string,
   body: { action: "retry" | "accept_best" | "abort" | "approve"; note?: string },
 ): Promise<{ ok: boolean; status?: string; detail?: string; signature?: { manifestation: string } }> {
-  const { ok, body: data } = await rawPost<{ status?: string; detail?: string; signature?: { manifestation: string } }>(
+  const { ok, body: data, error } = await rawPost<{ status?: string; detail?: string; signature?: { manifestation: string } }>(
     `/api/v1/campaigns/${campaignId}/stages/${stage}/escalation:resolve`, body);
-  return { ok, ...data };
+  return { ok, ...data, detail: data.detail ?? error };
+}
+
+// --- project starting points (GET /templates) ----------------------------------------------------------------
+
+export type TemplateSummary = {
+  id: string;
+  name: string;
+  compound: string;
+  question: string;
+  model_risk: string;
+  real_data: boolean;
+  description: string;
+};
+
+export type StudyRow = {
+  study_id: string;
+  reference?: string;
+  route: string;
+  dose_mg: number;
+  formulation?: string;
+  formulation_name?: string;
+  food_state?: string;
+  design?: string;
+  n?: number;
+  special_population?: string | null;
+  profile: { times: number[]; values: number[]; time_unit: string; unit: string };
+};
+
+export type TemplateContent = TemplateSummary & {
+  cpf: { compound: string; parameters: { id: string; value: unknown; unit?: string | null; status: string }[] };
+  studies: StudyRow[];
+  skipped: string[];
+  notes: string[];
+  source: string;
+};
+
+export function listTemplates() {
+  return authed<{ templates: TemplateSummary[] }>("/api/v1/templates", "GET");
+}
+
+export function getTemplate(id: string) {
+  return authed<TemplateContent>(`/api/v1/templates/${id}`, "GET");
 }

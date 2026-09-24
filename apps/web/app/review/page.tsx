@@ -1,21 +1,19 @@
-import { Card } from "@/components/ui";
+import { ApiProblem, Card } from "@/components/ui";
 import { EscalationDecision } from "@/components/EscalationDecision";
-import { ESCALATIONS, PROPOSALS } from "@/lib/fixtures";
 import { getEscalations, getProposals } from "@/lib/reads";
 
 export default async function ReviewInbox() {
-  const liveProposals = await getProposals();
-  const liveEscalations = await getEscalations();
-  const offline = liveProposals === null && liveEscalations === null;
-  const proposals = liveProposals ?? PROPOSALS;
-  const escalations = liveEscalations ?? ESCALATIONS;
+  const [liveProposals, liveEscalations] = await Promise.all([getProposals(), getEscalations()]);
+  const problem = liveEscalations.problem ?? liveProposals.problem;
+  const proposals = liveProposals.data ?? [];
+  const escalations = liveEscalations.data ?? [];
 
   return (
     <main>
       <h1>Review inbox</h1>
       <p className="muted">Curator and reviewer actions: agent parameter proposals awaiting acceptance, and campaign
         escalations that resume only through a signed decision.</p>
-      {offline && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
+      {problem && <ApiProblem problem={problem} />}
 
       <Card
         title="Parameter proposals"

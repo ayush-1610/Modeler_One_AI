@@ -118,6 +118,28 @@ def default_engine() -> EngineRun:
     return runner.run
 
 
+# Engine commands that are software fixtures, not PK-Sim (CLAUDE.md: their numbers are never simulation results).
+_FIXTURE_ENGINES = ("stub_engine.py", "analytical_engine.py")
+_PKSIM_ENGINES = ("run_job.R", "docker_engine.sh")
+
+
+def engine_identity(engine: EngineRun | None = None) -> dict:
+    """What a campaign's numbers come from, for the monitor: real PK-Sim, a software fixture, or an injected engine.
+
+    Shown on every campaign so a run on the stub can never be read as a PBPK result."""
+    if engine is not None:
+        return {"kind": "injected", "command": getattr(engine, "__name__", type(engine).__name__)}
+    command = os.environ.get("MODELER_ENGINE_COMMAND", "Rscript run_job.R")
+    words = [os.path.basename(w) for w in shlex.split(command)]
+    if any(w in _FIXTURE_ENGINES for w in words):
+        kind = "software-fixture"
+    elif any(w in _PKSIM_ENGINES for w in words):
+        kind = "pksim"
+    else:
+        kind = "unknown"
+    return {"kind": kind, "command": " ".join(words)}
+
+
 def fit_workers(fit_request, n_jobs: int) -> int:
     """How many fit starts run at once: the planner's parallelism (cores ÷ simulations per start), never more than
     this machine's CPUs, overridable with MODELER_FIT_WORKERS (e.g. to spare memory on a laptop's Docker engine)."""
@@ -193,6 +215,7 @@ class CampaignArtifactWriter:
     resume: dict | None = None  # how to continue this campaign after a human decision (set on escalation)
     prediction: dict | None = None  # the S6 result (sensitivity ranking, prediction intervals)
     package: dict | None = None     # the S7 record (reproduction verdict, report files, exportable package)
+    engine: dict | None = None      # what produced the numbers (`engine_identity`): PK-Sim or a software fixture
     _started: float = field(default_factory=time.monotonic)
     _rounds: dict[str, list[dict]] = field(default_factory=dict)
     _status: dict[str, str] = field(default_factory=dict)
@@ -222,6 +245,7 @@ class CampaignArtifactWriter:
         writer._gof = list(campaign.get("gof", []))
         writer._gof_by_stage = {k: list(v) for k, v in (campaign.get("gofByStage") or {}).items()}
         writer.prediction = campaign.get("prediction")
+        writer.engine = campaign.get("engine")
         writer.package = campaign.get("package")
         writer._started = time.monotonic() - float(campaign.get("elapsedSeconds", 0))
         return writer
@@ -277,6 +301,7 @@ class CampaignArtifactWriter:
             "gofByStage": self._gof_by_stage,
             "prediction": self.prediction,
             "package": self.package,
+            "engine": self.engine,
             "resume": self.resume,
         })
 
@@ -682,7 +707,7 @@ def run_campaign(
     writer = CampaignArtifactWriter(
         store=FileWriteStore(read_root), tenant_id=request.tenant_id, campaign_id=request.campaign_id,
         project=project, compound=request.compound, question=question, model_risk=model_risk,
-        budget_seconds=total_budget, stages=list(request.stages),
+        budget_seconds=total_budget, stages=list(request.stages), engine=engine_identity(engine),
     )
     writer.flush(current_stage=request.stages[0], status="RUNNING")
     return LocalExecutor(engine=engine or default_engine(), writer=writer).run(request)

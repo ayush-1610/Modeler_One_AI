@@ -21,3 +21,7 @@ benchmark_result.json
 
 # Generated validation evidence (CI produces these; T-25)
 reports/
+
+# Playwright
+apps/web/test-results/
+apps/web/playwright-report/

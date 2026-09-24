@@ -1,9 +1,8 @@
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { FoldError } from "@/components/FoldError";
 import { PackageDownloads } from "@/components/PackageDownloads";
-import { Card, RiskChip, StatusChip } from "@/components/ui";
+import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
-import { CAMPAIGN, GOF } from "@/lib/fixtures";
 import { getCampaign } from "@/lib/reads";
 
 function mmss(s: number) {
@@ -14,14 +13,31 @@ function mmss(s: number) {
 export default async function CampaignPage({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await params;
   const live = await getCampaign(campaignId);
-  const c = live ?? CAMPAIGN;
-  const gof = live?.gof ?? GOF;
+  const c = live.data;
+  if (!c) {
+    // Never a sample campaign in its place: say what is actually the case, and keep checking.
+    return (
+      <main>
+        <h1>Campaign <code>{campaignId}</code></h1>
+        {live.notFound ? (
+          <div className="banner warn" data-testid="campaign-pending">
+            This campaign is not recorded yet. A campaign you have just started appears within a few seconds;
+            this page checks again on its own. If it never appears, the API log says why it did not start.
+          </div>
+        ) : (
+          <ApiProblem problem={live.problem ?? "The campaign could not be read."} />
+        )}
+        <AutoRefresh active />
+      </main>
+    );
+  }
+  const gof = c.gof ?? [];
   const budgetPct = Math.min(100, Math.round((c.elapsedSeconds / c.budgetSeconds) * 100));
   // ICH M15 acceptance tiers: the stricter the model risk, the tighter the fold limit the model must meet.
   const foldLimit = c.modelRisk === "high" ? 1.25 : c.modelRisk === "low" ? 2 : 1.5;
   const rows = c.stages.flatMap((s) => s.rounds.map((r) => ({ stage: s.stage, ...r })));
-  const prediction = live?.prediction ?? null;
-  const pkg = live?.package ?? null;
+  const prediction = c.prediction ?? null;
+  const pkg = c.package ?? null;
   const artifacts = pkg
     ? [...(pkg.exportable ? ["package.zip"] : []),
        ...["pdf", "docx", "md"].filter((f) => pkg.report?.[f]).map((f) => `mar.${f}`)]
@@ -43,8 +59,19 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
       <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
         Campaign <code>{c.id}</code> · acceptance within {foldLimit}-fold at {c.modelRisk} model risk
       </p>
-      {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
-      <AutoRefresh active={!!live && (c.status === "RUNNING" || c.status === "QUEUED")} />
+      {c.engine && c.engine.kind !== "pksim" && (
+        <div className="banner err" data-testid="engine-warning" style={{ marginBottom: 14 }}>
+          {c.engine.kind === "software-fixture"
+            ? <>Not a PBPK result: this campaign ran on a software test fixture (<code>{c.engine.command}</code>). Its
+                curves are synthetic; it checks the software path only. Run on PK-Sim for model evidence.</>
+            : <>The engine this campaign ran on is not identified as PK-Sim (<code>{c.engine.command}</code>). Treat
+                its numbers as unverified.</>}
+        </div>
+      )}
+      {c.engine?.kind === "pksim" && (
+        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Engine: PK-Sim (<code>{c.engine.command}</code>)</p>
+      )}
+      <AutoRefresh active={c.status === "RUNNING" || c.status === "QUEUED"} />
 
       <Card title="Stage progress" action={<span className="muted">current: {c.currentStage}</span>}>
         <div className="timeline">

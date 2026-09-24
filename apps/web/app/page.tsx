@@ -1,12 +1,11 @@
 import Link from "next/link";
 
-import { Card, RiskChip } from "@/components/ui";
-import { PROJECTS } from "@/lib/fixtures";
+import { ApiProblem, Card, RiskChip } from "@/components/ui";
 import { getProjects } from "@/lib/reads";
 
 export default async function ProjectsPage() {
   const live = await getProjects();
-  const projects = live ?? PROJECTS;
+  const projects = live.data ?? [];
   return (
     <main>
       <div className="spread">
@@ -14,7 +13,10 @@ export default async function ProjectsPage() {
         <Link className="btn primary" href="/projects/new">+ New project</Link>
       </div>
       <p className="muted">PBPK modeling programs on the Open Systems Pharmacology Suite. Each project holds its compounds, questions of interest and campaigns.</p>
-      {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
+      {live.problem && <ApiProblem problem={live.problem} />}
+      {!live.problem && projects.length === 0 && (
+        <p className="muted">No projects yet. Use <strong>+ New project</strong> to start from a published model.</p>
+      )}
       <Card>
         <table>
           <thead>
