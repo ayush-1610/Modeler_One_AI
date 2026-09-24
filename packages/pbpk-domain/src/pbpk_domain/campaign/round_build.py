@@ -120,7 +120,7 @@ def _schedule(scenario: MapScenario) -> dict:
         unit = "mg/kg" if scenario.dose_per_kg else "mg"
         return {"phases": tuple(DosePhaseSpec(start_h=p.start_h, dose=Measured(value=p.dose_mg, unit=unit),
                                               repetitions=p.n_doses, interval_h=p.interval_h or 0.0,
-                                              infusion_time_min=p.infusion_time_min)
+                                              infusion_time_min=p.infusion_time_min, water_ml_per_kg=p.water_ml_per_kg)
                                 for p in scenario.dose_phases)}
     if scenario.dosing_interval_h is None:
         return {}

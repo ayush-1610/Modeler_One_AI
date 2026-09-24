@@ -556,3 +556,22 @@ def test_the_water_given_with_an_oral_dose_is_the_published_one():
              if q["Name"] == "Volume of water/body weight"}
     assert water == {2.0}
     assert "water_ml_per_kg" not in _study(import_osp_snapshot(_snapshot("Dapagliflozin")), "komoroski-2009-sad-10-mg")
+
+
+def test_a_first_dose_with_its_own_water_and_every_meal_of_the_regimen():
+    """OSP Itraconazole Barone 1993 gives 2.82 ml/kg with the first dose, 3.5 after (per application in the published
+    simulation); Hardin 1988's day-1 profile is simulated with the whole regimen and so with every breakfast (run 26:
+    day-1 studies 40-50 % off over the simulated span, day 15 identical)."""
+    from pbpk_domain.reference.roundtrip import system_roundtrip_inputs as system_inputs
+
+    itraconazole = import_osp_system(_snapshot("Itraconazole"))
+    barone = _study(itraconazole, "barone-1993-day-15-fed")
+    assert [p.get("water_ml_per_kg") for p in barone["dose_phases"]] == [2.82, 3.5, 3.5]
+    assert "water_ml_per_kg" not in barone
+    assert len(_study(itraconazole, "hardin-1988-a-100-mg-od-day-1")["meals"]) == \
+        len(_study(itraconazole, "hardin-1988-a-100-mg-od-day-7-15")["meals"]) == 14
+    ours, _pairs, _notes = system_inputs(itraconazole)
+    sim = next(s for s in ours["Simulations"] if s["Name"] == "barone-1993-day-15-fed")
+    protocol = next(p for p in ours["Protocols"] if p["Name"] == next(c for c in sim["Compounds"] if c.get("Protocol"))["Protocol"]["Name"])
+    assert [next(q["Value"] for q in sc["SchemaItems"][0]["Parameters"] if q["Name"] == "Volume of water/body weight")
+            for sc in protocol["Schemas"]] == [2.82, 3.5, 3.5]

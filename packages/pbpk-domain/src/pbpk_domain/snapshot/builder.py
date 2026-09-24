@@ -766,6 +766,9 @@ class DosePhaseSpec(Spec):
     # an IV phase infused over its own time (OSP Alprazolam Kroboth 1988: 1 mg over 2 min, then 0.576 mg over 8 h);
     # None: the protocol's
     infusion_time_min: float | None = Field(default=None, gt=0)
+    # an oral phase's own "Volume of water/body weight" (OSP Itraconazole: 2.82 ml/kg with the first dose, 3.5 after);
+    # None: the protocol's
+    water_ml_per_kg: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def _interval(self):
@@ -825,7 +828,9 @@ class _MultipleDoseMixin(Spec):
             for i, phase in enumerate(self.phases):
                 parameters = [phase.dose.to_parameter(name="InputDose") if q.name == "InputDose"
                               else Parameter(name="Infusion time", value=phase.infusion_time_min, unit="min")
-                              if q.name == "Infusion time" and phase.infusion_time_min is not None else q
+                              if q.name == "Infusion time" and phase.infusion_time_min is not None
+                              else Parameter(name=q.name, value=phase.water_ml_per_kg, unit="ml/kg")
+                              if q.name == "Volume of water/body weight" and phase.water_ml_per_kg is not None else q
                               for q in item_parameters]
                 item = SchemaItem(name="Schema Item 1", application_type=application_type, formulation_key=formulation_key,
                                   parameters=[Parameter(name="Start time", value=0.0, unit="h"), *parameters])

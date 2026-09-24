@@ -135,6 +135,7 @@ class DosePhase(BaseModel):
     n_doses: int = Field(default=1, gt=0)
     interval_h: float | None = Field(default=None, gt=0)
     infusion_time_min: float | None = Field(default=None, gt=0)  # an IV phase's own infusion time; None: the study's
+    water_ml_per_kg: float | None = Field(default=None, ge=0)  # an oral phase's own water with each dose; None: the study's
 
     @model_validator(mode="after")
     def _interval(self) -> DosePhase:

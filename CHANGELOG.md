@@ -15,6 +15,15 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — water per dose; every meal of the simulated regimen (found by run 26)
+- The published simulations set the water per application: OSP Itraconazole Barone 1993 gives 2.82 ml/kg with the
+  first dose and 3.5 after. The water is read per dose (for a product given as several bins, from each dose's first
+  application); one volume for all doses stays `water_ml_per_kg`, a different first dose becomes a regimen phase
+  (`DosePhase.water_ml_per_kg`, written on that phase's schema item).
+- A day-1 profile of a multiple-dose study is simulated with the whole regimen but kept only the meals of its
+  sampled window: OSP Itraconazole Hardin 1988 day 1 had one breakfast of 14. Every meal within the simulated regimen
+  is now given. Run 26: the day-1 studies were 40–50 % off over the simulated span, their day-15 twins identical.
+
 ### Fixed — the water given with an oral dose is the published one (found by run 26)
 - Every oral protocol was built with PK-Sim's default "Volume of water/body weight" (3.5 ml/kg). The OSP models set
   others: Verapamil 2 ml/kg, Itraconazole 1.37 and 2.82, Dabigatran 2, Ketoconazole 0. The importer reads the

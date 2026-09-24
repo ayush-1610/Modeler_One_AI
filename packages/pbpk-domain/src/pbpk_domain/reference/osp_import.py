@@ -848,12 +848,14 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
         # the water drunk with an oral dose: the simulation's own value, else its protocol's (OSP Verapamil Maeda 2011:
         # 2 ml/kg; Itraconazole: 1.37 and 2.82 ml/kg; the PK-Sim default is 3.5)
         protocol_doc = protocols.get(protocol_ref.get("Name"), {})
-        water = next((p for p in sim.get("Parameters", []) or []
-                      if str(p.get("Path", "")).endswith("|Application_1|ProtocolSchemaItem|Volume of water/body weight")),
-                     None) or next((q for q in [*protocol_doc.get("Parameters", []),
-                                                *[q for sc in protocol_doc.get("Schemas", []) or []
-                                                  for item in sc.get("SchemaItems", [])[:1] for q in item.get("Parameters", [])]]
-                                    if q.get("Name") == "Volume of water/body weight"), None)
+        water = next((q for q in [*protocol_doc.get("Parameters", []),
+                                  *[q for sc in protocol_doc.get("Schemas", []) or []
+                                    for item in sc.get("SchemaItems", [])[:1] for q in item.get("Parameters", [])]]
+                      if q.get("Name") == "Volume of water/body weight"), None)
+        # the simulation's own value per application (Application_<k>), where it sets one
+        by_application = {int(m.group(1)): float(p["Value"]) for p in sim.get("Parameters", []) or []
+                          if (m := re.search(r"\|Application_(\d+)\|ProtocolSchemaItem\|Volume of water/body weight$",
+                                             str(p.get("Path", "")))) and p.get("Unit") == "ml/kg"}
         link = {
             "demographics": _demographics(individual.get("OriginData", {})),
             "published_individual": (_published_individual(snapshot, individual)
@@ -870,6 +872,9 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
                             key=lambda m: m[0]),
             "infusion_min": infusion,
             "water_ml_per_kg": float(water["Value"]) if water and water.get("Unit") == "ml/kg" else None,
+            "water_by_application": by_application,
+            # applications per dose: a product given as several bins (OSP Ketoconazole) numbers each bin
+            "items_per_dose": max([1, *[len(sc.get("SchemaItems") or []) for sc in protocol_doc.get("Schemas") or []][:1]]),
             # the process selections each compound has in this simulation
             "selections": {c["Name"]: {q["Name"] for q in c.get("Processes", []) or [] if q.get("Name")}
                            for c in sim.get("Compounds", [])},
@@ -1078,6 +1083,41 @@ def _own_sim_values(snapshot: dict[str, Any], simulation: str, cpf: CPF, route: 
         return None
     return (f"the published simulation sets {len(own)} {cpf.compound} value(s) of its own the model does not carry "
             f"(e.g. {own[0]!r})")
+
+
+def _water(row: dict[str, Any], link: dict[str, Any], said: list[str]) -> None:
+    """The water given with each oral dose, as the published simulation gives it (its value per application, else its
+    protocol's): one volume for every dose (``water_ml_per_kg``, left out at PK-Sim's 3.5 ml/kg default), or, when
+    the first dose's differs (OSP Itraconazole: 2.82 ml/kg with the first dose, 3.5 after), per regimen phase."""
+    base = link.get("water_ml_per_kg")
+    by_app = link.get("water_by_application") or {}
+    n = _administrations(row)
+    step = link.get("items_per_dose") or 1  # the first application of each dose carries its water
+    waters = [by_app.get(1 + k * step, base) for k in range(n)]
+    if not waters or waters[0] is None:
+        return
+    if len(set(waters)) == 1:
+        if waters[0] != _DEFAULT_WATER_ML_PER_KG:
+            row["water_ml_per_kg"] = waters[0]
+            said.append(f"{waters[0]:g} ml/kg of water with each dose, as the published simulation gives it")
+        return
+    if row.get("dose_phases"):  # each phase takes the water of its first dose
+        k = 0
+        for phase in row["dose_phases"]:
+            phase["water_ml_per_kg"] = waters[k]
+            k += phase["n_doses"]
+    elif row.get("dosing_interval_h") and row.get("n_doses", 1) > 1 and len(set(waters[1:])) == 1:
+        interval, count = row.pop("dosing_interval_h"), row.pop("n_doses")
+        row["dose_phases"] = [{"start_h": 0.0, "dose_mg": row["dose_mg"], "n_doses": 1, "water_ml_per_kg": waters[0]},
+                              {"start_h": interval, "dose_mg": row["dose_mg"], "n_doses": count - 1,
+                               **({"interval_h": interval} if count > 2 else {}), "water_ml_per_kg": waters[1]}]
+    else:
+        said.append(f"the published simulation gives {', '.join(f'{w:g}' for w in dict.fromkeys(waters))} ml/kg of "
+                    "water across its doses; each dose is given the first one's")
+        row["water_ml_per_kg"] = waters[0]
+        return
+    said.append(f"{waters[0]:g} ml/kg of water with the first dose, "
+                f"{', '.join(f'{w:g}' for w in dict.fromkeys(waters[1:]))} ml/kg with the others, as published")
 
 
 def _sim_solver(snapshot: dict[str, Any], simulation: str) -> dict[str, float]:
@@ -1465,7 +1505,7 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     if food == "fed" and link is not None and not link.get("fed"):
         said.append("reported fed; the published model simulates it without a meal")
     row["food_state"] = food
-    # The meals as the published simulation gives them, relative to the first dose, within the sampled window: a fed
+    # The meals as the published simulation gives them, relative to the first dose, within the simulated regimen: a fed
     # study's meal before or after the dose (Bornemann 1986), a breakfast with each daily dose and standard meals
     # (Itraconazole), a meal after a fasted dose (Bornemann: dosed 1 h before a breakfast). A fasted study whose first
     # meal is at or before its dose contradicts the report and is left without meals.
@@ -1474,7 +1514,13 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         first_dose = (_published_dose_times(link["protocol"]) or [0.0])[0]
         relative = [(round(t - first_dose, 6), doc) for t, doc in published_meals]
         sampled_h = max(float(t) for t in dataset["BaseGrid"]["Values"]) * (1 / 60.0 if dataset["BaseGrid"].get("Unit") == "min" else 1.0)
-        window = sampled_h - doses[0]
+        # every meal of the simulated regimen, not only the sampled window: a day-1 profile of a multiple-dose study
+        # (OSP Itraconazole Hardin 1988) is simulated with all its doses, and each dose has its meal
+        last_dose = max([doses[-1] - doses[0], *[p["start_h"] + (p["n_doses"] - 1) * (p.get("interval_h") or 0.0)
+                                                  for p in row.get("dose_phases") or []]])
+        interval = max([0.0, *[p.get("interval_h") or 0.0 for p in row.get("dose_phases") or []],
+                        *[b - a for a, b in pairwise(doses)]])
+        window = max(sampled_h - doses[0], last_dose + interval if last_dose else 0.0)
         if (food == "fed" or relative[0][0] > 0) and all(doc.get("Template") for _t, doc in relative):
             kept = [(t, doc) for t, doc in relative if t <= window] or relative[:1]
             row["meals"] = [{"time_h": t, "template": doc["Template"], "name": doc["Name"],
@@ -1519,10 +1565,8 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     # metabolisers) is switched off here too; the study is then a genotype study (MS-01: never fitted in S1-S3).
     inactive = {name: tuple(sorted(common - selected)) for name, selected in ((link or {}).get("selections") or {}).items()
                 if (common := (link or {}).get("common_selections", {}).get(name)) and common - selected}
-    water = (link or {}).get("water_ml_per_kg")
-    if row.get("route") == "oral" and water is not None and water != _DEFAULT_WATER_ML_PER_KG:
-        row["water_ml_per_kg"] = water
-        said.append(f"{water:g} ml/kg of water with the dose, as the published simulation gives it")
+    if row.get("route") == "oral" and link is not None:
+        _water(row, link, said)
     if inactive:
         row["inactive_processes"] = inactive
         row.setdefault("genotype", "; ".join(f"{name} without {', '.join(off)}" for name, off in inactive.items()))
