@@ -494,3 +494,16 @@ def test_a_named_perpetrator_arm_is_a_ddi_study_and_a_child_a_special_population
     assert "co_medication" not in _study(itraconazole, "kivist-1997-with-perpetrator-itraconazole")
     _ours, pairs, _notes = system_roundtrip_inputs(itraconazole)
     assert "abdel-rahman-2007-12-16y" in {p["ours"] for p in pairs}
+
+
+@pytest.mark.parametrize(("model", "formulation"), [("Clarithromycin", "Tablet Clarithromycin"), ("Voriconazole", "Weibul")])
+def test_a_tablet_not_used_as_a_suspension_keeps_its_setting(model, formulation):
+    """"Use as suspension" is 0 in these published tablets; run 24 built them with the default 1 and every oral
+    Clarithromycin curve was 1.5 % off."""
+    from pbpk_domain.cpf.formulations import cpf_formulation
+
+    imported = import_osp_snapshot(_snapshot(model))
+    assert imported.cpf.get(f"form.{formulation}.weibull.suspension").numeric_value == 0.0
+    spec = cpf_formulation(imported.cpf, formulation).to_spec()
+    assert spec.use_as_suspension is False
+    assert cpf_formulation(import_osp_snapshot(_snapshot("Dapagliflozin")).cpf, "IC tablet (Chang 2015)").to_spec().use_as_suspension

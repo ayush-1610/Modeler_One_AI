@@ -15,6 +15,13 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a tablet's "Use as suspension" setting is imported (found by run 24)
+- Weibull formulations were always built with "Use as suspension" = 1, the value in the Dapagliflozin, Midazolam and
+  Itraconazole tablets. OSP Clarithromycin's tablet, Voriconazole's and Dabigatran's capsule set 0. The value is now
+  imported (`form.{name}.weibull.suspension`) and built; it is never a fit target.
+- Run 24: every oral Clarithromycin curve was 1.2–1.6 % of the peak off (16 of 17 pairs), with every compared
+  parameter identical.
+
 ### Fixed — DDI arms and paediatric studies are no longer fitted (found by run 24)
 - A dataset named "with Perpetrator (X)" or "after Perpetrator (X)" (not placebo) is a DDI arm: `co_medication = X`
   (OSP Midazolam Greenblatt 2003 grapefruit juice, Reitman 2011 rifampicin; Digoxin Reitman 2011, Gurley 2008b

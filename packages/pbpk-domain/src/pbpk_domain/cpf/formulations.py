@@ -3,8 +3,9 @@
 A solid oral study (tablet, capsule) is simulated with the formulation it names: a Weibull release (PK-Sim
 ``Formulation_Tablet_Weibull``) or, for a rapidly dissolving product (> 85 % in 15 min, MS-01 §4 S2), ``Dissolved``.
 The Weibull values are the in-vitro dissolution fit; S3 may adjust t50 and shape in vivo within the parameter's fit
-policy ([0.5×, 2×] of the in-vitro fit). Lag time defaults to 0 min and "Use as suspension" to 1, as in every
-published OSP tablet model (Dapagliflozin, Midazolam, Itraconazole reference snapshots).
+policy ([0.5×, 2×] of the in-vitro fit). Lag time defaults to 0 min and "Use as suspension" to 1, as in the published
+Dapagliflozin, Midazolam and Itraconazole tablets; a formulation that sets it (OSP Clarithromycin's tablet: 0) keeps
+its value (``form.{name}.weibull.suspension``).
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ WEIBULL_PARAMETERS = {
     "t50": "Dissolution time (50% dissolved)",
     "shape": "Dissolution shape",
     "lag": "Lag time",
+    "suspension": "Use as suspension",  # 1: the dissolved drug is taken up as a suspension; the OSP default
 }
 
 
@@ -56,6 +58,7 @@ class CpfFormulation:
     t50_min: float | None = None
     shape: float | None = None
     lag_min: float = 0.0
+    suspension: bool = True
     thickness_mm: float | None = None
     radius_um: float | None = None
     distribution: float = 0.0
@@ -71,7 +74,7 @@ class CpfFormulation:
         if self.type == PARTICLE_BINS:
             raise FormulationError(f"{self.name!r} is a product of several bins: use to_specs()")
         return WeibullFormulationSpec(name=self.name, dissolution_time_50_min=self.t50_min, shape=self.shape,
-                                      lag_time_min=self.lag_min)
+                                      lag_time_min=self.lag_min, use_as_suspension=self.suspension)
 
     def to_specs(self) -> tuple[list, tuple[tuple[str, float], ...]]:
         """(the formulation specs the product needs, its bins as (formulation, mass fraction)); no bins for a single
@@ -128,8 +131,9 @@ def cpf_formulation(cpf: CPF, name: str) -> CpfFormulation:
     if missing:
         raise FormulationError(f"Weibull formulation {name!r} needs {', '.join(missing)} (the in-vitro dissolution fit)")
     lag = values["lag"].numeric_value if _present(values["lag"]) else 0.0
+    suspension = values["suspension"].numeric_value != 0.0 if _present(values["suspension"]) else True
     return CpfFormulation(name=name, type=kind, t50_min=values["t50"].numeric_value, shape=values["shape"].numeric_value,
-                          lag_min=lag)
+                          lag_min=lag, suspension=suspension)
 
 
 def resolve_formulation_name(cpf: CPF, requested: str | None) -> tuple[str, str | None]:
