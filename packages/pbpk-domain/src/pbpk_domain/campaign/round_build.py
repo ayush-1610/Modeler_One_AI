@@ -66,16 +66,34 @@ def scenarios_for_stage(scenarios: Sequence[MapScenario], stage: str) -> tuple[M
 
 
 def _subject_name(scenario: MapScenario) -> str:
-    return f"Individual: {scenario.sex} {scenario.age_years:g}y {scenario.population}"
+    name = f"Individual: {scenario.sex} {scenario.age_years:g}y {scenario.population}"
+    if scenario.weight_kg is not None:
+        name += f" {scenario.weight_kg:g}kg"
+    if scenario.height_cm is not None:
+        name += f" {scenario.height_cm:g}cm"
+    if scenario.published_individual is not None:
+        name += f" ({scenario.published_individual.name})"
+    return name
 
 
 def _subject_spec(scenario: MapScenario, *, seed: int) -> SubjectSpec:
+    published = scenario.published_individual
+    own: dict = {}
+    if published is not None:
+        own = {
+            "own_physiology": True,
+            "parameters": {path: Measured(value=v.value, unit=v.unit) for path, v in published.parameters.items()},
+            "expression_overrides": {path: Measured(value=v.value, unit=v.unit) for path, v in published.expression.items()},
+        }
     return SubjectSpec(
         name=_subject_name(scenario),
         population=scenario.population,
         gender=scenario.sex,  # "MALE" | "FEMALE" — validated by SubjectSpec
         age_years=scenario.age_years,
+        weight_kg=scenario.weight_kg,
+        height_cm=scenario.height_cm,
         seed=seed,
+        **own,
     )
 
 
@@ -184,12 +202,9 @@ def _deferral_notes(snapshot: Snapshot, scenarios: Sequence[MapScenario], report
         notes.append("expression profiles: " + "; ".join(
             f"{m} from the {expression_source(m)}" for m in report.expression_profiles
         ))
-    weighed = sorted({s.study_id for s in scenarios if s.weight_kg is not None or s.height_cm is not None})
-    if weighed:
-        notes.append(
-            "study weight/height recorded for " + ", ".join(weighed) + " but not written into the snapshot "
-            "(PK-Sim derives them from the population; explicit OriginData keys await harvest)"
-        )
+    own = sorted({f"{s.study_id} ({s.published_individual.name})" for s in scenarios if s.published_individual})
+    if own:
+        notes.append("simulated in the published model's own individual for the study: " + ", ".join(own))
     return tuple(notes)
 
 

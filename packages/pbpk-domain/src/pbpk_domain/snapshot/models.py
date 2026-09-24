@@ -127,6 +127,9 @@ class OriginData(SnapshotModel):
     population: str | None = Field(default=None, alias="Population")
     gender: str | None = Field(default=None, alias="Gender")
     age: Quantity | None = Field(default=None, alias="Age")
+    # Keys harvested from the OSP Midazolam model's "Korean (Yu 2004 study)" individual ({"Value", "Unit": "kg"/"cm"}).
+    weight: Quantity | None = Field(default=None, alias="Weight")
+    height: Quantity | None = Field(default=None, alias="Height")
 
 
 class Individual(SnapshotModel):

@@ -88,11 +88,9 @@ class Demographics(BaseModel):
     """The representative individual a study is simulated with (MS-01 §2.3).
 
     Age, sex and population (ethnicity) define a typical PK-Sim individual; PK-Sim derives weight, height
-    and organ sizes from the population physiology for that age and sex. Study mean ``weight_kg`` /
-    ``height_cm`` are recorded here for the record but are not yet written into the snapshot: the OSP
-    reference models set no explicit ``Weight`` / ``Height`` in ``OriginData`` (only Species / Population /
-    Gender / Age), so those keys await harvest from an engine snapshot that uses them (harvest rule) before
-    the builder may emit them. When a weight is recorded, the round build carries a note so it is not lost.
+    and organ sizes from the population physiology for that age and sex. A study mean ``weight_kg`` /
+    ``height_cm`` is written into the individual's ``OriginData`` (``Weight`` in kg, ``Height`` in cm, keys harvested
+    from the OSP Midazolam model's Korean individual) and PK-Sim scales the physiology to it.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -102,8 +100,30 @@ class Demographics(BaseModel):
     age_years: float = Field(default=30.0, gt=0)
     age_min: float | None = Field(default=None, ge=0)  # the study's reported age range, for its VPC population
     age_max: float | None = Field(default=None, gt=0)
-    weight_kg: float | None = Field(default=None, gt=0)  # recorded; not yet emitted (see class docstring)
-    height_cm: float | None = Field(default=None, gt=0)  # recorded; not yet emitted (see class docstring)
+    weight_kg: float | None = Field(default=None, gt=0)  # study mean, written to the individual's OriginData
+    height_cm: float | None = Field(default=None, gt=0)
+
+
+class PathValue(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    value: float
+    unit: str | None = None
+
+
+class PublishedIndividual(BaseModel):
+    """The individual a published model simulates one study in, when it differs from the model's main individual
+    (the OSP Rifampicin model's "EHC off" individual for its 7-day study; the Midazolam model's Korean individual,
+    CYP3A5 *3/*3, for Yu 2004). ``parameters`` is that individual's complete set of physiology overrides (it replaces
+    the CPF's indiv.* records for this study: a value the main individual sets and this one does not is left at the
+    PK-Sim default, never invented); ``expression`` holds its profile values that differ from the harvested library.
+    Paths and units are copied from the snapshot."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(min_length=1)
+    parameters: dict[str, PathValue] = Field(default_factory=dict)
+    expression: dict[str, PathValue] = Field(default_factory=dict)
 
 
 # The documented default when a study reports no demographics: the OSP reference 30-year-old European male.
@@ -149,6 +169,7 @@ class StudyRecord(BaseModel):
     co_medication: str | None = None
     genotype: str | None = None
     multiple_dose_levels: bool = False  # the study itself reports more than one dose level
+    published_individual: PublishedIndividual | None = None  # a reference model's own individual for this study
 
     @property
     def is_multiple_dose(self) -> bool:

@@ -279,3 +279,44 @@ def _first_scenarios(imported):
         food_effect_in_question=False, model_risk=Rating.MEDIUM, engine_image_digest="test", software_versions={},
     )
     return [s.model_copy(update={"stage": "S1"}) for s in map_doc.scenarios[:2]]
+
+
+def test_a_study_the_published_model_simulates_in_another_individual_keeps_it():
+    # Midazolam, Yu 2004 (Korean, CYP3A5 *3/*3): Asian population, study weight and height, and a lower CYP3A4
+    # reference concentration, under its own profile category; the other studies keep the main individual.
+    imported = import_osp_snapshot(_snapshot("Midazolam"))
+    yu = _study(imported, "yu-2004-control-cyp3a5-3-3")
+    assert yu["demographics"] == {"population": "Asian_Tanaka_1996", "sex": "MALE", "age_years": 23.3,
+                                  "weight_kg": 66.9, "height_cm": 172.9}
+    own = yu["published_individual"]
+    assert own["name"] == "Korean (Yu 2004 study)"
+    assert own["expression"]["CYP3A4|Reference concentration"] == {"value": 3.6271334069, "unit": "µmol/l"}
+    built = build_stage_snapshot(imported.cpf, [s for s in _first_scenarios_for(imported, [yu["study_id"], "hohmann-2015-iv-1-mg"])],
+                                 stage="S1", skip_unbuildable=True)
+    doc = json.loads(built.snapshot.model_dump_json(by_alias=True, exclude_none=True))
+    cyp = {e["Category"]: e for e in doc["ExpressionProfiles"] if e["Molecule"] == "CYP3A4"}
+    assert len(cyp) == 2
+    ref = {cat: next(p["Value"] for p in e["Parameters"] if p["Path"] == "CYP3A4|Reference concentration") for cat, e in cyp.items()}
+    assert sorted(ref.values()) == [3.6271334069, 4.32]
+    # Rifampicin's 7-day study runs in the "EHC off" individual: the main individual's EHC override does not apply
+    rif = import_osp_snapshot(_snapshot("Rifampicin"))
+    day7 = _study(rif, "acocella-1972a-day-7")
+    assert day7["published_individual"]["parameters"] == {}
+    built = build_stage_snapshot(rif.cpf, _first_scenarios_for(rif, ["acocella-1972a-day-7"]), stage="S1",
+                                 skip_unbuildable=True)
+    doc = json.loads(built.snapshot.model_dump_json(by_alias=True, exclude_none=True))
+    assert [i.get("Parameters", []) for i in doc["Individuals"]] == [[]]
+
+
+def _first_scenarios_for(imported, study_ids):
+    studies = [StudyRecord.model_validate({k: v for k, v in s.items() if k in StudyRecord.model_fields})
+               for s in imported.studies]
+    map_doc = generate_map(
+        compound=imported.compound, cpf=imported.cpf, studies=studies,
+        split=split_studies(studies, QuestionOfInterest()), objective="test", context_of_use="test",
+        food_effect_in_question=False, model_risk=Rating.MEDIUM, engine_image_digest="test", software_versions={},
+    )
+    first = {}
+    for s in map_doc.scenarios:
+        first.setdefault(s.study_id, s)
+    return [first[sid].model_copy(update={"stage": "S1"}) for sid in study_ids if sid in first]

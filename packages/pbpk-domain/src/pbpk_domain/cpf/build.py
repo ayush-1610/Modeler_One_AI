@@ -114,15 +114,15 @@ def expression_molecule(path: str) -> str:
     return parts[-2] if parts[0] == "Organism" else parts[0]
 
 
-def _override_profile(spec: ExpressionSpec, records: dict[str, ParameterRecord]) -> ExpressionSpec:
-    """The harvested profile with the CPF's values for the paths it sets (added when the library has no such path)."""
+def _override_profile(spec: ExpressionSpec, values: dict[str, Measured]) -> ExpressionSpec:
+    """The harvested profile with the given values for the paths they set (added when the library has no such path)."""
     doc = dict(spec.harvested or {})
     params = [dict(q) for q in doc.get("Parameters", [])]
     by_path = {q.get("Path"): q for q in params}
-    for path, record in records.items():
-        entry = {"Path": path, "Value": record.value}
-        if record.unit:
-            entry["Unit"] = record.unit
+    for path, measured in values.items():
+        entry = {"Path": path, "Value": measured.value}
+        if measured.unit:
+            entry["Unit"] = measured.unit
         if path in by_path:
             by_path[path].clear()
             by_path[path].update(entry)
@@ -136,22 +136,31 @@ def _with_expression(subjects: Sequence[SubjectSpec], molecules: Sequence[str],
                      overrides: dict[str, dict[str, ParameterRecord]] | None = None,
                      ) -> tuple[list[SubjectSpec], list[str], list[str]]:
     """Every subject gets the harvested profile of every process protein it does not already express, with the
-    CPF's ``expr.*`` values applied."""
+    CPF's ``expr.*`` values applied; a subject with its own published physiology gets its own values instead, under
+    a profile category named after it."""
     from pbpk_domain.expression import library_expression
 
-    specs, placed, missing = [], [], []
+    cpf_values = {m: {path: _measured(r) for path, r in recs.items()} for m, recs in (overrides or {}).items()}
+    library, placed, missing = {}, [], []
     for molecule in molecules:
         spec = library_expression(molecule)
         if spec is None:
             missing.append(molecule)
         else:
-            if overrides and molecule in overrides:
-                spec = _override_profile(spec, overrides[molecule])
-            specs.append(spec)
+            library[molecule] = spec
             placed.append(molecule)
+    shared = [_override_profile(s, cpf_values[m]) if m in cpf_values else s for m, s in library.items()]
     out = []
     for subject in subjects:
         have = {e.molecule for e in subject.expression}
+        if subject.own_physiology:
+            own: dict[str, dict[str, Measured]] = {}
+            for path, measured in subject.expression_overrides.items():
+                own.setdefault(expression_molecule(path), {})[path] = measured
+            specs = [_override_profile(s, own[m]).model_copy(update={"category": subject.name}) if m in own else s
+                     for m, s in library.items()]
+        else:
+            specs = shared
         extra = [e for e in specs if e.molecule not in have]
         out.append(subject.model_copy(update={"expression": [*subject.expression, *extra]}) if extra else subject)
     return out, placed, missing
@@ -188,7 +197,8 @@ def _with_individual_parameters(subjects: Sequence[SubjectSpec], cpf: CPF) -> tu
     if not records:
         return list(subjects), []
     overrides = {path: _measured(record) for path, record in records.items()}
-    out = [s.model_copy(update={"parameters": {**s.parameters, **overrides}}) for s in subjects]
+    # A subject with its own published physiology carries that individual's complete parameter set instead.
+    out = [s if s.own_physiology else s.model_copy(update={"parameters": {**s.parameters, **overrides}}) for s in subjects]
     return out, [r.id for r in records.values()]
 
 

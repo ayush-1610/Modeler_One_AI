@@ -320,17 +320,15 @@ def _formulation_records(snapshot: dict[str, Any], out: _Records, unplaced: list
 
 
 def _individual_records(snapshot: dict[str, Any], out: _Records, notes: list[str]) -> None:
-    individuals = snapshot.get("Individuals", [])
-    if not individuals:
+    main = _main_individual(snapshot)
+    if main is None:
         return
-    # The individual most of the published simulations use; any simulation on another one is named.
-    used = [s.get("Individual") for s in snapshot.get("Simulations", []) if s.get("Individual")]
-    main = max(individuals, key=lambda i: used.count(i["Name"]))
+    # Any simulation on another individual is named; its studies carry that individual (published_individual).
     others = sorted({f"{s['Name']} ({s['Individual']})" for s in snapshot.get("Simulations", [])
                      if s.get("Individual") and s["Individual"] != main["Name"]})
     if others:
         notes.append(f"Individual physiology imported from {main['Name']!r}; these published simulations use another "
-                     "individual and are regenerated with the main one: " + "; ".join(others) + ".")
+                     "individual, which their studies carry as their own: " + "; ".join(others) + ".")
     individual = main
     for parameter in individual.get("Parameters", []):
         path = parameter.get("Path")
@@ -354,16 +352,24 @@ def _profile_value(parameter: dict[str, Any]) -> float:
     return float(parameter["Value"]) * _TIME_TO_MIN.get(parameter.get("Unit") or "", 1.0)
 
 
-def _expression_records(snapshot: dict[str, Any], individual: dict[str, Any], out: _Records, notes: list[str]) -> None:
-    """The published individual's expression profiles where they differ from the harvested library the builder
-    uses (`pbpk_domain.expression`): each differing numeric value (a reference concentration, a turnover half-life,
-    a relative expression) becomes an ``expr.<path>`` record bound to the ExpressionProfile building block. The
-    published Midazolam and Rifampicin models set CYP3A4 ``t1/2 (liver)`` to 36 h where the library's copy (from the
-    Dapagliflozin model) has 37 h."""
+def _main_individual(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    """The individual most of the published simulations use."""
+    individuals = snapshot.get("Individuals", [])
+    if not individuals:
+        return None
+    used = [s.get("Individual") for s in snapshot.get("Simulations", []) if s.get("Individual")]
+    return max(individuals, key=lambda i: used.count(i["Name"]))
+
+
+def _expression_differences(snapshot: dict[str, Any], individual: dict[str, Any], notes: list[str] | None = None,
+                            ) -> list[dict[str, Any]]:
+    """The numeric values of an individual's expression profiles that differ from the harvested library the builder
+    uses (`pbpk_domain.expression`), as the snapshot's own parameter entries."""
     from pbpk_domain.expression import expression_library
 
     library = expression_library()
     profiles = {f"{p.get('Molecule')}|{p.get('Species')}|{p.get('Category')}": p for p in snapshot.get("ExpressionProfiles", [])}
+    out: list[dict[str, Any]] = []
     for ref in individual.get("ExpressionProfiles", []) or []:
         profile = profiles.get(ref)
         if profile is None:
@@ -371,8 +377,9 @@ def _expression_records(snapshot: dict[str, Any], individual: dict[str, Any], ou
         molecule = profile["Molecule"]
         entry = library.get(molecule)
         if entry is None:
-            notes.append(f"Expression profile {molecule!r} of the published individual is not in the harvested library; "
-                         "S0 reports it as missing.")
+            if notes is not None:
+                notes.append(f"Expression profile {molecule!r} of the published individual is not in the harvested "
+                             "library; S0 reports it as missing.")
             continue
         base = {q["Path"]: q for q in entry["profile"].get("Parameters", []) if q.get("Value") is not None}
         for parameter in profile.get("Parameters", []) or []:
@@ -382,9 +389,45 @@ def _expression_records(snapshot: dict[str, Any], individual: dict[str, Any], ou
             known = base.get(path)
             if known is not None and math.isclose(_profile_value(known), _profile_value(parameter), rel_tol=1e-12):
                 continue
-            out.add(f"expr.{path}", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
-                    binding=EngineBinding(building_block="ExpressionProfile", parameter=path))
+            out.append(parameter)
+    return out
 
+
+def _expression_records(snapshot: dict[str, Any], individual: dict[str, Any], out: _Records, notes: list[str]) -> None:
+    """The published individual's expression profiles where they differ from the harvested library: each differing
+    numeric value (a reference concentration, a turnover half-life, a relative expression) becomes an ``expr.<path>``
+    record bound to the ExpressionProfile building block. The published Midazolam and Rifampicin models set CYP3A4
+    ``t1/2 (liver)`` to 36 h where the library's copy (from the Dapagliflozin model) has 37 h."""
+    for parameter in _expression_differences(snapshot, individual, notes):
+        path = parameter["Path"]
+        out.add(f"expr.{path}", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
+                binding=EngineBinding(building_block="ExpressionProfile", parameter=path))
+
+
+def _published_individual(snapshot: dict[str, Any], individual: dict[str, Any]) -> dict[str, Any]:
+    """A study's own individual (StudyRecord.published_individual): its complete physiology overrides and its
+    expression values that differ from the library."""
+    def entries(parameters: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        return {p["Path"]: {"value": float(p["Value"]), "unit": p.get("Unit")}
+                for p in parameters if p.get("Path") and p.get("Value") is not None}
+
+    return {"name": individual["Name"], "parameters": entries(individual.get("Parameters") or []),
+            "expression": entries(_expression_differences(snapshot, individual))}
+
+
+_BODY = {"Weight": ("weight_kg", "kg"), "Height": ("height_cm", "cm")}
+
+
+def _demographics(origin: dict[str, Any]) -> dict[str, Any] | None:
+    if not origin:
+        return None
+    demo = {"population": origin.get("Population"), "sex": origin.get("Gender"),
+            "age_years": (origin.get("Age") or {}).get("Value")}
+    for key, (field_name, unit) in _BODY.items():
+        quantity = origin.get(key) or {}
+        if quantity.get("Value") is not None and quantity.get("Unit") == unit:
+            demo[field_name] = float(quantity["Value"])
+    return demo
 
 def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict[str, Any]]:
     """Observed dataset name -> how the published model simulates it: protocol, formulation, meal events, infusion.
@@ -393,6 +436,7 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
     against a simulation's output (``ParameterIdentifications[].OutputMappings``: the paper's own fitting design)."""
     protocols = {p["Name"]: p for p in snapshot.get("Protocols", [])}
     individuals = {i["Name"]: i for i in snapshot.get("Individuals", [])}
+    main = _main_individual(snapshot)
     by_sim: dict[str, dict[str, Any]] = {}
     links: dict[str, dict[str, Any]] = {}
     for sim in snapshot.get("Simulations", []):
@@ -405,10 +449,10 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
                          for p in sim.get("Parameters", []) or []
                          if str(p.get("Path", "")).endswith("|Application_1|ProtocolSchemaItem|Infusion time")), None)
         individual = individuals.get(sim.get("Individual"), {})
-        origin = individual.get("OriginData", {})
         link = {
-            "demographics": {"population": origin.get("Population"), "sex": origin.get("Gender"),
-                             "age_years": (origin.get("Age") or {}).get("Value")} if origin else None,
+            "demographics": _demographics(individual.get("OriginData", {})),
+            "published_individual": (_published_individual(snapshot, individual)
+                                     if individual and main is not None and individual["Name"] != main["Name"] else None),
             "simulation": sim["Name"],
             "protocol": protocols.get(protocol_ref.get("Name"), {}),
             "formulation": formulations[0]["Name"] if formulations else None,
@@ -589,6 +633,8 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     demographics = (link or {}).get("demographics")
     if demographics and all(demographics.values()):
         row["demographics"] = demographics  # the individual the published simulation uses for this study
+    if (link or {}).get("published_individual"):
+        row["published_individual"] = link["published_individual"]
     co_medication = next((w for w in _CO_MEDICATION_WORDS if w in grouping), None)
     if co_medication is not None:
         row["co_medication"] = co_medication

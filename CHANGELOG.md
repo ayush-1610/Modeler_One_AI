@@ -15,6 +15,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a study the published model simulates in its own individual was regenerated in the main one
+- **Per-study published individual.** `StudyRecord.published_individual` (reference import) carries the individual a
+  published model uses for one study when it differs from the main one: its complete physiology overrides (replacing
+  the CPF's `indiv.*` for that study, so a value the main individual sets and this one does not stays at the PK-Sim
+  default, never invented) and its expression values that differ from the library, built under the subject's own
+  profile category. Cases: Rifampicin `acocella-1972a-day-7` in the "EHC off" individual (round-trip AUC 1.043 before);
+  Midazolam `yu-2004-control-cyp3a5-3-3` in the Korean individual (CYP3A4 3.63 vs 4.32 µmol/l, round-trip AUC 0.91).
+- **Study weight and height are now written into the individual.** `OriginData.Weight` (kg) / `Height` (cm) were held
+  back until harvested; the OSP Midazolam model's Korean individual sets both, so the builder emits a study's recorded
+  mean weight/height and PK-Sim scales the physiology to it. Impact: any study with a recorded weight is now simulated
+  at that weight instead of the population default for its age and sex. The reference importer takes both from the
+  published individual's OriginData; the write API keeps `published_individual` on upload.
+
 ### Changed — diag-rules 0.5 (UNVERIFIED): exposure fallback rule (approved by the project owner, 2026-09-24)
 - New rule `exposure_fallback`: when a fitting study's AUC is off by more than 1.5-fold (either direction) and no other
   rule's evidence is present, fit clearance first (`elim.hepatic.{enzyme}.clspec`, `elim.hepatic.{enzyme}.kcat`,

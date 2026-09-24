@@ -24,6 +24,7 @@ from pbpk_domain.acceptance import load_acceptance_ruleset
 from pbpk_domain.campaign.split import (
     DEFAULT_DEMOGRAPHICS,
     Assignment,
+    PublishedIndividual,
     SplitResult,
     StudyClass,
     StudyRecord,
@@ -163,6 +164,8 @@ class MapScenario(BaseModel):
     # The study's last sampling time: the simulation must cover it, or the prediction is scored on a shorter
     # window than the observation.
     sim_end_time_h: float | None = None
+    # A reference model's own individual for this study (physiology and expression that differ from the main one).
+    published_individual: PublishedIndividual | None = None
     # The VPC population's age range (the study's own, else the MS-01 default ±10 y around the mean; `vpc.age_range`).
     vpc_age_min: float | None = None
     vpc_age_max: float | None = None
@@ -304,6 +307,7 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
                 dosing_interval_h=study.dosing_interval_h if multiple else None,
                 n_doses=study.n_doses if multiple else None,
                 sim_end_time_h=ends.get(study.study_id),
+                published_individual=study.published_individual,
                 vpc_age_min=vpc_ages[0], vpc_age_max=vpc_ages[1],
             ))
     return tuple(scenarios)

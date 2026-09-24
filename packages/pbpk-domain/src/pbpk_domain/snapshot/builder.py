@@ -569,6 +569,13 @@ class SubjectSpec(Spec):
     # Physiology overrides addressed by full path (e.g. "Organism|Liver|EHC continuous fraction"), as the OSP
     # reference individuals carry them in `Individuals[].Parameters`; paths are copied from a reference, never made up.
     parameters: dict[str, Measured] = Field(default_factory=dict)
+    weight_kg: float | None = Field(default=None, gt=0)  # study mean; PK-Sim derives it from the population when absent
+    height_cm: float | None = Field(default=None, gt=0)
+    # The subject carries a published model's own individual for its study: its `parameters` are that individual's
+    # complete set (the CPF's indiv.* records do not apply) and `expression_overrides` its profile values, applied
+    # over the harvested library profiles under this subject's own profile category.
+    own_physiology: bool = False
+    expression_overrides: dict[str, Measured] = Field(default_factory=dict)
 
     def to_individual(self) -> Individual:
         fields: dict = {
@@ -580,6 +587,8 @@ class SubjectSpec(Spec):
                 population=self.population,
                 gender=self.gender,
                 age=Quantity(value=self.age_years, unit="year(s)"),
+                weight=Quantity(value=self.weight_kg, unit="kg") if self.weight_kg is not None else None,
+                height=Quantity(value=self.height_cm, unit="cm") if self.height_cm is not None else None,
             ),
         }
         if self.parameters:

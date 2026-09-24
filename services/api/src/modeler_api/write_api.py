@@ -122,6 +122,9 @@ class StudyUpload(BaseModel):
     co_medication: str | None = None  # a co-medicated arm is a DDI study (MS-01 §3.2), never the drug alone
     # The studied individual (population, sex, age, age range): the round build simulates the study in it.
     demographics: dict[str, Any] | None = None
+    # A reference model's own individual for this study (reference import only): physiology overrides and expression
+    # values, paths and units copied from the published snapshot (StudyRecord.published_individual).
+    published_individual: dict[str, Any] | None = None
     n_timepoints: int = Field(default=10, gt=0)
     lloq: float | None = None
     profile: ObservedProfile

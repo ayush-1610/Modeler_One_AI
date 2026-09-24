@@ -101,11 +101,15 @@ def test_expression_note_lists_process_molecules() -> None:
     assert any("CYP3A4" in n and "expression profiles" in n for n in stage.notes)
 
 
-def test_recorded_weight_is_noted_not_emitted() -> None:
-    stage = build_stage_snapshot(_cpf(), [_scenario(weight_kg=72.0)], stage="S1")
-    assert any("weight/height recorded" in n for n in stage.notes)
-    # not written into the snapshot's OriginData (only species/population/gender/age)
-    assert stage.snapshot.individuals[0].origin_data.model_dump(by_alias=True).get("Weight") is None
+def test_study_weight_and_height_are_written_into_the_individual() -> None:
+    # OriginData Weight (kg) / Height (cm): keys harvested from the OSP Midazolam model's Korean individual
+    stage = build_stage_snapshot(_cpf(), [_scenario(weight_kg=72.0, height_cm=178.0)], stage="S1")
+    origin = stage.snapshot.individuals[0].origin_data.model_dump(by_alias=True, exclude_none=True)
+    assert origin["Weight"] == {"Value": 72.0, "Unit": "kg"}
+    assert origin["Height"] == {"Value": 178.0, "Unit": "cm"}
+    # without a recorded weight PK-Sim derives it from the population: no key is emitted
+    plain = build_stage_snapshot(_cpf(), [_scenario()], stage="S1")
+    assert "Weight" not in plain.snapshot.individuals[0].origin_data.model_dump(by_alias=True, exclude_none=True)
 
 
 # --- gaps surfaced, never invented ---------------------------------------------------------------
