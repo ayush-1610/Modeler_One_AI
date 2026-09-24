@@ -23,7 +23,7 @@ on:
 
 concurrency:
   group: reference-models-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false  # a PK-Sim run takes long; a new push queues behind it
 
 permissions:
   contents: read
@@ -86,6 +86,14 @@ jobs:
       - name: Rifampicin as-is campaign
         continue-on-error: true
         run: uv run python deploy/reference/run_reference.py campaign Rifampicin --mode as-is --out reports/reference/rifampicin
+
+      - name: Rifampicin refit campaign
+        continue-on-error: true
+        run: uv run python deploy/reference/run_reference.py campaign Rifampicin --mode refit --out reports/reference/rifampicin
+
+      - name: OSP library portfolio (import, S0, round trip per drug)
+        continue-on-error: true
+        run: uv run python deploy/reference/portfolio.py --roundtrip --out reports/reference/portfolio
 
       - name: Upload reports
         if: always()
