@@ -145,6 +145,8 @@ class StudyUpload(BaseModel):
     formulation: str = "solution"
     formulation_name: str | None = None  # a tablet/capsule study: the CPF formulation it used (form.{name}.*)
     food_state: str = "fasted"
+    # every meal as given: [{time_h (after the first dose; negative: before), template, name, parameters}]
+    meals: list[dict[str, Any]] = Field(default_factory=list)
     # Who was studied: a patient or special population (e.g. renal impairment) is classified SPECIAL by the split
     # (MS-01 §3.2) and never fits the healthy-volunteer model; without these it would be taken as healthy.
     population_type: str = "healthy"

@@ -787,6 +787,7 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
     against a simulation's output (``ParameterIdentifications[].OutputMappings``: the paper's own fitting design)."""
     protocols = {p["Name"]: p for p in snapshot.get("Protocols", [])}
     individuals = {i["Name"]: i for i in snapshot.get("Individuals", [])}
+    events = {e["Name"]: e for e in snapshot.get("Events", []) or []}
     main = _main_individual(snapshot)
     by_sim: dict[str, dict[str, Any]] = {}
     links: dict[str, dict[str, Any]] = {}
@@ -814,6 +815,10 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
             "formulation": (_binned_product_of(snapshot, protocol_ref) if len(formulations) > 1 else
                             formulations[0]["Name"]) if formulations else None,
             "fed": bool(sim.get("Events")),
+            # every meal: (start h on the simulation's clock, its event building block)
+            "meals": sorted(((_hours([{"Name": "t", **e["StartTime"]}], "t") if e.get("StartTime") else 0.0,
+                              events.get(e.get("Name"), {"Name": e.get("Name")})) for e in sim.get("Events") or []),
+                            key=lambda m: m[0]),
             "infusion_min": infusion,
         }
         if members is None:
@@ -1386,6 +1391,27 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     if food == "fed" and link is not None and not link.get("fed"):
         said.append("reported fed; the published model simulates it without a meal")
     row["food_state"] = food
+    # The meals as the published simulation gives them, relative to the first dose, within the sampled window: a fed
+    # study's meal before or after the dose (Bornemann 1986), a breakfast with each daily dose and standard meals
+    # (Itraconazole), a meal after a fasted dose (Bornemann: dosed 1 h before a breakfast). A fasted study whose first
+    # meal is at or before its dose contradicts the report and is left without meals.
+    published_meals = (link.get("meals") or []) if link else []
+    if published_meals and row["route"] == "oral":
+        first_dose = (_published_dose_times(link["protocol"]) or [0.0])[0]
+        relative = [(round(t - first_dose, 6), doc) for t, doc in published_meals]
+        sampled_h = max(float(t) for t in dataset["BaseGrid"]["Values"]) * (1 / 60.0 if dataset["BaseGrid"].get("Unit") == "min" else 1.0)
+        window = sampled_h - doses[0]
+        if (food == "fed" or relative[0][0] > 0) and all(doc.get("Template") for _t, doc in relative):
+            kept = [(t, doc) for t, doc in relative if t <= window] or relative[:1]
+            row["meals"] = [{"time_h": t, "template": doc["Template"], "name": doc["Name"],
+                             "parameters": {q["Name"]: {"value": float(q["Value"]), "unit": q.get("Unit")}
+                                            for q in doc.get("Parameters", []) or [] if q.get("Value") is not None}}
+                            for t, doc in kept]
+            if len(kept) > 1 or kept[0][0]:
+                said.append(f"{len(kept)} meal(s) as the published simulation gives them, the first "
+                            f"{abs(kept[0][0]):g} h {'after' if kept[0][0] >= 0 else 'before'} the dose")
+            if kept[0][0] < 0:
+                shift_h = max(shift_h + kept[0][0], 0.0)  # the data's clock starts at the meal, as the published one
 
     grouping = str(props.get("Grouping", "")).lower()
     if "renal impairment" in grouping:
@@ -1408,7 +1434,8 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     if co_medication is not None:
         row["co_medication"] = co_medication
 
-    times = [float(t) - shift_h for t in dataset["BaseGrid"]["Values"]]
+    per_h = 60.0 if dataset["BaseGrid"].get("Unit") == "min" else 1.0
+    times = [float(t) - shift_h * per_h for t in dataset["BaseGrid"]["Values"]]
     values = [float(v) for v in column["Values"]]
     keep = [(t, v) for t, v in zip(times, values, strict=True) if t >= 0 and v > 0]
     if len(keep) < 3:

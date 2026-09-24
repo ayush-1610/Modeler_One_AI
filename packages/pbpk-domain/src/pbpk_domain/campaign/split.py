@@ -112,6 +112,17 @@ class PathValue(BaseModel):
     unit: str | None = None
 
 
+class Meal(BaseModel):
+    """One meal of a study (StudyRecord.meals)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    time_h: float                       # after the first dose; negative: before it
+    template: str = Field(min_length=1)  # the PK-Sim meal template, e.g. "Meal: Standard (Human)"
+    name: str = Field(min_length=1)     # as the published model names it
+    parameters: dict[str, PathValue] = Field(default_factory=dict)  # values changed from the template
+
+
 class DosePhase(BaseModel):
     """One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),
     ``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two
@@ -188,6 +199,11 @@ class StudyRecord(BaseModel):
     formulation_name: str | None = None  # the CPF formulation (form.{name}.*) a solid oral study used
     food_state: FoodState = FoodState.FASTED
     meal_type: str | None = None
+    # every meal as given: h after the first dose (negative: before it), the PK-Sim meal template and its changed
+    # values (OSP Midazolam Bornemann 1986: 1 h before / after a high-fat breakfast; OSP Itraconazole: a breakfast with
+    # each daily dose and standard meals; Metformin: a 300 kcal standard meal). Empty: a fed study's meal is the MAP's
+    # template at the dose; a fasted one has none.
+    meals: tuple[Meal, ...] = ()
     demographics: Demographics | None = None  # the studied individual; DEFAULT_DEMOGRAPHICS when absent
     statistic: Statistic = Statistic.MEAN_SD
     n_timepoints: int = Field(gt=0)

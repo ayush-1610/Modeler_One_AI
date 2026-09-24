@@ -382,3 +382,45 @@ def _first_scenarios_for(imported, study_ids):
 
 def _dapa_scenarios(imported):
     return _first_scenarios_for(imported, [s["study_id"] for s in imported.studies])
+
+
+def test_a_meal_before_or_after_the_dose_is_simulated_when_it_was_given():
+    """OSP Midazolam Bornemann 1986: dosed 1 h before a high-fat breakfast (a fasted study with a meal 1 h later), and
+    1 h after one (the meal at 0 h, the dose at 1 h on the data's clock, as the published simulation)."""
+    from pbpk_domain.reference.roundtrip import roundtrip_inputs
+
+    imported = import_osp_snapshot(_snapshot("Midazolam"))
+    before = _study(imported, "bornemann-1986-1-h-before-a-meal")
+    after = _study(imported, "bornemann-1986-1-h-after-a-meal")
+    assert (before["food_state"], [m["time_h"] for m in before["meals"]]) == ("fasted", [1.0])
+    assert (after["food_state"], [m["time_h"] for m in after["meals"]]) == ("fed", [-1.0])
+    assert after["meals"][0]["template"] == "Meal: High-fat breakfast (Human)"
+    assert after["profile"]["times"][0] > 1.0  # still on the meal's clock
+    ours, _pairs, _notes = roundtrip_inputs(imported)
+    sims = {s["Name"]: s for s in ours["Simulations"]}
+    protocols = {p["Name"]: p for p in ours["Protocols"]}
+    assert [e["StartTime"]["Value"] for e in sims["bornemann-1986-1-h-before-a-meal"]["Events"]] == [1.0]
+    assert sims["bornemann-1986-1-h-after-a-meal"]["Events"][0]["StartTime"]["Value"] == 0.0
+    start = protocols[sims["bornemann-1986-1-h-after-a-meal"]["Compounds"][0]["Protocol"]["Name"]]["Parameters"][0]
+    assert (start["Name"], start["Value"]) == ("Start time", 1.0)
+    assert [m["time_h"] for m in _study(imported, "bornemann-1986-with-a-meal")["meals"]] == [0.0]
+
+
+def test_every_meal_of_a_fed_regimen_is_given_with_its_template_and_values():
+    """OSP Itraconazole gives a high-fat breakfast with each daily dose and standard meals in between; OSP Metformin
+    a 300 kcal standard meal (a changed template value)."""
+    from pbpk_domain.reference.roundtrip import roundtrip_inputs
+
+    itraconazole = import_osp_snapshot(_snapshot("Itraconazole"))
+    day15 = _study(itraconazole, "barone-1993-day-15-fed")
+    assert len(day15["meals"]) > 10 and {m["template"] for m in day15["meals"]} == {
+        "Meal: High-fat breakfast (Human)", "Meal: Standard (Human)"}
+    ours, _pairs, _notes = roundtrip_inputs(itraconazole)
+    sim = next(s for s in ours["Simulations"] if s["Name"] == "barone-1993-day-15-fed")
+    assert [e["StartTime"]["Value"] for e in sim["Events"]] == [m["time_h"] for m in day15["meals"]]
+    metformin = import_osp_snapshot(_snapshot("Metformin"))
+    somogyi = _study(metformin, "somogyi-1987-po-195-mg-fed-plasma-n-7")
+    assert somogyi["meals"][0]["parameters"]["Meal energy content"] == {"value": 300.0, "unit": "kcal"}
+    ours, _pairs, _notes = roundtrip_inputs(metformin)
+    event = next(e for e in ours["Events"] if e["Name"].startswith("somogyi-1987-po-195-mg-fed-plasma-n-7"))
+    assert {q["Name"]: q["Value"] for q in event["Parameters"]}["Meal energy content"] == 300.0

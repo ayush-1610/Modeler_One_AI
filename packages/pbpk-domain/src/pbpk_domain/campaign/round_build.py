@@ -207,21 +207,41 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
             formulation, extra = specs[0], specs[1:]
             if note and notes is not None:
                 notes.append(note)
+        # a meal given before the dose starts the simulation; the dose follows (the data's clock, as published)
+        first_meal = min((m.time_h for m in scenario.meals), default=0.0)
+        offset = min(first_meal, 0.0)
+        dose_start = {"start_time_h": -offset} if offset < 0 else {}
+        if dose_start and schedule.get("phases"):  # phases carry their own start times
+            schedule = {**schedule, "phases": tuple(p.model_copy(update={"start_h": p.start_h - offset})
+                                                    for p in schedule["phases"])}
+            dose_start = {}
         if bins:
-            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, bins=bins, **_bin_schedule(scenario))
+            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, bins=bins, **_bin_schedule(scenario), **dose_start)
         else:
-            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, **schedule)
+            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, **schedule, **dose_start)
         meal_events: tuple[MealEventSpec, ...] = ()
         event_names: tuple[str, ...] = ()
-        if scenario.food_state == "fed" and scenario.meal_template:
+        event_times: tuple[tuple[str, float], ...] = ()
+        if scenario.meals:
+            specs: dict[str, MealEventSpec] = {}
+            for meal in scenario.meals:
+                specs.setdefault(meal.name, MealEventSpec(
+                    name=f"{sid} {meal.name}", template=meal.template,
+                    parameters={k: Measured(value=v.value, unit=v.unit) for k, v in meal.parameters.items()}))
+            meal_events = tuple(specs.values())
+            event_names = tuple(e.name for e in meal_events)
+            event_times = tuple((specs[m.name].name, m.time_h - offset) for m in scenario.meals)
+        elif scenario.food_state == "fed" and scenario.meal_template:
             meal_events = (MealEventSpec(name=f"{sid} meal", template=scenario.meal_template),)
             event_names = (f"{sid} meal",)
+        sim_end_time_h += -offset
         # the property alternatives the model selects for this product and food state (Itraconazole capsule fed)
         chosen = scenario_alternatives(cpf, scenario) if cpf is not None and cpf.compound == compound else {}
         simulation = SimulationSpec(
             name=sid, subject=subject_name, compound=compound, protocol=protocol.name,
             formulation=formulation.name, end_time_h=sim_end_time_h, events=event_names,
             formulation_bins=tuple(name for name, _f in bins), alternatives=chosen,
+            event_times=event_times,
         )
         return Scenario(simulation=simulation, protocol=protocol, formulation=formulation, events=meal_events,
                         extra_formulations=tuple(extra))

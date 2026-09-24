@@ -15,6 +15,22 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — every meal as given: timing, template and values
+- A fed study got one meal, the MAP's template, at its dose. The published simulations give meals before or after the
+  dose and one per dosing day: Midazolam Bornemann 1986 dosed 1 h before a high-fat breakfast (a fasted study with a
+  meal 1 h later; 0.015 of the peak off on run 14 and unlabelled) and 1 h after one; Itraconazole a breakfast with
+  each daily dose plus standard meals (up to 32 meals; day-15 fed pairs were 0.98 off); Metformin meals 7.5-15 min
+  before the dose and a 300 / 500 kcal standard meal (changed template values).
+- `StudyRecord.meals` / `Meal` (time after the first dose, negative before it; PK-Sim template; name; changed values)
+  carried by the API upload and the MAP scenario. Round build: one meal event per distinct meal with its values
+  (`MealEventSpec.parameters`), each at its time (`SimulationSpec.event_times`); a meal before the dose starts the
+  simulation and the dose follows (protocol start time), as the published simulations do. Empty: a fed study's meal is
+  the MAP template at the dose, as before.
+- Importer: the meals of the linked published simulation, relative to its first dose, within the study's sampled
+  window; the data keep the meal's clock when the meal comes first. A fasted study whose first meal is at or before
+  the dose contradicts its report and gets none. Also fixed: the time shift of a dataset recorded in minutes was
+  subtracted in hours.
+
 ### Added — solubility and intestinal permeability per product and food state (owner-approved 2026-09-24)
 - A published model can give a study's simulation another alternative of a compound property depending on the product
   given and the food state: OSP Itraconazole's solubility "Capsule fasted", "Capsule fed", "Solution fed" (default

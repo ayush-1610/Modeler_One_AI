@@ -1048,9 +1048,11 @@ class MealEventSpec(Spec):
 
     name: str = Field(min_length=1)
     template: str = Field(min_length=1)
+    parameters: dict[str, Measured] = Field(default_factory=dict)  # values changed from the template ("Meal energy content")
 
     def to_event(self) -> Event:
-        return Event(name=self.name, template=self.template)
+        extra = {"parameters": [m.to_parameter(name=name) for name, m in self.parameters.items()]} if self.parameters else {}
+        return Event(name=self.name, template=self.template, **extra)
 
 
 class CoCompoundSpec(Spec):
@@ -1077,6 +1079,8 @@ class SimulationSpec(Spec):
     additional_outputs: tuple[str, ...] = ()
     events: tuple[str, ...] = ()  # meal-event names applied in this simulation, each starting at t=0
     event_start_time_h: float = Field(default=0.0, ge=0)
+    # several meals at their own times (event name, start h); used instead of `events` at `event_start_time_h`
+    event_times: tuple[tuple[str, float], ...] = ()
     # Simulation-level values addressed by full path (e.g. "<Compound>|logP (veg.oil/water)"), as the OSP reference
     # simulations carry them in `Simulations[].Parameters`.
     parameters: dict[str, Measured] = Field(default_factory=dict)
@@ -1262,7 +1266,9 @@ class SnapshotBuilder:
             sim_fields["interactions"] = interactions
         if spec.parameters:
             sim_fields["parameters"] = [m.to_parameter(path=path) for path, m in spec.parameters.items()]
-        if spec.events:
+        if spec.event_times:
+            sim_fields["events"] = [{"Name": name, "StartTime": {"Value": t, "Unit": "h"}} for name, t in spec.event_times]
+        elif spec.events:
             sim_fields["events"] = [
                 {"Name": name, "StartTime": {"Value": spec.event_start_time_h, "Unit": "h"}} for name in spec.events
             ]

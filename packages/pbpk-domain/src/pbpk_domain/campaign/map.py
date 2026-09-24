@@ -25,6 +25,7 @@ from pbpk_domain.campaign.split import (
     DEFAULT_DEMOGRAPHICS,
     Assignment,
     DosePhase,
+    Meal,
     PublishedIndividual,
     SplitResult,
     StudyClass,
@@ -152,6 +153,7 @@ class MapScenario(BaseModel):
     formulation: str
     food_state: str
     meal_template: str | None
+    meals: tuple[Meal, ...] = ()  # every meal as given (StudyRecord.meals)
     n_subjects: int
     population: str
     sex: str
@@ -313,7 +315,8 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
                 dose_per_kg=study.dose_per_kg,
                 infusion_time_min=study.infusion_time_min,
                 formulation=study.formulation.value, food_state=study.food_state.value,
-                meal_template=meal_template if study.food_state.value == "fed" else None, n_subjects=study.n,
+                meal_template=meal_template if study.food_state.value == "fed" else None,
+                meals=study.meals, n_subjects=study.n,
                 population=demo.population, sex=demo.sex.value, age_years=demo.age_years,
                 weight_kg=demo.weight_kg, height_cm=demo.height_cm, study_class=row.study_class.value,
                 formulation_name=study.formulation_name,
