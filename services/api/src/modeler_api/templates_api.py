@@ -28,6 +28,9 @@ _HERE = Path(__file__).resolve().parent
 # The OSP reference snapshots harvested for the engine catalog (T-02); the repo layout is the same on the server.
 _DEFAULT_REFERENCE_DIR = _HERE.parents[2] / "engine-worker" / "golden" / "fixtures"
 
+# Compounds a published model names otherwise than the drug (the CPF, the project and PK-Sim paths use this name).
+_MODEL_COMPOUND = {"Ketoconazole": "ketoconazole", "Voriconazole": "Voriconazole1"}
+
 _TEMPLATES: dict[str, dict[str, Any]] = {
     "dapagliflozin-osp": {
         "name": "Dapagliflozin — published OSP model, real clinical data",
@@ -40,6 +43,30 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
                        "qualified on (13 publications: IV microdose, solution, capsules, tablet, fed, multiple dose, "
                        "renal impairment). Runs the whole MS-01 pipeline on real data.",
     },
+    **{f"{name.lower()}-osp": {
+        "name": f"{name} — published OSP model, real clinical data",
+        "compound": _MODEL_COMPOUND.get(name, name),  # as the published model names it (its CPF's compound)
+        "question": f"Predict {name.lower()} plasma exposure (AUC, Cmax) in healthy adults",
+        "model_risk": "medium",
+        "real_data": True,
+        "snapshot": f"{name}-Model.json",
+        "description": f"The peer-reviewed OSP {name} PBPK model ({topic}) and the clinical studies it was built and "
+                       "qualified on, imported from its published snapshot. Runs the whole MS-01 pipeline on real data.",
+    } for name, topic in (
+        # single-compound OSP library models that import S0-ready (deploy/reference/portfolio.py); the models that
+        # need several compounds (Dabigatran, Omeprazole, Verapamil) wait for multi-compound projects in the UI
+        ("Rifampicin", "saturable AADAC metabolism, OATP1B1 / P-gp transport, auto-induction"),
+        ("Midazolam", "CYP3A4 / UGT1A4 metabolism, GABRG2 binding, tablet and solution"),
+        ("Alfentanil", "CYP3A4 metabolism, IV bolus and oral"),
+        ("Alprazolam", "CYP3A4 metabolism"),
+        ("Clarithromycin", "CYP3A4 metabolism and mechanism-based inhibition, renal clearance"),
+        ("Digoxin", "P-gp transport, glomerular filtration, hepatic clearance"),
+        ("Metformin", "OCT1 / OCT2 / MATE1 / PMAT transport, fed studies"),
+        ("Raltegravir", "UGT1A1 / UGT1A9 metabolism, tablet and granule formulations"),
+        ("Ketoconazole", "particle dissolution, fed permeability"),
+        ("Voriconazole", "CYP2C19 / CYP3A4 metabolism, loading-dose regimens, pH-solubility table"),
+        ("Itraconazole", "CYP3A4 metabolism, solubility per product and food state; parent only here"),
+    )},
     "aciclovir-illustrative": {
         "name": "Aciclovir — illustrative quick check (not clinical data)",
         "compound": "Aciclovir",

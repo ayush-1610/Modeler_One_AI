@@ -15,6 +15,16 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — try it: 12 published models in the wizard; reference checks on the server; the plan to the goal
+- The create-project wizard offers every single-compound OSP library model that imports S0-ready (Rifampicin,
+  Midazolam, Alfentanil, Alprazolam, Clarithromycin, Digoxin, Metformin, Raltegravir, Ketoconazole, Voriconazole,
+  Itraconazole) beside Dapagliflozin, each with its real clinical studies; descriptions name only the processes the
+  model imports. A project takes the compound name the published model uses (`ketoconazole`, `Voriconazole1`).
+- `deploy/reference/run_all.sh`: the CI reference matrix (read from the workflow) on this machine's PK-Sim, N tasks
+  at a time, with a summary — for the server while GitHub Actions cannot start jobs.
+- Plan: `docs/plans/2026-09-24-remaining-to-goal.md` — what remains, in order, with estimates and the decisions
+  needed.
+
 ### Added — every meal as given: timing, template and values
 - A fed study got one meal, the MAP's template, at its dose. The published simulations give meals before or after the
   dose and one per dosing day: Midazolam Bornemann 1986 dosed 1 h before a high-fat breakfast (a fasted study with a

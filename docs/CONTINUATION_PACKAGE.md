@@ -242,7 +242,8 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 | T-15, T-17, T-20 | Done — agent `RunStore` still file-backed |
 | T-16 | Done — but the MAP never schedules S4/S5 work (R1) |
 | T-23, T-24, T-32 | Done as libraries — not wired into campaigns (R9) |
-| T-26 / T-27 / T-28 | Built — Playwright create-project flow + failure-mode flows written and passing (stub engine); intake / review-inbox decision flows not yet |
+| T-26 / T-27 / T-28 | Built — Playwright create-project flow + failure-mode flows written and passing (stub engine); intake / review-inbox decision flows not yet; wizard offers 12 published OSP models with real data |
+| Remaining to the goal | `docs/plans/2026-09-24-remaining-to-goal.md`: plan exit ≈ 7–11 sessions, regulator-reviewable product ≈ 22–34 sessions + SME time. Verification blocked on GitHub Actions minutes; `deploy/reference/run_all.sh` runs the same checks on the server |
 | T-19, T-21, T-22, T-29 | Not started |
 | T-30 | Human (SME / QA sign-off) — pending |
 | T-31 | Not started — next phase after S0 → S7 |
