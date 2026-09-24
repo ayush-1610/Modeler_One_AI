@@ -1,3 +1,8 @@
+> **Superseded (2026-09-24).** This was a point-in-time handoff from 2026-09-19. The current state is in
+> `docs/CONTINUATION_PACKAGE.md` §4 and the history in `CHANGELOG.md`; working rules are in `CLAUDE.md`. Kept for its
+> lessons section only. Two facts below are now wrong: Docker *is* installed on the Mac, and the commit trailer names
+> whichever model made the commit.
+
 # Modeler One — Session Handoff
 
 ## Project Snapshot

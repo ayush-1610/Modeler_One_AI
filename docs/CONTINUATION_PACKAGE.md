@@ -1,25 +1,36 @@
 # Continuation Package
 
-**Purpose:** the bridge from this planning session (2026-09-15) to implementation. A model or engineer opening this
-cold should be able to start executing from the task list without reconstructing context.
+**Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
+`CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
+plan in `docs/plans/`. **Last brought up to date: 2026-09-24 (HEAD 0854342 + change docs).** If HEAD is far ahead of
+that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
 
-Modeler One is an on-prem-first platform (three Ubuntu 24.04 servers, 24 physical cores / 251 GB each, root disk
-nearly full) that automates PBPK model development on the open-source OSP engine (ospsuite R 12.4.4 with PK-Sim
-12.3.173 and .NET 8, GPLv2, run as an isolated subprocess) and produces regulator-reproducible packages under ICH M15
-and 21 CFR Part 11. The repository at `/Users/ayush/Projects/Modeler_One_AI` (not yet a git repo) is a uv workspace:
-`packages/pbpk-domain` (snapshot models/builder/validation/transfer, metrics, tiered acceptance criteria, fitting
-planner/assessment, static DDI, VBE stats, M15 rules), `packages/data-intake` (raw vault, Excel grids with cell
-provenance, mapping recipes, validation, PK-Sim observed-data conversion), `packages/run-contracts`, `services/api`
-(FastAPI scaffold, hash-chained audit, Part 11 signatures, Postgres DDL with RLS), `services/orchestrator` (Temporal
-workflows incl. deadline-bounded fitting rounds), `services/engine-worker` (engine Dockerfile, `run_job.R`, `run_pi.R`,
-benchmark and golden scripts, Ubuntu install/check script), `services/agents` (Claude data-mapping, curation and
-MCP-based literature agents with word-for-word citation checks), `apps/web` (Next.js starter). 62 Python tests pass.
-Verified on macOS with the real engine: simulation ≈ 0.2 s, batch 0.17 s/run/core, OSP parameter identification end to
-end through `run_pi.R`. Not yet verified: snapshot execution on Linux (Docker image build in progress at the end of the
-session; see §4), Temporal against a live server, persistence, auth, live LLM/MCP calls. The scientific procedure is
-fixed in `docs/PBPK_MODELING_WORKFLOW.md` (MS-01); the engineering decisions in `docs/ENGINEERING_PLAN.md`.
+Modeler One automates PBPK model development on the open-source OSP engine (ospsuite R 12.4.x, PK-Sim 12.3, .NET 8,
+run as an isolated subprocess through `services/engine-worker/r/run_job.R`) and is meant to produce
+regulator-reproducible packages under ICH M15 and 21 CFR Part 11. The scientific procedure is MS-01
+(`docs/PBPK_MODELING_WORKFLOW.md`): stages **S0 readiness → S1 IV → S2 oral fasted → S3 formulation/fed → S4 internal
+validation → S5 external validation → S6 prediction → S7 report & package**.
+
+**What it is today:** a git repository (`main`), uv workspace, **429 Python tests pass (13 skip without Docker), ruff
+clean**. It runs as a *single-node* tool: the web app (Next.js, :3000) proxies `/api/*` to the FastAPI service (:8000);
+campaigns execute in-process (`LocalExecutor`, `MODELER_EXECUTION_BACKEND=local`) with file-backed stores; simulations
+run on **real PK-Sim on the Linux server**. The distributed path (Temporal, Postgres with RLS, Keycloak, MinIO) is
+built and tested in code but not deployed.
+
+**A user can:** create a project (wizard) → enter the compound's parameters (CPF) → load studies (CSV intake) →
+generate and sign the analysis plan (MAP) → run a campaign → watch it live → decide escalations in the review inbox
+(signed).
+
+**The honest limit:** the pipeline only really runs **S0 → S1 (S2 for an oral solution)**. S3–S7 are unbuilt, stubbed
+or silently skipped — see the coverage table in §4.1. Closing that is the active plan:
+`docs/plans/2026-09-24-s0-s7-real-pbpk.md`.
+
+**Engine:** runs only on Linux — on macOS snapshot execution is unsupported and `loadProjectFromSnapshot` segfaults.
+Server `ssh adt-server` (LAN 192.168.1.10, user `adt-ayush`, no sudo, repo rsynced to `~/Modeler_One_AI`, engine in
+`~/modeler-engine`, data in `~/modeler-data`). It drops off the LAN, has no Tailscale yet, and its root disk is 95%
+full. Docker Desktop is installed on the Mac (daemon off by default) and is the planned fallback engine host.
 
 ## 1. Decisions finalized in this session
 
@@ -186,7 +197,67 @@ T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) 
 Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
-## 4. Session end state
+## 4. Where things stand (2026-09-24)
+
+### 4.1 Pipeline coverage — update this table in the same commit as any stage change
+
+| Stage | MS-01 job | Status | What exists and works | What is missing | Plan item |
+|---|---|---|---|---|---|
+| S0 readiness | CPF completeness, data split, MAP signed | **Done** | completeness gate, split algorithm (§3), MAP generator, step-up signature | — | — |
+| S1 IV | fit clearance and distribution to IV data | **Partial** | round loop build → simulate → evaluate → diagnose → fit on real PK-Sim; PI with SD/CV/95% CI; tiered fold-error acceptance | expression profiles, so enzyme clearance acts (R4); renal branch of the clearance rule (R6); VPC gate (R7); fit credited in its own round (R13) | 1.2, 1.4, 1.5, 1.6 |
+| S2 oral fasted | absorption from solution | **Partial** | oral solution / suspension | tablets and capsules (R5); VPC (R7) | 1.3, 1.5 |
+| S3 formulation / fed | Weibull tablet, fed effect | **Missing** | builder has `WeibullFormulationSpec` and meal events — never wired from the CPF | CPF → Weibull, harvested paths, formulation and fed sub-loops | 1.3 |
+| S4 internal validation | final CPF vs internal studies, no fitting | **Missing** | acceptance module | scenarios are never created (R1); runner has no validation mode (R2) | 1.1 |
+| S5 external validation | fasted and fed judged separately | **Missing** | acceptance grouped by (role, quantity) | EXTERNAL studies skipped (R1); fasted/fed grouping; MD / MR / special-population classes unmapped (R3) | 1.1 |
+| S6 prediction | sensitivity + uncertainty on the question | **Missing** | engine `sensitivity`, `population`, `batch` tasks (engine-verified) | not in `CAMPAIGN_STAGES`; uncertainty propagation (R8) | Phase 2 |
+| S7 report & package | MAR, M15 table, bundle, re-run | **Missing** | `assemble_mar`, `render_all`, `assemble_bundle`, `rerun_all.R`, `verify_reproduction` (byte-exact re-run verified on the server) | not wired to campaigns; no pandoc on any host; no artifact download (R9) | Phase 2 |
+
+Roadblocks R1–R13 are defined in the active plan. **Evidence rule:** a stage is "Done" only when a campaign has passed
+it on real PK-Sim, not on a stub or the analytical stand-in.
+
+### 4.2 Platform
+
+| Component | State |
+|---|---|
+| Execution | Single-node `LocalExecutor` (in-process, same activities) — **used**. Temporal workflows — built, tested, not deployed |
+| Persistence | File-backed `ReadStore` / `WriteStore` under `MODELER_READ_ROOT` — **used**. Postgres schema with RLS and append-only audit (T-05) — built, not used |
+| Auth | `DevVerifier` (**DEV ONLY**, `MODELER_DEV_AUTH=1`) in the single-node deploy. Keycloak OIDC + step-up (T-06) — built, not deployed |
+| Object store | `file://` — used. MinIO presigned I/O — not built |
+| Engine | Real PK-Sim on the server. Mac: `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
+| Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog) / Tailscale. Server build is older than HEAD — redeploy is plan item 0.2 |
+| Web | Dark design system, project wizard, data intake, campaign monitor with fold-error gauge, review inbox. Playwright acceptance flows not written |
+
+### 4.3 Task status (specs in §2)
+
+| Task | Status |
+|---|---|
+| T-01 → T-09, T-11, T-12, T-18, T-25 | Done |
+| T-03 | Done — server acceptance (a CPF reconstructed from Dapagliflozin regenerates it) folds into the Phase 4 importer |
+| T-10 | Partial — missing particle/Table formulations, Populations block, total-hepatic / biliary / tubular-secretion clearance, `MetabolizationLiverMicrosomes_MM`, `rCYP450_MM` |
+| T-13 | Done (Temporal) + single-node `LocalExecutor` |
+| T-14 | Done — ruleset **UNVERIFIED** pending SME sign-off (T-30) |
+| T-15, T-17, T-20 | Done — agent `RunStore` still file-backed |
+| T-16 | Done — but the MAP never schedules S4/S5 work (R1) |
+| T-23, T-24, T-32 | Done as libraries — not wired into campaigns (R9) |
+| T-26 / T-27 / T-28 | Built — Playwright acceptance missing |
+| T-19, T-21, T-22, T-29 | Not started |
+| T-30 | Human (SME / QA sign-off) — pending |
+| T-31 | Not started — next phase after S0 → S7 |
+
+### 4.4 How to run
+
+```bash
+make sync && make test && make lint          # Python: uv workspace, pytest, ruff
+npm --prefix apps/web run typecheck           # web
+npm --prefix apps/web run build
+```
+
+On the server (one URL, `http://<server>:3000`): `deploy/server/run_modeler.sh`, `stop_modeler.sh`,
+`status_modeler.sh`; `install_autostart.sh` once. Configuration lives in `deploy/server/_env.sh`.
+Engine checks on the server: `Rscript services/engine-worker/golden/golden_roundtrip.R …` and
+`services/engine-worker/scripts/verify_run_round.sh`.
+
+### 4.5 Earlier session notes (2026-09-15 → 16) — kept for the engine facts
 
 **T-01 done (2026-09-15).** Engine verified on the project server (Intel Xeon Silver 4510, 48 logical cores, Ubuntu
 24.04). The server has no sudo and no `/data`; the engine was installed under `~/modeler-engine` via Miniforge R 4.6.1
