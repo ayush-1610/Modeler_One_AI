@@ -146,7 +146,8 @@ def test_writer_projects_gmfe_per_round(tmp_path: Path) -> None:
                                      metrics={"AUC": {"gmfe": 1.42}, "Cmax": {"gmfe": 1.31}}))
     writer.flush(current_stage="S1", status="RUNNING")
     row = FileReadStore(str(tmp_path)).get_campaign("t1", "c")["stages"][1]["rounds"][0]
-    assert row["aucGmfe"] == 1.42 and row["cmaxGmfe"] == 1.31 and row["verdict"] == "improved"
+    # a round that misses the gate is "no pass", whatever action it took — never labelled "improved" unmeasured
+    assert row["aucGmfe"] == 1.42 and row["cmaxGmfe"] == 1.31 and row["verdict"] == "no pass"
 
 
 def test_executor_stops_when_s0_not_ready(tmp_path: Path) -> None:
@@ -257,3 +258,41 @@ def test_an_engine_failure_is_recorded_rather_than_hanging(tmp_path: Path) -> No
     campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
     assert campaign["status"] == "ESCALATED"          # not left RUNNING
     assert next(s for s in campaign["stages"] if s["stage"] == "S1")["status"] == "FAILED"
+
+
+def test_iv_only_campaign_runs_every_stage_skipping_those_without_data(tmp_path: Path) -> None:
+    """R0/R1: asked for S0–S5, an IV-only compound fits S1, skips S2/S3 with their documented reasons (MS-01
+    §6.2), re-simulates the fitted study in S4, and records S5 as not achievable — it no longer stops at S1."""
+    request, root = _seed_campaign(tmp_path, observed={"iv": {"auc": GOLDEN_AUC, "cmax": GOLDEN_CMAX}})
+    from dataclasses import replace
+
+    request = replace(request, stages=["S0", "S1", "S2", "S3", "S4", "S5"])
+    outcome = run_campaign(request, read_root=root, project="renal-demo", engine=StubEngine())
+
+    assert outcome.status == "COMPLETED", outcome.reason
+    status = {s.stage: s.status for s in outcome.stages}
+    assert status == {"S0": "PASSED", "S1": "PASSED", "S2": "SKIPPED", "S3": "SKIPPED", "S4": "PASSED", "S5": "SKIPPED"}
+    assert "§6.2" in next(s for s in outcome.stages if s.stage == "S2").findings[0]
+    assert "not achievable" in next(s for s in outcome.stages if s.stage == "S5").findings[0]
+
+    campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
+    stages = {s["stage"]: s for s in campaign["stages"]}
+    assert stages["S4"]["rounds"][0]["action"] == "validate" and stages["S4"]["rounds"][0]["verdict"] == "passed"
+    assert stages["S4"]["rounds"][0]["studies"][0]["study_id"] == "iv"      # per-study evidence for the monitor
+    assert any("§6.2" in n for n in stages["S2"]["notes"])                  # the reason is shown, not just logged
+    assert set(campaign["gofByStage"]) == {"S1", "S4"}                      # each stage keeps its own plot
+
+
+def test_failed_internal_validation_escalates_without_refitting(tmp_path: Path) -> None:
+    # S1 is not run here, so S4 judges the unfitted model against far-off data: it must escalate, never fit.
+    request, root = _seed_campaign(tmp_path, observed={"iv": {"auc": GOLDEN_AUC * 10, "cmax": GOLDEN_CMAX * 10}})
+    from dataclasses import replace
+
+    request = replace(request, stages=["S0", "S4"])
+    engine = StubEngine()
+    outcome = run_campaign(request, read_root=root, project="renal-demo", engine=engine)
+    assert outcome.status == "ESCALATED" and "S4" in outcome.reason
+    assert engine.calls == 1  # one simulation; a validation stage never starts a fit
+    escalation = FileReadStore(root).list_escalations("t1")[0]
+    assert escalation["reasonCode"] == "INTERNAL_VALIDATION_FAILED"
+    assert [o["id"] for o in escalation["options"]] == ["accept_best", "abort"]  # §6.6: no blind retry

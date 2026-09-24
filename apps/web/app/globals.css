@@ -189,6 +189,11 @@ tbody tr:last-child td { border-bottom: none; }
 .stage.passed, .stage.accepted { border-top-color: var(--pass); }
 .stage.running { border-top-color: var(--sim); }
 .stage.escalated, .stage.failed, .stage.aborted { border-top-color: var(--fail); }
+.stage.skipped { border-top-style: dashed; opacity: 0.72; }
+/* What each stage could not do, stated plainly under the rail (skip reasons, studies not simulated). */
+.stage-notes { margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13px; }
+.stage-notes li { display: grid; grid-template-columns: 34px 1fr; gap: 8px; color: var(--ink-dim); }
+.stage-notes .sn-stage { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .stage .st-name { font-weight: 600; letter-spacing: -0.01em; }
 .stage .st-sub { font-size: 12px; color: var(--ink-dim); }
 

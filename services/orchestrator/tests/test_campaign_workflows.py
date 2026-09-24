@@ -30,6 +30,7 @@ from modeler_contracts.runs import (
     RoundRun,
     RoundRunResult,
     S0Readiness,
+    StagePlan,
     StageRequest,
 )
 from modeler_orchestrator.campaign import ModelingCampaignWorkflow, StageLoopWorkflow
@@ -38,8 +39,20 @@ TASK_QUEUE = "test-campaign"
 
 
 def mock_activities(*, evaluate_gate=False, diagnose_actions=None, diagnose_escalate=None, s0_ready=True,
-                    resume_last_stage=None):
-    """A full set of async mock activities with configurable evaluate/diagnose/plan/resume behaviour."""
+                    resume_last_stage=None, skip_stages=(), fit_changes_cpf=False, calls=None):
+    """A full set of async mock activities with configurable evaluate/diagnose/plan/resume behaviour.
+
+    ``skip_stages``: stages plan_stage reports as having nothing to simulate. ``fit_changes_cpf``: run_round on
+    a fit round returns a new CPF (as a real fit does). ``calls``: a list the mocks append (activity, stage,
+    phase) to, so a test can see what ran."""
+    log = calls if calls is not None else []
+
+    @activity.defn(name="plan_stage")
+    async def plan_stage(request: StageRequest) -> StagePlan:
+        kind = "validate" if request.stage in ("S4", "S5") else "fit"
+        if request.stage in skip_stages:
+            return StagePlan(stage=request.stage, kind=kind, skip_reason=f"nothing to simulate at {request.stage}")
+        return StagePlan(stage=request.stage, kind=kind, studies=["s"])
 
     @activity.defn(name="resume_campaign")
     async def resume_campaign(request: CampaignRequest) -> ResumeState:
@@ -60,15 +73,20 @@ def mock_activities(*, evaluate_gate=False, diagnose_actions=None, diagnose_esca
     @activity.defn(name="run_round")
     async def run_round(run: RoundRun) -> RoundRunResult:
         ctx = run.context
+        log.append(("run_round", ctx.stage, ctx.phase))
+        if fit_changes_cpf and ctx.pending_action and ctx.pending_action.startswith("fit"):
+            return RoundRunResult(results_uri="r", cpf_uri=f"{ctx.cpf_uri}.fitted", cpf_sha256="f" * 64)
         return RoundRunResult(results_uri="r", cpf_uri=ctx.cpf_uri, cpf_sha256=f"{ctx.round_index:064d}")
 
     @activity.defn(name="evaluate_round")
     async def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvaluation:
+        log.append(("evaluate_round", ctx.stage, ctx.phase))
         passed = evaluate_gate(ctx) if callable(evaluate_gate) else bool(evaluate_gate)
         return RoundEvaluation(gate_passed=passed, acceptable=passed, metrics={}, findings=[] if passed else ["off"])
 
     @activity.defn(name="diagnose_round")
     async def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagnosis:
+        log.append(("diagnose_round", ctx.stage, ctx.phase))
         actions = list(diagnose_actions or [])
         escalate = diagnose_escalate if diagnose_escalate is not None else not actions
         return RoundDiagnosis(evidence=["e"], permitted_actions=actions, escalate=escalate,
@@ -85,7 +103,7 @@ def mock_activities(*, evaluate_gate=False, diagnose_actions=None, diagnose_esca
     async def record_round(record: RoundRecord) -> None:
         return None
 
-    return [resume_campaign, plan_campaign, notify_reviewers, build_round_snapshot, run_round,
+    return [resume_campaign, plan_campaign, plan_stage, notify_reviewers, build_round_snapshot, run_round,
             evaluate_round, diagnose_round, choose_action, record_round]
 
 
@@ -272,4 +290,58 @@ def test_campaign_resume_skips_completed_stage():
             assert outcome.status == "COMPLETED"
             # S0 and S1 already completed -> only S2 runs this time
             assert [s.stage for s in outcome.stages] == ["S2"]
+    run(scenario())
+
+
+# --- MS-01 stage kinds: skip, validation, fit judged in its own round (R1/R2/R13) -----------------
+
+
+def test_campaign_skips_a_stage_with_nothing_to_simulate_and_continues():
+    async def scenario():
+        acts = mock_activities(evaluate_gate=True, skip_stages=("S2",))
+        async with running(acts) as env:
+            handle = await env.client.start_workflow(
+                ModelingCampaignWorkflow.run, _campaign_request(stages=["S0", "S1", "S2", "S4", "S5"]), id=_cid(),
+                task_queue=TASK_QUEUE,
+            )
+            await handle.signal(ModelingCampaignWorkflow.map_signed, ReviewDecision(approved=True))
+            await handle.signal(ModelingCampaignWorkflow.accept_final_cpf, ReviewDecision(approved=True))
+            outcome = await handle.result()
+            assert outcome.status == "COMPLETED"
+            status = {s.stage: s.status for s in outcome.stages}
+            assert status == {"S0": "PASSED", "S1": "PASSED", "S2": "SKIPPED", "S4": "PASSED", "S5": "PASSED"}
+            s2 = next(s for s in outcome.stages if s.stage == "S2")
+            assert s2.findings == ["nothing to simulate at S2"]  # the documented reason travels with it
+    run(scenario())
+
+
+def test_validation_stage_judges_once_and_never_diagnoses():
+    async def scenario():
+        calls: list = []
+        async with running(mock_activities(evaluate_gate=False, diagnose_actions=["fit_a"], calls=calls)) as env:
+            handle = await env.client.start_workflow(
+                StageLoopWorkflow.run, _stage_request(stage="S5"), id=_sid(), task_queue=TASK_QUEUE
+            )
+            await handle.signal(StageLoopWorkflow.escalation_decided, EscalationDecision(action="accept_best"))
+            outcome = await handle.result()
+            assert outcome.status == "ACCEPTED" and outcome.rounds_run == 1
+            assert outcome.escalation_reason == "external_validation_failed"
+            assert not [c for c in calls if c[0] == "diagnose_round"]  # validation never diagnoses or fits
+    run(scenario())
+
+
+def test_a_fit_is_judged_on_the_fitted_model_in_its_own_round():
+    """R13: the round's first simulation ran the pre-fit CPF; the gate must see the fitted one."""
+    async def scenario():
+        calls: list = []
+        # the gate passes only on the re-simulated, fitted model
+        acts = mock_activities(evaluate_gate=lambda ctx: ctx.phase == "postfit", diagnose_actions=["fit_a"],
+                               fit_changes_cpf=True, calls=calls)
+        async with running(acts) as env:
+            outcome = await env.client.execute_workflow(
+                StageLoopWorkflow.run, _stage_request(), id=_sid(), task_queue=TASK_QUEUE
+            )
+            assert outcome.status == "PASSED" and outcome.rounds_run == 2  # baseline, then the fit round passes
+            assert outcome.cpf_uri.endswith(".fitted")
+            assert ("evaluate_round", "S1", "postfit") in calls
     run(scenario())

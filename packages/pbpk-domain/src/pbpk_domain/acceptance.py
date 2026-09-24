@@ -2,7 +2,9 @@
 
 Limits come from ``rulesets/pbpk_acceptance_criteria.yaml``; see that file for the regulatory basis.
 Fitting and validation studies are reported separately because only validation studies show
-predictive performance; both must pass.
+predictive performance; both must pass. Within a role, comparisons may carry a ``group`` (e.g. "fasted" /
+"fed" for external validation, MS-01 §8), and each group is judged on its own so a good fasted fit cannot
+hide a failing fed prediction.
 """
 
 from __future__ import annotations
@@ -41,6 +43,7 @@ class Comparison:
     predicted: float
     observed: float
     role: Role
+    group: str = ""  # sub-group judged separately within the role, e.g. "fasted" / "fed"; "" = the whole role
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,7 @@ class GroupResult:
     n: int
     fraction_within: float
     required_fraction: float
+    group: str = ""
 
     @property
     def passes(self) -> bool:
@@ -101,19 +105,19 @@ def evaluate(
     ruleset = ruleset or load_acceptance_ruleset()
     tier = ruleset["tiers"][str(model_risk)]
     verdicts: list[Verdict] = []
-    grouped: dict[tuple[Role, str], list[Verdict]] = defaultdict(list)
+    grouped: dict[tuple[Role, str, str], list[Verdict]] = defaultdict(list)
     for comparison in comparisons:
         section = _RULESET_SECTION.get(comparison.quantity)
         if section is None:
             raise ValueError(f"no acceptance rule for quantity {comparison.quantity!r}")
         verdict = _judge(comparison, tier[section][comparison.quantity])
         verdicts.append(verdict)
-        grouped[(comparison.role, comparison.quantity)].append(verdict)
+        grouped[(comparison.role, comparison.group, comparison.quantity)].append(verdict)
 
     required = float(tier["min_fraction_within"])
     groups = [
-        GroupResult(role, quantity, len(items), sum(v.passes for v in items) / len(items), required)
-        for (role, quantity), items in sorted(grouped.items())
+        GroupResult(role, quantity, len(items), sum(v.passes for v in items) / len(items), required, group)
+        for (role, group, quantity), items in sorted(grouped.items())
     ]
     return AcceptanceReport(
         tier=str(model_risk), ruleset=f"{ruleset['id']}@{ruleset['version']}", verdicts=verdicts, groups=groups

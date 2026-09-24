@@ -48,6 +48,15 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
             </div>
           ))}
         </div>
+        {c.stages.some((s) => s.notes?.length) && (
+          <ul className="stage-notes" aria-label="Stage notes">
+            {c.stages.flatMap((s) =>
+              (s.notes ?? []).map((note, i) => (
+                <li key={`${s.stage}-${i}`}><span className="sn-stage">{s.stage}</span><span>{note}</span></li>
+              )),
+            )}
+          </ul>
+        )}
         <div style={{ marginTop: 18 }}>
           <div className="spread" style={{ marginBottom: 4 }}>
             <span className="muted">Time budget</span>

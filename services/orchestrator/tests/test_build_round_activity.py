@@ -94,9 +94,45 @@ def test_builds_snapshot_for_a_training_stage(tmp_path: Path) -> None:
 
 def test_stage_without_scenarios_echoes_cpf(tmp_path: Path) -> None:
     _, cpf_uri, map_uri = _write_inputs(tmp_path)
-    build = build_round_snapshot(_ctx(cpf_uri, map_uri, "S4"))  # validation stage: no training scenarios
+    build = build_round_snapshot(_ctx(cpf_uri, map_uri, "S3"))  # no fed / formulation study: nothing trains S3
     assert build.snapshot_uri == cpf_uri
     assert build.snapshot_sha256 == "a" * 64
+    assert build.notes and "S3" in build.notes[0]  # the reason travels with the build, not only the log
+
+
+def test_internal_validation_rebuilds_every_trained_study(tmp_path: Path) -> None:
+    _, cpf_uri, map_uri = _write_inputs(tmp_path)
+    build = build_round_snapshot(_ctx(cpf_uri, map_uri, "S4"))
+    snapshot = Snapshot.load(Path(build.snapshot_uri.removeprefix("file://")))
+    assert sorted(s.name for s in snapshot.simulations) == ["iv", "po"]  # S1's and S2's studies, re-simulated
+
+
+def test_validation_stage_simulates_what_it_can_and_names_the_rest(tmp_path: Path) -> None:
+    """A modified-release study the builder cannot place yet must not stop the other external studies being judged."""
+    cpf = _cpf()
+    adult = Demographics(sex=Sex.MALE, age_years=35.0)
+    base = dict(n=12, design="SD", route=Route.ORAL, dose_mg=10.0, food_state=FoodState.FASTED, n_timepoints=15,
+                demographics=adult)
+    studies = [
+        StudyRecord(study_id="iv", route=Route.IV_BOLUS, infusion_time_min=5.0, **{k: v for k, v in base.items() if k != "route"}),
+        StudyRecord(study_id="po_a", formulation=FormulationKind.SOLUTION, **base),
+        StudyRecord(study_id="po_b", formulation=FormulationKind.SOLUTION, **{**base, "dose_mg": 10.0, "n": 6}),
+        StudyRecord(study_id="tab", formulation=FormulationKind.MR, **{**base, "n": 6}),  # PO-MR: always external
+    ]
+    split = split_studies(studies, QuestionOfInterest())
+    m = generate_map(
+        compound="Example-A", cpf=cpf, studies=studies, split=split, objective="predict",
+        context_of_use="MIDD", food_effect_in_question=False, model_risk=Rating.MEDIUM,
+        engine_image_digest="sha256:abcd", software_versions={"ospsuite": "12.4.4"},
+    )
+    (tmp_path / "cpf.json").write_text(cpf.model_dump_json(), encoding="utf-8")
+    (tmp_path / "map.json").write_text(m.model_dump_json(), encoding="utf-8")
+    s5 = {sc.study_id for sc in m.scenarios if sc.stage == "S5"}
+    assert "tab" in s5 and "po_b" in s5
+    build = build_round_snapshot(_ctx((tmp_path / "cpf.json").as_uri(), (tmp_path / "map.json").as_uri(), "S5"))
+    snapshot = Snapshot.load(Path(build.snapshot_uri.removeprefix("file://")))
+    assert "tab" not in {s.name for s in snapshot.simulations} and "po_b" in {s.name for s in snapshot.simulations}
+    assert any(n.startswith("NOT SIMULATED") and "'tab'" in n for n in build.notes)
 
 
 def test_missing_map_echoes_cpf(tmp_path: Path) -> None:
@@ -162,6 +198,25 @@ def test_fit_action_emits_a_fit_request(tmp_path: Path) -> None:
     spec = json.loads(Path(fr.base_spec_uri.removeprefix("file://")).read_text())
     assert spec["parameters"][0]["paths"][0]["path"] == "Example-A|Lipophilicity"
     assert spec["output_mappings"][0]["observed"]["lloq"] == 0.1
+    # the spec names the model exactly as the engine exports it ("snapshot-<simulation>.pkml", after the job's
+    # snapshot.json input) — a name the engine does not produce means the fit can never start (found on PK-Sim)
+    from modeler_orchestrator.campaign_activities import ROUND_SNAPSHOT_INPUT
+    assert ROUND_SNAPSHOT_INPUT == "snapshot.json"
+    assert [s["pkml"] for s in spec["simulations"]] == ["snapshot-iv.pkml"]
+    # a mass-unit profile is declared as a mass concentration; a molar one (the canonical form) as molar
+    assert spec["output_mappings"][0]["observed"]["dimension"] == "Concentration (mass)"
+
+
+def test_fit_on_a_molar_profile_declares_the_molar_dimension(tmp_path: Path) -> None:
+    """ospsuite reads the unit against the declared dimension; µmol/l declared as mass is wrong or fails."""
+    cpf_uri, map_uri, observed_uri = _fittable_inputs(tmp_path, with_observed=True)
+    path = Path(observed_uri.removeprefix("file://"))
+    doc = json.loads(path.read_text())
+    doc["iv"]["profile"].update(unit="µmol/l", time_unit="min")
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    build = build_round_snapshot(_fit_ctx(cpf_uri, map_uri, observed_uri, "fit phys.logp"))
+    spec = json.loads(Path(build.fit_request.base_spec_uri.removeprefix("file://")).read_text())
+    assert spec["output_mappings"][0]["observed"]["dimension"] == "Concentration (molar)"
 
 
 def test_fit_action_without_observed_profile_has_no_fit_request(tmp_path: Path) -> None:

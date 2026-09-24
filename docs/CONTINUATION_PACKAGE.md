@@ -204,11 +204,11 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 | Stage | MS-01 job | Status | What exists and works | What is missing | Plan item |
 |---|---|---|---|---|---|
 | S0 readiness | CPF completeness, data split, MAP signed | **Done** | completeness gate, split algorithm (§3), MAP generator, step-up signature | — | — |
-| S1 IV | fit clearance and distribution to IV data | **Partial** | round loop build → simulate → evaluate → diagnose → fit on real PK-Sim; PI with SD/CV/95% CI; tiered fold-error acceptance | expression profiles, so enzyme clearance acts (R4); renal branch of the clearance rule (R6); VPC gate (R7); fit credited in its own round (R13) | 1.2, 1.4, 1.5, 1.6 |
-| S2 oral fasted | absorption from solution | **Partial** | oral solution / suspension | tablets and capsules (R5); VPC (R7) | 1.3, 1.5 |
-| S3 formulation / fed | Weibull tablet, fed effect | **Missing** | builder has `WeibullFormulationSpec` and meal events — never wired from the CPF | CPF → Weibull, harvested paths, formulation and fed sub-loops | 1.3 |
-| S4 internal validation | final CPF vs internal studies, no fitting | **Missing** | acceptance module | scenarios are never created (R1); runner has no validation mode (R2) | 1.1 |
-| S5 external validation | fasted and fed judged separately | **Missing** | acceptance grouped by (role, quantity) | EXTERNAL studies skipped (R1); fasted/fed grouping; MD / MR / special-population classes unmapped (R3) | 1.1 |
+| S1 IV | fit clearance and distribution to IV data | **Partial — runs on PK-Sim** | round loop build → simulate → evaluate → diagnose → fit; fit judged in its own round; renal clearance rule (diag-rules 0.2); PI with SD/CV/95% CI. PK-Sim-verified 2026-09-24 (Aciclovir, illustrative IV data) | expression profiles, so enzyme clearance acts (R4); VPC gate (R7) | 1.2, 1.5 |
+| S2 oral fasted | absorption from solution | **Partial** | oral solution / suspension, multiple dose (DI_24, DI_12_12); skipped with reason when there is no oral study | tablets and capsules (R5); VPC (R7); not yet PK-Sim-verified with oral data | 1.3, 1.5 |
+| S3 formulation / fed | Weibull tablet, fed effect | **Missing** (skips with reason) | builder has `WeibullFormulationSpec` and meal events — never wired from the CPF | CPF → Weibull, harvested paths, formulation and fed sub-loops | 1.3 |
+| S4 internal validation | final CPF vs internal studies, no fitting | **Done — runs on PK-Sim** | every trained study re-simulated from the final CPF once, judged, never fitted; failure escalates with §6.6 choices | VPC per study (R7) | 1.5 |
+| S5 external validation | fasted and fed judged separately | **Partial** | external studies of core classes simulated from the final CPF; fasted / fed judged as separate groups; unbuildable studies named; "not achievable" when there is no external study | tablets (R5); not yet PK-Sim-verified with external data (Phase 4) | 1.3, Phase 4 |
 | S6 prediction | sensitivity + uncertainty on the question | **Missing** | engine `sensitivity`, `population`, `batch` tasks (engine-verified) | not in `CAMPAIGN_STAGES`; uncertainty propagation (R8) | Phase 2 |
 | S7 report & package | MAR, M15 table, bundle, re-run | **Missing** | `assemble_mar`, `render_all`, `assemble_bundle`, `rerun_all.R`, `verify_reproduction` (byte-exact re-run verified on the server) | not wired to campaigns; no pandoc on any host; no artifact download (R9) | Phase 2 |
 
@@ -223,8 +223,8 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 | Persistence | File-backed `ReadStore` / `WriteStore` under `MODELER_READ_ROOT` — **used**. Postgres schema with RLS and append-only audit (T-05) — built, not used |
 | Auth | `DevVerifier` (**DEV ONLY**, `MODELER_DEV_AUTH=1`) in the single-node deploy. Keycloak OIDC + step-up (T-06) — built, not deployed |
 | Object store | `file://` — used. MinIO presigned I/O — not built |
-| Engine | Real PK-Sim on the server. Mac: `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
-| Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog) / Tailscale. Server build is older than HEAD — redeploy is plan item 0.2 |
+| Engine | Real PK-Sim on the server, and on the Mac through Docker (`deploy/dev/docker_engine.sh`, image from `services/engine-worker/Dockerfile`; set `MODELER_ENGINE_COMMAND="bash <repo>/deploy/dev/docker_engine.sh"`). `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
+| Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog, installed 2026-09-24) / Tailscale (installed userspace, awaiting the owner's login). Redeploy from the Mac: `bash deploy/dev/deploy_to_server.sh` |
 | Web | Dark design system, project wizard, data intake, campaign monitor with fold-error gauge, review inbox. Playwright acceptance flows not written |
 
 ### 4.3 Task status (specs in §2)

@@ -33,16 +33,24 @@ def po(**kw) -> StudyResidual:
 
 
 def test_ruleset_version_is_unverified() -> None:
-    assert diag_ruleset_version() == "diag-rules@0.1-UNVERIFIED"
+    assert diag_ruleset_version() == "diag-rules@0.2-UNVERIFIED"
 
 
 # --- individual rules ----------------------------------------------------------------------------
 
 
-def test_clearance_offers_clspec_then_logp() -> None:
+def test_clearance_offers_clearance_parameters_before_logp() -> None:
     d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)])
     assert d.escalate is False
-    assert d.permitted_actions == ("fit elim.hepatic.{enzyme}.clspec", "fit phys.logp")
+    assert d.permitted_actions == ("fit elim.hepatic.{enzyme}.clspec", "fit elim.renal.gfr_fraction",
+                                   "fit elim.renal.ts_clspec", "fit phys.logp")
+
+
+def test_renally_cleared_compound_is_offered_renal_clearance_not_logp_first() -> None:
+    """diag-rules 0.2: with hepatic clearance ruled out (the compound has none), the next offer is the renal
+    clearance — not logP, which would distort distribution to hide a clearance error (seen on PK-Sim)."""
+    d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.9)], actions_tried=["fit elim.hepatic.{enzyme}.clspec"])
+    assert d.permitted_actions[0] == "fit elim.renal.gfr_fraction"
 
 
 def test_clearance_low_direction() -> None:
@@ -139,12 +147,14 @@ def test_no_evidence_escalates() -> None:
 
 
 def test_tried_action_is_skipped() -> None:
-    d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)], actions_tried=["fit elim.hepatic.{enzyme}.clspec"])
+    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit elim.renal.gfr_fraction", "fit elim.renal.ts_clspec"]
+    d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)], actions_tried=tried)
     assert d.permitted_actions == ("fit phys.logp",)
 
 
 def test_all_actions_tried_escalates() -> None:
-    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit phys.logp"]
+    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit elim.renal.gfr_fraction", "fit elim.renal.ts_clspec",
+             "fit phys.logp"]
     d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)], actions_tried=tried)
     assert d.escalate is True
     assert "already been tried" in d.reason
@@ -179,7 +189,8 @@ CASES = [
      "fit elim.hepatic.{enzyme}.clspec"),
     ("S2", [po(cmax_ratio=2.0, tmax_ratio=0.4)], {}, "fit perm.intestinal"),
     ("S2", [po(cmax_ratio=0.4, tmax_ratio=2.0, auc_in_limits=True)], {}, "fit perm.intestinal"),
-    ("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)], {"actions_tried": ["fit elim.hepatic.{enzyme}.clspec"]}, "fit phys.logp"),
+    ("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)], {"actions_tried": ["fit elim.hepatic.{enzyme}.clspec"]},
+     "fit elim.renal.gfr_fraction"),
     ("S3", [po()], {"fed": FedSignals(auc_ratio_off=True, cmax_consistent=True)}, "fit food.fed_solubility_factor"),
     ("S2", [po(study_id="lo", dose_mg=5, observed_auc=50), po(study_id="hi", dose_mg=50, observed_auc=1500)], {},
      "switch elim.hepatic.{enzyme}.mm"),

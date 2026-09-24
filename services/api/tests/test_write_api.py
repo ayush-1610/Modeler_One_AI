@@ -101,6 +101,51 @@ def test_full_guided_write_flow(tmp_path):
     assert observed["iv"]["cmax"] == 40.0 and observed["iv"]["auc"] > 0 and "profile" in observed["iv"]
 
 
+def _prepared(tmp_path, study: dict, body: dict | None = None):
+    import json
+    from pathlib import Path
+    from urllib.parse import unquote, urlparse
+
+    c = client_with(tmp_path)
+    c.post("/api/v1/projects", json={"name": "Renal Demo", "compound": "Renaldrug"}, headers=_auth())
+    c.put("/api/v1/projects/renal-demo/compounds/Renaldrug/cpf", json=_renal_cpf(), headers=_auth())
+    c.post("/api/v1/projects/renal-demo/studies", json={"studies": [study]}, headers=_auth())
+    r = c.post("/api/v1/projects/renal-demo/questions/q/campaign:prepare", json=body or {"compound": "Renaldrug"},
+               headers=_auth())
+    if r.status_code != 200:
+        return r, None, None
+    prep = r.json()["data"]
+    load = lambda uri: json.loads(Path(unquote(urlparse(uri).path)).read_text())
+    return r, prep, (load(prep["observed_uri"]), load(prep["map_uri"]))
+
+
+def test_prepare_schedules_every_stage_by_default(tmp_path):
+    """R0: the campaign used to be prepared for S0–S2 only (and the UI asked for S0–S1)."""
+    _, prep, _ = _prepared(tmp_path, _study())
+    assert prep["stages"] == ["S0", "S1", "S2", "S3", "S4", "S5"]
+
+
+def test_prepare_converts_observed_data_to_engine_units(tmp_path):
+    """Hours and ng/ml are converted to minutes and µmol/l, so the gate compares like with like."""
+    study = _study() | {"profile": {"times": [0.5, 1, 2, 4, 8], "values": [9008.0, 7656.8, 4278.8, 1486.32, 90.08],
+                                    "time_unit": "h", "unit": "ng/ml"}}
+    _, _, (observed, map_doc) = _prepared(tmp_path, study)
+    profile = observed["iv"]["profile"]
+    assert profile["times"] == [30.0, 60.0, 120.0, 240.0, 480.0] and profile["unit"] == "µmol/l"
+    assert abs(observed["iv"]["cmax"] - 40.0) < 1e-9  # 9008 ng/ml / 225.2 g/mol
+    # the same study entered in native units gives the same AUC
+    _, _, (obs_native, _) = _prepared(tmp_path / "native", _study())
+    assert abs(observed["iv"]["auc"] - obs_native["iv"]["auc"]) < 1e-6 * obs_native["iv"]["auc"]
+    # the simulation window covers the whole sampled period (8 h here)
+    assert {sc["sim_end_time_h"] for sc in map_doc["scenarios"] if sc["study_id"] == "iv"} == {8.0}
+
+
+def test_prepare_rejects_an_unknown_unit(tmp_path):
+    study = _study() | {"profile": {"times": [1, 2], "values": [1.0, 0.5], "time_unit": "min", "unit": "mg"}}
+    r, _, _ = _prepared(tmp_path, study)
+    assert r.status_code == 422 and "not recognised" in r.json()["detail"]
+
+
 def test_put_cpf_compound_mismatch_is_422(tmp_path):
     c = client_with(tmp_path)
     r = c.put("/api/v1/projects/p/compounds/Wrong/cpf", json=_renal_cpf(), headers=_auth())

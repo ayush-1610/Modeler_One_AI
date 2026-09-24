@@ -22,6 +22,64 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   the "record every change" rule stick.
 - **Rewrote `docs/CONTINUATION_PACKAGE.md` §4 to the truth**, with a pipeline-coverage table (S0–S7).
 
+### Fixed — the pipeline now runs S0 → S5 (plan item 1.1, plus defects found running it on PK-Sim)
+Proven on real PK-Sim (the engine image under Docker on the Mac): an Aciclovir campaign started from a wrong renal
+clearance (GFR fraction 0.4) runs S0 → S5 and completes — S1 baseline fails (AUC 2.06-fold), the fit recovers
+GFR fraction 1.272, the fitted model passes in the same round (AUC 1.008-fold); S2/S3 are skipped (no oral or
+fed study, MS-01 §6.2/§6.7), S4 re-validates the fitted model and passes, S5 is recorded as not achievable (no
+external study). The data are the example's illustrative IV profile, not clinical data — real-data proof is Phase 4.
+- **R0 — the UI only ever asked for S0 → S1.** The Run button and the new-project wizard hard-coded
+  `stages: ["S0", "S1"]`, and `campaign:prepare` defaulted to S0 → S2. Both now run every stage; a stage with no
+  data is skipped with its reason instead of being left out.
+- **R1 — S4 and S5 now simulate.** The MAP gives every internal study an S4 scenario and every external study of a
+  core class (IV, oral fasted, fed, multiple dose, MR, other) an S5 scenario. DDI / PGX / special-population studies
+  are named in S5's notes as validating their S6 application (MS-01 §3.3 rule 4).
+- **R2 — validation mode.** S4/S5 simulate the final CPF once and judge it; they never diagnose or fit. A failure
+  escalates with the MS-01 §6.6 choices (record a limitation and continue, or stop) — no blind retry.
+- **A stage with nothing to simulate is SKIPPED with its documented reason** (new stage status), instead of running
+  an empty round and escalating. New `plan_stage` activity, used by both the single-node runner and Temporal.
+- **S5 judges fasted and fed as separate groups** (MS-01 §8): acceptance comparisons carry a group.
+- **R13 (raised to critical) — a fit is judged in the round it happens.** The round simulated the CPF *before* the
+  fit and evaluated that, so a successful fit was scored on stale values, its action counted as tried, and the stage
+  could run out of actions and escalate although the fit worked. The round now re-simulates the fitted CPF
+  (`phase="postfit"`) and judges that. Same change in the Temporal workflow.
+- **The campaign's fit could never start** (found on PK-Sim). The fit spec named its models after the round's
+  snapshot file, but the engine names exported models after its input (`snapshot-<simulation>.pkml`). Now one
+  constant, `ROUND_SNAPSHOT_INPUT`, drives both.
+- **Fitting a dimensionless parameter crashed the engine** (found on PK-Sim, GFR fraction). A null unit came back
+  from `run_job.R`'s re-serialisation as `{}`; the spec now omits it and `run_pi.R` only accepts a real string.
+- **Observed data are converted to the engine's units before any comparison** (new `pbpk_domain.units`). The
+  gate compared predicted AUC/Cmax (µmol/l, minutes) with observed values in whatever the study reported — an
+  upload in hours or ng/ml was judged 60-fold or MW-fold off. `campaign:prepare` now converts every profile to
+  minutes and µmol/l (unknown units → 422), and the fit declares the molar dimension (it declared µmol/l data as
+  a mass concentration).
+- **The prediction is reduced over the observed window at both ends** (`ObservedPK.t_first`): an IV study sampled
+  from 5 min, or a steady-state study sampled over its last interval, was scored against area never measured.
+- **Each simulation covers its study's sampling window** (was a fixed 24 h, truncating longer studies).
+- **Multiple-dose studies can be simulated**: `dosing_interval_h` / `n_doses` on the study, mapped to the PK-Sim
+  schedules found in the OSP reference snapshots only (`DI_24`, `DI_12_12`). Verified on PK-Sim: q12h × 4 gives
+  exactly 4 doses, q24h × 3 gives 3 (PK-Sim doses while t < End time).
+- **A validation stage simulates every study it can and names the rest** ("NOT SIMULATED: …"); one study the
+  builder cannot place yet (e.g. a tablet) no longer stops the others from being judged.
+- Monitor rounds no longer say "improved" for a round that merely tried an action; they say passed / no pass, and
+  carry per-study and per-group results. Stage notes (skip reasons, studies not simulated) are shown under the stage
+  rail. Each stage keeps its own goodness-of-fit plot (`gofByStage`).
+
+### Changed — diagnostics ruleset `diag-rules` 0.1 → 0.2 (UNVERIFIED; change approved by the project owner)
+- **R6 — the clearance rule offers renal clearance before logP**: `fit elim.renal.gfr_fraction`, then
+  `fit elim.renal.ts_clspec`, then `fit phys.logp`. Under 0.1 a renally cleared compound with wrong renal clearance
+  could only be "fixed" by bending logP — seen on PK-Sim, where it moved AUC from 2.06- to 1.89-fold by distorting
+  distribution. MS-01 §2.2's condition (renal fits only with urine/fe data) is enforced per compound by the CPF fit
+  policy. Awaiting SME sign-off (T-30).
+
+### Infra
+- **Mac Docker engine fallback** (`deploy/dev/docker_engine.sh`): runs a job in the linux/amd64 engine image with
+  the job directory mounted at the same path, so `EngineRunner` works unchanged. Golden round trip passes in the
+  container (~21 s). A development fallback — not the qualified, digest-pinned production image.
+- **`deploy/dev/deploy_to_server.sh`**: rsync + dependencies + web build + restart, as one command.
+- **Server redeployed** to the current build (it was running a 2026-09-20 build), autostart installed, engine gate
+  (`golden_roundtrip.R`, `verify_run_round.sh`) passes there. Tailscale installed in userspace mode, awaiting login.
+
 ### Known gap — diagnosed 2026-09-24 (the reason every campaign stopped at S1)
 Tracked as R1–R13 in the plan. The critical ones:
 - **R1 — S4 and S5 never simulated anything.** `campaign/map.py::_scenarios` only created scenarios for INTERNAL

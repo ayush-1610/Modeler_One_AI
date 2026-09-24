@@ -66,6 +66,19 @@ def test_build_fit_spec_structure_and_path():
     assert spec["algorithm"] == "BOBYQA"
 
 
+def test_dimensionless_parameter_carries_no_unit_key():
+    """A null unit came back from run_job.R's re-serialisation as {} and ospsuite rejected it (found on PK-Sim)."""
+    gfr_bind = EngineBinding(building_block="Compound", process="GlomerularFiltration", parameter="GFR fraction",
+                             data_source="Literature")
+    cpf = CPF(compound="Drug-A", parameters=(
+        rec("phys.mw", 300.0, unit="g/mol", status=ParameterStatus.FIXED),
+        rec("elim.renal.gfr_fraction", 0.4, binding=gfr_bind, fit_policy=FitPolicy(stage=("S1",), lower=0.0, upper=3.0)),
+    ))
+    spec = build_fit_spec(cpf, ["elim.renal.gfr_fraction"], [_sim()])
+    assert "unit" not in spec["parameters"][0]
+    assert build_fit_spec(_cpf(), ["phys.logp"], [_sim()])["parameters"][0]["unit"] == "Log Units"
+
+
 def test_bounds_override_wins_and_start_is_clamped():
     spec = build_fit_spec(_cpf(), ["phys.logp"], [_sim()], bounds_override={"phys.logp": (3.0, 5.0)})
     p = spec["parameters"][0]

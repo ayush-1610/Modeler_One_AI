@@ -33,6 +33,7 @@ class SimulatedProfile:
     role: Role                      # "fitting" (INTERNAL) | "validation" (EXTERNAL)
     times: Sequence[float]
     concentrations: Sequence[float]
+    group: str = ""                 # judged as its own group within the role (S5: "fasted" / "fed")
 
 
 @dataclass(frozen=True)
@@ -42,21 +43,25 @@ class ObservedPK:
     ``tmax`` and ``thalf`` are optional and feed the diagnostics ruleset (T-14); they take no part in the
     acceptance gate, which compares AUC and Cmax only.
 
-    ``t_last`` is the last observed sampling time. AUC to the last measurement is only comparable when both
-    sides cover the same interval, so the simulated profile is truncated to this time before it is reduced;
-    without it a study that stopped sampling early is scored against a longer simulated window and the ratio
-    is biased (severely so for a slowly eliminated compound)."""
+    ``t_first`` / ``t_last`` are the first and last observed sampling times. The observed AUC runs from the
+    first sample to the last, so it is only comparable with a prediction reduced over the same interval: the
+    simulated profile is cut to [t_first, t_last] before it is reduced. Without the end cut a study that stopped
+    sampling early is scored against a longer window (severely biased for a slowly eliminated compound); without
+    the start cut an IV study sampled from 5 min, or a steady-state study sampled only over its last interval,
+    is scored against area the observation never measured."""
     auc: float | None = None
     cmax: float | None = None
     tmax: float | None = None
     thalf: float | None = None
     t_last: float | None = None
+    t_first: float | None = None
 
 
 @dataclass(frozen=True)
 class StudyPK:
     study_id: str
     role: Role
+    group: str
     predicted_auc: float | None
     predicted_cmax: float
     predicted_tmax: float
@@ -98,21 +103,23 @@ def assess_round(
             continue
         obs = observed.get(profile.study_id)
         times, concs = list(profile.times), list(profile.concentrations)
-        if obs is not None and obs.t_last is not None:
+        if obs is not None and (obs.t_last is not None or obs.t_first is not None):
             # Compare like with like: reduce the prediction over the interval that was actually sampled.
-            kept = [(t, c) for t, c in zip(times, concs, strict=False) if t <= obs.t_last]
+            lo = obs.t_first if obs.t_first is not None else float("-inf")
+            hi = obs.t_last if obs.t_last is not None else float("inf")
+            kept = [(t, c) for t, c in zip(times, concs, strict=False) if lo <= t <= hi]
             if len(kept) >= 2:
                 times = [t for t, _ in kept]
                 concs = [c for _, c in kept]
             else:
                 findings.append(
-                    f"{profile.study_id}: the observed window ends at {obs.t_last:g}, before the simulation has "
-                    f"two points; comparing over the full simulated window instead"
+                    f"{profile.study_id}: the observed window [{lo:g}, {hi:g}] holds fewer than two simulated "
+                    f"points; comparing over the full simulated window instead"
                 )
         result = nca(times, concs)
         pred_auc = _predicted_auc(result, auc_kind)
         studies.append(StudyPK(
-            study_id=profile.study_id, role=profile.role,
+            study_id=profile.study_id, role=profile.role, group=profile.group,
             predicted_auc=pred_auc, predicted_cmax=result.c_max, predicted_tmax=result.t_max,
             predicted_thalf=result.t_half,
             observed_auc=obs.auc if obs else None, observed_cmax=obs.cmax if obs else None,
@@ -122,9 +129,9 @@ def assess_round(
             findings.append(f"{profile.study_id}: no observed PK; not compared")
             continue
         if obs.auc is not None and pred_auc is not None and pred_auc > 0:
-            comparisons.append(Comparison(profile.study_id, "AUC", pred_auc, obs.auc, profile.role))
+            comparisons.append(Comparison(profile.study_id, "AUC", pred_auc, obs.auc, profile.role, profile.group))
         if obs.cmax is not None and result.c_max > 0:
-            comparisons.append(Comparison(profile.study_id, "Cmax", result.c_max, obs.cmax, profile.role))
+            comparisons.append(Comparison(profile.study_id, "Cmax", result.c_max, obs.cmax, profile.role, profile.group))
 
     if not comparisons:
         findings.append("no observed PK to compare against; acceptance gate cannot be judged this round")
@@ -136,8 +143,9 @@ def assess_round(
     report = evaluate(comparisons, model_risk)
     if not report.passes:
         for v in report.failures():
+            group = f", {v.comparison.group}" if v.comparison.group else ""
             findings.append(
-                f"{v.comparison.study} {v.comparison.quantity} ({v.comparison.role}): "
+                f"{v.comparison.study} {v.comparison.quantity} ({v.comparison.role}{group}): "
                 f"ratio {v.ratio:.2f} outside {v.limit} (PE {v.prediction_error_pct:+.0f}%)"
             )
     return RoundAssessment(
@@ -152,7 +160,7 @@ def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None) -> 
     metrics: dict[str, Any] = {
         "studies": [
             {
-                "study_id": s.study_id, "role": s.role,
+                "study_id": s.study_id, "role": s.role, "group": s.group,
                 "predicted_auc": s.predicted_auc, "observed_auc": s.observed_auc,
                 "predicted_cmax": s.predicted_cmax, "observed_cmax": s.observed_cmax,
                 "predicted_tmax": s.predicted_tmax, "observed_tmax": s.observed_tmax,
@@ -176,7 +184,7 @@ def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None) -> 
         metrics["tier"] = report.tier
         metrics["ruleset"] = report.ruleset
         metrics["groups"] = [
-            {"role": g.role, "quantity": g.quantity, "n": g.n,
+            {"role": g.role, "group": g.group, "quantity": g.quantity, "n": g.n,
              "fraction_within": g.fraction_within, "required_fraction": g.required_fraction, "passes": g.passes}
             for g in report.groups
         ]

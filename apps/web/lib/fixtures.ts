@@ -48,8 +48,9 @@ export type Round = {
 export type Stage = {
   stage: string;
   label: string;
-  status: "RUNNING" | "PASSED" | "ACCEPTED" | "ESCALATED" | "ABORTED" | "FAILED" | "PENDING";
+  status: "RUNNING" | "PASSED" | "ACCEPTED" | "SKIPPED" | "ESCALATED" | "ABORTED" | "FAILED" | "PENDING";
   rounds: Round[];
+  notes?: string[]; // why a stage was skipped, studies it could not simulate, what the build deferred
 };
 
 export type Campaign = {

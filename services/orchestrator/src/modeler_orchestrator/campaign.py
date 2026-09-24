@@ -5,7 +5,9 @@ signature gate, then one `StageLoopWorkflow` child per stage (S1…S5), then a f
 `StageLoopWorkflow` runs the MS-01 round loop for one stage — build a snapshot from the CPF, fit (a
 `FitRoundWorkflow` child) or simulate, evaluate the tier gate, and on failure diagnose, choose the next
 permitted action and apply it — bounded by the stage's time budget and a maximum number of rounds, pausing
-for a human decision when it must escalate.
+for a human decision when it must escalate. A fit is judged in its own round (the round re-simulates the fitted
+CPF before evaluating). S4/S5 are validation stages: one round from the final CPF, judged, never fitted. A
+stage the MAP gives nothing to simulate is SKIPPED with its documented reason (`plan_stage`).
 
 Durability: each stage is a child workflow (bounding history) and the campaign can resume from persisted
 rows via `resume_campaign`; a worker restart replays from Temporal history, so no round is lost or repeated.
@@ -44,6 +46,7 @@ with workflow.unsafe.imports_passed_through():
         RoundRunResult,
         S0Readiness,
         StageOutcome,
+        StagePlan,
         StageRequest,
     )
 
@@ -52,6 +55,8 @@ ACT_RETRY = RetryPolicy(maximum_attempts=3)
 ENGINE_RETRY = RetryPolicy(maximum_attempts=2, non_retryable_error_types=["InputIntegrityError", "EngineError", "EngineTimeout"])
 ROUND_ENGINE_QUEUE = "engine-s"  # one built snapshot, a few small simulations
 _MIN = timedelta(minutes=1)
+_VALIDATION_STAGES = ("S4", "S5")
+_VALIDATION_FAILURE = {"S4": "internal_validation_failed", "S5": "external_validation_failed"}
 
 
 def _stage_budget(request: CampaignRequest, stage: str) -> int:
@@ -81,6 +86,8 @@ class StageLoopWorkflow:
 
     @workflow.run
     async def run(self, request: StageRequest) -> StageOutcome:
+        if request.stage in _VALIDATION_STAGES:
+            return await self._validate(request)
         started = workflow.now()
         cpf_uri, cpf_sha = request.cpf_uri, request.cpf_sha256
         best_cpf_uri, best_cpf_sha = cpf_uri, cpf_sha
@@ -150,9 +157,27 @@ class StageLoopWorkflow:
             findings=["maximum rounds reached without passing the gate"], escalation_reason="rounds_exhausted",
         )
 
-    async def _run_round(
-        self, ctx: RoundContext, remaining: float
-    ) -> tuple[RoundRunResult, RoundEvaluation, RoundDiagnosis, ActionChoice | None]:
+    async def _validate(self, request: StageRequest) -> StageOutcome:
+        """S4/S5 (MS-01 §4): simulate the final CPF once and judge it; never fit. A failure waits for the
+        modeler's §6.6 decision — record a limitation and continue (ACCEPTED), or stop (ABORTED)."""
+        ctx = RoundContext(
+            campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=request.stage, round_index=1,
+            cpf_uri=request.cpf_uri, cpf_sha256=request.cpf_sha256, pending_action=None,
+            deadline_seconds=float(request.budget_seconds), seed=request.seed,
+            map_uri=request.map_uri, map_sha256=request.map_sha256,
+            observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+        )
+        _run_result, evaluation, _diagnosis, _choice = await self._run_round(ctx, float(request.budget_seconds), judge_only=True)
+        if evaluation.gate_passed:
+            return StageOutcome(stage=request.stage, status="PASSED", rounds_run=1, cpf_uri=request.cpf_uri,
+                                cpf_sha256=request.cpf_sha256, findings=evaluation.findings)
+        reason = _VALIDATION_FAILURE[request.stage]
+        decision = await self._await_escalation(request)
+        status = "ACCEPTED" if decision is not None and decision.action == "accept_best" else "ABORTED"
+        return StageOutcome(stage=request.stage, status=status, rounds_run=1, cpf_uri=request.cpf_uri,
+                            cpf_sha256=request.cpf_sha256, findings=evaluation.findings, escalation_reason=reason)
+
+    async def _simulate(self, ctx: RoundContext, remaining: float) -> tuple[RoundBuild, EngineManifest | None]:
         build: RoundBuild = await workflow.execute_activity(
             "build_round_snapshot", ctx, start_to_close_timeout=_MIN * 5, retry_policy=ACT_RETRY, result_type=RoundBuild,
         )
@@ -170,6 +195,12 @@ class StageLoopWorkflow:
                 start_to_close_timeout=timedelta(seconds=max(60.0, remaining)), heartbeat_timeout=_MIN * 2,
                 retry_policy=ENGINE_RETRY, result_type=EngineManifest,
             )
+        return build, manifest
+
+    async def _run_round(
+        self, ctx: RoundContext, remaining: float, *, judge_only: bool = False,
+    ) -> tuple[RoundRunResult, RoundEvaluation, RoundDiagnosis, ActionChoice | None]:
+        build, manifest = await self._simulate(ctx, remaining)
 
         # Fit round: take the per-simulation pkml the simulate step exported and run the fitting child. When the
         # engine produced no pkml (or there is no fit request) the fit is skipped; the round still simulates.
@@ -189,20 +220,30 @@ class StageLoopWorkflow:
             "run_round", RoundRun(context=ctx, build=build, fit_outcome=fit_outcome, manifest=manifest),
             start_to_close_timeout=_MIN * 5, retry_policy=ACT_RETRY, result_type=RoundRunResult,
         )
+        judged = ctx
+        if run_result.cpf_uri != ctx.cpf_uri:
+            # The fit changed the CPF: judge the fitted model in this round, not the pre-fit simulation.
+            judged = replace(ctx, cpf_uri=run_result.cpf_uri, cpf_sha256=run_result.cpf_sha256,
+                             pending_action=None, pending_bounds_override=None, phase="postfit")
+            post_build, post_manifest = await self._simulate(judged, remaining)
+            run_result = await workflow.execute_activity(
+                "run_round", RoundRun(context=judged, build=post_build, fit_outcome=None, manifest=post_manifest),
+                start_to_close_timeout=_MIN * 5, retry_policy=ACT_RETRY, result_type=RoundRunResult,
+            )
         evaluation: RoundEvaluation = await workflow.execute_activity(
-            "evaluate_round", args=[ctx, run_result], start_to_close_timeout=_MIN * 10, retry_policy=ACT_RETRY,
+            "evaluate_round", args=[judged, run_result], start_to_close_timeout=_MIN * 10, retry_policy=ACT_RETRY,
             result_type=RoundEvaluation,
         )
         diagnosis = RoundDiagnosis()
         choice: ActionChoice | None = None
-        if not evaluation.gate_passed:
+        if not evaluation.gate_passed and not judge_only:
             diagnosis = await workflow.execute_activity(
-                "diagnose_round", args=[ctx, evaluation], start_to_close_timeout=_MIN * 2, retry_policy=ACT_RETRY,
+                "diagnose_round", args=[judged, evaluation], start_to_close_timeout=_MIN * 2, retry_policy=ACT_RETRY,
                 result_type=RoundDiagnosis,
             )
             if not diagnosis.escalate:
                 choice = await workflow.execute_activity(
-                    "choose_action", args=[ctx, diagnosis], start_to_close_timeout=_MIN * 2, retry_policy=ACT_RETRY,
+                    "choose_action", args=[judged, diagnosis], start_to_close_timeout=_MIN * 2, retry_policy=ACT_RETRY,
                     result_type=ActionChoice,
                 )
         await workflow.execute_activity(
@@ -285,6 +326,14 @@ class ModelingCampaignWorkflow:
                 max_rounds=request.max_rounds_per_stage, seed=request.seed,
                 signature_timeout_days=request.signature_timeout_days,
             )
+            plan: StagePlan = await workflow.execute_activity(
+                "plan_stage", stage_req, start_to_close_timeout=_MIN, retry_policy=ACT_RETRY, result_type=StagePlan,
+            )
+            if plan.skip_reason:
+                # Nothing to simulate here: a documented limitation (MS-01 §6.2 / §6.7, §3.3 rule 2), not a failure.
+                stage_outcomes.append(StageOutcome(stage=stage, status="SKIPPED", rounds_run=0, cpf_uri=cpf_uri,
+                                                   cpf_sha256=cpf_sha, findings=[plan.skip_reason, *plan.notes]))
+                continue
             outcome: StageOutcome = await workflow.execute_child_workflow(
                 StageLoopWorkflow.run, stage_req, id=f"{request.campaign_id}-{stage}",
             )

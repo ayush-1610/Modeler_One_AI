@@ -163,7 +163,9 @@ def derive_chunk_seed(run_seed: int, chunk_index: int) -> int:
 # Stages in order. S0 is readiness (no engine), S1–S3 fit, S4/S5 validate. S6/S7 (application, report)
 # are separate tasks (T-31, T-24) and not run by ModelingCampaignWorkflow.
 CAMPAIGN_STAGES = ("S0", "S1", "S2", "S3", "S4", "S5")
-STAGE_STATUS = ("PASSED", "ACCEPTED", "ESCALATED", "ABORTED", "FAILED")
+# SKIPPED: the stage has no study to train or judge it (e.g. S2 with no oral data, S5 with no external study).
+# The reason is a documented limitation carried in the stage's findings, never a silent pass.
+STAGE_STATUS = ("PASSED", "ACCEPTED", "SKIPPED", "ESCALATED", "ABORTED", "FAILED")
 
 
 @dataclass
@@ -219,6 +221,19 @@ class RoundContext:
     map_sha256: str = ""
     observed_uri: str = ""  # observed PK per study, for the acceptance gate in evaluate_round
     observed_sha256: str = ""
+    # "" for the round's main pass; "postfit" when the round re-simulates from the CPF its fit just produced,
+    # so the fit is judged in the round it happened. Keeps the two passes' snapshots and outputs apart.
+    phase: str = ""
+
+
+@dataclass
+class StagePlan:
+    """What a stage will do, decided from the signed MAP before its first round (MS-01 §4)."""
+    stage: str
+    kind: str                   # "fit" (S1–S3: round loop with diagnostics) | "validate" (S4/S5: simulate once, judge)
+    studies: list[str] = field(default_factory=list)  # the MAP scenarios (study ids) this stage simulates
+    skip_reason: str | None = None                     # set when there is nothing to simulate; the stage is SKIPPED
+    notes: list[str] = field(default_factory=list)     # e.g. external studies that validate an application, not S5
 
 
 @dataclass
@@ -227,6 +242,7 @@ class RoundBuild:
     snapshot_sha256: str
     needs_fit: bool = False
     fit_request: FitRoundRequest | None = None
+    notes: list[str] = field(default_factory=list)  # what the build deferred or could not place, for the record
 
 
 @dataclass

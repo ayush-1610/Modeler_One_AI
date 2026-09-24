@@ -40,6 +40,10 @@ _ORAL_ROUTES = ("oral",)
 _DISSOLVED_FORMULATIONS = ("solution", "suspension")
 # Default simulation window for a single-dose study when the scenario carries no sampling schedule.
 DEFAULT_SIM_END_TIME_H = 24.0
+# Regular multiple-dose schedules, by interval in hours -> the PK-Sim DosingInterval. Only values that occur in
+# the OSP reference snapshots (services/engine-worker/golden/fixtures) are listed — never invented; any other
+# interval is surfaced as a ScenarioBuildError until it is harvested.
+_DOSING_INTERVAL = {24.0: "DI_24", 12.0: "DI_12_12"}
 
 
 class ScenarioBuildError(ValueError):
@@ -74,9 +78,37 @@ def _subject_spec(scenario: MapScenario, *, seed: int) -> SubjectSpec:
     )
 
 
+def _schedule(scenario: MapScenario) -> tuple[str, Measured | None]:
+    """The protocol's PK-Sim DosingInterval and End time: ("Single", None) for one dose, else a regular schedule
+    whose End time is n_doses × interval (PK-Sim repeats the dose while time < End time)."""
+    if scenario.dosing_interval_h is None:
+        return "Single", None
+    interval = _DOSING_INTERVAL.get(float(scenario.dosing_interval_h))
+    if interval is None:
+        raise ScenarioBuildError(
+            f"scenario {scenario.study_id!r}: a dose every {scenario.dosing_interval_h:g} h has no harvested PK-Sim "
+            f"DosingInterval (known: {', '.join(f'{k:g} h' for k in _DOSING_INTERVAL)})"
+        )
+    if scenario.n_doses is None:
+        raise ScenarioBuildError(
+            f"scenario {scenario.study_id!r}: a multiple-dose study needs its number of doses; none is recorded"
+        )
+    return interval, Measured(value=scenario.n_doses * float(scenario.dosing_interval_h), unit="h")
+
+
+def _sim_end(scenario: MapScenario, default_h: float) -> float:
+    """Simulate at least the default window, the whole sampled window, and a multiple-dose regimen to its end."""
+    end = max(default_h, scenario.sim_end_time_h or 0.0)
+    if scenario.dosing_interval_h is not None and scenario.n_doses is not None:
+        end = max(end, scenario.n_doses * float(scenario.dosing_interval_h))
+    return end
+
+
 def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, sim_end_time_h: float) -> Scenario:
     sid = scenario.study_id
     dose = Measured(value=scenario.dose_mg, unit="mg")
+    dosing_interval, dosing_end = _schedule(scenario)
+    sim_end_time_h = _sim_end(scenario, sim_end_time_h)
 
     if scenario.route in _ORAL_ROUTES:
         if scenario.formulation not in _DISSOLVED_FORMULATIONS:
@@ -84,7 +116,7 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
                 f"scenario {sid!r}: formulation {scenario.formulation!r} needs a dissolution model that the CPF "
                 "does not yet carry (only solution/suspension are placed today; IR/MR is a formulation-coverage gap)"
             )
-        protocol = OralProtocolSpec(name=f"{sid} protocol", dose=dose)
+        protocol = OralProtocolSpec(name=f"{sid} protocol", dose=dose, dosing_interval=dosing_interval, end_time=dosing_end)
         formulation = DissolvedFormulationSpec(name=f"{sid} formulation")
         meal_events: tuple[MealEventSpec, ...] = ()
         event_names: tuple[str, ...] = ()
@@ -104,7 +136,8 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
                 "the scenario carries none, so it is surfaced rather than invented"
             )
         protocol = IntravenousProtocolSpec(
-            name=f"{sid} protocol", dose=dose, infusion_time_min=scenario.infusion_time_min
+            name=f"{sid} protocol", dose=dose, infusion_time_min=scenario.infusion_time_min,
+            dosing_interval=dosing_interval, end_time=dosing_end,
         )
         simulation = SimulationSpec(
             name=sid, subject=subject_name, compound=compound, protocol=protocol.name, end_time_h=sim_end_time_h,
@@ -151,11 +184,17 @@ def build_stage_snapshot(
     seed: int = 1,
     sim_end_time_h: float = DEFAULT_SIM_END_TIME_H,
     snapshot_version: int | None = None,
+    skip_unbuildable: bool = False,
 ) -> StageSnapshot:
     """Build the snapshot for one stage from the CPF and the MAP's scenarios for that stage.
 
     Raises `ScenarioBuildError` when a scenario cannot be built without inventing a study-specific value, or
     the errors of `build_from_cpf` (missing required CPF parameters, referential problems).
+
+    ``skip_unbuildable`` is for the validation stages: one study the builder cannot place yet (say a tablet with
+    no dissolution model) must not stop the others from being judged, so it is left out and named in the notes
+    ("NOT SIMULATED"). A fitting stage keeps raising, because silently fitting to fewer studies than the MAP
+    planned would change the model.
     """
     stage_scenarios = scenarios_for_stage(scenarios, stage)
     if not stage_scenarios:
@@ -163,12 +202,22 @@ def build_stage_snapshot(
 
     subjects: dict[str, SubjectSpec] = {}
     built: list[Scenario] = []
+    placed: list[MapScenario] = []
+    not_simulated: list[str] = []
     for scenario in stage_scenarios:
         subject = _subject_spec(scenario, seed=seed)
+        try:
+            spec = _scenario_specs(scenario, subject_name=subject.name, compound=cpf.compound, sim_end_time_h=sim_end_time_h)
+        except ScenarioBuildError as exc:
+            if not skip_unbuildable:
+                raise
+            not_simulated.append(f"NOT SIMULATED: {exc}")
+            continue
         subjects.setdefault(subject.name, subject)
-        built.append(
-            _scenario_specs(scenario, subject_name=subject.name, compound=cpf.compound, sim_end_time_h=sim_end_time_h)
-        )
+        built.append(spec)
+        placed.append(scenario)
+    if not built:
+        raise ScenarioBuildError(f"no scenario of stage {stage!r} could be built: " + "; ".join(not_simulated))
 
     snapshot, report = build_from_cpf(
         cpf, list(subjects.values()), built, snapshot_version=snapshot_version
@@ -178,5 +227,5 @@ def build_stage_snapshot(
         build_report=report,
         subjects=tuple(subjects),
         simulations=tuple(s.simulation.name for s in built),
-        notes=_deferral_notes(snapshot, stage_scenarios, report),
+        notes=tuple(not_simulated) + _deferral_notes(snapshot, placed, report),
     )

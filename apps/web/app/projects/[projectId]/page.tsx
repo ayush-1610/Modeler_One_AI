@@ -32,7 +32,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
 
       {runnable && (
-        <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S1</span>}>
+        <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S5</span>}>
           <p className="muted" style={{ marginTop: 0 }}>
             Generates the Model Analysis Plan from this project&apos;s CPF and {studies!.length} observed
             study(ies), records the Part 11 signature, then runs the stage loop on the OSP engine — building

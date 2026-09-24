@@ -44,6 +44,8 @@ from modeler_contracts.runs import (
     RoundRun,
     RoundRunResult,
     S0Readiness,
+    StagePlan,
+    StageRequest,
 )
 from modeler_orchestrator.campaign_store import CampaignStore
 
@@ -51,6 +53,15 @@ from modeler_orchestrator.campaign_store import CampaignStore
 ROUND_RESOURCE_CLASS = "s"
 # Canonical result the engine writes and evaluate_round reads: {"profiles": {study_id: {times_min, concentrations}}}.
 ROUND_PROFILES_NAME = "profiles.json"
+# The name the round's snapshot is given as an engine input. run_job.R's simulate task reads it by this name, and
+# PK-Sim names every exported model after it: "<input stem>-<simulation>.pkml". The fit spec must reference
+# exactly those names, or the parameter identification cannot find its models.
+ROUND_SNAPSHOT_INPUT = "snapshot.json"
+
+
+def exported_pkml_name(simulation: str) -> str:
+    """The file name the engine exports a round simulation's model under (see ROUND_SNAPSHOT_INPUT)."""
+    return f"{Path(ROUND_SNAPSHOT_INPUT).stem}-{simulation}.pkml"
 # Fit-round sizing from the engine benchmark (osp-engine-facts): 0.506 s/simulation.
 FIT_SECONDS_PER_SIM = 0.506
 FIT_EVALUATIONS_PER_START = 40
@@ -111,6 +122,30 @@ def plan_campaign(request: CampaignRequest) -> S0Readiness:
     return S0Readiness(ready=report.ready, findings=list(report.missing))
 
 
+@activity.defn(name="plan_stage")
+def plan_stage(request: StageRequest) -> StagePlan:
+    """Decide what a stage does from the signed MAP before its first round (MS-01 §4).
+
+    S1–S3 are fit loops, S4/S5 simulate the final CPF once and judge it. A stage with no scenario is skipped
+    with its documented reason (e.g. no oral study -> S2 skipped, decision tree §6.2; no external study -> S5
+    not achievable) instead of running a round that has nothing to simulate and escalating on it."""
+    from pbpk_domain.campaign.map import FIT_STAGES, VALIDATION_STAGES, MapDocument, stage_coverage
+
+    kind = "validate" if request.stage in VALIDATION_STAGES else "fit" if request.stage in FIT_STAGES else "readiness"
+    map_text = _load_local_text(request.map_uri) if request.map_uri else None
+    if map_text is None:
+        # Without a loadable MAP the stage cannot be planned here; run it and let the round report why.
+        return StagePlan(stage=request.stage, kind=kind, notes=["MAP not locally loadable; stage not pre-planned"])
+    coverage = stage_coverage(MapDocument.model_validate_json(map_text), request.stage)
+    return StagePlan(stage=request.stage, kind=coverage.kind, studies=list(coverage.studies),
+                     skip_reason=coverage.skip_reason, notes=list(coverage.notes))
+
+
+def _round_stem(ctx: RoundContext) -> str:
+    """The round's artifact name; a post-fit re-simulation gets its own, so it never overwrites the main pass."""
+    return f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}" + (f"-{ctx.phase}" if ctx.phase else "")
+
+
 @activity.defn(name="resume_campaign")
 async def resume_campaign(request: CampaignRequest) -> ResumeState:
     """Reconstruct progress from persisted rows (create the campaign row on first run) so a re-started
@@ -134,6 +169,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     and filled by the snapshot->pkml conversion step before the fit runs."""
     from pbpk_domain.campaign.round_build import scenarios_for_stage
     from pbpk_domain.fit_spec import FitSimulation, FitSpecError, build_fit_spec, pi_observed, resolve_fit_ids
+    from pbpk_domain.units import is_molar
 
     target = ctx.pending_action.split(" ", 1)[1] if ctx.pending_action and " " in ctx.pending_action else ""
     fit_ids = list(resolve_fit_ids(cpf, target))
@@ -159,10 +195,14 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
         profile = (observed_doc or {}).get(scenario.study_id, {}).get("profile")
         if not profile or mol_weight is None:
             continue
+        # Observed profiles are stored in the engine's units (µmol/l, `pbpk_domain.units`); declare the molar
+        # dimension, or ospsuite reads µmol/l as a mass concentration and the fit is meaningless or fails.
+        dimension = "Concentration (molar)" if is_molar(profile["unit"]) else "Concentration (mass)"
         simulations.append(FitSimulation(
-            study_id=scenario.study_id, pkml=f"{snapshot_stem}-{scenario.study_id}.pkml", output_path=output_path,
+            study_id=scenario.study_id, pkml=exported_pkml_name(scenario.study_id), output_path=output_path,
             observed=pi_observed(scenario.study_id, profile["times"], profile["values"], time_unit=profile["time_unit"],
-                                 unit=profile["unit"], mol_weight=mol_weight, sd=profile.get("sd"), lloq=profile.get("lloq")),
+                                 unit=profile["unit"], mol_weight=mol_weight, dimension=dimension,
+                                 sd=profile.get("sd"), lloq=profile.get("lloq")),
         ))
     if not simulations:
         activity.logger.info("build_round_snapshot %s %s: no observed profile to fit against", ctx.campaign_id, ctx.stage)
@@ -192,7 +232,8 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
 
 @activity.defn(name="collect_pkml_inputs")
 def collect_pkml_inputs(manifest: EngineManifest) -> list[EngineInput]:
-    """The per-simulation pkml the engine exported (``<snapshot>-<Sim>.pkml``), as the fit's model inputs.
+    """The per-simulation pkml the engine exported (``snapshot-<Sim>.pkml``, `exported_pkml_name`), as the fit's
+    model inputs.
 
     The simulate step runs with ``export_pkml`` on a fit round, so its manifest carries one pkml per
     simulation; each becomes an EngineInput named by its bare file name (which matches the pkml names the PI
@@ -227,18 +268,23 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     if cpf_text is None or map_text is None:
         return _echo("CPF or MAP not locally loadable (object-store I/O pending)")
 
-    from pbpk_domain.campaign.map import MapDocument
+    from pbpk_domain.campaign.map import VALIDATION_STAGES, MapDocument
     from pbpk_domain.campaign.round_build import ScenarioBuildError, build_stage_snapshot
     from pbpk_domain.cpf import CPF
 
     cpf = CPF.model_validate_json(cpf_text)
     map_doc = MapDocument.model_validate_json(map_text)
     try:
-        stage = build_stage_snapshot(cpf, list(map_doc.scenarios), stage=ctx.stage, seed=ctx.seed)
+        # A validation stage judges every study it can build and names the rest; a fitting stage must not
+        # silently fit to fewer studies than the MAP planned, so it fails on any unbuildable one.
+        stage = build_stage_snapshot(cpf, list(map_doc.scenarios), stage=ctx.stage, seed=ctx.seed,
+                                     skip_unbuildable=ctx.stage in VALIDATION_STAGES)
     except ScenarioBuildError as exc:
-        return _echo(str(exc))
+        echoed = _echo(str(exc))
+        echoed.notes = [str(exc)]
+        return echoed
 
-    out = _local_path(ctx.cpf_uri).parent / "snapshots" / f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}.json"
+    out = _local_path(ctx.cpf_uri).parent / "snapshots" / f"{_round_stem(ctx)}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     stage.snapshot.dump(out)
     # The hash the engine job carries must be of the exact file bytes the engine downloads (dump() writes the
@@ -252,7 +298,8 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
         ctx.campaign_id, ctx.stage, ctx.round_index, len(stage.simulations), needs_fit, fit_request is not None,
     )
     return RoundBuild(
-        snapshot_uri=out.as_uri(), snapshot_sha256=snapshot_sha, needs_fit=needs_fit, fit_request=fit_request
+        snapshot_uri=out.as_uri(), snapshot_sha256=snapshot_sha, needs_fit=needs_fit, fit_request=fit_request,
+        notes=list(stage.notes),
     )
 
 
@@ -263,12 +310,13 @@ def prepare_round_job(ctx: RoundContext, build: RoundBuild) -> EngineJob:
     exports one pkml per simulation (`export_pkml`) — the per-simulation model the parameter identification
     fits — which `collect_pkml_inputs` turns into the fit's model inputs."""
     root = os.environ.get("MODELER_OBJECT_STORE_URI", "file:///tmp/modeler-object-store").rstrip("/")
+    round_dir = f"r{ctx.round_index}" + (f"-{ctx.phase}" if ctx.phase else "")
     return EngineJob(
-        job_id=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}",
+        job_id=_round_stem(ctx),
         tenant_id=ctx.tenant_id,
         task="simulate",
-        inputs=[EngineInput(name="snapshot.json", uri=build.snapshot_uri, sha256=build.snapshot_sha256)],
-        outputs_uri=f"{root}/tenants/{ctx.tenant_id}/campaigns/{ctx.campaign_id}/{ctx.stage}/r{ctx.round_index}",
+        inputs=[EngineInput(name=ROUND_SNAPSHOT_INPUT, uri=build.snapshot_uri, sha256=build.snapshot_sha256)],
+        outputs_uri=f"{root}/tenants/{ctx.tenant_id}/campaigns/{ctx.campaign_id}/{ctx.stage}/{round_dir}",
         options={"export_pkml": True} if (build.needs_fit and build.fit_request is not None) else {},
         timeout_s=int(max(60.0, ctx.deadline_seconds)) if ctx.deadline_seconds else 600,
     )
@@ -361,28 +409,39 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
 
     from pbpk_domain.campaign.evaluate import ObservedPK, SimulatedProfile, assess_round
     from pbpk_domain.campaign.map import MapDocument
+    from pbpk_domain.units import minutes_per
 
     map_doc = MapDocument.model_validate_json(map_text)
     role_of = {s.study_id: ("fitting" if s.assignment == "INTERNAL" else "validation") for s in map_doc.studies}
+    # External validation judges fasted and fed as separate groups (MS-01 §4 S5, §8); elsewhere one group.
+    food_of = {s.study_id: s.food_state for s in map_doc.scenarios if s.stage == ctx.stage}
+    group_of = food_of if ctx.stage == "S5" else {}
 
     simulated = [
         SimulatedProfile(
             study_id=study_id, role=role_of.get(study_id, "validation"),
             times=prof.get("times_min", []), concentrations=prof.get("concentrations", []),
+            group=group_of.get(study_id, ""),
         )
         for study_id, prof in profiles_doc["profiles"].items()
     ]
     observed_doc = _load_local_json(ctx.observed_uri) if ctx.observed_uri else {}
-    def _t_last(pk: dict) -> float | None:
-        """The last sampled time, so the prediction is reduced over the same interval as the observation."""
-        times = ((pk.get("profile") or {}).get("times")) or []
-        return max(times) if times else None
+    def _window(pk: dict) -> tuple[float | None, float | None]:
+        """The sampled interval, so the prediction is reduced over the same interval as the observation."""
+        profile = pk.get("profile") or {}
+        times = profile.get("times") or []
+        if not times:
+            return None, None
+        # Simulated times are minutes; observed profiles are stored canonical (minutes) since campaign:prepare
+        # normalises them, but convert defensively so an hours-based profile is never cut at the wrong time.
+        factor = minutes_per(profile.get("time_unit", "min"))
+        return min(times) * factor, max(times) * factor
 
-    observed = {
-        study_id: ObservedPK(auc=pk.get("auc"), cmax=pk.get("cmax"), tmax=pk.get("tmax"), thalf=pk.get("thalf"),
-                             t_last=_t_last(pk))
-        for study_id, pk in (observed_doc or {}).items()
-    }
+    observed = {}
+    for study_id, pk in (observed_doc or {}).items():
+        t_first, t_last = _window(pk)
+        observed[study_id] = ObservedPK(auc=pk.get("auc"), cmax=pk.get("cmax"), tmax=pk.get("tmax"),
+                                        thalf=pk.get("thalf"), t_first=t_first, t_last=t_last)
 
     assessment = assess_round(simulated, observed, model_risk=map_doc.model_risk)
     activity.logger.info(
@@ -533,6 +592,7 @@ async def record_round(record: RoundRecord) -> None:
 
 CAMPAIGN_ACTIVITIES = [
     plan_campaign,
+    plan_stage,
     resume_campaign,
     build_round_snapshot,
     prepare_round_job,

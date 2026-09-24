@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 
@@ -34,7 +36,8 @@ from pbpk_domain.m15 import Rating
 STAGE_PLAN: dict[str, dict] = {
     "S0": {"fit_candidates": (), "branches": (), "max_rounds": 1},
     "S1": {
-        "fit_candidates": ("elim.hepatic.{enzyme}.clspec", "phys.logp", "elim.renal.gfr_fraction", "perm.cellular", "bind.fu"),
+        "fit_candidates": ("elim.hepatic.{enzyme}.clspec", "phys.logp", "elim.renal.gfr_fraction", "elim.renal.ts_clspec",
+                           "perm.cellular", "bind.fu"),
         "branches": ("dist.partition_method", "dist.permeability_method"),
         "max_rounds": 4,
     },
@@ -53,12 +56,34 @@ STAGE_PLAN: dict[str, dict] = {
 # Campaign-budget split (MS-01 §7). S0–S5 are run by the campaign workflow; S6/S7 are separate tasks.
 BUDGET_FRACTION = {"S0": 0.01, "S1": 0.25, "S2": 0.25, "S3": 0.12, "S4": 0.05, "S5": 0.05}
 
-# Which stage each internal study class trains.
+# Stage kinds (MS-01 §4). S1–S3 are round loops that may fit; S4/S5 simulate the final CPF once and judge it,
+# never fitting — a validation failure escalates rather than refits.
+FIT_STAGES = ("S1", "S2", "S3")
+VALIDATION_STAGES = ("S4", "S5")
+
+# Which stage each internal study class trains. Every study that trains a stage is re-simulated in S4.
 _CLASS_STAGE = {
     StudyClass.IV_SD: "S1",
     StudyClass.PO_SOL_FASTED: "S2",
     StudyClass.PO_IR_FASTED: "S2",
     StudyClass.PO_FED: "S3",
+}
+# External studies S5 simulates: fasted, fed, multiple dose, other dose, other formulation (MS-01 §4 S5).
+# DDI / PGX / SPECIAL / PRECLINICAL studies validate their S6 application instead (MS-01 §3.3 rule 4).
+_S5_CLASSES = frozenset({
+    StudyClass.IV_SD, StudyClass.PO_SOL_FASTED, StudyClass.PO_IR_FASTED, StudyClass.PO_FED,
+    StudyClass.PO_MD, StudyClass.PO_MR, StudyClass.PO_OTHER,
+})
+# Why a stage with no scenario is skipped. Each is a documented limitation, carried into the stage's findings.
+_SKIP_REASON = {
+    "S1": "No internal IV study: S1 has nothing to fit; distribution and clearance are identified from oral data "
+          "at S2 (MS-01 decision tree §6.1).",
+    "S2": "No internal fasted oral single-dose study: S2 has nothing to fit; oral exposure is predicted, not "
+          "fitted (MS-01 decision tree §6.2).",
+    "S3": "No internal fed or formulation study: S3 has nothing to fit; fed exposure, where relevant, is predicted "
+          "and judged in S5 (MS-01 decision tree §6.7).",
+    "S4": "No study was fitted, so there is nothing to validate internally.",
+    "S5": "No external study: external validation is not achievable — a documented limitation (MS-01 §3.3 rule 2).",
 }
 
 ESCALATION_TRIGGERS = (
@@ -125,6 +150,13 @@ class MapScenario(BaseModel):
     age_years: float
     weight_kg: float | None = None
     height_cm: float | None = None
+    study_class: str = ""
+    # Multiple-dose regimen (a dose every `dosing_interval_h`, `n_doses` times); None for a single dose.
+    dosing_interval_h: float | None = None
+    n_doses: int | None = None
+    # The study's last sampling time: the simulation must cover it, or the prediction is scored on a shorter
+    # window than the observation.
+    sim_end_time_h: float | None = None
 
 
 class MapAcceptance(BaseModel):
@@ -206,26 +238,72 @@ def _acceptance(model_risk: Rating) -> MapAcceptance:
     return MapAcceptance(tier=str(model_risk), ruleset=f"{ruleset['id']}@{ruleset['version']}", criteria=tier)
 
 
-def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template: str) -> tuple[MapScenario, ...]:
+def _scenario_stages(assignment: Assignment, study_class: StudyClass) -> tuple[str, ...]:
+    """The stages a study is simulated in: an internal study trains its stage and is re-simulated in S4; an
+    external study of a core class is judged in S5. Anything else (flagged classes, supportive studies) has no
+    S0–S5 scenario."""
+    if assignment is Assignment.INTERNAL:
+        train = _CLASS_STAGE.get(study_class)
+        return (train, "S4") if train else ()
+    if assignment is Assignment.EXTERNAL and study_class in _S5_CLASSES:
+        return ("S5",)
+    return ()
+
+
+def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template: str,
+               sampling_end_h: Mapping[str, float] | None = None) -> tuple[MapScenario, ...]:
     by_id = {s.study_id: s for s in studies}
+    ends = sampling_end_h or {}
     scenarios = []
     for row in split.splits:
-        if row.assignment is not Assignment.INTERNAL:
-            continue
-        stage = _CLASS_STAGE.get(row.study_class)
-        if stage is None:
-            continue
         study = by_id[row.study_id]
         demo = study.demographics or DEFAULT_DEMOGRAPHICS
-        scenarios.append(MapScenario(
-            study_id=study.study_id, stage=stage, route=study.route.value, dose_mg=study.dose_mg,
-            infusion_time_min=study.infusion_time_min,
-            formulation=study.formulation.value, food_state=study.food_state.value,
-            meal_template=meal_template if study.food_state.value == "fed" else None, n_subjects=study.n,
-            population=demo.population, sex=demo.sex.value, age_years=demo.age_years,
-            weight_kg=demo.weight_kg, height_cm=demo.height_cm,
-        ))
+        multiple = study.is_multiple_dose
+        for stage in _scenario_stages(row.assignment, row.study_class):
+            scenarios.append(MapScenario(
+                study_id=study.study_id, stage=stage, route=study.route.value, dose_mg=study.dose_mg,
+                infusion_time_min=study.infusion_time_min,
+                formulation=study.formulation.value, food_state=study.food_state.value,
+                meal_template=meal_template if study.food_state.value == "fed" else None, n_subjects=study.n,
+                population=demo.population, sex=demo.sex.value, age_years=demo.age_years,
+                weight_kg=demo.weight_kg, height_cm=demo.height_cm, study_class=row.study_class.value,
+                dosing_interval_h=study.dosing_interval_h if multiple else None,
+                n_doses=study.n_doses if multiple else None,
+                sim_end_time_h=ends.get(study.study_id),
+            ))
     return tuple(scenarios)
+
+
+@dataclass(frozen=True)
+class StageCoverage:
+    """What one stage simulates under a MAP, and why it is skipped when there is nothing to simulate."""
+    stage: str
+    kind: str                           # "fit" | "validate" | "readiness"
+    studies: tuple[str, ...]
+    skip_reason: str | None = None
+    notes: tuple[str, ...] = field(default_factory=tuple)
+
+
+def stage_coverage(map_doc: MapDocument, stage: str) -> StageCoverage:
+    """The studies `stage` simulates under this MAP; a stage with none is skipped with its documented reason.
+
+    For S5 the notes also name every external study that is *not* judged there — flagged studies validate their
+    S6 application (rule 4) — so the record shows each study's fate, not just the ones that ran."""
+    kind = "validate" if stage in VALIDATION_STAGES else "fit" if stage in FIT_STAGES else "readiness"
+    studies = tuple(dict.fromkeys(s.study_id for s in map_doc.scenarios if s.stage == stage))
+    notes: list[str] = []
+    if stage == "S5":
+        judged = set(studies)
+        for row in map_doc.studies:
+            if row.study_id in judged:
+                continue
+            if row.assignment == Assignment.EXTERNAL.value:
+                notes.append(f"{row.study_id} ({row.study_class}) validates the planned {row.study_class} application "
+                             "in S6, not S5 (MS-01 §3.3 rule 4)")
+            elif row.assignment == Assignment.SUPPORTIVE.value:
+                notes.append(f"{row.study_id} ({row.study_class}) is supportive context only; not simulated")
+    skip = _SKIP_REASON.get(stage) if kind != "readiness" and not studies else None
+    return StageCoverage(stage=stage, kind=kind, studies=studies, skip_reason=skip, notes=tuple(notes))
 
 
 def generate_map(
@@ -244,8 +322,12 @@ def generate_map(
     campaign_budget_seconds: int = 3600,
     diagnostics_ruleset_version: str | None = None,
     meal_template: str = "Meal: High-fat breakfast (Human)",
+    sampling_end_h: Mapping[str, float] | None = None,
 ) -> MapDocument:
-    """Produce the MAP (version 1, DRAFT) from the standard and the campaign's inputs (MS-01 §9)."""
+    """Produce the MAP (version 1, DRAFT) from the standard and the campaign's inputs (MS-01 §9).
+
+    ``sampling_end_h`` maps a study to its last observed time (hours) so each simulation covers the whole
+    sampled window."""
     if diagnostics_ruleset_version is None:
         from pbpk_domain.diagnostics import diag_ruleset_version
 
@@ -280,7 +362,7 @@ def generate_map(
         split_rationale=split.rationale,
         split_limitations=split.limitations,
         stage_plan=stage_plan,
-        scenarios=_scenarios(studies, split, meal_template=meal_template),
+        scenarios=_scenarios(studies, split, meal_template=meal_template, sampling_end_h=sampling_end_h),
         diagnostics_ruleset_version=diagnostics_ruleset_version,
         acceptance=_acceptance(model_risk),
         engine_image_digest=engine_image_digest,

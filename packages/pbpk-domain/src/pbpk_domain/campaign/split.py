@@ -127,6 +127,9 @@ class StudyRecord(BaseModel):
     special_population: SpecialPopulation | None = None
     n: int = Field(gt=0)
     design: str = "SD"  # "SD" | "MD"
+    # Multiple-dose regimen, needed to simulate an MD study (a regular schedule: one dose every interval).
+    dosing_interval_h: float | None = Field(default=None, gt=0)
+    n_doses: int | None = Field(default=None, gt=0)
     crossover: bool = False
     route: Route = Route.ORAL
     dose_mg: float = Field(gt=0)

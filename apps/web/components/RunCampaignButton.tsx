@@ -13,11 +13,12 @@ export function RunCampaignButton({
   projectId,
   questionId,
   compound,
-  stages = ["S0", "S1"],
+  stages,
 }: {
   projectId: string;
   questionId: string;
   compound: string;
+  /** Omit to run every MS-01 stage (the default): a stage without data is skipped with its reason. */
   stages?: string[];
 }) {
   const [busy, setBusy] = useState(false);

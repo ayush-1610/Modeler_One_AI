@@ -1,12 +1,17 @@
 """Single-node headless campaign executor — the runner-first, no-Docker execution mode.
 
 Runs the MS-01 stage pipeline (S0 readiness → S1…S5) in-process by calling the **same** campaign activity
-functions the Temporal worker calls (`build_round_snapshot`, `prepare_round_job`, `collect_pkml_inputs`,
-`run_round`, `evaluate_round`, `diagnose_round`, `choose_action`) and the same fit planning/assessment
-(`plan_jobs`, `assess_round`), driving the engine through the same subprocess boundary
+functions the Temporal worker calls (`plan_stage`, `build_round_snapshot`, `prepare_round_job`,
+`collect_pkml_inputs`, `run_round`, `evaluate_round`, `diagnose_round`, `choose_action`) and the same fit
+planning/assessment (`plan_jobs`, `assess_round`), driving the engine through the same subprocess boundary
 (`modeler_engine.runner.EngineRunner` + `LocalObjectStore`, i.e. `Rscript run_job.R`). The scientific work is
 single-sourced with the Temporal path; only the loop control (`StageLoopWorkflow` / `ModelingCampaignWorkflow`)
 is re-expressed here, without Temporal signals, timers or a cluster.
+
+Stage kinds (MS-01 §4): S1–S3 are round loops — simulate, judge, diagnose, fit — and a fit is judged in the
+round it happens (the round re-simulates from the fitted CPF before evaluating). S4/S5 simulate the final CPF
+once and judge it, never fitting; S5 judges fasted and fed separately. A stage with no study to simulate is
+SKIPPED with its documented reason rather than escalated.
 
 Human gates (MS-01 §1): the MAP signature is collected in the UI before a campaign starts; final CPF
 acceptance is a review-inbox action after the stages pass. On an escalation the runner **stops** the campaign
@@ -41,6 +46,7 @@ from modeler_contracts.runs import (
     RoundRun,
     RoundRunResult,
     StageOutcome,
+    StageRequest,
 )
 from modeler_orchestrator.campaign_activities import (
     build_round_snapshot,
@@ -49,6 +55,7 @@ from modeler_orchestrator.campaign_activities import (
     diagnose_round,
     evaluate_round,
     plan_campaign,
+    plan_stage,
     prepare_round_job,
     run_round,
 )
@@ -64,6 +71,8 @@ STAGE_LABELS = {
 }
 # Stages that stop the campaign when a stage ends there.
 _STOP_STATUSES = ("ESCALATED", "ABORTED", "FAILED")
+# Why a validation stage escalates (MS-01 §4 S4, §6.6).
+_VALIDATION_FAILURE = {"S4": "internal_validation_failed", "S5": "external_validation_failed"}
 _DEFAULT_STAGE_BUDGET_S = 1800
 # The decision options MS-01 §4 offers on any stage escalation (mirrors the escalations API / review inbox).
 # Every one of them resumes or ends the stage, so every one is an approval and carries a Part 11 signature —
@@ -72,6 +81,13 @@ _ESCALATION_OPTIONS = [
     {"id": "retry", "label": "Retry the stage", "requiresSignature": True},
     {"id": "accept_best", "label": "Accept the best round", "requiresSignature": True},
     {"id": "abort", "label": "Abort the stage", "requiresSignature": True},
+]
+# A validation stage is deterministic — re-running it gives the same answer — so MS-01 §6.6 offers no retry:
+# record the failure as a limitation (restricting the context of use) and continue, or stop. Moving the failing
+# study to the internal set and refitting (§6.6 path 2) is a MAP deviation: revise the MAP and start again.
+_VALIDATION_OPTIONS = [
+    {"id": "accept_best", "label": "Record a limitation and continue (MS-01 §6.6)", "requiresSignature": True},
+    {"id": "abort", "label": "Stop the campaign", "requiresSignature": True},
 ]
 
 
@@ -103,6 +119,16 @@ def _local_json(uri: str) -> dict | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+
+
+@dataclass
+class _RoundOutcome:
+    run_result: RoundRunResult
+    evaluation: RoundEvaluation
+    diagnosis: RoundDiagnosis
+    choice: object
+    notes: list[str]
+    fitted: bool = False  # the round applied fitted estimates and was judged on the re-simulated, fitted model
 
 
 def _gof_series(results_uri: str, observed_uri: str) -> list[dict]:
@@ -146,6 +172,8 @@ class CampaignArtifactWriter:
     _rounds: dict[str, list[dict]] = field(default_factory=dict)
     _status: dict[str, str] = field(default_factory=dict)
     _gof: list[dict] = field(default_factory=list)
+    _notes: dict[str, list[str]] = field(default_factory=dict)
+    _gof_by_stage: dict[str, list[dict]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for stage in self.stages:
@@ -165,7 +193,9 @@ class CampaignArtifactWriter:
         for row in campaign.get("stages", []):
             writer._status[row["stage"]] = row.get("status", "PENDING")
             writer._rounds[row["stage"]] = list(row.get("rounds", []))
+            writer._notes[row["stage"]] = list(row.get("notes", []))
         writer._gof = list(campaign.get("gof", []))
+        writer._gof_by_stage = {k: list(v) for k, v in (campaign.get("gofByStage") or {}).items()}
         writer._started = time.monotonic() - float(campaign.get("elapsedSeconds", 0))
         return writer
 
@@ -175,20 +205,34 @@ class CampaignArtifactWriter:
     def stage_status(self, stage: str, status: str) -> None:
         self._status[stage] = status
 
+    def stage_notes(self, stage: str, notes: list[str]) -> None:
+        """Record what the stage could not do or deferred (skip reasons, studies not simulated), once each."""
+        kept = self._notes.setdefault(stage, [])
+        for note in notes:
+            if note and note not in kept:
+                kept.append(note)
+
     def add_round(self, stage: str, round_index: int, action: str, evaluation: RoundEvaluation) -> None:
         auc = evaluation.metrics.get("AUC", {}).get("gmfe")
         cmax = evaluation.metrics.get("Cmax", {}).get("gmfe")
-        verdict = "passed" if evaluation.gate_passed else ("improved" if action != "baseline" else "no pass")
+        verdict = "passed" if evaluation.gate_passed else "no pass"
         self._rounds[stage].append({
             "round": round_index, "action": action,
             "aucGmfe": round(auc, 3) if auc is not None else None,
             "cmaxGmfe": round(cmax, 3) if cmax is not None else None,
             "verdict": verdict,
+            # per-study and per-group results, so validation can be shown fasted vs fed and study by study
+            "studies": evaluation.metrics.get("studies", []),
+            "groups": evaluation.metrics.get("groups", []),
+            "findings": list(evaluation.findings),
         })
 
-    def set_gof(self, series: list[dict]) -> None:
+    def set_gof(self, series: list[dict], stage: str | None = None) -> None:
+        """The latest goodness-of-fit series, and each stage's own, so validation plots are not overwritten."""
         if series:
             self._gof = series
+            if stage:
+                self._gof_by_stage[stage] = series
 
     def flush(self, *, current_stage: str, status: str) -> None:
         self.store.upsert_campaign(self.tenant_id, {
@@ -197,18 +241,21 @@ class CampaignArtifactWriter:
             "budgetSeconds": self.budget_seconds, "elapsedSeconds": self._elapsed(),
             "currentStage": current_stage, "status": status,
             "stages": [
-                {"stage": s, "label": STAGE_LABELS.get(s, s), "status": self._status[s], "rounds": self._rounds[s]}
+                {"stage": s, "label": STAGE_LABELS.get(s, s), "status": self._status[s], "rounds": self._rounds[s],
+                 "notes": self._notes.get(s, [])}
                 for s in self.stages
             ],
             "gof": self._gof,
+            "gofByStage": self._gof_by_stage,
             "resume": self.resume,
         })
 
     def record_escalation(self, stage: str, reason: str, findings: list[str]) -> None:
         evidence = "; ".join(findings) if findings else f"Stage {stage} escalated ({reason})."
+        options = _VALIDATION_OPTIONS if stage in _VALIDATION_FAILURE else _ESCALATION_OPTIONS
         self.store.upsert_escalation(self.tenant_id, {
             "id": f"{self.campaign_id}-{stage}", "campaignId": self.campaign_id, "stage": stage,
-            "reasonCode": (reason or "ESCALATED").upper(), "evidence": evidence, "options": _ESCALATION_OPTIONS,
+            "reasonCode": (reason or "ESCALATED").upper(), "evidence": evidence, "options": options,
         })
 
 
@@ -252,11 +299,31 @@ class LocalExecutor:
         for stage in request.stages:
             if stage == "S0":
                 continue
+            plan = plan_stage(StageRequest(
+                campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=stage, cpf_uri=cpf_uri,
+                cpf_sha256=cpf_sha, budget_seconds=0, map_uri=request.map_uri, map_sha256=request.map_sha256,
+            ))
+            if self.writer:
+                self.writer.stage_notes(stage, plan.notes)
+            if plan.skip_reason:
+                # Nothing to simulate at this stage: a documented limitation, not a failure (MS-01 §6.2 / §6.7,
+                # §3.3 rule 2). The CPF carries forward unchanged.
+                outcomes.append(StageOutcome(stage=stage, status="SKIPPED", rounds_run=0, cpf_uri=cpf_uri,
+                                             cpf_sha256=cpf_sha, findings=[plan.skip_reason, *plan.notes]))
+                completed.append(stage)
+                if self.writer:
+                    self.writer.stage_notes(stage, [plan.skip_reason])
+                    self.writer.stage_status(stage, "SKIPPED")
+                    self.writer.flush(current_stage=stage, status="RUNNING")
+                continue
             if self.writer:
                 self.writer.stage_status(stage, "RUNNING")
                 self.writer.flush(current_stage=stage, status="RUNNING")
             try:
-                outcome = self._run_stage(request, stage, cpf_uri, cpf_sha)
+                if plan.kind == "validate":
+                    outcome = self._run_validation(request, stage, cpf_uri, cpf_sha)
+                else:
+                    outcome = self._run_stage(request, stage, cpf_uri, cpf_sha)
             except Exception as exc:  # noqa: BLE001 - an engine or activity failure must surface, not hang
                 # Without this the background thread dies silently and the campaign sits at RUNNING forever,
                 # which looks like a hang to the user and hides the real error.
@@ -321,13 +388,18 @@ class LocalExecutor:
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
             )
             rounds_run = round_index
-            run_result, evaluation, diagnosis, choice = self._run_round(ctx)
+            result = self._run_round(ctx)
+            run_result, evaluation, diagnosis, choice = result.run_result, result.evaluation, result.diagnosis, result.choice
             cpf_uri, cpf_sha = run_result.cpf_uri, run_result.cpf_sha256
             best_uri, best_sha = cpf_uri, cpf_sha
 
             if self.writer:
-                self.writer.add_round(stage, round_index, pending_action or "baseline", evaluation)
-                self.writer.set_gof(_gof_series(run_result.results_uri, request.observed_uri))
+                self.writer.stage_notes(stage, result.notes)
+                action = pending_action or "baseline"
+                if pending_action and pending_action.startswith("fit") and not result.fitted:
+                    action += " (fit produced no estimates; judged unchanged)"
+                self.writer.add_round(stage, round_index, action, evaluation)
+                self.writer.set_gof(_gof_series(run_result.results_uri, request.observed_uri), stage)
                 self.writer.flush(current_stage=stage, status="RUNNING")
 
             if evaluation.gate_passed:
@@ -345,11 +417,43 @@ class LocalExecutor:
                             cpf_sha256=best_sha, findings=["maximum rounds reached without passing the gate"],
                             escalation_reason="rounds_exhausted")
 
-    def _run_round(self, ctx: RoundContext) -> tuple[RoundRunResult, RoundEvaluation, RoundDiagnosis, object]:
+    def _run_validation(self, request: CampaignRequest, stage: str, cpf_uri: str, cpf_sha: str) -> StageOutcome:
+        """S4/S5 (MS-01 §4): simulate every planned study from the final CPF once and judge it — never fit.
+
+        A failure escalates instead of refitting: at S4 it means a stage passed on stale values or stages
+        interact; at S5 the modeler chooses a §6.6 path (limitation and continue, or stop)."""
+        budget = request.stage_budgets_seconds.get(stage, _DEFAULT_STAGE_BUDGET_S)
+        ctx = RoundContext(
+            campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=stage, round_index=1,
+            cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, deadline_seconds=float(budget), seed=request.seed,
+            map_uri=request.map_uri, map_sha256=request.map_sha256,
+            observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+        )
+        result = self._run_round(ctx, judge_only=True)
+        evaluation = result.evaluation
+        if self.writer:
+            self.writer.stage_notes(stage, result.notes)
+            self.writer.add_round(stage, 1, "validate", evaluation)
+            self.writer.set_gof(_gof_series(result.run_result.results_uri, request.observed_uri), stage)
+            self.writer.flush(current_stage=stage, status="RUNNING")
+        findings = list(evaluation.findings) + [n for n in result.notes if n.startswith("NOT SIMULATED")]
+        if evaluation.gate_passed:
+            return StageOutcome(stage=stage, status="PASSED", rounds_run=1, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
+                                findings=findings)
+        return StageOutcome(stage=stage, status="ESCALATED", rounds_run=1, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
+                            findings=findings, escalation_reason=_VALIDATION_FAILURE.get(stage, "validation_failed"))
+
+    def _simulate(self, ctx: RoundContext) -> tuple[object, EngineManifest | None]:
+        """Build the round's snapshot from ctx's CPF and run it on the engine (skipped when nothing was built)."""
         build = build_round_snapshot(ctx)
         manifest: EngineManifest | None = None
         if build.snapshot_uri != ctx.cpf_uri:
             manifest = self.engine(prepare_round_job(ctx, build))
+        return build, manifest
+
+    def _run_round(self, ctx: RoundContext, *, judge_only: bool = False) -> _RoundOutcome:
+        build, manifest = self._simulate(ctx)
+        notes = list(getattr(build, "notes", []) or [])
 
         fit_outcome = None
         if build.needs_fit and build.fit_request is not None and manifest is not None:
@@ -358,14 +462,27 @@ class LocalExecutor:
                 fit_outcome = self._run_fit(replace(build.fit_request, model_inputs=pkml))
 
         run_result = run_round(RoundRun(context=ctx, build=build, fit_outcome=fit_outcome, manifest=manifest))
-        evaluation = evaluate_round(ctx, run_result)
+        judged_ctx = ctx
+        fitted = run_result.cpf_uri != ctx.cpf_uri
+        if fitted:
+            # The simulation above ran the CPF *before* the fit. Judge the fit in the round it happened: simulate
+            # the fitted CPF and evaluate that, or a successful fit is scored on stale values, its action counts as
+            # tried, and the stage can run out of actions and escalate although the fit worked.
+            judged_ctx = replace(ctx, cpf_uri=run_result.cpf_uri, cpf_sha256=run_result.cpf_sha256,
+                                 pending_action=None, pending_bounds_override=None, phase="postfit")
+            post_build, post_manifest = self._simulate(judged_ctx)
+            notes.extend(n for n in (getattr(post_build, "notes", []) or []) if n not in notes)
+            run_result = run_round(RoundRun(context=judged_ctx, build=post_build, fit_outcome=None, manifest=post_manifest))
+
+        evaluation = evaluate_round(judged_ctx, run_result)
         diagnosis = RoundDiagnosis()
         choice = None
-        if not evaluation.gate_passed:
-            diagnosis = diagnose_round(ctx, evaluation)
+        if not evaluation.gate_passed and not judge_only:
+            diagnosis = diagnose_round(judged_ctx, evaluation)
             if not diagnosis.escalate:
-                choice = choose_action(ctx, diagnosis)
-        return run_result, evaluation, diagnosis, choice
+                choice = choose_action(judged_ctx, diagnosis)
+        return _RoundOutcome(run_result=run_result, evaluation=evaluation, diagnosis=diagnosis, choice=choice,
+                             notes=notes, fitted=fitted)
 
     def _run_fit(self, fit_request) -> object:
         """Reproduce FitRoundWorkflow without Temporal: plan the multistart, run each start on the engine,

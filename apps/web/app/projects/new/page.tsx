@@ -60,8 +60,9 @@ export default function NewProjectWizard() {
   }
 
   async function step4prepare() {
-    // IV-only Aciclovir dataset → S0 readiness + S1 IV disposition (add oral studies to enable S2+).
-    const data = await guard(() => prepareCampaign(projectId, questionId, { compound, stages: ["S0", "S1"] }));
+    // Every MS-01 stage: with the IV-only Aciclovir set, S2/S3 are skipped with their documented reasons and
+    // S4 re-validates the fitted IV model; add oral or external studies and those stages run too.
+    const data = await guard(() => prepareCampaign(projectId, questionId, { compound }));
     if (data) setPrep(data);
   }
 
@@ -170,8 +171,9 @@ export default function NewProjectWizard() {
                 </tbody>
               </table>
               <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-                Signing the MAP records a Part 11 electronic signature (loa2 step-up); the campaign then runs S0→S2
-                on the single-node executor and this page opens the live monitor.
+                Signing the MAP records a Part 11 electronic signature (loa2 step-up); the campaign then runs every
+                stage, S0 to S5, on the OSP engine — skipping, with the reason, any stage your data cannot
+                support — and this page opens the live monitor.
               </p>
               <div className="row" style={{ marginTop: 12 }}>
                 <button className="btn" disabled={busy} onClick={() => setPrep(null)}>Back</button>

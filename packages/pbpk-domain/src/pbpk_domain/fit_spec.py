@@ -106,10 +106,15 @@ def build_fit_spec(
         path = pksim_parameter_path(record, compound=cpf.compound)  # raises for an unmapped parameter
         lo, hi = _bounds(record, override.get(pid))
         start = min(max(record.numeric_value, lo), hi)  # clamp the current value into the bounds
-        parameters.append({
-            "name": pid, "unit": record.unit, "min": lo, "max": hi, "start": start,
+        entry: dict[str, Any] = {
+            "name": pid, "min": lo, "max": hi, "start": start,
             "paths": [{"simulation": sid, "path": path} for sid in sim_ids],
-        })
+        }
+        # A dimensionless parameter (e.g. GFR fraction) carries no unit key at all: a JSON null does not survive
+        # run_job.R's re-serialisation (R writes it back as {}), and ospsuite then rejects the empty "unit".
+        if record.unit:
+            entry["unit"] = record.unit
+        parameters.append(entry)
 
     return {
         "algorithm": algorithm,

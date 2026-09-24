@@ -24,6 +24,7 @@ from modeler_api.config import get_settings
 from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.read_api import project_cpf_view
 from modeler_api.responses import envelope
+from modeler_contracts.runs import CAMPAIGN_STAGES
 from pbpk_domain.cpf.models import CPF
 from pbpk_domain.m15 import Rating
 
@@ -105,6 +106,8 @@ class StudyUpload(BaseModel):
     reference: str = ""
     n: int = Field(default=12, gt=0)
     design: str = "SD"
+    dosing_interval_h: float | None = Field(default=None, gt=0)  # multiple dose: one dose every N hours…
+    n_doses: int | None = Field(default=None, gt=0)              # …this many times
     route: str = "oral"
     dose_mg: float = Field(gt=0)
     infusion_time_min: float | None = None
@@ -150,19 +153,24 @@ def _study_record(row: dict[str, Any]):
     return StudyRecord.model_validate(fields)
 
 
-def _observed_from_studies(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Deterministic NCA per uploaded profile → the observed PK the gate (auc/cmax) and the fit (profile) read."""
+def _observed_from_studies(rows: list[dict[str, Any]], mol_weight: float | None) -> dict[str, Any]:
+    """Deterministic NCA per uploaded profile → the observed PK the gate (auc/cmax) and the fit (profile) read.
+
+    Each profile is first converted to the engine's units (minutes, µmol/l — `pbpk_domain.units`), so predicted
+    and observed AUC/Cmax are compared in the same units whatever the study reported. Raises UnitError."""
     from pbpk_domain.nca import nca
+    from pbpk_domain.units import normalize_profile
 
     observed: dict[str, Any] = {}
     for row in rows:
         profile = row.get("profile")
         if not profile:
             continue
-        result = nca(list(profile["times"]), list(profile["values"]))
+        canonical = normalize_profile(profile, mol_weight)
+        result = nca(list(canonical["times"]), list(canonical["values"]))
         observed[row["study_id"]] = {
             "auc": result.auc_last, "cmax": result.c_max, "tmax": result.t_max, "thalf": result.t_half,
-            "profile": profile,
+            "profile": canonical,
         }
     return observed
 
@@ -183,6 +191,15 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
 
     from pbpk_domain.campaign.map import generate_map
     from pbpk_domain.campaign.split import QuestionOfInterest, split_studies
+    from pbpk_domain.units import UnitError
+
+    mw = cpf.get("phys.mw")
+    try:
+        observed = _observed_from_studies(rows, mw.numeric_value if mw is not None else None)
+    except UnitError as exc:
+        raise HTTPException(status_code=422, detail=f"observed data: {exc}") from exc
+    # Each study's last sampled time, so its simulation covers the whole observed window.
+    sampling_end_h = {sid: max(o["profile"]["times"]) / 60.0 for sid, o in observed.items() if o["profile"]["times"]}
 
     studies = [_study_record(r) for r in rows]
     try:
@@ -195,6 +212,7 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
         objective=body.objective, context_of_use=body.context_of_use,
         food_effect_in_question=body.food_effect_in_question, model_risk=risk,
         engine_image_digest=_ENGINE_DIGEST, software_versions={"ospsuite": "12.4.4"},
+        sampling_end_h=sampling_end_h,
     )
 
     # Stage a self-contained input set the single-node runner reads (build_round_snapshot writes its
@@ -202,7 +220,7 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
     prep = f"prep/{question_id}"
     cpf_bytes = cpf.model_dump_json().encode("utf-8")
     map_bytes = map_doc.model_dump_json().encode("utf-8")
-    observed_bytes = json.dumps(_observed_from_studies(rows), ensure_ascii=False).encode("utf-8")
+    observed_bytes = json.dumps(observed, ensure_ascii=False).encode("utf-8")
     cpf_path = write.materialize(principal.tenant_id, f"{prep}/cpf.json", cpf_bytes)
     map_path = write.materialize(principal.tenant_id, f"{prep}/map.json", map_bytes)
     observed_path = write.materialize(principal.tenant_id, f"{prep}/observed.json", observed_bytes)
@@ -214,7 +232,9 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
         "cpf_uri": cpf_path.as_uri(), "cpf_sha256": hashlib.sha256(cpf_bytes).hexdigest(),
         "map_uri": map_path.as_uri(), "map_sha256": hashlib.sha256(map_bytes).hexdigest(),
         "observed_uri": observed_path.as_uri(),
-        "stages": body.stages or ["S0", "S1", "S2"],
+        # Every stage by default: a stage with nothing to simulate is skipped with its documented reason, so
+        # asking for fewer stages only hides the rest of the pipeline.
+        "stages": body.stages or list(CAMPAIGN_STAGES),
         "tier": map_doc.acceptance.tier,
         "studies": [{"study_id": s.study_id, "assignment": s.assignment} for s in map_doc.studies],
     })

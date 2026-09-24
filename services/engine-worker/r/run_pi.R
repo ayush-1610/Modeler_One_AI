@@ -83,7 +83,9 @@ run_parameter_identification <- function(spec_path, out_dir) {
   parameters <- lapply(spec$parameters, function(p) {
     objects <- lapply(p$paths, function(x) getParameter(path = x$path, container = simulations[[x$simulation]]))
     pi_parameter <- PIParameters$new(parameters = objects)
-    if (!is.null(p$unit)) pi_parameter$unit <- p$unit
+    # Only a real unit string: a dimensionless parameter has none, and a JSON null re-serialised by R comes
+    # back as an empty list, which ospsuite rejects ("enc2utf8(unit): argument is not a character vector").
+    if (is.character(p$unit) && length(p$unit) == 1 && nzchar(p$unit)) pi_parameter$unit <- p$unit
     pi_parameter$minValue <- as.numeric(p$min)
     pi_parameter$maxValue <- as.numeric(p$max)
     if (!is.null(p$start)) pi_parameter$startValue <- as.numeric(p$start)

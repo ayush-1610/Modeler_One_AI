@@ -9,8 +9,14 @@
 # name a candidate/branch by the same token used in the MAP stage plan (STAGE_PLAN); an action is only
 # offered when that token is a permitted fit candidate / branch for the current stage and has not been tried.
 id: diag-rules
-version: "0.1"
+version: "0.2"
 status: UNVERIFIED
+# 0.2 (2026-09-24, approved by the project owner, still UNVERIFIED pending SME sign-off): the clearance rule
+#     offers renal clearance (GFR fraction, tubular secretion) before logP. In 0.1 a renally cleared compound
+#     with mis-specified renal clearance could only be "fixed" by bending logP — distorting distribution to
+#     hide a clearance error (seen on PK-Sim with Aciclovir). MS-01 §2.2 allows the renal fits at S1 only with
+#     urine or fe data; per compound that permission is the CPF parameter's fit policy, which the candidate
+#     filter enforces, so a compound without it is never offered the renal fit.
 
 sources:
   ms01: "PBPK Modeling Standard MS-01 §5 (diagnostics ruleset), this repository"
@@ -32,8 +38,10 @@ rules:
     stages: [S1, S2]
     routes: [iv, oral]
     evidence: clearance_off        # |terminal t1/2 ratio| out of [low, high] AND AUC off in the same direction
-    actions:
+    actions:                       # clearance parameters first; logP (distribution) only as the last resort
       - {op: fit, target: "elim.hepatic.{enzyme}.clspec"}
+      - {op: fit, target: "elim.renal.gfr_fraction"}
+      - {op: fit, target: "elim.renal.ts_clspec"}
       - {op: fit, target: "phys.logp"}
 
   - id: distribution

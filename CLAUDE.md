@@ -34,6 +34,8 @@ Part 11), with simulations and parameter identification finishing within an hour
 - Tag tests with `@pytest.mark.req("T-xx")` for the trace matrix.
 - Domain models are frozen pydantic. Match the surrounding code's style and comment density.
 - Server: `ssh adt-server` (user `adt-ayush`, no sudo). `~/Modeler_One_AI` there is an **rsync target, not a git
-  checkout**. Scripts in `deploy/server/`.
+  checkout** — deploy with `bash deploy/dev/deploy_to_server.sh`. Lifecycle scripts in `deploy/server/`.
+- Engine on the Mac: `MODELER_ENGINE_COMMAND="bash $PWD/deploy/dev/docker_engine.sh"` (Docker Desktop running,
+  image built from `services/engine-worker/Dockerfile`). Rebuild the image after changing `services/engine-worker/r/`.
 - Security: `DevVerifier` / `MODELER_DEV_AUTH` is DEV ONLY. Never type, store or transmit the user's passwords;
   signatures come from the token's step-up, never a password in a request.

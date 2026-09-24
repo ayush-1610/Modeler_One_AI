@@ -91,18 +91,60 @@ def test_stage_plan_budgets_and_candidates():
     assert plan["S4"].fit_candidates == ()  # validation stage, nothing fitted
 
 
-def test_scenarios_map_internal_studies_to_stages():
+def test_scenarios_train_their_stage_and_are_validated_in_s4_and_s5():
+    """R1: internal studies train S1–S3 and are re-simulated in S4; external studies are judged in S5."""
     studies = _studies()
     split = split_studies(studies, QuestionOfInterest(measured_fed_solubility=True))
     internal = {r.study_id for r in split.splits if r.assignment.value == "INTERNAL"}
+    external = {r.study_id for r in split.splits if r.assignment.value == "EXTERNAL"}
     m = _map()
-    by_study = {sc.study_id: sc for sc in m.scenarios}
-    # scenarios cover exactly the internal studies that train a stage
-    assert set(by_study) <= internal
-    assert by_study["iv"].stage == "S1"
-    assert any(sc.stage == "S2" for sc in m.scenarios)  # an internal fasted-oral study trains S2
-    # fed is external here (measured fed solubility) -> not an internal scenario
-    assert "fed" not in by_study
+    stages_of: dict[str, set[str]] = {}
+    for sc in m.scenarios:
+        stages_of.setdefault(sc.study_id, set()).add(sc.stage)
+    assert stages_of["iv"] == {"S1", "S4"}
+    for sid in internal:
+        assert "S4" in stages_of[sid]                         # every trained study is validated internally
+    for sid in external:
+        assert stages_of[sid] == {"S5"}                       # every external core study is judged in S5
+    # fed is external here (measured fed solubility): judged in S5, never trained
+    assert stages_of["fed"] == {"S5"}
+    assert {sc.study_class for sc in m.scenarios if sc.study_id == "fed"} == {"PO-FED"}
+
+
+def test_stage_coverage_skips_a_stage_with_nothing_to_simulate():
+    from pbpk_domain.campaign.map import stage_coverage
+
+    m = _map()
+    assert stage_coverage(m, "S1").kind == "fit" and stage_coverage(m, "S1").studies == ("iv",)
+    s3 = stage_coverage(m, "S3")                              # fed is external here, so nothing trains S3
+    assert s3.studies == () and "§6.7" in s3.skip_reason
+    s5 = stage_coverage(m, "S5")
+    assert s5.kind == "validate" and "fed" in s5.studies and s5.skip_reason is None
+
+
+def test_s5_notes_name_external_studies_that_validate_an_application_instead():
+    from pbpk_domain.campaign.map import stage_coverage
+    from pbpk_domain.campaign.split import StudyClass
+
+    studies = [*_studies(), StudyRecord(study_id="ddi", n=10, dose_mg=10, n_timepoints=12, co_medication="itraconazole")]
+    split = split_studies(studies, QuestionOfInterest(measured_fed_solubility=True,
+                                                      planned_applications=frozenset({StudyClass.DDI})))
+    m = _map(studies=studies, split=split)
+    s5 = stage_coverage(m, "S5")
+    assert "ddi" not in s5.studies
+    assert any("ddi (DDI) validates the planned DDI application in S6" in n for n in s5.notes)
+
+
+def test_scenarios_carry_the_sampling_window_and_multiple_dose_regimen():
+    studies = [*_studies(), StudyRecord(study_id="md", n=12, design="MD", dose_mg=10, n_timepoints=20,
+                                        dosing_interval_h=24, n_doses=7)]
+    split = split_studies(studies, QuestionOfInterest(measured_fed_solubility=True))
+    m = _map(studies=studies, split=split, sampling_end_h={"iv": 72.0, "md": 168.0})
+    by = {(sc.study_id, sc.stage): sc for sc in m.scenarios}
+    assert by[("iv", "S1")].sim_end_time_h == 72.0 and by[("iv", "S4")].sim_end_time_h == 72.0
+    md = by[("md", "S5")]
+    assert (md.dosing_interval_h, md.n_doses, md.sim_end_time_h) == (24, 7, 168.0)
+    assert by[("iv", "S1")].dosing_interval_h is None       # single dose carries no regimen
 
 
 def test_acceptance_tier_varies_with_model_risk():
