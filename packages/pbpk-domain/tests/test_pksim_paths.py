@@ -46,6 +46,28 @@ def test_michaelis_menten_paths_use_the_reaction_container():
             f"Drug-CYP3A4-InVitro|{name}"
 
 
+# Harvested from the published PIs' LinkedParameters (OSP model library), one case per shape.
+@pytest.mark.req("T-13")
+@pytest.mark.parametrize("process,param,compound,expected", [
+    ("ActiveTransportSpecific_MM:OCT1", "kcat", "Cimetidine", "Cimetidine|OCT1-Paper|kcat"),
+    ("CompetitiveInhibition:CYP3A4", "Ki", "Cimetidine", "Cimetidine|CYP3A4-Paper|Ki"),
+    ("Induction:CYP3A4", "EC50", "Carbamazepine", "Carbamazepine|CYP3A4-Paper|EC50"),
+    ("rCYP450_MM:CYP1A2", "kcat", "Efavirenz", "Efavirenz-CYP1A2-Paper|kcat"),
+    ("MetabolizationIntrinsic_FirstOrder:CYP3A4", "Intrinsic clearance", "Alfentanil",
+     "Alfentanil-CYP3A4-Paper|Intrinsic clearance"),
+    ("LiverClearance", "Specific clearance", "Cimetidine", "Cimetidine-Total Hepatic Clearance-Paper|Specific clearance"),
+])
+def test_process_paths_harvested_from_the_published_parameter_identifications(process, param, compound, expected):
+    b = EngineBinding(building_block="Compound", process=process, parameter=param, data_source="Paper")
+    assert pksim_parameter_path(rec("x", binding=b), compound=compound) == expected
+
+
+def test_a_process_type_with_no_harvested_path_is_not_fittable():
+    b = EngineBinding(building_block="Compound", process="IrreversibleInhibition:CYP3A4", parameter="kinact", data_source="x")
+    with pytest.raises(ParameterPathError, match="no harvested path"):
+        pksim_parameter_path(rec("ddi.perp.CYP3A4.kinact", binding=b), compound="Drug")
+
+
 # --- glomerular filtration (harvested Neighborhoods path) -----------------------------------------
 
 

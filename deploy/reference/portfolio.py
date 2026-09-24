@@ -39,6 +39,11 @@ LIBRARY = (
 
 
 def fetch(drug: str, cache: Path) -> Path | None:
+    """The vendored fixture, else the cached copy, else the library's raw file, else a shallow clone of its repository
+    (some repositories serve the snapshot only through git)."""
+    vendored = REPO / "services" / "engine-worker" / "golden" / "fixtures" / f"{drug}-Model.json"
+    if vendored.exists():
+        return vendored
     dest = cache / f"{drug}-Model.json"
     if dest.exists() and dest.stat().st_size > 0:
         return dest
@@ -52,6 +57,16 @@ def fetch(drug: str, cache: Path) -> Path | None:
         if b'"Version"' in body[:2000]:
             dest.write_bytes(body)
             return dest
+    clone = cache / f"{drug.lower()}-model"
+    if not clone.exists():
+        subprocess.run(["git", "clone", "-q", "--depth", "1", f"https://github.com/Open-Systems-Pharmacology/{drug}-Model",
+                        str(clone)], capture_output=True, text=True, check=False, env={**os.environ, "GIT_LFS_SKIP_SMUDGE": "1",
+                                                                                      "GIT_TERMINAL_PROMPT": "0"})
+    found = clone / f"{drug}-Model.json"
+    if found.exists():
+        dest.write_bytes(found.read_bytes())
+        return dest
+    print(f"  {drug}: no JSON snapshot in the repository (a .pksim5 project only, or no public repository)", file=sys.stderr)
     return None
 
 
@@ -86,7 +101,10 @@ def assess(drug: str, path: Path) -> dict:
         return row | {"status": "build error", "reason": f"{type(exc).__name__}: {exc}"}
     row |= {"s0_missing": list(report.missing), "unplaceable": list(unplaceable), "no_expression": list(no_expression)}
     if imported.studies:
-        split = split_studies(study_records(imported), QuestionOfInterest())
+        try:
+            split = split_studies(study_records(imported), QuestionOfInterest())
+        except Exception as exc:  # noqa: BLE001 - a study the split cannot take is a finding
+            return row | {"status": "split error", "reason": f"{type(exc).__name__}: {exc}"}
         row["split"] = Counter(f"{s.study_class.value}/{s.assignment.value}" for s in split.splits).most_common()
     ready = report.ready and not unplaceable and not no_expression and not imported.unplaced and imported.studies
     row["status"] = "ready" if ready else "gaps"

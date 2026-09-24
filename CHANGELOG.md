@@ -15,6 +15,49 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the OSP model library through the importer: 20 of 25 published models S0-ready (3 before)
+Every published JSON snapshot of github.com/Open-Systems-Pharmacology (25; Gemfibrozil, Theophylline, Repaglinide and
+Trimethoprim ship only a binary `.pksim5` project) was imported; each gap found was fixed from the snapshots' own
+names and units, or is named. Six small models are vendored as fixtures with their commits
+(`services/engine-worker/golden/fixtures/SOURCES.md`) and each process type / edge case has a regression test
+(`test_reference_library.py`).
+- **Process types** (builder `HarvestedProcess`, a table of harvested parameter names and units per type; an
+  unlisted name is refused): intrinsic first-order (Alfentanil), recombinant-CYP MM and first-order (Efavirenz,
+  Itraconazole), total hepatic clearance (Digoxin, Cimetidine), renal clearance (Clarithromycin), Hill transport
+  (Metformin PMAT), vesicular-assay transport (Rosuvastatin), irreversible / mixed / noncompetitive inhibition
+  (Clarithromycin, Atazanavir, Fluconazole). Systemic selections harvested: `Total Hepatic Clearance-<source>`
+  (Hepatic), `Renal Clearances-<source>` (Renal).
+- **Two pathways on one enzyme** (Alprazolam CYP3A4 alpha-OH / 4-OH) were one process: processes are now keyed by
+  data source, and colliding CPF ids name it (`elim.hepatic.CYP3A4@alpha-OH pathway.kcat`).
+- **Multi-compound snapshots** (11 models) were refused. The parent (the compound most simulations dose, or the one
+  named) is imported; a study whose published simulation doses another drug is a DDI arm (`co_medication`); one whose
+  metabolites act on the parent's clearing protein (Itraconazole's hydroxy-, keto-, N-desalkyl-itraconazole on
+  CYP3A4) is labelled "differs by design" in the round trip. Interactions come from the compound's own simulations
+  only, not DDI arms. Processes no own simulation selects are named, not built.
+- **Units**: nmol↔pmol per mg microsomal protein / per pmol enzyme or transporter, µM, 1/h, ml/h/kg, l/h/kg, l/h,
+  pmol/ml/min, mg/dl. **Vmax 0** is a published input when kcat carries the rate (Cimetidine, S-Warfarin,
+  Clarithromycin microsomes); a microsomal process without kcat leaves it to PK-Sim's formula.
+- **pH-solubility tables** (Raltegravir, Voriconazole): `phys.solubility.table` (pH, mg/l points), written as PK-Sim's
+  `Solubility table` TableFormula; S0 completeness accepts it as the reference solubility.
+- **Several solubility alternatives** (Carbamazepine, Erythromycin, Itraconazole): the one most own simulations use is
+  imported; studies simulated with another are labelled. Exact per-study alternatives are a named follow-up.
+- **Metadata edge cases** (every value in the library): routes "po", "iv", "capsule", "IV_30min_infusion",
+  "30-min infusion" (infusion time read), genotype filed as route ("EM"/"PM") or none → the published protocol's
+  application type; a dose without unit is mg only when the dataset name repeats it, else the published protocol's
+  dose; no administration times → the published protocol's schedule; food states "Breakfast", "Light breakfast",
+  "Semifed" → fed, "Semifasted"/"Unknown"/mixed → the published simulation's meal state; a dataset with no study id
+  → its own name (Clarithromycin's 17 datasets collided on ""); a garbled molecule name ("Fluvoxaminekjujhöjö") is
+  accepted only where the published model maps the dataset onto the parent's plasma output. All noted per study.
+- **Expression library 16 → 40 proteins** (CYP1A2/2A6/2B6/2C8/2C9/2C19/2D6/3A5, OCT1/2, MATE1, OAT3, BCRP, OATP1B3,
+  OATP2B1, PMAT, MRP2, CES1/2, FMO3, UGT2B15, …) from library clones (`harvest_expression_library.py --library`, commit
+  recorded per entry). Existing entries are unchanged, so existing models build identically.
+- **Fixed — fit paths for transport, inhibition and induction were never harvested and were wrong.** `pksim_paths`
+  assumed they share the metabolism container (`<C>-<M>-<source>|p`); the published PIs' `LinkedParameters` show
+  `<C>|<M>-<source>|p`. A transporter kcat fit (diag-rules 0.4) would have addressed a path that does not exist.
+  Shapes are now harvested per type (intrinsic FO, recombinant CYP, total hepatic clearance added); a type with no
+  harvested path raises and is not offered for fitting.
+- Portfolio: fetches the vendored fixture, then the raw file, then a shallow `git clone`; a split failure is a row.
+
 ### Fixed — a study the published model simulates in its own individual was regenerated in the main one
 - **Per-study published individual.** `StudyRecord.published_individual` (reference import) carries the individual a
   published model uses for one study when it differs from the main one: its complete physiology overrides (replacing

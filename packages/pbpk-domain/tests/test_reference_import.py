@@ -168,8 +168,19 @@ def test_gaps_in_other_reference_models_are_named_not_hidden():
     midazolam = import_osp_snapshot(_snapshot("Midazolam"))
     assert midazolam.unplaced == ()  # microsomal Michaelis-Menten and specific binding are placed
     assert any(u.endswith("Whole Blood data; only plasma concentrations are compared") for u in midazolam.skipped)
-    with pytest.raises(ReferenceImportError, match="expected one compound"):
-        import_osp_snapshot(_snapshot("Itraconazole"))
+    with pytest.raises(ReferenceImportError, match="no compound 'Hydroxy'"):
+        import_osp_snapshot(_snapshot("Itraconazole"), compound="Hydroxy")
+
+
+def test_a_multi_compound_model_imports_its_parent_and_labels_metabolite_feedback():
+    # Itraconazole's metabolites (hydroxy-, keto-, N-desalkyl-) inhibit CYP3A4, which clears the parent: a parent-only
+    # simulation cannot reproduce those curves, so the round trip labels them instead of calling them defects.
+    imported = import_osp_snapshot(_snapshot("Itraconazole"))
+    assert imported.compound == "Itraconazole"
+    assert any("other compounds are not simulated" in n and "Hydroxy-Itraconazole" in n for n in imported.notes)
+    assert any("metabolite Hydroxy-Itraconazole acts on CYP3A4" in why for why in imported.differs_by_design.values())
+    # asking for a metabolite imports that compound instead
+    assert import_osp_snapshot(_snapshot("Itraconazole"), compound="hydroxy-itraconazole").compound == "Hydroxy-Itraconazole"
 
 
 def test_every_osp_regimen_notation_is_read():

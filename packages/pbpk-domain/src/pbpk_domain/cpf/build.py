@@ -10,6 +10,7 @@ invented. `build → parse → build` is stable: the same CPF always yields the 
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -18,12 +19,15 @@ from pydantic import BaseModel, ConfigDict
 
 from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus
 from pbpk_domain.snapshot.builder import (
+    HARVESTED_PROCESSES,
+    HARVESTED_SYSTEMIC,
     CompetitiveInhibition,
     CompoundSpec,
     DissolvedFormulationSpec,
     ExpressionSpec,
     FirstOrderMetabolism,
     GlomerularFiltration,
+    HarvestedProcess,
     Induction,
     IntravenousProtocolSpec,
     MealEventSpec,
@@ -265,7 +269,8 @@ def _build_process(internal_name: str, molecule: str | None, params: dict[str, P
         return None
     if internal_name == "MetabolizationLiverMicrosomes_MM":
         km, kcat = _measured_of(params, "Km"), _measured_of(params, "kcat")
-        if km and kcat and molecule:
+        vmax = _measured_of(params, "In vitro Vmax for liver microsomes")
+        if km and (kcat or vmax) and molecule:
             return MicrosomalMichaelisMenten(
                 molecule=molecule, data_source=ds, km=km, kcat=kcat,
                 in_vitro_vmax=_measured_of(params, "In vitro Vmax for liver microsomes"),
@@ -292,21 +297,28 @@ def _build_process(internal_name: str, molecule: str | None, params: dict[str, P
     if internal_name == "GlomerularFiltration":
         gfr = _measured_of(params, "GFR fraction")
         return GlomerularFiltration(data_source=ds, gfr_fraction=gfr) if gfr else None
+    if internal_name in HARVESTED_PROCESSES:
+        systemic = internal_name in HARVESTED_SYSTEMIC
+        if systemic == bool(molecule):
+            return None
+        return HarvestedProcess(internal_name=internal_name, molecule=molecule, data_source=ds,
+                                parameters={name: _measured(record) for name, record in params.items()})
     return None
 
 
 def _build_processes(cpf: CPF) -> tuple[list, list[str], list[str]]:
     """Group process-bound CPF records by (process internal name, molecule) and build each process.
     Returns (process specs, used ids, unresolved ids)."""
-    groups: dict[tuple[str, str | None], dict[str, ParameterRecord]] = defaultdict(dict)
-    order: list[tuple[str, str | None]] = []
+    # One process per (type, molecule, data source): a protein can carry two pathways (Alprazolam CYP3A4).
+    groups: dict[tuple[str, str | None, str | None], dict[str, ParameterRecord]] = defaultdict(dict)
+    order: list[tuple[str, str | None, str | None]] = []
     for record in cpf.parameters:
         if record.status is ParameterStatus.MISSING or record.engine_binding is None:
             continue
         internal = record.engine_binding.process_internal_name
         if internal is None:
             continue  # a compound scalar binding (mw, logp, …), handled by id elsewhere
-        key = (internal, record.engine_binding.molecule)
+        key = (internal, record.engine_binding.molecule, record.engine_binding.data_source)
         if key not in groups:
             order.append(key)
         groups[key][record.engine_binding.parameter] = record
@@ -314,8 +326,8 @@ def _build_processes(cpf: CPF) -> tuple[list, list[str], list[str]]:
     processes: list = []
     used: list[str] = []
     unresolved: list[str] = []
-    for internal, molecule in order:
-        params = groups[(internal, molecule)]
+    for internal, molecule, source in order:
+        params = groups[(internal, molecule, source)]
         spec = _build_process(internal, molecule, params)
         if spec is None:
             unresolved.extend(r.id for r in params.values())
@@ -351,6 +363,11 @@ def _compound_from_cpf(cpf: CPF) -> tuple[CompoundSpec, list[str], list[str]]:
             continue
         fields[key] = _measured(record)
 
+    table = take("phys.solubility.table")
+    if table is not None and "solubility" not in fields:
+        doc = json.loads(str(table.value))
+        fields["solubility_table"] = tuple((float(x), float(y)) for x, y in doc["points"])
+        fields["solubility_table_value"] = float(doc["value"])
     ref_ph = take("phys.solubility.ref_ph")
     if ref_ph is not None:
         fields["solubility_reference_ph"] = ref_ph.numeric_value

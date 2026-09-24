@@ -15,8 +15,10 @@ listed in ``skipped`` / ``unplaced`` with the reason, never dropped in silence.
 
 from __future__ import annotations
 
+import json
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from itertools import pairwise
 from typing import Any
@@ -64,8 +66,39 @@ _PROCESS_PARAMETERS = {
     "CompetitiveInhibition": {"Ki": ("ki", "µmol/l")},
     "Induction": {"EC50": ("ec50", "µmol/l"), "Emax": ("emax", None)},
     "GlomerularFiltration": {"GFR fraction": ("gfr_fraction", None)},
+    # harvested from the OSP model library snapshots (2026-09-24); units are the builder's (HARVESTED_PROCESSES)
+    "MetabolizationIntrinsic_FirstOrder": {"Intrinsic clearance": ("cl_intrinsic", "l/min"),
+                                           "Specific clearance": ("specific_clearance", "1/min")},
+    "rCYP450_MM": {"In vitro Vmax/recombinant enzyme": ("vmax_recombinant", "pmol/min/pmol rec. enzyme"),
+                   "Km": ("km", "µmol/l"), "kcat": ("kcat", "1/min")},
+    "rCYP450_FirstOrder": {"In vitro CL/recombinant enzyme": ("cl_recombinant", "µl/min/pmol rec. enzyme"),
+                           "CLspec/[Enzyme]": ("clspec", "l/µmol/min")},
+    "LiverClearance": {"Plasma clearance": ("plasma_clearance", "ml/min/kg"), "Specific clearance": ("specific_clearance", "1/min"),
+                       "Fraction unbound (experiment)": ("fu_experiment", None),
+                       "Lipophilicity (experiment)": ("logp_experiment", "Log Units"),
+                       "Blood/Plasma concentration ratio": ("bp_experiment", None)},
+    "KidneyClearance": {"Plasma clearance": ("plasma_clearance", "ml/min/kg"), "Specific clearance": ("specific_clearance", "1/min"),
+                        "Fraction unbound (experiment)": ("fu_experiment", None),
+                        "Blood flow rate (kidney)": ("kidney_blood_flow", "l/min"), "Body weight": ("body_weight", "kg")},
+    "ActiveTransportSpecific_Hill": {"Vmax": ("vmax", "µmol/l/min"), "Km": ("km", "µmol/l"),
+                                     "Transporter concentration": ("transporter_conc", "µmol/l"),
+                                     "Hill coefficient": ("hill", None)},
+    "ActiveTransport_InVitro_VesicularAssay_MM": {"In vitro Vmax/transporter": ("vmax_vesicular", "pmol/min/pmol transporter"),
+                                                  "Km": ("km", "µmol/l"), "kcat": ("kcat", "1/min")},
+    "IrreversibleInhibition": {"kinact": ("kinact", "1/min"), "K_kinact_half": ("kinact_half", "µmol/l"),
+                               "Ki": ("ki_irreversible", "µmol/l")},
+    "MixedInhibition": {"Ki_c": ("ki_c", "µmol/l"), "Ki_u": ("ki_u", "µmol/l")},
+    "NoncompetitiveInhibition": {"Ki": ("ki_noncompetitive", "µmol/l")},
 }
 _PROCESS_FAMILY = {
+    "MetabolizationIntrinsic_FirstOrder": "elim.hepatic",
+    "rCYP450_MM": "elim.hepatic",
+    "rCYP450_FirstOrder": "elim.hepatic",
+    "ActiveTransportSpecific_Hill": "transp",
+    "ActiveTransport_InVitro_VesicularAssay_MM": "transp",
+    "IrreversibleInhibition": "ddi.perp",
+    "MixedInhibition": "ddi.perp",
+    "NoncompetitiveInhibition": "ddi.perp",
     "MetabolizationSpecific_FirstOrder": "elim.hepatic",
     "MetabolizationSpecific_MM": "elim.hepatic",
     "MetabolizationLiverMicrosomes_MM": "elim.hepatic",
@@ -77,8 +110,15 @@ _PROCESS_FAMILY = {
 # Units of one dimension, each as a factor to that dimension's first unit; a rate unit ("…/min") converts with
 # its amount's factor. Only these conversions are made; any other unit pair raises (never guessed).
 _SAME_DIMENSION = (
-    {"µmol/l": 1.0, "pmol/l": 1e-6, "nmol/l": 1e-3, "mmol/l": 1e3},
-    {"mg/ml": 1.0, "mg/l": 1e-3, "g/l": 1.0, "µg/ml": 1e-3, "µg/l": 1e-6},
+    {"µmol/l": 1.0, "µM": 1.0, "pmol/l": 1e-6, "nmol/l": 1e-3, "nM": 1e-3, "mmol/l": 1e3},
+    {"µmol/l/min": 1.0, "pmol/ml/min": 1e-3, "nmol/l/min": 1e-3},
+    {"pmol/min/mg mic. protein": 1.0, "nmol/min/mg mic. protein": 1e3},
+    {"pmol/min/pmol rec. enzyme": 1.0, "nmol/min/pmol rec. enzyme": 1e3},
+    {"pmol/min/pmol transporter": 1.0, "nmol/min/pmol transporter": 1e3},
+    {"1/min": 1.0, "1/h": 1.0 / 60.0, "1/s": 60.0},
+    {"ml/min/kg": 1.0, "ml/h/kg": 1.0 / 60.0, "l/h/kg": 1000.0 / 60.0, "l/min/kg": 1000.0},
+    {"l/min": 1.0, "ml/min": 1e-3, "l/h": 1.0 / 60.0},
+    {"mg/ml": 1.0, "mg/l": 1e-3, "g/l": 1.0, "µg/ml": 1e-3, "µg/l": 1e-6, "mg/dl": 1e-2},
     {"cm/min": 1.0, "dm/min": 10.0, "µm/min": 1e-4, "cm/s": 60.0},
     {"": 1.0, "%": 1e-2},  # dimensionless fraction
 )
@@ -88,6 +128,9 @@ def _convert(value: float, unit: str | None, target: str | None) -> float:
     src, dst = unit or "", target or ""
     if src == dst:
         return value
+    for table in _SAME_DIMENSION:
+        if src in table and dst in table:
+            return value * table[src] / table[dst]
     rate = "/min"
     if src.endswith(rate) and dst.endswith(rate) and src.count("/") == 2 and dst.count("/") == 2:
         src, dst = src.removesuffix(rate), dst.removesuffix(rate)
@@ -104,6 +147,9 @@ _FORMULATION_WORDS = (("solution", "solution"), ("syrup", "solution"), ("injecti
 # OSP "Times of Administration [h]" schedules: "(S0-T24-R14)" / "(S-0,T-24,R-7)" = start, interval, repetitions.
 _SCHEDULE = re.compile(r"\(S-?(?P<start>[\d.]+)[-,]\s*T-?(?P<interval>[\d.]+)[-,]\s*R-?(?P<n>\d+)\)")
 _INFUSION_IN_NAME = re.compile(r"(?P<value>[\d.]+)\s*(?P<unit>h|min) infusion")
+# Reported "Food state" words (every value in the OSP model library, 2026-09-24): a meal given is fed; "semifasted",
+# "unknown" and mixed arms have no MS-01 class and fall back to the published simulation's meal state, noted.
+_FOOD_STATE = {"fasted": "fasted", "fed": "fed", "breakfast": "fed", "light breakfast": "fed", "semifed": "fed"}
 # Co-medication named in a dataset's grouping: such an arm is not the drug alone and must not train it (MS-01 §3.2).
 _CO_MEDICATION_WORDS = ("antacid",)
 _DOSE = re.compile(r"^\s*(?P<value>[\d.]+)\s*(?P<unit>mg|µg|ug|mg/kg|µg/kg|ug/kg)\s*$")
@@ -168,22 +214,32 @@ class _Records:
                                             provenance=self.provenance(parameter), engine_binding=binding))
 
 
+def _alternative_of(sim: dict[str, Any], compound: dict[str, Any], group: str) -> str | None:
+    """The alternative of a property group one simulation uses: the one it lists, else the compound's default."""
+    entry = next((c for c in sim.get("Compounds", []) if c.get("Name") == compound["Name"]), {})
+    listed = next((a.get("AlternativeName") for a in entry.get("Alternatives", []) or []
+                   if a.get("GroupName") == _ALTERNATIVE_GROUPS[group]), None)
+    if listed:
+        return listed
+    alternatives = compound.get(group) or []
+    default = next((a for a in alternatives if a.get("IsDefault")), alternatives[0] if len(alternatives) == 1 else None)
+    return default.get("Name") if default else None
+
+
 def _selected_alternative(snapshot: dict[str, Any], compound: dict[str, Any], group: str) -> dict[str, Any] | None:
-    """The alternative of a property group the model's simulations use (the only one, when there is one)."""
+    """The alternative of a property group the model uses: the only one, else the one most of the compound's own
+    simulations use (the studies simulated with another are labelled by the importer)."""
     alternatives = compound.get(group) or []
     if len(alternatives) == 1:
         return alternatives[0]
-    chosen = {
-        a.get("AlternativeName")
-        for sim in snapshot.get("Simulations", [])
-        for c in sim.get("Compounds", [])
-        if c.get("Name") == compound["Name"]
-        for a in c.get("Alternatives", [])
-        if a.get("GroupName") == _ALTERNATIVE_GROUPS[group]
-    }
-    if len(chosen) == 1:
-        return next((a for a in alternatives if a.get("Name") in chosen), None)
-    return None
+    used = Counter(n for sim in _own_simulations(snapshot, compound["Name"])
+                   if (n := _alternative_of(sim, compound, group)) is not None)
+    if not used:
+        return None
+    ranked = used.most_common()
+    if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
+        return None  # a tie: no majority to import
+    return next((a for a in alternatives if a.get("Name") == ranked[0][0]), None)
 
 
 def _compound_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _Records, notes: list[str]) -> None:
@@ -204,6 +260,17 @@ def _compound_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _
         if parameter is not None:
             value = _convert(float(parameter["Value"]), parameter.get("Unit"), unit)
             out.add(pid, value, unit=unit, parameter=parameter)
+        table = next((p for p in alternative.get("Parameters", []) if p.get("Name") == "Solubility table"), None)
+        if group == "Solubility" and name == "Solubility at reference pH" and table is not None and table.get("TableFormula"):
+            formula = table["TableFormula"]
+            y_unit = formula.get("YUnit") or table.get("Unit")
+            doc = {"value": _convert(float(table["Value"]), table.get("Unit"), "mg/l"),
+                   "points": [[float(q["X"]), _convert(float(q["Y"]), y_unit, "mg/l")] for q in formula.get("Points", [])]}
+            out.add("phys.solubility.table", json.dumps(doc), unit="mg/l", parameter=table)
+        if len(compound.get(group) or []) > 1:
+            note = f"{group}: alternative {alternative.get('Name')!r} imported (used by most of the compound's simulations)."
+            if note not in notes:
+                notes.append(note)
 
     if compound.get("PlasmaProteinBindingPartner"):
         out.add("bind.partner", compound["PlasmaProteinBindingPartner"])
@@ -226,9 +293,78 @@ def _compound_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _
                 out.add(pid, method)
 
 
+def _dosed(sim: dict[str, Any]) -> list[str]:
+    """The compounds a simulation doses (those with a protocol); the others are metabolites it forms."""
+    return [c["Name"] for c in sim.get("Compounds", []) if c.get("Protocol")]
+
+
+def _own_simulations(snapshot: dict[str, Any], compound: str) -> list[dict[str, Any]]:
+    """The simulations that dose the compound and no other drug (its own kinetics, not a DDI arm); all simulations
+    that dose it when there is none such."""
+    dosing = [s for s in snapshot.get("Simulations", []) if compound in _dosed(s)]
+    alone = [s for s in dosing if _dosed(s) == [compound]]
+    return alone or dosing
+
+
 def _selected_interactions(snapshot: dict[str, Any], compound: str) -> set[str]:
-    return {i.get("Name") for sim in snapshot.get("Simulations", []) for i in sim.get("Interactions", []) or []
+    """The compound's interactions its own simulations select. One selected only in a DDI arm (a perpetrator's
+    inhibition of the victim drug's enzyme) is not part of the compound's own model."""
+    return {i.get("Name") for sim in _own_simulations(snapshot, compound) for i in sim.get("Interactions", []) or []
             if i.get("CompoundName") == compound}
+
+
+def _selection_name(process: dict[str, Any]) -> str:
+    """How a simulation selects a compound process (harvested: molecule-based, GFR, total hepatic, renal)."""
+    ds = process.get("DataSource")
+    internal = process.get("InternalName")
+    if process.get("Molecule"):
+        return f"{process['Molecule']}-{ds}"
+    return {"GlomerularFiltration": f"Glomerular Filtration-{ds}", "LiverClearance": f"Total Hepatic Clearance-{ds}",
+            "KidneyClearance": f"Renal Clearances-{ds}"}.get(internal, f"{internal}-{ds}")
+
+
+def _selected_processes(snapshot: dict[str, Any], compound: str) -> set[str] | None:
+    """The process names the compound's own simulations select; None when they select none (nothing to go by)."""
+    names = {p.get("Name") for sim in _own_simulations(snapshot, compound) for c in sim.get("Compounds", [])
+             if c.get("Name") == compound for p in c.get("Processes", []) or [] if p.get("Name")}
+    return names or None
+
+
+def _parent_compound(snapshot: dict[str, Any], wanted: str | None) -> dict[str, Any]:
+    """The compound to import: the one named (case-insensitive), the only one, or the one most simulations dose."""
+    compounds = snapshot.get("Compounds") or []
+    if not compounds:
+        raise ReferenceImportError("the snapshot has no compound")
+    if wanted is not None:
+        match = [c for c in compounds if c["Name"].lower() == wanted.lower()]
+        if not match:
+            raise ReferenceImportError(f"no compound {wanted!r} in the snapshot ({', '.join(c['Name'] for c in compounds)})")
+        return match[0]
+    if len(compounds) == 1:
+        return compounds[0]
+    dosed = [n for s in snapshot.get("Simulations", []) for n in _dosed(s)]
+    return max(compounds, key=lambda c: dosed.count(c["Name"]))
+
+
+def _feedback(snapshot: dict[str, Any], parent: dict[str, Any], sim: dict[str, Any]) -> list[str]:
+    """Metabolites a simulation forms that act on a protein the parent is cleared or transported by (e.g. hydroxy-
+    itraconazole inhibiting CYP3A4). The pipeline simulates the parent alone, so such a curve differs by design."""
+    from pbpk_domain.snapshot.validation import INTERACTION_PROCESSES
+
+    own = {p.get("Molecule") for p in parent.get("Processes", []) if p.get("Molecule")
+           and p.get("InternalName") not in INTERACTION_PROCESSES}
+    by_name = {c["Name"]: c for c in snapshot.get("Compounds", [])}
+    selected = {(i.get("CompoundName"), i.get("MoleculeName")) for i in sim.get("Interactions", []) or []}
+    out = []
+    for entry in sim.get("Compounds", []):
+        other = by_name.get(entry["Name"])
+        if other is None or other["Name"] == parent["Name"] or entry.get("Protocol"):
+            continue
+        hit = sorted({p["Molecule"] for p in other.get("Processes", []) if p.get("InternalName") in INTERACTION_PROCESSES
+                      and p.get("Molecule") in own and (other["Name"], p["Molecule"]) in selected})
+        if hit:
+            out.append(f"metabolite {other['Name']} acts on {', '.join(hit)}, which clears the parent")
+    return out
 
 
 def _process_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _Records, unplaced: list[str],
@@ -236,7 +372,11 @@ def _process_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _R
     from pbpk_domain.snapshot.validation import INTERACTION_PROCESSES
 
     selected = _selected_interactions(snapshot, compound["Name"])
+    used = _selected_processes(snapshot, compound["Name"])
     not_selected: list[str] = []
+    unused: list[str] = []
+    planned: list[tuple[dict[str, Any], str, str, dict]] = []
+    derived: set[str] = set()
     for process in compound.get("Processes", []):
         internal = process.get("InternalName")
         wanted = _PROCESS_PARAMETERS.get(internal)
@@ -247,23 +387,46 @@ def _process_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _R
             # the compound's own kinetics, so it is left for the DDI application (T-31), named here.
             not_selected.append(label)
             continue
+        if internal not in INTERACTION_PROCESSES and used is not None and _selection_name(process) not in used:
+            unused.append(f"{label} [{process.get('DataSource')}]")  # an alternative pathway no simulation uses
+            continue
         if wanted is None:
             unplaced.append(f"{label}: process type not placed by the builder yet")
             continue
-        engine_process = f"{internal}:{molecule}" if molecule else internal
         if internal == "GlomerularFiltration":
             prefix = "elim.renal"
+        elif internal == "LiverClearance":
+            prefix = "elim.hepatic.total"
+        elif internal == "KidneyClearance":
+            prefix = "elim.renal.total"
         else:
             prefix = f"{_PROCESS_FAMILY[internal]}.{molecule}"
+        planned.append((process, internal, prefix, wanted))
+    # Two pathways of one family on one protein (Alprazolam: CYP3A4 alpha-OH and 4-OH) would share ids: those
+    # processes' ids name their data source, e.g. elim.hepatic.CYP3A4@alpha-OH pathway.kcat.
+    ids = Counter(f"{prefix}.{suffix}" for process, _i, prefix, wanted in planned
+                  for q in process.get("Parameters", []) if (suffix := (wanted.get(q.get("Name")) or (None,))[0]))
+    for process, internal, prefix, wanted in planned:
+        molecule = process.get("Molecule")
+        engine_process = f"{internal}:{molecule}" if molecule else internal
+        suffixes = [wanted[q["Name"]][0] for q in process.get("Parameters", []) if q.get("Name") in wanted]
+        if any(ids[f"{prefix}.{s}"] > 1 for s in suffixes):
+            prefix = f"{prefix}@{str(process.get('DataSource')).replace('.', '')}"
         for parameter in process.get("Parameters", []):
             target = wanted.get(parameter.get("Name"))
             if target is None:
+                derived.add(f"{parameter.get('Name')} ({internal})")
                 continue
             suffix, unit = target
             value = _convert(float(parameter["Value"]), parameter.get("Unit"), unit)
             binding = EngineBinding(building_block="Compound", parameter=parameter["Name"], process=engine_process,
                                     data_source=process.get("DataSource"))
             out.add(f"{prefix}.{suffix}", value, unit=unit, parameter=parameter, binding=binding)
+    if derived:
+        notes.append("Process values PK-Sim derives from the imported inputs, not imported: " + ", ".join(sorted(derived)) + ".")
+    if unused:
+        notes.append("Processes defined but selected in none of the compound's own simulations, not imported: "
+                     + ", ".join(unused) + ".")
     if not_selected:
         notes.append("Interactions defined for victim drugs and selected in none of the model's simulations, left "
                      "for the DDI application: " + ", ".join(not_selected) + ".")
@@ -459,6 +622,16 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
             "fed": bool(sim.get("Events")),
             "infusion_min": infusion,
         }
+        link["co_dosed"] = [n for n in _dosed(sim) if n != compound]
+        parent = next((c for c in snapshot.get("Compounds", []) if c["Name"] == compound), {})
+        link["feedback"] = _feedback(snapshot, parent, sim)
+        # a property alternative this simulation uses that differs from the one imported
+        for group in _ALTERNATIVE_GROUPS:
+            if len(parent.get(group) or []) > 1:
+                mine, imported = _alternative_of(sim, parent, group), _selected_alternative(snapshot, parent, group)
+                if mine and imported is not None and mine != imported.get("Name"):
+                    link["feedback"].append(f"the published simulation uses the {group} alternative {mine!r}; "
+                                            f"the model imports {imported.get('Name')!r}")
         by_sim[sim["Name"]] = link
         for name in sim.get("ObservedData", []):
             links.setdefault(name, link)
@@ -525,29 +698,98 @@ def _infusion_time_min(protocol: dict[str, Any]) -> float | None:
     return None
 
 
+# Reported "Route" values across the OSP model library (2026-09-24). "EM"/"PM" (a genotype filed as a route), "na" and
+# none fall back to the published simulation's protocol; bolus, intracolonic and mixed routes are not placed.
+_ROUTE_WORDS = {"po": "PO", "oral": "PO", "capsule": "PO", "iv": "IV"}
+_INFUSION_ROUTE = re.compile(r"^(iv_)?(?P<value>[\d.]+)[- ]?min[_ ]infusion$")
+_PROTOCOL_ROUTE = {"Oral": "PO", "Intravenous": "IV"}
+_NAMED_DOSE = r"(?<!\d)(?<!\d\.){value}\s*mg(?![a-z/])"
+
+
+def _route(reported: Any) -> tuple[str | None, float | None]:
+    """(PO | IV | None, infusion minutes named in the route)."""
+    text = str(reported or "").strip().lower()
+    if text in _ROUTE_WORDS:
+        return _ROUTE_WORDS[text], None
+    infusion = _INFUSION_ROUTE.match(text)
+    if infusion is not None:
+        return "IV", float(infusion.group("value"))
+    return None, None
+
+
+def _application_type(protocol: dict[str, Any]) -> str | None:
+    types = {i.get("ApplicationType") for i in [protocol, *[i for s in protocol.get("Schemas", []) for i in s.get("SchemaItems", [])]]
+             if i.get("ApplicationType")}
+    return types.pop() if len(types) == 1 else None
+
+
+def _protocol_dose(protocol: dict[str, Any]) -> tuple[float, bool] | None:
+    """The one dose a published protocol gives (every administration the same), in mg or mg/kg."""
+    doses = {(float(q["Value"]), q.get("Unit")) for i in [protocol, *[i for s in protocol.get("Schemas", []) for i in s.get("SchemaItems", [])]]
+             for q in i.get("Parameters", []) if q.get("Name") == "InputDose"}
+    if len(doses) != 1:
+        return None
+    value, unit = doses.pop()
+    return (value, unit == "mg/kg") if unit in ("mg", "mg/kg") else None
+
+
+def _dataset_dose(name: str, props: dict[str, Any], link: dict[str, Any] | None, said: list[str]) -> tuple[float, bool] | str:
+    """(dose, per kg) from the dataset's "Dose" (with a unit; a bare number only when the dataset name repeats it
+    in mg), else from the linked published protocol; or the reason there is none."""
+    reported = props.get("Dose")
+    dose = _DOSE.match(str(reported or ""))
+    if dose is not None:
+        return float(dose.group("value")) * _TO_MG[dose.group("unit")], dose.group("unit").endswith("/kg")
+    try:
+        bare = float(str(reported))
+    except ValueError:
+        bare = None
+    if bare is not None:
+        text = f"{name} {props.get('Grouping', '')} {props.get('Sheet', '')}".lower()
+        if re.search(_NAMED_DOSE.format(value=re.escape(f"{bare:g}")), text):
+            said.append(f"dose {reported!r} has no unit; mg as the dataset's name gives it")
+            return bare, False
+    published = _protocol_dose(link["protocol"]) if link else None
+    if published is not None:
+        said.append(f"dose {reported!r} not usable; {published[0]:g} {'mg/kg' if published[1] else 'mg'} as in the "
+                    "published simulation")
+        return published
+    return f"dose {reported!r} is not a single mg / µg amount (or per kg)"
+
+
 def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_types: dict[str, str]) -> tuple[dict | None, str]:
     """One plasma dataset -> (StudyUpload row, "") or (None, reason it cannot be used)."""
     props = _props(dataset)
     column = next((c for c in dataset.get("Columns", []) if c.get("DataInfo", {}).get("Origin") == "Observation"), None)
     if column is None or not column.get("Unit"):
         return None, "no observed concentration column with a unit"
-    dose = _DOSE.match(str(props.get("Dose", "")))
-    if dose is None:
-        return None, f"dose {props.get('Dose')!r} is not a single mg / µg amount (or per kg)"
-
     said: list[str] = []
+    dose = _dataset_dose(dataset["Name"], props, link, said)
+    if isinstance(dose, str):
+        return None, dose
     row: dict[str, Any] = {
-        "study_id": _slug(f"{props.get('Study Id', '')} {props.get('Grouping', '')}"),
+        # the study and its arm; a dataset that names neither is identified by its own name
+        "study_id": _slug(f"{props.get('Study Id', '')} {props.get('Grouping', '')}") or _slug(dataset["Name"]),
         "n": int(float(props.get("N") or 1)),
-        "dose_mg": float(dose.group("value")) * _TO_MG[dose.group("unit")],
-        "dose_per_kg": dose.group("unit").endswith("/kg"),
+        "dose_mg": dose[0],
+        "dose_per_kg": dose[1],
         "n_timepoints": len(dataset["BaseGrid"]["Values"]),
     }
 
-    route = _given(props.get("Route"))
+    route, infusion_named = _route(props.get("Route"))
+    if route is None and link is not None:
+        route = _PROTOCOL_ROUTE.get(_application_type(link["protocol"]) or "")
+        if route is not None:
+            said.append(f"route {props.get('Route')!r} not usable; {route} as in the published simulation")
+    if route is None:
+        return None, f"route {props.get('Route')!r} is not IV or PO"
     if route == "IV":
+        if infusion_named is not None and not (link and (link.get("infusion_min") or _infusion_time_min(link["protocol"]))):
+            said.append(f"infusion time {infusion_named:g} min from the reported route")
         # The infusion time the published simulation uses, else its protocol's, else the one the dataset names.
         infusion = (link.get("infusion_min") or _infusion_time_min(link["protocol"])) if link else None
+        if infusion is None:
+            infusion = infusion_named
         if infusion is None:
             named = _INFUSION_IN_NAME.search(str(props.get("Grouping", "")))
             if named is not None:
@@ -565,6 +807,10 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     # dose given then (times are shifted to it); a regular schedule is a multiple-dose study; an irregular one cannot
     # be placed by the builder (regular schedules only) and is named.
     doses = _dose_times(props.get("Times of Administration [h]"))
+    if doses is None and link is not None and (published := _protocol_dose_times(link["protocol"])):
+        doses = published
+        said.append(f"administration times not reported; the schedule of the published protocol "
+                    f"{link['protocol'].get('Name')!r}")
     if doses is None:
         return None, f"administration times {props.get('Times of Administration [h]')!r} could not be read"
     if len(doses) == 1 and link is not None:
@@ -613,13 +859,17 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         if kind in ("ir_tablet", "ir_capsule", "other") and linked_form is not None:
             row["formulation_name"] = linked_form
 
-    food = _given(props.get("Food state"))
+    reported = _given(props.get("Food state"))
+    food = _FOOD_STATE.get(reported.lower()) if reported is not None else None
     if food is None:
-        food = "Fed" if link and link.get("fed") else "Fasted"
-        said.append(f"food state not reported; {food.lower()} as in the published simulation")
-    elif food.lower() == "fed" and link is not None and not link.get("fed"):
+        food = "fed" if link and link.get("fed") else "fasted"
+        said.append(f"food state {'not reported' if reported is None else repr(reported) + ' has no MS-01 class'}; "
+                    f"{food} as in the published simulation")
+    elif food == "fed" and reported.lower() != "fed":
+        said.append(f"reported {reported!r}: a meal was given, classified fed")
+    if food == "fed" and link is not None and not link.get("fed"):
         said.append("reported fed; the published model simulates it without a meal")
-    row["food_state"] = food.lower()
+    row["food_state"] = food
 
     grouping = str(props.get("Grouping", "")).lower()
     if "renal impairment" in grouping:
@@ -636,6 +886,9 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     if (link or {}).get("published_individual"):
         row["published_individual"] = link["published_individual"]
     co_medication = next((w for w in _CO_MEDICATION_WORDS if w in grouping), None)
+    if (link or {}).get("co_dosed"):
+        # the published simulation doses another drug with it: a DDI arm, never the drug alone (MS-01 §3.2)
+        co_medication = ", ".join(link["co_dosed"])
     if co_medication is not None:
         row["co_medication"] = co_medication
 
@@ -661,17 +914,23 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     return row, ""
 
 
-def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None) -> ReferenceImport:
-    """Turn one published single-compound OSP model snapshot into a CPF and its plasma studies."""
-    compounds = snapshot.get("Compounds") or []
-    if len(compounds) != 1:
-        raise ReferenceImportError(f"expected one compound in the snapshot, found {len(compounds)}")
-    compound = compounds[0]
+def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, compound: str | None = None,
+                        ) -> ReferenceImport:
+    """Turn a published OSP model snapshot into a CPF and its plasma studies for one compound: ``compound``, the only
+    one, or the one most of the simulations dose. The other compounds (metabolites, co-administered drugs) are named;
+    a study simulated with another dosed drug is a DDI arm (co_medication), one whose metabolites act on the parent's
+    clearance differs by design from the parent-only simulation the pipeline builds."""
+    parent = _parent_compound(snapshot, compound)
+    compound = parent
     name = compound["Name"]
     source = source or f"OSP {name} model"
 
     records = _Records(source)
     notes: list[str] = []
+    others = [c["Name"] for c in snapshot.get("Compounds", []) if c["Name"] != name]
+    if others:
+        notes.append(f"Imported {name!r}; the snapshot's other compounds are not simulated (metabolites and "
+                     f"co-administered drugs are simulated with the parent in a later step): {', '.join(others)}.")
     unplaced: list[str] = []
     _compound_records(snapshot, compound, records, notes)
     _process_records(snapshot, compound, records, unplaced, notes)
@@ -690,12 +949,21 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None) 
     simulation_of: dict[str, str] = {}
     offset_min: dict[str, float] = {}
     differs_by_design: dict[str, str] = {}
+    # The published model's own mapping of a dataset onto the parent's plasma output: it identifies the data where the
+    # dataset's "Molecule" is a variant or garbled name ("voriconazole" for Voriconazole1, "Fluvoxaminekjujhöjö").
+    mapped_to_parent = {m.get("ObservedData") for s in [*snapshot.get("Simulations", []), *(snapshot.get("ParameterIdentifications") or [])]
+                        for m in s.get("OutputMappings", []) or []
+                        if f"|{name}|Plasma" in str(m.get("Path", "")) and "PeripheralVenousBlood" in str(m.get("Path", ""))}
+    renamed: set[str] = set()
     for dataset in snapshot.get("ObservedData", []):
         props = _props(dataset)
         label = dataset["Name"]
-        if props.get("Molecule") != name:
+        molecule = str(props.get("Molecule") or "")
+        if molecule != name and molecule.lower() != name.lower() and label not in mapped_to_parent:
             skipped.append(f"{label}: data for {props.get('Molecule')}, not the parent drug")
             continue
+        if molecule != name:
+            renamed.add(molecule or "(none)")
         compartment = props.get("Compartment")
         if compartment in ("Urine", "Feces"):
             skipped.append(f"{label}: {compartment} fraction data (excreta need task T-11)")
@@ -724,10 +992,14 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None) 
                            f"{len(published_doses)}")
             if row.get("food_state") == "fed" and not link.get("fed"):
                 why.append("simulated fed as reported; the published simulation has no meal")
+            why.extend(link.get("feedback") or [])
             if why:
                 differs_by_design[row["study_id"]] = "; ".join(why)
         row.pop("_offset_min", None)
 
+    if renamed:
+        notes.append(f"Datasets named for {', '.join(sorted(renamed))} are taken as {name} data: the published model maps "
+                     "them onto its plasma output.")
     return ReferenceImport(compound=name, source=source, cpf=cpf, studies=tuple(studies), skipped=tuple(skipped),
                            unplaced=tuple(unplaced), notes=tuple(notes), simulation_of=simulation_of,
                            offset_min=offset_min, differs_by_design=differs_by_design)

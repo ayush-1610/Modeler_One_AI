@@ -4,7 +4,8 @@ Naming conventions used here were read from a PK-Sim 12 snapshot:
 - individuals reference expression profiles as ``Molecule|Species|Category``
 - simulations select molecule-based processes as ``{Molecule}-{DataSource}``
 - glomerular filtration is selected as ``Glomerular Filtration-{DataSource}`` with ``SystemicProcessType: GFR``
-Other systemic process types are not checked until their naming is harvested from an engine catalog.
+- total hepatic clearance as ``Total Hepatic Clearance-{DataSource}`` (``Hepatic``), renal clearance as
+  ``Renal Clearances-{DataSource}`` (``Renal``), harvested from the OSP model library
 """
 
 from __future__ import annotations
@@ -31,6 +32,11 @@ def process_selection_for(process: CompoundProcess) -> ProcessSelection | None:
     data_source = process.data_source or ""
     if process.internal_name == "GlomerularFiltration":
         return ProcessSelection(name=f"Glomerular Filtration-{data_source}", systemic_process_type="GFR")
+    # harvested from the OSP Cimetidine/Warfarin (hepatic) and Clarithromycin/Omeprazole (renal) simulations
+    if process.internal_name == "LiverClearance":
+        return ProcessSelection(name=f"Total Hepatic Clearance-{data_source}", systemic_process_type="Hepatic")
+    if process.internal_name == "KidneyClearance":
+        return ProcessSelection(name=f"Renal Clearances-{data_source}", systemic_process_type="Renal")
     if process.molecule:
         return ProcessSelection(name=f"{process.molecule}-{data_source}", molecule_name=process.molecule)
     return None
@@ -79,7 +85,7 @@ def validate_references(snapshot: Snapshot) -> list[Issue]:
             else:
                 known = compound_processes[sc.name]
                 for sel in sc.processes:
-                    if sel.systemic_process_type not in (None, "GFR"):
+                    if sel.systemic_process_type not in (None, "GFR", "Hepatic", "Renal"):
                         continue
                     if sel.name not in known:
                         issues.append(

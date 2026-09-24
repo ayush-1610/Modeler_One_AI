@@ -50,6 +50,8 @@ def check_completeness(cpf: CPF) -> CompletenessReport:
         ("bind.fu", "fraction unbound in plasma"),
         ("phys.solubility.ref", "reference aqueous solubility"),
     ):
+        if param_id == "phys.solubility.ref" and _present(cpf, "phys.solubility.table"):
+            continue  # a measured pH-solubility table (OSP Raltegravir, Voriconazole) is the reference solubility
         if not _present(cpf, param_id):
             missing.append(f"{label} ({param_id})")
             missing_ids.append(param_id)

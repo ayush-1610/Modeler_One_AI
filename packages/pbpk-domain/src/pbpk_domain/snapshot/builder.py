@@ -165,7 +165,14 @@ class MichaelisMentenMetabolism(Spec):
     @field_validator("vmax")
     @classmethod
     def _vmax(cls, v: Measured) -> Measured:
-        return _check(v, unit="µmol/l/min", label="Vmax")
+        return _check(v, unit="µmol/l/min", label="Vmax", positive=False)
+
+    @model_validator(mode="after")
+    def _rate(self):
+        # Vmax 0 is a real published input (Cimetidine, Dabigatran, S-Warfarin) when kcat carries the rate
+        if not self.vmax.value > 0 and (self.kcat is None or not self.kcat.value > 0):
+            raise ValueError("Vmax must be > 0 unless kcat is given")
+        return self
 
     @field_validator("km")
     @classmethod
@@ -211,7 +218,14 @@ class TransporterMichaelisMenten(Spec):
     @field_validator("vmax")
     @classmethod
     def _vmax(cls, v: Measured) -> Measured:
-        return _check(v, unit="µmol/l/min", label="Vmax")
+        return _check(v, unit="µmol/l/min", label="Vmax", positive=False)
+
+    @model_validator(mode="after")
+    def _rate(self):
+        # Vmax 0 is a real published input (Cimetidine, Dabigatran, S-Warfarin) when kcat carries the rate
+        if not self.vmax.value > 0 and (self.kcat is None or not self.kcat.value > 0):
+            raise ValueError("Vmax must be > 0 unless kcat is given")
+        return self
 
     @field_validator("km")
     @classmethod
@@ -324,9 +338,15 @@ class MicrosomalMichaelisMenten(Spec):
     data_source: str = Field(min_length=1)
     metabolite: str | None = None
     km: Measured
-    kcat: Measured
+    kcat: Measured | None = None  # absent: PK-Sim computes it from the in-vitro Vmax (its formula, not ours)
     in_vitro_vmax: Measured | None = None
     microsomal_content: Measured | None = None
+
+    @model_validator(mode="after")
+    def _rate(self) -> MicrosomalMichaelisMenten:
+        if self.kcat is None and self.in_vitro_vmax is None:
+            raise ValueError("a microsomal Michaelis-Menten process needs kcat or the in-vitro Vmax")
+        return self
 
     @field_validator("km")
     @classmethod
@@ -335,13 +355,14 @@ class MicrosomalMichaelisMenten(Spec):
 
     @field_validator("kcat")
     @classmethod
-    def _kcat(cls, v: Measured) -> Measured:
+    def _kcat(cls, v: Measured | None) -> Measured | None:
         return _check(v, unit="1/min", label="kcat")
 
     @field_validator("in_vitro_vmax")
     @classmethod
     def _vmax(cls, v: Measured | None) -> Measured | None:
-        return _check(v, unit="pmol/min/mg mic. protein", label="In vitro Vmax for liver microsomes")
+        # 0 is a real published value (Clarithromycin, Fluvoxamine): the fitted kcat then carries the rate
+        return _check(v, unit="pmol/min/mg mic. protein", label="In vitro Vmax for liver microsomes", positive=False)
 
     @field_validator("microsomal_content")
     @classmethod
@@ -355,7 +376,8 @@ class MicrosomalMichaelisMenten(Spec):
         if self.microsomal_content is not None:
             parameters.append(self.microsomal_content.to_parameter(name="Content of CYP proteins in liver microsomes"))
         parameters.append(self.km.to_parameter(name="Km"))
-        parameters.append(self.kcat.to_parameter(name="kcat"))
+        if self.kcat is not None:
+            parameters.append(self.kcat.to_parameter(name="kcat"))
         fields: dict = {"internal_name": self.kind, "data_source": self.data_source, "molecule": self.molecule,
                         "parameters": parameters}
         if self.metabolite:
@@ -363,8 +385,66 @@ class MicrosomalMichaelisMenten(Spec):
         return CompoundProcess(**fields)
 
 
+# Process types placed by their harvested parameter names and units (the snapshots of the OSP model library,
+# 2026-09-24; the builder's unit for each name, the importer converts to it). A name outside this table is refused:
+# it would be a guessed parameter. Molecule-less types (total hepatic / renal clearance) carry a species instead.
+HARVESTED_PROCESSES: dict[str, dict[str, str | None]] = {
+    "MetabolizationIntrinsic_FirstOrder": {"Intrinsic clearance": "l/min", "Specific clearance": "1/min"},
+    "rCYP450_MM": {"In vitro Vmax/recombinant enzyme": "pmol/min/pmol rec. enzyme", "Km": "µmol/l", "kcat": "1/min"},
+    "rCYP450_FirstOrder": {"In vitro CL/recombinant enzyme": "µl/min/pmol rec. enzyme", "CLspec/[Enzyme]": "l/µmol/min"},
+    "LiverClearance": {"Plasma clearance": "ml/min/kg", "Specific clearance": "1/min", "Fraction unbound (experiment)": None,
+                       "Lipophilicity (experiment)": "Log Units", "Blood/Plasma concentration ratio": None},
+    "KidneyClearance": {"Plasma clearance": "ml/min/kg", "Specific clearance": "1/min", "Fraction unbound (experiment)": None,
+                        "Blood flow rate (kidney)": "l/min", "Body weight": "kg"},
+    "ActiveTransportSpecific_Hill": {"Vmax": "µmol/l/min", "Km": "µmol/l", "Transporter concentration": "µmol/l",
+                                     "Hill coefficient": None},
+    "ActiveTransport_InVitro_VesicularAssay_MM": {"In vitro Vmax/transporter": "pmol/min/pmol transporter",
+                                                  "Km": "µmol/l", "kcat": "1/min"},
+    "IrreversibleInhibition": {"kinact": "1/min", "K_kinact_half": "µmol/l", "Ki": "µmol/l"},
+    "MixedInhibition": {"Ki_c": "µmol/l", "Ki_u": "µmol/l"},
+    "NoncompetitiveInhibition": {"Ki": "µmol/l"},
+}
+HARVESTED_SYSTEMIC = frozenset({"LiverClearance", "KidneyClearance"})
+
+
+class HarvestedProcess(Spec):
+    """A process of a type in HARVESTED_PROCESSES, written with exactly the parameters the CPF carries for it (PK-Sim
+    computes the ones a snapshot leaves out, e.g. kcat from an in-vitro Vmax)."""
+
+    kind: Literal["harvested"] = "harvested"
+    internal_name: str
+    molecule: str | None = None
+    data_source: str = Field(min_length=1)
+    species: str = "Human"
+    parameters: dict[str, Measured] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _harvested(self) -> HarvestedProcess:
+        allowed = HARVESTED_PROCESSES.get(self.internal_name)
+        if allowed is None:
+            raise ValueError(f"process type {self.internal_name!r} has no harvested parameter table")
+        if (self.internal_name in HARVESTED_SYSTEMIC) == bool(self.molecule):
+            raise ValueError(f"{self.internal_name}: a molecule is required for a molecule-based process and "
+                             "forbidden for a systemic one")
+        for name, measured in self.parameters.items():
+            if name not in allowed:
+                raise ValueError(f"{self.internal_name}: parameter {name!r} is not a harvested name")
+            _check(measured, unit=allowed[name], label=f"{self.internal_name} {name}", positive=False)
+        return self
+
+    def to_process(self) -> CompoundProcess:
+        fields: dict = {"internal_name": self.internal_name, "data_source": self.data_source,
+                        "parameters": [m.to_parameter(name=n) for n, m in self.parameters.items()]}
+        if self.molecule:
+            fields["molecule"] = self.molecule
+        if self.internal_name in HARVESTED_SYSTEMIC or self.internal_name == "MetabolizationIntrinsic_FirstOrder":
+            fields["species"] = self.species  # these types carry Species in the published snapshots
+        return CompoundProcess(**fields)
+
+
 ProcessSpec = Annotated[
     FirstOrderMetabolism
+    | HarvestedProcess
     | MichaelisMentenMetabolism
     | MicrosomalMichaelisMenten
     | TransporterMichaelisMenten
@@ -383,6 +463,10 @@ class CompoundSpec(Spec):
     fraction_unbound: Measured
     solubility: Measured | None = None
     solubility_reference_ph: float = Field(default=7.0, ge=0, le=14)
+    # A measured pH-solubility table instead (pH, mg/l), written as PK-Sim's "Solubility table" TableFormula (the
+    # structure harvested from the OSP Raltegravir and Voriconazole snapshots); `solubility_table_value` is its Value.
+    solubility_table: tuple[tuple[float, float], ...] | None = None
+    solubility_table_value: float | None = None
     intestinal_permeability: Measured | None = None
     permeability: Measured | None = None
     pka: list[PkaSpec] = Field(default_factory=list, max_length=3)  # PK-Sim supports up to 3 pKa values [VERIFY]
@@ -454,6 +538,14 @@ class CompoundSpec(Spec):
                     ],
                 )
             ]
+        if self.solubility_table:
+            table = Parameter(name="Solubility table", value=self.solubility_table_value if self.solubility_table_value
+                              is not None else self.solubility_table[0][1], unit="mg/l")
+            table = table.model_copy(update={"TableFormula": {
+                "Name": "Solubility", "XName": "pH", "XDimension": "Dimensionless", "YName": "Solubility",
+                "YDimension": "Concentration (mass)", "YUnit": "mg/l", "UseDerivedValues": False,
+                "Points": [{"X": x, "Y": y, "RestartSolver": False} for x, y in self.solubility_table]}})
+            fields["solubility"] = [ParameterAlternative(name=alt, parameters=[table])]
         if self.intestinal_permeability is not None:
             fields["intestinal_permeability"] = [
                 ParameterAlternative(
