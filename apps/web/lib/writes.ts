@@ -153,6 +153,7 @@ export type TemplateSummary = {
   question: string;
   model_risk: string;
   real_data: boolean;
+  blank?: boolean; // the user's own compound: the S0 parameters, each missing, and no studies yet
   description: string;
 };
 
@@ -171,7 +172,13 @@ export type StudyRow = {
 };
 
 export type TemplateContent = TemplateSummary & {
-  cpf: { compound: string; parameters: { id: string; value: unknown; unit?: string | null; status: string }[] };
+  cpf: {
+    compound: string;
+    parameters: {
+      id: string; value: unknown; unit?: string | null; status: string;
+      provenance?: { source_type: string; reference?: string } | null;
+    }[];
+  };
   studies: StudyRow[];
   skipped: string[];
   notes: string[];

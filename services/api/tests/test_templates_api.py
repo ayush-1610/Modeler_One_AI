@@ -94,3 +94,18 @@ def test_every_published_single_compound_template_loads():
     for tid in published:
         content = _content(tid, _TEMPLATES[tid])
         assert content["cpf"]["compound"] == _TEMPLATES[tid]["compound"] and content["studies"], tid
+
+
+def test_your_own_compound_starts_from_the_s0_parameters_each_missing(client):
+    """The blank starting point lists what S0 requires; the gate is not satisfied until each has a value and source."""
+    from pbpk_domain.cpf.completeness import check_completeness
+    from pbpk_domain.cpf.models import CPF
+
+    body = client.get("/api/v1/templates/own-compound", headers=AUTH).json()["data"]
+    assert body["blank"] is True and body["studies"] == [] and body["real_data"] is False
+    cpf = CPF.model_validate(body["cpf"])
+    assert all(p.status.value == "MISSING" and p.value is None for p in cpf.parameters)
+    assert set(check_completeness(cpf).missing_ids) == {"phys.mw", "phys.logp", "phys.pka", "bind.fu",
+                                                        "phys.solubility.ref", "elim"}
+    clearance = cpf.get("elim.hepatic.total.plasma_clearance").engine_binding
+    assert (clearance.process, clearance.parameter) == ("LiverClearance", "Plasma clearance")

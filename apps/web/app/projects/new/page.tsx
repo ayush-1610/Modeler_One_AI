@@ -71,10 +71,30 @@ export default function NewProjectWizard() {
   }
 
   async function step2() {
-    let cpf: unknown;
+    let cpf: { compound?: string } & Record<string, unknown>;
     try { cpf = JSON.parse(cpfText); } catch { setError("The CPF is not valid JSON."); return; }
+    cpf.compound = compound; // the CPF belongs to the compound named in step 1
     const data = await guard(() => putCpf(projectId, compound, cpf));
-    if (data !== null) setStep(3);
+    if (data === null) return;
+    // your own compound has no studies yet: load them from CSV on the project's data intake
+    if (template?.blank) window.location.assign(`/projects/${projectId}/intake`);
+    else setStep(3);
+  }
+
+  // One parameter's value or source typed into the table (the JSON stays the record that is saved).
+  function editParam(id: string, field: "value" | "reference", text: string) {
+    let cpf: TemplateContent["cpf"];
+    try { cpf = JSON.parse(cpfText); } catch { return; }
+    cpf.parameters = cpf.parameters.map((p) => {
+      if (p.id !== id) return p;
+      if (field === "value") {
+        const num = Number(text);
+        const value = text.trim() === "" ? null : Number.isFinite(num) ? num : text;
+        return { ...p, value, status: value === null ? "MISSING" : p.status === "MISSING" ? "FIXED" : p.status };
+      }
+      return { ...p, provenance: text.trim() ? { source_type: "literature", reference: text } : null };
+    });
+    setCpfText(JSON.stringify(cpf, null, 2));
   }
 
   async function step3() {
@@ -187,11 +207,19 @@ export default function NewProjectWizard() {
           {parsedCpf && (
             <div style={{ maxHeight: 320, overflow: "auto", marginBottom: 12 }}>
               <table>
-                <thead><tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Status</th></tr></thead>
+                <thead><tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Status</th>
+                  {template?.blank && <th>Source (publication, measurement)</th>}</tr></thead>
                 <tbody>
                   {parsedCpf.parameters.map((p) => (
-                    <tr key={p.id}><td><code>{p.id}</code></td><td>{String(p.value)}</td>
-                      <td>{p.unit ?? ""}</td><td>{p.status}</td></tr>
+                    <tr key={p.id}><td><code>{p.id}</code></td>
+                      <td>{template?.blank
+                        ? <input aria-label={`${p.id} value`} value={p.value === null ? "" : String(p.value)}
+                                 onChange={(e) => editParam(p.id, "value", e.target.value)} style={{ width: 110 }} />
+                        : String(p.value)}</td>
+                      <td>{p.unit ?? ""}</td><td>{p.status}</td>
+                      {template?.blank && <td><input aria-label={`${p.id} source`} value={p.provenance?.reference ?? ""}
+                                               onChange={(e) => editParam(p.id, "reference", e.target.value)} /></td>}
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -206,7 +234,9 @@ export default function NewProjectWizard() {
           </details>
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn" disabled={busy} onClick={() => setStep(1)}>Back</button>
-            <button className="btn primary" disabled={busy} data-testid="save-cpf" onClick={step2}>Save CPF</button>
+            <button className="btn primary" disabled={busy} data-testid="save-cpf" onClick={step2}>
+              {template?.blank ? "Save CPF and load data" : "Save CPF"}
+            </button>
           </div>
         </Card>
       )}

@@ -67,6 +67,17 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
         ("Voriconazole", "CYP2C19 / CYP3A4 metabolism, loading-dose regimens, pH-solubility table"),
         ("Itraconazole", "CYP3A4 metabolism, solubility per product and food state; parent only here"),
     )},
+    "own-compound": {
+        "name": "Your own compound — enter its parameters and clinical data",
+        "compound": "MyCompound",
+        "question": "Predict plasma exposure (AUC, Cmax) of the compound in healthy adults",
+        "model_risk": "medium",
+        "real_data": False,
+        "blank": True,
+        "description": "Starts from the parameters the S0 readiness gate requires (molecular weight, lipophilicity, pKa or "
+                       "neutral, fraction unbound, solubility, an elimination pathway), each marked missing: fill in the "
+                       "values with their sources, add further processes, then load your studies (CSV) and run.",
+    },
     "aciclovir-illustrative": {
         "name": "Aciclovir — illustrative quick check (not clinical data)",
         "compound": "Aciclovir",
@@ -101,7 +112,22 @@ def _published(snapshot_path: str) -> dict[str, Any]:
     }
 
 
+# The S0 gate's parameters (pbpk_domain.cpf.completeness), empty: a user's own compound starts from these. The
+# elimination pathway is PK-Sim's total hepatic clearance, bound as the OSP models bind it (harvested: OSP Digoxin
+# "Total Hepatic Clearance", LiverClearance "Plasma clearance" in ml/min/kg); other processes are added as records.
+_BLANK_PARAMETERS = (("phys.mw", "g/mol", None), ("phys.logp", "Log Units", None), ("phys.pka.neutral", None, None),
+                     ("bind.fu", None, None), ("phys.solubility.ref", "mg/ml", None),
+                     ("elim.hepatic.total.plasma_clearance", "ml/min/kg",
+                      {"building_block": "Compound", "parameter": "Plasma clearance", "process": "LiverClearance",
+                       "data_source": "Literature"}))
+
+
 def _content(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
+    if spec.get("blank"):
+        cpf = {"compound": spec["compound"], "parameters": [
+            {"id": pid, "value": None, "unit": unit, "status": "MISSING", **({"engine_binding": eb} if eb else {})}
+            for pid, unit, eb in _BLANK_PARAMETERS]}
+        return {"cpf": cpf, "studies": [], "skipped": [], "notes": [], "source": "your own data"}
     if "snapshot" in spec:
         path = _reference_dir() / spec["snapshot"]
         if not path.is_file():
@@ -115,8 +141,8 @@ def _content(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def _summary(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
-    return {"id": template_id, **{k: spec[k] for k in ("name", "compound", "question", "model_risk", "real_data",
-                                                        "description")}}
+    return {"id": template_id, "blank": bool(spec.get("blank")),
+            **{k: spec[k] for k in ("name", "compound", "question", "model_risk", "real_data", "description")}}
 
 
 @router.get("/templates")

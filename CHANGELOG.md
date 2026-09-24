@@ -15,6 +15,15 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — model your own compound from the wizard; a user guide
+- New starting point "Your own compound": the parameters the S0 gate requires (molecular weight, logP, pKa or
+  neutral, fraction unbound, solubility, and total hepatic clearance bound as PK-Sim's LiverClearance "Plasma
+  clearance", harvested from OSP Digoxin), each marked missing. The CPF table takes each value and its source
+  directly; saving it opens the project's CSV data intake. Before, every project had to start from a published model.
+- Fixed in the S0 gate: a `phys.pka.neutral` record marked missing (no value, no source) satisfied the pKa
+  requirement. MS-01 §2.2 asks for a documented statement, so it now needs a value and a source like the others.
+- `docs/USING_THE_TOOL.md`: deploying, loading the examples, what a campaign does, the package, your own compound.
+
 ### Added — the S7 package carries the PK-Sim project file of every bundled simulation
 - S7 converts every bundled snapshot to its PK-Sim project (`pksim/<stem>.pksim5`) on the engine's
   `convert_to_project` task (PK-Sim loads the snapshot and saves the project; proven in every CI run's golden step)

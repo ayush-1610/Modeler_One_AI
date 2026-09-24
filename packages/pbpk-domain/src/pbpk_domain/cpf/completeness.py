@@ -57,7 +57,8 @@ def check_completeness(cpf: CPF) -> CompletenessReport:
             missing_ids.append(param_id)
 
     # pKa is satisfied by any pKa record, or by an explicit "neutral" declaration.
-    if not _any_with_prefix(cpf, "phys.pka") and cpf.get("phys.pka.neutral") is None:
+    # (a "neutral" record marked missing, with no value and no source, is not a documented statement)
+    if not _any_with_prefix(cpf, "phys.pka") and not _present(cpf, "phys.pka.neutral"):
         missing.append("pKa values, or a documented statement that the compound is neutral (phys.pka.* or phys.pka.neutral)")
         missing_ids.append("phys.pka")
 
