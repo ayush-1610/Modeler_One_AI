@@ -223,4 +223,4 @@ def test_administrations_at_one_moment_are_one_dose():
     of the 80 mg dose (run 26 simulated half of it)."""
     imported = _system("Verapamil")
     row = next(s for s in imported.studies if s["study_id"] == "ratiopharm-1989-unknown")
-    assert imported.system.products[row["product"]] == {"R-Verapamil": 0.462884, "S-Verapamil": 0.462884}
+    assert imported.system.products[row["product"]] == {"R-Verapamil": 0.462883625, "S-Verapamil": 0.462883625}
