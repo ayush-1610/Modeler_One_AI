@@ -19,11 +19,13 @@ import json
 import math
 import re
 from collections import Counter
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from itertools import pairwise
 from typing import Any
 
 from pbpk_domain.cpf.models import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.system import PLASMA, Analyte, Formation, ModelSystem
 
 # Compound scalar properties: (snapshot group, snapshot parameter name, CPF id, unit the builder requires).
 _ALTERNATIVE_PARAMETERS = (
@@ -298,9 +300,18 @@ def _dosed(sim: dict[str, Any]) -> list[str]:
     return [c["Name"] for c in sim.get("Compounds", []) if c.get("Protocol")]
 
 
+# The compounds of the model system being imported (import_osp_system); None for a single-compound import.
+_MEMBERS: ContextVar[frozenset[str] | None] = ContextVar("osp_system_members", default=None)
+
+
 def _own_simulations(snapshot: dict[str, Any], compound: str) -> list[dict[str, Any]]:
     """The simulations that dose the compound and no other drug (its own kinetics, not a DDI arm); all simulations
-    that dose it when there is none such."""
+    that dose it when there is none such. Inside a system import: the simulations the compound takes part in (dosed or
+    formed) that dose only compounds of the system."""
+    members = _MEMBERS.get()
+    if members is not None:
+        return [s for s in snapshot.get("Simulations", []) if _dosed(s) and set(_dosed(s)) <= members
+                and any(c.get("Name") == compound for c in s.get("Compounds", []))]
     dosing = [s for s in snapshot.get("Simulations", []) if compound in _dosed(s)]
     alone = [s for s in dosing if _dosed(s) == [compound]]
     return alone or dosing
@@ -604,8 +615,12 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
     main = _main_individual(snapshot)
     by_sim: dict[str, dict[str, Any]] = {}
     links: dict[str, dict[str, Any]] = {}
+    members = _MEMBERS.get()
     for sim in snapshot.get("Simulations", []):
-        entry = next((c for c in sim.get("Compounds", []) if c.get("Name") == compound), None)
+        if members is None:
+            entry = next((c for c in sim.get("Compounds", []) if c.get("Name") == compound), None)
+        else:  # a system: the simulation's first dosed member carries the protocol the study is read from
+            entry = next((c for c in sim.get("Compounds", []) if c.get("Protocol") and c.get("Name") in members), None)
         if entry is None:
             continue
         protocol_ref = entry.get("Protocol") or {}
@@ -624,9 +639,17 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
             "fed": bool(sim.get("Events")),
             "infusion_min": infusion,
         }
-        link["co_dosed"] = [n for n in _dosed(sim) if n != compound]
-        parent = next((c for c in snapshot.get("Compounds", []) if c["Name"] == compound), {})
-        link["feedback"] = _feedback(snapshot, parent, sim)
+        if members is None:
+            link["co_dosed"] = [n for n in _dosed(sim) if n != compound]
+            parent = next((c for c in snapshot.get("Compounds", []) if c["Name"] == compound), {})
+            link["feedback"] = _feedback(snapshot, parent, sim)
+        else:
+            link["co_dosed"] = [n for n in _dosed(sim) if n not in members]
+            parent = next((c for c in snapshot.get("Compounds", []) if c["Name"] == entry["Name"]), {})
+            link["feedback"] = []  # the system simulates the metabolites: no parent-only approximation to label
+            link["doses"] = {c["Name"]: _protocol_dose(protocols.get((c.get("Protocol") or {}).get("Name"), {}))
+                             for c in sim.get("Compounds", []) if c.get("Protocol") and c["Name"] in members}
+            link["compounds"] = [c["Name"] for c in sim.get("Compounds", []) if c["Name"] in members]
         # a property alternative this simulation uses that differs from the one imported
         for group in _ALTERNATIVE_GROUPS:
             if len(parent.get(group) or []) > 1:
@@ -1005,3 +1028,252 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, 
     return ReferenceImport(compound=name, source=source, cpf=cpf, studies=tuple(studies), skipped=tuple(skipped),
                            unplaced=tuple(unplaced), notes=tuple(notes), simulation_of=simulation_of,
                            offset_min=offset_min, differs_by_design=differs_by_design)
+
+
+# --- model systems: parent, enantiomers, metabolites (docs/plans/2026-09-24-multi-compound.md) -------------------
+
+
+@dataclass(frozen=True)
+class SystemImport:
+    system: ModelSystem
+    source: str
+    studies: tuple[dict[str, Any], ...]  # StudyUpload rows, each with its analyte and product
+    skipped: tuple[str, ...]
+    unplaced: tuple[str, ...]
+    notes: tuple[str, ...]
+    simulation_of: dict[str, str] = field(default_factory=dict)
+    offset_min: dict[str, float] = field(default_factory=dict)
+    differs_by_design: dict[str, str] = field(default_factory=dict)
+
+
+_STEREO = re.compile(r"^(?:[RS]|\(?[+-]\)?|es|rac)-?", re.IGNORECASE)
+
+
+def _stem(name: str) -> str:
+    """A compound name without its stereo prefix ("R-Verapamil", "S-Warfarin" -> "verapamil", "warfarin")."""
+    return _STEREO.sub("", name, count=1).lower()
+
+
+def _observer_compounds(observer_set: dict[str, Any], names: set[str]) -> set[str]:
+    refs = {r.get("Path", "") for o in observer_set.get("Observers", []) for r in (o.get("Formula") or {}).get("References", [])}
+    return {n for n in names if any(f"|{n}|" in ref for ref in refs)}
+
+
+def _system_members(snapshot: dict[str, Any], main: str, parents: tuple[str, ...] | None) -> tuple[list[str], list[str]]:
+    """(parents, metabolites) of the system around ``main``: its enantiomer family (same name after an R-/S- prefix),
+    the compounds a published sum observer adds to it, and everything they form. A drug dosed only with it in DDI arms
+    (a victim or perpetrator) is not a member."""
+    names = {c["Name"] for c in snapshot.get("Compounds", [])}
+    dosed = {n for s in snapshot.get("Simulations", []) for n in _dosed(s)}
+    if parents is None:
+        chosen = {main} | {n for n in dosed if _stem(n) == _stem(main)}
+        for observer_set in snapshot.get("ObserverSets", []) or []:
+            linked = _observer_compounds(observer_set, names)
+            if linked & chosen:
+                chosen |= linked & dosed
+    else:
+        unknown = [p for p in parents if p not in names]
+        if unknown:
+            raise ReferenceImportError(f"no compound {', '.join(map(repr, unknown))} in the snapshot")
+        chosen = set(parents)
+    compounds = {c["Name"]: c for c in snapshot.get("Compounds", [])}
+    members, grew = set(chosen), True
+    while grew:
+        grew = False
+        for name in list(members):
+            for process in compounds[name].get("Processes", []):
+                formed = process.get("Metabolite")
+                if formed in compounds and formed not in members:
+                    members.add(formed)
+                    grew = True
+    order = [c["Name"] for c in snapshot.get("Compounds", [])]
+    return [n for n in order if n in chosen], [n for n in order if n in members - chosen]
+
+
+def _formation(snapshot: dict[str, Any], members: set[str]) -> list[Formation]:
+    out = []
+    for compound in snapshot.get("Compounds", []):
+        if compound["Name"] not in members:
+            continue
+        for process in compound.get("Processes", []):
+            if process.get("Metabolite") in members and process.get("Molecule"):
+                out.append(Formation(compound=compound["Name"], internal_name=process["InternalName"],
+                                     molecule=process["Molecule"], data_source=process.get("DataSource") or "",
+                                     metabolite=process["Metabolite"]))
+    return out
+
+
+def _system_analytes(snapshot: dict[str, Any], members: set[str]) -> tuple[dict[str, Analyte], dict[str, dict[str, Any]]]:
+    """Each member's plasma, and each published sum observer the system's simulations select, at the output path the
+    published simulations read it (an observer's path is never composed: Verapamil's sums sit under different
+    compounds, Dabigatran's `SUM` formula uses a MOLECULE placeholder)."""
+    analytes = {n: Analyte(name=n, kind="compound", compound=n, output_path=PLASMA.format(compound=n))
+                for n in [c["Name"] for c in snapshot.get("Compounds", [])] if n in members}
+    sims = [s for s in snapshot.get("Simulations", []) if _dosed(s) and set(_dosed(s)) <= members]
+    selected = {o.get("Name") for s in sims for o in s.get("ObserverSets", []) or []}
+    outputs = [p for s in sims for p in (s.get("OutputSelections") or []) if isinstance(p, str)]
+    observers: dict[str, dict[str, Any]] = {}
+    for observer_set in snapshot.get("ObserverSets", []) or []:
+        if observer_set.get("Name") not in selected:
+            continue
+        for observer in observer_set.get("Observers", []):
+            path = next((p for p in outputs if p.startswith("Organism|PeripheralVenousBlood|") and p.endswith(f"|{observer['Name']}")), None)
+            if path is None:
+                continue  # an observer the published simulations never output (urine fractions, …)
+            observers[observer_set["Name"]] = observer_set
+            analytes[observer["Name"]] = Analyte(name=observer["Name"], kind="observer", observer=observer_set["Name"],
+                                                 output_path=path)
+    return analytes, observers
+
+
+def _analyte_of(label: str, molecule: str, analytes: dict[str, Analyte], observers: dict[str, dict[str, Any]],
+                mapped: dict[str, str]) -> str | None:
+    """The analyte a dataset measures: a member compound, an observer (by its set or observer name), or what the
+    published model maps it onto."""
+    by_lower = {a.lower(): a for a in analytes}
+    if molecule.lower() in by_lower:
+        return by_lower[molecule.lower()]
+    for set_name, doc in observers.items():
+        if molecule.lower() == set_name.lower():
+            return next((o["Name"] for o in doc.get("Observers", []) if o["Name"] in analytes), None)
+    path = mapped.get(label)
+    return next((a.name for a in analytes.values() if path and path.endswith(a.output_path)), None)
+
+
+def import_osp_system(snapshot: dict[str, Any], *, source: str | None = None,
+                      parents: tuple[str, ...] | None = None) -> SystemImport:
+    """Turn a published OSP model snapshot into a model system — a CPF per compound, the formation links, the products
+    the studies administer, the published sum observers — and its plasma studies, each with its analyte. The main
+    parent is the compound most simulations dose; ``parents`` names the dosed compounds explicitly."""
+    main = _parent_compound(snapshot, None)["Name"]
+    parent_names, metabolite_names = _system_members(snapshot, main, parents)
+    members = frozenset(parent_names + metabolite_names)
+    compounds = {c["Name"]: c for c in snapshot.get("Compounds", [])}
+    source = source or f"OSP {main} model"
+    notes: list[str] = []
+    unplaced: list[str] = []
+    token = _MEMBERS.set(members)
+    try:
+        cpfs = []
+        for name in [c["Name"] for c in snapshot.get("Compounds", []) if c["Name"] in members]:
+            records = _Records(source)
+            _compound_records(snapshot, compounds[name], records, notes)
+            _process_records(snapshot, compounds[name], records, unplaced, notes)
+            _simulation_parameter_records(snapshot, name, records, notes)
+            if name == parent_names[0]:  # shared by the system: the formulations and the published individual
+                _formulation_records(snapshot, records, unplaced)
+                _individual_records(snapshot, records, notes)
+            cpfs.append(CPF(compound=name, parameters=tuple(records.records), note=f"Imported from the {source} snapshot"))
+        links = _simulation_links(snapshot, main)
+    finally:
+        _MEMBERS.reset(token)
+    others = [n for n in compounds if n not in members]
+    if others:
+        notes.append(f"Not part of the {main} system (co-administered in DDI arms, or unrelated): {', '.join(others)}.")
+    analytes, observers = _system_analytes(snapshot, set(members))
+    mapped = {m.get("ObservedData"): str(m.get("Path", "")) for s in [*snapshot.get("Simulations", []),
+              *(snapshot.get("ParameterIdentifications") or [])] for m in s.get("OutputMappings", []) or []}
+
+    formulation_types = {r.id.split(".")[1]: str(r.value) for r in cpfs[0].parameters
+                         if r.id.startswith("form.") and r.id.endswith(".type")}
+    products: dict[str, dict[str, float]] = {}
+    studies: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    seen: set[str] = set()
+    simulation_of: dict[str, str] = {}
+    offset_min: dict[str, float] = {}
+    differs_by_design: dict[str, str] = {}
+    for dataset in snapshot.get("ObservedData", []):
+        props = _props(dataset)
+        label = dataset["Name"]
+        analyte = _analyte_of(label, str(props.get("Molecule") or ""), analytes, observers, mapped)
+        if analyte is None:
+            skipped.append(f"{label}: data for {props.get('Molecule')}, not a compound or sum of the system")
+            continue
+        compartment = props.get("Compartment")
+        said: list[str] = []
+        if compartment is None and not props.get("Organ") and analytes[analyte].kind == "observer":
+            # the published sum observer is defined on peripheral venous plasma (its ContainerCriteria)
+            compartment = "Plasma"
+            said.append(f"compartment not reported; plasma, where the published {analyte!r} observer is defined")
+        if compartment in ("Urine", "Feces"):
+            skipped.append(f"{label}: {compartment} fraction data (excreta need task T-11)")
+            continue
+        if compartment != "Plasma":
+            skipped.append(f"{label}: {compartment} data; only plasma concentrations are compared")
+            continue
+        link = links.get(label)
+        if (link is None or not link.get("doses")) and len(parent_names) == 1:
+            link = None  # one parent: the reported dose is the parent's, as in a single-compound import
+        elif link is None or not link.get("doses"):
+            skipped.append(f"{label}: no published simulation of the system runs it (which compounds it doses is unknown)")
+            continue
+        row, reason = _study(dataset, link, formulation_types)
+        if row is None:
+            skipped.append(f"{label}: {reason}")
+            continue
+        if row["study_id"] in seen:  # one study measured on several analytes (the sum and the metabolite)
+            row["study_id"] = f"{row['study_id']}-{_slug(analyte)}"
+        if row["study_id"] in seen:
+            skipped.append(f"{label}: duplicate study id {row['study_id']!r}")
+            continue
+        product = (_product(link, row, products) if link is not None
+                   else _product({"doses": {parent_names[0]: (row["dose_mg"], bool(row.get("dose_per_kg")))}}, row, products))
+        if isinstance(product, str) and product.startswith("!"):
+            skipped.append(f"{label}: {product[1:]}")
+            continue
+        seen.add(row["study_id"])
+        row["analyte"] = analyte
+        row["product"] = product
+        if said:  # recorded with the study's other import notes, in its reference
+            row["reference"] = f"{row.get('reference', '')} Import: {'; '.join(said)}.".strip()
+        studies.append(row)
+        if link is None:
+            row.pop("_offset_min", None)
+            continue
+        simulation_of[row["study_id"]] = link["simulation"]
+        offset_min[row["study_id"]] = row.pop("_offset_min", 0.0)
+        published_doses = _protocol_dose_times(link["protocol"]) or []
+        why = []
+        if published_doses and len(published_doses) != (row.get("n_doses") or 1):
+            why.append(f"{row.get('n_doses') or 1} dose(s) as the study gave them; the published simulation gives "
+                       f"{len(published_doses)}")
+        if row.get("food_state") == "fed" and not link.get("fed"):
+            why.append("simulated fed as reported; the published simulation has no meal")
+        if why:
+            differs_by_design[row["study_id"]] = "; ".join(why)
+
+    roles = {c.compound: ("parent" if any(c.compound in f for f in products.values()) else "metabolite") for c in cpfs}
+    dosed_without_study = [n for n in parent_names if roles[n] != "parent"]
+    if dosed_without_study:
+        notes.append(f"Dosed in the published model but in no imported study: {', '.join(dosed_without_study)}.")
+    if not products:
+        raise ReferenceImportError(f"no study of the {main} system could be imported")
+    system = ModelSystem(name=main, compounds=tuple(cpfs), roles=roles,
+                         formation=tuple(f for f in _formation(snapshot, set(members))),
+                         products=products, observers=observers, analytes=analytes, source=source)
+    return SystemImport(system=system, source=source, studies=tuple(studies), skipped=tuple(skipped),
+                        unplaced=tuple(dict.fromkeys(unplaced)), notes=tuple(dict.fromkeys(notes)),
+                        simulation_of=simulation_of, offset_min=offset_min, differs_by_design=differs_by_design)
+
+
+def _product(link: dict[str, Any], row: dict[str, Any], products: dict[str, dict[str, float]]) -> str:
+    """The product a study administers, from the published protocols of its dosed compounds: each compound's dose as a
+    fraction of the study's reported dose (carrying the modeller's salt and enantiomer split). Returns the product name,
+    registering it, or "!reason" when the doses cannot be related."""
+    fractions: dict[str, float] = {}
+    for compound, dose in (link.get("doses") or {}).items():
+        if dose is None:
+            return f"!the published protocol of {compound} gives no single dose"
+        value, per_kg = dose
+        if per_kg != bool(row.get("dose_per_kg")):
+            return f"!the published protocol of {compound} doses per {'kg' if per_kg else 'subject'}, the study the other way"
+        fractions[compound] = round(value / row["dose_mg"], 9)
+    for name, known in products.items():
+        if known == fractions:
+            return name
+    # named by what it doses and how much of the reported dose each compound gets (the published protocols round the
+    # split differently, e.g. 0.462875 and 0.4628836 of a verapamil HCl dose; each is kept exact)
+    name = " + ".join(f"{compound} {fraction:.6g}" for compound, fraction in fractions.items())
+    products[name] = fractions
+    return name

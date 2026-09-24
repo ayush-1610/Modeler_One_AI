@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — model systems, phase 1 steps 1–2: data model and import (plan `2026-09-24-multi-compound.md`, approved)
+- `pbpk_domain.system.ModelSystem`: one CPF per compound (unchanged), roles (parent = dosed, metabolite = only
+  formed), formation links, **products** (what a study administers: each dosed compound's fraction of the reported
+  dose, carrying the salt and enantiomer split — required, never defaulted), published sum observers copied
+  verbatim, and analytes with the output path the published simulations read. `ModelSystem.single(cpf)` is today's
+  single-compound case.
+- `import_osp_system`: the system around the main parent — its enantiomer family, compounds a published sum
+  observer adds, and everything they form; DDI co-drugs stay out. Each study names its analyte (compound or sum, from
+  its molecule, the observer name, or the published output mapping) and its product (from the published protocols).
+  Verapamil: 74 studies on 6 analytes (racemic sums, enantiomers, norverapamil), products including
+  `R-Verapamil 0.462875 + S-Verapamil 0.462875` (120 mg HCl -> 2 x 55.545 mg). Omeprazole: esomeprazole vs racemic
+  products. Dabigatran: prodrug -> CES1/CES2 -> dabigatran -> UGT2B15 -> glucuronide, and the mass-weighted `SUM`.
+  Itraconazole: 63 studies incl. 22 hydroxy-itraconazole. Warfarin's datasets name no compartment for a single
+  enantiomer and stay skipped (named).
+- `StudyRecord` / `StudyUpload` gain `analyte` and `product`. Verapamil, Omeprazole and Dabigatran snapshots vendored.
+- Not yet: building and simulating systems (step 3), engine outputs and round trip per analyte (step 4).
+
 ### Fixed — what the PK-Sim runs of 9e617f6 showed (run 36009097300)
 - **Round trips now match to ~5e-5 of the peak where they were off.** Midazolam oral was 1.4–3.7× the published curve;
   with the per-simulation gut-wall permeabilities it is within 5e-5 (AUC ratio 1.00003) for every oral study, the six

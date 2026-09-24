@@ -171,6 +171,10 @@ class StudyRecord(BaseModel):
     genotype: str | None = None
     multiple_dose_levels: bool = False  # the study itself reports more than one dose level
     published_individual: PublishedIndividual | None = None  # a reference model's own individual for this study
+    # Model systems (several compounds): what the study measures and the product it administers (ModelSystem.analytes /
+    # .products). None: the single compound's plasma, dosed as reported.
+    analyte: str | None = None
+    product: str | None = None
 
     @property
     def is_multiple_dose(self) -> bool:

@@ -125,6 +125,8 @@ class StudyUpload(BaseModel):
     # A reference model's own individual for this study (reference import only): physiology overrides and expression
     # values, paths and units copied from the published snapshot (StudyRecord.published_individual).
     published_individual: dict[str, Any] | None = None
+    analyte: str | None = None  # a model system's analyte (compound or sum) the study measures
+    product: str | None = None  # the system's product the study administers
     n_timepoints: int = Field(default=10, gt=0)
     lloq: float | None = None
     profile: ObservedProfile

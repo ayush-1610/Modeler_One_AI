@@ -11,4 +11,7 @@ Published models of the Open Systems Pharmacology model library, copied verbatim
 | Digoxin-Model.json | 1550093a710233ade2ac6ec413f94e4ebee4b54e |
 | Metformin-Model.json | 5586d01d42ffa688a0fc751187f437b67ad8e013 |
 | Raltegravir-Model.json | 9217d915e2d09e0c73471c646f24213b0615aa43 |
+| Verapamil-Model.json | 80c6854691d0dc8c029fb43a416f456ea2e6ba72 |
+| Omeprazole-Model.json | c8b0f70a40c8513146a32a350957a81d01737431 |
+| Dabigatran-Model.json | 9ea348366a5462783467df104b1a1e69784667d4 |
 | Dapagliflozin, Itraconazole, Midazolam, Rifampicin | vendored earlier (see git history) |
