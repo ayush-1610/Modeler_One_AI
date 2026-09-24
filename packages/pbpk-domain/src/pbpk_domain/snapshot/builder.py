@@ -655,7 +655,7 @@ class SubjectSpec(Spec):
     population: str = "European_ICRP_2002"
     gender: Literal["MALE", "FEMALE"]
     age_years: float = Field(gt=0)
-    seed: int = Field(ge=0, le=2**31 - 1)
+    seed: int = Field(ge=-(2**31), le=2**31 - 1)  # signed 32-bit, as published seeds are (Alprazolam: -2063117500)
     expression: list[ExpressionSpec] = Field(default_factory=list)
     calculation_methods: tuple[str, ...] = DEFAULT_INDIVIDUAL_CALCULATION_METHODS
     # Physiology overrides addressed by full path (e.g. "Organism|Liver|EHC continuous fraction"), as the OSP

@@ -122,6 +122,7 @@ class PublishedIndividual(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: str = Field(min_length=1)
+    seed: int | None = Field(default=None, ge=-(2**31), le=2**31 - 1)  # the individual's Seed (organ-volume percentiles)
     parameters: dict[str, PathValue] = Field(default_factory=dict)
     expression: dict[str, PathValue] = Field(default_factory=dict)
 

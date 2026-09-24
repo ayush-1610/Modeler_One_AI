@@ -47,6 +47,7 @@ from modeler_contracts.runs import (
     RoundRunResult,
     StageOutcome,
     StageRequest,
+    fit_signals,
 )
 from modeler_orchestrator.campaign_activities import (
     build_round_snapshot,
@@ -655,7 +656,8 @@ class LocalExecutor:
             # the fitted CPF and evaluate that, or a successful fit is scored on stale values, its action counts as
             # tried, and the stage can run out of actions and escalate although the fit worked.
             judged_ctx = replace(ctx, cpf_uri=run_result.cpf_uri, cpf_sha256=run_result.cpf_sha256,
-                                 pending_action=None, pending_bounds_override=None, phase="postfit")
+                                 pending_action=None, pending_bounds_override=None, phase="postfit",
+                                 fit_signals=fit_signals(fit_outcome))
             post_build, post_manifest = self._simulate(judged_ctx)
             judged_manifest, judged_build = post_manifest, post_build
             notes.extend(n for n in (getattr(post_build, "notes", []) or []) if n not in notes)

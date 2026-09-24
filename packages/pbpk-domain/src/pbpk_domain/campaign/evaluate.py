@@ -15,6 +15,7 @@ value; a study with no observed PK simply contributes no comparison.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -60,6 +61,11 @@ class ObservedPK:
     # sampling: a simulated peak between two samples is not compared with a sampled observed one, and a coarse
     # simulation grid cannot miss an early IV sample (the Dapagliflozin IV microdose, sampled from 5 min).
     sample_times: tuple[float, ...] | None = None
+    # The observed concentrations at `sample_times` and, for an IV study, its infusion time (same time unit): the
+    # profile-shape evidence of the diagnostics (early distribution phase, Vss) compares prediction and
+    # observation sample by sample.
+    sample_values: tuple[float, ...] | None = None
+    infusion_time: float | None = None
 
 
 def _at(times: Sequence[float], concs: Sequence[float], at: Sequence[float]) -> tuple[list[float], list[float]]:
@@ -95,6 +101,8 @@ class StudyPK:
     observed_cmax: float | None
     observed_tmax: float | None
     observed_thalf: float | None
+    early_ratio: float | None = None  # IV: geometric mean predicted/observed over samples up to 2 x observed tmax
+    vss_ratio: float | None = None    # IV: predicted/observed Vss (MRT/AUC over identical sampling; dose cancels)
 
 
 @dataclass(frozen=True)
@@ -146,12 +154,14 @@ def assess_round(
                 )
         result = nca(times, concs)
         pred_auc = _predicted_auc(result, auc_kind)
+        early, vss = _profile_shape(obs, sampled) if obs is not None else (None, None)
         studies.append(StudyPK(
             study_id=profile.study_id, role=profile.role, group=profile.group,
             predicted_auc=pred_auc, predicted_cmax=result.c_max, predicted_tmax=result.t_max,
             predicted_thalf=result.t_half,
             observed_auc=obs.auc if obs else None, observed_cmax=obs.cmax if obs else None,
             observed_tmax=obs.tmax if obs else None, observed_thalf=obs.thalf if obs else None,
+            early_ratio=early, vss_ratio=vss,
         ))
         if obs is None:
             findings.append(f"{profile.study_id}: no observed PK; not compared")
@@ -182,6 +192,41 @@ def assess_round(
     )
 
 
+def _moments(times: Sequence[float], concs: Sequence[float]) -> tuple[float, float]:
+    """AUC and AUMC by the linear trapezoid over the given samples."""
+    auc = aumc = 0.0
+    for (t0, c0), (t1, c1) in zip(zip(times, concs, strict=True), list(zip(times, concs, strict=True))[1:], strict=False):
+        auc += (t1 - t0) * (c0 + c1) / 2
+        aumc += (t1 - t0) * (t0 * c0 + t1 * c1) / 2
+    return auc, aumc
+
+
+def _profile_shape(obs: ObservedPK, sampled: tuple[list[float], list[float]]) -> tuple[float | None, float | None]:
+    """Evidence for the IV distribution rule (MS-01 §5 "early concentrations (< 2 x tmax,IV) off, Vss off"), from the
+    prediction read at the observed sampling times: the geometric-mean ratio over the early samples, and the
+    Vss ratio, Vss being CL x MRT = dose x (AUMC/AUC - T/2) / AUC with the dose cancelling (T: infusion time)."""
+    if obs.infusion_time is None or not obs.sample_values or not obs.sample_times or len(sampled[0]) < 3:
+        return None, None
+    observed = dict(zip(obs.sample_times, obs.sample_values, strict=False))
+    pairs = [(t, p, observed[t]) for t, p in zip(*sampled, strict=True) if t in observed and observed[t] > 0 and p > 0]
+    if len(pairs) < 3:
+        return None, None
+    early = None
+    if obs.tmax is not None:
+        window = [p / o for t, p, o in pairs if t <= 2 * obs.tmax]
+        if window:
+            early = math.exp(sum(math.log(r) for r in window) / len(window))
+    times = [t for t, _p, _o in pairs]
+    auc_p, aumc_p = _moments(times, [p for _t, p, _o in pairs])
+    auc_o, aumc_o = _moments(times, [o for _t, _p, o in pairs])
+    vss = None
+    if min(auc_p, auc_o) > 0:
+        mrt_p, mrt_o = aumc_p / auc_p - obs.infusion_time / 2, aumc_o / auc_o - obs.infusion_time / 2
+        if mrt_p > 0 and mrt_o > 0:
+            vss = (mrt_p / auc_p) / (mrt_o / auc_o)
+    return early, vss
+
+
 def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None) -> dict[str, Any]:
     # per (study, quantity) pass/fail, so diagnostics can read whether each study's AUC/Cmax was in limits
     passed = {(v.comparison.study, v.comparison.quantity): v.passes for v in report.verdicts} if report else {}
@@ -193,6 +238,7 @@ def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None) -> 
                 "predicted_cmax": s.predicted_cmax, "observed_cmax": s.observed_cmax,
                 "predicted_tmax": s.predicted_tmax, "observed_tmax": s.observed_tmax,
                 "predicted_thalf": s.predicted_thalf, "observed_thalf": s.observed_thalf,
+                "early_ratio": s.early_ratio, "vss_ratio": s.vss_ratio,
                 "auc_in_limits": passed.get((s.study_id, "AUC")),
                 "cmax_in_limits": passed.get((s.study_id, "Cmax")),
             }

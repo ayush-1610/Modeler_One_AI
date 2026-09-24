@@ -65,7 +65,14 @@ def test_the_published_individuals_changed_physiology_is_carried(dapa):
     indiv = {p.engine_binding.parameter: p.value for p in imported.cpf.parameters if p.id.startswith("indiv.")}
     assert indiv["Organism|Liver|EHC continuous fraction"] == 1.0
     assert indiv["Organism|Lumen|Rectum|Effective surface area enhancement factor"] == 0.6067264038
-    assert len(indiv) == 7
+    assert len(indiv) == 8  # 7 physiology paths and the individual's Seed
+    # the published individual's Seed sets its organ-volume percentiles; every subject built from the CPF uses it
+    seed = imported.cpf.require("indiv.seed")
+    assert (seed.engine_binding.building_block, seed.engine_binding.parameter) == ("Individual", "Seed")
+    built = build_stage_snapshot(imported.cpf, [s.model_copy(update={"stage": "S1"}) for s in _dapa_scenarios(imported)[:1]],
+                                 stage="S1")
+    assert [i.seed for i in built.snapshot.individuals] == [int(seed.value)]
+    assert "Seed" not in {q.path for i in built.snapshot.individuals for q in i.parameters}
 
 
 def test_only_plasma_data_of_the_parent_become_studies_and_the_rest_are_named(dapa):
@@ -331,3 +338,7 @@ def _first_scenarios_for(imported, study_ids):
     for s in map_doc.scenarios:
         first.setdefault(s.study_id, s)
     return [first[sid].model_copy(update={"stage": "S1"}) for sid in study_ids if sid in first]
+
+
+def _dapa_scenarios(imported):
+    return _first_scenarios_for(imported, [s["study_id"] for s in imported.studies])

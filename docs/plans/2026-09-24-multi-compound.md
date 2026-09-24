@@ -1,6 +1,6 @@
 # Multi-compound models: parent, metabolites, enantiomers — design (2026-09-24)
 
-Status: **proposed**, for the owner's review before implementation. Extends the S0–S7 plan
+Status: **approved 2026-09-24** — the owner approved the four recommended decisions in §5; phase 1 in progress. Extends the S0–S7 plan
 (`2026-09-24-s0-s7-real-pbpk.md`); nothing in the SME-governed content changes in phase 1.
 
 ## 1. Why

@@ -49,6 +49,7 @@ with workflow.unsafe.imports_passed_through():
         StageOutcome,
         StagePlan,
         StageRequest,
+        fit_signals,
     )
 
 ACT_RETRY = RetryPolicy(maximum_attempts=3)
@@ -248,7 +249,8 @@ class StageLoopWorkflow:
         if run_result.cpf_uri != ctx.cpf_uri:
             # The fit changed the CPF: judge the fitted model in this round, not the pre-fit simulation.
             judged = replace(ctx, cpf_uri=run_result.cpf_uri, cpf_sha256=run_result.cpf_sha256,
-                             pending_action=None, pending_bounds_override=None, phase="postfit")
+                             pending_action=None, pending_bounds_override=None, phase="postfit",
+                             fit_signals=fit_signals(fit_outcome))
             post_build, post_manifest = await self._simulate(judged, remaining)
             judged_manifest = post_manifest
             run_result = await workflow.execute_activity(

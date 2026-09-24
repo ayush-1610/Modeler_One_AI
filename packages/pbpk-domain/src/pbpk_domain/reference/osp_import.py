@@ -499,6 +499,8 @@ def _individual_records(snapshot: dict[str, Any], out: _Records, notes: list[str
             continue
         out.add(f"indiv.{path}", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
                 binding=EngineBinding(building_block="Individual", parameter=path))
+    if individual.get("Seed") is not None:
+        out.add("indiv.seed", int(individual["Seed"]), binding=EngineBinding(building_block="Individual", parameter="Seed"))
     _expression_records(snapshot, individual, out, notes)
     origin = individual.get("OriginData", {})
     notes.append(
@@ -574,7 +576,7 @@ def _published_individual(snapshot: dict[str, Any], individual: dict[str, Any]) 
         return {p["Path"]: {"value": float(p["Value"]), "unit": p.get("Unit")}
                 for p in parameters if p.get("Path") and p.get("Value") is not None}
 
-    return {"name": individual["Name"], "parameters": entries(individual.get("Parameters") or []),
+    return {"name": individual["Name"], "seed": individual.get("Seed"), "parameters": entries(individual.get("Parameters") or []),
             "expression": entries(_expression_differences(snapshot, individual))}
 
 

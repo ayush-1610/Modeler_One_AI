@@ -85,6 +85,8 @@ def _subject_spec(scenario: MapScenario, *, seed: int) -> SubjectSpec:
             "parameters": {path: Measured(value=v.value, unit=v.unit) for path, v in published.parameters.items()},
             "expression_overrides": {path: Measured(value=v.value, unit=v.unit) for path, v in published.expression.items()},
         }
+        if published.seed is not None:
+            seed = published.seed
     return SubjectSpec(
         name=_subject_name(scenario),
         population=scenario.population,

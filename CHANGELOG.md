@@ -15,6 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — what the PK-Sim runs of 9e617f6 showed (run 36009097300)
+- **Round trips now match to ~5e-5 of the peak where they were off.** Midazolam oral was 1.4–3.7× the published curve;
+  with the per-simulation gut-wall permeabilities it is within 5e-5 (AUC ratio 1.00003) for every oral study, the six
+  per-kg IV studies are now found and match, and Yu 2004 in its own Korean individual is within 2e-5.
+- **The remaining systematic ~5e-5 was the individual's Seed.** The parameter diff showed every organ-volume
+  percentile slightly different (`Organism|Stomach|Volume|Percentile` 0.50086 published vs 0.50032 ours): PK-Sim
+  draws them from `Individuals[].Seed`, and the builder used the campaign's seed. The published seed is now a CPF
+  record (`indiv.seed`, the `Seed` key harvested from the snapshot) applied to every subject built from the CPF; a
+  per-study published individual carries its own. Seeds are signed 32-bit, as published (Alprazolam -2063117500).
+- **Diagnostics never saw the fit's optimiser evidence.** `assess_fit` found parameters at a bound, correlated pairs and
+  disagreeing starts, but the findings stopped at the fit round: the refit of the published Dapagliflozin model left
+  UGT1A9 clspec at its 0.1x bound and the next round reported "no diagnostic rule matched". `FitRoundOutcome` now
+  carries them structured, the post-fit pass passes them in `RoundContext.fit_signals`, and the existing escalate /
+  fix-and-refit / switch-algorithm rules (MS-01 §5, diag-rules unchanged) act on them.
+- **The IV distribution rule could never fire.** Its evidence (early concentrations < 2 x tmax off, Vss off) was
+  hard-wired off. It is now computed from the prediction read at the observed sampling times: the geometric-mean
+  ratio over the early samples, and the Vss ratio (MRT/AUC with the infusion correction; dose cancels), judged
+  against the ruleset's own 0.8–1.25 band. The refit's IV Cmax 0.44 with AUC in limits is that rule's case.
+- `run_reference.py`: `--out` is resolved to an absolute path (the evaluate jobs failed on a relative file URI).
+
 ### Added — the OSP model library through the importer: 20 of 25 published models S0-ready (3 before)
 Every published JSON snapshot of github.com/Open-Systems-Pharmacology (25; Gemfibrozil, Theophylline, Repaglinide and
 Trimethoprim ship only a binary `.pksim5` project) was imported; each gap found was fixed from the snapshots' own

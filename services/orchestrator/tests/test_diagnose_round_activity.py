@@ -118,3 +118,21 @@ def test_missing_map_escalates(tmp_path: Path) -> None:
     diag = diagnose_round(ctx, RoundEvaluation(gate_passed=False, acceptable=False, metrics={}, findings=[]))
     assert diag.escalate is True
     assert "MAP not locally loadable" in diag.escalation_reason
+
+
+def test_a_fit_left_at_its_bound_escalates_with_the_parameter(tmp_path: Path) -> None:
+    # The post-fit pass carries the fit's optimiser evidence: a parameter the fit left at its bound escalates the
+    # round with that parameter named (MS-01 §5), whatever PK rule would otherwise fire. Before this was wired,
+    # the refit of the published Dapagliflozin model left UGT1A9 clspec at 0.1x and the round reported
+    # "no diagnostic rule matched".
+    from dataclasses import replace
+
+    map_uri = _iv_map(tmp_path)
+    obs = _observed(tmp_path, auc=GOLDEN_AUC / 3, cmax=GOLDEN_CMAX / 3, thalf=60.0)
+    ctx = replace(_ctx(tmp_path, map_uri, obs), phase="postfit",
+                  fit_signals={"at_bound": ["elim.hepatic.UGT1A9.clspec"], "correlated_pairs": [], "starts_agreement": 1.0})
+    ev = evaluate_round(ctx, RoundRunResult(results_uri=_profiles(tmp_path), cpf_uri="x", cpf_sha256="b" * 64))
+    diag = diagnose_round(ctx, ev)
+    assert diag.escalate is True
+    assert "elim.hepatic.UGT1A9.clspec" in diag.escalation_reason
+    assert "param_at_bound" in diag.evidence

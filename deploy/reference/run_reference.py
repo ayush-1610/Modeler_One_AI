@@ -286,6 +286,7 @@ def main() -> int:
     parser.add_argument("--mode", choices=["as-is", "refit"], default="as-is")
     parser.add_argument("--out", type=Path, default=REPO / "reports" / "reference")
     args = parser.parse_args()
+    args.out = args.out.resolve()  # engine inputs are file:// URIs, which need an absolute path
     args.out.mkdir(parents=True, exist_ok=True)
     if args.step == "roundtrip":
         result = roundtrip(args.model, args.out)

@@ -560,12 +560,16 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
         factor = minutes_per(profile.get("time_unit", "min"))
         return tuple(float(t) * factor for t in times)
 
+    infusion = {s.study_id: s.infusion_time_min for s in map_doc.scenarios if s.route.startswith("iv")}
     observed = {}
     for study_id, pk in (observed_doc or {}).items():
         t_first, t_last = _window(pk)
+        values = (pk.get("profile") or {}).get("values")
         observed[study_id] = ObservedPK(auc=pk.get("auc"), cmax=pk.get("cmax"), tmax=pk.get("tmax"),
                                         thalf=pk.get("thalf"), t_first=t_first, t_last=t_last,
-                                        sample_times=_sample_times(pk))
+                                        sample_times=_sample_times(pk),
+                                        sample_values=tuple(float(v) for v in values) if values else None,
+                                        infusion_time=infusion.get(study_id))
 
     assessment = assess_round(simulated, observed, model_risk=map_doc.model_risk)
     activity.logger.info(
@@ -616,6 +620,11 @@ def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str) -> tuple[
 
 
 @activity.defn(name="diagnose_round")
+def _off(ratio: float | None, thresholds: dict) -> bool:
+    """A predicted/observed ratio outside the ruleset's diagnostic band (ratio_low .. ratio_high)."""
+    return ratio is not None and not float(thresholds["ratio_low"]) <= ratio <= float(thresholds["ratio_high"])
+
+
 def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagnosis:
     """Map the round's evidence to permitted actions with the deterministic diagnostics ruleset (MS-01 §5).
 
@@ -623,7 +632,8 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
     calls `pbpk_domain.diagnostics.diagnose` with the stage's permitted candidates/branches, skipping actions
     already tried. Evidence that needs a profile-shape or fit analysis not yet wired (early-phase residuals,
     secondary peaks, at-bound / correlation / optimiser-agreement signals) simply does not fire; the
-    PK-ratio-driven rules (clearance, absorption rate, dose dependence) are active now. With no MAP, or no
+    PK-ratio-driven rules (clearance, absorption rate, dose dependence) are active, and on the post-fit pass the
+    fit's optimiser evidence (parameters at a bound, correlated pairs, start agreement). With no MAP, or no
     rule matching, the round escalates rather than inventing an action."""
     map_text = _load_local_text(ctx.map_uri) if ctx.map_uri else None
     if map_text is None:
@@ -631,7 +641,7 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
                               escalation_reason="diagnostics: MAP not locally loadable (object-store I/O pending)")
 
     from pbpk_domain.campaign.map import STAGE_PLAN, MapDocument
-    from pbpk_domain.diagnostics import StudyResidual, diagnose
+    from pbpk_domain.diagnostics import FitSignals, StudyResidual, diagnose, load_diag_ruleset
 
     map_doc = MapDocument.model_validate_json(map_text)
     plan = STAGE_PLAN.get(ctx.stage, {})
@@ -650,6 +660,7 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
             )
         candidates = usable
     scenarios = {s.study_id: s for s in map_doc.scenarios}
+    thresholds = load_diag_ruleset()["thresholds"]
     residuals = [
         StudyResidual(
             study_id=st["study_id"], role=st.get("role", "fitting"),
@@ -662,12 +673,20 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
             tmax_ratio=_ratio(st.get("predicted_tmax"), st.get("observed_tmax")),
             thalf_ratio=_ratio(st.get("predicted_thalf"), st.get("observed_thalf")),
             observed_auc=st.get("observed_auc"), auc_in_limits=st.get("auc_in_limits"),
+            early_phase_off=_off(st.get("early_ratio"), thresholds),
+            vss_off=_off(st.get("vss_ratio"), thresholds),
         )
         for st in evaluation.metrics.get("studies", [])
     ]
+    signals = ctx.fit_signals or {}
+    fit = FitSignals(
+        at_bound=tuple(signals.get("at_bound") or ()),
+        correlated_pairs=tuple(tuple(p) for p in signals.get("correlated_pairs") or () if len(p) == 2),
+        starts_agreement=signals.get("starts_agreement"),
+    )
     diagnosis = diagnose(
         residuals, stage=ctx.stage, stage_candidates=candidates,
-        stage_branches=plan.get("branches", ()), actions_tried=ctx.actions_tried,
+        stage_branches=plan.get("branches", ()), actions_tried=ctx.actions_tried, fit=fit,
     )
     activity.logger.info(
         "diagnose_round %s %s round %d: causes=%s actions=%d escalate=%s",

@@ -180,8 +180,21 @@ def individual_parameters(cpf: CPF) -> dict[str, ParameterRecord]:
         eb = record.engine_binding
         if record.status is ParameterStatus.MISSING or eb is None or eb.building_block != "Individual":
             continue
+        if eb.parameter == INDIVIDUAL_SEED:
+            continue  # the individual's Seed, not a physiology path (individual_seed)
         out[eb.parameter] = record
     return out
+
+
+# `Individuals[].Seed`: PK-Sim draws the individual's organ-volume percentiles from it, so the published individual is
+# reproduced only with its own seed (the round trip showed `Organism|Stomach|Volume|Percentile` 0.50086 vs 0.50032 and
+# a systematic ~5e-5 difference in every curve with the campaign's seed).
+INDIVIDUAL_SEED = "Seed"
+
+
+def individual_seed(cpf: CPF) -> ParameterRecord | None:
+    return next((r for r in cpf.parameters if r.engine_binding is not None and r.status is not ParameterStatus.MISSING
+                 and r.engine_binding.building_block == "Individual" and r.engine_binding.parameter == INDIVIDUAL_SEED), None)
 
 
 def simulation_parameters(cpf: CPF) -> dict[str, ParameterRecord]:
@@ -198,12 +211,17 @@ def simulation_parameters(cpf: CPF) -> dict[str, ParameterRecord]:
 
 def _with_individual_parameters(subjects: Sequence[SubjectSpec], cpf: CPF) -> tuple[list[SubjectSpec], list[str]]:
     records = individual_parameters(cpf)
-    if not records:
+    seed = individual_seed(cpf)
+    if not records and seed is None:
         return list(subjects), []
     overrides = {path: _measured(record) for path, record in records.items()}
-    # A subject with its own published physiology carries that individual's complete parameter set instead.
-    out = [s if s.own_physiology else s.model_copy(update={"parameters": {**s.parameters, **overrides}}) for s in subjects]
-    return out, [r.id for r in records.values()]
+    update: dict = {}
+    if seed is not None:
+        update["seed"] = int(seed.numeric_value)
+    # A subject with its own published physiology carries that individual's complete parameter set (and seed) instead.
+    out = [s if s.own_physiology else s.model_copy(update={"parameters": {**s.parameters, **overrides}, **update})
+           for s in subjects]
+    return out, [r.id for r in records.values()] + ([seed.id] if seed is not None else [])
 
 
 # CPF id prefixes that must reach the engine as a process; anything here that the builder does not place
