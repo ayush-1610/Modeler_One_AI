@@ -199,6 +199,20 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
+def _study_id(props: dict[str, Any], dataset_name: str) -> str:
+    """The study and its arm. A "Study Id" that is a bare number or a word without digits is a subject or arm label
+    (OSP Omeprazole: 2, "Median", "omeprazole"), so the data sheet naming the publication ("Regardh1990") goes first,
+    or, without one, the dataset's own name is used; a trial number ("1160-0005") or a named study ("Kharasch 2011") stays as it is. A dataset that names neither is
+    identified by its own name."""
+    raw = props.get("Study Id", "")
+    study = f"{raw:g}" if isinstance(raw, int | float) else str(raw or "")
+    if study and (isinstance(raw, int | float) or not re.search(r"\d", study)):
+        if not props.get("Sheet"):  # OSP Ketoconazole: "Boyce 2012 (9) female - Ketoconazole", Study Id 9
+            return _slug(dataset_name)
+        study = f"{props['Sheet']} {study}"
+    return _slug(f"{study} {props.get('Grouping', '')}") or _slug(dataset_name)
+
+
 class _Records:
     def __init__(self, source: str):
         self.source = source
@@ -1272,7 +1286,7 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         return None, dose
     row: dict[str, Any] = {
         # the study and its arm; a dataset that names neither is identified by its own name
-        "study_id": _slug(f"{props.get('Study Id', '')} {props.get('Grouping', '')}") or _slug(dataset["Name"]),
+        "study_id": _study_id(props, dataset["Name"]),
         "n": int(float(props.get("N") or 1)),
         "dose_mg": dose[0],
         "dose_per_kg": dose[1],

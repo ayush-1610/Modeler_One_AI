@@ -85,7 +85,7 @@ def put_cpf(project_id: str, compound: str, cpf: CPF, principal: Author, stores:
     if cpf.compound != compound:
         raise HTTPException(status_code=422, detail=f"CPF compound {cpf.compound!r} does not match {compound!r} in the path")
     _read, write = stores
-    write.put_cpf(principal.tenant_id, compound, cpf)
+    write.put_cpf(principal.tenant_id, project_id, compound, cpf)
     return envelope(project_cpf_view(cpf))
 
 
@@ -112,6 +112,10 @@ def put_system(project_id: str, links: dict[str, Any], principal: Author, stores
     from pbpk_domain.system import links_of
 
     write.put_system(principal.tenant_id, project_id, links_of(system).model_dump(mode="json"))
+    project = read.get_project(principal.tenant_id, project_id)
+    if project is not None:  # the project lists every compound of its system (the parent first)
+        members = [c.compound for c in system.compounds]
+        write.put_project(principal.tenant_id, {**project, "compounds": list(dict.fromkeys([*project.get("compounds", []), *members]))})
     return envelope({"name": system.name, "compounds": [c.compound for c in system.compounds], "roles": system.roles,
                      "products": system.products, "analytes": sorted(system.analytes), "sha256": system.sha256})
 

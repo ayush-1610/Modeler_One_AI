@@ -370,10 +370,10 @@ def test_ketoconazole_fed_studies_take_their_food_state_from_the_simulation_name
     from pbpk_domain.cpf.build import alternatives_for
 
     imported = _import("Ketoconazole")
-    fed = _study_row(imported, "88-0")
+    fed = _study_row(imported, "fda-1998b-88-ketoconazole")
     assert fed["food_state"] == "fed" and "as the published simulation" in fed["reference"] and "is named" in fed["reference"]
     assert alternatives_for(imported.cpf, "PD_tablet_3Bins", "fed") == {"COMPOUND_INTESTINAL_PERMEABILITY": "Fit fed"}
     assert imported.cpf.get("perm.intestinal@Fit fed").value == pytest.approx(9.9497068191e-06)
     # the published model's own inconsistency (named fasted, simulated with "Fit fed") stays labelled
     labelled = sorted(k for k, v in imported.differs_by_design.items() if "alternative" in v)
-    assert labelled == ["9-0", "94-0"]
+    assert labelled == ["boyce-2012-9-female-ketoconazole", "wire-2007-94-ketoconazole"]

@@ -15,6 +15,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — each project keeps its own CPF; system projects list every compound; readable study ids
+- The file store kept one CPF per compound for the whole tenant (`cpf/<compound>.json`): two projects on the same
+  drug (an as-published and a refit Dapagliflozin; the Itraconazole model and its system) overwrote each other's
+  parameters. CPFs are now kept per project (`cpf/<project>/<compound>.json`); a project without its own still reads
+  one stored the old way, so existing deployments keep working.
+- `PUT /projects/{id}/system` adds every compound of the system to the project (the project page listed only the
+  parent: Esomeprazole without R-omeprazole).
+- A dataset whose "Study Id" is a bare number or a word (OSP Omeprazole: 2, "Median"; Ketoconazole: 9) is named after
+  its data sheet or its own name: `regardh1990-2`, `boyce-2012-9-female-ketoconazole` instead of `2-0`, `9-0`.
+- Added `deploy/showcase/seed_examples.py`: loads every example (the published OSP models with their clinical data,
+  refit twins for Dapagliflozin and Rifampicin, the four model systems, the illustrative Aciclovir check) into the
+  running tool through the API, and runs their campaigns a few at a time on the engine.
+
 ### Fixed — a tablet's "Use as suspension" setting is imported (found by run 24)
 - Weibull formulations were always built with "Use as suspension" = 1, the value in the Dapagliflozin, Midazolam and
   Itraconazole tablets. OSP Clarithromycin's tablet, Voriconazole's and Dabigatran's capsule set 0. The value is now
