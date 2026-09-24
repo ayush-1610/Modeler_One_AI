@@ -1214,7 +1214,14 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         # Only when the dataset was sampled after the second dose: a day-1 profile the paper fitted against a
         # multiple-dose simulation is still a single-dose profile (and is classified as one).
         linked = _protocol_dose_times(link["protocol"], application)
-        last_h = max(float(t) for t in dataset["BaseGrid"]["Values"]) * (1 / 60.0 if dataset["BaseGrid"].get("Unit") == "min" else 1.0)
+        grid_h = [float(t) * (1 / 60.0 if dataset["BaseGrid"].get("Unit") == "min" else 1.0) for t in dataset["BaseGrid"]["Values"]]
+        last_h = max(grid_h)
+        if not linked and _family(link["protocol"].get("ApplicationType")) == application:
+            # a named DosingInterval (OSP Alfentanil "Kharasch 2011b IV 1 mg": DI_24 to 48 h, two sessions): its
+            # schedule only when the dataset starts after the second dose (it is that session's profile); a
+            # single-dose study linked to a repeated simulation and sampled from 0 h stays single-dose
+            named = _published_dose_times(link["protocol"])
+            linked = named if len(named) > 1 and min(grid_h) > named[1] else None
         if linked and len(linked) > 1 and last_h > linked[1]:
             doses = linked
             said.append(f"dosing schedule from the published protocol {link['protocol'].get('Name')!r}")

@@ -298,7 +298,7 @@ def test_the_published_expression_profile_wins_over_the_library_copy():
     doc = json.loads(built.snapshot.model_dump_json(by_alias=True, exclude_none=True))
     cyp = next(e for e in doc["ExpressionProfiles"] if e["Molecule"] == "CYP3A4")
     liver = [p for p in cyp["Parameters"] if p["Path"] == "CYP3A4|t1/2 (liver)"]
-    assert liver == [{"Path": "CYP3A4|t1/2 (liver)", "Value": 36.0, "Unit": "h"}]
+    assert [(q["Value"], q["Unit"]) for q in liver] == [(36.0, "h")]  # the published entry, with its value origin
     assert "expr.CYP3A4|t1/2 (liver)" in built.build_report.bindings_used
     assert "expr.profile.CYP3A4" in built.build_report.bindings_used
     assert "CYP3A4" in built.build_report.expression_documents

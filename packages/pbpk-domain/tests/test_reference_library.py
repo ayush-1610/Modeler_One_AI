@@ -319,3 +319,14 @@ def test_the_majority_simulation_value_is_imported_and_a_dissenting_simulation_l
 
 def _study_row(imported, study_id: str) -> dict:
     return next(s for s in imported.studies if s["study_id"] == study_id)
+
+
+def test_a_later_session_of_a_named_interval_simulation_gets_its_schedule():
+    """OSP Alfentanil "Kharasch 2011b IV 1 mg" is DI_24 to 48 h (sessions at 0 and 24 h); the "simultaneous" data start
+    at 24.08 h, so they are the second session's profile and get both doses; the "sequential" ones stay one dose."""
+    imported = _import("Alfentanil")
+    simultaneous = _study_row(imported, "kharasch-2011b-alfentanil-iv-control-simultaneous")
+    assert (simultaneous["design"], simultaneous["dosing_interval_h"], simultaneous["n_doses"]) == ("MD", 24.0, 2)
+    assert "kharasch-2011b-alfentanil-iv-control-simultaneous" not in imported.differs_by_design
+    sequential = _study_row(imported, "kharasch-2011b-alfentanil-iv-control-sequential")
+    assert sequential.get("design") is None

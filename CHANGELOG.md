@@ -39,6 +39,15 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **A liquid given a release model by the published model is simulated with it.** Raltegravir's granules in
   suspension (Rhee 2014) use "Weibull (granules)" in the published simulation; we dissolved them (AUC 2.3x). The study
   keeps its MS-01 class (suspension).
+- **A later session of a named-interval simulation gets its schedule.** OSP Alfentanil "Kharasch 2011b IV 1 mg" is
+  DI_24 to 48 h (two sessions); its "simultaneous" datasets start at 24.08 h and were simulated as one dose at 0 h (AUC
+  0.51x on run 17). A dataset that starts after a named-interval protocol's second dose now takes its schedule; one
+  sampled from 0 h stays single-dose (Raltegravir Kassahun 2007). A published profile entry whose value the CPF
+  repeats keeps its value origin.
+- Run 17 (8bf41e6), before the profile fix: Alfentanil 11/15 identical (all IV boluses 2e-8, oral with the oral-only
+  gut-wall values 2e-7); the rest are the two sessions above and Kharasch 2012 oral in its own individual.
+  Itraconazole as a system, as-is: S0 passes; S1 escalates on Abdel-Rahman 2007 12-16 y (published model vs
+  clinical data, AUC 2.19x) in its own paediatric individual.
 - Run 14 otherwise: Digoxin 38/39 identical (the other was the Kirch loading dose, now placed as phases);
   Raltegravir 14/19 (the rest labelled or fixed above); Itraconazole as a system 9/41 identical with the metabolites
   simulated, every solution-fasted pair within 2e-4, the capsule and fed pairs off because the published simulations

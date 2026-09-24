@@ -184,6 +184,8 @@ def _override_profile(spec: ExpressionSpec, values: dict[str, Measured]) -> Expr
         if measured.unit:
             entry["Unit"] = measured.unit
         if path in by_path:
+            if by_path[path].get("Value") == entry["Value"] and by_path[path].get("Unit") == entry.get("Unit"):
+                continue  # the published entry already has it: keep it with its value origin
             by_path[path].clear()
             by_path[path].update(entry)
         else:
