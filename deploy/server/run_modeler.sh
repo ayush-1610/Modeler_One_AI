@@ -22,8 +22,9 @@ fi
 # A human start clears the flag; the stack is expected up from now on.
 rm -f "$STOPPED_FLAG"
 
-# No demo project is seeded: a user starts every project from the wizard (a published model's real data, or the
-# clearly labelled illustrative quick check), so nothing in the tool is pre-made and unexplained.
+# No demo project is seeded here: a user starts projects from the wizard (a published model's real data, or the
+# clearly labelled illustrative quick check), so nothing in the tool is pre-made and unexplained. The worked examples
+# are loaded on request, through the API like a user, by deploy/server/seed_examples.sh.
 
 cd "$REPO"
 

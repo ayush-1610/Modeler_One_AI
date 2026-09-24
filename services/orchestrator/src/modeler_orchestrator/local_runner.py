@@ -601,8 +601,10 @@ class LocalExecutor:
         a fresh engine process, write the MAR, and release the package only if the reproduction passed (D13)."""
         from modeler_orchestrator.package_activities import (
             collect_bundle,
+            collect_projects,
             finish_package,
             load_stage_evidence,
+            prepare_project_jobs,
             prepare_reproduction_jobs,
             verify_package_reproduction,
         )
@@ -613,10 +615,20 @@ class LocalExecutor:
                                                    evidence=evidence, system_uri=request.system_uri)
         jobs = prepare_reproduction_jobs(request.tenant_id, request.campaign_id, files, snapshots)
         reproduction = verify_package_reproduction(files, numeric, jobs, self._run_jobs(jobs))
+        projects: dict[str, bytes] = {}
+        project_notes: list[str] = []
+        project_jobs = prepare_project_jobs(request.tenant_id, request.campaign_id, files, snapshots)
+        try:
+            projects = collect_projects(project_jobs, self._run_jobs(project_jobs))
+        except Exception as exc:  # noqa: BLE001 - the package is still released on reproduction; the gap is reported
+            project_notes.append(f"PK-Sim project (.pksim5) not written: {exc}")
+        if project_jobs and not projects and not project_notes:
+            project_notes.append("PK-Sim project (.pksim5) not written: the engine returned no project file")
         record = finish_package(
             request.tenant_id, request.campaign_id, files=files, numeric=numeric, map_uri=request.map_uri,
             cpf_uri=cpf_uri, evidence=evidence, prediction=(evidence.get("S6") or {}).get("prediction"),
             reproduction=reproduction, engine_image_digest=os.environ.get("MODELER_IMAGE_DIGEST", ""),
+            projects=projects, project_notes=project_notes,
         )
         if self.writer:
             self.writer.package = record

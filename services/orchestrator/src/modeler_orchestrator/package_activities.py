@@ -262,6 +262,34 @@ def prepare_reproduction_jobs(tenant_id: str, campaign_id: str, files: dict[str,
     return jobs
 
 
+def prepare_project_jobs(tenant_id: str, campaign_id: str, files: dict[str, bytes],
+                         snapshots: dict[str, str]) -> list[EngineJob]:
+    """Convert every bundled snapshot to its PK-Sim project (``.pksim5``, the file a reviewer opens in PK-Sim), on
+    the engine's ``convert_to_project`` task: PK-Sim loads the snapshot and saves the project without solving."""
+    folder = campaign_dir(tenant_id, campaign_id) / "package" / "project"
+    jobs = []
+    for bundle_path, stem in sorted(snapshots.items()):
+        src = folder / f"{stem}.json"
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src.write_bytes(files[bundle_path])
+        jobs.append(EngineJob(
+            job_id=f"{campaign_id}-S7-project-{stem}", tenant_id=tenant_id, task="convert_to_project",
+            inputs=[EngineInput(name="snapshot.json", uri=src.as_uri(), sha256=hashlib.sha256(files[bundle_path]).hexdigest())],
+            outputs_uri=(folder / stem).as_uri(), options={"stem": stem}, timeout_s=1800,
+        ))
+    return jobs
+
+
+def collect_projects(jobs: list[EngineJob], manifests: list[EngineManifest]) -> dict[str, bytes]:
+    """The PK-Sim project files the conversion wrote, by package path (``pksim/<stem>.pksim5``)."""
+    projects: dict[str, bytes] = {}
+    for job, manifest in zip(jobs, manifests, strict=True):
+        for output in manifest.outputs:
+            if output.name.endswith(".pksim5") and _path(output.uri).exists():
+                projects[f"pksim/{job.options['stem']}.pksim5"] = _path(output.uri).read_bytes()
+    return projects
+
+
 def verify_package_reproduction(files: dict[str, bytes], numeric: set[str], jobs: list[EngineJob],
                                 manifests: list[EngineManifest]) -> dict:
     """Compare the re-run's result tables with the bundled ones (1e-6), file by file."""
@@ -292,9 +320,11 @@ def _pandoc() -> str:
 
 def finish_package(tenant_id: str, campaign_id: str, *, files: dict[str, bytes], numeric: set[str], map_uri: str,
                    cpf_uri: str, evidence: dict[str, dict], prediction: dict | None, reproduction: dict,
-                   engine_image_digest: str = "") -> dict:
+                   engine_image_digest: str = "", projects: dict[str, bytes] | None = None,
+                   project_notes: list[str] | None = None) -> dict:
     """The MAR (from the evidence, the reproduction verdict and the data bundle hash), rendered; and, only when the
-    reproduction passed, the downloadable package (zip with manifest and rerun_all.R). Returns the package record."""
+    reproduction passed, the downloadable package (zip with manifest and rerun_all.R, and the PK-Sim project of every
+    bundled simulation, ``pksim/<stem>.pksim5``, when the engine converted it). Returns the package record."""
     from pbpk_domain.campaign.map import MapDocument
     from pbpk_domain.cpf import CPF
     from pbpk_domain.report.campaign_mar import assemble_campaign_mar
@@ -321,7 +351,10 @@ def finish_package(tenant_id: str, campaign_id: str, *, files: dict[str, bytes],
         "data_bundle_sha256": data_manifest.content_sha256(),
         "files": len(files),
         "exportable": False,
+        "pksim_projects": sorted(projects or {}),
     }
+    if project_notes:
+        record["project_notes"] = list(project_notes)
     if "pdf" not in rendered:
         record["report_notes"] = ["PDF/A not rendered (DOCX and Markdown written)" if "docx" in rendered
                                   else "DOCX/PDF not rendered: pandoc unavailable (Markdown written)"]
@@ -329,6 +362,7 @@ def finish_package(tenant_id: str, campaign_id: str, *, files: dict[str, bytes],
         full = dict(files)
         for path in rendered.values():
             full[f"report/{Path(path).name}"] = Path(path).read_bytes()
+        full.update(projects or {})  # derived from the bundled snapshots; opened in PK-Sim, not compared numerically
         manifest = assemble_bundle(f"{campaign_id}-package", campaign_id, full, numeric_paths=numeric,
                                    engine_image_digest=engine_image_digest, software_versions=map_doc.software_versions)
         (out / "package.zip").write_bytes(write_bundle_zip(manifest, full))
@@ -338,6 +372,7 @@ def finish_package(tenant_id: str, campaign_id: str, *, files: dict[str, bytes],
 
 
 __all__ = [
-    "PLASMA_OUTPUT_PATH", "campaign_dir", "collect_bundle", "evaluate_s6", "finish_package", "load_stage_evidence",
-    "persist_stage_evidence", "prepare_reproduction_jobs", "prepare_s6_jobs", "verify_package_reproduction",
+    "PLASMA_OUTPUT_PATH", "campaign_dir", "collect_bundle", "collect_projects", "evaluate_s6", "finish_package",
+    "load_stage_evidence", "persist_stage_evidence", "prepare_project_jobs", "prepare_reproduction_jobs",
+    "prepare_s6_jobs", "verify_package_reproduction",
 ]

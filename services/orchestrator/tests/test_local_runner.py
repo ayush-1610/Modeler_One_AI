@@ -446,6 +446,8 @@ class FullStubEngine(VpcStubEngine):
         golden = GOLDEN.read_bytes()
         if job.task == "simulate":
             emit("snapshot-iv-Results.csv", golden)
+        if job.task == "convert_to_project":  # PK-Sim saves the project the snapshot loads into (run_job.R)
+            emit("snapshot.pksim5", b"PK-Sim project")
         if job.task == "sensitivity":
             path = job.options["parameter_paths"][0]
             emit("sensitivity.csv", ("QuantityPath,Parameter,PKParameter,Value\n"
@@ -507,6 +509,9 @@ def test_campaign_runs_s0_to_s7_with_the_signature_gate_and_releases_a_reproduci
     names = zipfile.ZipFile(package["package"]).namelist()
     assert {"manifest.json", "rerun_all.R", "cpf/final.json", "map/map.json"} <= set(names)
     assert any(n.startswith("results/S4-camp-loc/") for n in names)  # the numeric tables the re-run is judged on
+    # the PK-Sim project of every bundled simulation, the file a reviewer opens in PK-Sim
+    assert {"pksim/S4-camp-loc.pksim5", "pksim/S5-camp-loc.pksim5"} & set(names)
+    assert package["pksim_projects"] and not package.get("project_notes")
 
 
 def test_package_is_withheld_when_reproduction_fails(tmp_path: Path, monkeypatch) -> None:

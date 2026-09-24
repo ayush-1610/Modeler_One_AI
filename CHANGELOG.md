@@ -15,6 +15,17 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the S7 package carries the PK-Sim project file of every bundled simulation
+- S7 converts every bundled snapshot to its PK-Sim project (`pksim/<stem>.pksim5`) on the engine's
+  `convert_to_project` task (PK-Sim loads the snapshot and saves the project; proven in every CI run's golden step)
+  and puts it in `package.zip` beside the snapshot, results, CPF, MAP, fits and MAR: the file a reviewer opens in
+  PK-Sim. A conversion that fails is named on the package (`project_notes`); the release still depends only on the
+  reproduction check (D13). The package view lists the projects.
+- `deploy/server/seed_examples.sh`: loads every worked example into the running tool on the server and runs its
+  campaigns on PK-Sim in the background (refuses to start below 5 GB free).
+- CI: the Trivy scan ran from `aquasecurity/trivy-action@0.28.0`, a tag withdrawn upstream, so the job could not
+  start; it now runs Aqua's official image with the same settings (report-only, as before).
+
 ### Fixed — each project keeps its own CPF; system projects list every compound; readable study ids
 - The file store kept one CPF per compound for the whole tenant (`cpf/<compound>.json`): two projects on the same
   drug (an as-published and a refit Dapagliflozin; the Itraconazole model and its system) overwrote each other's

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { WEB_TOKEN } from "@/lib/writes";
 
 const LABELS: Record<string, string> = {
-  "package.zip": "Submission package (.zip)",
+  "package.zip": "Submission package (.zip, with the PK-Sim project files)",
   "mar.pdf": "Report — PDF/A",
   "mar.docx": "Report — Word",
   "mar.md": "Report — Markdown",
