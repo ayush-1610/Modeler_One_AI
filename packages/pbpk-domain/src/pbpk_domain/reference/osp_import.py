@@ -1291,9 +1291,37 @@ def _application_type(protocol: dict[str, Any]) -> str | None:
     return types.pop() if len(types) == 1 else None
 
 
+def _dose_moments(protocol: dict[str, Any]) -> dict[float, tuple[float, int]]:
+    """A schema protocol's administrations by moment (h): the total dose given then and how many administrations."""
+    out: dict[float, tuple[float, int]] = {}
+    for schema in protocol.get("Schemas", []) or []:
+        params = schema.get("Parameters", [])
+        start, interval = _hours(params, "Start time"), _hours(params, "TimeBetweenRepetitions")
+        repetitions = int(next((float(q["Value"]) for q in params if q.get("Name") == "NumberOfRepetitions"), 1.0))
+        for k in range(repetitions):
+            for item in schema.get("SchemaItems", []):
+                dose = next((float(q["Value"]) for q in item.get("Parameters", []) if q.get("Name") == "InputDose"), None)
+                if dose is None:
+                    continue
+                t = round(start + k * interval + _hours(item.get("Parameters", []), "Start time"), 6)
+                total, n = out.get(t, (0.0, 0))
+                out[t] = (total + dose, n + 1)
+    return out
+
+
 def _protocol_dose(protocol: dict[str, Any]) -> tuple[float, bool] | None:
     """The one dose a published protocol gives (every administration the same), in mg or mg/kg; a binned product's
     dose is the sum of its bins given at the same moment."""
+    moments = _dose_moments(protocol)
+    if moments and any(n > 1 for _t, n in moments.values()):
+        # several administrations at one moment are one dose (OSP Verapamil Ratiopharm 1989: two 40 mg tablets, one
+        # schema each, both at 0 h)
+        totals = {round(total, 9) for total, _n in moments.values()}
+        units = {q.get("Unit") for s in protocol.get("Schemas", []) for i in s.get("SchemaItems", [])
+                 for q in i.get("Parameters", []) if q.get("Name") == "InputDose"}
+        if len(totals) == 1 and len(units) == 1 and units <= {"mg", "mg/kg"}:
+            return totals.pop(), units == {"mg/kg"}
+        return None
     bins = _bin_items(protocol)
     if bins:
         units = {q.get("Unit") for s in protocol.get("Schemas", []) for i in s.get("SchemaItems", [])

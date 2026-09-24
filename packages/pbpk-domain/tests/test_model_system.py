@@ -216,3 +216,11 @@ def test_a_metabolite_formed_only_in_the_simulations_is_a_member():
         ("ketoconazole", "AADAC", "n-deacetyl-ketoconazole"),
         ("n-deacetyl-ketoconazole", "FMO3", "n-deacetyl-n-hydroxy-ketoconazole")}
     assert system.cpf("n-deacetyl-n-hydroxy-ketoconazole").get("perm.cellular").value == 0.0
+
+
+def test_administrations_at_one_moment_are_one_dose():
+    """OSP Verapamil Ratiopharm 1989 gives two 40 mg tablets as two schemas at 0 h: each enantiomer gets 2 x 18.5 mg
+    of the 80 mg dose (run 26 simulated half of it)."""
+    imported = _system("Verapamil")
+    row = next(s for s in imported.studies if s["study_id"] == "ratiopharm-1989-unknown")
+    assert imported.system.products[row["product"]] == {"R-Verapamil": 0.462884, "S-Verapamil": 0.462884}

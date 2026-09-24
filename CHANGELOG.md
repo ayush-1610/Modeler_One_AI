@@ -15,6 +15,12 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — administrations at the same moment are one dose (found by run 26)
+- A published protocol that gives a dose as several administrations at one moment (OSP Verapamil Ratiopharm 1989:
+  two 40 mg tablets, one schema each, both at 0 h) was read as its first administration: the study's product got half
+  the dose (AUC ratio 0.45 in run 26). The dose is now the total given at each moment, when every moment gives the
+  same.
+
 ### Fixed — water per dose; every meal of the simulated regimen (found by run 26)
 - The published simulations set the water per application: OSP Itraconazole Barone 1993 gives 2.82 ml/kg with the
   first dose and 3.5 after. The water is read per dose (for a product given as several bins, from each dose's first
