@@ -207,3 +207,61 @@ def test_file_read_store_campaigns_escalations_proposals(tmp_path):
     # absent files and tenant isolation both yield []
     assert store.list_campaigns("other-tenant") == []
     assert store.list_proposals("other-tenant") == []
+
+
+def _package_store(tmp_path, *, exportable=True):
+    from modeler_api.read_api import get_artifact_root
+
+    pkg = tmp_path / "tenants" / "dev" / "campaigns" / "camp-101" / "package"
+    (pkg / "report").mkdir(parents=True)
+    (pkg / "package.zip").write_bytes(b"PK\x03\x04zip")
+    (pkg / "report" / "mar.md").write_text("# MAR", encoding="utf-8")
+    record = {"exportable": exportable, "reproduction": {"passes": exportable, "compared": 7, "failures": []},
+              "data_bundle_sha256": "d" * 64, "package_sha256": "p" * 64, "files": 147,
+              "report": {"md": str(pkg / "report" / "mar.md")}}
+    if exportable:
+        record["package"] = str(pkg / "package.zip")
+
+    class PackageStore(FakeStore):
+        def list_campaigns(self, tenant_id):
+            return [_campaign() | {"package": record}]
+
+    app.dependency_overrides[get_artifact_root] = lambda: tmp_path.resolve()
+    return PackageStore()
+
+
+def test_package_summary_lists_artifacts_without_server_paths(tmp_path):
+    c = client_with(claims(), _package_store(tmp_path))
+    body = c.get("/api/v1/campaigns/camp-101/package", headers={"Authorization": "Bearer t"}).json()["data"]
+    assert body["exportable"] is True and body["artifacts"] == ["package.zip", "mar.md"]
+    assert str(tmp_path) not in json.dumps(body)
+
+
+def test_package_zip_downloads_when_reproduction_passed(tmp_path):
+    c = client_with(claims(), _package_store(tmp_path))
+    r = c.get("/api/v1/campaigns/camp-101/package/package.zip", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200 and r.content.startswith(b"PK")
+    assert 'filename="camp-101-package.zip"' in r.headers["content-disposition"]
+    assert c.get("/api/v1/campaigns/camp-101/package/mar.md", headers={"Authorization": "Bearer t"}).text == "# MAR"
+
+
+def test_package_zip_is_withheld_when_reproduction_failed(tmp_path):
+    """Decision D13: no export unless the re-run reproduced the bundled results."""
+    c = client_with(claims(), _package_store(tmp_path, exportable=False))
+    r = c.get("/api/v1/campaigns/camp-101/package/package.zip", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 409 and "withheld" in r.json()["detail"]
+
+
+def test_artifacts_outside_the_object_store_are_never_served(tmp_path):
+    store = _package_store(tmp_path)
+    from modeler_api.read_api import get_artifact_root
+
+    app.dependency_overrides[get_artifact_root] = lambda: (tmp_path / "elsewhere").resolve()
+    c = client_with(claims(), store)
+    app.dependency_overrides[get_artifact_root] = lambda: (tmp_path / "elsewhere").resolve()
+    assert c.get("/api/v1/campaigns/camp-101/package/mar.md", headers={"Authorization": "Bearer t"}).status_code == 404
+
+
+def test_package_needs_project_membership(tmp_path):
+    c = client_with(claims(projects=("other",)), _package_store(tmp_path))
+    assert c.get("/api/v1/campaigns/camp-101/package", headers={"Authorization": "Bearer t"}).status_code == 403

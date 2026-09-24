@@ -1,5 +1,6 @@
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { FoldError } from "@/components/FoldError";
+import { PackageDownloads } from "@/components/PackageDownloads";
 import { Card, RiskChip, StatusChip } from "@/components/ui";
 import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
 import { CAMPAIGN, GOF } from "@/lib/fixtures";
@@ -19,6 +20,13 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
   // ICH M15 acceptance tiers: the stricter the model risk, the tighter the fold limit the model must meet.
   const foldLimit = c.modelRisk === "high" ? 1.25 : c.modelRisk === "low" ? 2 : 1.5;
   const rows = c.stages.flatMap((s) => s.rounds.map((r) => ({ stage: s.stage, ...r })));
+  const prediction = live?.prediction ?? null;
+  const pkg = live?.package ?? null;
+  const artifacts = pkg
+    ? [...(pkg.exportable ? ["package.zip"] : []),
+       ...["pdf", "docx", "md"].filter((f) => pkg.report?.[f]).map((f) => `mar.${f}`)]
+    : [];
+  const fmt = (v: number) => (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toPrecision(3));
 
   return (
     <main>
@@ -91,6 +99,60 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
             </tbody>
         </table>
       </Card>
+
+      {prediction && (
+        <Card title="Prediction (S6)" action={<span className="muted">what the validated model's predictions rest on</span>}>
+          {Object.entries(prediction.sensitivity ?? {}).length > 0 && (
+            <table>
+              <thead><tr><th>Study</th><th>Most influential parameter</th><th>PK parameter</th><th className="num">Sensitivity</th></tr></thead>
+              <tbody>
+                {Object.entries(prediction.sensitivity ?? {}).flatMap(([study, ranked]) =>
+                  ranked.slice(0, 3).map((r, i) => (
+                    <tr key={`${study}-${i}`}>
+                      <td>{i === 0 ? study : ""}</td><td><code>{r.parameter}</code></td><td>{r.pk_parameter}</td>
+                      <td className="num">{r.value.toFixed(3)}</td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
+          )}
+          {Object.entries(prediction.intervals ?? {}).length > 0 && (
+            <table style={{ marginTop: 14 }}>
+              <thead><tr><th>Study</th><th>Quantity</th><th className="num">5th percentile</th><th className="num">Median</th><th className="num">95th percentile</th><th className="num">Runs</th></tr></thead>
+              <tbody>
+                {Object.entries(prediction.intervals ?? {}).flatMap(([study, pk]) =>
+                  (["AUC", "Cmax"] as const).filter((q) => pk[q]?.n).map((q) => (
+                    <tr key={`${study}-${q}`}>
+                      <td>{q === "AUC" ? study : ""}</td><td>{q}</td>
+                      <td className="num">{fmt(pk[q]!.p5)}</td><td className="num">{fmt(pk[q]!.p50)}</td>
+                      <td className="num">{fmt(pk[q]!.p95)}</td><td className="num">{pk[q]!.n}</td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      )}
+
+      {pkg && (
+        <Card title="Report and package (S7)"
+              action={pkg.reproduction?.passes
+                ? <span className="chip low">reproduced · {pkg.reproduction.compared} tables</span>
+                : <span className="chip high">not reproduced</span>}>
+          <p className="muted" style={{ marginTop: 0 }}>
+            {pkg.exportable
+              ? "Every bundled simulation was re-run on a fresh engine and matched its recorded results, so the package is released."
+              : "The re-run did not reproduce every recorded result, so the package is withheld; the report explains which table differed."}
+          </p>
+          {pkg.data_bundle_sha256 && (
+            <p className="muted" style={{ fontSize: 12 }}>Data bundle <code>sha256 {pkg.data_bundle_sha256.slice(0, 16)}…</code>
+              {pkg.files ? ` · ${pkg.files} files` : ""}</p>
+          )}
+          <PackageDownloads campaignId={c.id} artifacts={artifacts} />
+        </Card>
+      )}
     </main>
   );
 }

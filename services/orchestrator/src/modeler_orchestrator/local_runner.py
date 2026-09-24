@@ -70,6 +70,7 @@ EngineRun = Callable[[EngineJob], EngineManifest]
 STAGE_LABELS = {
     "S0": "Readiness", "S1": "IV disposition", "S2": "Oral fasted",
     "S3": "Formulation / fed", "S4": "Internal validation", "S5": "External validation",
+    "S6": "Prediction", "S7": "Report & package",
 }
 # Stages that stop the campaign when a stage ends there.
 _STOP_STATUSES = ("ESCALATED", "ABORTED", "FAILED")

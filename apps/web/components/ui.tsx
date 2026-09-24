@@ -44,7 +44,7 @@ export function StatusChip({ status }: { status: string }) {
   const map: Record<string, string> = {
     PASSED: "low", ACCEPTED: "low", COMPLETED: "low", RUNNING: "brand",
     ESCALATED: "high", REJECTED: "high", FAILED: "high", ABORTED: "high", PROPOSED: "medium",
-    SKIPPED: "neutral",
+    SKIPPED: "neutral", AWAITING_SIGNATURE: "medium",
   };
   return <span className={`chip ${map[status] ?? "neutral"}`}>{status.toLowerCase()}</span>;
 }

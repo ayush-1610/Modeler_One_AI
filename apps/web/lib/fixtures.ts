@@ -69,7 +69,23 @@ export type Campaign = {
 export type GofSeries = { name: string; time_h: number[]; concentration: number[]; unit: string; kind: "simulated" | "observed" };
 
 // The campaign monitor's full read view: the campaign plus its goodness-of-fit series.
-export type CampaignDetail = Campaign & { gof?: GofSeries[] };
+// S6: sensitivity ranking and prediction intervals per study; S7: the package record (no server paths are shown).
+export type Band = { p5: number; p50: number; p95: number; n: number };
+export type Prediction = {
+  sensitivity?: Record<string, { parameter: string; pk_parameter: string; value: number }[]>;
+  intervals?: Record<string, { AUC?: Band; Cmax?: Band }>;
+  notes?: string[];
+};
+export type PackageRecord = {
+  exportable: boolean;
+  reproduction?: { passes: boolean; compared: number; failures: { path: string; status: string; detail?: string }[] };
+  report?: Record<string, string>;
+  data_bundle_sha256?: string;
+  package_sha256?: string;
+  files?: number;
+  report_notes?: string[];
+};
+export type CampaignDetail = Campaign & { gof?: GofSeries[]; prediction?: Prediction | null; package?: PackageRecord | null };
 
 export type Escalation = {
   id: string;

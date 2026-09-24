@@ -9,7 +9,9 @@ configured root, the seam the Postgres §5 read tables will replace.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -112,6 +114,84 @@ def get_campaign(campaign_id: str, principal: PrincipalDep, store: StoreDep):
     if project_id:
         require_project(project_id, principal)
     return envelope(campaign)
+
+
+# --- the S7 package: summary and downloads ------------------------------------------------------------------
+
+_ARTIFACTS = {
+    "package.zip": "application/zip",
+    "mar.md": "text/markdown; charset=utf-8",
+    "mar.docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "mar.pdf": "application/pdf",
+}
+
+
+def get_artifact_root() -> Path | None:
+    """The object store's local root (file://), under which every campaign artifact must lie."""
+    uri = get_settings().object_store_uri
+    parsed = urlparse(uri)
+    return Path(unquote(parsed.path)).resolve() if parsed.scheme == "file" else None
+
+
+ArtifactRootDep = Annotated[Path | None, Depends(get_artifact_root)]
+
+
+def _package_record(campaign_id: str, principal: Principal, store: ReadStore) -> dict[str, Any]:
+    campaign = store.get_campaign(principal.tenant_id, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail=f"campaign {campaign_id} not found")
+    if campaign.get("project"):
+        require_project(campaign["project"], principal)
+    record = campaign.get("package")
+    if not record:
+        raise HTTPException(status_code=404, detail=f"campaign {campaign_id} has no package yet (S7 has not run)")
+    return record
+
+
+def _available(record: dict[str, Any]) -> list[str]:
+    names = [f"mar.{fmt}" for fmt in (record.get("report") or {}) if f"mar.{fmt}" in _ARTIFACTS]
+    return (["package.zip"] if record.get("exportable") else []) + sorted(names)
+
+
+@router.get("/campaigns/{campaign_id}/package")
+def get_campaign_package(campaign_id: str, principal: PrincipalDep, store: StoreDep):
+    """The S7 package: reproduction verdict, whether it may be exported (D13), hashes, and the downloadable
+    artifacts. Server paths are never returned."""
+    record = _package_record(campaign_id, principal, store)
+    return envelope({
+        "exportable": bool(record.get("exportable")),
+        "reproduction": record.get("reproduction"),
+        "data_bundle_sha256": record.get("data_bundle_sha256"),
+        "package_sha256": record.get("package_sha256"),
+        "files": record.get("files"),
+        "report_notes": record.get("report_notes", []),
+        "report_issues": record.get("report_issues", []),
+        "artifacts": _available(record),
+    })
+
+
+@router.get("/campaigns/{campaign_id}/package/{artifact}")
+def download_campaign_artifact(campaign_id: str, artifact: str, principal: PrincipalDep, store: StoreDep,
+                               root: ArtifactRootDep):
+    """Download the package zip or the rendered MAR. The zip is refused while reproduction has not passed (D13);
+    only files inside the object store are ever served."""
+    from fastapi.responses import FileResponse
+
+    record = _package_record(campaign_id, principal, store)
+    if artifact not in _ARTIFACTS:
+        raise HTTPException(status_code=404, detail=f"unknown artifact {artifact!r}")
+    if artifact == "package.zip":
+        if not record.get("exportable"):
+            raise HTTPException(status_code=409, detail="the package is withheld: its reproduction did not pass (D13)")
+        location = record.get("package")
+    else:
+        location = (record.get("report") or {}).get(artifact.split(".", 1)[1])
+    if not location or root is None:
+        raise HTTPException(status_code=404, detail=f"{artifact} is not available for campaign {campaign_id}")
+    path = Path(location).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"{artifact} is not available for campaign {campaign_id}")
+    return FileResponse(path, media_type=_ARTIFACTS[artifact], filename=f"{campaign_id}-{artifact}")
 
 
 @router.get("/projects/{project_id}/studies")

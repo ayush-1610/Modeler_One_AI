@@ -140,8 +140,14 @@ external study). The data are the example's illustrative IV profile, not clinica
   degenerate because noise-free synthetic data identify the parameters almost exactly (SD 4e-12) — the draws were
   applied; real clinical data (Phase 4) will give real intervals.
 
+- **Package API and monitor** — `GET /campaigns/{id}/package` (verdict, hashes, available artifacts; no server
+  paths) and `GET /campaigns/{id}/package/{package.zip|mar.pdf|mar.docx|mar.md}`. The zip is refused with 409 while
+  reproduction has not passed (D13); only files inside the object store are served; project membership applies. The
+  campaign monitor shows the S6 sensitivity/intervals and a Report & package card with the downloads. Verified in
+  the live tool on the server: a known-truth S0 → S7 campaign (266 s) whose PDF/A-2b report, DOCX and 152-entry zip
+  download through the tool.
+
 ### Known gap — Phase 2 still open
-- No API yet to list / download the package and report (Phase 2 exit); the files are on the object store.
 - The Temporal workflow does not run S6/S7 (it marks them SKIPPED with that reason); the single-node runner does.
 - The M15 table's model influence and decision consequence are not captured by the MAP yet; the report says so.
 
