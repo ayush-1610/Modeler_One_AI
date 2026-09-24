@@ -33,7 +33,7 @@ def po(**kw) -> StudyResidual:
 
 
 def test_ruleset_version_is_unverified() -> None:
-    assert diag_ruleset_version() == "diag-rules@0.4-UNVERIFIED"
+    assert diag_ruleset_version() == "diag-rules@0.5-UNVERIFIED"
 
 
 # --- individual rules ----------------------------------------------------------------------------
@@ -155,6 +155,40 @@ def test_time_dependent_clearance_escalates() -> None:
 def test_fed_tmax_escalates() -> None:
     d = _diag("S3", [po()], fed=FedSignals(tmax_off=True))
     assert d.escalate is True
+
+
+def test_exposure_fallback_fits_clearance_when_thalf_contradicts_auc() -> None:
+    """diag-rules 0.5: AUC 2-fold high with t1/2 short (several parameters wrong at once, the refit case seen on
+    PK-Sim) matches no specific rule; the fallback offers the clearance parameters, then logP."""
+    d = _diag("S1", [iv(thalf_ratio=0.7, auc_ratio=2.0)])
+    assert d.escalate is False
+    assert "exposure_off" in d.evidence
+    assert d.permitted_actions == ("fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat",
+                                   "fit transp.{name}.kcat", "fit phys.logp")
+
+
+@pytest.mark.parametrize("auc", [1.49, 0.68, 1.0])
+def test_exposure_fallback_needs_more_than_one_and_a_half_fold(auc: float) -> None:
+    d = _diag("S1", [iv(thalf_ratio=1.0, auc_ratio=auc)])
+    assert "exposure_off" not in d.evidence
+    assert d.escalate is True
+
+
+def test_exposure_fallback_yields_to_a_specific_rule() -> None:
+    # clearance_off matches: the clearance rule's own order (renal before logP) applies, not the fallback's
+    d = _diag("S1", [iv(thalf_ratio=2.0, auc_ratio=2.0)])
+    assert d.causes == ("Systemic clearance mis-specified",)
+    # oral AUC low without dose trend: first-pass rule, not the fallback
+    d = _diag("S2", [po(auc_ratio=0.4)])
+    assert "Exposure off with no specific diagnosis (clearance first)" not in d.causes
+    assert d.permitted_actions[0] == "fit perm.intestinal"
+
+
+def test_exposure_fallback_escalates_once_its_actions_are_tried() -> None:
+    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat", "fit transp.{name}.kcat", "fit phys.logp"]
+    d = _diag("S1", [iv(thalf_ratio=0.7, auc_ratio=2.0)], actions_tried=tried)
+    assert d.escalate is True
+    assert "already been tried" in d.reason
 
 
 def test_no_evidence_escalates() -> None:

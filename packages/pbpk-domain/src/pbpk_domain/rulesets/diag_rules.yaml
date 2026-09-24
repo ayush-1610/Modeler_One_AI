@@ -9,8 +9,15 @@
 # name a candidate/branch by the same token used in the MAP stage plan (STAGE_PLAN); an action is only
 # offered when that token is a permitted fit candidate / branch for the current stage and has not been tried.
 id: diag-rules
-version: "0.4"
+version: "0.5"
 status: UNVERIFIED
+# 0.5 (2026-09-24, approved by the project owner, still UNVERIFIED pending SME sign-off): an exposure fallback. When
+#     AUC is off by more than 1.5-fold (either direction) in a fitting study and no other rule matches, fit the
+#     clearance parameters first (clspec, kcat), then logP. The clearance rule needs the terminal t1/2 to move with
+#     AUC; with several parameters wrong at once they can point opposite ways (seen on PK-Sim refitting the
+#     published Dapagliflozin and Rifampicin models from shifted starts), and before 0.5 the round escalated with
+#     "no diagnostic rule matched" while AUC was 2-fold off. A rule marked `fallback: true` fires only when no other
+#     rule's evidence is present.
 # 0.4 (2026-09-24, approved by the project owner, still UNVERIFIED pending SME sign-off): the clearance rule also
 #     fits Michaelis-Menten catalytic rates, elim.hepatic.{enzyme}.kcat (metabolism) and transp.{name}.kcat (active
 #     transport), after first-order clspec and before renal clearance. Before 0.4 a compound cleared by saturable
@@ -40,6 +47,7 @@ thresholds:
   ratio_low: 0.8            # a ratio below this reads as "low / too fast"
   dose_norm_auc_rel: 0.25   # relative change in dose-normalized AUC across the dose range to call a trend
   starts_agreement_min: 0.5 # below this the optimiser starts disagree (multiple optima)
+  exposure_fallback_fold: 1.5  # AUC off by more than this fold (either direction) -> exposure_off (fallback rule)
 
 # Rules are evaluated in order; every rule whose evidence is present fires. Escalate rules take precedence.
 rules:
@@ -178,6 +186,19 @@ rules:
     evidence: starts_disagree       # agreement between optimiser starts < starts_agreement_min
     actions:
       - {op: switch_algorithm, target: "DEoptim"}        # one round; if unchanged the next round escalates
+
+  - id: exposure_fallback
+    cause: "Exposure off with no specific diagnosis (clearance first)"
+    type: fit
+    fallback: true                 # fires only when no other rule's evidence is present
+    stages: [S1, S2]
+    routes: [iv, oral]
+    evidence: exposure_off         # AUC ratio > fold or < 1/fold in a fitting study
+    actions:
+      - {op: fit, target: "elim.hepatic.{enzyme}.clspec"}
+      - {op: fit, target: "elim.hepatic.{enzyme}.kcat"}
+      - {op: fit, target: "transp.{name}.kcat"}
+      - {op: fit, target: "phys.logp"}
 
   # --- conditions that require a person (MS-01 §5, §4) -----------------------------------------------
   - id: time_dependent_clearance

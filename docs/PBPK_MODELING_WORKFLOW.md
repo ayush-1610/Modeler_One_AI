@@ -298,6 +298,7 @@ actions. Thresholds are ruleset data [SME].
 | Any fitted parameter at bound | Bound or misspecification | escalate with the parameter and the bound |
 | Correlation > 0.95 between two fitted parameters | Non-identifiable pair | fix the one with the more reliable source; refit |
 | Starts disagree (agreement < 50 %) | Multiple optima | switch algorithm to DEoptim for one round; if unchanged → escalate |
+| Fallback (diag-rules 0.5, UNVERIFIED): AUC off > 1.5-fold and no other rule matches | Exposure off, cause unresolved | fit `elim.hepatic.*.clspec`, `elim.hepatic.*.kcat`, `transp.*.kcat`; then `phys.logp` |
 
 ---
 
