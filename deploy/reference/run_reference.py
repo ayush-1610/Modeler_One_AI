@@ -43,11 +43,19 @@ def _import(model: str):
     return snapshot_path, import_osp_snapshot(json.loads(snapshot_path.read_text(encoding="utf-8")))
 
 
-def roundtrip(model: str, out: Path) -> dict:
-    from pbpk_domain.reference.roundtrip import roundtrip_inputs
+def roundtrip(model: str, out: Path, *, system: bool = False) -> dict:
+    """``system``: import the model system (parent, enantiomers, metabolites) and compare every study on its analyte."""
+    from pbpk_domain.reference.roundtrip import roundtrip_inputs, system_roundtrip_inputs
 
-    snapshot_path, imported = _import(model)
-    ours, pairs, notes = roundtrip_inputs(imported)
+    if system:
+        from pbpk_domain.reference.osp_import import import_osp_system
+
+        snapshot_path = FIXTURES / f"{model}-Model.json"
+        imported = import_osp_system(json.loads(snapshot_path.read_text(encoding="utf-8")))
+        ours, pairs, notes = system_roundtrip_inputs(imported)
+    else:
+        snapshot_path, imported = _import(model)
+        ours, pairs, notes = roundtrip_inputs(imported)
     work = out / "roundtrip"
     work.mkdir(parents=True, exist_ok=True)
     (work / "ours.json").write_text(json.dumps(ours, ensure_ascii=False), encoding="utf-8")
@@ -234,13 +242,13 @@ def summary(step: str, result: dict) -> str:
         report = result.get("report") or {}
         lines.append(f"### Round trip {result['model']}: {report.get('identical', 0)} of {report.get('total', 0)} "
                      f"identical within {report.get('tolerance')} of the peak ({result['seconds']} s, exit {result['exit']})")
-        lines.append("| ours | published | max diff / peak | AUC ratio | Cmax ratio | differs by design |")
-        lines.append("|---|---|---|---|---|---|")
+        lines.append("| ours | analyte | published | max diff / peak | AUC ratio | Cmax ratio | differs by design |")
+        lines.append("|---|---|---|---|---|---|---|")
         for row in report.get("pairs", []):
             if "error" in row:
-                lines.append(f"| {row['ours']} | {row['published']} | ERROR: {row['error']} | | | |")
+                lines.append(f"| {row['ours']} | {row.get('analyte', '')} | {row['published']} | ERROR: {row['error']} | | | |")
             else:
-                lines.append(f"| {row['ours']} | {row['published']} | {row['max_rel_to_peak']:.3g} | "
+                lines.append(f"| {row['ours']} | {row.get('analyte', '')} | {row['published']} | {row['max_rel_to_peak']:.3g} | "
                              f"{row['auc_ratio']:.6f} | {row['cmax_ratio']:.6f} | {row.get('by_design') or ''} |")
         for name, diff in (report.get("parameter_diffs") or {}).items():
             if "error" in diff:
@@ -284,12 +292,13 @@ def main() -> int:
     parser.add_argument("step", choices=["roundtrip", "campaign", "evaluate"])
     parser.add_argument("model")
     parser.add_argument("--mode", choices=["as-is", "refit"], default="as-is")
+    parser.add_argument("--system", action="store_true", help="round trip the model system (parent, enantiomers, metabolites)")
     parser.add_argument("--out", type=Path, default=REPO / "reports" / "reference")
     args = parser.parse_args()
     args.out = args.out.resolve()  # engine inputs are file:// URIs, which need an absolute path
     args.out.mkdir(parents=True, exist_ok=True)
     if args.step == "roundtrip":
-        result = roundtrip(args.model, args.out)
+        result = roundtrip(args.model, args.out, system=args.system)
     elif args.step == "evaluate":
         result = evaluate(args.model, args.out)
     else:

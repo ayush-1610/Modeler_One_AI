@@ -15,6 +15,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — model systems, phase 1 step 3: building and round-tripping systems
+- Builder: a simulation holds several compounds (`SimulationSpec.co_compounds`, each dosed by its own protocol or only
+  formed); a process forming a metabolite carries `Metabolite` and is selected with `MetaboliteName`; published
+  `ObserverSets` are emitted verbatim and selected; outputs are every compound's plasma plus the analytes' paths.
+- `build_from_system`: every compound from its own CPF, formation set on the forming process, all compounds'
+  proteins expressed, the individual from the CPF carrying it, each compound's `sim.*` values where it takes part.
+- Round build: a study's product becomes one protocol per dosed compound at dose x fraction (Verapamil 80 mg TID ->
+  2 x 37.03 mg), the metabolites they form are simulated with them, and the sum observers whose compounds are present
+  are computed.
+- `system_roundtrip_inputs` / `run_reference.py roundtrip <Drug> --system`: each pair compared on its study's analyte at
+  the same output path on both sides (`reference_compare.R` reads the pair's `output`). CI jobs for Verapamil,
+  Omeprazole, Dabigatran and Itraconazole.
+- Fixed: a study's own individual now gets its own expression-profile categories for every protein (Omeprazole's
+  Japanese individual reused "Healthy", which carries the main individual's CPF values, and the build refused it).
+
 ### Added — model systems, phase 1 steps 1–2: data model and import (plan `2026-09-24-multi-compound.md`, approved)
 - `pbpk_domain.system.ModelSystem`: one CPF per compound (unchanged), roles (parent = dosed, metabolite = only
   formed), formation links, **products** (what a study administers: each dosed compound's fraction of the reported

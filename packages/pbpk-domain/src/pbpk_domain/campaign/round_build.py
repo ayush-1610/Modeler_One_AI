@@ -21,9 +21,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from pbpk_domain.campaign.map import MapScenario
-from pbpk_domain.cpf.build import BuildReport, FormulationSpec, Scenario, build_from_cpf
+from pbpk_domain.cpf.build import BuildReport, FormulationSpec, Scenario, build_from_cpf, build_from_system
 from pbpk_domain.cpf.models import CPF
 from pbpk_domain.snapshot.builder import (
+    CoCompoundSpec,
     DissolvedFormulationSpec,
     IntravenousProtocolSpec,
     MealEventSpec,
@@ -33,6 +34,7 @@ from pbpk_domain.snapshot.builder import (
     SubjectSpec,
 )
 from pbpk_domain.snapshot.models import Snapshot
+from pbpk_domain.system import ModelSystem
 
 # Routes as they arrive on a MapScenario (from split.Route values).
 _IV_ROUTES = ("iv_bolus", "iv_infusion")
@@ -184,6 +186,47 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
     raise ScenarioBuildError(f"scenario {sid!r}: route {scenario.route!r} is not supported by the round builder")
 
 
+def _observer_members(document: dict) -> set[str]:
+    """The compounds a published observer's formula reads (the MOLECULE placeholder is the observer's own)."""
+    refs = [r.get("Path", "") for o in document.get("Observers", []) for r in (o.get("Formula") or {}).get("References", [])]
+    return {path.split("|")[-2] for path in refs if path.count("|") >= 2 and path.split("|")[-1] == "Concentration"} - {"MOLECULE"}
+
+
+def _system_scenario(scenario: MapScenario, system: ModelSystem, *, subject_name: str, sim_end_time_h: float,
+                     cpf: CPF, notes: list[str]) -> Scenario:
+    """A study of a model system: each compound its product doses gets the study's protocol at dose x fraction, the
+    metabolites they form are simulated with them, and the published sum observers of those compounds are computed."""
+    product = scenario.product or (system.parents[0] if len(system.products) == 1 else None)
+    fractions = system.products.get(product) if product is not None else None
+    if fractions is None and len(system.products) == 1:
+        fractions = next(iter(system.products.values()))
+    if fractions is None:
+        raise ScenarioBuildError(f"scenario {scenario.study_id!r}: the system has several products and the study names "
+                                 f"none it has ({scenario.product!r}); which compounds it doses is not guessed")
+    dosed = list(fractions)
+    first = scenario.model_copy(update={"dose_mg": scenario.dose_mg * fractions[dosed[0]]})
+    base = _scenario_specs(first, subject_name=subject_name, compound=dosed[0], sim_end_time_h=sim_end_time_h,
+                           cpf=cpf, notes=notes)
+    extra, co = [], []
+    for compound in dosed[1:]:
+        protocol = base.protocol.model_copy(update={
+            "name": f"{base.protocol.name} {compound}",
+            "dose": base.protocol.dose.model_copy(update={"value": scenario.dose_mg * fractions[compound]})})
+        extra.append(protocol)
+        co.append(CoCompoundSpec(name=compound, protocol=protocol.name,
+                                 formulation=base.formulation.name if base.formulation is not None else None))
+    present = system.closure(tuple(dosed))
+    co.extend(CoCompoundSpec(name=name) for name in present if name not in dosed)
+    observers = tuple(name for name, doc in system.observers.items()
+                      if (members := _observer_members(doc)) and members <= set(present))
+    outputs = tuple(dict.fromkeys(a.output_path for a in system.analytes.values()
+                                  if (a.kind == "compound" and a.compound in present)
+                                  or (a.kind == "observer" and a.observer in observers)))
+    simulation = base.simulation.model_copy(update={"co_compounds": tuple(co), "observer_sets": observers,
+                                                    "additional_outputs": outputs})
+    return base.model_copy(update={"simulation": simulation, "extra_protocols": tuple(extra)})
+
+
 def _deferral_notes(snapshot: Snapshot, scenarios: Sequence[MapScenario], report: BuildReport | None = None) -> tuple[str, ...]:
     notes: list[str] = []
     # Parameters the builder could not place: they are in the CPF but not in the model, so the simulation does
@@ -219,6 +262,7 @@ def build_stage_snapshot(
     sim_end_time_h: float = DEFAULT_SIM_END_TIME_H,
     snapshot_version: int | None = None,
     skip_unbuildable: bool = False,
+    system: ModelSystem | None = None,
 ) -> StageSnapshot:
     """Build the snapshot for one stage from the CPF and the MAP's scenarios for that stage.
 
@@ -239,11 +283,16 @@ def build_stage_snapshot(
     placed: list[MapScenario] = []
     not_simulated: list[str] = []
     assigned: list[str] = []
+    main_cpf = cpf if system is None else system.cpf(system.parents[0])
     for scenario in stage_scenarios:
         subject = _subject_spec(scenario, seed=seed)
         try:
-            spec = _scenario_specs(scenario, subject_name=subject.name, compound=cpf.compound,
-                                   sim_end_time_h=sim_end_time_h, cpf=cpf, notes=assigned)
+            if system is None:
+                spec = _scenario_specs(scenario, subject_name=subject.name, compound=cpf.compound,
+                                       sim_end_time_h=sim_end_time_h, cpf=cpf, notes=assigned)
+            else:
+                spec = _system_scenario(scenario, system, subject_name=subject.name, sim_end_time_h=sim_end_time_h,
+                                        cpf=main_cpf, notes=assigned)
         except ScenarioBuildError as exc:
             if not skip_unbuildable:
                 raise
@@ -255,9 +304,10 @@ def build_stage_snapshot(
     if not built:
         raise ScenarioBuildError(f"no scenario of stage {stage!r} could be built: " + "; ".join(not_simulated))
 
-    snapshot, report = build_from_cpf(
-        cpf, list(subjects.values()), built, snapshot_version=snapshot_version
-    )
+    if system is None:
+        snapshot, report = build_from_cpf(cpf, list(subjects.values()), built, snapshot_version=snapshot_version)
+    else:
+        snapshot, report = build_from_system(system, list(subjects.values()), built, snapshot_version=snapshot_version)
     return StageSnapshot(
         snapshot=snapshot,
         build_report=report,

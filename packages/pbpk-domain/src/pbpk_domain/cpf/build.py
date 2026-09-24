@@ -43,6 +43,7 @@ from pbpk_domain.snapshot.builder import (
     WeibullFormulationSpec,
 )
 from pbpk_domain.snapshot.models import Snapshot, ValueOrigin, value_origin_source
+from pbpk_domain.system import ModelSystem
 
 FormulationSpec = DissolvedFormulationSpec | WeibullFormulationSpec
 ProtocolSpec = OralProtocolSpec | IntravenousProtocolSpec
@@ -57,6 +58,8 @@ class Scenario(BaseModel):
     protocol: ProtocolSpec
     formulation: FormulationSpec | None = None
     events: tuple[MealEventSpec, ...] = ()
+    # A model system's other dosed compounds each get their own protocol (SimulationSpec.co_compounds names them).
+    extra_protocols: tuple[ProtocolSpec, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -161,7 +164,8 @@ def _with_expression(subjects: Sequence[SubjectSpec], molecules: Sequence[str],
             own: dict[str, dict[str, Measured]] = {}
             for path, measured in subject.expression_overrides.items():
                 own.setdefault(expression_molecule(path), {})[path] = measured
-            specs = [_override_profile(s, own[m]).model_copy(update={"category": subject.name}) if m in own else s
+            # its own category for every profile: the shared ones carry the main individual's CPF values
+            specs = [(_override_profile(s, own[m]) if m in own else s).model_copy(update={"category": subject.name})
                      for m, s in library.items()]
         else:
             specs = shared
@@ -479,9 +483,10 @@ def build_from_cpf(
     seen_formulations: set[str] = set()
     seen_events: set[str] = set()
     for scenario in scenarios:
-        if scenario.protocol.name not in seen_protocols:
-            builder.add_protocol(scenario.protocol)
-            seen_protocols.add(scenario.protocol.name)
+        for protocol in (scenario.protocol, *scenario.extra_protocols):
+            if protocol.name not in seen_protocols:
+                builder.add_protocol(protocol)
+                seen_protocols.add(protocol.name)
         if scenario.formulation is not None and scenario.formulation.name not in seen_formulations:
             builder.add_formulation(scenario.formulation)
             seen_formulations.add(scenario.formulation.name)
@@ -500,4 +505,81 @@ def build_from_cpf(
         expression_profiles=tuple(expressed),
         missing_expression=tuple(missing),
     )
+    return snapshot, report
+
+
+def build_from_system(
+    system: ModelSystem,
+    subjects: Sequence[SubjectSpec],
+    scenarios: Sequence[Scenario],
+    *,
+    snapshot_version: int | None = None,
+) -> tuple[Snapshot, BuildReport]:
+    """Build one snapshot from a model system: every compound from its own CPF, each formation link set on the process
+    that forms the metabolite (and so selected with its `MetaboliteName`), the proteins of every compound expressed,
+    the individual and the formulations from the CPF that carries them, each compound's simulation-level values in the
+    simulations it takes part in, and the published sum observers the scenarios select."""
+    compounds, used, unresolved = [], [], []
+    for cpf in system.compounds:
+        compound, cpf_used, cpf_unresolved = _compound_from_cpf(cpf)
+        forms = {(f.internal_name, f.molecule, f.data_source): f.metabolite for f in system.formed_by(cpf.compound)}
+        if forms:
+            compound = compound.model_copy(update={"processes": [
+                p.model_copy(update={"metabolite": forms[key]})
+                if (key := (getattr(p, "internal_name", None) or p.kind, getattr(p, "molecule", None), p.data_source)) in forms
+                else p for p in compound.processes]})
+        compounds.append(compound)
+        used.extend(cpf_used)
+        unresolved.extend(cpf_unresolved)
+
+    molecules = tuple(dict.fromkeys(m for cpf in system.compounds for m in process_molecules(cpf)))
+    expr_records: dict[str, dict[str, ParameterRecord]] = {}
+    for cpf in system.compounds:
+        for molecule, records in expression_parameters(cpf).items():
+            expr_records.setdefault(molecule, {}).update(records)
+    subjects, expressed, missing = _with_expression(subjects, molecules, expr_records)
+    for cpf in system.compounds:
+        subjects, individual_used = _with_individual_parameters(subjects, cpf)
+        used.extend(individual_used)
+    used.extend(r.id for m in expressed for r in expr_records.get(m, {}).values())
+
+    scenarios = list(scenarios)
+    for cpf in system.compounds:
+        records = simulation_parameters(cpf)
+        if not records:
+            continue
+        overrides = {path: _measured(record) for path, record in records.items()}
+        scenarios = [s.model_copy(update={"simulation": s.simulation.model_copy(
+            update={"parameters": {**s.simulation.parameters, **overrides}})})
+            if cpf.compound in (s.simulation.compound, *(c.name for c in s.simulation.co_compounds)) else s
+            for s in scenarios]
+        used.extend(r.id for r in records.values())
+
+    builder = SnapshotBuilder(snapshot_version) if snapshot_version is not None else SnapshotBuilder()
+    for compound in compounds:
+        builder.add_compound(compound)
+    for subject in subjects:
+        builder.add_subject(subject)
+    for name in dict.fromkeys(n for s in scenarios for n in s.simulation.observer_sets):
+        builder.add_observer_set(system.observers[name])
+    seen_protocols: set[str] = set()
+    seen_formulations: set[str] = set()
+    seen_events: set[str] = set()
+    for scenario in scenarios:
+        for protocol in (scenario.protocol, *scenario.extra_protocols):
+            if protocol.name not in seen_protocols:
+                builder.add_protocol(protocol)
+                seen_protocols.add(protocol.name)
+        if scenario.formulation is not None and scenario.formulation.name not in seen_formulations:
+            builder.add_formulation(scenario.formulation)
+            seen_formulations.add(scenario.formulation.name)
+        for event in scenario.events:
+            if event.name not in seen_events:
+                builder.add_event(event)
+                seen_events.add(event.name)
+        builder.add_simulation(scenario.simulation)
+    snapshot = builder.build()
+    report = BuildReport(compound=system.name, cpf_version=max(c.version for c in system.compounds),
+                         bindings_used=tuple(dict.fromkeys(used)), unresolved=tuple(unresolved),
+                         expression_profiles=tuple(expressed), missing_expression=tuple(missing))
     return snapshot, report

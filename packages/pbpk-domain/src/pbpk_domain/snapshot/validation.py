@@ -38,7 +38,10 @@ def process_selection_for(process: CompoundProcess) -> ProcessSelection | None:
     if process.internal_name == "KidneyClearance":
         return ProcessSelection(name=f"Renal Clearances-{data_source}", systemic_process_type="Renal")
     if process.molecule:
-        return ProcessSelection(name=f"{process.molecule}-{data_source}", molecule_name=process.molecule)
+        # a process forming a metabolite selects it too (harvested: {"Name": "CYP3A4-Norverapamil", "MoleculeName":
+        # "CYP3A4", "MetaboliteName": "R-Norverapamil"})
+        formed = {"metabolite_name": process.metabolite} if process.metabolite else {}
+        return ProcessSelection(name=f"{process.molecule}-{data_source}", molecule_name=process.molecule, **formed)
     return None
 
 

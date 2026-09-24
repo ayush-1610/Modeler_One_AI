@@ -166,6 +166,9 @@ class MapScenario(BaseModel):
     sim_end_time_h: float | None = None
     # A reference model's own individual for this study (physiology and expression that differ from the main one).
     published_individual: PublishedIndividual | None = None
+    # A model system's analyte the study measures and the product it administers (None: the single compound).
+    analyte: str | None = None
+    product: str | None = None
     # The VPC population's age range (the study's own, else the MS-01 default ±10 y around the mean; `vpc.age_range`).
     vpc_age_min: float | None = None
     vpc_age_max: float | None = None
@@ -308,6 +311,7 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
                 n_doses=study.n_doses if multiple else None,
                 sim_end_time_h=ends.get(study.study_id),
                 published_individual=study.published_individual,
+                analyte=study.analyte, product=study.product,
                 vpc_age_min=vpc_ages[0], vpc_age_max=vpc_ages[1],
             ))
     return tuple(scenarios)

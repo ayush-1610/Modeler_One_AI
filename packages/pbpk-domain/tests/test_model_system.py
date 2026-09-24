@@ -104,3 +104,41 @@ def test_itraconazole_imports_its_metabolite_data():
     assert imported.system.closure(("Itraconazole",)) == ("Itraconazole", "Hydroxy-Itraconazole", "Keto-Itraconazole",
                                                           "N-desalkyl-Itraconazole")
     assert sum(st["analyte"] == "Hydroxy-Itraconazole" for st in imported.studies) >= 20
+
+
+def test_a_verapamil_study_builds_both_enantiomers_their_metabolites_and_the_sums():
+    from pbpk_domain.reference.roundtrip import system_roundtrip_inputs
+
+    imported = _system("Verapamil")
+    ours, pairs, _notes = system_roundtrip_inputs(imported)
+    assert len(pairs) == len(imported.studies)
+    sim = next(s for s in ours["Simulations"] if s["Name"] == "backman-1994-verapamil")
+    compounds = {c["Name"]: c for c in sim["Compounds"]}
+    assert set(compounds) == {"R-Verapamil", "S-Verapamil", "R-Norverapamil", "S-Norverapamil"}
+    # each enantiomer dosed by its own protocol at dose x fraction (80 mg x 0.462884); the metabolites only formed
+    assert compounds["R-Norverapamil"].get("Protocol") is None
+    protocols = {p["Name"]: p for p in ours["Protocols"]}
+    for name in ("R-Verapamil", "S-Verapamil"):
+        protocol = protocols[compounds[name]["Protocol"]["Name"]]
+        dose = next(q for q in protocol["Schemas"][0]["SchemaItems"][0]["Parameters"] if q["Name"] == "InputDose")
+        assert dose["Value"] == pytest.approx(80.0 * 0.462883625, rel=1e-6)
+    # formation selected with its metabolite, as the published simulations do
+    assert {"Name": "CYP3A4-Norverapamil", "MoleculeName": "CYP3A4", "MetaboliteName": "R-Norverapamil"} in \
+        compounds["R-Verapamil"]["Processes"]
+    # every compound's mechanism-based CYP3A4 inhibition acts (four compounds x MBI + P-gp)
+    assert len(sim["Interactions"]) == 8
+    assert sim["ObserverSets"] == [{"Name": "Sum-Verapamil"}, {"Name": "Sum-Norverapamil"}]
+    assert "Organism|PeripheralVenousBlood|R-Verapamil|Sum-Verapamil Plasma (Peripheral Venous Blood)" in sim["OutputSelections"]
+    assert {o["Name"] for o in ours["ObserverSets"]} == {"Sum-Verapamil", "Sum-Norverapamil"}
+    pair = next(p for p in pairs if p["ours"] == "backman-1994-verapamil")
+    assert pair["output"].endswith("|Sum-Verapamil Plasma (Peripheral Venous Blood)")
+
+
+@pytest.mark.parametrize("model", ["Omeprazole", "Dabigatran", "Itraconazole"])
+def test_every_system_study_with_a_published_simulation_builds(model):
+    from pbpk_domain.reference.roundtrip import system_roundtrip_inputs
+
+    imported = _system(model)
+    _ours, pairs, notes = system_roundtrip_inputs(imported)
+    assert pairs
+    assert not [n for n in notes if n.startswith("NOT SIMULATED")]

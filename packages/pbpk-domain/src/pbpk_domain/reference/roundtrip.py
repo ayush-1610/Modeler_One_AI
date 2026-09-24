@@ -15,7 +15,7 @@ from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.round_build import build_stage_snapshot
 from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
 from pbpk_domain.m15 import Rating
-from pbpk_domain.reference.osp_import import ReferenceImport
+from pbpk_domain.reference.osp_import import ReferenceImport, SystemImport
 
 ROUNDTRIP_STAGE = "RT"
 
@@ -67,3 +67,35 @@ def _sim_end_h(snapshot: dict[str, Any], name: str) -> float:
     sim = next(s for s in snapshot["Simulations"] if s["Name"] == name)
     ends = [p["Value"] for block in sim.get("OutputSchema", []) for p in block["Parameters"] if p["Name"] == "End time"]
     return float(max(ends)) if ends else 24.0
+
+
+def system_roundtrip_inputs(imported: SystemImport) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
+    """The round trip of a model system: every linked study built as the system simulates it, each pair compared on
+    the study's analyte (a compound's plasma, or a published sum observer) at the same output path on both sides."""
+    system = imported.system
+    studies = [StudyRecord.model_validate({k: v for k, v in s.items() if k in StudyRecord.model_fields})
+               for s in imported.studies]
+    main_cpf = system.cpf(system.parents[0])
+    sampling_end_h = {s["study_id"]: max(s["profile"]["times"]) / 60.0 if s["profile"]["time_unit"] == "min"
+                      else max(s["profile"]["times"]) for s in imported.studies}
+    map_doc = generate_map(
+        compound=system.name, cpf=main_cpf, studies=studies, split=split_studies(studies, QuestionOfInterest()),
+        objective="round trip", context_of_use="round trip", food_effect_in_question=False, model_risk=Rating.MEDIUM,
+        engine_image_digest="roundtrip", software_versions={}, sampling_end_h=sampling_end_h,
+    )
+    by_study: dict[str, Any] = {}
+    for scenario in map_doc.scenarios:
+        by_study.setdefault(scenario.study_id, scenario)
+    wanted = [sid for sid in imported.simulation_of if sid in by_study]
+    built = build_stage_snapshot(main_cpf, [by_study[sid].model_copy(update={"stage": ROUNDTRIP_STAGE}) for sid in wanted],
+                                 stage=ROUNDTRIP_STAGE, skip_unbuildable=True, system=system)
+    ours = json.loads(built.snapshot.model_dump_json(by_alias=True, exclude_none=True))
+    analyte_of = {s["study_id"]: s.get("analyte") for s in imported.studies}
+    placed = set(built.simulations)
+    pairs = [{"ours": sid, "published": imported.simulation_of[sid], "offset_min": imported.offset_min.get(sid, 0.0),
+              "end_h": _sim_end_h(ours, sid), "by_design": imported.differs_by_design.get(sid, ""),
+              "analyte": analyte_of[sid], "output": system.analytes[analyte_of[sid]].output_path}
+             for sid in wanted if sid in placed]
+    notes = list(built.notes) + [f"{sid}: no MAP scenario; not simulated" for sid in imported.simulation_of
+                                 if sid not in by_study]
+    return ours, pairs, notes

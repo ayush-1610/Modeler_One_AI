@@ -57,6 +57,10 @@ jobs:
           - {task: digoxin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Digoxin"}
           - {task: metformin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Metformin"}
           - {task: raltegravir-roundtrip, run: "deploy/reference/run_reference.py roundtrip Raltegravir"}
+          - {task: verapamil-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Verapamil --system"}
+          - {task: omeprazole-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Omeprazole --system"}
+          - {task: dabigatran-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Dabigatran --system"}
+          - {task: itraconazole-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Itraconazole --system"}
           - {task: portfolio, run: "deploy/reference/portfolio.py"}  # import / S0 / split of the whole library
     steps:
       - uses: actions/checkout@v4

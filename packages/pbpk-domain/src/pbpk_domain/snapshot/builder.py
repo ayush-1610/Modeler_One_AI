@@ -415,6 +415,7 @@ class HarvestedProcess(Spec):
     internal_name: str
     molecule: str | None = None
     data_source: str = Field(min_length=1)
+    metabolite: str | None = None
     species: str = "Human"
     parameters: dict[str, Measured] = Field(min_length=1)
 
@@ -437,6 +438,8 @@ class HarvestedProcess(Spec):
                         "parameters": [m.to_parameter(name=n) for n, m in self.parameters.items()]}
         if self.molecule:
             fields["molecule"] = self.molecule
+        if self.metabolite:
+            fields["metabolite"] = self.metabolite
         if self.internal_name in HARVESTED_SYSTEMIC or self.internal_name == "MetabolizationIntrinsic_FirstOrder":
             fields["species"] = self.species  # these types carry Species in the published snapshots
         return CompoundProcess(**fields)
@@ -852,6 +855,15 @@ class MealEventSpec(Spec):
         return Event(name=self.name, template=self.template)
 
 
+class CoCompoundSpec(Spec):
+    """Another compound of a model system in the simulation: dosed with its own protocol (an enantiomer, a co-dosed
+    parent) or, with no protocol, only formed (a metabolite)."""
+
+    name: str = Field(min_length=1)
+    protocol: str | None = None
+    formulation: str | None = None
+
+
 class SimulationSpec(Spec):
     name: str = Field(min_length=1)
     subject: str
@@ -867,6 +879,8 @@ class SimulationSpec(Spec):
     # Simulation-level values addressed by full path (e.g. "<Compound>|logP (veg.oil/water)"), as the OSP reference
     # simulations carry them in `Simulations[].Parameters`.
     parameters: dict[str, Measured] = Field(default_factory=dict)
+    co_compounds: tuple[CoCompoundSpec, ...] = ()
+    observer_sets: tuple[str, ...] = ()  # ObserverSets (added with SnapshotBuilder.add_observer_set) this computes
 
 
 # --- builder --------------------------------------------------------------------------------------
@@ -904,6 +918,7 @@ class SnapshotBuilder:
         self._formulations: dict[str, DissolvedFormulationSpec | WeibullFormulationSpec] = {}
         self._events: dict[str, MealEventSpec] = {}
         self._simulations: dict[str, SimulationSpec] = {}
+        self._observer_sets: dict[str, dict] = {}
 
     @staticmethod
     def _register(registry: dict, kind: str, spec) -> None:
@@ -929,6 +944,11 @@ class SnapshotBuilder:
 
     def add_event(self, spec: MealEventSpec) -> SnapshotBuilder:
         self._register(self._events, "event", spec)
+        return self
+
+    def add_observer_set(self, document: dict) -> SnapshotBuilder:
+        """A published ObserverSets entry, copied verbatim (never composed here)."""
+        self._observer_sets[document["Name"]] = document
         return self
 
     def add_simulation(self, spec: SimulationSpec) -> SnapshotBuilder:
@@ -970,6 +990,7 @@ class SnapshotBuilder:
             "protocols": [p.to_protocol() for p in self._protocols.values()],
             "events": [e.to_event() for e in self._events.values()],
             "simulations": [self._simulation(s) for s in self._simulations.values()],
+            "observer_sets": list(self._observer_sets.values()),
         }
         fields.update({key: items for key, items in sections.items() if items})
 
@@ -979,14 +1000,14 @@ class SnapshotBuilder:
             raise SnapshotBuildError(issues)
         return snapshot
 
-    def _simulation(self, spec: SimulationSpec) -> Simulation:
-        compound_fields: dict = {"name": spec.compound}
-        compound = self._compounds.get(spec.compound)
+    def _simulation_compound(self, name: str, protocol: str | None, formulation: str | None) -> tuple[SimulationCompound, list[dict]]:
+        compound_fields: dict = {"name": name}
+        compound = self._compounds.get(name)
         interactions: list[dict] = []
         if compound is not None:
             interactions = [
                 sel for p in compound.processes
-                if (sel := interaction_selection_for(p.to_process(), spec.compound)) is not None
+                if (sel := interaction_selection_for(p.to_process(), name)) is not None
             ]
             compound_fields["calculation_methods"] = list(compound.calculation_methods)
             alternatives = compound.selected_alternatives()
@@ -997,20 +1018,30 @@ class SnapshotBuilder:
             ]
             if selections:
                 compound_fields["processes"] = selections
-        protocol_fields: dict = {"name": spec.protocol}
-        if spec.formulation is not None:
-            protocol_fields["formulations"] = [FormulationSelection(name=spec.formulation, key="Formulation")]
-        compound_fields["protocol"] = ProtocolSelection(**protocol_fields)
+        if protocol is not None:
+            protocol_fields: dict = {"name": protocol}
+            if formulation is not None:
+                protocol_fields["formulations"] = [FormulationSelection(name=formulation, key="Formulation")]
+            compound_fields["protocol"] = ProtocolSelection(**protocol_fields)
+        return SimulationCompound(**compound_fields), interactions
+
+    def _simulation(self, spec: SimulationSpec) -> Simulation:
+        entries = [self._simulation_compound(spec.compound, spec.protocol, spec.formulation),
+                   *(self._simulation_compound(c.name, c.protocol, c.formulation) for c in spec.co_compounds)]
+        interactions = [sel for _entry, sels in entries for sel in sels]
+        plasma = [PLASMA_OUTPUT_PATH.format(compound=name) for name in (spec.compound, *(c.name for c in spec.co_compounds))]
 
         sim_fields: dict = {
             "name": spec.name,
             "model": spec.model,
             "solver": {},
             "output_schema": _output_schema(spec),
-            "output_selections": [PLASMA_OUTPUT_PATH.format(compound=spec.compound), *spec.additional_outputs],
+            "output_selections": list(dict.fromkeys([*plasma, *spec.additional_outputs])),
             "individual": spec.subject,
-            "compounds": [SimulationCompound(**compound_fields)],
+            "compounds": [entry for entry, _sels in entries],
         }
+        if spec.observer_sets:
+            sim_fields["observer_sets"] = [{"Name": name} for name in spec.observer_sets]
         if interactions:
             sim_fields["interactions"] = interactions
         if spec.parameters:

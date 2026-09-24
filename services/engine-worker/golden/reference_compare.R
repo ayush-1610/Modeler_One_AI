@@ -53,12 +53,13 @@ pkml_of <- function(files, sim_name) {
   if (length(hit) == 0) NA_character_ else hit[[1]]
 }
 
-plasma_curve <- function(pkml, compound, start_min, end_min) {
+plasma_curve <- function(pkml, compound, start_min, end_min, output = NULL) {
   sim <- loadSimulation(pkml, loadFromCache = FALSE)
   clearOutputIntervals(sim)
   addOutputInterval(sim, startTime = start_min, endTime = end_min, resolution = RESOLUTION)
   clearOutputs(sim)
-  path <- sprintf(PLASMA, compound)
+  # a model system's pair names its analyte's output (a compound's plasma, or a published sum observer)
+  path <- if (is.null(output)) sprintf(PLASMA, compound) else output
   addOutputs(path, sim)
   results <- runSimulations(sim)[[1]]
   data <- getOutputValues(results, quantitiesOrPaths = path)$data
@@ -78,8 +79,8 @@ rows <- lapply(pairs, function(pair) {
     if (is.na(pub) || is.na(own)) stop(sprintf("model not exported (published: %s, ours: %s)", !is.na(pub), !is.na(own)))
     end_min <- as.numeric(pair$end_h) * 60
     offset <- as.numeric(pair$offset_min)
-    p <- plasma_curve(pub, compound, offset, offset + end_min)
-    o <- plasma_curve(own, compound, 0, end_min)
+    p <- plasma_curve(pub, compound, offset, offset + end_min, pair$output)
+    o <- plasma_curve(own, compound, 0, end_min, pair$output)
     # Pair the samples by time (PK-Sim always adds t = 0 to the outputs, so indices do not line up when the
     # published dose is given later, e.g. the Dapagliflozin IV microdose at 60 min).
     idx <- match(round(o$time, 4), round(p$time - offset, 4))
@@ -91,7 +92,7 @@ rows <- lapply(pairs, function(pair) {
     worst <- which.max(abs(ov - pv))
     max_rel <- if (peak > 0) max(abs(ov - pv)) / peak else NA_real_
     list(
-      ours = pair$ours, published = pair$published, points = length(tv),
+      ours = pair$ours, published = pair$published, points = length(tv), analyte = pair$analyte %||% compound,
       max_rel_to_peak = max_rel,
       worst_time_min = tv[[worst]],
       cmax_ratio = max(ov) / max(pv),
