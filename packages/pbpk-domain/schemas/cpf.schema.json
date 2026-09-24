@@ -2,7 +2,7 @@
   "$defs": {
     "EngineBinding": {
       "additionalProperties": false,
-      "description": "Where a parameter lives in a PK-Sim snapshot (MS-01 \u00a72.1).\n\n`building_block` is Compound/Individual/Formulation/Protocol. For a compound process the `process`\nfield carries the process internal name and, for molecule-based processes, the molecule after a\ncolon, e.g. \"MetabolizationSpecific_FirstOrder:CYP3A4\"; `parameter` is the engine parameter name.",
+      "description": "Where a parameter lives in a PK-Sim snapshot (MS-01 §2.1).\n\n`building_block` is Compound/Individual/Formulation/Protocol. For a compound process the `process`\nfield carries the process internal name and, for molecule-based processes, the molecule after a\ncolon, e.g. \"MetabolizationSpecific_FirstOrder:CYP3A4\"; `parameter` is the engine parameter name.",
       "properties": {
         "building_block": {
           "title": "Building Block",
@@ -168,6 +168,17 @@
             }
           ],
           "default": null
+        },
+        "uncertainty": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Uncertainty"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -269,6 +280,67 @@
       ],
       "title": "Scale",
       "type": "string"
+    },
+    "Uncertainty": {
+      "additionalProperties": false,
+      "description": "A fitted parameter's precision, from the parameter identification's confidence-interval estimate.",
+      "properties": {
+        "sd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sd"
+        },
+        "cv_percent": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cv Percent"
+        },
+        "ci95_lower": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ci95 Lower"
+        },
+        "ci95_upper": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ci95 Upper"
+        },
+        "method": {
+          "default": "hessian",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "title": "Uncertainty",
+      "type": "object"
     }
   },
   "additionalProperties": false,

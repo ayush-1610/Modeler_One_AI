@@ -54,9 +54,11 @@ from modeler_orchestrator.campaign_activities import (
     collect_pkml_inputs,
     diagnose_round,
     evaluate_round,
+    evaluate_vpc,
     plan_campaign,
     plan_stage,
     prepare_round_job,
+    prepare_vpc_jobs,
     run_round,
 )
 from modeler_orchestrator.fitting_activities import assess_round as assess_fit_round
@@ -106,6 +108,17 @@ def default_engine() -> EngineRun:
         image_digest=os.environ.get("MODELER_IMAGE_DIGEST", "local"),
     )
     return runner.run
+
+
+def fit_workers(fit_request, n_jobs: int) -> int:
+    """How many fit starts run at once: the planner's parallelism (cores ÷ simulations per start), never more than
+    this machine's CPUs, overridable with MODELER_FIT_WORKERS (e.g. to spare memory on a laptop's Docker engine)."""
+    override = os.environ.get("MODELER_FIT_WORKERS")
+    if override:
+        return max(1, min(int(override), n_jobs))
+    per_start = max(1, int(getattr(fit_request, "simulations_per_evaluation", 1) or 1))
+    planned = max(1, int(getattr(fit_request, "cores", 1) or 1) // per_start)
+    return max(1, min(planned, os.cpu_count() or 1, n_jobs))
 
 
 def _local_json(uri: str) -> dict | None:
@@ -224,6 +237,7 @@ class CampaignArtifactWriter:
             # per-study and per-group results, so validation can be shown fasted vs fed and study by study
             "studies": evaluation.metrics.get("studies", []),
             "groups": evaluation.metrics.get("groups", []),
+            "vpc": evaluation.metrics.get("vpc", {}),  # per study: coverage and the 5/50/95 % band for the plot
             "findings": list(evaluation.findings),
         })
 
@@ -464,6 +478,7 @@ class LocalExecutor:
         run_result = run_round(RoundRun(context=ctx, build=build, fit_outcome=fit_outcome, manifest=manifest))
         judged_ctx = ctx
         fitted = run_result.cpf_uri != ctx.cpf_uri
+        judged_manifest = manifest
         if fitted:
             # The simulation above ran the CPF *before* the fit. Judge the fit in the round it happened: simulate
             # the fitted CPF and evaluate that, or a successful fit is scored on stale values, its action counts as
@@ -471,12 +486,23 @@ class LocalExecutor:
             judged_ctx = replace(ctx, cpf_uri=run_result.cpf_uri, cpf_sha256=run_result.cpf_sha256,
                                  pending_action=None, pending_bounds_override=None, phase="postfit")
             post_build, post_manifest = self._simulate(judged_ctx)
+            judged_manifest = post_manifest
             notes.extend(n for n in (getattr(post_build, "notes", []) or []) if n not in notes)
             run_result = run_round(RoundRun(context=judged_ctx, build=post_build, fit_outcome=None, manifest=post_manifest))
 
         evaluation = evaluate_round(judged_ctx, run_result)
         diagnosis = RoundDiagnosis()
         choice = None
+        if evaluation.gate_passed and judged_manifest is not None:
+            vpc_jobs = prepare_vpc_jobs(judged_ctx, judged_manifest)  # none outside the VPC stages (no pkml)
+            if vpc_jobs:
+                evaluation = evaluate_vpc(judged_ctx, evaluation, self._run_jobs(vpc_jobs))
+                if not evaluation.gate_passed:
+                    # PK agrees but the population does not cover the data: no fit action addresses variability.
+                    diagnosis = RoundDiagnosis(escalate=True, escalation_reason="vpc_coverage_below_80",
+                                               evidence=[f for f in evaluation.findings if "VPC" in f])
+                    return _RoundOutcome(run_result=run_result, evaluation=evaluation, diagnosis=diagnosis,
+                                         choice=None, notes=notes, fitted=fitted)
         if not evaluation.gate_passed and not judge_only:
             diagnosis = diagnose_round(judged_ctx, evaluation)
             if not diagnosis.escalate:
@@ -485,11 +511,25 @@ class LocalExecutor:
                              notes=notes, fitted=fitted)
 
     def _run_fit(self, fit_request) -> object:
-        """Reproduce FitRoundWorkflow without Temporal: plan the multistart, run each start on the engine,
-        assess. Starts run sequentially (the single-node engine already parallelises PI internally)."""
+        """Reproduce FitRoundWorkflow without Temporal: plan the multistart, run the starts on the engine in
+        parallel — as many at once as the plan assumed (`fit_workers`) — and assess.
+
+        The multistart planner sizes the number of starts for parallel execution; running them one after another
+        multiplies a planned one-minute fit by the number of starts (up to 32), which breaks the one-hour budget."""
         jobs = plan_jobs(fit_request)
-        manifests = [self.engine(job) for job in jobs]
+        manifests = self._run_jobs(jobs, workers=fit_workers(fit_request, len(jobs)))
         return assess_fit_round(fit_request, jobs, manifests, deadline_reached=False)
+
+    def _run_jobs(self, jobs: list, *, workers: int | None = None) -> list:
+        """Run independent engine jobs (fit starts, VPC populations) at once; each is its own engine subprocess."""
+        workers = workers if workers is not None else max(1, min(len(jobs), os.cpu_count() or 1,
+                                                                 int(os.environ.get("MODELER_FIT_WORKERS", "64"))))
+        if workers <= 1 or len(jobs) <= 1:
+            return [self.engine(job) for job in jobs]
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="engine-job") as pool:
+            return list(pool.map(self.engine, jobs))
 
 
 def run_campaign(

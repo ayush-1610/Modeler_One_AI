@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance, Uncertainty
 from pbpk_domain.pksim_paths import pksim_parameter_path
 
 
@@ -32,6 +32,8 @@ class FitSimulation:
     pkml: str          # bare file name the engine provides (from the snapshot -> pkml conversion)
     output_path: str   # the plasma output path the observed data is compared against
     observed: dict[str, Any]  # PI observed dict (see `pi_observed`)
+    protocol: str | None = None     # the simulation's protocol name (formulation parameters live under it)
+    formulation: str | None = None  # the CPF formulation the simulation uses (None for IV / solution)
 
 
 def pi_observed(
@@ -79,6 +81,24 @@ def _bounds(record: ParameterRecord, override: tuple[float, float] | None) -> tu
     return float(lo), float(hi)
 
 
+def _paths(record: ParameterRecord, compound: str, simulations: list[FitSimulation]) -> list[dict[str, str]]:
+    """Where the parameter lives in each simulation. A formulation parameter lives under each simulation's own
+    protocol and exists only in the simulations using that formulation; everything else has one path in all."""
+    from pbpk_domain.cpf.formulations import weibull_parameter_path
+
+    parts = record.id.split(".")
+    if parts[0] == "form":
+        paths = [
+            {"simulation": s.study_id, "path": weibull_parameter_path(record.id, protocol=s.protocol)}
+            for s in simulations if s.formulation == parts[1] and s.protocol
+        ]
+        if not paths or any(p["path"] is None for p in paths):
+            raise FitSpecError(f"{record.id!r}: no simulation in this fit uses formulation {parts[1]!r}")
+        return paths
+    path = pksim_parameter_path(record, compound=compound)  # raises for an unmapped parameter
+    return [{"simulation": s.study_id, "path": path} for s in simulations]
+
+
 def build_fit_spec(
     cpf: CPF,
     fit_ids: list[str],
@@ -96,19 +116,16 @@ def build_fit_spec(
     if not fit_ids:
         raise FitSpecError("a fit spec needs at least one parameter to fit")
     override = bounds_override or {}
-    sim_ids = [s.study_id for s in simulations]
 
     parameters: list[dict[str, Any]] = []
     for pid in fit_ids:
         record = cpf.get(pid)
         if record is None:
             raise FitSpecError(f"CPF for {cpf.compound} has no parameter {pid!r} to fit")
-        path = pksim_parameter_path(record, compound=cpf.compound)  # raises for an unmapped parameter
         lo, hi = _bounds(record, override.get(pid))
         start = min(max(record.numeric_value, lo), hi)  # clamp the current value into the bounds
         entry: dict[str, Any] = {
-            "name": pid, "min": lo, "max": hi, "start": start,
-            "paths": [{"simulation": sid, "path": path} for sid in sim_ids],
+            "name": pid, "min": lo, "max": hi, "start": start, "paths": _paths(record, cpf.compound, simulations),
         }
         # A dimensionless parameter (e.g. GFR fraction) carries no unit key at all: a JSON null does not survive
         # run_job.R's re-serialisation (R writes it back as {}), and ospsuite then rejects the empty "unit".
@@ -131,6 +148,7 @@ def build_fit_spec(
 
 def apply_fit_estimates(
     cpf: CPF, estimates: dict[str, float], *, stage: str, run: str | None = None, note: str | None = None,
+    uncertainty: dict[str, dict] | None = None,
 ) -> CPF:
     """Return a new CPF version with each estimated parameter set to its fitted value.
 
@@ -145,7 +163,11 @@ def apply_fit_estimates(
             source_type="ParameterIdentification", reference=note, run=run,
             supersedes=f"{cpf.compound}@{cpf.version}:{pid}",
         )
+        spread = (uncertainty or {}).get(pid) or {}
+        precision = Uncertainty(sd=spread.get("sd"), cv_percent=spread.get("cv"), ci95_lower=spread.get("ci_lower"),
+                                ci95_upper=spread.get("ci_upper")) if spread else None
         records.append(record.model_copy(update={
             "value": float(value), "status": ParameterStatus.FITTED, "fitted_at_stage": stage, "provenance": provenance,
+            "uncertainty": precision,
         }))
     return cpf.replace(*records, note=note or f"applied {len(records)} fitted estimate(s) at {stage}")

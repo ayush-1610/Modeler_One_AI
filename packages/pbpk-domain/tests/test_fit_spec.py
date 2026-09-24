@@ -121,3 +121,25 @@ def test_apply_estimates_creates_fitted_new_version():
 def test_apply_unknown_estimate_raises():
     with pytest.raises(FitSpecError, match="no such parameter"):
         apply_fit_estimates(_cpf(), {"phys.nonesuch": 1.0}, stage="S1")
+
+
+def test_weibull_parameter_is_fitted_per_simulation_under_its_own_protocol():
+    """Harvested on PK-Sim 12.4.4: Events|<protocol>|<formulation>|Dissolution time (50% dissolved)."""
+    prov = Provenance(source_type="measured", reference="in-vitro dissolution")
+    cpf = _cpf().model_copy(update={"parameters": (*_cpf().parameters,
+        ParameterRecord(id="form.Tab.type", value="Weibull", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="form.Tab.weibull.t50", value=30.0, unit="min", status=ParameterStatus.FIXED, provenance=prov,
+                        fit_policy=FitPolicy(stage=("S3",), lower=15.0, upper=60.0)))})
+    obs = pi_observed("o", [1, 2], [1.0, 0.5], time_unit="h", unit="ng/ml", mol_weight=300.0)
+    out = "Organism|PeripheralVenousBlood|Drug-A|Plasma (Peripheral Venous Blood)"
+    sims = [FitSimulation("tab_a", "snapshot-tab_a.pkml", out, obs, protocol="tab_a protocol", formulation="Tab"),
+            FitSimulation("tab_b", "snapshot-tab_b.pkml", out, obs, protocol="tab_b protocol", formulation="Tab"),
+            FitSimulation("sol", "snapshot-sol.pkml", out, obs, protocol="sol protocol", formulation=None)]
+    spec = build_fit_spec(cpf, ["form.Tab.weibull.t50"], sims)
+    assert spec["parameters"][0]["paths"] == [
+        {"simulation": "tab_a", "path": "Events|tab_a protocol|Tab|Dissolution time (50% dissolved)"},
+        {"simulation": "tab_b", "path": "Events|tab_b protocol|Tab|Dissolution time (50% dissolved)"},
+    ]  # the solution study has no such parameter and is not given a path
+    assert (spec["parameters"][0]["min"], spec["parameters"][0]["max"]) == (15.0, 60.0)
+    with pytest.raises(FitSpecError, match="uses formulation"):
+        build_fit_spec(cpf, ["form.Tab.weibull.t50"], [sims[2]])

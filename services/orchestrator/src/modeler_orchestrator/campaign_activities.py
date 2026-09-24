@@ -175,7 +175,8 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     Returns None (the round then simulates instead of fitting) when there is no fittable parameter, no
     observed profile to fit against, or the spec cannot be built. The pkml model inputs are left empty here
     and filled by the snapshot->pkml conversion step before the fit runs."""
-    from pbpk_domain.campaign.round_build import scenarios_for_stage
+    from pbpk_domain.campaign.round_build import protocol_name, scenarios_for_stage
+    from pbpk_domain.cpf.formulations import FormulationError, resolve_formulation_name
     from pbpk_domain.fit_spec import FitSimulation, FitSpecError, build_fit_spec, pi_observed, resolve_fit_ids
     from pbpk_domain.units import is_molar
 
@@ -206,11 +207,18 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
         # Observed profiles are stored in the engine's units (µmol/l, `pbpk_domain.units`); declare the molar
         # dimension, or ospsuite reads µmol/l as a mass concentration and the fit is meaningless or fails.
         dimension = "Concentration (molar)" if is_molar(profile["unit"]) else "Concentration (mass)"
+        formulation = None
+        if scenario.route == "oral" and scenario.formulation not in ("solution", "suspension"):
+            try:
+                formulation, _ = resolve_formulation_name(cpf, scenario.formulation_name)
+            except FormulationError:
+                formulation = None
         simulations.append(FitSimulation(
             study_id=scenario.study_id, pkml=exported_pkml_name(scenario.study_id), output_path=output_path,
             observed=pi_observed(scenario.study_id, profile["times"], profile["values"], time_unit=profile["time_unit"],
                                  unit=profile["unit"], mol_weight=mol_weight, dimension=dimension,
                                  sd=profile.get("sd"), lloq=profile.get("lloq")),
+            protocol=protocol_name(scenario.study_id), formulation=formulation,
         ))
     if not simulations:
         activity.logger.info("build_round_snapshot %s %s: no observed profile to fit against", ctx.campaign_id, ctx.stage)
@@ -325,9 +333,98 @@ def prepare_round_job(ctx: RoundContext, build: RoundBuild) -> EngineJob:
         task="simulate",
         inputs=[EngineInput(name=ROUND_SNAPSHOT_INPUT, uri=build.snapshot_uri, sha256=build.snapshot_sha256)],
         outputs_uri=f"{root}/tenants/{ctx.tenant_id}/campaigns/{ctx.campaign_id}/{ctx.stage}/{round_dir}",
-        options={"export_pkml": True} if (build.needs_fit and build.fit_request is not None) else {},
+        # pkml per simulation: the fit's models on a fit round, and the VPC's models on a stage the VPC gates.
+        options={"export_pkml": True} if (build.needs_fit and build.fit_request is not None) or _vpc_stage(ctx.stage) else {},
         timeout_s=int(max(60.0, ctx.deadline_seconds)) if ctx.deadline_seconds else 600,
     )
+
+
+def _vpc_stage(stage: str) -> bool:
+    from pbpk_domain.campaign.vpc import VPC_STAGES
+
+    return stage in VPC_STAGES
+
+
+@activity.defn(name="prepare_vpc_jobs")
+def prepare_vpc_jobs(ctx: RoundContext, manifest: EngineManifest) -> list[EngineJob]:
+    """One population job per study the round simulated (MS-01 VPC): the study's exported model run across 100
+    virtual individuals from its demographics, seed recorded, returning the 5/50/95 % band (``vpc.json``)."""
+    from pbpk_domain.campaign.map import MapDocument
+    from pbpk_domain.campaign.round_build import scenarios_for_stage
+    from pbpk_domain.campaign.vpc import VPC_INDIVIDUALS, VPC_PERCENTILES
+
+    map_text = _load_local_text(ctx.map_uri) if ctx.map_uri else None
+    if map_text is None or manifest is None:
+        return []
+    map_doc = MapDocument.model_validate_json(map_text)
+    pkml = {Path(o.name).name: o for o in manifest.outputs if o.name.endswith(".pkml")}
+    cpf_text = _load_local_text(ctx.cpf_uri)
+    compound = json.loads(cpf_text)["compound"] if cpf_text else ""
+    root = os.environ.get("MODELER_OBJECT_STORE_URI", "file:///tmp/modeler-object-store").rstrip("/")
+    jobs = []
+    for scenario in scenarios_for_stage(map_doc.scenarios, ctx.stage):
+        model = pkml.get(exported_pkml_name(scenario.study_id))
+        if model is None:
+            continue
+        jobs.append(EngineJob(
+            job_id=f"{_round_stem(ctx)}-vpc-{scenario.study_id}", tenant_id=ctx.tenant_id, task="population",
+            inputs=[EngineInput(name="simulation.pkml", uri=model.uri, sha256=model.sha256)],
+            outputs_uri=f"{root}/tenants/{ctx.tenant_id}/campaigns/{ctx.campaign_id}/{ctx.stage}/"
+                        f"r{ctx.round_index}{'-' + ctx.phase if ctx.phase else ''}/vpc/{scenario.study_id}",
+            options={
+                "population": {
+                    "population": scenario.population, "number_of_individuals": VPC_INDIVIDUALS,
+                    "proportion_of_females": 100 if scenario.sex == "FEMALE" else 0,
+                    "age_min": scenario.vpc_age_min, "age_max": scenario.vpc_age_max,
+                },
+                "seed": ctx.seed,
+                "vpc": {"output_path": PLASMA_OUTPUT_PATH.format(compound=compound), "percentiles": list(VPC_PERCENTILES)},
+            },
+            timeout_s=int(max(120.0, ctx.deadline_seconds)) if ctx.deadline_seconds else 900,
+        ))
+    return jobs
+
+
+@activity.defn(name="evaluate_vpc")
+def evaluate_vpc(ctx: RoundContext, evaluation: RoundEvaluation, manifests: list[EngineManifest]) -> RoundEvaluation:
+    """Add the VPC to a round's evaluation: coverage of each study's observed points by its 5–95 % band; the gate
+    needs every study at ≥ 80 % (MS-01 S1/S2). Metrics gain ``vpc`` per study; a failing study is a finding."""
+    from pbpk_domain.campaign.vpc import VPC_GATE_STAGES, VPC_MIN_COVERAGE, coverage
+
+    gating = ctx.stage in VPC_GATE_STAGES
+
+    observed_doc = _load_local_json(ctx.observed_uri) if ctx.observed_uri else {}
+    results: dict[str, dict] = {}
+    findings = list(evaluation.findings)
+    for manifest in manifests:
+        band_file = next((o for o in manifest.outputs if Path(o.name).name == "vpc.json"), None)
+        study_id = manifest.job_id.rsplit("-vpc-", 1)[-1]
+        band = _load_local_json(band_file.uri) if band_file else None
+        profile = ((observed_doc or {}).get(study_id) or {}).get("profile")
+        if not band or not profile:
+            findings.append(f"{study_id}: VPC not available ({'no band' if not band else 'no observed profile'})")
+            results[study_id] = {"coverage": None, "passes": False}
+            continue
+        factor = minutes_per_unit(profile.get("time_unit", "min"))
+        cov = coverage(study_id, band, [t * factor for t in profile["times"]], profile["values"], lloq=profile.get("lloq"))
+        results[study_id] = {"coverage": round(cov.fraction, 3), "points": cov.n_points, "inside": cov.n_inside,
+                             "individuals": cov.individuals, "passes": cov.passes,
+                             "band": {"times_min": band["times_min"], "p5": band["percentiles"]["5"],
+                                      "p50": band["percentiles"]["50"], "p95": band["percentiles"]["95"]}}
+        if not cov.passes:
+            flag = "" if gating else f" — reported, not gated at {ctx.stage} (MS-01 §4)"
+            findings.append(f"{study_id} VPC: {cov.n_inside}/{cov.n_points} observed points inside the 5–95 % band "
+                            f"({cov.fraction:.0%}, gate ≥ {VPC_MIN_COVERAGE:.0%}){flag}")
+    vpc_ok = (bool(results) and all(r["passes"] for r in results.values())) or not gating
+    metrics = dict(evaluation.metrics) | {"vpc": results}
+    return RoundEvaluation(gate_passed=evaluation.gate_passed and vpc_ok, acceptable=evaluation.acceptable and vpc_ok,
+                           metrics=metrics, findings=findings)
+
+
+def minutes_per_unit(unit: str) -> float:
+    from pbpk_domain.units import minutes_per
+
+    return minutes_per(unit)
 
 
 def _best_estimates(fit_outcome) -> dict[str, float]:
@@ -351,8 +448,10 @@ def _apply_round_fit(ctx: RoundContext, fit_outcome) -> tuple[str, str]:
     from pbpk_domain.fit_spec import FitSpecError, apply_fit_estimates
 
     try:
+        best = next(s for s in fit_outcome.starts if s.start_index == fit_outcome.best_start_index)
         updated = apply_fit_estimates(CPF.model_validate_json(cpf_text), estimates, stage=ctx.stage,
-                                      run=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}")
+                                      run=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}",
+                                      uncertainty=getattr(best, "uncertainty", None))
     except FitSpecError as exc:
         activity.logger.warning("run_round %s %s round %d: fit not applied (%s)", ctx.campaign_id, ctx.stage, ctx.round_index, exc)
         return ctx.cpf_uri, ctx.cpf_sha256
@@ -474,6 +573,7 @@ def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str) -> tuple[
     path, cannot change anything. Offering it anyway burns a round on a no-op and can exhaust the round budget
     before the candidate that would have worked is ever tried.
     """
+    from pbpk_domain.cpf.formulations import weibull_parameter_path
     from pbpk_domain.fit_spec import resolve_fit_ids
     from pbpk_domain.pksim_paths import ParameterPathError, pksim_parameter_path
 
@@ -488,10 +588,11 @@ def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str) -> tuple[
                 continue  # MS-01: this parameter may not be fitted at this stage
             if policy is None and record.plausibility is None:
                 continue  # nothing to bound the fit with
-            try:
-                pksim_parameter_path(record, compound=cpf.compound)
-            except ParameterPathError:
-                continue  # no engine path: the fit could not be applied even if it ran
+            if weibull_parameter_path(pid, protocol="<protocol>") is None:  # formulation paths are per simulation
+                try:
+                    pksim_parameter_path(record, compound=cpf.compound)
+                except ParameterPathError:
+                    continue  # no engine path: the fit could not be applied even if it ran
             keep.append(target)
             break
     return tuple(keep)
@@ -601,6 +702,8 @@ async def record_round(record: RoundRecord) -> None:
 CAMPAIGN_ACTIVITIES = [
     plan_campaign,
     plan_stage,
+    prepare_vpc_jobs,
+    evaluate_vpc,
     resume_campaign,
     build_round_snapshot,
     prepare_round_job,

@@ -316,3 +316,106 @@ def test_s0_refuses_a_process_whose_protein_has_no_expression_profile(tmp_path: 
                                    cpf_uri=path.as_uri(), cpf_sha256="a" * 64))
     assert readiness.ready is False
     assert any("no expression profile for CYP2C99" in f for f in readiness.findings)
+
+
+def test_fit_starts_run_in_parallel_as_planned(monkeypatch) -> None:
+    """The multistart plan assumes parallel starts; running them one by one multiplied the fit time by up to 32."""
+    import threading
+    import time as _time
+
+    from modeler_orchestrator import local_runner as lr
+
+    class Req:
+        simulations_per_evaluation, cores = 1, 8
+
+    jobs = [object() for _ in range(6)]
+    monkeypatch.setattr(lr, "plan_jobs", lambda request: jobs)
+    monkeypatch.setattr(lr, "assess_fit_round", lambda request, j, manifests, deadline_reached: manifests)
+    active, peak, lock = [0], [0], threading.Lock()
+
+    def engine(job):
+        with lock:
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+        _time.sleep(0.05)
+        with lock:
+            active[0] -= 1
+        return job
+
+    monkeypatch.delenv("MODELER_FIT_WORKERS", raising=False)
+    monkeypatch.setattr(lr.os, "cpu_count", lambda: 4)
+    assert lr.LocalExecutor(engine=engine)._run_fit(Req()) == jobs      # results in job order
+    assert peak[0] == 4                                                  # min(plan 8, cpus 4, jobs 6)
+    monkeypatch.setenv("MODELER_FIT_WORKERS", "1")
+    peak[0] = 0
+    lr.LocalExecutor(engine=engine)._run_fit(Req())
+    assert peak[0] == 1                                                  # a host can force one at a time
+
+
+class VpcStubEngine(StubEngine):
+    """Also exports the per-study model and answers population jobs with a band `scale` × the golden profile."""
+
+    def __init__(self, low: float, high: float) -> None:
+        super().__init__()
+        self.low, self.high, self.population_jobs = low, high, 0
+
+    def __call__(self, job: EngineJob) -> EngineManifest:
+        manifest = super().__call__(job)
+        out_dir = Path(unquote(urlparse(job.outputs_uri).path))
+        outputs = list(manifest.outputs)
+        if job.task == "simulate" and job.options.get("export_pkml"):
+            p = out_dir / "snapshot-iv.pkml"
+            p.write_text("<pkml/>", encoding="utf-8")
+            outputs.append(OutputFile(name=p.name, uri=p.as_uri(), sha256=hashlib.sha256(p.read_bytes()).hexdigest(),
+                                      size_bytes=p.stat().st_size))
+        if job.task == "population":
+            self.population_jobs += 1
+            assert job.options["population"]["number_of_individuals"] == 100 and job.options["vpc"]["output_path"]
+            g = _golden_profile()["iv"]
+            band = {"individuals": 100, "times_min": g["times_min"], "percentiles": {
+                "5": [c * self.low for c in g["concentrations"]], "50": g["concentrations"],
+                "95": [c * self.high for c in g["concentrations"]]}}
+            p = out_dir / "vpc.json"
+            p.write_text(json.dumps(band), encoding="utf-8")
+            outputs.append(OutputFile(name=p.name, uri=p.as_uri(), sha256=hashlib.sha256(p.read_bytes()).hexdigest(),
+                                      size_bytes=p.stat().st_size))
+        return manifest.__class__(**{**manifest.__dict__, "outputs": outputs})
+
+
+def _golden_observed() -> dict:
+    g = _golden_profile()["iv"]
+    idx = range(5, len(g["times_min"]), 20)
+    return {"iv": {"auc": GOLDEN_AUC, "cmax": GOLDEN_CMAX, "profile": {
+        "times": [g["times_min"][i] for i in idx], "values": [g["concentrations"][i] for i in idx],
+        "time_unit": "min", "unit": "µmol/l"}}}
+
+
+def test_vpc_gates_s1_and_is_recorded_per_study(tmp_path: Path) -> None:
+    """MS-01 S1: ≥ 80 % of observed points inside the 5–95 % band of a 100-individual population."""
+    request, root = _seed_campaign(tmp_path, observed=_golden_observed())
+    engine = VpcStubEngine(low=0.5, high=2.0)
+    outcome = run_campaign(request, read_root=root, project="p", engine=engine)
+    assert outcome.status == "COMPLETED", outcome.reason
+    assert engine.population_jobs == 1
+    rnd = next(s for s in FileReadStore(root).get_campaign("t1", "camp-loc")["stages"] if s["stage"] == "S1")["rounds"][0]
+    assert rnd["verdict"] == "passed"
+
+
+def test_vpc_that_misses_the_data_escalates_with_its_own_reason(tmp_path: Path) -> None:
+    request, root = _seed_campaign(tmp_path, observed=_golden_observed())
+    engine = VpcStubEngine(low=1.5, high=2.0)  # band sits above every observed point
+    outcome = run_campaign(request, read_root=root, project="p", engine=engine)
+    assert outcome.status == "ESCALATED" and "vpc_coverage_below_80" in outcome.reason
+    assert "VPC: 0/" in outcome.reason  # the finding says how many points were covered
+
+
+def test_s4_reports_a_low_vpc_but_does_not_gate_on_it(tmp_path: Path) -> None:
+    """MS-01 §4: the VPC gates S1/S2; at S4 it is a report item ("VPC per study"), the gate is PK acceptance."""
+    request, root = _seed_campaign(tmp_path, observed=_golden_observed())
+    from dataclasses import replace
+
+    request = replace(request, stages=["S0", "S4"])
+    outcome = run_campaign(request, read_root=root, project="p", engine=VpcStubEngine(low=1.5, high=2.0))
+    assert outcome.status == "COMPLETED", outcome.reason
+    s4 = next(s for s in outcome.stages if s.stage == "S4")
+    assert s4.status == "PASSED" and any("reported, not gated at S4" in f for f in s4.findings)

@@ -15,6 +15,7 @@ rows via `resume_campaign`; a worker restart replays from Temporal history, so n
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from datetime import timedelta
 
@@ -177,6 +178,29 @@ class StageLoopWorkflow:
         return StageOutcome(stage=request.stage, status=status, rounds_run=1, cpf_uri=request.cpf_uri,
                             cpf_sha256=request.cpf_sha256, findings=evaluation.findings, escalation_reason=reason)
 
+    async def _vpc(self, ctx: RoundContext, evaluation: RoundEvaluation, manifest: EngineManifest | None,
+                   remaining: float) -> RoundEvaluation:
+        """MS-01 VPC on a stage whose PK gate passed: one population job per study, then coverage ≥ 80 %."""
+        if not evaluation.gate_passed or manifest is None:
+            return evaluation
+        jobs: list[EngineJob] = await workflow.execute_activity(
+            "prepare_vpc_jobs", args=[ctx, manifest], start_to_close_timeout=_MIN, retry_policy=ACT_RETRY,
+            result_type=list[EngineJob],
+        )
+        if not jobs:
+            return evaluation
+        manifests = await asyncio.gather(*(
+            workflow.execute_activity(
+                "run_engine_job", job, task_queue=ROUND_ENGINE_QUEUE,
+                start_to_close_timeout=timedelta(seconds=max(120.0, remaining)), heartbeat_timeout=_MIN * 2,
+                retry_policy=ENGINE_RETRY, result_type=EngineManifest,
+            ) for job in jobs
+        ))
+        return await workflow.execute_activity(
+            "evaluate_vpc", args=[ctx, evaluation, list(manifests)], start_to_close_timeout=_MIN * 2,
+            retry_policy=ACT_RETRY, result_type=RoundEvaluation,
+        )
+
     async def _simulate(self, ctx: RoundContext, remaining: float) -> tuple[RoundBuild, EngineManifest | None]:
         build: RoundBuild = await workflow.execute_activity(
             "build_round_snapshot", ctx, start_to_close_timeout=_MIN * 5, retry_policy=ACT_RETRY, result_type=RoundBuild,
@@ -220,12 +244,13 @@ class StageLoopWorkflow:
             "run_round", RoundRun(context=ctx, build=build, fit_outcome=fit_outcome, manifest=manifest),
             start_to_close_timeout=_MIN * 5, retry_policy=ACT_RETRY, result_type=RoundRunResult,
         )
-        judged = ctx
+        judged, judged_manifest = ctx, manifest
         if run_result.cpf_uri != ctx.cpf_uri:
             # The fit changed the CPF: judge the fitted model in this round, not the pre-fit simulation.
             judged = replace(ctx, cpf_uri=run_result.cpf_uri, cpf_sha256=run_result.cpf_sha256,
                              pending_action=None, pending_bounds_override=None, phase="postfit")
             post_build, post_manifest = await self._simulate(judged, remaining)
+            judged_manifest = post_manifest
             run_result = await workflow.execute_activity(
                 "run_round", RoundRun(context=judged, build=post_build, fit_outcome=None, manifest=post_manifest),
                 start_to_close_timeout=_MIN * 5, retry_policy=ACT_RETRY, result_type=RoundRunResult,
@@ -236,7 +261,13 @@ class StageLoopWorkflow:
         )
         diagnosis = RoundDiagnosis()
         choice: ActionChoice | None = None
-        if not evaluation.gate_passed and not judge_only:
+        if evaluation.gate_passed:
+            evaluation = await self._vpc(judged, evaluation, judged_manifest, remaining)
+            if not evaluation.gate_passed:
+                # PK agrees but the population does not cover the data: no fit action addresses variability.
+                diagnosis = RoundDiagnosis(escalate=True, escalation_reason="vpc_coverage_below_80",
+                                           evidence=[f for f in evaluation.findings if "VPC" in f])
+        if not evaluation.gate_passed and not judge_only and not diagnosis.escalate:
             diagnosis = await workflow.execute_activity(
                 "diagnose_round", args=[judged, evaluation], start_to_close_timeout=_MIN * 2, retry_policy=ACT_RETRY,
                 result_type=RoundDiagnosis,

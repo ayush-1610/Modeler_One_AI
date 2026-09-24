@@ -80,15 +80,26 @@ run_parameter_identification <- function(spec_path, out_dir) {
   for (s in spec$simulations) simulations[[s$id]] <- loadSimulation(s$pkml, loadFromCache = FALSE)
   progress(0.05)
 
+  # Bounds, start and estimates are exchanged in the CPF's unit but the optimiser is driven in the parameter's BASE
+  # unit: in ospsuite.parameteridentification 2.2.0 the optimiser applies values in the base unit whatever
+  # PIParameters$unit says, and setting the unit does not convert the bounds (verified on the engine 2026-09-24:
+  # a permeability fitted "in cm/min" was really fitted in dm/min, and stored 10x too low). So every value is
+  # converted to the base unit here and back to the CPF's unit in the result. A dimensionless parameter has no
+  # unit (a JSON null re-serialised by R comes back as an empty list, hence the strict string check).
+  has_unit <- function(u) is.character(u) && length(u) == 1 && nzchar(u)
+  base_factor <- list()  # parameter name -> multiply a base-unit value by this to get the CPF's unit
   parameters <- lapply(spec$parameters, function(p) {
     objects <- lapply(p$paths, function(x) getParameter(path = x$path, container = simulations[[x$simulation]]))
     pi_parameter <- PIParameters$new(parameters = objects)
-    # Only a real unit string: a dimensionless parameter has none, and a JSON null re-serialised by R comes
-    # back as an empty list, which ospsuite rejects ("enc2utf8(unit): argument is not a character vector").
-    if (is.character(p$unit) && length(p$unit) == 1 && nzchar(p$unit)) pi_parameter$unit <- p$unit
-    pi_parameter$minValue <- as.numeric(p$min)
-    pi_parameter$maxValue <- as.numeric(p$max)
-    if (!is.null(p$start)) pi_parameter$startValue <- as.numeric(p$start)
+    to_base <- function(v) if (has_unit(p$unit)) toBaseUnit(objects[[1]], as.numeric(v), p$unit) else as.numeric(v)
+    base_factor[[p$name]] <<- if (has_unit(p$unit)) toUnit(objects[[1]], 1, p$unit) else 1
+    lo <- to_base(p$min); hi <- to_base(p$max)
+    # Widen first, then set the start, then narrow: the setters reject a bound on the wrong side of the start.
+    pi_parameter$maxValue <- max(hi, pi_parameter$maxValue)
+    pi_parameter$minValue <- min(lo, pi_parameter$minValue)
+    if (!is.null(p$start)) pi_parameter$startValue <- to_base(p$start)
+    pi_parameter$minValue <- lo
+    pi_parameter$maxValue <- hi
     pi_parameter
   })
 
@@ -133,7 +144,15 @@ run_parameter_identification <- function(spec_path, out_dir) {
     estimates = lapply(seq_len(nrow(estimates)), function(i) {
       row <- as.list(estimates[i, c("name", "path", "unit", "estimate", "sd", "cv", "lowerCI", "upperCI", "initialValue")])
       cpf_id <- id_by_path[[row$path]]
-      if (!is.null(cpf_id)) { row$pksim_name <- row$name; row$name <- cpf_id }
+      if (!is.null(cpf_id)) {
+        row$pksim_name <- row$name; row$name <- cpf_id
+        # back from the base unit to the CPF's unit (linear units: absolute SD and CIs scale by the same factor)
+        spec_p <- Filter(function(p) identical(p$name, cpf_id), spec$parameters)[[1]]
+        factor <- base_factor[[cpf_id]]
+        for (k in c("estimate", "sd", "lowerCI", "upperCI", "initialValue")) row[[k]] <- as.numeric(row[[k]]) * factor
+        row$base_unit <- row$unit
+        row$unit <- if (has_unit(spec_p$unit)) spec_p$unit else row$unit
+      }
       row
     }),
     ospsuite = as.character(packageVersion("ospsuite")),

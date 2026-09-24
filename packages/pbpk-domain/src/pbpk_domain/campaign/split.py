@@ -100,6 +100,8 @@ class Demographics(BaseModel):
     population: str = "European_ICRP_2002"
     sex: Sex = Sex.MALE
     age_years: float = Field(default=30.0, gt=0)
+    age_min: float | None = Field(default=None, ge=0)  # the study's reported age range, for its VPC population
+    age_max: float | None = Field(default=None, gt=0)
     weight_kg: float | None = Field(default=None, gt=0)  # recorded; not yet emitted (see class docstring)
     height_cm: float | None = Field(default=None, gt=0)  # recorded; not yet emitted (see class docstring)
 
@@ -135,6 +137,7 @@ class StudyRecord(BaseModel):
     dose_mg: float = Field(gt=0)
     infusion_time_min: float | None = Field(default=None, gt=0)  # required to simulate an IV study
     formulation: FormulationKind = FormulationKind.SOLUTION
+    formulation_name: str | None = None  # the CPF formulation (form.{name}.*) a solid oral study used
     food_state: FoodState = FoodState.FASTED
     meal_type: str | None = None
     demographics: Demographics | None = None  # the studied individual; DEFAULT_DEMOGRAPHICS when absent

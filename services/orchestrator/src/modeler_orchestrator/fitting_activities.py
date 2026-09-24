@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from urllib.parse import urlparse
 
@@ -62,6 +63,15 @@ def _read_result(manifest: EngineManifest) -> dict:
         return json.load(handle)
 
 
+def _num(value) -> float | None:
+    """A finite number from the engine's result, or None (the CI can be NA when the Hessian is singular)."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def assess_round(
     request: FitRoundRequest, jobs: list[EngineJob], manifests: list[EngineManifest | None], deadline_reached: bool
 ) -> FitRoundOutcome:
@@ -76,7 +86,10 @@ def assess_round(
         estimates = {e["name"]: float(e["estimate"]) for e in data["estimates"]}
         converged = str(data.get("convergence", "")).lower() not in ("false", "0", "failed", "")
         outcome = FitStartOutcome(
-            index, "SUCCEEDED", estimates, float(data["objective_value"]), converged, int(data["function_evaluations"]), manifest
+            index, "SUCCEEDED", estimates, float(data["objective_value"]), converged, int(data["function_evaluations"]), manifest,
+            uncertainty={e["name"]: {"sd": _num(e.get("sd")), "cv": _num(e.get("cv")),
+                                     "ci_lower": _num(e.get("lowerCI")), "ci_upper": _num(e.get("upperCI"))}
+                         for e in data["estimates"]},
         )
         starts.append(outcome)
         results.append(StartResult(index, estimates, outcome.objective, converged, outcome.evaluations))

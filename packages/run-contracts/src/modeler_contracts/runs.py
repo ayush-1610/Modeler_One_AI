@@ -139,6 +139,8 @@ class FitStartOutcome:
     converged: bool = False
     evaluations: int = 0
     manifest: EngineManifest | None = None
+    # per parameter: {"sd", "cv", "ci_lower", "ci_upper"} from the engine's CI estimate (hessian), in the CPF's unit
+    uncertainty: dict[str, dict[str, float | None]] = field(default_factory=dict)
 
 
 @dataclass

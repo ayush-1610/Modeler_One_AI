@@ -116,11 +116,41 @@ def test_iv_without_infusion_time_raises() -> None:
         build_stage_snapshot(_cpf(), [_scenario(infusion_time_min=None)], stage="S1")
 
 
-def test_ir_formulation_raises() -> None:
+def test_tablet_without_a_cpf_formulation_raises() -> None:
     sc = _scenario(study_id="ir", stage="S2", route="oral", dose_mg=10.0, infusion_time_min=None,
                    formulation="ir_tablet")
-    with pytest.raises(ScenarioBuildError, match="dissolution model"):
+    with pytest.raises(ScenarioBuildError, match="defines no formulation"):
         build_stage_snapshot(_cpf(), [sc], stage="S2")
+
+
+def _with_tablet(cpf: CPF, name: str = "IC tablet", t50: float = 30.0, shape: float = 0.6) -> CPF:
+    prov = Provenance(source_type="measured", reference="in-vitro dissolution")
+    extra = (
+        ParameterRecord(id=f"form.{name}.type", value="Weibull", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id=f"form.{name}.weibull.t50", value=t50, unit="min", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id=f"form.{name}.weibull.shape", value=shape, status=ParameterStatus.FIXED, provenance=prov),
+    )
+    return cpf.model_copy(update={"parameters": (*cpf.parameters, *extra)})
+
+
+def test_tablet_is_built_as_the_cpf_weibull_formulation() -> None:
+    cpf = _with_tablet(_cpf())
+    sc = _scenario(study_id="tab", stage="S2", route="oral", dose_mg=10.0, infusion_time_min=None,
+                   formulation="ir_tablet", formulation_name="IC tablet")
+    stage = build_stage_snapshot(cpf, [sc], stage="S2")
+    form = next(f for f in stage.snapshot.formulations if f.name == "IC tablet")
+    assert form.formulation_type == "Formulation_Tablet_Weibull"
+    values = {p.name: p.value for p in form.parameters}
+    assert values["Dissolution time (50% dissolved)"] == 30.0 and values["Dissolution shape"] == 0.6
+    assert values["Lag time"] == 0.0 and values["Use as suspension"] == 1.0  # as in every published OSP tablet
+    assert stage.snapshot.simulations[0].to_json_dict().get("Compounds")  # the simulation references it
+
+
+def test_an_unnamed_tablet_uses_the_only_cpf_formulation_and_says_so() -> None:
+    cpf = _with_tablet(_cpf())
+    sc = _scenario(study_id="tab", stage="S2", route="oral", dose_mg=10.0, infusion_time_min=None, formulation="ir_tablet")
+    stage = build_stage_snapshot(cpf, [sc], stage="S2")
+    assert any("only formulation 'IC tablet'" in n for n in stage.notes)
 
 
 def test_no_scenario_for_stage_raises() -> None:

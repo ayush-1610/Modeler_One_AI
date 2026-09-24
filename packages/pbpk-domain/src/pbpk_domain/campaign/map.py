@@ -151,12 +151,16 @@ class MapScenario(BaseModel):
     weight_kg: float | None = None
     height_cm: float | None = None
     study_class: str = ""
+    formulation_name: str | None = None  # the CPF formulation a solid oral study used (form.{name}.*)
     # Multiple-dose regimen (a dose every `dosing_interval_h`, `n_doses` times); None for a single dose.
     dosing_interval_h: float | None = None
     n_doses: int | None = None
     # The study's last sampling time: the simulation must cover it, or the prediction is scored on a shorter
     # window than the observation.
     sim_end_time_h: float | None = None
+    # The VPC population's age range (the study's own, else the MS-01 default ±10 y around the mean; `vpc.age_range`).
+    vpc_age_min: float | None = None
+    vpc_age_max: float | None = None
 
 
 class MapAcceptance(BaseModel):
@@ -238,28 +242,51 @@ def _acceptance(model_risk: Rating) -> MapAcceptance:
     return MapAcceptance(tier=str(model_risk), ruleset=f"{ruleset['id']}@{ruleset['version']}", criteria=tier)
 
 
-def _scenario_stages(assignment: Assignment, study_class: StudyClass) -> tuple[str, ...]:
+def _training_stage(study: StudyRecord, study_class: StudyClass, cpf: CPF, have_solution: bool) -> str | None:
+    """The stage an internal study trains. An immediate-release solid trains S2 when it dissolves rapidly (its CPF
+    formulation is Dissolved) or when there is no solution study to train S2 (MS-01 §6.3, the tablet is then the S2
+    reference with its in-vitro Weibull fixed); otherwise its release is handled in S3 and S2 uses the solution
+    studies only (MS-01 §4 S2)."""
+    stage = _CLASS_STAGE.get(study_class)
+    if study_class is StudyClass.PO_IR_FASTED and have_solution:
+        from pbpk_domain.cpf.formulations import DISSOLVED, FormulationError, cpf_formulation, resolve_formulation_name
+
+        try:
+            name, _ = resolve_formulation_name(cpf, study.formulation_name)
+            if cpf_formulation(cpf, name).type != DISSOLVED:
+                return "S3"
+        except FormulationError:
+            return "S3"  # release not defined: it belongs to the formulation stage, which will say why it cannot build
+    return stage
+
+
+def _scenario_stages(assignment: Assignment, study_class: StudyClass, train: str | None = None) -> tuple[str, ...]:
     """The stages a study is simulated in: an internal study trains its stage and is re-simulated in S4; an
     external study of a core class is judged in S5. Anything else (flagged classes, supportive studies) has no
     S0–S5 scenario."""
     if assignment is Assignment.INTERNAL:
-        train = _CLASS_STAGE.get(study_class)
+        train = train or _CLASS_STAGE.get(study_class)
         return (train, "S4") if train else ()
     if assignment is Assignment.EXTERNAL and study_class in _S5_CLASSES:
         return ("S5",)
     return ()
 
 
-def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template: str,
+def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template: str, cpf: CPF | None = None,
                sampling_end_h: Mapping[str, float] | None = None) -> tuple[MapScenario, ...]:
     by_id = {s.study_id: s for s in studies}
     ends = sampling_end_h or {}
+    have_solution = any(r.assignment is Assignment.INTERNAL and r.study_class is StudyClass.PO_SOL_FASTED for r in split.splits)
     scenarios = []
     for row in split.splits:
         study = by_id[row.study_id]
         demo = study.demographics or DEFAULT_DEMOGRAPHICS
         multiple = study.is_multiple_dose
-        for stage in _scenario_stages(row.assignment, row.study_class):
+        train = _training_stage(study, row.study_class, cpf, have_solution) if cpf is not None else None
+        from pbpk_domain.campaign.vpc import age_range
+
+        vpc_ages = age_range(demo.age_years, demo.age_min, demo.age_max)
+        for stage in _scenario_stages(row.assignment, row.study_class, train):
             scenarios.append(MapScenario(
                 study_id=study.study_id, stage=stage, route=study.route.value, dose_mg=study.dose_mg,
                 infusion_time_min=study.infusion_time_min,
@@ -267,9 +294,11 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
                 meal_template=meal_template if study.food_state.value == "fed" else None, n_subjects=study.n,
                 population=demo.population, sex=demo.sex.value, age_years=demo.age_years,
                 weight_kg=demo.weight_kg, height_cm=demo.height_cm, study_class=row.study_class.value,
+                formulation_name=study.formulation_name,
                 dosing_interval_h=study.dosing_interval_h if multiple else None,
                 n_doses=study.n_doses if multiple else None,
                 sim_end_time_h=ends.get(study.study_id),
+                vpc_age_min=vpc_ages[0], vpc_age_max=vpc_ages[1],
             ))
     return tuple(scenarios)
 
@@ -362,7 +391,7 @@ def generate_map(
         split_rationale=split.rationale,
         split_limitations=split.limitations,
         stage_plan=stage_plan,
-        scenarios=_scenarios(studies, split, meal_template=meal_template, sampling_end_h=sampling_end_h),
+        scenarios=_scenarios(studies, split, meal_template=meal_template, cpf=cpf, sampling_end_h=sampling_end_h),
         diagnostics_ruleset_version=diagnostics_ruleset_version,
         acceptance=_acceptance(model_risk),
         engine_image_digest=engine_image_digest,

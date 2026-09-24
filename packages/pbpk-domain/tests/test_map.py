@@ -175,3 +175,51 @@ def test_revision_after_signing_creates_new_version_and_invalidates():
     assert revised.supersedes_sha256 == signed.content_sha256()
     assert revised.invalidates_prior_campaigns is True
     assert _map().invalidates_prior_campaigns is False
+
+
+def _tablet_cpf(kind: str = "Weibull") -> CPF:
+    prov = Provenance(source_type="measured", reference="in-vitro dissolution")
+    extra = [ParameterRecord(id="form.Tab.type", value=kind, status=ParameterStatus.FIXED, provenance=prov)]
+    if kind == "Weibull":
+        extra += [ParameterRecord(id="form.Tab.weibull.t50", value=30.0, unit="min", status=ParameterStatus.FIXED, provenance=prov),
+                  ParameterRecord(id="form.Tab.weibull.shape", value=0.6, status=ParameterStatus.FIXED, provenance=prov)]
+    return _cpf().model_copy(update={"parameters": (*_cpf().parameters, *extra)})
+
+
+def _tablet_studies(with_solution: bool) -> list[StudyRecord]:
+    base = dict(n=12, design="SD", route=Route.ORAL, food_state=FoodState.FASTED, n_timepoints=15)
+    studies = [StudyRecord(study_id="iv", route=Route.IV_BOLUS, dose_mg=5, formulation=FormulationKind.SOLUTION,
+                           **{k: v for k, v in base.items() if k != "route"})]
+    if with_solution:
+        studies.append(StudyRecord(study_id="sol", dose_mg=10, formulation=FormulationKind.SOLUTION, **base))
+    # a second dose level, so the split makes both the lowest (solution) and highest (tablet) dose internal (§3.3)
+    studies.append(StudyRecord(study_id="tab", dose_mg=20, formulation=FormulationKind.IR_TABLET, formulation_name="Tab", **base))
+    return studies
+
+
+def _stage_of(m, sid: str, *, not_: str = "S4") -> set[str]:
+    return {sc.stage for sc in m.scenarios if sc.study_id == sid and sc.stage != not_}
+
+
+def test_weibull_tablet_trains_s3_when_a_solution_study_trains_s2():
+    """MS-01 §4 S2: S2 uses the solution studies; a slowly releasing IR solid is handled in S3."""
+    studies = _tablet_studies(with_solution=True)
+    split = split_studies(studies, QuestionOfInterest(measured_fed_solubility=True))
+    m = _map(cpf=_tablet_cpf(), studies=studies, split=split)
+    assert {r.study_id for r in split.splits if r.assignment.value == "INTERNAL"} >= {"sol", "tab"}
+    assert _stage_of(m, "sol") == {"S2"} and _stage_of(m, "tab") == {"S3"}
+    assert next(sc for sc in m.scenarios if sc.study_id == "tab").formulation_name == "Tab"
+
+
+def test_tablet_is_the_s2_reference_when_there_is_no_solution_study():
+    """MS-01 §6.3: with no solution, the tablet trains S2 with its in-vitro Weibull fixed."""
+    studies = _tablet_studies(with_solution=False)
+    m = _map(cpf=_tablet_cpf(), studies=studies, split=split_studies(studies, QuestionOfInterest(measured_fed_solubility=True)))
+    assert _stage_of(m, "tab") == {"S2"}
+
+
+def test_rapidly_dissolving_tablet_trains_s2_like_a_solution():
+    studies = _tablet_studies(with_solution=True)
+    split = split_studies(studies, QuestionOfInterest(measured_fed_solubility=True))
+    m = _map(cpf=_tablet_cpf(kind="Dissolved"), studies=studies, split=split)
+    assert _stage_of(m, "tab") == {"S2"}

@@ -181,6 +181,22 @@ run_task <- function() {
     progress(0.85)
     exportResultsToCSV(results, file.path(out_dir, "results.csv"))
     exportPKAnalysesToCSV(calculatePKAnalyses(results), file.path(out_dir, "pk_analyses.csv"))
+    vpc <- job$options$vpc
+    if (!is.null(vpc)) {
+      # Visual predictive check band (MS-01 S1/S2/S4): percentiles of the output across the population at each
+      # simulated time, so the campaign can test how many observed points fall inside the 5-95 % band.
+      out <- getOutputValues(results, quantitiesOrPaths = vpc$output_path)$data
+      value_col <- setdiff(names(out), c("IndividualId", "Time"))[1]
+      probs <- if (!is.null(vpc$percentiles)) as.numeric(unlist(vpc$percentiles)) else c(0.05, 0.5, 0.95)
+      times <- sort(unique(out$Time))
+      bands <- lapply(probs, function(q) vapply(times, function(t) {
+        stats::quantile(out[[value_col]][out$Time == t], probs = q, names = FALSE, na.rm = TRUE)
+      }, numeric(1)))
+      names(bands) <- sprintf("%g", probs * 100)
+      write_json(list(output_path = vpc$output_path, individuals = population$count, times_min = times,
+                      percentiles = bands),
+                 file.path(out_dir, "vpc.json"), auto_unbox = TRUE, digits = NA)
+    }
     return(list(individuals = population$count))
   }
   if (identical(task, "sensitivity")) {

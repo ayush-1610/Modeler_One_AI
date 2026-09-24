@@ -33,7 +33,7 @@ def po(**kw) -> StudyResidual:
 
 
 def test_ruleset_version_is_unverified() -> None:
-    assert diag_ruleset_version() == "diag-rules@0.2-UNVERIFIED"
+    assert diag_ruleset_version() == "diag-rules@0.3-UNVERIFIED"
 
 
 # --- individual rules ----------------------------------------------------------------------------
@@ -56,6 +56,17 @@ def test_renally_cleared_compound_is_offered_renal_clearance_not_logp_first() ->
 def test_clearance_low_direction() -> None:
     d = _diag("S1", [iv(thalf_ratio=0.6, auc_ratio=0.6)])
     assert d.permitted_actions[0] == "fit elim.hepatic.{enzyme}.clspec"
+
+
+def test_s3_slow_tablet_release_adjusts_weibull_t50_then_shape() -> None:
+    """diag-rules 0.3: MS-01 §4 S3 in-vivo release adjustment."""
+    d = _diag("S3", [po(cmax_ratio=0.5, tmax_ratio=1.8, auc_in_limits=True)])
+    assert d.permitted_actions[:2] == ("fit form.{name}.weibull.t50", "fit form.{name}.weibull.shape")
+    # the PK-Sim case: Cmax 0.797-fold, AUC in limits, sampled tmax 90 vs simulated 102 min (1.13-fold)
+    d = _diag("S3", [po(cmax_ratio=0.797, tmax_ratio=1.13, auc_in_limits=True)])
+    assert d.permitted_actions[0] == "fit form.{name}.weibull.t50"
+    # a tmax clearly earlier than observed contradicts slow release: not offered
+    assert "fit form.{name}.weibull.t50" not in _diag("S3", [po(cmax_ratio=0.7, tmax_ratio=0.6, auc_in_limits=True)]).permitted_actions
 
 
 def test_distribution_branches_partition() -> None:

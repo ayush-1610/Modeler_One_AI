@@ -21,7 +21,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from pbpk_domain.campaign.map import MapScenario
-from pbpk_domain.cpf.build import BuildReport, Scenario, build_from_cpf
+from pbpk_domain.cpf.build import BuildReport, FormulationSpec, Scenario, build_from_cpf
 from pbpk_domain.cpf.models import CPF
 from pbpk_domain.snapshot.builder import (
     DissolvedFormulationSpec,
@@ -37,7 +37,7 @@ from pbpk_domain.snapshot.models import Snapshot
 # Routes as they arrive on a MapScenario (from split.Route values).
 _IV_ROUTES = ("iv_bolus", "iv_infusion")
 _ORAL_ROUTES = ("oral",)
-# Formulations the builder can place today; IR/MR need a dissolution model the CPF does not yet carry.
+# Liquid forms are placed as Dissolved; solid forms (tablet, capsule, MR) use the CPF formulation they name.
 _DISSOLVED_FORMULATIONS = ("solution", "suspension")
 # Default simulation window for a single-dose study when the scenario carries no sampling schedule.
 DEFAULT_SIM_END_TIME_H = 24.0
@@ -105,20 +105,38 @@ def _sim_end(scenario: MapScenario, default_h: float) -> float:
     return end
 
 
-def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, sim_end_time_h: float) -> Scenario:
+def protocol_name(study_id: str) -> str:
+    """The protocol a study's simulation uses (formulation parameters live under it: Events|<protocol>|…)."""
+    return f"{study_id} protocol"
+
+
+def _solid_formulation(scenario: MapScenario, cpf: CPF | None) -> tuple[FormulationSpec, str | None]:
+    from pbpk_domain.cpf.formulations import FormulationError, cpf_formulation, resolve_formulation_name
+
+    if cpf is None:
+        raise ScenarioBuildError(f"scenario {scenario.study_id!r}: a solid oral form needs the CPF formulation")
+    try:
+        name, note = resolve_formulation_name(cpf, scenario.formulation_name)
+        return cpf_formulation(cpf, name).to_spec(), (f"{scenario.study_id}: {note}" if note else None)
+    except FormulationError as exc:
+        raise ScenarioBuildError(f"scenario {scenario.study_id!r} ({scenario.formulation}): {exc}") from exc
+
+
+def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, sim_end_time_h: float,
+                    cpf: CPF | None = None, notes: list[str] | None = None) -> Scenario:
     sid = scenario.study_id
     dose = Measured(value=scenario.dose_mg, unit="mg")
     dosing_interval, dosing_end = _schedule(scenario)
     sim_end_time_h = _sim_end(scenario, sim_end_time_h)
 
     if scenario.route in _ORAL_ROUTES:
-        if scenario.formulation not in _DISSOLVED_FORMULATIONS:
-            raise ScenarioBuildError(
-                f"scenario {sid!r}: formulation {scenario.formulation!r} needs a dissolution model that the CPF "
-                "does not yet carry (only solution/suspension are placed today; IR/MR is a formulation-coverage gap)"
-            )
-        protocol = OralProtocolSpec(name=f"{sid} protocol", dose=dose, dosing_interval=dosing_interval, end_time=dosing_end)
-        formulation = DissolvedFormulationSpec(name=f"{sid} formulation")
+        protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, dosing_interval=dosing_interval, end_time=dosing_end)
+        if scenario.formulation in _DISSOLVED_FORMULATIONS:
+            formulation: FormulationSpec = DissolvedFormulationSpec(name=f"{sid} formulation")
+        else:
+            formulation, note = _solid_formulation(scenario, cpf)
+            if note and notes is not None:
+                notes.append(note)
         meal_events: tuple[MealEventSpec, ...] = ()
         event_names: tuple[str, ...] = ()
         if scenario.food_state == "fed" and scenario.meal_template:
@@ -137,7 +155,7 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
                 "the scenario carries none, so it is surfaced rather than invented"
             )
         protocol = IntravenousProtocolSpec(
-            name=f"{sid} protocol", dose=dose, infusion_time_min=scenario.infusion_time_min,
+            name=protocol_name(sid), dose=dose, infusion_time_min=scenario.infusion_time_min,
             dosing_interval=dosing_interval, end_time=dosing_end,
         )
         simulation = SimulationSpec(
@@ -205,10 +223,12 @@ def build_stage_snapshot(
     built: list[Scenario] = []
     placed: list[MapScenario] = []
     not_simulated: list[str] = []
+    assigned: list[str] = []
     for scenario in stage_scenarios:
         subject = _subject_spec(scenario, seed=seed)
         try:
-            spec = _scenario_specs(scenario, subject_name=subject.name, compound=cpf.compound, sim_end_time_h=sim_end_time_h)
+            spec = _scenario_specs(scenario, subject_name=subject.name, compound=cpf.compound,
+                                   sim_end_time_h=sim_end_time_h, cpf=cpf, notes=assigned)
         except ScenarioBuildError as exc:
             if not skip_unbuildable:
                 raise
@@ -228,5 +248,5 @@ def build_stage_snapshot(
         build_report=report,
         subjects=tuple(subjects),
         simulations=tuple(s.simulation.name for s in built),
-        notes=tuple(not_simulated) + _deferral_notes(snapshot, placed, report),
+        notes=tuple(not_simulated) + tuple(assigned) + _deferral_notes(snapshot, placed, report),
     )

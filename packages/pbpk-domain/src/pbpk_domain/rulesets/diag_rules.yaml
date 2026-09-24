@@ -9,8 +9,14 @@
 # name a candidate/branch by the same token used in the MAP stage plan (STAGE_PLAN); an action is only
 # offered when that token is a permitted fit candidate / branch for the current stage and has not been tried.
 id: diag-rules
-version: "0.2"
+version: "0.3"
 status: UNVERIFIED
+# 0.3 (2026-09-24, part of the owner-approved S3 formulation sub-loop, still UNVERIFIED pending SME sign-off):
+#     S3 gains the release-rate rules MS-01 §4 S3 describes — a tablet whose in-vivo peak is too slow or too fast
+#     adjusts its Weibull t50, then shape, within the parameter's fit policy ([0.5×, 2×] of the in-vitro fit).
+#     Before 0.3 no rule mapped S3 evidence to those actions, so a formulation stage could only escalate. The
+#     evidence is release_slow / release_fast (Cmax off, AUC in limits, tmax not contradicting): the absorption
+#     evidence's tmax > 1.25-fold condition cannot fire at ordinary sampling density (seen on PK-Sim).
 # 0.2 (2026-09-24, approved by the project owner, still UNVERIFIED pending SME sign-off): the clearance rule
 #     offers renal clearance (GFR fraction, tubular secretion) before logP. In 0.1 a renally cleared compound
 #     with mis-specified renal clearance could only be "fixed" by bending logP — distorting distribution to
@@ -82,6 +88,26 @@ rules:
     actions:
       - {op: fit, target: "perm.intestinal"}
       - {op: fit, target: "phys.solubility.ref"}
+
+  - id: release_too_slow
+    cause: "Formulation releases the drug more slowly in vivo than the in-vitro dissolution fit"
+    type: fit
+    stages: [S3]
+    routes: [oral]
+    evidence: release_slow         # Cmax low, AUC in limits, tmax not earlier than observed
+    actions:
+      - {op: fit, target: "form.{name}.weibull.t50"}
+      - {op: fit, target: "form.{name}.weibull.shape"}
+
+  - id: release_too_fast
+    cause: "Formulation releases the drug faster in vivo than the in-vitro dissolution fit"
+    type: fit
+    stages: [S3]
+    routes: [oral]
+    evidence: release_fast         # Cmax high, AUC in limits, tmax not later than observed
+    actions:
+      - {op: fit, target: "form.{name}.weibull.t50"}
+      - {op: fit, target: "form.{name}.weibull.shape"}
 
   - id: bioavailability_solubility
     cause: "Low oral bioavailability: solubility-limited"

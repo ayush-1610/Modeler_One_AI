@@ -84,6 +84,60 @@ external study). The data are the example's illustrative IV profile, not clinica
   transporter such as OATP1B1 would have been modelled wrongly. The test fixture that "confirmed" the old key was
   hand-written; corrected.
 
+### Fixed — tablets and the S3 formulation stage (plan item 1.3, R5), and a unit defect in every fit
+- **Tablets and capsules can be simulated.** CPF formulations (`form.{name}.type` Weibull | Dissolved,
+  `form.{name}.weibull.{t50,shape,lag}`, MS-01 §2.2) become PK-Sim `Formulation_Tablet_Weibull` /
+  `Formulation_Dissolved`; lag defaults to 0 min and "use as suspension" to 1, as in every published OSP tablet
+  (Dapagliflozin, Midazolam, Itraconazole). A study names its formulation (`formulation_name`); an unnamed one in a
+  CPF with exactly one formulation uses it, and the build note says so. Anything else is a named build error.
+- **S2 / S3 routing follows MS-01**: an immediate-release solid trains S2 when it dissolves rapidly (its formulation
+  is Dissolved) or when no solution study exists (§6.3, the tablet is the S2 reference with its in-vitro Weibull
+  fixed); otherwise it trains S3 and S2 uses the solution studies only (§4 S2).
+- **S3 can fit the formulation**: Weibull t50 / shape are fitted per simulation at the paths harvested from PK-Sim
+  (`Events|<protocol>|<formulation>|Dissolution time (50% dissolved)`, `…|Dissolution shape`, `…|Lag time`), only in
+  the simulations that use that formulation, within the CPF fit policy ([0.5×, 2×] of the in-vitro fit).
+- **diag-rules 0.2 → 0.3 (UNVERIFIED)**: S3 release-rate rules (too slow / too fast → fit t50, then shape) — the
+  MS-01 §4 S3 sub-loop; before this a formulation stage could only escalate. Their evidence is new: `release_slow`
+  / `release_fast` = Cmax off with AUC in limits, tmax not contradicting. The absorption evidence's "tmax > 1.25-fold"
+  cannot fire at ordinary sampling density (seen on PK-Sim: Cmax 0.80-fold, sampled tmax 90 vs 102 min), so reusing
+  it left the rule dead. Flagged for SME review with the rest of the ruleset.
+- **Every fit of a parameter whose CPF unit differs from PK-Sim's base unit was stored wrongly** (found on PK-Sim,
+  known-truth campaign). `ospsuite.parameteridentification` 2.2.0 drives the optimiser in the parameter's *base*
+  unit whatever `PIParameters$unit` says, and setting the unit does not convert the bounds. An intestinal
+  permeability "fitted in cm/min" was really fitted in dm/min: the engine found 2.79e-6 dm/min (≈ the truth), we
+  stored 2.79e-6 cm/min — 10× too low — and the "fitted" model got worse. `run_pi.R` now converts bounds and start
+  to the base unit and estimates, SDs and CIs back to the CPF's unit. logP, GFR fraction, CLspec and t50 share
+  their units with PK-Sim, which is why earlier fits looked right; permeabilities and solubility did not.
+- **Fit starts run in parallel on the single-node runner**, as many at once as the multistart plan assumed (cores ÷
+  simulations per start), capped by the machine's CPUs; `MODELER_FIT_WORKERS` overrides it (e.g. on a laptop's
+  Docker engine). They ran one after another, multiplying a planned fit's time by up to 32.
+
+### Verified — the whole S0 → S5 loop on real PK-Sim, by known-truth recovery (2026-09-24, server engine)
+A "true" Aciclovir model (IV, oral solution, a Weibull tablet) was simulated on PK-Sim to produce the observed
+profiles; the campaign started from a wrong model — intestinal permeability 10× too low, tablet release (t50) 55
+instead of 30 min — at **high** model risk (1.25-fold, every study within). It completed in 201 s: S2 fitted
+permeability back to 4e-05 cm/min (the truth, exactly), S3 fitted t50 back to 30 min (exactly), S4 re-validated
+every trained study (VPC 100 % each), S5 judged two external tablets, a solution and a multiple-dose study as the
+fasted group, all within 1.25-fold. Synthetic data: this proves the machinery, not clinical validity (Phase 4).
+
+### Added — visual predictive check, the MS-01 population gate (plan item 1.5, R7)
+- After a stage's PK gate passes at S1, S2 and S4, each study's exported model is run across a 100-individual
+  virtual population built from the study's demographics (population, sex, age range; seed recorded); the engine
+  returns the 5/50/95 % band (`vpc.json`, new `options.vpc` on the `population` task). The gate needs ≥ 80 % of the
+  observed points inside the 5–95 % band (MS-01 S1). A failure escalates as `vpc_coverage_below_80` — no fit action
+  addresses variability. Coverage and band are stored per study with each round, for the monitor's plot.
+- A study's VPC age range is its reported one (`Demographics.age_min/age_max`), else the mean ± 10 years (adults
+  from 18) — a MAP default the modeler signs, flagged for SME review like every MS-01 [SME] value.
+- The VPC **gates S1 and S2** (MS-01 §4: S1 gate, S2 "as S1"); at **S4 it is reported, not gated** — MS-01 lists
+  "VPC per study" in the S4 report while its gate is the PK acceptance table. (First implemented as gating S4 too;
+  corrected when a known-truth run escalated at S4 on a VPC of 70 %.)
+- Same step in the Temporal workflow (`prepare_vpc_jobs` / `evaluate_vpc` activities).
+
+### Added — fitted parameters keep their precision
+- The CPF record of a fitted parameter now carries its **SD, CV and 95 % CI** (`ParameterRecord.uncertainty`, from
+  the engine's Hessian CI estimate, in the CPF's unit). They were dropped after the fit; MS-01 S4 needs them in the
+  parameter table and S6 needs them to propagate uncertainty. CPF JSON Schema regenerated.
+
 ### Changed — diagnostics ruleset `diag-rules` 0.1 → 0.2 (UNVERIFIED; change approved by the project owner)
 - **R6 — the clearance rule offers renal clearance before logP**: `fit elim.renal.gfr_fraction`, then
   `fit elim.renal.ts_clspec`, then `fit phys.logp`. Under 0.1 a renally cleared compound with wrong renal clearance
@@ -100,9 +154,6 @@ external study). The data are the example's illustrative IV profile, not clinica
   (`golden_roundtrip.R`, `verify_run_round.sh`) passes there. Tailscale installed in userspace mode, awaiting login.
 
 ### Known gap — found while fixing the above
-- **Fit starts run one after another on the single-node runner** (`LocalExecutor._run_fit`), even on the 48-core
-  server: the verification campaign took 4 min 50 s on the server for one two-round stage. Priority #2 (a campaign
-  within an hour) needs the starts run in parallel.
 - `modeler_intake` keeps its own unit tables; they should use `pbpk_domain.units` so there is one source.
 
 ### Known gap — diagnosed 2026-09-24 (the reason every campaign stopped at S1)

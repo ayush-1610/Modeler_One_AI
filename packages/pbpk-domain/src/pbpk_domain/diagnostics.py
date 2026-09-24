@@ -149,6 +149,16 @@ def compute_evidence(
     if any_fit(lambda r: r.route == "oral" and r.cmax_ratio is not None and r.tmax_ratio is not None and r.cmax_ratio < lo and r.tmax_ratio > hi and r.auc_in_limits):
         labels.add("absorption_slow")
 
+    # Formulation release (S3): Cmax off with AUC preserved is the signature of a release rate; tmax need only
+    # point the same way, because an observed tmax exists only at the sampling times and rarely resolves the
+    # 1.25-fold threshold the absorption rules use (seen on PK-Sim: Cmax 0.80-fold, tmax 90 vs 102 min).
+    if any_fit(lambda r: r.route == "oral" and r.cmax_ratio is not None and r.cmax_ratio < lo and r.auc_in_limits
+               and (r.tmax_ratio is None or r.tmax_ratio >= 1.0)):
+        labels.add("release_slow")
+    if any_fit(lambda r: r.route == "oral" and r.cmax_ratio is not None and r.cmax_ratio > hi and r.auc_in_limits
+               and (r.tmax_ratio is None or r.tmax_ratio <= 1.0)):
+        labels.add("release_fast")
+
     # Dose-dependence of exposure (observed dose-normalized AUC across the dose range).
     trend = _dose_trend([r for r in fits if r.route == "oral"], float(th["dose_norm_auc_rel"]))
     if trend:

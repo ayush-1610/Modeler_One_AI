@@ -112,6 +112,7 @@ class StudyUpload(BaseModel):
     dose_mg: float = Field(gt=0)
     infusion_time_min: float | None = None
     formulation: str = "solution"
+    formulation_name: str | None = None  # a tablet/capsule study: the CPF formulation it used (form.{name}.*)
     food_state: str = "fasted"
     n_timepoints: int = Field(default=10, gt=0)
     lloq: float | None = None

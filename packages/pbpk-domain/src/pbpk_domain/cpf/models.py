@@ -69,6 +69,18 @@ class Provenance(BaseModel):
     supersedes: str | None = None  # id/version of the value this one replaced
 
 
+class Uncertainty(BaseModel):
+    """A fitted parameter's precision, from the parameter identification's confidence-interval estimate."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    sd: float | None = None
+    cv_percent: float | None = None
+    ci95_lower: float | None = None
+    ci95_upper: float | None = None
+    method: str = "hessian"
+
+
 class EngineBinding(BaseModel):
     """Where a parameter lives in a PK-Sim snapshot (MS-01 §2.1).
 
@@ -109,6 +121,7 @@ class ParameterRecord(BaseModel):
     plausibility: Plausibility | None = None
     provenance: Provenance | None = None
     engine_binding: EngineBinding | None = None
+    uncertainty: Uncertainty | None = None  # set when the value was fitted: SD, CV and 95 % CI (MS-01 S4 table)
 
     @model_validator(mode="after")
     def _consistency(self) -> ParameterRecord:
