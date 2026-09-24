@@ -212,10 +212,20 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 | S4 internal validation | final CPF vs internal studies, no fitting | **Done — PK-Sim** | every trained study re-simulated once, judged, never fitted; VPC per study reported; failure escalates with §6.6 choices | — | — |
 | S5 external validation | fasted and fed judged separately | **Done — PK-Sim** | external core-class studies (IV, oral, tablet, MD) judged from the final CPF, fasted / fed as separate groups; unbuildable ones named; "not achievable" with no external study | clinical-data proof; fed studies await the fed sub-loop | 4 |
 | S6 prediction | sensitivity + uncertainty on the question | **Partial — PK-Sim** | runs after the signed S4/S5 gate; local sensitivity over FITTED/PREDICTED parameters; uncertainty of fitted parameters (n = 200) → AUC/Cmax intervals; verified on the server (known-truth) | application templates (T-31); correlated sampling; Temporal wiring | next phase |
-| S7 report & package | MAR, M15 table, bundle, re-run | **Partial — PK-Sim** | evidence persisted per stage; data bundle; fresh-engine re-run compared at 1e-6; MAR (MD, DOCX, PDF/A-2b) with evidence index; zip released only if reproduction passed; 7/7 tables reproduced on the server | MAR signature; M15 influence/consequence capture; Temporal wiring (download API and monitor card done) | Phase 3 |
+| S7 report & package | MAR, M15 table, bundle, re-run | **Partial — PK-Sim** | evidence persisted per stage; data bundle; fresh-engine re-run compared at 1e-6; MAR (MD, DOCX, PDF/A-2b) with evidence index; zip released only if reproduction passed; the PK-Sim project of each bundled simulation (`pksim/*.pksim5`, engine `convert_to_project`; not yet run in a campaign on the server); 7/7 tables reproduced on the server | MAR signature; M15 influence/consequence capture; Temporal wiring (download API and monitor card done) | Phase 3 |
 
 Roadblocks R1–R13 are defined in the active plan. **Evidence rule:** a stage is "Done" only when a campaign has passed
 it on real PK-Sim, not on a stub or the analytical stand-in.
+
+**Session 2026-09-24 (late), in brief.** GitHub Actions runs again (repo public): the reference matrix runs on
+every push. Run 24 found, and these commits fix: processes a published simulation switches off (Omeprazole poor
+metabolisers, Metformin Morrissey), model values it leaves at default (Alfentanil Kharasch 2012), a tablet's "Use as
+suspension" (Clarithromycin, Voriconazole, Dabigatran), DDI arms named "with Perpetrator (X)" and paediatric studies
+being fitted, per-project CPF storage (two projects on one drug overwrote each other), readable study ids. Added:
+`.pksim5` projects in the S7 package, the example seeder (`deploy/server/seed_examples.sh`), "Your own compound" in
+the wizard, `docs/USING_THE_TOOL.md`. Open data issue for the owner: OSP Rifampicin's Stone 2004 dataset is labelled
+mg/l with values ~1000× too low (the published model never simulates it); it sits in the fitting set and needs an
+exclusion decision (D5). This cloud session cannot reach the server (LAN only, no Tailscale).
 
 ### 4.2 Platform
 
