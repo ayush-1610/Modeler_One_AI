@@ -46,7 +46,7 @@ def roundtrip_inputs(imported: ReferenceImport) -> tuple[dict[str, Any], list[di
     ours = json.loads(built.snapshot.model_dump_json(by_alias=True, exclude_none=True))
     placed = set(built.simulations)
     pairs = [{"ours": sid, "published": imported.simulation_of[sid], "offset_min": imported.offset_min.get(sid, 0.0),
-              "end_h": _sim_end_h(ours, sid)}
+              "end_h": _sim_end_h(ours, sid), "by_design": imported.differs_by_design.get(sid, "")}
              for sid in imported.simulation_of if sid in placed]
     missing = [sid for sid in imported.simulation_of if sid not in by_study]
     notes = list(built.notes) + [f"{sid}: no MAP scenario (not simulated by the pipeline)" for sid in missing]

@@ -552,11 +552,20 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
         factor = minutes_per(profile.get("time_unit", "min"))
         return min(times) * factor, max(times) * factor
 
+    def _sample_times(pk: dict) -> tuple[float, ...] | None:
+        profile = pk.get("profile") or {}
+        times = profile.get("times") or []
+        if not times:
+            return None
+        factor = minutes_per(profile.get("time_unit", "min"))
+        return tuple(float(t) * factor for t in times)
+
     observed = {}
     for study_id, pk in (observed_doc or {}).items():
         t_first, t_last = _window(pk)
         observed[study_id] = ObservedPK(auc=pk.get("auc"), cmax=pk.get("cmax"), tmax=pk.get("tmax"),
-                                        thalf=pk.get("thalf"), t_first=t_first, t_last=t_last)
+                                        thalf=pk.get("thalf"), t_first=t_first, t_last=t_last,
+                                        sample_times=_sample_times(pk))
 
     assessment = assess_round(simulated, observed, model_risk=map_doc.model_risk)
     activity.logger.info(

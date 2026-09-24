@@ -771,6 +771,27 @@ class SimulationSpec(Spec):
 # --- builder --------------------------------------------------------------------------------------
 
 
+# The first hours after the (first) dose are sampled densely: an IV peak and the distribution phase change within
+# minutes (the Dapagliflozin IV microdose is sampled from 5 min), and the evaluation reads the curve at the observed
+# sampling times. Two output intervals, as the OSP reference simulations use (e.g. 0-2 h dense, then coarser).
+EARLY_WINDOW_H = 2.0
+EARLY_RESOLUTION_PTS_PER_H = 60.0
+
+
+def _output_schema(spec: SimulationSpec) -> list[OutputInterval]:
+    def interval(start: float, end: float, resolution: float) -> OutputInterval:
+        return OutputInterval(parameters=[
+            Parameter(name="Start time", value=start, unit="h"),
+            Parameter(name="End time", value=end, unit="h"),
+            Parameter(name="Resolution", value=resolution, unit="pts/h"),
+        ])
+
+    if spec.end_time_h <= EARLY_WINDOW_H:
+        return [interval(0.0, spec.end_time_h, max(spec.resolution_pts_per_h, EARLY_RESOLUTION_PTS_PER_H))]
+    return [interval(0.0, EARLY_WINDOW_H, max(spec.resolution_pts_per_h, EARLY_RESOLUTION_PTS_PER_H)),
+            interval(EARLY_WINDOW_H, spec.end_time_h, spec.resolution_pts_per_h)]
+
+
 class SnapshotBuilder:
     def __init__(self, snapshot_version: int = SNAPSHOT_VERSION_PKSIM_12):
         if snapshot_version not in (SNAPSHOT_VERSION_PKSIM_12, SNAPSHOT_VERSION_PKSIM_13):
@@ -884,15 +905,7 @@ class SnapshotBuilder:
             "name": spec.name,
             "model": spec.model,
             "solver": {},
-            "output_schema": [
-                OutputInterval(
-                    parameters=[
-                        Parameter(name="Start time", value=0.0, unit="h"),
-                        Parameter(name="End time", value=spec.end_time_h, unit="h"),
-                        Parameter(name="Resolution", value=spec.resolution_pts_per_h, unit="pts/h"),
-                    ]
-                )
-            ],
+            "output_schema": _output_schema(spec),
             "output_selections": [PLASMA_OUTPUT_PATH.format(compound=spec.compound), *spec.additional_outputs],
             "individual": spec.subject,
             "compounds": [SimulationCompound(**compound_fields)],

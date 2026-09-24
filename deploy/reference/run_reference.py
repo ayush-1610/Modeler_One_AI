@@ -113,6 +113,9 @@ def campaign(model: str, mode: str, out: Path) -> dict:
         campaign_id=f"ref-{model.lower()}-{mode}", tenant_id="ref", compound=model, map_id=prep["map_id"],
         cpf_uri=prep["cpf_uri"], cpf_sha256=prep["cpf_sha256"], map_uri=prep["map_uri"],
         observed_uri=prep["observed_uri"], stages=list(CAMPAIGN_STAGES),
+        # The default stage budget assumes the 48-core server; a smaller engine host (a 4-core CI runner) sets more.
+        stage_budgets_seconds={s: int(os.environ.get("REFERENCE_STAGE_BUDGET_S", "1800")) for s in CAMPAIGN_STAGES
+                               if s != "S0"},
     )
     started = time.monotonic()
     outcome = run_campaign(request, read_root=root, project=pid, question=f"reference {mode}", model_risk="medium")
@@ -143,14 +146,24 @@ def summary(step: str, result: dict) -> str:
         report = result.get("report") or {}
         lines.append(f"### Round trip {result['model']}: {report.get('identical', 0)} of {report.get('total', 0)} "
                      f"identical within {report.get('tolerance')} of the peak ({result['seconds']} s, exit {result['exit']})")
-        lines.append("| ours | published | max diff / peak | AUC ratio | Cmax ratio |")
-        lines.append("|---|---|---|---|---|")
+        lines.append("| ours | published | max diff / peak | AUC ratio | Cmax ratio | differs by design |")
+        lines.append("|---|---|---|---|---|---|")
         for row in report.get("pairs", []):
             if "error" in row:
-                lines.append(f"| {row['ours']} | {row['published']} | ERROR: {row['error']} | | |")
+                lines.append(f"| {row['ours']} | {row['published']} | ERROR: {row['error']} | | | |")
             else:
                 lines.append(f"| {row['ours']} | {row['published']} | {row['max_rel_to_peak']:.3g} | "
-                             f"{row['auc_ratio']:.6f} | {row['cmax_ratio']:.6f} |")
+                             f"{row['auc_ratio']:.6f} | {row['cmax_ratio']:.6f} | {row.get('by_design') or ''} |")
+        for name, diff in (report.get("parameter_diffs") or {}).items():
+            if "error" in diff:
+                lines.append(f"- parameters of {name}: ERROR {diff['error']}")
+                continue
+            lines.append(f"- parameters of {name} vs {diff['ours']}: {diff['compared']} compared, {diff['differing']} "
+                         f"differ; only published {len(diff['only_published'])}, only ours {len(diff['only_ours'])}")
+            for t in diff.get("top", [])[:15]:
+                lines.append(f"  - `{t['path']}`: {t['published']:.10g} → {t['ours']:.10g}")
+            for p in diff.get("only_published", [])[:10]:
+                lines.append(f"  - only published: `{p}`")
         if not report:
             lines.append("```\n" + result.get("stderr_tail", "") + "\n" + result.get("stdout_tail", "") + "\n```")
     else:

@@ -63,6 +63,7 @@ from modeler_orchestrator.campaign_activities import (
 )
 from modeler_orchestrator.fitting_activities import assess_round as assess_fit_round
 from modeler_orchestrator.fitting_activities import plan_jobs
+from pbpk_domain.fitting import BudgetTooSmallError
 
 # One callable dispatches an engine job to a manifest — the real EngineRunner.run in production, a stub in tests.
 EngineRun = Callable[[EngineJob], EngineManifest]
@@ -475,7 +476,14 @@ class LocalExecutor:
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
             )
             rounds_run = round_index
-            result = self._run_round(ctx)
+            try:
+                result = self._run_round(ctx)
+            except BudgetTooSmallError as exc:
+                # The stage's remaining time cannot hold the planned fit (D8): escalate with the best CPF so far and
+                # say why, rather than failing the stage and losing the rounds already run.
+                return StageOutcome(stage=stage, status="ESCALATED", rounds_run=rounds_run - 1, cpf_uri=best_uri,
+                                    cpf_sha256=best_sha, findings=[f"stage time budget exhausted: {exc}"],
+                                    escalation_reason="budget_exhausted")
             run_result, evaluation, diagnosis, choice = result.run_result, result.evaluation, result.diagnosis, result.choice
             self._remember(stage, result)
             cpf_uri, cpf_sha = run_result.cpf_uri, run_result.cpf_sha256

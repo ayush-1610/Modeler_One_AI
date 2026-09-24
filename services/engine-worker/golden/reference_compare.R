@@ -70,24 +70,62 @@ rows <- lapply(pairs, function(pair) {
     offset <- as.numeric(pair$offset_min)
     p <- plasma_curve(pub, compound, offset, offset + end_min)
     o <- plasma_curve(own, compound, 0, end_min)
-    n <- min(length(p$value), length(o$value))
-    pv <- p$value[seq_len(n)]
-    ov <- o$value[seq_len(n)]
+    # Pair the samples by time (PK-Sim always adds t = 0 to the outputs, so indices do not line up when the
+    # published dose is given later, e.g. the Dapagliflozin IV microdose at 60 min).
+    idx <- match(round(o$time, 4), round(p$time - offset, 4))
+    keep <- !is.na(idx)
+    tv <- o$time[keep]
+    ov <- o$value[keep]
+    pv <- p$value[idx[keep]]
     peak <- max(abs(pv))
     worst <- which.max(abs(ov - pv))
     max_rel <- if (peak > 0) max(abs(ov - pv)) / peak else NA_real_
     list(
-      ours = pair$ours, published = pair$published, points = n,
+      ours = pair$ours, published = pair$published, points = length(tv),
       max_rel_to_peak = max_rel,
-      worst_time_min = o$time[[worst]],
+      worst_time_min = tv[[worst]],
       cmax_ratio = max(ov) / max(pv),
-      auc_ratio = trapz(o$time[seq_len(n)], ov) / trapz(p$time[seq_len(n)] - offset, pv),
-      identical = isTRUE(max_rel <= TOLERANCE)
+      auc_ratio = trapz(tv, ov) / trapz(tv, pv),
+      identical = isTRUE(max_rel <= TOLERANCE),
+      by_design = pair$by_design %||% ""
     )
   }, error = function(e) list(ours = pair$ours, published = pair$published, error = conditionMessage(e)))
 })
 
+# Input-level comparison: every parameter value of the published model against ours, for the first pair of up to
+# three published simulations. Protocol/event paths are named per simulation and are left out. This locates a
+# difference in the model rather than inferring it from the curves.
+parameter_diffs <- list()
+seen <- character(0)
+for (pair in pairs) {
+  if (length(seen) >= 3 || pair$published %in% seen) next
+  seen <- c(seen, pair$published)
+  parameter_diffs[[pair$published]] <- tryCatch({
+    pub <- loadSimulation(pkml_of(published_models, pair$published), loadFromCache = FALSE)
+    own <- loadSimulation(pkml_of(our_models, pair$ours), loadFromCache = FALSE)
+    values <- function(sim) {
+      paths <- getAllParameterPathsIn(sim)
+      paths <- paths[!grepl("^(Events|Applications)\\|", paths)]
+      v <- getQuantityValuesByPath(paths, sim)
+      stats::setNames(as.numeric(v), paths)
+    }
+    a <- values(pub)
+    b <- values(own)
+    common <- intersect(names(a), names(b))
+    rel <- abs(a[common] - b[common]) / pmax(abs(a[common]), 1e-300)
+    rel[!is.finite(rel)] <- 0
+    differ <- sort(rel[rel > 1e-9], decreasing = TRUE)
+    top <- head(differ, 25)
+    list(
+      ours = pair$ours, compared = length(common), differing = length(differ),
+      only_published = head(setdiff(names(a), names(b)), 25), only_ours = head(setdiff(names(b), names(a)), 25),
+      top = lapply(names(top), function(k) list(path = k, published = a[[k]], ours = b[[k]]))
+    )
+  }, error = function(e) list(error = conditionMessage(e)))
+}
+
 report <- list(
+  parameter_diffs = parameter_diffs,
   ospsuite = as.character(packageVersion("ospsuite")),
   compound = compound,
   tolerance = TOLERANCE,
@@ -98,6 +136,18 @@ report <- list(
 write_json(report, file.path(work, "roundtrip.json"), auto_unbox = TRUE, pretty = TRUE, digits = NA, force = TRUE)
 cat(sprintf("round trip %s: %d of %d simulations identical within %g of the peak\n",
             compound, report$identical, report$total, TOLERANCE))
+for (name in names(parameter_diffs)) {
+  d <- parameter_diffs[[name]]
+  if (!is.null(d$error)) {
+    cat(sprintf("parameters %s: ERROR %s\n", name, d$error))
+    next
+  }
+  cat(sprintf("parameters %s vs %s: %d compared, %d differ, %d only published, %d only ours\n",
+              name, d$ours, d$compared, d$differing, length(d$only_published), length(d$only_ours)))
+  for (t in d$top) cat(sprintf("    %-90s %.10g -> %.10g\n", t$path, t$published, t$ours))
+  for (p in d$only_published) cat(sprintf("    only published: %s\n", p))
+  for (p in d$only_ours) cat(sprintf("    only ours: %s\n", p))
+}
 for (r in rows) {
   if (!is.null(r$error)) {
     cat(sprintf("  %-60s ERROR %s\n", r$ours, r$error))

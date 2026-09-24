@@ -38,6 +38,34 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **`docker_engine.sh` on Linux** runs the engine as the calling user (the job directory is 0700; the image's uid
   10001 could not write there).
 
+### Verified on PK-Sim — first reference results (GitHub runner, qualified engine 12.4.4 / rSharp 1.2.2)
+- **Dapagliflozin round trip:** 28 of 34 published simulations regenerated from the imported CPF agree within 6.3e-5
+  of the peak (AUC and Cmax within 0.005 %), the same small offset in every pair. Not yet the 1e-6 bar; a
+  parameter-by-parameter model diff is added to locate it. The IV pair's 100 % "difference" was a harness bug (see
+  below). The Chang 2015 fed tablet (Cmax 0.71×) and the five Komoroski MAD day-1 datasets (AUC 13.7×) differ by
+  design: we simulate the reported meal and the real 14-dose regimen, while the published model approximates them
+  as fasted / single dose. They are now labelled so.
+- **Rifampicin round trip:** first pair within 4e-5 of the peak (run interrupted; rerun queued).
+- **Dapagliflozin as-is campaign escalated at S1** on the IV microdose Cmax (0.48×), while the published model and
+  ours agree. The cause was our evaluation, fixed below. **Refit:** the clearance fit cut the S1 AUC error from 2.6×
+  to 1.46×, then the stage failed on `BudgetTooSmallError` (a 1800 s stage on a 4-core runner).
+
+### Fixed — evaluation and NCA defects the PK-Sim runs exposed (science; flagged for SME review)
+- **The prediction is read at the observed sampling times** before NCA. Predicted and observed AUC, Cmax, tmax and t½
+  now come from identical sampling. Before, the simulated grid (every 6 min) was reduced over the observed window,
+  so the IV microdose sampled from 5 min was scored on a 6-min value (Cmax 0.48×). `ObservedPK.sample_times`.
+- **Simulations are sampled every minute for the first 2 h**, then as before (two output intervals, as the OSP
+  reference simulations use). Early IV and distribution-phase samples are resolved.
+- **NCA terminal phase:** only points after Cmax; trailing points that do not decline are left out of λz (they stay
+  in AUClast); adjusted-R² ties within 1e-4 take more points (the standard best-fit rule). The Boulton 2013 IV data
+  (last two points identical, assay limit) gave t½ = 275 h; now 9.5 h from 8 points.
+- **A stage that cannot fit its remaining budget escalates with the best CPF so far** (`budget_exhausted`, D8),
+  instead of failing and losing its rounds. Reference runs set the stage budget for their host
+  (`REFERENCE_STAGE_BUDGET_S`; 1.5 h per stage on a 4-core runner, where the server has 48 cores).
+- **Round-trip harness:** samples are paired by time (PK-Sim always outputs t = 0, so a published dose at 60 min
+  shifted the indices and showed a false 100 % difference), and deliberate differences are labelled.
+- Test fixture fixed: its observed Cmax was not the Cmax of its observed profile.
+
 ### Added — Midazolam, and the edge cases it brings (third reference model)
 - **Microsomal Michaelis-Menten metabolism** (`MetabolizationLiverMicrosomes_MM`: in-vitro Vmax per mg microsomal
   protein, microsomal enzyme content, Km, kcat; names and units from the OSP Midazolam model) is placed by the builder;

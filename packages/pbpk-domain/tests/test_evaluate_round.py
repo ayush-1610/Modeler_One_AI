@@ -111,3 +111,15 @@ def test_prediction_is_reduced_over_the_observed_window():
     naive = assess_round([profile], {"s": ObservedPK(auc=observed_auc, cmax=concs[0])}, model_risk=Rating.HIGH)
     assert naive.studies[0].predicted_auc > observed_auc * 1.5
     assert not naive.gate_passed
+
+
+def test_the_prediction_is_read_at_the_observed_sampling_times():
+    """Like with like: an IV peak between samples is not compared with the sampled observed Cmax; the prediction is
+    interpolated at the observed times (the Dapagliflozin IV microdose is sampled from 5 min)."""
+    times = [0.0, 1.0, 2.0, 5.0, 10.0, 60.0, 120.0]
+    concs = [0.0, 10.0, 8.0, 5.0, 3.0, 1.0, 0.5]
+    sampled = (5.0, 10.0, 60.0, 120.0)
+    obs = ObservedPK(auc=None, cmax=5.0, t_first=5.0, t_last=120.0, sample_times=sampled)
+    result = assess_round([SimulatedProfile("s", "fitting", times, concs)], {"s": obs}, model_risk=Rating.HIGH)
+    study = result.studies[0]
+    assert study.predicted_cmax == 5.0 and study.predicted_tmax == 5.0

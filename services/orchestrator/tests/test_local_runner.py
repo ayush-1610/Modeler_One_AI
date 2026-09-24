@@ -386,11 +386,17 @@ class VpcStubEngine(StubEngine):
 
 
 def _golden_observed() -> dict:
+    """Observed data sampled from the golden curve; AUC and Cmax by NCA of those samples, as campaign:prepare does
+    (the observed PK must be the PK of the observed profile, or the comparison is not like with like)."""
+    from pbpk_domain.nca import nca
+
     g = _golden_profile()["iv"]
     idx = range(5, len(g["times_min"]), 20)
-    return {"iv": {"auc": GOLDEN_AUC, "cmax": GOLDEN_CMAX, "profile": {
-        "times": [g["times_min"][i] for i in idx], "values": [g["concentrations"][i] for i in idx],
-        "time_unit": "min", "unit": "µmol/l"}}}
+    times = [g["times_min"][i] for i in idx]
+    values = [g["concentrations"][i] for i in idx]
+    pk = nca(times, values)
+    return {"iv": {"auc": pk.auc_last, "cmax": pk.c_max, "profile": {
+        "times": times, "values": values, "time_unit": "min", "unit": "µmol/l"}}}
 
 
 def test_vpc_gates_s1_and_is_recorded_per_study(tmp_path: Path) -> None:

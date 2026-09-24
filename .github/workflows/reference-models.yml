@@ -78,6 +78,7 @@ jobs:
         env:
           MODELER_ENGINE_IMAGE: ${{ env.ENGINE_IMAGE }}
           MODELER_FIT_WORKERS: "4"
+          REFERENCE_STAGE_BUDGET_S: "5400"  # 4 cores, not the server's 48: 1.5 h per stage
         run: |
           export MODELER_ENGINE_COMMAND="bash $GITHUB_WORKSPACE/deploy/dev/docker_engine.sh"
           export REFERENCE_RSCRIPT="docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e LC_ALL=en_US.UTF-8 -v $GITHUB_WORKSPACE:$GITHUB_WORKSPACE -w $GITHUB_WORKSPACE $ENGINE_IMAGE Rscript"

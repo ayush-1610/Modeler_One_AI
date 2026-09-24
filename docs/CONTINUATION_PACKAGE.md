@@ -236,7 +236,7 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 | T-01 → T-09, T-11, T-12, T-18, T-25 | Done |
 | T-03 | Done — server acceptance (a CPF reconstructed from Dapagliflozin regenerates it) folds into the Phase 4 importer |
 | T-10 | Partial — Weibull/Dissolved formulations and individual physiology overrides (`indiv.*`) done; missing particle/Table formulations, Populations block, total-hepatic / biliary / tubular-secretion clearance, `MetabolizationLiverMicrosomes_MM`, `rCYP450_MM` |
-| Phase 4 importer | Built — Dapagliflozin imports complete (28 CPF records, 40 real studies, every stage builds); Rifampicin/Midazolam/Itraconazole gaps named in `CHANGELOG.md`. Engine proof pending |
+| Phase 4 reference runs | Dapagliflozin, Rifampicin, Midazolam import S0-ready; round trips on PK-Sim (GitHub runner, `.github/workflows/reference-models.yml`): Dapagliflozin 28/34 pairs within 6.3e-5 of the peak, 6 differ by design; as-is/refit campaigns rerunning after the evaluation fixes. OSP library portfolio in the same workflow |
 | T-13 | Done (Temporal) + single-node `LocalExecutor` |
 | T-14 | Done — ruleset **UNVERIFIED** pending SME sign-off (T-30) |
 | T-15, T-17, T-20 | Done — agent `RunStore` still file-backed |

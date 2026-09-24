@@ -126,6 +126,9 @@ class ReferenceImport:
     # simulation's time zero (e.g. the Dapagliflozin IV microdose at 60 min); what the round trip compares against.
     simulation_of: dict[str, str] = field(default_factory=dict)
     offset_min: dict[str, float] = field(default_factory=dict)
+    # study id -> why the pipeline simulates it differently from the published simulation it is linked to (the study's
+    # real regimen or meal where the published model approximates), so the round trip reports it as a choice.
+    differs_by_design: dict[str, str] = field(default_factory=dict)
 
 
 def _props(dataset: dict[str, Any]) -> dict[str, Any]:
@@ -589,6 +592,7 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None) 
     seen: set[str] = set()
     simulation_of: dict[str, str] = {}
     offset_min: dict[str, float] = {}
+    differs_by_design: dict[str, str] = {}
     for dataset in snapshot.get("ObservedData", []):
         props = _props(dataset)
         label = dataset["Name"]
@@ -615,8 +619,18 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None) 
         if link is not None:
             simulation_of[row["study_id"]] = link["simulation"]
             offset_min[row["study_id"]] = row.pop("_offset_min", 0.0)
+            published_doses = _protocol_dose_times(link["protocol"]) or []
+            ours_doses = row.get("n_doses") or 1
+            why = []
+            if published_doses and len(published_doses) != ours_doses:
+                why.append(f"{ours_doses} dose(s) as the study gave them; the published simulation gives "
+                           f"{len(published_doses)}")
+            if row.get("food_state") == "fed" and not link.get("fed"):
+                why.append("simulated fed as reported; the published simulation has no meal")
+            if why:
+                differs_by_design[row["study_id"]] = "; ".join(why)
         row.pop("_offset_min", None)
 
     return ReferenceImport(compound=name, source=source, cpf=cpf, studies=tuple(studies), skipped=tuple(skipped),
                            unplaced=tuple(unplaced), notes=tuple(notes), simulation_of=simulation_of,
-                           offset_min=offset_min)
+                           offset_min=offset_min, differs_by_design=differs_by_design)

@@ -55,6 +55,31 @@ class ObservedPK:
     thalf: float | None = None
     t_last: float | None = None
     t_first: float | None = None
+    # The observed sampling times (same time unit as the simulation). When given, the prediction is read at exactly
+    # these times before it is reduced, so predicted and observed AUC, Cmax, tmax and t1/2 come from identical
+    # sampling: a simulated peak between two samples is not compared with a sampled observed one, and a coarse
+    # simulation grid cannot miss an early IV sample (the Dapagliflozin IV microdose, sampled from 5 min).
+    sample_times: tuple[float, ...] | None = None
+
+
+def _at(times: Sequence[float], concs: Sequence[float], at: Sequence[float]) -> tuple[list[float], list[float]]:
+    """The simulated curve linearly interpolated at the times `at` that lie inside the simulated window."""
+    out_t: list[float] = []
+    out_c: list[float] = []
+    j = 0
+    for t in sorted(at):
+        if t < times[0] or t > times[-1]:
+            continue
+        while j + 1 < len(times) and times[j + 1] < t:
+            j += 1
+        if times[j] == t or j + 1 >= len(times):
+            c = concs[j]
+        else:
+            t0, t1, c0, c1 = times[j], times[j + 1], concs[j], concs[j + 1]
+            c = c0 + (c1 - c0) * (t - t0) / (t1 - t0) if t1 > t0 else c0
+        out_t.append(t)
+        out_c.append(c)
+    return out_t, out_c
 
 
 @dataclass(frozen=True)
@@ -103,7 +128,10 @@ def assess_round(
             continue
         obs = observed.get(profile.study_id)
         times, concs = list(profile.times), list(profile.concentrations)
-        if obs is not None and (obs.t_last is not None or obs.t_first is not None):
+        sampled = _at(times, concs, obs.sample_times) if obs is not None and obs.sample_times else ([], [])
+        if len(sampled[0]) >= 2:
+            times, concs = sampled
+        elif obs is not None and (obs.t_last is not None or obs.t_first is not None):
             # Compare like with like: reduce the prediction over the interval that was actually sampled.
             lo = obs.t_first if obs.t_first is not None else float("-inf")
             hi = obs.t_last if obs.t_last is not None else float("inf")

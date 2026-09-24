@@ -68,3 +68,14 @@ def test_nca_reproduces_engine_pk_within_one_percent():
     assert result.c_max == pytest.approx(50.25272, rel=1e-5)
     assert result.t_max / 60 == pytest.approx(0.18333334, rel=1e-4)  # min -> h
     assert result.auc_last == pytest.approx(4064.1245, rel=0.01)  # within 1%
+
+
+def test_a_flat_or_repeated_tail_is_not_the_terminal_phase():
+    """OSP Boulton 2013 IV (dapagliflozin) ends 4.63e-5, 4.48e-5, 4.48e-5: the old selection took that plateau and gave
+    a 275 h half-life. Trailing non-declining points leave the regression; ties in adjusted R² take more points."""
+    times = [5, 10, 20, 30, 40, 50, 60, 180, 300, 420, 660, 900, 1380, 2100, 2820, 2880]
+    concs = [0.02498, 0.01605, 0.006415, 0.004826, 0.00291, 0.002485, 0.002121, 0.001025, 0.00068, 0.000545,
+             0.0002895, 0.0001588, 9.276e-05, 4.627e-05, 4.483e-05, 4.483e-05]
+    result = nca(times, concs)
+    assert 6 * 60 < result.t_half < 14 * 60
+    assert result.n_terminal_points >= 5
