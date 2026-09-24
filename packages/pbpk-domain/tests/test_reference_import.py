@@ -169,3 +169,47 @@ def test_gaps_in_other_reference_models_are_named_not_hidden():
     assert any(u.startswith("MetabolizationLiverMicrosomes_MM") for u in midazolam.unplaced)
     with pytest.raises(ReferenceImportError, match="expected one compound"):
         import_osp_snapshot(_snapshot("Itraconazole"))
+
+
+def test_every_osp_regimen_notation_is_read():
+    from pbpk_domain.reference.osp_import import _dose_times
+
+    assert _dose_times("(S0-T24-R3)") == [0.0, 24.0, 48.0]
+    assert _dose_times("(S-0,T-24,R-3)") == [0.0, 24.0, 48.0]
+    assert _dose_times("0-24-48") == [0.0, 24.0, 48.0]
+    assert _dose_times("0-(S24-T24-R2)") == [0.0, 24.0, 48.0]
+    assert _dose_times(1.0) == [1.0]
+    assert _dose_times("weekly") is None
+
+
+def test_rifampicin_studies_keep_their_real_design():
+    imported = import_osp_snapshot(_snapshot("Rifampicin"))
+    mean_md = _study(imported, "acocella-1977-mean-600-mg-md")  # IV 600 mg q24h × 7, sampled to 152 h
+    assert (mean_md["design"], mean_md["dosing_interval_h"], mean_md["n_doses"]) == ("MD", 24.0, 7)
+    assert mean_md["infusion_time_min"] == 180.0
+    day1 = _study(imported, "furesz-1970-600-mg")  # fitted by the paper against a MD simulation, sampled on day 1
+    assert day1.get("design") is None
+    assert _study(imported, "acocella-1984-individual-1-600-mg-3-h-infusion")["infusion_time_min"] == 180.0
+    assert _study(imported, "peloquin-1999-antacid")["co_medication"] == "antacid"
+    assert any("irregular dosing schedule" in s for s in imported.skipped)  # Chattopadhyay 2018, named
+    # linked through the paper's own parameter identification, not only through the simulations
+    assert imported.simulation_of["chouchane-1995-rimactan"] == "Rifampicin po 300 mg"
+
+
+def test_the_regenerated_rifampicin_simulations_select_its_interactions_and_values():
+    from pbpk_domain.reference.roundtrip import roundtrip_inputs
+
+    imported = import_osp_snapshot(_snapshot("Rifampicin"))
+    ours, pairs, _notes = roundtrip_inputs(imported)
+    published = _snapshot("Rifampicin")
+    sim = ours["Simulations"][0]
+    assert {i["Name"] for i in sim["Interactions"]} == {i["Name"] for i in published["Simulations"][0]["Interactions"]}
+    # the compound's own process selections are exactly the published ones (metabolism, transport, GFR)
+    assert {p["Name"] for p in sim["Compounds"][0]["Processes"]} == {
+        p["Name"] for p in published["Simulations"][0]["Compounds"][0]["Processes"]}
+    assert len(pairs) == 21
+
+    dapa = import_osp_snapshot(_snapshot("Dapagliflozin"))
+    ours_dapa, _pairs, _ = roundtrip_inputs(dapa)
+    params = {p["Path"]: p["Value"] for p in ours_dapa["Simulations"][0]["Parameters"]}
+    assert params["Dapagliflozin|logP (veg.oil/water)"] == 2.0831076805
