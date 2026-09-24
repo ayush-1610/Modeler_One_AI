@@ -15,6 +15,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -145,6 +146,8 @@ class PublishedIndividual(BaseModel):
     seed: int | None = Field(default=None, ge=-(2**31), le=2**31 - 1)  # the individual's Seed (organ-volume percentiles)
     parameters: dict[str, PathValue] = Field(default_factory=dict)
     expression: dict[str, PathValue] = Field(default_factory=dict)
+    # its expression profiles copied verbatim (molecule -> profile document): localization, transport type, ontogeny
+    profiles: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 # The documented default when a study reports no demographics: the OSP reference 30-year-old European male.

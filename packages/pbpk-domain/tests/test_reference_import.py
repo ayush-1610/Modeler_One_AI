@@ -15,7 +15,8 @@ from pbpk_domain.cpf.completeness import check_completeness
 from pbpk_domain.cpf.models import ParameterStatus
 from pbpk_domain.m15 import Rating
 from pbpk_domain.reference import ReferenceImportError, import_osp_snapshot
-from pbpk_domain.reference.osp_import import _convert
+from pbpk_domain.reference.osp_import import _convert, import_osp_system
+from pbpk_domain.reference.roundtrip import system_roundtrip_inputs
 
 FIXTURES = Path(__file__).resolve().parents[3] / "services" / "engine-worker" / "golden" / "fixtures"
 pytestmark = pytest.mark.req("T-03")
@@ -283,15 +284,48 @@ def test_the_published_expression_profile_wins_over_the_library_copy():
     assert record.engine_binding.building_block == "ExpressionProfile"
     assert expression_molecule(record.engine_binding.parameter) == "CYP3A4"
     assert expression_molecule("Organism|Liver|Periportal|Intracellular|CYP3A4|Relative expression") == "CYP3A4"
-    # Only values that differ are recorded: the relative expressions match the library.
-    assert [p.id for p in imported.cpf.parameters if p.id.startswith("expr.")] == ["expr.CYP3A4|t1/2 (liver)"]
+    # Only values that differ are recorded as values: the relative expressions match the library.
+    assert [p.id for p in imported.cpf.parameters if p.id.startswith("expr.") and not p.id.startswith("expr.profile.")] \
+        == ["expr.CYP3A4|t1/2 (liver)"]
+    # every profile of the published individual is carried verbatim, and it is what the model is built with
+    from pbpk_domain.cpf.build import expression_documents
+
+    documents = expression_documents(imported.cpf)
+    published = {p["Molecule"]: p for p in _snapshot("Midazolam")["ExpressionProfiles"]
+                 if f"{p['Molecule']}|{p['Species']}|{p['Category']}" in _snapshot("Midazolam")["Individuals"][0]["ExpressionProfiles"]}
+    assert documents == published
     built = build_stage_snapshot(imported.cpf, _first_scenarios(imported), stage="S1", skip_unbuildable=True)
     doc = json.loads(built.snapshot.model_dump_json(by_alias=True, exclude_none=True))
     cyp = next(e for e in doc["ExpressionProfiles"] if e["Molecule"] == "CYP3A4")
     liver = [p for p in cyp["Parameters"] if p["Path"] == "CYP3A4|t1/2 (liver)"]
     assert liver == [{"Path": "CYP3A4|t1/2 (liver)", "Value": 36.0, "Unit": "h"}]
     assert "expr.CYP3A4|t1/2 (liver)" in built.build_report.bindings_used
+    assert "expr.profile.CYP3A4" in built.build_report.bindings_used
+    assert "CYP3A4" in built.build_report.expression_documents
     assert unplaceable_parameters(imported.cpf) == ()
+
+
+@pytest.mark.parametrize(("model", "molecule"), [("Clarithromycin", "P-gp"), ("Metformin", "MATE1"), ("Metformin", "OCT1"),
+                                                  ("Ketoconazole", "ABCB1"), ("Verapamil", "P-gp")])
+def test_every_regenerated_profile_is_the_published_one(model, molecule):
+    """The library's copy comes from another model: Clarithromycin's P-gp has no ontogeny where the library's has;
+    Metformin leaves MATE1/OCT1 at the PK-Sim default in organs the library's copy sets; Ketoconazole's ABCB1 has
+    another transport type and localization. Every profile a regenerated individual gets is the published one."""
+    from pbpk_domain.reference.roundtrip import roundtrip_inputs
+
+    snapshot = _snapshot(model)
+    importer = import_osp_system if model == "Verapamil" else import_osp_snapshot
+    imported = importer(snapshot)
+    ours = (system_roundtrip_inputs(imported) if model == "Verapamil" else roundtrip_inputs(imported))[0]
+    by_ref = {f"{p['Molecule']}|{p['Species']}|{p['Category']}": p for p in snapshot["ExpressionProfiles"]}
+
+    def body(profile):
+        return {k: v for k, v in profile.items() if k not in ("Category", "Species", "Molecule")}
+
+    published = [by_ref[r] for i in snapshot["Individuals"] for r in i.get("ExpressionProfiles", []) if r.startswith(f"{molecule}|")]
+    mine = [p for p in ours["ExpressionProfiles"] if p["Molecule"] == molecule]
+    assert mine and published
+    assert all(any(body(m) == body(p) for p in published) for m in mine)
 
 
 def _first_scenarios(imported):

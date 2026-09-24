@@ -289,3 +289,33 @@ def test_voriconazole_imports_its_own_studies_and_names_its_ddi_arms():
 
 def test_a_binned_product_at_one_moment_is_one_administration():
     assert len(_import("Ketoconazole").studies) == 53
+
+
+def test_a_named_dosing_interval_counts_its_doses_for_the_label():
+    """OSP Raltegravir's MD simulations give DI_12_12 for 10 days (20 doses); the studies gave 19, or one."""
+    imported = _import("Raltegravir")
+    assert imported.differs_by_design["markowitz-2006-400mg-fct-md"] == (
+        "19 dose(s) as the study gave them; the published simulation gives 20")
+    assert imported.differs_by_design["kassahun-2007-200mg-fct-sd"].startswith("1 dose(s)")
+    assert _study_row(imported, "kassahun-2007-200mg-fct-sd").get("design") is None  # still a single-dose study
+
+
+def test_a_liquid_the_published_model_gives_a_release_model_is_simulated_with_it():
+    imported = _import("Raltegravir")
+    granules = _study_row(imported, "rhee-2014-granules-suspension")
+    assert (granules["formulation"], granules["formulation_name"]) == ("suspension", "Weibull (granules)")
+    ours, _pairs, _notes = roundtrip_inputs(imported)
+    sim = next(s for s in ours["Simulations"] if s["Name"] == "rhee-2014-granules-suspension")
+    assert sim["Compounds"][0]["Protocol"]["Formulations"][0]["Name"] == "Weibull (granules)"
+
+
+def test_the_majority_simulation_value_is_imported_and_a_dissenting_simulation_labelled():
+    """38 of 39 Metformin simulations set the brain cell permeability to 0.02 cm/min, one to 0.023."""
+    cpf = _import("Metformin").cpf
+    record = cpf.get("sim[oral].Neighborhoods|Brain_int_Brain_cell|Metformin|P (intracellular->interstitial)") \
+        or cpf.get("sim.Neighborhoods|Brain_int_Brain_cell|Metformin|P (intracellular->interstitial)")
+    assert record is not None and (record.value, record.unit) == (0.02, "cm/min")
+
+
+def _study_row(imported, study_id: str) -> dict:
+    return next(s for s in imported.studies if s["study_id"] == study_id)

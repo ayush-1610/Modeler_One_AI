@@ -15,6 +15,35 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the published model's own expression profiles, simulation values and formulations (run-14 round trips)
+- **Expression profiles are imported verbatim.** The builder gave every protein the library's copy of its profile,
+  harvested from another OSP model, plus only the numeric values that differed. The copies also differ in what is not
+  a number, and in values the published profile leaves at the PK-Sim default: Clarithromycin's P-gp has no ontogeny
+  where the library's copy has one (ontogeny factor 1e-14 in our model, oral curves 1-2 % off); Metformin leaves MATE1
+  and OCT1 unexpressed in brain, muscle and colon where the library's copy expresses them (0 of 40 pairs identical);
+  ABCB1 differs in transport type and localization in five models. Each profile of the published individual is now a
+  CPF record `expr.profile.<molecule>` (the document as JSON, binding `ExpressionProfileDocument`), and a study's own
+  published individual carries its profiles (`PublishedIndividual.profiles`); the builder uses them instead of the
+  library's, and the `expr.*` values on top. The library stays the default for a CPF without them. Every
+  regenerated profile checked (Clarithromycin, Metformin x28 individuals, Ketoconazole, Verapamil, Midazolam) equals
+  the published one. The build report names the proteins given their own profile.
+- **The majority simulation value is imported.** A compound value the simulations set with any disagreement was
+  dropped: Metformin's brain cell permeability, 0.02 cm/min in 38 of 39 simulations, 0.023 in one. Now the value a
+  strict majority of a route's setting simulations use (and at least half of the route's simulations) is imported;
+  a tie is still named and not imported.
+- **A simulation's own values are labelled.** A published simulation that sets compound values the model does not
+  carry (a minority value) is labelled on its study as differing by design, naming the first path.
+- **Dose counts of named DosingIntervals.** The label comparing doses now counts a published DI_12_12 / DI_24
+  protocol (PK-Sim repeats while time < End time): Raltegravir's MD pairs "19 dose(s) as the study gave them; the
+  published simulation gives 20", Kassahun 2007 (single dose) likewise; the study's own schedule is unchanged.
+- **A liquid given a release model by the published model is simulated with it.** Raltegravir's granules in
+  suspension (Rhee 2014) use "Weibull (granules)" in the published simulation; we dissolved them (AUC 2.3x). The study
+  keeps its MS-01 class (suspension).
+- Run 14 otherwise: Digoxin 38/39 identical (the other was the Kirch loading dose, now placed as phases);
+  Raltegravir 14/19 (the rest labelled or fixed above); Itraconazole as a system 9/41 identical with the metabolites
+  simulated, every solution-fasted pair within 2e-4, the capsule and fed pairs off because the published simulations
+  select other solubility alternatives per formulation and food state (one alternative is imported; open question).
+
 ### Added — loading-dose and phased regimens (OSP Voriconazole: 0 -> 12 importable studies)
 - A regimen whose doses differ or are unevenly spaced is now simulated as the published protocol writes it: one
   schema per phase (Start time, NumberOfRepetitions, TimeBetweenRepetitions) with one item at the phase's dose and,

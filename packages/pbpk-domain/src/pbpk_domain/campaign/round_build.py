@@ -88,6 +88,7 @@ def _subject_spec(scenario: MapScenario, *, seed: int) -> SubjectSpec:
             "own_physiology": True,
             "parameters": {path: Measured(value=v.value, unit=v.unit) for path, v in published.parameters.items()},
             "expression_overrides": {path: Measured(value=v.value, unit=v.unit) for path, v in published.expression.items()},
+            "expression_documents": dict(published.profiles),
         }
         if published.seed is not None:
             seed = published.seed
@@ -293,7 +294,8 @@ def _deferral_notes(snapshot: Snapshot, scenarios: Sequence[MapScenario], report
         from pbpk_domain.expression import expression_source
 
         notes.append("expression profiles: " + "; ".join(
-            f"{m} from the {expression_source(m)}" for m in report.expression_profiles
+            f"{m} from the model's own published profile" if m in report.expression_documents
+            else f"{m} from the {expression_source(m)}" for m in report.expression_profiles
         ))
     own = sorted({f"{s.study_id} ({s.published_individual.name})" for s in scenarios if s.published_individual})
     if own:

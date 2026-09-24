@@ -74,6 +74,7 @@ class BuildReport:
     unresolved: tuple[str, ...]      # CPF parameter ids the current builder cannot place (need T-10)
     expression_profiles: tuple[str, ...] = ()  # proteins given a harvested expression profile on every subject
     missing_expression: tuple[str, ...] = ()   # proteins a process names but the library has no profile for
+    expression_documents: tuple[str, ...] = ()  # proteins given the CPF's own published profile, not the library's
 
 
 # `bind.partner` of a published compound that does not set its plasma protein binding partner.
@@ -120,7 +121,8 @@ def missing_expression_profiles(cpf: CPF) -> tuple[str, ...]:
     from pbpk_domain.expression import expression_library
 
     library = expression_library()
-    return tuple(m for m in process_molecules(cpf) if m not in library)
+    documents = expression_documents(cpf)
+    return tuple(m for m in process_molecules(cpf) if m not in library and m not in documents)
 
 
 def expression_parameters(cpf: CPF) -> dict[str, dict[str, ParameterRecord]]:
@@ -133,6 +135,36 @@ def expression_parameters(cpf: CPF) -> dict[str, dict[str, ParameterRecord]]:
             continue
         out.setdefault(expression_molecule(eb.parameter), {})[eb.parameter] = record
     return out
+
+
+# A published expression profile copied verbatim (``expr.profile.<molecule>``, the profile document as JSON, the
+# molecule in `parameter`): the model's own localization, transport type, ontogeny and values. The library's copy
+# comes from another model and can differ in all of them (OSP Clarithromycin's P-gp has no ontogeny, the library's
+# has; Metformin leaves MATE1 unexpressed in brain and muscle where the library's copy expresses it).
+PROFILE_DOCUMENT = "ExpressionProfileDocument"
+
+
+def expression_documents(cpf: CPF) -> dict[str, dict]:
+    """Molecule -> the published profile document the CPF carries for it."""
+    out: dict[str, dict] = {}
+    for record in cpf.parameters:
+        eb = record.engine_binding
+        if record.status is not ParameterStatus.MISSING and eb is not None and eb.building_block == PROFILE_DOCUMENT \
+                and isinstance(record.value, str):
+            out[eb.parameter] = json.loads(record.value)
+    return out
+
+
+def _document_spec(molecule: str, doc: dict) -> ExpressionSpec:
+    from pbpk_domain.expression import DEFAULT_CATEGORY
+
+    return ExpressionSpec(type=doc["Type"], molecule=molecule, species=doc.get("Species", "Human"),
+                          category=DEFAULT_CATEGORY, harvested=doc)
+
+
+def _document_ids(cpf: CPF, expressed: Sequence[str]) -> list[str]:
+    return [r.id for r in cpf.parameters if r.engine_binding is not None
+            and r.engine_binding.building_block == PROFILE_DOCUMENT and r.engine_binding.parameter in expressed]
 
 
 def expression_molecule(path: str) -> str:
@@ -162,16 +194,19 @@ def _override_profile(spec: ExpressionSpec, values: dict[str, Measured]) -> Expr
 
 def _with_expression(subjects: Sequence[SubjectSpec], molecules: Sequence[str],
                      overrides: dict[str, dict[str, ParameterRecord]] | None = None,
+                     documents: dict[str, dict] | None = None,
                      ) -> tuple[list[SubjectSpec], list[str], list[str]]:
-    """Every subject gets the harvested profile of every process protein it does not already express, with the
-    CPF's ``expr.*`` values applied; a subject with its own published physiology gets its own values instead, under
-    a profile category named after it."""
+    """Every subject gets the profile of every process protein it does not already express: the CPF's own published
+    profile document when it carries one, else the harvested library's, with the CPF's ``expr.*`` values applied; a
+    subject with its own published physiology gets its own documents and values instead, under a profile category
+    named after it."""
     from pbpk_domain.expression import library_expression
 
     cpf_values = {m: {path: _measured(r) for path, r in recs.items()} for m, recs in (overrides or {}).items()}
     library, placed, missing = {}, [], []
     for molecule in molecules:
-        spec = library_expression(molecule)
+        doc = (documents or {}).get(molecule)
+        spec = _document_spec(molecule, doc) if doc is not None else library_expression(molecule)
         if spec is None:
             missing.append(molecule)
         else:
@@ -185,9 +220,12 @@ def _with_expression(subjects: Sequence[SubjectSpec], molecules: Sequence[str],
             own: dict[str, dict[str, Measured]] = {}
             for path, measured in subject.expression_overrides.items():
                 own.setdefault(expression_molecule(path), {})[path] = measured
-            # its own category for every profile: the shared ones carry the main individual's CPF values
+            # its own category for every profile: its own published documents where it has them, else the shared
+            # ones (which carry the main individual's CPF values), with its own values on top
+            base = {m: (_document_spec(m, subject.expression_documents[m]) if m in subject.expression_documents else s)
+                    for m, s in library.items()}
             specs = [(_override_profile(s, own[m]) if m in own else s).model_copy(update={"category": subject.name})
-                     for m, s in library.items()]
+                     for m, s in base.items()]
         else:
             specs = shared
         extra = [e for e in specs if e.molecule not in have]
@@ -515,10 +553,11 @@ def build_from_cpf(
     compound, used, unresolved = _compound_from_cpf(cpf)
     # Each process's protein must be expressed in the individual, or the process eliminates nothing.
     expr_records = expression_parameters(cpf)
-    subjects, expressed, missing = _with_expression(subjects, process_molecules(cpf), expr_records)
+    documents = expression_documents(cpf)
+    subjects, expressed, missing = _with_expression(subjects, process_molecules(cpf), expr_records, documents)
     subjects, individual_used = _with_individual_parameters(subjects, cpf)
     scenarios, sim_used = _with_simulation_parameters(scenarios, cpf)
-    expr_used = [r.id for m in expressed for r in expr_records.get(m, {}).values()]
+    expr_used = [r.id for m in expressed for r in expr_records.get(m, {}).values()] + _document_ids(cpf, expressed)
     used = [*used, *individual_used, *expr_used, *sim_used]
 
     builder = SnapshotBuilder(snapshot_version) if snapshot_version is not None else SnapshotBuilder()
@@ -552,6 +591,7 @@ def build_from_cpf(
         unresolved=tuple(unresolved),
         expression_profiles=tuple(expressed),
         missing_expression=tuple(missing),
+        expression_documents=tuple(m for m in expressed if m in documents),
     )
     return snapshot, report
 
@@ -585,10 +625,14 @@ def build_from_system(
     for cpf in system.compounds:
         for molecule, records in expression_parameters(cpf).items():
             expr_records.setdefault(molecule, {}).update(records)
-    subjects, expressed, missing = _with_expression(subjects, molecules, expr_records)
+    documents: dict[str, dict] = {}
+    for cpf in system.compounds:
+        documents.update({m: d for m, d in expression_documents(cpf).items() if m not in documents})
+    subjects, expressed, missing = _with_expression(subjects, molecules, expr_records, documents)
     for cpf in system.compounds:
         subjects, individual_used = _with_individual_parameters(subjects, cpf)
         used.extend(individual_used)
+        used.extend(_document_ids(cpf, expressed))
     used.extend(r.id for m in expressed for r in expr_records.get(m, {}).values())
 
     scenarios = list(scenarios)
@@ -627,5 +671,6 @@ def build_from_system(
     snapshot = builder.build()
     report = BuildReport(compound=system.name, cpf_version=max(c.version for c in system.compounds),
                          bindings_used=tuple(dict.fromkeys(used)), unresolved=tuple(unresolved),
-                         expression_profiles=tuple(expressed), missing_expression=tuple(missing))
+                         expression_profiles=tuple(expressed), missing_expression=tuple(missing),
+                         expression_documents=tuple(m for m in expressed if m in documents))
     return snapshot, report

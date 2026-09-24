@@ -678,6 +678,8 @@ class SubjectSpec(Spec):
     # over the harvested library profiles under this subject's own profile category.
     own_physiology: bool = False
     expression_overrides: dict[str, Measured] = Field(default_factory=dict)
+    # that individual's own published profiles, verbatim (molecule -> profile document), used instead of the shared ones
+    expression_documents: dict[str, dict] = Field(default_factory=dict)
 
     def to_individual(self) -> Individual:
         fields: dict = {
