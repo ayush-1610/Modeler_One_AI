@@ -77,6 +77,46 @@ class BuildReport:
     expression_documents: tuple[str, ...] = ()  # proteins given the CPF's own published profile, not the library's
 
 
+# Alternatives a published model selects per simulation by the product given and the food state: the values of each
+# non-default alternative are `<id>@<alternative>` records (``phys.solubility.ref@Capsule fed``), and
+# ``alt.select`` (JSON) lists the rules {group, formulation, food, alternative}: formulation is the CPF formulation a
+# study is given ("*" for any, null for a dissolved or IV dose), food "fasted"/"fed". A study matching no rule uses
+# the default alternative.
+ALTERNATIVE_SEPARATOR = "@"
+ALTERNATIVE_RULES = "alt.select"
+_ALTERNATIVE_GROUP_NAMES = {"Solubility": "COMPOUND_SOLUBILITY", "IntestinalPermeability": "COMPOUND_INTESTINAL_PERMEABILITY"}
+
+
+# CPF ids whose value is one alternative's (the default's): a simulation selecting another alternative of the group
+# does not use them.
+ALTERNATIVE_GROUP_OF_ID = {"phys.solubility.ref": "COMPOUND_SOLUBILITY", "phys.solubility.ref_ph": "COMPOUND_SOLUBILITY",
+                           "perm.intestinal": "COMPOUND_INTESTINAL_PERMEABILITY"}
+
+
+def alternative_rules(cpf: CPF) -> list[dict]:
+    record = cpf.get(ALTERNATIVE_RULES)
+    if record is None or record.status is ParameterStatus.MISSING or not isinstance(record.value, str):
+        return []
+    return json.loads(record.value)
+
+
+def alternatives_for(cpf: CPF | None, formulation: str | None, food_state: str) -> dict[str, str]:
+    """GroupName -> alternative a simulation of a study given ``formulation`` (None: dissolved or IV) in
+    ``food_state`` selects: the rule for that formulation and food state, else the one for any formulation."""
+    if cpf is None:
+        return {}
+    out: dict[str, str] = {}
+    rules = alternative_rules(cpf)
+    for group, group_name in _ALTERNATIVE_GROUP_NAMES.items():
+        mine = [r for r in rules if r["group"] == group and r["food"] == food_state]
+        exact = next((r for r in mine if r.get("formulation") == formulation), None)
+        wildcard = next((r for r in mine if r.get("formulation") == "*"), None)
+        chosen = exact or wildcard
+        if chosen is not None:
+            out[group_name] = chosen["alternative"]
+    return out
+
+
 # `bind.partner` of a published compound that does not set its plasma protein binding partner.
 UNSPECIFIED_PARTNER = "unspecified"
 
@@ -478,6 +518,25 @@ def _compound_from_cpf(cpf: CPF) -> tuple[CompoundSpec, list[str], list[str]]:
     ref_ph = take("phys.solubility.ref_ph")
     if ref_ph is not None:
         fields["solubility_reference_ph"] = ref_ph.numeric_value
+
+    # further alternatives the simulations select by product and food state (`alternatives_for`)
+    solubility_alts: dict[str, tuple[Measured, float]] = {}
+    permeability_alts: dict[str, Measured] = {}
+    default_ph = fields.get("solubility_reference_ph", 7.0)
+    for record in cpf.parameters:
+        base, sep, name = record.id.partition(ALTERNATIVE_SEPARATOR)
+        if not sep or record.status is ParameterStatus.MISSING:
+            continue
+        if base == "phys.solubility.ref":
+            ph = take(f"phys.solubility.ref_ph{ALTERNATIVE_SEPARATOR}{name}")
+            solubility_alts[name] = (_measured(take(record.id)), ph.numeric_value if ph is not None else default_ph)
+        elif base == "perm.intestinal":
+            permeability_alts[name] = _measured(take(record.id))
+    if solubility_alts:
+        fields["solubility_alternatives"] = solubility_alts
+    if permeability_alts:
+        fields["intestinal_permeability_alternatives"] = permeability_alts
+    take(ALTERNATIVE_RULES)  # applied per scenario by `alternatives_for`
 
     partner = take("bind.partner")
     if partner is not None and isinstance(partner.value, str):

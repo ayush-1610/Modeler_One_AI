@@ -330,3 +330,50 @@ def test_a_later_session_of_a_named_interval_simulation_gets_its_schedule():
     assert "kharasch-2011b-alfentanil-iv-control-simultaneous" not in imported.differs_by_design
     sequential = _study_row(imported, "kharasch-2011b-alfentanil-iv-control-sequential")
     assert sequential.get("design") is None
+
+
+def test_itraconazole_selects_its_solubility_per_product_and_food_state():
+    """The published simulations give capsule and fed studies their own solubility alternatives; every study's
+    regenerated simulation selects the one its published simulation uses (no label left)."""
+    from pbpk_domain.cpf.build import alternative_rules, alternatives_for
+
+    imported = _import("Itraconazole")
+    cpf = imported.cpf
+    assert cpf.get("phys.solubility.ref@Capsule fed").value == pytest.approx(0.0007)  # mg/ml (0.7 mg/l)
+    assert cpf.get("phys.solubility.ref@Capsule fasted").value == pytest.approx(0.0009728307177)
+    assert {(r["formulation"], r["food"], r["alternative"]) for r in alternative_rules(cpf)} >= {
+        ("Capsule fed", "fed", "Capsule fed"), ("Capsule fasted", "fasted", "Capsule fasted"), (None, "fed", "Solution fed")}
+    assert alternatives_for(cpf, None, "fasted") == {}  # the default, "Solution fasted"
+    assert not [v for v in imported.differs_by_design.values() if "alternative" in v]
+    snapshot = json.loads((FIXTURES / "Itraconazole-Model.json").read_text(encoding="utf-8"))
+    ours, pairs, _notes = roundtrip_inputs(imported)
+    published = {s["Name"]: s for s in snapshot["Simulations"]}
+    mine = {s["Name"]: s for s in ours["Simulations"]}
+    compound = next(c for c in ours["Compounds"] if c["Name"] == "Itraconazole")
+    assert [a["Name"] for a in compound["Solubility"]][1:] and all(a.get("IsDefault") is False for a in compound["Solubility"][1:])
+    checked = 0
+    for pair in pairs:
+        pub = next(c for c in published[pair["published"]]["Compounds"] if c["Name"] == "Itraconazole")
+        want = next((a["AlternativeName"] for a in pub.get("Alternatives", []) if a["GroupName"] == "COMPOUND_SOLUBILITY"),
+                    "Solution fasted (Taupitz et al. 2013)")
+        got = next((a["AlternativeName"] for a in mine[pair["ours"]]["Compounds"][0].get("Alternatives", [])
+                    if a["GroupName"] == "COMPOUND_SOLUBILITY"), None)
+        if pub.get("Protocol") and "Oral" in json.dumps(snapshot["Protocols"]) and got is not None:
+            assert got == want, pair["ours"]
+            checked += 1
+    assert checked >= 15
+
+
+def test_ketoconazole_fed_studies_take_their_food_state_from_the_simulation_name():
+    """Its datasets report no food state; the published simulations are named "... fed" and give those studies the
+    "Fit fed" intestinal permeability without a meal event."""
+    from pbpk_domain.cpf.build import alternatives_for
+
+    imported = _import("Ketoconazole")
+    fed = _study_row(imported, "88-0")
+    assert fed["food_state"] == "fed" and "as the published simulation" in fed["reference"] and "is named" in fed["reference"]
+    assert alternatives_for(imported.cpf, "PD_tablet_3Bins", "fed") == {"COMPOUND_INTESTINAL_PERMEABILITY": "Fit fed"}
+    assert imported.cpf.get("perm.intestinal@Fit fed").value == pytest.approx(9.9497068191e-06)
+    # the published model's own inconsistency (named fasted, simulated with "Fit fed") stays labelled
+    labelled = sorted(k for k, v in imported.differs_by_design.items() if "alternative" in v)
+    assert labelled == ["9-0", "94-0"]

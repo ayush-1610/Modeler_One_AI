@@ -15,6 +15,37 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — solubility and intestinal permeability per product and food state (owner-approved 2026-09-24)
+- A published model can give a study's simulation another alternative of a compound property depending on the product
+  given and the food state: OSP Itraconazole's solubility "Capsule fasted", "Capsule fed", "Solution fed" (default
+  "Solution fasted"); OSP Ketoconazole's intestinal permeability "Fit fed" (default "Fit fasted"). One CPF value per
+  property made every Itraconazole capsule and fed round trip differ (9 of 41 identical as a system).
+- CPF: each non-default alternative's values are `<id>@<alternative>` records (`phys.solubility.ref@Capsule fed`,
+  `phys.solubility.ref_ph@...`, `perm.intestinal@Fit fed`, same units as the default's) and `alt.select` (JSON) holds
+  the rules {group, formulation, food, alternative}. `cpf.build.alternatives_for` picks, for an oral study, the rule
+  for its CPF formulation (none when dissolved) and food state, else the rule for any formulation in that food state,
+  else the default. IV studies use the default.
+- Importer: per (formulation, food state) of the oral studies, the alternative most of their published simulations use
+  becomes a rule; one alternative for every product of a food state becomes a single any-product rule. A study whose
+  published simulation uses another alternative than the model selects is labelled (Ketoconazole Boyce 2010 (9) and
+  Wire 2007 (94): named fasted, simulated with "Fit fed" in the published model). A pH-solubility-table alternative is
+  named, not placed per product.
+- Builder: `CompoundSpec.solubility_alternatives` / `intestinal_permeability_alternatives` are written after the
+  default (IsDefault false, as published) and `SimulationSpec.alternatives` selects one per simulation; an unknown
+  alternative is refused.
+- Fitting: a fit of the default's value (`phys.solubility.ref`, `.ref_ph`, `perm.intestinal`) leaves out the studies
+  whose simulation selects another alternative of that group; setting the value there would overwrite their
+  alternative. The alternatives' own values are not fitted: MS-01 and diag-rules name only the default (a change
+  there is SME-governed).
+- Food state from the published simulation's name: when a dataset reports none, the importer used "fasted" unless the
+  published simulation has a meal. OSP Ketoconazole's fed studies have no meal event (the model represents the fed
+  state by "Fit fed") and all its datasets report no food state, so 16 fed studies were classed fasted. A simulation
+  named with "fed" or "fasted" (as a word, not both) now gives the study that food state, with the reason in its
+  reference (also Metformin's 8 fed studies, unchanged in outcome).
+- Result (offline, on the regenerated snapshots): every Itraconazole study selects the solubility its published
+  simulation uses (single compound and system); Ketoconazole 51 of 53 (the two above labelled). All 15 vendored models
+  stay S0-ready. To be confirmed on PK-Sim when CI runners are available again.
+
 ### Fixed — the published model's own expression profiles, simulation values and formulations (run-14 round trips)
 - **Expression profiles are imported verbatim.** The builder gave every protein the library's copy of its profile,
   harvested from another OSP model, plus only the numeric values that differed. The copies also differ in what is not

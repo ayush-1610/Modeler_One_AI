@@ -484,6 +484,33 @@ class CompoundSpec(Spec):
     # names (selection name -> MoleculeName): the OSP Dabigatran model selects its ``ABCB1-FIT`` transport on the
     # individual's ``P-gp``. Unset, a selection runs on the process's own molecule.
     selected_molecules: dict[str, str] = Field(default_factory=dict)
+    # Further alternatives of a property group that a simulation selects by its product and food state, as the
+    # published model does (OSP Itraconazole solubility "Capsule fed", Ketoconazole intestinal permeability "Fit fed"):
+    # name -> (solubility at reference pH, reference pH) / permeability. Written after the default, IsDefault false.
+    solubility_alternatives: dict[str, tuple[Measured, float]] = Field(default_factory=dict)
+    intestinal_permeability_alternatives: dict[str, Measured] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _alternative_names(self):
+        for label, names in (("solubility", self.solubility_alternatives), ("intestinal permeability",
+                                                                          self.intestinal_permeability_alternatives)):
+            if self.alternative_name in names:
+                raise ValueError(f"a {label} alternative may not reuse the default's name {self.alternative_name!r}")
+        if self.solubility_alternatives and self.solubility is None:
+            raise ValueError("solubility alternatives need the default solubility")
+        if self.intestinal_permeability_alternatives and self.intestinal_permeability is None:
+            raise ValueError("intestinal permeability alternatives need the default intestinal permeability")
+        for sol, _ph in self.solubility_alternatives.values():
+            _check(sol, unit="mg/ml", label="Solubility at reference pH")
+        for perm in self.intestinal_permeability_alternatives.values():
+            _check(perm, unit="cm/min", label="Permeability")
+        return self
+
+    def alternatives_of(self, group: str) -> tuple[str, ...]:
+        """Every alternative name of a simulation-selectable group ("COMPOUND_SOLUBILITY", ...), the default first."""
+        extra = {"COMPOUND_SOLUBILITY": self.solubility_alternatives,
+                 "COMPOUND_INTESTINAL_PERMEABILITY": self.intestinal_permeability_alternatives}.get(group, {})
+        return (self.alternative_name, *extra)
 
     @field_validator("molecular_weight")
     @classmethod
@@ -546,7 +573,10 @@ class CompoundSpec(Spec):
                         self.solubility.to_parameter(name="Solubility at reference pH"),
                         Parameter(name="Reference pH", value=self.solubility_reference_ph),
                     ],
-                )
+                ),
+                *(ParameterAlternative.model_validate({"Name": name, "IsDefault": False, "Parameters": [
+                    sol.to_parameter(name="Solubility at reference pH").model_dump(by_alias=True, exclude_none=True),
+                    {"Name": "Reference pH", "Value": ph}]}) for name, (sol, ph) in self.solubility_alternatives.items()),
             ]
         if self.solubility_table:
             table = Parameter(name="Solubility table", value=self.solubility_table_value if self.solubility_table_value
@@ -563,7 +593,11 @@ class CompoundSpec(Spec):
                     parameters=[
                         self.intestinal_permeability.to_parameter(name="Specific intestinal permeability (transcellular)")
                     ],
-                )
+                ),
+                *(ParameterAlternative.model_validate({"Name": name, "IsDefault": False, "Parameters": [
+                    perm.to_parameter(name="Specific intestinal permeability (transcellular)").model_dump(
+                        by_alias=True, exclude_none=True)]})
+                  for name, perm in self.intestinal_permeability_alternatives.items()),
             ]
         if self.permeability is not None:
             fields["permeability"] = [
@@ -1047,6 +1081,8 @@ class SimulationSpec(Spec):
     # simulations carry them in `Simulations[].Parameters`.
     parameters: dict[str, Measured] = Field(default_factory=dict)
     co_compounds: tuple[CoCompoundSpec, ...] = ()
+    # the main compound's alternative per group (GroupName -> AlternativeName) where it is not the default
+    alternatives: dict[str, str] = Field(default_factory=dict)
     observer_sets: tuple[str, ...] = ()  # ObserverSets (added with SnapshotBuilder.add_observer_set) this computes
 
 
@@ -1168,7 +1204,8 @@ class SnapshotBuilder:
         return snapshot
 
     def _simulation_compound(self, name: str, protocol: str | None, formulation: str | None,
-                             bins: tuple[str, ...] = ()) -> tuple[SimulationCompound, list[dict]]:
+                             bins: tuple[str, ...] = (), chosen: dict[str, str] | None = None,
+                             ) -> tuple[SimulationCompound, list[dict]]:
         compound_fields: dict = {"name": name}
         compound = self._compounds.get(name)
         interactions: list[dict] = []
@@ -1180,6 +1217,12 @@ class SnapshotBuilder:
             ]
             compound_fields["calculation_methods"] = list(compound.calculation_methods)
             alternatives = compound.selected_alternatives()
+            for group, alternative in (chosen or {}).items():
+                if alternative not in compound.alternatives_of(group):
+                    raise ValueError(f"{name}: no {group} alternative {alternative!r} "
+                                     f"(has {', '.join(compound.alternatives_of(group))})")
+                alternatives = [a for a in alternatives if a.group_name != group]
+                alternatives.append(AlternativeSelection(alternative_name=alternative, group_name=group))
             if alternatives:
                 compound_fields["alternatives"] = alternatives
             selections = [
@@ -1198,7 +1241,8 @@ class SnapshotBuilder:
         return SimulationCompound(**compound_fields), interactions
 
     def _simulation(self, spec: SimulationSpec) -> Simulation:
-        entries = [self._simulation_compound(spec.compound, spec.protocol, spec.formulation, spec.formulation_bins),
+        entries = [self._simulation_compound(spec.compound, spec.protocol, spec.formulation, spec.formulation_bins,
+                                             spec.alternatives),
                    *(self._simulation_compound(c.name, c.protocol, c.formulation, c.formulation_bins) for c in spec.co_compounds)]
         interactions = [sel for _entry, sels in entries for sel in sels]
         plasma = [PLASMA_OUTPUT_PATH.format(compound=name) for name in (spec.compound, *(c.name for c in spec.co_compounds))]

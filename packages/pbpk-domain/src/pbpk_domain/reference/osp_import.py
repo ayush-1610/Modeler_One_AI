@@ -838,13 +838,7 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
                 if selection in imported_on and molecule != imported_on[selection]:
                     link["feedback"].append(f"the published simulation runs {name} {selection} on {molecule}; "
                                             f"the model runs it on {imported_on[selection]}")
-        # a property alternative this simulation uses that differs from the one imported
-        for group in _ALTERNATIVE_GROUPS:
-            if len(parent.get(group) or []) > 1:
-                mine, imported = _alternative_of(sim, parent, group), _selected_alternative(snapshot, parent, group)
-                if mine and imported is not None and mine != imported.get("Name"):
-                    link["feedback"].append(f"the published simulation uses the {group} alternative {mine!r}; "
-                                            f"the model imports {imported.get('Name')!r}")
+        # a property alternative this simulation uses that the model would not select: `_alternative_selection`
         by_sim[sim["Name"]] = link
         for name in sim.get("ObservedData", []):
             links.setdefault(name, link)
@@ -1024,6 +1018,107 @@ def _own_sim_values(snapshot: dict[str, Any], simulation: str, cpf: CPF, route: 
         return None
     return (f"the published simulation sets {len(own)} {cpf.compound} value(s) of its own the model does not carry "
             f"(e.g. {own[0]!r})")
+
+
+# Property groups a simulation of the regenerated model selects per product and food state (cpf.build.alternatives_for)
+# and the CPF ids of their values.
+_SELECTABLE_GROUPS = {"Solubility": ("phys.solubility.ref", "phys.solubility.ref_ph"),
+                      "IntestinalPermeability": ("perm.intestinal",)}
+
+
+def _alternative_selection(snapshot: dict[str, Any], compound: dict[str, Any], studies: list[dict[str, Any]],
+                           simulation_of: dict[str, str], out: _Records, notes: list[str]) -> dict[str, list[str]]:
+    """The property alternatives the published model selects per product and food state, from the studies each
+    published simulation serves: OSP Itraconazole gives its capsule and fed studies the solubility alternatives
+    "Capsule fasted", "Capsule fed", "Solution fed"; OSP Ketoconazole its fed studies the intestinal permeability
+    "Fit fed" (with no meal in the simulation: the fed state is the studies'). Per (formulation, food state) of the
+    oral studies, the alternative most of their simulations use becomes a rule (``alt.select``), and each rule's
+    alternative its values (``<id>@<name>``); a food state whose products all use one alternative gets it for any
+    product. Returns, per study, a label where its published simulation uses another alternative than the model selects
+    (and, for a group not selectable per study, than the one imported)."""
+    from pbpk_domain.cpf.build import ALTERNATIVE_RULES, ALTERNATIVE_SEPARATOR
+
+    sims = {s.get("Name"): s for s in snapshot.get("Simulations", [])}
+    labels: dict[str, list[str]] = {}
+    rules: list[dict[str, Any]] = []
+    for group in _ALTERNATIVE_GROUPS:
+        alternatives = compound.get(group) or []
+        if len(alternatives) < 2:
+            continue
+        default = _selected_alternative(snapshot, compound, group)
+        default_name = default.get("Name") if default else None
+        used: dict[str, tuple[tuple[str | None, str], str]] = {}
+        votes: dict[tuple[str | None, str], Counter[str]] = {}
+        for study in studies:
+            sim = sims.get(simulation_of.get(study["study_id"]))
+            if sim is None or study.get("route") != "oral" \
+                    or not any(c.get("Name") == compound["Name"] for c in sim.get("Compounds", [])):
+                continue
+            alternative = _alternative_of(sim, compound, group)
+            if alternative is None:
+                continue
+            key = (study.get("formulation_name"), study.get("food_state", "fasted"))
+            used[study["study_id"]] = (key, alternative)
+            votes.setdefault(key, Counter())[alternative] += 1
+        chosen = {key: ranked[0][0] for key, counted in votes.items()
+                  if len(ranked := counted.most_common()) == 1 or ranked[0][1] > ranked[1][1]}
+        group_rules: list[dict[str, Any]] = []
+        if group in _SELECTABLE_GROUPS and chosen:
+            group_rules = [{"group": group, "formulation": f, "food": food, "alternative": a}
+                           for (f, food), a in sorted(chosen.items(), key=str) if a != default_name]
+            for food in ("fasted", "fed"):
+                same = {a for (_f, fd), a in chosen.items() if fd == food}
+                if len(same) == 1 and (only := same.pop()) != default_name:
+                    # one alternative for every product in this food state: one rule for any product
+                    group_rules = [r for r in group_rules if r["food"] != food]
+                    group_rules.append({"group": group, "formulation": "*", "food": food, "alternative": only})
+            placed = []
+            for name in sorted({r["alternative"] for r in group_rules}):
+                doc = next((a for a in alternatives if a.get("Name") == name), {})
+                if any(q.get("Name") == "Solubility table" for q in doc.get("Parameters", [])):
+                    notes.append(f"{group} alternative {name!r} is a pH-solubility table; not placed per product.")
+                    group_rules = [r for r in group_rules if r["alternative"] != name]
+                    continue
+                for grp, parameter_name, pid, unit in _ALTERNATIVE_PARAMETERS:
+                    q = next((q for q in doc.get("Parameters", []) if q.get("Name") == parameter_name), None)
+                    if grp == group and pid in _SELECTABLE_GROUPS[group] and q is not None:
+                        out.add(f"{pid}{ALTERNATIVE_SEPARATOR}{name}", _convert(float(q["Value"]), q.get("Unit"), unit),
+                                unit=unit, parameter=q)
+                placed.append(name)
+            if placed:
+                notes.append(f"{group}: alternatives {', '.join(repr(n) for n in placed)} imported with the product and "
+                             f"food state each is selected for; {default_name!r} otherwise.")
+            rules.extend(group_rules)
+
+        for study_id, (key, alternative) in used.items():
+            exact = next((r["alternative"] for r in group_rules if (r["formulation"], r["food"]) == key), None)
+            wildcard = next((r["alternative"] for r in group_rules if (r["formulation"], r["food"]) == ("*", key[1])), None)
+            if alternative != (expected := exact or wildcard or default_name):
+                labels.setdefault(study_id, []).append(
+                    f"the published simulation uses the {group} alternative {alternative!r}; the model selects "
+                    f"{expected!r} for a {key[1]} study given {key[0] or 'dissolved'}")
+    if rules:
+        out.add(ALTERNATIVE_RULES, json.dumps(rules, ensure_ascii=False))
+    return labels
+
+
+def _with_alternatives(cpf: CPF, snapshot: dict[str, Any], compound: dict[str, Any], studies: list[dict[str, Any]],
+                       simulation_of: dict[str, str], source: str, notes: list[str],
+                       differs_by_design: dict[str, str]) -> CPF:
+    """The CPF with its per-product alternatives (`_alternative_selection`); the studies' labels added in place."""
+    extra = _Records(source)
+    for study_id, why in _alternative_selection(snapshot, compound, studies, simulation_of, extra, notes).items():
+        differs_by_design[study_id] = "; ".join(filter(None, [differs_by_design.get(study_id), *why]))
+    if not extra.records:
+        return cpf
+    return cpf.model_copy(update={"parameters": (*cpf.parameters, *extra.records)})
+
+
+def _named_food_state(simulation: str) -> str | None:
+    """"fed" or "fasted" when a published simulation's name states one of them (as a word) and not both."""
+    words = set(re.findall(r"[a-z]+", simulation.lower()))
+    states = {"fed", "fasted"} & words
+    return states.pop() if len(states) == 1 else None
 
 
 def _administrations(row: dict[str, Any]) -> int:
@@ -1275,7 +1370,14 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
 
     reported = _given(props.get("Food state"))
     food = _FOOD_STATE.get(reported.lower()) if reported is not None else None
-    if food is None:
+    named = _named_food_state(link["simulation"]) if link else None
+    if food is None and named is not None and not (named == "fasted" and link.get("fed")):
+        # the modeller's own statement: OSP Ketoconazole "FDA 1998 - tablet 200 mg fed (88)" has no meal event and
+        # represents the fed state by its "Fit fed" intestinal permeability; its datasets report no food state
+        food = named
+        said.append(f"food state {'not reported' if reported is None else repr(reported) + ' has no MS-01 class'}; "
+                    f"{food} as the published simulation {link['simulation']!r} is named")
+    elif food is None:
         food = "fed" if link and link.get("fed") else "fasted"
         said.append(f"food state {'not reported' if reported is None else repr(reported) + ' has no MS-01 class'}; "
                     f"{food} as in the published simulation")
@@ -1418,6 +1520,7 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, 
                 differs_by_design[row["study_id"]] = "; ".join(why)
         row.pop("_offset_min", None)
 
+    cpf = _with_alternatives(cpf, snapshot, compound, studies, simulation_of, source, notes, differs_by_design)
     if renamed:
         notes.append(f"Datasets named for {', '.join(sorted(renamed))} are taken as {name} data: the published model maps "
                      "them onto its plasma output.")
@@ -1646,6 +1749,9 @@ def import_osp_system(snapshot: dict[str, Any], *, source: str | None = None,
         if why:
             differs_by_design[row["study_id"]] = "; ".join(why)
 
+    documents = {c["Name"]: c for c in snapshot.get("Compounds", [])}
+    cpfs = [_with_alternatives(c, snapshot, documents[c.compound], studies, simulation_of, source, notes, differs_by_design)
+            for c in cpfs]
     roles = {c.compound: ("parent" if any(c.compound in f for f in products.values()) else "metabolite") for c in cpfs}
     dosed_without_study = [n for n in parent_names if roles[n] != "parent"]
     if dosed_without_study:

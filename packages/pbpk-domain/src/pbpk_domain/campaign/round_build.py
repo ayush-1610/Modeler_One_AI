@@ -21,7 +21,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from pbpk_domain.campaign.map import MapScenario
-from pbpk_domain.cpf.build import BuildReport, FormulationSpec, Scenario, build_from_cpf, build_from_system
+from pbpk_domain.cpf.build import (
+    BuildReport,
+    FormulationSpec,
+    Scenario,
+    alternatives_for,
+    build_from_cpf,
+    build_from_system,
+)
 from pbpk_domain.cpf.models import CPF
 from pbpk_domain.snapshot.builder import (
     CoCompoundSpec,
@@ -138,6 +145,15 @@ def _sim_end(scenario: MapScenario, default_h: float) -> float:
     return end
 
 
+def scenario_alternatives(cpf: CPF | None, scenario: MapScenario) -> dict[str, str]:
+    """GroupName -> the non-default property alternative a scenario's simulation selects (`cpf.build.alternatives_for`):
+    by the CPF formulation an oral study is given (none when it is dissolved) and its food state; none for IV."""
+    if cpf is None or scenario.route not in _ORAL_ROUTES:
+        return {}
+    dissolved = scenario.formulation in _DISSOLVED_FORMULATIONS and not scenario.formulation_name
+    return alternatives_for(cpf, None if dissolved else scenario.formulation_name, scenario.food_state)
+
+
 def protocol_name(study_id: str) -> str:
     """The protocol a study's simulation uses (formulation parameters live under it: Events|<protocol>|…)."""
     return f"{study_id} protocol"
@@ -200,10 +216,12 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
         if scenario.food_state == "fed" and scenario.meal_template:
             meal_events = (MealEventSpec(name=f"{sid} meal", template=scenario.meal_template),)
             event_names = (f"{sid} meal",)
+        # the property alternatives the model selects for this product and food state (Itraconazole capsule fed)
+        chosen = scenario_alternatives(cpf, scenario) if cpf is not None and cpf.compound == compound else {}
         simulation = SimulationSpec(
             name=sid, subject=subject_name, compound=compound, protocol=protocol.name,
             formulation=formulation.name, end_time_h=sim_end_time_h, events=event_names,
-            formulation_bins=tuple(name for name, _f in bins),
+            formulation_bins=tuple(name for name, _f in bins), alternatives=chosen,
         )
         return Scenario(simulation=simulation, protocol=protocol, formulation=formulation, events=meal_events,
                         extra_formulations=tuple(extra))

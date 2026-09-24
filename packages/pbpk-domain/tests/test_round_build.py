@@ -290,3 +290,27 @@ def test_a_system_splits_every_phase_by_its_dose_fractions() -> None:
         doses = [next(q["Value"] for q in s["SchemaItems"][0]["Parameters"] if q["Name"] == "InputDose")
                  for s in protocols[entry["Protocol"]["Name"]]["Schemas"]]
         assert doses == pytest.approx([240.0 * f, 120.0 * f])
+
+
+def test_alternatives_are_written_and_selected_per_simulation() -> None:
+    from pydantic import ValidationError
+
+    from pbpk_domain.snapshot.builder import CompoundSpec, Measured, SnapshotBuilder
+
+    base = dict(name="K", molecular_weight=Measured(value=500.0, unit="g/mol"),
+                lipophilicity=Measured(value=3.0, unit="Log Units"), fraction_unbound=Measured(value=0.1),
+                solubility=Measured(value=0.008, unit="mg/ml"), intestinal_permeability=Measured(value=1e-5, unit="cm/min"))
+    spec = CompoundSpec(**base, solubility_alternatives={"Capsule fed": (Measured(value=0.0007, unit="mg/ml"), 6.5)},
+                        intestinal_permeability_alternatives={"Fit fed": Measured(value=9.9e-6, unit="cm/min")})
+    compound = spec.to_compound().model_dump(by_alias=True, exclude_none=True)
+    assert [a["Name"] for a in compound["Solubility"]] == ["Measured", "Capsule fed"]
+    assert compound["Solubility"][1]["IsDefault"] is False
+    builder = SnapshotBuilder()
+    builder.add_compound(spec)
+    entry, _ = builder._simulation_compound("K", None, None, (), {"COMPOUND_SOLUBILITY": "Capsule fed"})
+    groups = {a.group_name: a.alternative_name for a in entry.alternatives}
+    assert groups["COMPOUND_SOLUBILITY"] == "Capsule fed" and groups["COMPOUND_INTESTINAL_PERMEABILITY"] == "Measured"
+    with pytest.raises(ValueError, match="no COMPOUND_SOLUBILITY alternative"):
+        builder._simulation_compound("K", None, None, (), {"COMPOUND_SOLUBILITY": "Tablet"})
+    with pytest.raises(ValidationError, match="reuse the default"):
+        CompoundSpec(**base, solubility_alternatives={"Measured": (Measured(value=0.001, unit="mg/ml"), 6.5)})

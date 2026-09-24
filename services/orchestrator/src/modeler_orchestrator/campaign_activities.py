@@ -203,7 +203,8 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     Returns None (the round then simulates instead of fitting) when there is no fittable parameter, no
     observed profile to fit against, or the spec cannot be built. The pkml model inputs are left empty here
     and filled by the snapshot->pkml conversion step before the fit runs."""
-    from pbpk_domain.campaign.round_build import protocol_name, scenarios_for_stage
+    from pbpk_domain.campaign.round_build import protocol_name, scenario_alternatives, scenarios_for_stage
+    from pbpk_domain.cpf.build import ALTERNATIVE_GROUP_OF_ID
     from pbpk_domain.cpf.formulations import FormulationError, resolve_formulation_name
     from pbpk_domain.fit_spec import FitSimulation, FitSpecError, build_fit_spec, pi_observed, resolve_fit_ids
     from pbpk_domain.units import is_molar
@@ -231,6 +232,13 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     for scenario in scenarios_for_stage(map_doc.scenarios, ctx.stage):
         if not scenario.gated:
             continue  # a model system's metabolite / sum study is reported, not fitted (phase 1)
+        # a simulation selecting another alternative of a fitted value's group (Itraconazole capsule fed solubility)
+        # does not use that value: setting it there would overwrite the alternative, so the study is left out
+        other = {ALTERNATIVE_GROUP_OF_ID[c] for c in fit_ids if c in ALTERNATIVE_GROUP_OF_ID} & set(scenario_alternatives(cpf, scenario))
+        if other:
+            activity.logger.info("build_round_snapshot %s %s: %s left out of the fit of %s (it selects another %s alternative)",
+                                 ctx.campaign_id, ctx.stage, scenario.study_id, ", ".join(fit_ids), ", ".join(sorted(other)))
+            continue
         profile = (observed_doc or {}).get(scenario.study_id, {}).get("profile")
         if not profile or mol_weight is None:
             continue
