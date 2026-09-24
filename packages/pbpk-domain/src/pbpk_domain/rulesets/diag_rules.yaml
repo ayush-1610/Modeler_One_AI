@@ -9,8 +9,13 @@
 # name a candidate/branch by the same token used in the MAP stage plan (STAGE_PLAN); an action is only
 # offered when that token is a permitted fit candidate / branch for the current stage and has not been tried.
 id: diag-rules
-version: "0.3"
+version: "0.4"
 status: UNVERIFIED
+# 0.4 (2026-09-24, approved by the project owner, still UNVERIFIED pending SME sign-off): the clearance rule also
+#     fits Michaelis-Menten catalytic rates, elim.hepatic.{enzyme}.kcat (metabolism) and transp.{name}.kcat (active
+#     transport), after first-order clspec and before renal clearance. Before 0.4 a compound cleared by saturable
+#     enzymes or transporters (rifampicin: AADAC, OATP1B1, P-gp) could never have its clearance fitted: the rule
+#     offered only clspec, renal clearance and logP, so a clearance error was either escalated or hidden in logP.
 # 0.3 (2026-09-24, part of the owner-approved S3 formulation sub-loop, still UNVERIFIED pending SME sign-off):
 #     S3 gains the release-rate rules MS-01 §4 S3 describes — a tablet whose in-vivo peak is too slow or too fast
 #     adjusts its Weibull t50, then shape, within the parameter's fit policy ([0.5×, 2×] of the in-vitro fit).
@@ -46,6 +51,8 @@ rules:
     evidence: clearance_off        # |terminal t1/2 ratio| out of [low, high] AND AUC off in the same direction
     actions:                       # clearance parameters first; logP (distribution) only as the last resort
       - {op: fit, target: "elim.hepatic.{enzyme}.clspec"}
+      - {op: fit, target: "elim.hepatic.{enzyme}.kcat"}
+      - {op: fit, target: "transp.{name}.kcat"}
       - {op: fit, target: "elim.renal.gfr_fraction"}
       - {op: fit, target: "elim.renal.ts_clspec"}
       - {op: fit, target: "phys.logp"}

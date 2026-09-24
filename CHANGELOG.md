@@ -38,6 +38,17 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **`docker_engine.sh` on Linux** runs the engine as the calling user (the job directory is 0700; the image's uid
   10001 could not write there).
 
+### Changed — diag-rules 0.4 (owner-approved 2026-09-24, still UNVERIFIED pending SME sign-off)
+- **The clearance rule may fit Michaelis-Menten catalytic rates** (`elim.hepatic.{enzyme}.kcat`,
+  `transp.{name}.kcat`), after first-order `clspec` and before renal clearance and logP; the S1/S2 stage plan permits
+  them. Before, a compound cleared by saturable metabolism or transport (rifampicin: AADAC, OATP1B1, P-gp) could
+  never have its clearance fitted, only escalated or hidden in logP. The Rifampicin refit is no longer held.
+
+### Added — the OSP library portfolio
+- `deploy/reference/portfolio.py` fetches every OSP library model (`Open-Systems-Pharmacology/<Drug>-Model`), imports
+  it, checks S0 and the split, and, on the engine, round-trips each published simulation. The table of what the tool
+  can and cannot take, drug by drug, is the work list for the next fixes. Runs in the reference workflow.
+
 ### Fixed — the engine image was not the qualified engine
 - **The Dockerfile pinned nothing but R and .NET.** Built today it pulled rSharp 2.0.0 (needs .NET 10) with the
   .NET 8 runtime, and PK-Sim could not start (`No .NET 10 runtime was found`; first reference run). The qualified

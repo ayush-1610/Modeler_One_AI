@@ -36,14 +36,15 @@ from pbpk_domain.m15 import Rating
 STAGE_PLAN: dict[str, dict] = {
     "S0": {"fit_candidates": (), "branches": (), "max_rounds": 1},
     "S1": {
-        "fit_candidates": ("elim.hepatic.{enzyme}.clspec", "phys.logp", "elim.renal.gfr_fraction", "elim.renal.ts_clspec",
-                           "perm.cellular", "bind.fu"),
+        "fit_candidates": ("elim.hepatic.{enzyme}.clspec", "elim.hepatic.{enzyme}.kcat", "transp.{name}.kcat",
+                           "phys.logp", "elim.renal.gfr_fraction", "elim.renal.ts_clspec", "perm.cellular", "bind.fu"),
         "branches": ("dist.partition_method", "dist.permeability_method"),
         "max_rounds": 4,
     },
     "S2": {
         "fit_candidates": ("perm.intestinal", "phys.solubility.ref", "elim.ehc_fraction",
-                           "elim.hepatic.{enzyme}.km", "elim.hepatic.{enzyme}.vmax", "elim.hepatic.{enzyme}.clspec"),
+                           "elim.hepatic.{enzyme}.km", "elim.hepatic.{enzyme}.vmax", "elim.hepatic.{enzyme}.clspec",
+                           "elim.hepatic.{enzyme}.kcat", "transp.{name}.kcat"),
         "branches": (),
         "max_rounds": 4,
     },
