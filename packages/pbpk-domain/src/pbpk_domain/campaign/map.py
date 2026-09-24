@@ -144,6 +144,7 @@ class MapScenario(BaseModel):
     stage: str
     route: str
     dose_mg: float
+    dose_per_kg: bool = False  # dose_mg per kg body weight (PK-Sim InputDose in mg/kg)
     infusion_time_min: float | None
     formulation: str
     food_state: str
@@ -293,6 +294,7 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
         for stage in _scenario_stages(row.assignment, row.study_class, train):
             scenarios.append(MapScenario(
                 study_id=study.study_id, stage=stage, route=study.route.value, dose_mg=study.dose_mg,
+                dose_per_kg=study.dose_per_kg,
                 infusion_time_min=study.infusion_time_min,
                 formulation=study.formulation.value, food_state=study.food_state.value,
                 meal_template=meal_template if study.food_state.value == "fed" else None, n_subjects=study.n,

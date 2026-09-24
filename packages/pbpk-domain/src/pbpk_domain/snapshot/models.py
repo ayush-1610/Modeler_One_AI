@@ -165,6 +165,7 @@ class Formulation(SnapshotModel):
 class SchemaItem(SnapshotModel):
     name: str = Field(alias="Name")
     application_type: str = Field(alias="ApplicationType")
+    formulation_key: str | None = Field(default=None, alias="FormulationKey")
     parameters: list[Parameter] = Field(default_factory=list, alias="Parameters")
 
 

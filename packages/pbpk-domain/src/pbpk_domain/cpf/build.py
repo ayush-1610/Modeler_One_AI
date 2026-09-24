@@ -28,6 +28,7 @@ from pbpk_domain.snapshot.builder import (
     MealEventSpec,
     Measured,
     MichaelisMentenMetabolism,
+    MicrosomalMichaelisMenten,
     OralProtocolSpec,
     SimulationSpec,
     SnapshotBuilder,
@@ -207,6 +208,15 @@ def _build_process(internal_name: str, molecule: str | None, params: dict[str, P
             return MichaelisMentenMetabolism(
                 molecule=molecule, data_source=ds, vmax=vmax, km=km,
                 kcat=_measured_of(params, "kcat"), enzyme_concentration=_measured_of(params, "Enzyme concentration"),
+            )
+        return None
+    if internal_name == "MetabolizationLiverMicrosomes_MM":
+        km, kcat = _measured_of(params, "Km"), _measured_of(params, "kcat")
+        if km and kcat and molecule:
+            return MicrosomalMichaelisMenten(
+                molecule=molecule, data_source=ds, km=km, kcat=kcat,
+                in_vitro_vmax=_measured_of(params, "In vitro Vmax for liver microsomes"),
+                microsomal_content=_measured_of(params, "Content of CYP proteins in liver microsomes"),
             )
         return None
     if internal_name == "ActiveTransportSpecific_MM":

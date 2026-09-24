@@ -91,6 +91,10 @@ jobs:
         continue-on-error: true
         run: uv run python deploy/reference/run_reference.py campaign Rifampicin --mode refit --out reports/reference/rifampicin
 
+      - name: Midazolam as-is campaign
+        continue-on-error: true
+        run: uv run python deploy/reference/run_reference.py campaign Midazolam --mode as-is --out reports/reference/midazolam
+
       - name: OSP library portfolio (import, S0, round trip per drug)
         continue-on-error: true
         run: uv run python deploy/reference/portfolio.py --roundtrip --out reports/reference/portfolio

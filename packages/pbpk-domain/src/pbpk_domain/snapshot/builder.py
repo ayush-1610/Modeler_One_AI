@@ -33,6 +33,8 @@ from pbpk_domain.snapshot.models import (
     Protocol,
     ProtocolSelection,
     Quantity,
+    Schema,
+    SchemaItem,
     Simulation,
     SimulationCompound,
     Snapshot,
@@ -311,9 +313,60 @@ class SpecificBinding(Spec):
         )
 
 
+class MicrosomalMichaelisMenten(Spec):
+    """Saturable metabolism scaled from liver microsomes (PK-Sim ``MetabolizationLiverMicrosomes_MM``). Names and
+    units are from the OSP Midazolam model (CYP3A4, UGT1A4): the in-vitro Vmax per mg microsomal protein and, where
+    the model sets it, the enzyme content of the microsomes; Km; and kcat, which the published model fits and which
+    then governs the in-vivo rate."""
+
+    kind: Literal["MetabolizationLiverMicrosomes_MM"] = "MetabolizationLiverMicrosomes_MM"
+    molecule: str = Field(min_length=1)
+    data_source: str = Field(min_length=1)
+    metabolite: str | None = None
+    km: Measured
+    kcat: Measured
+    in_vitro_vmax: Measured | None = None
+    microsomal_content: Measured | None = None
+
+    @field_validator("km")
+    @classmethod
+    def _km(cls, v: Measured) -> Measured:
+        return _check(v, unit="µmol/l", label="Km")
+
+    @field_validator("kcat")
+    @classmethod
+    def _kcat(cls, v: Measured) -> Measured:
+        return _check(v, unit="1/min", label="kcat")
+
+    @field_validator("in_vitro_vmax")
+    @classmethod
+    def _vmax(cls, v: Measured | None) -> Measured | None:
+        return _check(v, unit="pmol/min/mg mic. protein", label="In vitro Vmax for liver microsomes")
+
+    @field_validator("microsomal_content")
+    @classmethod
+    def _content(cls, v: Measured | None) -> Measured | None:
+        return _check(v, unit="pmol/mg mic. protein", label="Content of CYP proteins in liver microsomes")
+
+    def to_process(self) -> CompoundProcess:
+        parameters = []
+        if self.in_vitro_vmax is not None:
+            parameters.append(self.in_vitro_vmax.to_parameter(name="In vitro Vmax for liver microsomes"))
+        if self.microsomal_content is not None:
+            parameters.append(self.microsomal_content.to_parameter(name="Content of CYP proteins in liver microsomes"))
+        parameters.append(self.km.to_parameter(name="Km"))
+        parameters.append(self.kcat.to_parameter(name="kcat"))
+        fields: dict = {"internal_name": self.kind, "data_source": self.data_source, "molecule": self.molecule,
+                        "parameters": parameters}
+        if self.metabolite:
+            fields["metabolite"] = self.metabolite
+        return CompoundProcess(**fields)
+
+
 ProcessSpec = Annotated[
     FirstOrderMetabolism
     | MichaelisMentenMetabolism
+    | MicrosomalMichaelisMenten
     | TransporterMichaelisMenten
     | CompetitiveInhibition
     | Induction
@@ -553,6 +606,11 @@ class _MultipleDoseMixin(Spec):
 
     dosing_interval: str = "Single"
     end_time: Measured | None = None
+    # Any other regular regimen, as the OSP reference protocols write it (Dapagliflozin/Rifampicin "MD" protocols):
+    # one schema item repeated `repetitions` times, `repetition_interval_h` apart (Schemas[].Parameters
+    # NumberOfRepetitions / TimeBetweenRepetitions). Used when no named DosingInterval fits (e.g. every 6 h).
+    repetitions: int | None = Field(default=None, gt=0)
+    repetition_interval_h: float | None = Field(default=None, gt=0)
 
     @field_validator("end_time")
     @classmethod
@@ -568,6 +626,19 @@ class _MultipleDoseMixin(Spec):
     def _dosing_parameters(self) -> list[Parameter]:
         return [self.end_time.to_parameter(name="End time")] if self.end_time is not None else []
 
+    def _schema_protocol(self, application_type: str, item_parameters: list[Parameter],
+                         formulation_key: str | None) -> Protocol | None:
+        if self.repetitions is None:
+            return None
+        item = SchemaItem(name="Schema Item 1", application_type=application_type, formulation_key=formulation_key,
+                          parameters=[Parameter(name="Start time", value=0.0, unit="h"), *item_parameters])
+        schema = Schema(name="Schema 1", schema_items=[item], parameters=[
+            Parameter(name="Start time", value=getattr(self, "start_time_h", 0.0), unit="h"),
+            Parameter(name="NumberOfRepetitions", value=float(self.repetitions)),
+            Parameter(name="TimeBetweenRepetitions", value=self.repetition_interval_h, unit="h"),
+        ])
+        return Protocol(name=self.name, dosing_interval="Single", schemas=[schema], time_unit="h")
+
 
 class OralProtocolSpec(_MultipleDoseMixin):
     kind: Literal["oral"] = "oral"
@@ -579,9 +650,16 @@ class OralProtocolSpec(_MultipleDoseMixin):
     @field_validator("dose")
     @classmethod
     def _dose(cls, v: Measured) -> Measured:
-        return _check(v, unit="mg", label="InputDose")
+        # "mg" or "mg/kg" (per body weight), the InputDose units of the OSP reference protocols (Midazolam).
+        return _check(v, unit="mg/kg" if _nfc(v.unit) == "mg/kg" else "mg", label="InputDose")
 
     def to_protocol(self) -> Protocol:
+        schema = self._schema_protocol("Oral", [
+            self.dose.to_parameter(name="InputDose"),
+            Parameter(name="Volume of water/body weight", value=self.water_volume_ml_per_kg, unit="ml/kg"),
+        ], "Formulation")
+        if schema is not None:
+            return schema
         return Protocol(
             name=self.name,
             application_type="Oral",
@@ -605,9 +683,16 @@ class IntravenousProtocolSpec(_MultipleDoseMixin):
     @field_validator("dose")
     @classmethod
     def _dose(cls, v: Measured) -> Measured:
-        return _check(v, unit="mg", label="InputDose")
+        # "mg" or "mg/kg" (per body weight), the InputDose units of the OSP reference protocols (Midazolam).
+        return _check(v, unit="mg/kg" if _nfc(v.unit) == "mg/kg" else "mg", label="InputDose")
 
     def to_protocol(self) -> Protocol:
+        schema = self._schema_protocol("Intravenous", [
+            self.dose.to_parameter(name="InputDose"),
+            Parameter(name="Infusion time", value=self.infusion_time_min, unit="min"),
+        ], None)
+        if schema is not None:
+            return schema
         return Protocol(
             name=self.name,
             application_type="Intravenous",

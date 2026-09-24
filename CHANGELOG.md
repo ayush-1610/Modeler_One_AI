@@ -38,6 +38,22 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **`docker_engine.sh` on Linux** runs the engine as the calling user (the job directory is 0700; the image's uid
   10001 could not write there).
 
+### Added — Midazolam, and the edge cases it brings (third reference model)
+- **Microsomal Michaelis-Menten metabolism** (`MetabolizationLiverMicrosomes_MM`: in-vitro Vmax per mg microsomal
+  protein, microsomal enzyme content, Km, kcat; names and units from the OSP Midazolam model) is placed by the builder;
+  **specific binding** (GABRG2) is imported. Midazolam imports S0-ready: 79 real studies, 72 paired with a published
+  simulation.
+- **Per-kg doses** (`0.05 mg/kg`) are simulated as PK-Sim `mg/kg` InputDose (scaled by the individual's weight, as
+  the published protocols do); µg doses are converted. A study carries `dose_per_kg`; the S2 dose-level choice and
+  the dose-normalised diagnostic compare like units only.
+- **Any regular regimen** (e.g. every 6 h) is built as a repeated protocol schema (`NumberOfRepetitions` /
+  `TimeBetweenRepetitions`, the structure of the OSP multiple-dose protocols); named DosingIntervals (DI_24, DI_12_12)
+  stay as they were. Before, such a study was not simulated.
+- **Study demographics** reach the MAP: the upload keeps `demographics`, and the importer sets them from the
+  individual the published simulation uses (e.g. an Asian_Tanaka_1996 study is simulated in that population).
+- **A formulation named only by its product** ("Dormicum") is recorded as `other`: judged, never used to train
+  absorption or release; syrups and injections given orally are solutions.
+
 ### Changed — diag-rules 0.4 (owner-approved 2026-09-24, still UNVERIFIED pending SME sign-off)
 - **The clearance rule may fit Michaelis-Menten catalytic rates** (`elim.hepatic.{enzyme}.kcat`,
   `transp.{name}.kcat`), after first-order `clspec` and before renal clearance and logP; the S1/S2 stage plan permits

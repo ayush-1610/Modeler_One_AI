@@ -79,22 +79,21 @@ def _subject_spec(scenario: MapScenario, *, seed: int) -> SubjectSpec:
     )
 
 
-def _schedule(scenario: MapScenario) -> tuple[str, Measured | None]:
-    """The protocol's PK-Sim DosingInterval and End time: ("Single", None) for one dose, else a regular schedule
-    whose End time is n_doses × interval (PK-Sim repeats the dose while time < End time)."""
+def _schedule(scenario: MapScenario) -> dict:
+    """The protocol's dosing fields: one dose; a named PK-Sim DosingInterval with the End time n_doses × interval
+    (PK-Sim repeats the dose while time < End time); or, for any other regular interval, a schema repeated n_doses
+    times (the structure of the OSP reference multiple-dose protocols)."""
     if scenario.dosing_interval_h is None:
-        return "Single", None
-    interval = _DOSING_INTERVAL.get(float(scenario.dosing_interval_h))
-    if interval is None:
-        raise ScenarioBuildError(
-            f"scenario {scenario.study_id!r}: a dose every {scenario.dosing_interval_h:g} h has no harvested PK-Sim "
-            f"DosingInterval (known: {', '.join(f'{k:g} h' for k in _DOSING_INTERVAL)})"
-        )
+        return {}
     if scenario.n_doses is None:
         raise ScenarioBuildError(
             f"scenario {scenario.study_id!r}: a multiple-dose study needs its number of doses; none is recorded"
         )
-    return interval, Measured(value=scenario.n_doses * float(scenario.dosing_interval_h), unit="h")
+    interval = _DOSING_INTERVAL.get(float(scenario.dosing_interval_h))
+    if interval is None:
+        return {"repetitions": scenario.n_doses, "repetition_interval_h": float(scenario.dosing_interval_h)}
+    return {"dosing_interval": interval,
+            "end_time": Measured(value=scenario.n_doses * float(scenario.dosing_interval_h), unit="h")}
 
 
 def _sim_end(scenario: MapScenario, default_h: float) -> float:
@@ -125,12 +124,12 @@ def _solid_formulation(scenario: MapScenario, cpf: CPF | None) -> tuple[Formulat
 def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, sim_end_time_h: float,
                     cpf: CPF | None = None, notes: list[str] | None = None) -> Scenario:
     sid = scenario.study_id
-    dose = Measured(value=scenario.dose_mg, unit="mg")
-    dosing_interval, dosing_end = _schedule(scenario)
+    dose = Measured(value=scenario.dose_mg, unit="mg/kg" if scenario.dose_per_kg else "mg")
+    schedule = _schedule(scenario)
     sim_end_time_h = _sim_end(scenario, sim_end_time_h)
 
     if scenario.route in _ORAL_ROUTES:
-        protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, dosing_interval=dosing_interval, end_time=dosing_end)
+        protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, **schedule)
         if scenario.formulation in _DISSOLVED_FORMULATIONS:
             formulation: FormulationSpec = DissolvedFormulationSpec(name=f"{sid} formulation")
         else:
@@ -155,8 +154,7 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
                 "the scenario carries none, so it is surfaced rather than invented"
             )
         protocol = IntravenousProtocolSpec(
-            name=protocol_name(sid), dose=dose, infusion_time_min=scenario.infusion_time_min,
-            dosing_interval=dosing_interval, end_time=dosing_end,
+            name=protocol_name(sid), dose=dose, infusion_time_min=scenario.infusion_time_min, **schedule,
         )
         simulation = SimulationSpec(
             name=sid, subject=subject_name, compound=compound, protocol=protocol.name, end_time_h=sim_end_time_h,

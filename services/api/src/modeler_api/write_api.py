@@ -110,6 +110,7 @@ class StudyUpload(BaseModel):
     n_doses: int | None = Field(default=None, gt=0)              # …this many times
     route: str = "oral"
     dose_mg: float = Field(gt=0)
+    dose_per_kg: bool = False  # dose_mg is per kg body weight
     infusion_time_min: float | None = None
     formulation: str = "solution"
     formulation_name: str | None = None  # a tablet/capsule study: the CPF formulation it used (form.{name}.*)
@@ -119,6 +120,8 @@ class StudyUpload(BaseModel):
     population_type: str = "healthy"
     special_population: str | None = None
     co_medication: str | None = None  # a co-medicated arm is a DDI study (MS-01 §3.2), never the drug alone
+    # The studied individual (population, sex, age, age range): the round build simulates the study in it.
+    demographics: dict[str, Any] | None = None
     n_timepoints: int = Field(default=10, gt=0)
     lloq: float | None = None
     profile: ObservedProfile

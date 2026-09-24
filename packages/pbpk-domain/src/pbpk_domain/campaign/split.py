@@ -135,6 +135,7 @@ class StudyRecord(BaseModel):
     crossover: bool = False
     route: Route = Route.ORAL
     dose_mg: float = Field(gt=0)
+    dose_per_kg: bool = False  # dose_mg is mg per kg body weight (PK-Sim scales it by the individual's weight)
     infusion_time_min: float | None = Field(default=None, gt=0)  # required to simulate an IV study
     formulation: FormulationKind = FormulationKind.SOLUTION
     formulation_name: str | None = None  # the CPF formulation (form.{name}.*) a solid oral study used
@@ -314,6 +315,8 @@ class _Planner:
                 "S2 is skipped and oral exposure is predicted, not fitted."
             )
             return
+        # Dose levels are compared in one unit: absolute doses when there are any, else per-kg doses.
+        fasted = [i for i in fasted if not self.by_id[i].dose_per_kg] or fasted
         doses = sorted({self.by_id[i].dose_mg for i in fasted})
         # highest-scoring study at the lowest dose and at the highest dose (one study if a single dose level)
         picks: list[str] = []

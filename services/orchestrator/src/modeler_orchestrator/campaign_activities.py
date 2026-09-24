@@ -645,7 +645,9 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
         StudyResidual(
             study_id=st["study_id"], role=st.get("role", "fitting"),
             route="iv" if (scenarios.get(st["study_id"]) and scenarios[st["study_id"]].route.startswith("iv")) else "oral",
-            dose_mg=scenarios[st["study_id"]].dose_mg if st["study_id"] in scenarios else None,
+            # a per-kg dose is not comparable with absolute ones in the dose-normalised trend: left out of it
+            dose_mg=(scenarios[st["study_id"]].dose_mg
+                     if st["study_id"] in scenarios and not scenarios[st["study_id"]].dose_per_kg else None),
             auc_ratio=_ratio(st.get("predicted_auc"), st.get("observed_auc")),
             cmax_ratio=_ratio(st.get("predicted_cmax"), st.get("observed_cmax")),
             tmax_ratio=_ratio(st.get("predicted_tmax"), st.get("observed_tmax")),

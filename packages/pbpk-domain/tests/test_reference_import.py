@@ -166,7 +166,8 @@ def test_gaps_in_other_reference_models_are_named_not_hidden():
     assert missing_expression_profiles(rifampicin.cpf) == ()
     assert any("CompetitiveInhibition (CYP2C8)" in n for n in rifampicin.notes)
     midazolam = import_osp_snapshot(_snapshot("Midazolam"))
-    assert any(u.startswith("MetabolizationLiverMicrosomes_MM") for u in midazolam.unplaced)
+    assert midazolam.unplaced == ()  # microsomal Michaelis-Menten and specific binding are placed
+    assert any(u.endswith("Whole Blood data; only plasma concentrations are compared") for u in midazolam.skipped)
     with pytest.raises(ReferenceImportError, match="expected one compound"):
         import_osp_snapshot(_snapshot("Itraconazole"))
 
@@ -213,3 +214,22 @@ def test_the_regenerated_rifampicin_simulations_select_its_interactions_and_valu
     ours_dapa, _pairs, _ = roundtrip_inputs(dapa)
     params = {p["Path"]: p["Value"] for p in ours_dapa["Simulations"][0]["Parameters"]}
     assert params["Dapagliflozin|logP (veg.oil/water)"] == 2.0831076805
+
+
+def test_midazolam_edge_cases_per_kg_doses_populations_brand_names_and_q6h():
+    from pbpk_domain.reference.roundtrip import roundtrip_inputs
+
+    imported = import_osp_snapshot(_snapshot("Midazolam"))
+    per_kg = [s for s in imported.studies if s.get("dose_per_kg")]
+    assert per_kg and all(s["dose_mg"] < 1 for s in per_kg)  # 0.05-0.15 mg/kg, simulated as PK-Sim mg/kg doses
+    assert any((s.get("demographics") or {}).get("population") == "Asian_Tanaka_1996" for s in imported.studies)
+    assert any(s["formulation"] == "other" and "does not name its form" in s["reference"] for s in imported.studies)
+    ids = {p.id for p in imported.cpf.parameters}
+    assert {"elim.hepatic.CYP3A4.kcat", "elim.hepatic.UGT1A4.km", "bind.specific.GABRG2.kd"} <= ids
+    ours, _pairs, notes = roundtrip_inputs(imported)
+    q6h = next(p for p in ours["Protocols"] if p["Name"] == "mikus-2017-midazolam-control-iv protocol")
+    params = {p["Name"]: p["Value"] for p in q6h["Schemas"][0]["Parameters"]}
+    assert params["TimeBetweenRepetitions"] == 6.0 and params["NumberOfRepetitions"] == 2.0
+    per_kg_protocol = next(p for p in ours["Protocols"] if p["Name"] == f"{per_kg[0]['study_id']} protocol")
+    assert any(p.get("Unit") == "mg/kg" for p in per_kg_protocol["Parameters"] if p["Name"] == "InputDose")
+    assert not [n for n in notes if n.startswith("NOT SIMULATED")]

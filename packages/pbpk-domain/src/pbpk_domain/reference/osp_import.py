@@ -55,6 +55,11 @@ _PROCESS_PARAMETERS = {
                                   "Enzyme concentration": ("enzyme_conc", "µmol/l")},
     "ActiveTransportSpecific_MM": {"Vmax": ("vmax", "µmol/l/min"), "Km": ("km", "µmol/l"), "kcat": ("kcat", "1/min"),
                                    "Transporter concentration": ("transporter_conc", "nmol/l")},
+    "MetabolizationLiverMicrosomes_MM": {"Km": ("km", "µmol/l"), "kcat": ("kcat", "1/min"),
+                                         "In vitro Vmax for liver microsomes": ("vmax_microsomes", "pmol/min/mg mic. protein"),
+                                         "Content of CYP proteins in liver microsomes": ("microsomal_content",
+                                                                                         "pmol/mg mic. protein")},
+    "SpecificBinding": {"koff": ("koff", "1/min"), "Kd": ("kd", "nmol/l")},
     "CompetitiveInhibition": {"Ki": ("ki", "µmol/l")},
     "Induction": {"EC50": ("ec50", "µmol/l"), "Emax": ("emax", None)},
     "GlomerularFiltration": {"GFR fraction": ("gfr_fraction", None)},
@@ -62,7 +67,9 @@ _PROCESS_PARAMETERS = {
 _PROCESS_FAMILY = {
     "MetabolizationSpecific_FirstOrder": "elim.hepatic",
     "MetabolizationSpecific_MM": "elim.hepatic",
+    "MetabolizationLiverMicrosomes_MM": "elim.hepatic",
     "ActiveTransportSpecific_MM": "transp",
+    "SpecificBinding": "bind.specific",
     "CompetitiveInhibition": "ddi.perp",
     "Induction": "ddi.perp",
 }
@@ -90,14 +97,16 @@ def _convert(value: float, unit: str | None, target: str | None) -> float:
 
 # A reported formulation, by the words it contains ("300 mg capsules Rimactan®" is a capsule, "Rifa 600 Dragees" a
 # coated tablet); the first match wins and the study notes the words it was classified from.
-_FORMULATION_WORDS = (("solution", "solution"), ("suspension", "suspension"), ("capsule", "ir_capsule"),
-                      ("tablet", "ir_tablet"), ("tab", "ir_tablet"), ("dragee", "ir_tablet"))
+_FORMULATION_WORDS = (("solution", "solution"), ("syrup", "solution"), ("injection", "solution"),
+                      ("suspension", "suspension"), ("capsule", "ir_capsule"), ("tablet", "ir_tablet"),
+                      ("tab", "ir_tablet"), ("dragee", "ir_tablet"))
 # OSP "Times of Administration [h]" schedules: "(S0-T24-R14)" / "(S-0,T-24,R-7)" = start, interval, repetitions.
 _SCHEDULE = re.compile(r"\(S-?(?P<start>[\d.]+)[-,]\s*T-?(?P<interval>[\d.]+)[-,]\s*R-?(?P<n>\d+)\)")
 _INFUSION_IN_NAME = re.compile(r"(?P<value>[\d.]+)\s*(?P<unit>h|min) infusion")
 # Co-medication named in a dataset's grouping: such an arm is not the drug alone and must not train it (MS-01 §3.2).
 _CO_MEDICATION_WORDS = ("antacid",)
-_DOSE = re.compile(r"^\s*(?P<value>[\d.]+)\s*mg\s*$")
+_DOSE = re.compile(r"^\s*(?P<value>[\d.]+)\s*(?P<unit>mg|µg|ug|mg/kg|µg/kg|ug/kg)\s*$")
+_TO_MG = {"mg": 1.0, "µg": 1e-3, "ug": 1e-3, "mg/kg": 1.0, "µg/kg": 1e-3, "ug/kg": 1e-3}
 
 
 class ReferenceImportError(ValueError):
@@ -329,6 +338,7 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
     A dataset is linked by the simulation that lists it, else by the published parameter identification that fits it
     against a simulation's output (``ParameterIdentifications[].OutputMappings``: the paper's own fitting design)."""
     protocols = {p["Name"]: p for p in snapshot.get("Protocols", [])}
+    individuals = {i["Name"]: i for i in snapshot.get("Individuals", [])}
     by_sim: dict[str, dict[str, Any]] = {}
     links: dict[str, dict[str, Any]] = {}
     for sim in snapshot.get("Simulations", []):
@@ -340,7 +350,11 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
         infusion = next((float(p["Value"]) * (60.0 if p.get("Unit") == "h" else 1.0)
                          for p in sim.get("Parameters", []) or []
                          if str(p.get("Path", "")).endswith("|Application_1|ProtocolSchemaItem|Infusion time")), None)
+        individual = individuals.get(sim.get("Individual"), {})
+        origin = individual.get("OriginData", {})
         link = {
+            "demographics": {"population": origin.get("Population"), "sex": origin.get("Gender"),
+                             "age_years": (origin.get("Age") or {}).get("Value")} if origin else None,
             "simulation": sim["Name"],
             "protocol": protocols.get(protocol_ref.get("Name"), {}),
             "formulation": formulations[0]["Name"] if formulations else None,
@@ -421,13 +435,14 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         return None, "no observed concentration column with a unit"
     dose = _DOSE.match(str(props.get("Dose", "")))
     if dose is None:
-        return None, f"dose {props.get('Dose')!r} is not a single mg amount"
+        return None, f"dose {props.get('Dose')!r} is not a single mg / µg amount (or per kg)"
 
     said: list[str] = []
     row: dict[str, Any] = {
         "study_id": _slug(f"{props.get('Study Id', '')} {props.get('Grouping', '')}"),
         "n": int(float(props.get("N") or 1)),
-        "dose_mg": float(dose.group("value")),
+        "dose_mg": float(dose.group("value")) * _TO_MG[dose.group("unit")],
+        "dose_per_kg": dose.group("unit").endswith("/kg"),
         "n_timepoints": len(dataset["BaseGrid"]["Values"]),
     }
 
@@ -483,8 +498,11 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         if stated is not None:
             kind = next((k for word, k in _FORMULATION_WORDS if word in stated.lower()), None)
             if kind is None:
-                return None, f"formulation {stated!r} is not one the pipeline classifies"
-            if stated.lower() not in ("solution", "suspension", "tablet", "capsule"):
+                # A product name that does not say its form (e.g. "Dormicum") is not guessed: the study is judged
+                # (PO-OTHER, external validation only) but never trains absorption or release.
+                kind = "other"
+                said.append(f"formulation {stated!r} does not name its form; recorded as other (validation only)")
+            elif stated.lower() not in ("solution", "suspension", "tablet", "capsule"):
                 said.append(f"formulation {stated!r} classified as {kind}")
         elif linked_form is not None and formulation_types.get(linked_form) == "Weibull":
             kind = "ir_tablet"
@@ -494,7 +512,7 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
             said.append("formulation not reported; recorded as an immediate-release tablet, simulated as the "
                         f"published model does ({linked_form or 'Dissolved'})")
         row["formulation"] = kind
-        if kind in ("ir_tablet", "ir_capsule") and linked_form is not None:
+        if kind in ("ir_tablet", "ir_capsule", "other") and linked_form is not None:
             row["formulation_name"] = linked_form
 
     food = _given(props.get("Food state"))
@@ -514,6 +532,9 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         row["population_type"] = "patient"
     if "placebo" in grouping:
         said.append("control arm of a DDI study (perpetrator placebo): the drug given alone")
+    demographics = (link or {}).get("demographics")
+    if demographics and all(demographics.values()):
+        row["demographics"] = demographics  # the individual the published simulation uses for this study
     co_medication = next((w for w in _CO_MEDICATION_WORDS if w in grouping), None)
     if co_medication is not None:
         row["co_medication"] = co_medication
