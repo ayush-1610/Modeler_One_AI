@@ -58,6 +58,7 @@ jobs:
           - {task: metformin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Metformin"}
           - {task: raltegravir-roundtrip, run: "deploy/reference/run_reference.py roundtrip Raltegravir"}
           - {task: ketoconazole-roundtrip, run: "deploy/reference/run_reference.py roundtrip Ketoconazole"}
+          - {task: voriconazole-roundtrip, run: "deploy/reference/run_reference.py roundtrip Voriconazole"}
           - {task: verapamil-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Verapamil --system"}
           - {task: omeprazole-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Omeprazole --system"}
           - {task: dabigatran-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Dabigatran --system"}

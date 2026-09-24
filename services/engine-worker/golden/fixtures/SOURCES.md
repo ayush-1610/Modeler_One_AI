@@ -15,4 +15,5 @@ Published models of the Open Systems Pharmacology model library, copied verbatim
 | Omeprazole-Model.json | c8b0f70a40c8513146a32a350957a81d01737431 |
 | Dabigatran-Model.json | 9ea348366a5462783467df104b1a1e69784667d4 |
 | Ketoconazole-Model.json | bb8d0029bffdec2961eaab41d3f6dda149ff30ef |
+| Voriconazole-Model.json | f482aa110dd13ae8969101136dc4f7a5567cc848 |
 | Dapagliflozin, Itraconazole, Midazolam, Rifampicin | vendored earlier (see git history) |

@@ -210,7 +210,9 @@ def test_rifampicin_studies_keep_their_real_design():
     assert day1.get("design") is None
     assert _study(imported, "acocella-1984-individual-1-600-mg-3-h-infusion")["infusion_time_min"] == 180.0
     assert _study(imported, "peloquin-1999-antacid")["co_medication"] == "antacid"
-    assert any("irregular dosing schedule" in s for s in imported.skipped)  # Chattopadhyay 2018, named
+    # Chattopadhyay 2018: daily x7, then one dose at 180 h, then daily from 192 h: the published protocol's phases
+    phased = _study(imported, "chattopadhyay-2018-rifampicin")
+    assert [(p["start_h"], p["n_doses"]) for p in phased["dose_phases"]] == [(0.0, 7), (180.0, 1), (192.0, 3)]
     # linked through the paper's own parameter identification, not only through the simulations
     assert imported.simulation_of["chouchane-1995-rimactan"] == "Rifampicin po 300 mg"
 
@@ -226,7 +228,7 @@ def test_the_regenerated_rifampicin_simulations_select_its_interactions_and_valu
     # the compound's own process selections are exactly the published ones (metabolism, transport, GFR)
     assert {p["Name"] for p in sim["Compounds"][0]["Processes"]} == {
         p["Name"] for p in published["Simulations"][0]["Compounds"][0]["Processes"]}
-    assert len(pairs) == 21
+    assert len(pairs) == 22  # with Chattopadhyay 2018, placed as the published protocol's phases
 
     dapa = import_osp_snapshot(_snapshot("Dapagliflozin"))
     ours_dapa, _pairs, _ = roundtrip_inputs(dapa)

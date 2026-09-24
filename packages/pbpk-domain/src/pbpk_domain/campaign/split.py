@@ -16,7 +16,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class StudyClass(str, Enum):
@@ -111,6 +111,26 @@ class PathValue(BaseModel):
     unit: str | None = None
 
 
+class DosePhase(BaseModel):
+    """One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),
+    ``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two
+    phases (OSP Voriconazole, Saari 2006: 400 mg twice 12 h apart, then 200 mg every 12 h from 24 h)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    start_h: float = Field(ge=0)
+    dose_mg: float = Field(gt=0)
+    n_doses: int = Field(default=1, gt=0)
+    interval_h: float | None = Field(default=None, gt=0)
+    infusion_time_min: float | None = Field(default=None, gt=0)  # an IV phase's own infusion time; None: the study's
+
+    @model_validator(mode="after")
+    def _interval(self) -> DosePhase:
+        if self.n_doses > 1 and self.interval_h is None:
+            raise ValueError("a phase of several doses needs the interval between them")
+        return self
+
+
 class PublishedIndividual(BaseModel):
     """The individual a published model simulates one study in, when it differs from the model's main individual
     (the OSP Rifampicin model's "EHC off" individual for its 7-day study; the Midazolam model's Korean individual,
@@ -153,6 +173,9 @@ class StudyRecord(BaseModel):
     # Multiple-dose regimen, needed to simulate an MD study (a regular schedule: one dose every interval).
     dosing_interval_h: float | None = Field(default=None, gt=0)
     n_doses: int | None = Field(default=None, gt=0)
+    # A regimen whose doses differ (loading, then maintenance), phase by phase; it then defines every administration,
+    # `dose_mg` is its first dose and `dosing_interval_h` / `n_doses` are unset.
+    dose_phases: tuple[DosePhase, ...] = ()
     crossover: bool = False
     route: Route = Route.ORAL
     dose_mg: float = Field(gt=0)
@@ -175,6 +198,20 @@ class StudyRecord(BaseModel):
     # .products). None: the single compound's plasma, dosed as reported.
     analyte: str | None = None
     product: str | None = None
+
+    @model_validator(mode="after")
+    def _phases(self) -> StudyRecord:
+        if not self.dose_phases:
+            return self
+        if self.dosing_interval_h is not None or self.n_doses is not None:
+            raise ValueError(f"{self.study_id}: a phased regimen replaces dosing_interval_h / n_doses")
+        if [p.start_h for p in self.dose_phases] != sorted(p.start_h for p in self.dose_phases):
+            raise ValueError(f"{self.study_id}: dose phases are given in time order")
+        if self.dose_phases[0].dose_mg != self.dose_mg:
+            raise ValueError(f"{self.study_id}: dose_mg is the regimen's first dose")
+        if not self.is_multiple_dose:
+            raise ValueError(f"{self.study_id}: a phased regimen is a multiple-dose (MD) study")
+        return self
 
     @property
     def is_multiple_dose(self) -> bool:

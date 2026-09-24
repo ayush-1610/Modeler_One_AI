@@ -898,6 +898,57 @@ def _protocol_dose_times(protocol: dict[str, Any], application: str | None = Non
     return sorted(set(times)) or None
 
 
+def _hours(params: list[dict[str, Any]], name: str, default: float = 0.0) -> float:
+    p = next((q for q in params if q.get("Name") == name), None)
+    if p is None:
+        return default
+    return float(p["Value"]) * {"min": 1 / 60.0, "s": 1 / 3600.0, "day(s)": 24.0}.get(p.get("Unit") or "h", 1.0)
+
+
+def _protocol_phases(protocol: dict[str, Any], application: str | None = None) -> list[dict[str, Any]] | None:
+    """A published schema protocol as regimen phases (``StudyRecord.dose_phases``), in time order: each schema is one
+    phase of ``NumberOfRepetitions`` doses ``TimeBetweenRepetitions`` apart, at its item's dose (mg or mg/kg) and, for
+    an infusion, its infusion time. With ``application``, only the schemas dosing that way. None when a schema gives
+    several items at once (a binned product) or the doses are not mg / mg/kg alike."""
+    if not protocol.get("Schemas"):
+        return None
+    phases = []
+    for schema in protocol["Schemas"]:
+        items = [i for i in schema.get("SchemaItems", []) if application is None
+                 or _family(i.get("ApplicationType")) == application]
+        if not items:
+            continue
+        if len(items) != 1:
+            return None
+        item, params = items[0], schema.get("Parameters", [])
+        dose = next((q for q in item.get("Parameters", []) if q.get("Name") == "InputDose"), None)
+        if dose is None or dose.get("Unit") not in ("mg", "mg/kg"):
+            return None
+        n = int(next((q["Value"] for q in params if q.get("Name") == "NumberOfRepetitions"), 1))
+        infusion = next((q for q in item.get("Parameters", []) if q.get("Name") == "Infusion time"), None)
+        phases.append({
+            "start_h": round(_hours(params, "Start time") + _hours(item.get("Parameters", []), "Start time"), 9),
+            "dose_mg": float(dose["Value"]), "per_kg": dose["Unit"] == "mg/kg", "n_doses": n,
+            "interval_h": round(_hours(params, "TimeBetweenRepetitions"), 9) if n > 1 else None,
+            "infusion_time_min": round(_hours(item.get("Parameters", []), "Infusion time") * 60.0, 9) if infusion else None,
+        })
+    if not phases or len({p["per_kg"] for p in phases}) != 1:
+        return None
+    return sorted(phases, key=lambda p: p["start_h"])
+
+
+def _phased(protocol: dict[str, Any], application: str | None = None) -> list[dict[str, Any]] | None:
+    """The protocol's phases when its regimen needs them: several phases whose doses or infusion times differ (a
+    loading dose, then maintenance) or whose doses are not evenly spaced (OSP Voriconazole "Purkin et al. 2003 A":
+    one dose, then every 12 h from 48 h). None for a single dose or one regular schedule."""
+    phases = _protocol_phases(protocol, application)
+    if phases is None or len(phases) < 2:
+        return None
+    times = _protocol_dose_times(protocol, application) or []
+    regular = len({round(b - a, 6) for a, b in pairwise(times)}) <= 1
+    return phases if not (_uniform_administrations(protocol) and regular) else None
+
+
 def _uniform_administrations(protocol: dict[str, Any]) -> bool:
     """Whether every administration of a published protocol gives the same dose the same way (one total dose and
     infusion time; the items of a binned product given at one moment are one administration): only then is its
@@ -919,6 +970,13 @@ def _uniform_administrations(protocol: dict[str, Any]) -> bool:
             shapes.add((round(sum(d or 0.0 for d, _u in doses), 9), frozenset(u for _d, u in doses),
                         frozenset(value(i, "Infusion time") for i in items)))
     return len(shapes) <= 1
+
+
+def _administrations(row: dict[str, Any]) -> int:
+    """How many doses a study row gives: its phases', else its regular schedule's, else one."""
+    if row.get("dose_phases"):
+        return sum(p["n_doses"] for p in row["dose_phases"])
+    return row.get("n_doses") or 1
 
 
 def _mixed_route(protocol: dict[str, Any], application: str) -> str | None:
@@ -1002,8 +1060,12 @@ def _dataset_dose(name: str, props: dict[str, Any], link: dict[str, Any] | None,
         doses = sorted({float(q["Value"]) for i in [link["protocol"], *[i for s in link["protocol"].get("Schemas", [])
                         for i in s.get("SchemaItems", [])]] for q in i.get("Parameters", []) if q.get("Name") == "InputDose"})
         if len(doses) > 1:
+            phases = _protocol_phases(link["protocol"])
+            if phases is not None:
+                said.append(f"dose not reported; the regimen of the published protocol {link['protocol'].get('Name')!r}")
+                return phases[0]["dose_mg"], phases[0]["per_kg"]
             return (f"dose not reported and the published protocol gives different doses ({', '.join(f'{d:g}' for d in doses)}"
-                    " mg: a loading dose); such regimens are not placed yet")
+                    " mg) in a form not placed as phases")
     if published is not None:
         said.append(f"dose {reported!r} not usable; {published[0]:g} {'mg/kg' if published[1] else 'mg'} as in the "
                     "published simulation")
@@ -1064,18 +1126,37 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     # dose given then (times are shifted to it); a regular schedule is a multiple-dose study; an irregular one cannot
     # be placed by the builder (regular schedules only) and is named.
     application = "Intravenous" if route == "IV" else "Oral"
-    if link is not None and len(_protocol_dose_times(link["protocol"], application) or []) > 1 \
-            and not _uniform_administrations(link["protocol"]):
-        return None, (f"the published protocol {link['protocol'].get('Name')!r} gives administrations that differ in "
-                      "dose or infusion time (a loading dose then maintenance); such regimens are not placed yet")
-    doses = _dose_times(props.get("Times of Administration [h]"))
-    if doses is None and link is not None and (published := _protocol_dose_times(link["protocol"], application)):
+    phases = _phased(link["protocol"], application) if link is not None else None
+    if phases is not None:
+        # A regimen of phases (loading, then maintenance; or unevenly spaced doses), as the published protocol gives it.
+        # A dose the dataset reports must be its first dose or its total; the times are on the regimen's clock.
+        total = sum(p["dose_mg"] * p["n_doses"] for p in phases)
+        if props.get("Dose") and not any(math.isclose(row["dose_mg"], d, rel_tol=1e-6) for d in (phases[0]["dose_mg"], total)):
+            return None, (f"reported dose {row['dose_mg']:g} mg is neither the first dose nor the total of the published "
+                          f"regimen {link['protocol'].get('Name')!r}")
+        if phases[0]["start_h"] != 0.0:
+            return None, f"the published regimen {link['protocol'].get('Name')!r} does not start at 0 h"
+        row.update(design="MD", dose_mg=phases[0]["dose_mg"], dose_per_kg=phases[0]["per_kg"],
+                   dose_phases=[{k: v for k, v in p.items() if k != "per_kg" and (k != "infusion_time_min" or v is not None)
+                                 and (k != "interval_h" or v is not None)} for p in phases])
+        if row.get("route") == "iv_infusion" and phases[0].get("infusion_time_min"):
+            row["infusion_time_min"] = phases[0]["infusion_time_min"]
+        said.append("regimen of the published protocol " + repr(link["protocol"].get("Name")) + ": " + "; then ".join(
+            f"{p['dose_mg']:g} {'mg/kg' if p['per_kg'] else 'mg'}"
+            + (f" x{p['n_doses']} every {p['interval_h']:g} h" if p["n_doses"] > 1 else "")
+            + (f" over {p['infusion_time_min']:g} min" if p.get("infusion_time_min") else "")
+            + (f" from {p['start_h']:g} h" if p["start_h"] else "") for p in phases))
+    doses = None if phases is not None else _dose_times(props.get("Times of Administration [h]"))
+    if doses is None and phases is None and link is not None \
+            and (published := _protocol_dose_times(link["protocol"], application)):
         doses = published
         said.append(f"administration times not reported; the schedule of the published protocol "
                     f"{link['protocol'].get('Name')!r}")
-    if doses is None:
+    if doses is None and phases is None:
         return None, f"administration times {props.get('Times of Administration [h]')!r} could not be read"
-    if len(doses) == 1 and link is not None:
+    if phases is not None:
+        doses = [0.0]  # the regimen is the row's dose_phases; its first dose is at 0 h on the data's clock
+    elif len(doses) == 1 and link is not None:
         # Only when the dataset was sampled after the second dose: a day-1 profile the paper fitted against a
         # multiple-dose simulation is still a single-dose profile (and is classified as one).
         linked = _protocol_dose_times(link["protocol"], application)
@@ -1084,7 +1165,7 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
             doses = linked
             said.append(f"dosing schedule from the published protocol {link['protocol'].get('Name')!r}")
     shift_h = doses[0]
-    multiple = len(doses) > 1
+    multiple = len(doses) > 1 and phases is None
     if multiple:
         gaps = {round(b - a, 6) for a, b in pairwise(doses)}
         if len(gaps) != 1:
@@ -1256,7 +1337,7 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, 
             simulation_of[row["study_id"]] = link["simulation"]
             offset_min[row["study_id"]] = row.pop("_offset_min", 0.0)
             published_doses = _protocol_dose_times(link["protocol"]) or []
-            ours_doses = row.get("n_doses") or 1
+            ours_doses = _administrations(row)
             why = []
             if published_doses and len(published_doses) != ours_doses:
                 why.append(f"{ours_doses} dose(s) as the study gave them; the published simulation gives "
@@ -1484,8 +1565,8 @@ def import_osp_system(snapshot: dict[str, Any], *, source: str | None = None,
         offset_min[row["study_id"]] = row.pop("_offset_min", 0.0)
         published_doses = _protocol_dose_times(link["protocol"]) or []
         why = []
-        if published_doses and len(published_doses) != (row.get("n_doses") or 1):
-            why.append(f"{row.get('n_doses') or 1} dose(s) as the study gave them; the published simulation gives "
+        if published_doses and len(published_doses) != _administrations(row):
+            why.append(f"{_administrations(row)} dose(s) as the study gave them; the published simulation gives "
                        f"{len(published_doses)}")
         if row.get("food_state") == "fed" and not link.get("fed"):
             why.append("simulated fed as reported; the published simulation has no meal")

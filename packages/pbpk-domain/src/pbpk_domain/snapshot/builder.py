@@ -711,6 +711,24 @@ def _check_end_time(v: Measured | None) -> Measured | None:
     return v
 
 
+class DosePhaseSpec(Spec):
+    """One phase of a regimen: ``repetitions`` doses of ``dose``, ``interval_h`` apart, the first at ``start_h``."""
+
+    start_h: float = Field(ge=0)
+    dose: Measured
+    repetitions: int = Field(default=1, gt=0)
+    interval_h: float = Field(default=0.0, ge=0)
+    # an IV phase infused over its own time (OSP Alprazolam Kroboth 1988: 1 mg over 2 min, then 0.576 mg over 8 h);
+    # None: the protocol's
+    infusion_time_min: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _interval(self):
+        if self.repetitions > 1 and self.interval_h <= 0:
+            raise ValueError("a phase of several doses needs the interval between them")
+        return self
+
+
 class _MultipleDoseMixin(Spec):
     """Adds regular multiple-dose scheduling: a PK-Sim DosingInterval (e.g. ``DI_24`` once daily,
     ``DI_12_12`` twice daily) plus the End time up to which dosing repeats. ``Single`` is one dose."""
@@ -722,6 +740,24 @@ class _MultipleDoseMixin(Spec):
     # NumberOfRepetitions / TimeBetweenRepetitions). Used when no named DosingInterval fits (e.g. every 6 h).
     repetitions: int | None = Field(default=None, gt=0)
     repetition_interval_h: float | None = Field(default=None, gt=0)
+    # A regimen of consecutive phases whose doses differ (a loading dose, then maintenance), as the OSP Voriconazole
+    # protocols write it ("Purkin et al. 2003 B": 6 mg/kg twice 12 h apart, then 3 mg/kg every 12 h from 24 h): one
+    # schema per phase (Start time, NumberOfRepetitions, TimeBetweenRepetitions) with one item at the phase's dose.
+    phases: tuple[DosePhaseSpec, ...] = ()
+
+    @model_validator(mode="after")
+    def _phases(self):
+        if not self.phases:
+            return self
+        if self.repetitions is not None or self.dosing_interval != "Single":
+            raise ValueError("a phased regimen is written by its phases, not repetitions or a DosingInterval")
+        units = {_nfc(ph.dose.unit) for ph in self.phases} | {_nfc(self.dose.unit)}  # type: ignore[attr-defined]  # every subclass has a dose
+        if len(units) != 1:
+            raise ValueError(f"every phase is dosed in the protocol's dose unit (got {sorted(units)})")
+        starts = [ph.start_h for ph in self.phases]
+        if starts != sorted(starts):
+            raise ValueError("phases are given in time order")
+        return self
 
     @field_validator("end_time")
     @classmethod
@@ -739,6 +775,21 @@ class _MultipleDoseMixin(Spec):
 
     def _schema_protocol(self, application_type: str, item_parameters: list[Parameter],
                          formulation_key: str | None) -> Protocol | None:
+        if self.phases:
+            schemas = []
+            for i, phase in enumerate(self.phases):
+                parameters = [phase.dose.to_parameter(name="InputDose") if q.name == "InputDose"
+                              else Parameter(name="Infusion time", value=phase.infusion_time_min, unit="min")
+                              if q.name == "Infusion time" and phase.infusion_time_min is not None else q
+                              for q in item_parameters]
+                item = SchemaItem(name="Schema Item 1", application_type=application_type, formulation_key=formulation_key,
+                                  parameters=[Parameter(name="Start time", value=0.0, unit="h"), *parameters])
+                schemas.append(Schema(name=f"Schema {i + 1}", schema_items=[item], parameters=[
+                    Parameter(name="Start time", value=phase.start_h, unit="h"),
+                    Parameter(name="NumberOfRepetitions", value=float(phase.repetitions)),
+                    Parameter(name="TimeBetweenRepetitions", value=phase.interval_h, unit="h"),
+                ]))
+            return Protocol(name=self.name, dosing_interval="Single", schemas=schemas, time_unit="h")
         if self.repetitions is None:
             return None
         item = SchemaItem(name="Schema Item 1", application_type=application_type, formulation_key=formulation_key,
@@ -765,6 +816,8 @@ class OralProtocolSpec(_MultipleDoseMixin):
     def _bins(self):
         if self.bins and abs(sum(f for _n, f in self.bins) - 1.0) > 1e-6:
             raise ValueError("the bins' mass fractions must sum to 1")
+        if self.bins and self.phases:
+            raise ValueError("a binned product given in phases is not placed yet (no published protocol does it)")
         return self
 
     def _bin_protocol(self) -> Protocol:

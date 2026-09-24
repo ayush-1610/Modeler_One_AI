@@ -21,6 +21,8 @@ from pbpk_domain.campaign.split import (
 from pbpk_domain.cpf import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.m15 import Rating
 
+pytestmark = pytest.mark.req("T-10")
+
 
 def _cpf() -> CPF:
     prov = Provenance(source_type="measured", reference="Example 2020")
@@ -201,3 +203,90 @@ def test_build_from_generated_map_scenarios() -> None:
     # S2 (oral fasted) also builds from the same MAP scenarios
     stage2 = build_stage_snapshot(_cpf(), m.scenarios, stage="S2")
     assert stage2.simulations == ("po",)
+
+
+def test_a_phased_regimen_is_one_schema_per_phase() -> None:
+    """A loading dose then maintenance, as the OSP Voriconazole protocol "Purkin et al. 2003 B" writes it."""
+    from pbpk_domain.campaign.split import DosePhase
+
+    phases = (DosePhase(start_h=0.0, dose_mg=6.0, n_doses=2, interval_h=12.0),
+              DosePhase(start_h=24.0, dose_mg=3.0, n_doses=17, interval_h=12.0))
+    sc = _scenario(route="iv_bolus", infusion_time_min=None, dose_mg=6.0, dose_per_kg=True, dose_phases=phases)
+    built = build_stage_snapshot(_cpf(), [sc], stage="S1")
+    protocol = built.snapshot.to_json_dict()["Protocols"][0]
+    assert protocol["DosingInterval"] == "Single" and len(protocol["Schemas"]) == 2
+    for schema, (start, dose, n) in zip(protocol["Schemas"], [(0.0, 6.0, 2), (24.0, 3.0, 17)], strict=True):
+        params = {q["Name"]: q["Value"] for q in schema["Parameters"]}
+        assert (params["Start time"], params["NumberOfRepetitions"], params["TimeBetweenRepetitions"]) == (start, n, 12.0)
+        item = schema["SchemaItems"][0]
+        assert item["ApplicationType"] == "IntravenousBolus"
+        assert {q["Name"]: (q["Value"], q.get("Unit")) for q in item["Parameters"]}["InputDose"] == (dose, "mg/kg")
+    # the simulation covers the whole regimen
+    end = max(q["Value"] for s in built.snapshot.to_json_dict()["Simulations"][0]["OutputSchema"]
+              for q in s["Parameters"] if q["Name"] == "End time")
+    assert end >= 24.0 + 17 * 12.0
+
+
+def test_a_phase_keeps_its_own_infusion_time() -> None:
+    from pbpk_domain.campaign.split import DosePhase
+
+    phases = (DosePhase(start_h=0.0, dose_mg=1.0, infusion_time_min=2.0),
+              DosePhase(start_h=2 / 60, dose_mg=0.576, infusion_time_min=480.0))
+    sc = _scenario(route="iv_infusion", infusion_time_min=2.0, dose_mg=1.0, dose_phases=phases)
+    protocol = build_stage_snapshot(_cpf(), [sc], stage="S1").snapshot.to_json_dict()["Protocols"][0]
+    infusions = [next(q["Value"] for q in s["SchemaItems"][0]["Parameters"] if q["Name"] == "Infusion time")
+                 for s in protocol["Schemas"]]
+    assert infusions == [2.0, 480.0]
+
+
+def test_phase_rules_are_enforced() -> None:
+    from pydantic import ValidationError
+
+    from pbpk_domain.campaign.split import DosePhase, StudyRecord
+    from pbpk_domain.snapshot.builder import DosePhaseSpec, Measured, OralProtocolSpec
+
+    with pytest.raises(ValidationError, match="interval"):
+        DosePhase(start_h=0.0, dose_mg=1.0, n_doses=2)
+    base = dict(study_id="s", n=1, dose_mg=400.0, n_timepoints=5, design="MD",
+                dose_phases=(DosePhase(start_h=0.0, dose_mg=400.0, n_doses=2, interval_h=12.0),
+                             DosePhase(start_h=24.0, dose_mg=200.0, n_doses=2, interval_h=12.0)))
+    StudyRecord(**base)
+    with pytest.raises(ValidationError, match="first dose"):
+        StudyRecord(**{**base, "dose_mg": 200.0})
+    with pytest.raises(ValidationError, match="replaces"):
+        StudyRecord(**{**base, "n_doses": 4, "dosing_interval_h": 12.0})
+    with pytest.raises(ValidationError, match="multiple-dose"):
+        StudyRecord(**{**base, "design": "SD"})
+    with pytest.raises(ValidationError, match="time order"):
+        StudyRecord(**{**base, "dose_phases": tuple(reversed(base["dose_phases"]))})
+    mg = Measured(value=400.0, unit="mg")
+    with pytest.raises(ValidationError, match="not repetitions"):
+        OralProtocolSpec(name="p", dose=mg, repetitions=2, repetition_interval_h=12.0,
+                         phases=(DosePhaseSpec(start_h=0.0, dose=mg),))
+    with pytest.raises(ValidationError, match="dose unit"):
+        OralProtocolSpec(name="p", dose=mg, phases=(DosePhaseSpec(start_h=0.0, dose=Measured(value=3.0, unit="mg/kg")),))
+
+
+def test_a_system_splits_every_phase_by_its_dose_fractions() -> None:
+    """Each enantiomer of a racemic product gets every phase at dose x its fraction."""
+    import json
+    from pathlib import Path
+
+    from pbpk_domain.campaign.split import DosePhase
+    from pbpk_domain.reference.osp_import import import_osp_system
+
+    fixtures = Path(__file__).resolve().parents[3] / "services" / "engine-worker" / "golden" / "fixtures"
+    system = import_osp_system(json.loads((fixtures / "Verapamil-Model.json").read_text(encoding="utf-8"))).system
+    product, fractions = next((p, f) for p, f in system.products.items() if len(f) == 2)
+    phases = (DosePhase(start_h=0.0, dose_mg=240.0), DosePhase(start_h=12.0, dose_mg=120.0, n_doses=3, interval_h=12.0))
+    sc = _scenario(route="oral", infusion_time_min=None, dose_mg=240.0, dose_phases=phases, product=product)
+    built = build_stage_snapshot(system.cpf(system.parents[0]), [sc], stage="S1", system=system)
+    doc = built.snapshot.to_json_dict()
+    protocols = {p["Name"]: p for p in doc["Protocols"]}
+    for entry in doc["Simulations"][0]["Compounds"]:
+        if entry.get("Protocol") is None:
+            continue
+        f = fractions[entry["Name"]]
+        doses = [next(q["Value"] for q in s["SchemaItems"][0]["Parameters"] if q["Name"] == "InputDose")
+                 for s in protocols[entry["Protocol"]["Name"]]["Schemas"]]
+        assert doses == pytest.approx([240.0 * f, 120.0 * f])

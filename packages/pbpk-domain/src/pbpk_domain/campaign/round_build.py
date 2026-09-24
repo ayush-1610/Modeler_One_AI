@@ -26,6 +26,7 @@ from pbpk_domain.cpf.models import CPF
 from pbpk_domain.snapshot.builder import (
     CoCompoundSpec,
     DissolvedFormulationSpec,
+    DosePhaseSpec,
     IntravenousBolusProtocolSpec,
     IntravenousProtocolSpec,
     MealEventSpec,
@@ -105,7 +106,14 @@ def _subject_spec(scenario: MapScenario, *, seed: int) -> SubjectSpec:
 def _schedule(scenario: MapScenario) -> dict:
     """The protocol's dosing fields: one dose; a named PK-Sim DosingInterval with the End time n_doses × interval
     (PK-Sim repeats the dose while time < End time); or, for any other regular interval, a schema repeated n_doses
-    times (the structure of the OSP reference multiple-dose protocols)."""
+    times (the structure of the OSP reference multiple-dose protocols); a regimen whose doses differ, one schema per
+    phase (the OSP Voriconazole loading-dose protocols)."""
+    if scenario.dose_phases:
+        unit = "mg/kg" if scenario.dose_per_kg else "mg"
+        return {"phases": tuple(DosePhaseSpec(start_h=p.start_h, dose=Measured(value=p.dose_mg, unit=unit),
+                                              repetitions=p.n_doses, interval_h=p.interval_h or 0.0,
+                                              infusion_time_min=p.infusion_time_min)
+                                for p in scenario.dose_phases)}
     if scenario.dosing_interval_h is None:
         return {}
     if scenario.n_doses is None:
@@ -124,6 +132,8 @@ def _sim_end(scenario: MapScenario, default_h: float) -> float:
     end = max(default_h, scenario.sim_end_time_h or 0.0)
     if scenario.dosing_interval_h is not None and scenario.n_doses is not None:
         end = max(end, scenario.n_doses * float(scenario.dosing_interval_h))
+    for phase in scenario.dose_phases:
+        end = max(end, phase.start_h + phase.n_doses * (phase.interval_h or 0.0))
     return end
 
 
@@ -135,6 +145,9 @@ def protocol_name(study_id: str) -> str:
 def _bin_schedule(scenario: MapScenario) -> dict:
     """A binned product's regimen as schema repetitions (the published bin protocols: n doses, interval apart; a
     single dose is one repetition)."""
+    if scenario.dose_phases:
+        raise ScenarioBuildError(f"scenario {scenario.study_id!r}: a binned product given in phases (loading, then "
+                                 "maintenance) is not placed yet; no published protocol does it")
     if scenario.dosing_interval_h is None:
         return {}
     if scenario.n_doses is None:
@@ -233,14 +246,20 @@ def _system_scenario(scenario: MapScenario, system: ModelSystem, *, subject_name
         raise ScenarioBuildError(f"scenario {scenario.study_id!r}: the system has several products and the study names "
                                  f"none it has ({scenario.product!r}); which compounds it doses is not guessed")
     dosed = list(fractions)
-    first = scenario.model_copy(update={"dose_mg": scenario.dose_mg * fractions[dosed[0]]})
+
+    def share(compound: str) -> dict:
+        f = fractions[compound]
+        return {"dose_mg": scenario.dose_mg * f,
+                "dose_phases": tuple(p.model_copy(update={"dose_mg": p.dose_mg * f}) for p in scenario.dose_phases)}
+
+    first = scenario.model_copy(update=share(dosed[0]))
     base = _scenario_specs(first, subject_name=subject_name, compound=dosed[0], sim_end_time_h=sim_end_time_h,
                            cpf=cpf, notes=notes)
     extra, co = [], []
     for compound in dosed[1:]:
-        protocol = base.protocol.model_copy(update={
-            "name": f"{base.protocol.name} {compound}",
-            "dose": base.protocol.dose.model_copy(update={"value": scenario.dose_mg * fractions[compound]})})
+        mine = _scenario_specs(scenario.model_copy(update=share(compound)), subject_name=subject_name, compound=compound,
+                               sim_end_time_h=sim_end_time_h, cpf=cpf).protocol
+        protocol = mine.model_copy(update={"name": f"{base.protocol.name} {compound}"})
         extra.append(protocol)
         co.append(CoCompoundSpec(name=compound, protocol=protocol.name,
                                  formulation=base.formulation.name if base.formulation is not None else None))

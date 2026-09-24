@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — loading-dose and phased regimens (OSP Voriconazole: 0 -> 12 importable studies)
+- A regimen whose doses differ or are unevenly spaced is now simulated as the published protocol writes it: one
+  schema per phase (Start time, NumberOfRepetitions, TimeBetweenRepetitions) with one item at the phase's dose and,
+  for an infusion, its own infusion time. New `StudyRecord.dose_phases` / `DosePhase` (start, dose, number of doses,
+  interval, infusion time; `dose_mg` is the first dose), carried by the API upload and the MAP scenario; builder
+  `DosePhaseSpec` on every protocol spec. Harvested shapes: Voriconazole "Purkin et al. 2003 B" (6 mg/kg IV bolus
+  twice 12 h apart, then 3 mg/kg every 12 h from 24 h), "Purkin et al. 2003 A" (one dose, then every 12 h from 48 h),
+  "Saari et al. vrz_oral" (400 mg twice, then 200 mg twice).
+- Importer: a published schema protocol whose phases differ in dose or infusion time, or whose doses are not evenly
+  spaced, becomes the study's phases. A dose the dataset reports must be the regimen's first dose or its total;
+  otherwise the study is skipped with the reason. The published regimen must start at 0 h.
+- Studies recovered: Voriconazole 0 -> 12 (S0-ready; its 10 Saari 2006 subjects are dosed with midazolam and stay DDI
+  arms, not simulated), Metformin 41 -> 48 (779.9 mg then 584.9 mg), Digoxin +3 (twice daily for 2 days, then daily),
+  Alprazolam +2 (Kroboth 1988: 1 mg over 2 min, then 0.576 mg over 8 h; Fleishaker 1994), Rifampicin +1 (Chattopadhyay
+  2018). For every one checked (Purkin A/B, Kroboth, Ding, Johne) each administration (time, dose, unit, route,
+  infusion time) is identical to the published protocol. They were skipped before, or (Kroboth) simulated as repeated
+  identical doses in the version before 8bf41e6.
+- A model system splits every phase by the product's dose fractions.
+- Diagnostics leave a phased study out of the dose-normalised AUC trend (its first dose is not its exposure dose).
+- A binned product given in phases is refused (no published protocol does it).
+- Voriconazole snapshot vendored (commit f482aa1); round-trip CI job.
+
 ### Fixed — round-trip defects found on PK-Sim (CI run 14): Dabigatran oral 2-fold, Alfentanil/Alprazolam/Midazolam
 - **A process can run on another molecule of the individual than it names.** The OSP Dabigatran simulations select
   DabiEtex's `ABCB1-FIT` transport on the individual's `P-gp`, which has its own modified profile ("new ref. conc.").

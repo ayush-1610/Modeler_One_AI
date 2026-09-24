@@ -100,7 +100,8 @@ def test_metformin_renal_transporters_and_hill_kinetics():
     assert {q["Name"] for q in hill["Parameters"]} == {"Vmax", "Km", "Transporter concentration", "Hill coefficient"}
     profiles = {e["Molecule"] for e in ours["ExpressionProfiles"]}
     assert {"OCT1", "OCT2", "MATE1", "PMAT"} <= profiles  # harvested into the library from the OSP model library
-    assert len(imported.studies) == 41  # with the Gormsen 2016 PET microdose, an IV bolus
+    # with the Gormsen 2016 PET microdose (an IV bolus) and seven loading-dose studies (779.9 mg, then 584.9 mg 12 h later)
+    assert len(imported.studies) == 48
 
 
 def test_raltegravir_ph_solubility_table():
@@ -230,9 +231,61 @@ def test_an_unset_binding_partner_stays_unset():
     assert _import("Alfentanil").cpf.get("bind.partner").value == "Glycoprotein"
 
 
-def test_loading_dose_regimens_are_named_not_simulated_as_repeated_doses():
-    alprazolam = _import("Alprazolam")
-    assert not [s for s in alprazolam.studies if s["study_id"].startswith("kroboth-1988-1-0-mg")]
-    assert any("IV_1mg_2min_0.576mg_8h" in s and "loading dose" in s for s in alprazolam.skipped)
-    # a binned product's bins at one moment are one administration, not differing doses
+def _administrations(protocol: dict) -> list[tuple]:
+    """Every administration of a protocol: (time h, dose, unit, application type, infusion min)."""
+    def hours(params, name):
+        q = next((q for q in params or [] if q.get("Name") == name), None)
+        return 0.0 if q is None else float(q["Value"]) * {"min": 1 / 60, "s": 1 / 3600}.get(q.get("Unit") or "h", 1.0)
+
+    out = []
+    for schema in protocol.get("Schemas") or []:
+        sp = schema.get("Parameters") or []
+        n = int(next((q["Value"] for q in sp if q["Name"] == "NumberOfRepetitions"), 1))
+        for item in schema["SchemaItems"]:
+            dose = next(q for q in item["Parameters"] if q["Name"] == "InputDose")
+            out.extend((round(hours(sp, "Start time") + hours(item["Parameters"], "Start time")
+                              + k * hours(sp, "TimeBetweenRepetitions"), 6), dose["Value"], dose["Unit"],
+                        item["ApplicationType"], round(hours(item["Parameters"], "Infusion time") * 60, 6)) for k in range(n))
+    return sorted(out)
+
+
+@pytest.mark.parametrize(("model", "study", "phases"), [
+    # Purkin B: 6 mg/kg IV bolus twice 12 h apart, then 3 mg/kg every 12 h from 24 h (a loading dose)
+    ("Voriconazole", "purkin-et-al-2003-study-b-1-12", [(0.0, 6.0, 2), (24.0, 3.0, 17)]),
+    # Purkin A: one dose, then every 12 h from 48 h (evenly dosed, unevenly spaced)
+    ("Voriconazole", "purkin-et-al-2003-study-a-1-12", [(0.0, 3.0, 1), (48.0, 3.0, 19)]),
+    # Kroboth 1988: 1 mg over 2 min, then 0.576 mg over 8 h (each phase its own infusion time)
+    ("Alprazolam", "kroboth-1988-1-0-mg-2-min-then-72-g-hr-for-8-hours", [(0.0, 1.0, 1), (0.033333333, 0.576, 1)]),
+    ("Metformin", "ding-2014-po-779-9-mg-584-9-mg-plasma-n-20", [(0.0, 779.9, 1), (12.0, 584.925, 1)]),
+    ("Digoxin", "johne-1999-0-25mg-po-md-with-placebo-day-6", [(0.0, 0.25, 4), (48.0, 0.25, 13)]),
+])
+def test_loading_dose_and_uneven_regimens_are_the_published_protocols_phases(model, study, phases):
+    snapshot = json.loads((FIXTURES / f"{model}-Model.json").read_text(encoding="utf-8"))
+    imported = import_osp_snapshot(snapshot)
+    row = next(s for s in imported.studies if s["study_id"] == study)
+    assert [(p["start_h"], p["dose_mg"], p["n_doses"]) for p in row["dose_phases"]] == phases
+    assert row["design"] == "MD" and row["dose_mg"] == phases[0][1]
+    assert not imported.differs_by_design.get(study)  # the same number of doses as the published simulation
+    ours, pairs, _notes = roundtrip_inputs(imported)
+    pair = next(p for p in pairs if p["ours"] == study)
+    mine = next(s for s in ours["Simulations"] if s["Name"] == study)
+    ours_protocol = next(p for p in ours["Protocols"] if p["Name"] == mine["Compounds"][0]["Protocol"]["Name"])
+    published_sim = next(s for s in snapshot["Simulations"] if s["Name"] == pair["published"])
+    entry = next(c for c in published_sim["Compounds"] if c["Name"] == mine["Compounds"][0]["Name"])
+    published = next(p for p in snapshot["Protocols"] if p["Name"] == entry["Protocol"]["Name"])
+    # every administration identical: time, dose, unit, route, infusion time
+    assert _administrations(ours_protocol) == _administrations(published)
+
+
+def test_voriconazole_imports_its_own_studies_and_names_its_ddi_arms():
+    imported = _import("Voriconazole")
+    assert len(imported.studies) == 12
+    assert missing_expression_profiles(imported.cpf) == () and unplaceable_parameters(imported.cpf) == ()
+    saari = [s for s in imported.studies if s["study_id"].startswith("saari")]
+    # dosed with midazolam: DDI arms (MS-01), imported with their regimen, not simulated as the drug alone
+    assert len(saari) == 10 and all(s["co_medication"] == "Midazolam" for s in saari)
+    assert [(p["dose_mg"], p["n_doses"]) for p in saari[0]["dose_phases"]] == [(400.0, 2), (200.0, 2)]
+
+
+def test_a_binned_product_at_one_moment_is_one_administration():
     assert len(_import("Ketoconazole").studies) == 53

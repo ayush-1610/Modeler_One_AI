@@ -135,6 +135,9 @@ class StudyUpload(BaseModel):
     design: str = "SD"
     dosing_interval_h: float | None = Field(default=None, gt=0)  # multiple dose: one dose every N hours…
     n_doses: int | None = Field(default=None, gt=0)              # …this many times
+    # a regimen whose doses differ (loading, then maintenance): [{start_h, dose_mg, n_doses, interval_h,
+    # infusion_time_min}] in time order, dose_mg its first dose (StudyRecord.dose_phases)
+    dose_phases: list[dict[str, Any]] = Field(default_factory=list)
     route: str = "oral"
     dose_mg: float = Field(gt=0)
     dose_per_kg: bool = False  # dose_mg is per kg body weight

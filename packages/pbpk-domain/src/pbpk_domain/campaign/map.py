@@ -24,6 +24,7 @@ from pbpk_domain.acceptance import load_acceptance_ruleset
 from pbpk_domain.campaign.split import (
     DEFAULT_DEMOGRAPHICS,
     Assignment,
+    DosePhase,
     PublishedIndividual,
     SplitResult,
     StudyClass,
@@ -162,6 +163,8 @@ class MapScenario(BaseModel):
     # Multiple-dose regimen (a dose every `dosing_interval_h`, `n_doses` times); None for a single dose.
     dosing_interval_h: float | None = None
     n_doses: int | None = None
+    # A regimen whose doses differ (loading, then maintenance), phase by phase (StudyRecord.dose_phases).
+    dose_phases: tuple[DosePhase, ...] = ()
     # The study's last sampling time: the simulation must cover it, or the prediction is scored on a shorter
     # window than the observation.
     sim_end_time_h: float | None = None
@@ -316,6 +319,7 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
                 formulation_name=study.formulation_name,
                 dosing_interval_h=study.dosing_interval_h if multiple else None,
                 n_doses=study.n_doses if multiple else None,
+                dose_phases=study.dose_phases,
                 sim_end_time_h=ends.get(study.study_id),
                 published_individual=study.published_individual,
                 analyte=study.analyte, product=study.product,
