@@ -260,8 +260,15 @@ def summary(step: str, result: dict) -> str:
         return "\n".join(lines)
     if step == "roundtrip":
         report = result.get("report") or {}
+        pairs = [r for r in report.get("pairs", []) if "error" not in r]
+        # a reporting tier, not the acceptance: pairs off by more than 1e-6 but at most 1e-3 of the peak, with AUC and
+        # Cmax within 1e-3, differ at the level of the solver's tolerance, not by a model input
+        close = sum(1 for r in pairs if not r.get("identical") and r["max_rel_to_peak"] <= CLOSE
+                    and abs(r["auc_ratio"] - 1) <= CLOSE and abs(r["cmax_ratio"] - 1) <= CLOSE)
+        labelled = sum(1 for r in pairs if not r.get("identical") and r.get("by_design"))
         lines.append(f"### Round trip {result['model']}: {report.get('identical', 0)} of {report.get('total', 0)} "
-                     f"identical within {report.get('tolerance')} of the peak ({result['seconds']} s, exit {result['exit']})")
+                     f"identical within {report.get('tolerance')} of the peak; {close} more within {CLOSE:g} (solver "
+                     f"level); {labelled} labelled by design ({result['seconds']} s, exit {result['exit']})")
         lines.append("| ours | analyte | published | max diff / peak | AUC ratio | Cmax ratio | differs by design |")
         lines.append("|---|---|---|---|---|---|---|")
         for row in report.get("pairs", []):
@@ -305,6 +312,9 @@ def summary(step: str, result: dict) -> str:
                 lines.append(f"| {pid} | {f['published']:.4g} | {f['start']:.4g} | {f['fitted']} | "
                              f"[{f['lower']:.3g}, {f['upper']:.3g}] |")
     return "\n".join(lines)
+
+
+CLOSE = 1e-3  # the round trip's "solver level" reporting tier (see summary)
 
 
 def recap(text: str) -> str:
