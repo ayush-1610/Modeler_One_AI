@@ -77,6 +77,8 @@ class CampaignStartRequest(BaseModel):
     cpf_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     map_uri: str = ""
     observed_uri: str = ""
+    system_uri: str = ""      # a model system staged by campaign:prepare ("" for a single compound)
+    system_sha256: str = ""
     question: str = ""
     model_risk: str = "medium"
     stages: list[str] | None = None
@@ -95,6 +97,7 @@ async def start_campaign(project_id: str, request: CampaignStartRequest, princip
     campaign_request = CampaignRequest(
         campaign_id=campaign_id, tenant_id=principal.tenant_id, compound=request.compound, map_id=request.map_id,
         cpf_uri=request.cpf_uri, cpf_sha256=request.cpf_sha256, map_uri=request.map_uri, observed_uri=request.observed_uri,
+        system_uri=request.system_uri, system_sha256=request.system_sha256,
         stages=request.stages or list(CAMPAIGN_STAGES), stage_budgets_seconds=request.stage_budgets_seconds,
     )
 

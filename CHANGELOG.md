@@ -15,6 +15,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — campaigns on a model system (phase 1 wiring)
+- API: `PUT /projects/{id}/system` stores the system's links (`SystemLinks`: roles, formation, products, observers,
+  analytes) next to each compound's CPF, refusing it until every compound's CPF is there. `campaign:prepare` on a
+  project with a system requires a parent as the fitted compound, converts each study's observed data with its
+  analyte's molecular weight, stages `system.json` (URI and hash in the response, `model_system_sha256` in the MAP),
+  and names the studies it cannot evaluate yet (`not_evaluated`: a mass-concentration sum such as Dabigatran's `SUM`,
+  or a molar sum of compounds with different molecular weights).
+- MAP scenarios carry the analyte's output path and `gated`: only the fitted parent's plasma enters the acceptance
+  gate, the fit and the VPC; metabolite and sum studies are evaluated on their own curve and reported beside the gate
+  (owner decision 3). A fit or validation stage whose studies are all reported analytes is SKIPPED with that reason
+  (Verapamil's IV data are racemic sums), not escalated.
+- Orchestrator: `system_uri` travels campaign -> stage -> round; the round build uses the system with the parent's
+  current (fitted) CPF; S0 checks every compound; evaluation reads each study on its analyte's output from the
+  engine bundle (unit-checked; a missing output is a finding); the S7 bundle includes `cpf/system.json`.
+- `run_reference.py campaign <Drug> --system`; CI jobs for the Verapamil and Itraconazole systems as published.
+- Fixed: `@activity.defn(name="diagnose_round")` had been left on the `_off` helper by an earlier edit in this
+  session, so the Temporal worker registered the helper under that name; a test now guards the registration.
+
 ### Added — model systems, phase 1 step 4 (engine): every selected output in the result bundle
 - `run_job.R` keeps each peripheral-venous output a simulation selects (every compound's plasma, the sum observers)
   under `profiles[<sim>].outputs[<path>]` with its own unit (a mass-sum observer reports mass concentration); the

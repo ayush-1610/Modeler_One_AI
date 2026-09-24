@@ -124,8 +124,12 @@ def assess_round(
     *,
     model_risk: Rating,
     auc_kind: AucKind = "last",
+    reported: frozenset[str] = frozenset(),
 ) -> RoundAssessment:
-    """Reduce each simulated profile to PK, compare with the observed PK, and judge the tier gate."""
+    """Reduce each simulated profile to PK, compare with the observed PK, and judge the tier gate.
+
+    ``reported`` studies (a model system's metabolite or sum analytes in phase 1) are reduced and reported but take no
+    part in the gate."""
     studies: list[StudyPK] = []
     comparisons: list[Comparison] = []
     findings: list[str] = []
@@ -166,6 +170,8 @@ def assess_round(
         if obs is None:
             findings.append(f"{profile.study_id}: no observed PK; not compared")
             continue
+        if profile.study_id in reported:
+            continue  # reported beside the gate
         if obs.auc is not None and pred_auc is not None and pred_auc > 0:
             comparisons.append(Comparison(profile.study_id, "AUC", pred_auc, obs.auc, profile.role, profile.group))
         if obs.cmax is not None and result.c_max > 0:
@@ -175,7 +181,7 @@ def assess_round(
         findings.append("no observed PK to compare against; acceptance gate cannot be judged this round")
         return RoundAssessment(
             gate_passed=False, report=None, studies=tuple(studies), findings=tuple(findings),
-            metrics=_metrics(studies, report=None),
+            metrics=_metrics(studies, report=None, reported=reported),
         )
 
     report = evaluate(comparisons, model_risk)
@@ -188,7 +194,7 @@ def assess_round(
             )
     return RoundAssessment(
         gate_passed=report.passes, report=report, studies=tuple(studies), findings=tuple(findings),
-        metrics=_metrics(studies, report=report),
+        metrics=_metrics(studies, report=report, reported=reported),
     )
 
 
@@ -227,7 +233,8 @@ def _profile_shape(obs: ObservedPK, sampled: tuple[list[float], list[float]]) ->
     return early, vss
 
 
-def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None) -> dict[str, Any]:
+def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None,
+             reported: frozenset[str] = frozenset()) -> dict[str, Any]:
     # per (study, quantity) pass/fail, so diagnostics can read whether each study's AUC/Cmax was in limits
     passed = {(v.comparison.study, v.comparison.quantity): v.passes for v in report.verdicts} if report else {}
     metrics: dict[str, Any] = {
@@ -238,7 +245,7 @@ def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None) -> 
                 "predicted_cmax": s.predicted_cmax, "observed_cmax": s.observed_cmax,
                 "predicted_tmax": s.predicted_tmax, "observed_tmax": s.observed_tmax,
                 "predicted_thalf": s.predicted_thalf, "observed_thalf": s.observed_thalf,
-                "early_ratio": s.early_ratio, "vss_ratio": s.vss_ratio,
+                "early_ratio": s.early_ratio, "vss_ratio": s.vss_ratio, "gated": s.study_id not in reported,
                 "auc_in_limits": passed.get((s.study_id, "AUC")),
                 "cmax_in_limits": passed.get((s.study_id, "Cmax")),
             }

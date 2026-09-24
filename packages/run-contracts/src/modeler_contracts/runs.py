@@ -196,6 +196,8 @@ class CampaignRequest:
     map_sha256: str = ""
     observed_uri: str = ""  # observed PK per study (study_id -> {auc, cmax}); evaluate_round's gate needs it
     observed_sha256: str = ""
+    system_uri: str = ""     # a model system's links + CPFs (pbpk_domain.system); "" for one compound
+    system_sha256: str = ""
     stages: list[str] = field(default_factory=lambda: list(CAMPAIGN_STAGES))
     stage_budgets_seconds: dict[str, int] = field(default_factory=dict)
     max_rounds_per_stage: int = 4
@@ -215,6 +217,8 @@ class StageRequest:
     map_sha256: str = ""
     observed_uri: str = ""
     observed_sha256: str = ""
+    system_uri: str = ""     # a model system's links + CPFs (pbpk_domain.system); "" for one compound
+    system_sha256: str = ""
     max_rounds: int = 4
     seed: int = 1
     signature_timeout_days: int = 14
@@ -237,6 +241,8 @@ class RoundContext:
     map_sha256: str = ""
     observed_uri: str = ""  # observed PK per study, for the acceptance gate in evaluate_round
     observed_sha256: str = ""
+    system_uri: str = ""     # a model system's links + CPFs (pbpk_domain.system); "" for one compound
+    system_sha256: str = ""
     # "" for the round's main pass; "postfit" when the round re-simulates from the CPF its fit just produced,
     # so the fit is judged in the round it happened. Keeps the two passes' snapshots and outputs apart.
     phase: str = ""

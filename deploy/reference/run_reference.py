@@ -148,7 +148,7 @@ def _claims() -> dict:
             "auth_time": int(time.time())}
 
 
-def campaign(model: str, mode: str, out: Path) -> dict:
+def campaign(model: str, mode: str, out: Path, *, system: bool = False) -> dict:
     from fastapi.testclient import TestClient
 
     from modeler_api import write_api
@@ -159,8 +159,23 @@ def campaign(model: str, mode: str, out: Path) -> dict:
     from modeler_orchestrator.local_runner import run_campaign
     from pbpk_domain.reference.refit import refit_cpf
 
-    _snapshot_path, imported = _import(model)
-    cpf, freed = (refit_cpf(imported.cpf) if mode == "refit" else (imported.cpf, {}))
+    compounds: dict = {}
+    links = None
+    if system:
+        from pbpk_domain.reference.osp_import import import_osp_system
+        from pbpk_domain.system import links_of
+
+        imported = import_osp_system(json.loads((FIXTURES / f"{model}-Model.json").read_text(encoding="utf-8")))
+        fitted_name = imported.system.parents[0]
+        compounds = {c.compound: c for c in imported.system.compounds}
+        links = links_of(imported.system).model_dump(mode="json")
+        cpf, freed = (refit_cpf(compounds[fitted_name]) if mode == "refit" else (compounds[fitted_name], {}))
+        compounds[fitted_name] = cpf
+    else:
+        _snapshot_path, imported = _import(model)
+        fitted_name = model
+        cpf, freed = (refit_cpf(imported.cpf) if mode == "refit" else (imported.cpf, {}))
+        compounds = {model: cpf}
     root = tempfile.mkdtemp(prefix=f"ref-{model}-{mode}-")
 
     class _Verifier:
@@ -176,10 +191,14 @@ def campaign(model: str, mode: str, out: Path) -> dict:
             "name": f"{model} {mode}", "compound": model, "model_risk": "medium",
             "question": f"Reference run ({mode}) of the published OSP {model} model"}, headers=auth).json()["data"]
         pid, qid = project["id"], project["questions"][0]["id"]
-        r = client.put(f"/api/v1/projects/{pid}/compounds/{model}/cpf", json=cpf.model_dump(mode="json"), headers=auth)
-        r.raise_for_status()
+        for name, compound_cpf in compounds.items():
+            client.put(f"/api/v1/projects/{pid}/compounds/{name}/cpf", json=compound_cpf.model_dump(mode="json"),
+                       headers=auth).raise_for_status()
+        if links is not None:
+            client.put(f"/api/v1/projects/{pid}/system", json=links, headers=auth).raise_for_status()
         client.post(f"/api/v1/projects/{pid}/studies", json={"studies": list(imported.studies)}, headers=auth).raise_for_status()
-        r = client.post(f"/api/v1/projects/{pid}/questions/{qid}/campaign:prepare", json={"compound": model}, headers=auth)
+        r = client.post(f"/api/v1/projects/{pid}/questions/{qid}/campaign:prepare", json={"compound": fitted_name},
+                        headers=auth)
         if r.status_code != 200:
             raise SystemExit(f"prepare failed: {r.status_code} {r.text}")
         prep = r.json()["data"]
@@ -187,9 +206,10 @@ def campaign(model: str, mode: str, out: Path) -> dict:
         app.dependency_overrides.clear()
 
     request = CampaignRequest(
-        campaign_id=f"ref-{model.lower()}-{mode}", tenant_id="ref", compound=model, map_id=prep["map_id"],
+        campaign_id=f"ref-{model.lower()}-{mode}", tenant_id="ref", compound=fitted_name, map_id=prep["map_id"],
         cpf_uri=prep["cpf_uri"], cpf_sha256=prep["cpf_sha256"], map_uri=prep["map_uri"],
         observed_uri=prep["observed_uri"], stages=list(CAMPAIGN_STAGES),
+        system_uri=prep.get("system_uri", ""), system_sha256=prep.get("system_sha256", ""),
         # The default stage budget assumes the 48-core server; a smaller engine host (a 4-core CI runner) sets more.
         stage_budgets_seconds={s: int(os.environ.get("REFERENCE_STAGE_BUDGET_S", "1800")) for s in CAMPAIGN_STAGES
                                if s != "S0"},
@@ -205,7 +225,7 @@ def campaign(model: str, mode: str, out: Path) -> dict:
     result = {
         "model": model, "mode": mode, "seconds": round(time.monotonic() - started),
         "outcome": {"status": outcome.status, "reason": getattr(outcome, "reason", None)},
-        "freed": freed, "split": prep["studies"], "campaign": record,
+        "freed": freed, "split": prep["studies"], "campaign": record, "not_evaluated": prep.get("not_evaluated", []),
         "fitted": _fitted(final_cpf, freed) if final_cpf else {},
     }
     (out / f"campaign-{mode}.json").write_text(json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
@@ -292,7 +312,7 @@ def main() -> int:
     parser.add_argument("step", choices=["roundtrip", "campaign", "evaluate"])
     parser.add_argument("model")
     parser.add_argument("--mode", choices=["as-is", "refit"], default="as-is")
-    parser.add_argument("--system", action="store_true", help="round trip the model system (parent, enantiomers, metabolites)")
+    parser.add_argument("--system", action="store_true", help="the model system (parent, enantiomers, metabolites): round trip every analyte, or run the campaign on it")
     parser.add_argument("--out", type=Path, default=REPO / "reports" / "reference")
     args = parser.parse_args()
     args.out = args.out.resolve()  # engine inputs are file:// URIs, which need an absolute path
@@ -302,7 +322,7 @@ def main() -> int:
     elif args.step == "evaluate":
         result = evaluate(args.model, args.out)
     else:
-        result = campaign(args.model, args.mode, args.out)
+        result = campaign(args.model, args.mode, args.out, system=args.system)
     text = summary(args.step, result)
     print(text)
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")

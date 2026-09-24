@@ -31,6 +31,7 @@ from pbpk_domain.campaign.split import (
 )
 from pbpk_domain.cpf.models import CPF
 from pbpk_domain.m15 import Rating
+from pbpk_domain.system import ModelSystem
 
 # Per-stage fitting plan (MS-01 §4). Candidate ids use `{enzyme}`/`{name}` where the concrete parameter is
 # resolved from the CPF at build time. Branches are discrete method choices, compared not fitted.
@@ -169,6 +170,10 @@ class MapScenario(BaseModel):
     # A model system's analyte the study measures and the product it administers (None: the single compound).
     analyte: str | None = None
     product: str | None = None
+    # the analyte's simulation output (a compound's plasma or a published sum observer) and whether the study enters
+    # the acceptance gate and the fit — phase 1: only the fitted parent's plasma (owner decision 3, 2026-09-24)
+    analyte_output: str | None = None
+    gated: bool = True
     # The VPC population's age range (the study's own, else the MS-01 default ±10 y around the mean; `vpc.age_range`).
     vpc_age_min: float | None = None
     vpc_age_max: float | None = None
@@ -214,6 +219,8 @@ class MapDocument(BaseModel):
     status: MapStatus = MapStatus.DRAFT
     signature: MapSignature | None = None
     supersedes_sha256: str | None = None
+    # a model system's content hash (pbpk_domain.system.ModelSystem.sha256) when the campaign simulates one
+    model_system_sha256: str | None = None
 
     # --- identity & lifecycle --------------------------------------------------------------------
 
@@ -349,7 +356,25 @@ def stage_coverage(map_doc: MapDocument, stage: str) -> StageCoverage:
             elif row.assignment == Assignment.SUPPORTIVE.value:
                 notes.append(f"{row.study_id} ({row.study_class}) is supportive context only; not simulated")
     skip = _SKIP_REASON.get(stage) if kind in ("fit", "validate", "predict") and not studies else None
+    if skip is None and kind in ("fit", "validate") and studies and map_doc.model_system_sha256:
+        gated_studies = {s.study_id for s in map_doc.scenarios if s.stage == source and s.gated}
+        if not gated_studies:
+            # a model system whose studies here all measure a metabolite or a sum (Verapamil's IV data are racemic):
+            # reported beside the gate in phase 1, so nothing judges or fits this stage (owner decision 3)
+            skip = (f"no study of this stage measures the fitted parent's plasma: {', '.join(studies)} measure other "
+                    "analytes of the model system, reported but not gated or fitted in phase 1")
     return StageCoverage(stage=stage, kind=kind, studies=studies, skip_reason=skip, notes=tuple(notes))
+
+
+def _system_scenarios(scenarios: tuple[MapScenario, ...], system: ModelSystem | None, fitted: str) -> tuple[MapScenario, ...]:
+    """Each scenario of a model system names its analyte's output path and whether it is gated (fitted parent only)."""
+    if system is None:
+        return scenarios
+    from pbpk_domain.system import gated
+
+    return tuple(s.model_copy(update={
+        "analyte_output": system.analytes[s.analyte].output_path if s.analyte in system.analytes else None,
+        "gated": gated(system, s.analyte, fitted)}) for s in scenarios)
 
 
 def generate_map(
@@ -369,6 +394,7 @@ def generate_map(
     diagnostics_ruleset_version: str | None = None,
     meal_template: str = "Meal: High-fat breakfast (Human)",
     sampling_end_h: Mapping[str, float] | None = None,
+    system: ModelSystem | None = None,
 ) -> MapDocument:
     """Produce the MAP (version 1, DRAFT) from the standard and the campaign's inputs (MS-01 §9).
 
@@ -408,7 +434,9 @@ def generate_map(
         split_rationale=split.rationale,
         split_limitations=split.limitations,
         stage_plan=stage_plan,
-        scenarios=_scenarios(studies, split, meal_template=meal_template, cpf=cpf, sampling_end_h=sampling_end_h),
+        scenarios=_system_scenarios(_scenarios(studies, split, meal_template=meal_template, cpf=cpf,
+                                               sampling_end_h=sampling_end_h), system, cpf.compound),
+        model_system_sha256=system.sha256 if system is not None else None,
         diagnostics_ruleset_version=diagnostics_ruleset_version,
         acceptance=_acceptance(model_risk),
         engine_image_digest=engine_image_digest,

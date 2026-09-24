@@ -116,10 +116,23 @@ def plan_campaign(request: CampaignRequest) -> S0Readiness:
     text = _load_local_text(request.cpf_uri)
     if text is None:
         return S0Readiness(ready=True, findings=["CPF not loadable in this environment; completeness not checked (T-07 pending)"])
-    from pbpk_domain.cpf import CPF, check_completeness
-    from pbpk_domain.cpf.build import missing_expression_profiles, unplaceable_parameters
+    from pbpk_domain.cpf import CPF
 
     cpf = CPF.model_validate_json(text)
+    system = _round_system(request, cpf)
+    if system is not None:
+        # every compound of the system is simulated, so each must be ready (MS-01 §2.2 per compound)
+        outcomes = [(c.compound, plan_campaign_cpf(c)) for c in system.compounds]
+        return S0Readiness(ready=all(r.ready for _n, r in outcomes),
+                           findings=[f"{name}: {f}" for name, r in outcomes for f in r.findings])
+    return plan_campaign_cpf(cpf)
+
+
+def plan_campaign_cpf(cpf) -> S0Readiness:
+    """S0 readiness of one compound's CPF."""
+    from pbpk_domain.cpf import check_completeness
+    from pbpk_domain.cpf.build import missing_expression_profiles, unplaceable_parameters
+
     report = check_completeness(cpf)
     findings = list(report.missing)
     # A pathway the CPF names but the builder cannot place would be silently absent from every simulation.
@@ -152,6 +165,16 @@ def plan_stage(request: StageRequest) -> StagePlan:
     coverage = stage_coverage(MapDocument.model_validate_json(map_text), request.stage)
     return StagePlan(stage=request.stage, kind=coverage.kind, studies=list(coverage.studies),
                      skip_reason=coverage.skip_reason, notes=list(coverage.notes))
+
+
+def _round_system(ctx, cpf):
+    """The round's model system with the parent's current (possibly fitted) CPF, or None for one compound."""
+    text = _load_local_text(ctx.system_uri) if getattr(ctx, "system_uri", "") else None
+    if text is None:
+        return None
+    from pbpk_domain.system import ModelSystem, with_cpf
+
+    return with_cpf(ModelSystem.model_validate_json(text), cpf)
 
 
 def _round_stem(ctx: RoundContext) -> str:
@@ -206,6 +229,8 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     output_path = PLASMA_OUTPUT_PATH.format(compound=cpf.compound)
     simulations = []
     for scenario in scenarios_for_stage(map_doc.scenarios, ctx.stage):
+        if not scenario.gated:
+            continue  # a model system's metabolite / sum study is reported, not fitted (phase 1)
         profile = (observed_doc or {}).get(scenario.study_id, {}).get("profile")
         if not profile or mol_weight is None:
             continue
@@ -219,7 +244,8 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
             except FormulationError:
                 formulation = None
         simulations.append(FitSimulation(
-            study_id=scenario.study_id, pkml=exported_pkml_name(scenario.study_id), output_path=output_path,
+            study_id=scenario.study_id, pkml=exported_pkml_name(scenario.study_id),
+            output_path=scenario.analyte_output or output_path,
             observed=pi_observed(scenario.study_id, profile["times"], profile["values"], time_unit=profile["time_unit"],
                                  unit=profile["unit"], mol_weight=mol_weight, dimension=dimension,
                                  sd=profile.get("sd"), lloq=profile.get("lloq")),
@@ -301,7 +327,7 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
         # S6 predicts from the internal studies (S4's scenarios) with the final CPF.
         scenario_stage = "S4" if ctx.stage == "S6" else ctx.stage
         stage = build_stage_snapshot(cpf, list(map_doc.scenarios), stage=scenario_stage, seed=ctx.seed,
-                                     skip_unbuildable=scenario_stage in VALIDATION_STAGES)
+                                     skip_unbuildable=scenario_stage in VALIDATION_STAGES, system=_round_system(ctx, cpf))
     except ScenarioBuildError as exc:
         echoed = _echo(str(exc))
         echoed.notes = [str(exc)]
@@ -372,7 +398,7 @@ def prepare_vpc_jobs(ctx: RoundContext, manifest: EngineManifest) -> list[Engine
     jobs = []
     for scenario in scenarios_for_stage(map_doc.scenarios, ctx.stage):
         model = pkml.get(exported_pkml_name(scenario.study_id))
-        if model is None:
+        if model is None or not scenario.gated:
             continue
         jobs.append(EngineJob(
             job_id=f"{_round_stem(ctx)}-vpc-{scenario.study_id}", tenant_id=ctx.tenant_id, task="population",
@@ -386,7 +412,8 @@ def prepare_vpc_jobs(ctx: RoundContext, manifest: EngineManifest) -> list[Engine
                     "age_min": scenario.vpc_age_min, "age_max": scenario.vpc_age_max,
                 },
                 "seed": ctx.seed,
-                "vpc": {"output_path": PLASMA_OUTPUT_PATH.format(compound=compound), "percentiles": list(VPC_PERCENTILES)},
+                "vpc": {"output_path": scenario.analyte_output or PLASMA_OUTPUT_PATH.format(compound=compound),
+                        "percentiles": list(VPC_PERCENTILES)},
             },
             timeout_s=int(max(120.0, ctx.deadline_seconds)) if ctx.deadline_seconds else 900,
         ))
@@ -532,14 +559,28 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
     food_of = {s.study_id: s.food_state for s in map_doc.scenarios if s.stage == ctx.stage}
     group_of = food_of if ctx.stage == "S5" else {}
 
-    simulated = [
-        SimulatedProfile(
+    # A model system's study is read on its analyte's curve (the engine bundle keeps every selected output by path);
+    # one that is not gated (a metabolite or sum, phase 1) is reported beside the gate, not in it.
+    stage_scenarios = {s.study_id: s for s in map_doc.scenarios if s.stage == ctx.stage}
+    reported: set[str] = set()
+    not_read: list[str] = []
+    simulated = []
+    for study_id, prof in profiles_doc["profiles"].items():
+        scenario = stage_scenarios.get(study_id)
+        concentrations = prof.get("concentrations", [])
+        if scenario is not None and scenario.analyte_output and scenario.analyte_output != prof.get("path"):
+            output = (prof.get("outputs") or {}).get(scenario.analyte_output)
+            if output is None or output.get("unit") != prof.get("unit"):
+                not_read.append(f"{study_id}: the engine returned no {scenario.analyte_output!r} in "
+                                f"{prof.get('unit')}; not evaluated")
+                continue
+            concentrations = output["concentrations"]
+        if scenario is not None and not scenario.gated:
+            reported.add(study_id)
+        simulated.append(SimulatedProfile(
             study_id=study_id, role=role_of.get(study_id, "validation"),
-            times=prof.get("times_min", []), concentrations=prof.get("concentrations", []),
-            group=group_of.get(study_id, ""),
-        )
-        for study_id, prof in profiles_doc["profiles"].items()
-    ]
+            times=prof.get("times_min", []), concentrations=concentrations, group=group_of.get(study_id, ""),
+        ))
     observed_doc = _load_local_json(ctx.observed_uri) if ctx.observed_uri else {}
     def _window(pk: dict) -> tuple[float | None, float | None]:
         """The sampled interval, so the prediction is reduced over the same interval as the observation."""
@@ -571,14 +612,14 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
                                         sample_values=tuple(float(v) for v in values) if values else None,
                                         infusion_time=infusion.get(study_id))
 
-    assessment = assess_round(simulated, observed, model_risk=map_doc.model_risk)
+    assessment = assess_round(simulated, observed, model_risk=map_doc.model_risk, reported=frozenset(reported))
     activity.logger.info(
         "evaluate_round %s %s round %d: gate=%s studies=%d",
         ctx.campaign_id, ctx.stage, ctx.round_index, assessment.gate_passed, len(assessment.studies),
     )
     return RoundEvaluation(
         gate_passed=assessment.gate_passed, acceptable=assessment.gate_passed,
-        metrics=assessment.metrics, findings=list(assessment.findings),
+        metrics=assessment.metrics, findings=list(assessment.findings) + not_read,
     )
 
 
@@ -619,12 +660,12 @@ def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str) -> tuple[
     return tuple(keep)
 
 
-@activity.defn(name="diagnose_round")
 def _off(ratio: float | None, thresholds: dict) -> bool:
     """A predicted/observed ratio outside the ruleset's diagnostic band (ratio_low .. ratio_high)."""
     return ratio is not None and not float(thresholds["ratio_low"]) <= ratio <= float(thresholds["ratio_high"])
 
 
+@activity.defn(name="diagnose_round")
 def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagnosis:
     """Map the round's evidence to permitted actions with the deterministic diagnostics ruleset (MS-01 §5).
 

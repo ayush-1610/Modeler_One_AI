@@ -61,6 +61,8 @@ jobs:
           - {task: omeprazole-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Omeprazole --system"}
           - {task: dabigatran-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Dabigatran --system"}
           - {task: itraconazole-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Itraconazole --system"}
+          - {task: verapamil-system-as-is, run: "deploy/reference/run_reference.py campaign Verapamil --mode as-is --system"}
+          - {task: itraconazole-system-as-is, run: "deploy/reference/run_reference.py campaign Itraconazole --mode as-is --system"}
           - {task: portfolio, run: "deploy/reference/portfolio.py"}  # import / S0 / split of the whole library
     steps:
       - uses: actions/checkout@v4

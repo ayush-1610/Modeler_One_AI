@@ -475,6 +475,7 @@ class LocalExecutor:
                 pending_bounds_override=pending_bounds, deadline_seconds=remaining, seed=request.seed,
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+                system_uri=request.system_uri, system_sha256=request.system_sha256,
             )
             rounds_run = round_index
             try:
@@ -525,6 +526,7 @@ class LocalExecutor:
             cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, deadline_seconds=float(budget), seed=request.seed,
             map_uri=request.map_uri, map_sha256=request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256,
         )
         result = self._run_round(ctx, judge_only=True)
         evaluation = result.evaluation
@@ -574,6 +576,7 @@ class LocalExecutor:
             deadline_seconds=float(request.stage_budgets_seconds.get("S6", _DEFAULT_STAGE_BUDGET_S)),
             map_uri=request.map_uri, map_sha256=request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256,
         )
         build, manifest = self._simulate(ctx)
         if manifest is None:
@@ -607,7 +610,7 @@ class LocalExecutor:
         evidence = load_stage_evidence(request.tenant_id, request.campaign_id)
         files, numeric, snapshots = collect_bundle(request.tenant_id, request.campaign_id, cpf_uri=cpf_uri,
                                                    map_uri=request.map_uri, observed_uri=request.observed_uri,
-                                                   evidence=evidence)
+                                                   evidence=evidence, system_uri=request.system_uri)
         jobs = prepare_reproduction_jobs(request.tenant_id, request.campaign_id, files, snapshots)
         reproduction = verify_package_reproduction(files, numeric, jobs, self._run_jobs(jobs))
         record = finish_package(

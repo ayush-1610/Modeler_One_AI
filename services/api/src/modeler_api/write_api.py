@@ -17,7 +17,7 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import get_settings
@@ -87,6 +87,33 @@ def put_cpf(project_id: str, compound: str, cpf: CPF, principal: Author, stores:
     _read, write = stores
     write.put_cpf(principal.tenant_id, compound, cpf)
     return envelope(project_cpf_view(cpf))
+
+
+def _project_system(read, tenant_id: str, project_id: str, links_doc: dict[str, Any]):
+    """The project's model system: its links with each compound's current CPF (ValueError names what is missing)."""
+    from pbpk_domain.system import SystemLinks, assemble
+
+    links = SystemLinks.model_validate(links_doc)
+    cpfs = {c: cpf for c in links.compounds if (cpf := read.get_cpf(tenant_id, project_id, c)) is not None}
+    return assemble(links, cpfs)
+
+
+@router.put("/projects/{project_id}/system")
+def put_system(project_id: str, links: dict[str, Any], principal: Author, stores: StoresDep) -> dict[str, Any]:
+    """Relate the project's compounds as one model system (parent, enantiomers, metabolites): roles, formation links,
+    products with their dose fractions (required: never defaulted), published sum observers and analytes. Each
+    compound's CPF is put first; the system is checked against them before it is stored."""
+    require_project(project_id, principal)
+    read, write = stores
+    try:
+        system = _project_system(read, principal.tenant_id, project_id, links)
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(status_code=422, detail=f"model system: {exc}") from exc
+    from pbpk_domain.system import links_of
+
+    write.put_system(principal.tenant_id, project_id, links_of(system).model_dump(mode="json"))
+    return envelope({"name": system.name, "compounds": [c.compound for c in system.compounds], "roles": system.roles,
+                     "products": system.products, "analytes": sorted(system.analytes), "sha256": system.sha256})
 
 
 # --- upload observed studies ----------------------------------------------------------------------
@@ -207,9 +234,37 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
     from pbpk_domain.campaign.split import QuestionOfInterest, split_studies
     from pbpk_domain.units import UnitError
 
+    system = None
+    links_doc = read.get_system(principal.tenant_id, project_id) if hasattr(read, "get_system") else None
+    not_evaluated: list[str] = []
+    if links_doc:
+        try:
+            system = _project_system(read, principal.tenant_id, project_id, links_doc)
+        except (ValueError, ValidationError) as exc:
+            raise HTTPException(status_code=422, detail=f"model system: {exc}") from exc
+        if system.roles.get(body.compound) != "parent":
+            raise HTTPException(status_code=422, detail=f"{body.compound} is not a parent of the {system.name} system; "
+                                                        f"the campaign fits a parent ({', '.join(system.parents)})")
     mw = cpf.get("phys.mw")
     try:
-        observed = _observed_from_studies(rows, mw.numeric_value if mw is not None else None)
+        if system is None:
+            observed = _observed_from_studies(rows, mw.numeric_value if mw is not None else None)
+        else:
+            # each study's concentrations converted with its analyte's molecular weight; an analyte with no single
+            # one (a mass-concentration sum) is not evaluated in phase 1 and is named
+            from pbpk_domain.system import analyte_molecular_weight
+
+            observed = {}
+            kept = []
+            for row in rows:
+                analyte = row.get("analyte") or body.compound
+                weight, reason = analyte_molecular_weight(system, analyte)
+                if reason is not None:
+                    not_evaluated.append(f"{row['study_id']}: {reason}")
+                    continue
+                observed.update(_observed_from_studies([row], weight))
+                kept.append(row)
+            rows = kept
     except UnitError as exc:
         raise HTTPException(status_code=422, detail=f"observed data: {exc}") from exc
     # Each study's last sampled time, so its simulation covers the whole observed window.
@@ -226,7 +281,7 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
         objective=body.objective, context_of_use=body.context_of_use,
         food_effect_in_question=body.food_effect_in_question, model_risk=risk,
         engine_image_digest=_ENGINE_DIGEST, software_versions={"ospsuite": "12.4.4"},
-        sampling_end_h=sampling_end_h,
+        sampling_end_h=sampling_end_h, system=system,
     )
 
     # Stage a self-contained input set the single-node runner reads (build_round_snapshot writes its
@@ -238,6 +293,12 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
     cpf_path = write.materialize(principal.tenant_id, f"{prep}/cpf.json", cpf_bytes)
     map_path = write.materialize(principal.tenant_id, f"{prep}/map.json", map_bytes)
     observed_path = write.materialize(principal.tenant_id, f"{prep}/observed.json", observed_bytes)
+    system_fields: dict[str, Any] = {}
+    if system is not None:
+        system_bytes = system.model_dump_json().encode("utf-8")
+        system_path = write.materialize(principal.tenant_id, f"{prep}/system.json", system_bytes)
+        system_fields = {"system_uri": system_path.as_uri(), "system_sha256": hashlib.sha256(system_bytes).hexdigest(),
+                         "model_system_sha256": system.sha256, "not_evaluated": not_evaluated}
 
     map_id = f"map_{uuid.uuid4().hex[:8]}"
     return envelope({
@@ -251,4 +312,5 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
         "stages": body.stages or list(CAMPAIGN_STAGES),
         "tier": map_doc.acceptance.tier,
         "studies": [{"study_id": s.study_id, "assignment": s.assignment} for s in map_doc.studies],
+        **system_fields,
     })

@@ -204,12 +204,15 @@ def _read(uri: str) -> bytes | None:
 
 
 def collect_bundle(tenant_id: str, campaign_id: str, *, cpf_uri: str, map_uri: str, observed_uri: str,
-                   evidence: dict[str, dict]) -> tuple[dict[str, bytes], set[str], dict[str, str]]:
-    """The data bundle: (files by bundle path, the numeric result tables, snapshot bundle path -> stem)."""
+                   evidence: dict[str, dict], system_uri: str = "") -> tuple[dict[str, bytes], set[str], dict[str, str]]:
+    """The data bundle: (files by bundle path, the numeric result tables, snapshot bundle path -> stem). A model
+    system's document (every compound's CPF and their links, as the campaign started) is `cpf/system.json`; the
+    fitted parent is `cpf/final.json`."""
     files: dict[str, bytes] = {}
     numeric: set[str] = set()
     snapshots: dict[str, str] = {}
-    for bundle_path, uri in (("cpf/final.json", cpf_uri), ("map/map.json", map_uri), ("data/observed.json", observed_uri)):
+    for bundle_path, uri in (("cpf/final.json", cpf_uri), ("map/map.json", map_uri), ("data/observed.json", observed_uri),
+                             ("cpf/system.json", system_uri)):
         data = _read(uri) if uri else None
         if data is not None:
             files[bundle_path] = data

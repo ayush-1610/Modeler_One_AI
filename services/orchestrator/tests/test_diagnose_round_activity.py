@@ -136,3 +136,10 @@ def test_a_fit_left_at_its_bound_escalates_with_the_parameter(tmp_path: Path) ->
     assert diag.escalate is True
     assert "elim.hepatic.UGT1A9.clspec" in diag.escalation_reason
     assert "param_at_bound" in diag.evidence
+
+
+def test_diagnose_round_is_the_registered_activity() -> None:
+    # guards the Temporal registration: the decorator must sit on diagnose_round itself
+    from temporalio import activity as temporal_activity
+
+    assert temporal_activity._Definition.from_callable(diagnose_round).name == "diagnose_round"

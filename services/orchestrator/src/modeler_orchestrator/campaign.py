@@ -116,6 +116,7 @@ class StageLoopWorkflow:
                 deadline_seconds=remaining, seed=request.seed,
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+                system_uri=request.system_uri, system_sha256=request.system_sha256,
             )
             rounds_run = round_index
             run_result, evaluation, diagnosis, choice = await self._run_round(ctx, remaining)
@@ -168,6 +169,7 @@ class StageLoopWorkflow:
             deadline_seconds=float(request.budget_seconds), seed=request.seed,
             map_uri=request.map_uri, map_sha256=request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256,
         )
         _run_result, evaluation, _diagnosis, _choice = await self._run_round(ctx, float(request.budget_seconds), judge_only=True)
         if evaluation.gate_passed:
@@ -365,6 +367,7 @@ class ModelingCampaignWorkflow:
                 cpf_uri=cpf_uri, cpf_sha256=cpf_sha, budget_seconds=_stage_budget(request, stage),
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+                system_uri=request.system_uri, system_sha256=request.system_sha256,
                 max_rounds=request.max_rounds_per_stage, seed=request.seed,
                 signature_timeout_days=request.signature_timeout_days,
             )
