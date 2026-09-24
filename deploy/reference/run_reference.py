@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shlex
 import subprocess
@@ -63,6 +64,74 @@ def roundtrip(model: str, out: Path) -> dict:
               "stderr_tail": proc.stderr[-4000:], "stdout_tail": proc.stdout[-6000:]}
     (out / "roundtrip.json").write_text(json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
     return result
+
+
+def evaluate(model: str, out: Path) -> dict:
+    """The published model judged on every study it can simulate, by the pipeline's own evaluation: one engine run of
+    the imported CPF, then AUC and Cmax fold errors per study (sampled at the observed times), GMFE per role."""
+    import hashlib
+
+    from modeler_api.write_api import _observed_from_studies
+    from modeler_contracts.runs import EngineInput, EngineJob
+    from modeler_orchestrator.local_runner import default_engine
+    from pbpk_domain.campaign.evaluate import ObservedPK, SimulatedProfile, assess_round
+    from pbpk_domain.m15 import Rating
+    from pbpk_domain.reference.roundtrip import study_snapshot
+
+    _snapshot_path, imported = _import(model)
+    snapshot, assignment, notes = study_snapshot(imported, linked_only=False)
+    work = out / "evaluate"
+    work.mkdir(parents=True, exist_ok=True)
+    snap_path = work / "snapshot.json"
+    snap_path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+    started = time.monotonic()
+    manifest = default_engine()(EngineJob(
+        job_id=f"evaluate-{model.lower()}", tenant_id="ref", task="simulate",
+        inputs=[EngineInput(name="snapshot.json", uri=snap_path.as_uri(),
+                            sha256=hashlib.sha256(snap_path.read_bytes()).hexdigest())],
+        outputs_uri=(work / "engine").as_uri(), timeout_s=7200,
+    ))
+    profiles_path = work / "engine" / "profiles.json"
+    if manifest.status != "SUCCEEDED" or not profiles_path.exists():
+        result = {"model": model, "error": f"engine {manifest.status}: {manifest.stderr_tail[-2000:]}", "notes": notes}
+        (out / "evaluate.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
+        return result
+    profiles = json.loads(profiles_path.read_text(encoding="utf-8"))["profiles"]
+    mw = imported.cpf.require("phys.mw").numeric_value
+    rows = [s for s in imported.studies if s["study_id"] in assignment]
+    observed_doc = _observed_from_studies(rows, mw)
+    simulated, observed = [], {}
+    for sid, prof in profiles.items():
+        role = "fitting" if assignment.get(sid) == "INTERNAL" else "validation"
+        simulated.append(SimulatedProfile(sid, role, prof["times_min"], prof["concentrations"]))
+        pk = observed_doc.get(sid)
+        if pk:
+            times = pk["profile"]["times"]
+            observed[sid] = ObservedPK(auc=pk["auc"], cmax=pk["cmax"], tmax=pk["tmax"], thalf=pk["thalf"],
+                                       t_first=min(times), t_last=max(times), sample_times=tuple(times))
+    assessment = assess_round(simulated, observed, model_risk=Rating.MEDIUM)
+    studies = [{"study_id": s.study_id, "role": s.role, "assignment": assignment.get(s.study_id),
+                "auc_ratio": (s.predicted_auc / s.observed_auc) if s.predicted_auc and s.observed_auc else None,
+                "cmax_ratio": (s.predicted_cmax / s.observed_cmax) if s.predicted_cmax and s.observed_cmax else None}
+               for s in assessment.studies]
+    summary = {}
+    for role in ("fitting", "validation", "all"):
+        chosen = [s for s in studies if role == "all" or s["role"] == role]
+        for q in ("auc", "cmax"):
+            ratios = [s[f"{q}_ratio"] for s in chosen if s[f"{q}_ratio"]]
+            if ratios:
+                logs = [abs(math.log10(r)) for r in ratios]
+                summary[f"{role}.{q}"] = {"n": len(ratios), "gmfe": 10 ** (sum(logs) / len(logs)),
+                                          **{f"within_{k}": _within(logs, fold) for k, fold in
+                                             (("1_25", 1.25), ("1_5", 1.5), ("2", 2.0))}}
+    result = {"model": model, "seconds": round(time.monotonic() - started), "summary": summary, "studies": studies,
+              "not_simulated": notes, "findings": list(assessment.findings)}
+    (out / "evaluate.json").write_text(json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
+    return result
+
+
+def _within(abs_log_errors: list[float], fold: float) -> float:
+    return sum(1 for x in abs_log_errors if x <= math.log10(fold) + 1e-12) / len(abs_log_errors)
 
 
 def _claims() -> dict:
@@ -142,6 +211,25 @@ def _fitted(final_cpf: dict, freed: dict) -> dict:
 
 def summary(step: str, result: dict) -> str:
     lines: list[str] = []
+    if step == "evaluate":
+        if "error" in result:
+            return f"### Evaluate {result['model']}: {result['error']}"
+        lines.append(f"### Evaluate {result['model']}: the published model on every study, by the pipeline's evaluation "
+                     f"({result['seconds']} s)")
+        lines.append("| group | n | GMFE | within 1.25× | within 1.5× | within 2× |")
+        lines.append("|---|---|---|---|---|---|")
+        for key, v in result["summary"].items():
+            lines.append(f"| {key} | {v['n']} | {v['gmfe']:.3f} | {v['within_1_25']:.0%} | {v['within_1_5']:.0%} | "
+                         f"{v['within_2']:.0%} |")
+        lines.append("| study | role | AUC pred/obs | Cmax pred/obs |")
+        lines.append("|---|---|---|---|")
+        for s in result["studies"]:
+            fmt = lambda v: f"{v:.3f}" if v else ""
+            lines.append(f"| {s['study_id']} | {s['role']} | {fmt(s['auc_ratio'])} | {fmt(s['cmax_ratio'])} |")
+        for n in result["not_simulated"]:
+            if not n.startswith("expression profiles"):
+                lines.append(f"- {n}")
+        return "\n".join(lines)
     if step == "roundtrip":
         report = result.get("report") or {}
         lines.append(f"### Round trip {result['model']}: {report.get('identical', 0)} of {report.get('total', 0)} "
@@ -193,13 +281,18 @@ def summary(step: str, result: dict) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", choices=["roundtrip", "campaign"])
+    parser.add_argument("step", choices=["roundtrip", "campaign", "evaluate"])
     parser.add_argument("model")
     parser.add_argument("--mode", choices=["as-is", "refit"], default="as-is")
     parser.add_argument("--out", type=Path, default=REPO / "reports" / "reference")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    result = roundtrip(args.model, args.out) if args.step == "roundtrip" else campaign(args.model, args.mode, args.out)
+    if args.step == "roundtrip":
+        result = roundtrip(args.model, args.out)
+    elif args.step == "evaluate":
+        result = evaluate(args.model, args.out)
+    else:
+        result = campaign(args.model, args.mode, args.out)
     text = summary(args.step, result)
     print(text)
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")

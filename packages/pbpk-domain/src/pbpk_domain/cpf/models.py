@@ -87,6 +87,7 @@ class EngineBinding(BaseModel):
     `building_block` is Compound/Individual/Formulation/Protocol. For a compound process the `process`
     field carries the process internal name and, for molecule-based processes, the molecule after a
     colon, e.g. "MetabolizationSpecific_FirstOrder:CYP3A4"; `parameter` is the engine parameter name.
+    Individual, Simulation and ExpressionProfile bindings carry the full PK-Sim path in `parameter`.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")

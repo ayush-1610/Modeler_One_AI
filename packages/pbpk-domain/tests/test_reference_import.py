@@ -10,7 +10,7 @@ import pytest
 from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.round_build import build_stage_snapshot
 from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
-from pbpk_domain.cpf.build import missing_expression_profiles, unplaceable_parameters
+from pbpk_domain.cpf.build import expression_molecule, missing_expression_profiles, unplaceable_parameters
 from pbpk_domain.cpf.completeness import check_completeness
 from pbpk_domain.cpf.models import ParameterStatus
 from pbpk_domain.m15 import Rating
@@ -233,3 +233,49 @@ def test_midazolam_edge_cases_per_kg_doses_populations_brand_names_and_q6h():
     per_kg_protocol = next(p for p in ours["Protocols"] if p["Name"] == f"{per_kg[0]['study_id']} protocol")
     assert any(p.get("Unit") == "mg/kg" for p in per_kg_protocol["Parameters"] if p["Name"] == "InputDose")
     assert not [n for n in notes if n.startswith("NOT SIMULATED")]
+
+
+def test_midazolam_gut_wall_permeabilities_set_per_simulation_are_carried():
+    # PI-identified P (interstitial<->intracellular) of the 11 gut segments, set in the simulations, not the compound.
+    # Without them the regenerated oral curves ran 1.4-3.7x above the published ones.
+    imported = import_osp_snapshot(_snapshot("Midazolam"))
+    path = "Neighborhoods|Duodenum_int_Duodenum_cell|Midazolam|P (interstitial->intracellular)"
+    record = imported.cpf.require(f"sim.{path}")
+    assert (record.value, record.unit) == (0.0019242177595, "cm/min")
+    assert record.status is ParameterStatus.FITTED
+    assert sum(p.id.startswith("sim.Neighborhoods|") for p in imported.cpf.parameters) == 22
+    # The one IV simulation that leaves half of them at the default is named.
+    assert any("'iv 0.05 mg/kg (30 min)' leaves 11" in n for n in imported.notes)
+    sim = build_stage_snapshot(imported.cpf, _first_scenarios(imported), stage="S1", skip_unbuildable=True)
+    doc = json.loads(sim.snapshot.model_dump_json(by_alias=True, exclude_none=True))
+    assert any(p["Path"] == path for p in doc["Simulations"][0]["Parameters"])
+
+
+def test_the_published_expression_profile_wins_over_the_library_copy():
+    # The library's CYP3A4 (from the Dapagliflozin model) has t1/2 (liver) 37 h; the Midazolam model uses 36 h.
+    imported = import_osp_snapshot(_snapshot("Midazolam"))
+    record = imported.cpf.require("expr.CYP3A4|t1/2 (liver)")
+    assert (record.value, record.unit) == (36.0, "h")
+    assert record.engine_binding.building_block == "ExpressionProfile"
+    assert expression_molecule(record.engine_binding.parameter) == "CYP3A4"
+    assert expression_molecule("Organism|Liver|Periportal|Intracellular|CYP3A4|Relative expression") == "CYP3A4"
+    # Only values that differ are recorded: the relative expressions match the library.
+    assert [p.id for p in imported.cpf.parameters if p.id.startswith("expr.")] == ["expr.CYP3A4|t1/2 (liver)"]
+    built = build_stage_snapshot(imported.cpf, _first_scenarios(imported), stage="S1", skip_unbuildable=True)
+    doc = json.loads(built.snapshot.model_dump_json(by_alias=True, exclude_none=True))
+    cyp = next(e for e in doc["ExpressionProfiles"] if e["Molecule"] == "CYP3A4")
+    liver = [p for p in cyp["Parameters"] if p["Path"] == "CYP3A4|t1/2 (liver)"]
+    assert liver == [{"Path": "CYP3A4|t1/2 (liver)", "Value": 36.0, "Unit": "h"}]
+    assert "expr.CYP3A4|t1/2 (liver)" in built.build_report.bindings_used
+    assert unplaceable_parameters(imported.cpf) == ()
+
+
+def _first_scenarios(imported):
+    studies = [StudyRecord.model_validate({k: v for k, v in s.items() if k in StudyRecord.model_fields})
+               for s in imported.studies]
+    map_doc = generate_map(
+        compound=imported.compound, cpf=imported.cpf, studies=studies,
+        split=split_studies(studies, QuestionOfInterest()), objective="test", context_of_use="test",
+        food_effect_in_question=False, model_risk=Rating.MEDIUM, engine_image_digest="test", software_versions={},
+    )
+    return [s.model_copy(update={"stage": "S1"}) for s in map_doc.scenarios[:2]]

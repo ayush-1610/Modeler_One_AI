@@ -21,6 +21,7 @@ from pbpk_domain.snapshot.builder import (
     CompetitiveInhibition,
     CompoundSpec,
     DissolvedFormulationSpec,
+    ExpressionSpec,
     FirstOrderMetabolism,
     GlomerularFiltration,
     Induction,
@@ -94,8 +95,48 @@ def missing_expression_profiles(cpf: CPF) -> tuple[str, ...]:
     return tuple(m for m in process_molecules(cpf) if m not in library)
 
 
-def _with_expression(subjects: Sequence[SubjectSpec], molecules: Sequence[str]) -> tuple[list[SubjectSpec], list[str], list[str]]:
-    """Every subject gets the harvested profile of every process protein it does not already express."""
+def expression_parameters(cpf: CPF) -> dict[str, dict[str, ParameterRecord]]:
+    """CPF records bound to an ExpressionProfile (``expr.*`` ids): molecule -> {profile parameter path: record}. They
+    are the values a model's own profile sets differently from the harvested library (e.g. CYP3A4 ``t1/2 (liver)``)."""
+    out: dict[str, dict[str, ParameterRecord]] = {}
+    for record in cpf.parameters:
+        eb = record.engine_binding
+        if record.status is ParameterStatus.MISSING or eb is None or eb.building_block != "ExpressionProfile":
+            continue
+        out.setdefault(expression_molecule(eb.parameter), {})[eb.parameter] = record
+    return out
+
+
+def expression_molecule(path: str) -> str:
+    """The protein an expression-profile parameter belongs to: ``CYP3A4|t1/2 (liver)`` or
+    ``Organism|Liver|Pericentral|Intracellular|CYP3A4|Relative expression``."""
+    parts = path.split("|")
+    return parts[-2] if parts[0] == "Organism" else parts[0]
+
+
+def _override_profile(spec: ExpressionSpec, records: dict[str, ParameterRecord]) -> ExpressionSpec:
+    """The harvested profile with the CPF's values for the paths it sets (added when the library has no such path)."""
+    doc = dict(spec.harvested or {})
+    params = [dict(q) for q in doc.get("Parameters", [])]
+    by_path = {q.get("Path"): q for q in params}
+    for path, record in records.items():
+        entry = {"Path": path, "Value": record.value}
+        if record.unit:
+            entry["Unit"] = record.unit
+        if path in by_path:
+            by_path[path].clear()
+            by_path[path].update(entry)
+        else:
+            params.append(entry)
+    doc["Parameters"] = params
+    return spec.model_copy(update={"harvested": doc})
+
+
+def _with_expression(subjects: Sequence[SubjectSpec], molecules: Sequence[str],
+                     overrides: dict[str, dict[str, ParameterRecord]] | None = None,
+                     ) -> tuple[list[SubjectSpec], list[str], list[str]]:
+    """Every subject gets the harvested profile of every process protein it does not already express, with the
+    CPF's ``expr.*`` values applied."""
     from pbpk_domain.expression import library_expression
 
     specs, placed, missing = [], [], []
@@ -104,6 +145,8 @@ def _with_expression(subjects: Sequence[SubjectSpec], molecules: Sequence[str]) 
         if spec is None:
             missing.append(molecule)
         else:
+            if overrides and molecule in overrides:
+                spec = _override_profile(spec, overrides[molecule])
             specs.append(spec)
             placed.append(molecule)
     out = []
@@ -371,14 +414,16 @@ def build_from_cpf(
     """
     compound, used, unresolved = _compound_from_cpf(cpf)
     # Each process's protein must be expressed in the individual, or the process eliminates nothing.
-    subjects, expressed, missing = _with_expression(subjects, process_molecules(cpf))
+    expr_records = expression_parameters(cpf)
+    subjects, expressed, missing = _with_expression(subjects, process_molecules(cpf), expr_records)
     subjects, individual_used = _with_individual_parameters(subjects, cpf)
     sim_records = simulation_parameters(cpf)
     if sim_records:
         overrides = {path: _measured(record) for path, record in sim_records.items()}
         scenarios = [s.model_copy(update={"simulation": s.simulation.model_copy(
             update={"parameters": {**s.simulation.parameters, **overrides}})}) for s in scenarios]
-    used = [*used, *individual_used, *(r.id for r in sim_records.values())]
+    expr_used = [r.id for m in expressed for r in expr_records.get(m, {}).values()]
+    used = [*used, *individual_used, *expr_used, *(r.id for r in sim_records.values())]
 
     builder = SnapshotBuilder(snapshot_version) if snapshot_version is not None else SnapshotBuilder()
     builder.add_compound(compound)

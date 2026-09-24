@@ -22,9 +22,7 @@ on:
       - "packages/pbpk-domain/src/pbpk_domain/**"
       - "services/orchestrator/src/**"
 
-concurrency:
-  group: reference-models-${{ github.ref }}
-  cancel-in-progress: true  # tasks are independent jobs now; the newest code supersedes a running set
+# No concurrency group: a push starts a new set beside a running one, whose results (hours of PK-Sim) are kept.
 
 permissions:
   contents: read
@@ -41,6 +39,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - {task: dapagliflozin-evaluate, run: "deploy/reference/run_reference.py evaluate Dapagliflozin"}
+          - {task: rifampicin-evaluate, run: "deploy/reference/run_reference.py evaluate Rifampicin"}
+          - {task: midazolam-evaluate, run: "deploy/reference/run_reference.py evaluate Midazolam"}
           - {task: dapagliflozin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Dapagliflozin"}
           - {task: dapagliflozin-as-is, run: "deploy/reference/run_reference.py campaign Dapagliflozin --mode as-is"}
           - {task: dapagliflozin-refit, run: "deploy/reference/run_reference.py campaign Dapagliflozin --mode refit"}

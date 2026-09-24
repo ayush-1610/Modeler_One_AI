@@ -25,8 +25,10 @@ def study_records(imported: ReferenceImport) -> list[StudyRecord]:
     return [StudyRecord.model_validate({k: v for k, v in s.items() if k in fields}) for s in imported.studies]
 
 
-def roundtrip_inputs(imported: ReferenceImport) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
-    """Our snapshot of every linked study, the (ours, published, offset) pairs, and the notes of the build."""
+def study_snapshot(imported: ReferenceImport, *, linked_only: bool) -> tuple[dict[str, Any], dict[str, str], list[str]]:
+    """One snapshot simulating each study once, as a campaign builds it (MAP scenario -> round build): every study
+    with a MAP scenario, or only those the published model links to a simulation. Returns the snapshot, each placed
+    study's MAP assignment (INTERNAL / EXTERNAL), and the build notes (studies not simulated, and why)."""
     studies = study_records(imported)
     sampling_end_h = {s["study_id"]: max(s["profile"]["times"]) / 60.0 if s["profile"]["time_unit"] == "min"
                       else max(s["profile"]["times"]) for s in imported.studies}
@@ -36,20 +38,28 @@ def roundtrip_inputs(imported: ReferenceImport) -> tuple[dict[str, Any], list[di
         food_effect_in_question=False, model_risk=Rating.MEDIUM, engine_image_digest="roundtrip",
         software_versions={}, sampling_end_h=sampling_end_h,
     )
-    # One scenario per linked study, whichever stage the MAP gave it (special populations get none: build them too).
+    # One scenario per study, whichever stage the MAP gave it. A study with no MAP scenario (a special population or
+    # a DDI arm, MS-01 §3.3 rule 4) is not simulated in the healthy-volunteer model and is named instead.
     by_study: dict[str, Any] = {}
     for scenario in map_doc.scenarios:
         by_study.setdefault(scenario.study_id, scenario)
-    scenarios = [by_study[sid].model_copy(update={"stage": ROUNDTRIP_STAGE})
-                 for sid in imported.simulation_of if sid in by_study]
+    wanted = list(imported.simulation_of) if linked_only else [s.study_id for s in studies]
+    scenarios = [by_study[sid].model_copy(update={"stage": ROUNDTRIP_STAGE}) for sid in wanted if sid in by_study]
     built = build_stage_snapshot(imported.cpf, scenarios, stage=ROUNDTRIP_STAGE, skip_unbuildable=True)
     ours = json.loads(built.snapshot.model_dump_json(by_alias=True, exclude_none=True))
-    placed = set(built.simulations)
+    assignment = {s.study_id: s.assignment for s in map_doc.studies}
+    notes = list(built.notes) + [f"{sid}: no MAP scenario ({assignment.get(sid, '?')}); not simulated"
+                                 for sid in wanted if sid not in by_study]
+    return ours, {sid: assignment.get(sid, "") for sid in built.simulations}, notes
+
+
+def roundtrip_inputs(imported: ReferenceImport) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
+    """Our snapshot of every linked study, the (ours, published, offset) pairs, and the notes of the build."""
+    ours, assignment, notes = study_snapshot(imported, linked_only=True)
+    placed = set(assignment)
     pairs = [{"ours": sid, "published": imported.simulation_of[sid], "offset_min": imported.offset_min.get(sid, 0.0),
               "end_h": _sim_end_h(ours, sid), "by_design": imported.differs_by_design.get(sid, "")}
              for sid in imported.simulation_of if sid in placed]
-    missing = [sid for sid in imported.simulation_of if sid not in by_study]
-    notes = list(built.notes) + [f"{sid}: no MAP scenario (not simulated by the pipeline)" for sid in missing]
     return ours, pairs, notes
 
 

@@ -15,6 +15,7 @@ listed in ``skipped`` / ``unplaced`` with the reason, never dropped in silence.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from itertools import pairwise
@@ -269,24 +270,34 @@ def _process_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _R
 
 
 def _simulation_parameter_records(snapshot: dict[str, Any], compound: str, out: _Records, notes: list[str]) -> None:
-    """Compound values the published simulations set themselves (e.g. ``<Compound>|logP (veg.oil/water)``). One that
-    every simulation sets to the same value is part of the model and becomes a ``sim.*`` record; one that varies
-    between simulations is named, not imported."""
+    """Compound values the published simulations set themselves: ``<Compound>|logP (veg.oil/water)``, or a path
+    through the compound such as ``Neighborhoods|Duodenum_int_Duodenum_cell|<Compound>|P (interstitial->intracellular)``
+    (a gut-wall permeability identified by PI). One that the simulations setting it all set to the same value, in at
+    least half of the simulations, is part of the model and becomes a ``sim.*`` record (the simulations that leave it
+    at the default are named); one that varies between simulations is named, not imported."""
     sims = [s for s in snapshot.get("Simulations", []) if any(c.get("Name") == compound for c in s.get("Compounds", []))]
     values: dict[str, list[dict[str, Any]]] = {}
+    without: dict[str, list[str]] = {}
     for sim in sims:
         for parameter in sim.get("Parameters", []) or []:
             path = parameter.get("Path") or ""
-            if path.startswith(f"{compound}|"):
+            if compound in path.split("|")[:-1] and not path.startswith(("Events|", "Applications|")):
                 values.setdefault(path, []).append(parameter)
     for path, found in values.items():
         distinct = {(p.get("Value"), p.get("Unit")) for p in found}
-        if len(found) == len(sims) and len(distinct) == 1:
+        if len(distinct) == 1 and 2 * len(found) >= len(sims):
             parameter = found[0]
             out.add(f"sim.{path}", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
                     binding=EngineBinding(building_block="Simulation", parameter=path))
+            setting = {id(p) for p in found}
+            for sim in sims:
+                if not any(id(p) in setting for p in sim.get("Parameters", []) or []):
+                    without.setdefault(sim.get("Name", "?"), []).append(path)
         else:
             notes.append(f"Simulation parameter {path!r} differs between the published simulations; not imported.")
+    for name, paths in without.items():
+        notes.append(f"Published simulation {name!r} leaves {len(paths)} simulation parameter(s) at the default "
+                     f"(e.g. {paths[0]!r}); it is regenerated with the model's value.")
 
 
 def _formulation_records(snapshot: dict[str, Any], out: _Records, unplaced: list[str]) -> None:
@@ -327,12 +338,52 @@ def _individual_records(snapshot: dict[str, Any], out: _Records, notes: list[str
             continue
         out.add(f"indiv.{path}", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
                 binding=EngineBinding(building_block="Individual", parameter=path))
+    _expression_records(snapshot, individual, out, notes)
     origin = individual.get("OriginData", {})
     notes.append(
         f"Studies are simulated in the pipeline's standard individual ({origin.get('Population')}, "
         f"{origin.get('Gender')}, {origin.get('Age', {}).get('Value')} years in the published model); the published "
         "individual's changed physiology is carried as indiv.* records."
     )
+
+
+_TIME_TO_MIN = {"min": 1.0, "h": 60.0, "day(s)": 1440.0}
+
+
+def _profile_value(parameter: dict[str, Any]) -> float:
+    return float(parameter["Value"]) * _TIME_TO_MIN.get(parameter.get("Unit") or "", 1.0)
+
+
+def _expression_records(snapshot: dict[str, Any], individual: dict[str, Any], out: _Records, notes: list[str]) -> None:
+    """The published individual's expression profiles where they differ from the harvested library the builder
+    uses (`pbpk_domain.expression`): each differing numeric value (a reference concentration, a turnover half-life,
+    a relative expression) becomes an ``expr.<path>`` record bound to the ExpressionProfile building block. The
+    published Midazolam and Rifampicin models set CYP3A4 ``t1/2 (liver)`` to 36 h where the library's copy (from the
+    Dapagliflozin model) has 37 h."""
+    from pbpk_domain.expression import expression_library
+
+    library = expression_library()
+    profiles = {f"{p.get('Molecule')}|{p.get('Species')}|{p.get('Category')}": p for p in snapshot.get("ExpressionProfiles", [])}
+    for ref in individual.get("ExpressionProfiles", []) or []:
+        profile = profiles.get(ref)
+        if profile is None:
+            continue
+        molecule = profile["Molecule"]
+        entry = library.get(molecule)
+        if entry is None:
+            notes.append(f"Expression profile {molecule!r} of the published individual is not in the harvested library; "
+                         "S0 reports it as missing.")
+            continue
+        base = {q["Path"]: q for q in entry["profile"].get("Parameters", []) if q.get("Value") is not None}
+        for parameter in profile.get("Parameters", []) or []:
+            path = parameter.get("Path")
+            if not path or parameter.get("Value") is None:
+                continue
+            known = base.get(path)
+            if known is not None and math.isclose(_profile_value(known), _profile_value(parameter), rel_tol=1e-12):
+                continue
+            out.add(f"expr.{path}", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
+                    binding=EngineBinding(building_block="ExpressionProfile", parameter=path))
 
 
 def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict[str, Any]]:

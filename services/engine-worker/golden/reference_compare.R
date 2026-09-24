@@ -34,12 +34,22 @@ export_models <- function(snapshot, name) {
   unlink(dir, recursive = TRUE)
   dir.create(dir)
   runSimulationsFromSnapshot(snapshot, output = dir, exportCSV = FALSE, exportPKML = TRUE)
-  list.files(dir, pattern = "\\.pkml$", full.names = TRUE)
+  # recursive: a "/" in a simulation name ("iv 0.075 mg/kg (1 min)") becomes a subdirectory in the exported path
+  files <- list.files(dir, pattern = "\\.pkml$", full.names = TRUE, recursive = TRUE)
+  stats::setNames(files, sub("\\.pkml$", "", substring(files, nchar(dir) + 2)))
 }
 
+name_key <- function(x) gsub("[^A-Za-z0-9.]", "", x)
+
 pkml_of <- function(files, sim_name) {
-  hit <- files[endsWith(basename(files), paste0("-", sim_name, ".pkml"))]
-  if (length(hit) == 0) hit <- files[basename(files) == paste0(sim_name, ".pkml")]
+  rel <- names(files)
+  hit <- files[endsWith(rel, paste0("-", sim_name)) | rel == sim_name]
+  if (length(hit) == 0) {
+    # Names with characters a file name cannot hold: compare alphanumerics only, the shortest match wins
+    keys <- name_key(rel)
+    cand <- which(endsWith(keys, name_key(sim_name)))
+    hit <- files[cand[order(nchar(keys[cand]))]]
+  }
   if (length(hit) == 0) NA_character_ else hit[[1]]
 }
 
@@ -105,7 +115,7 @@ for (pair in pairs) {
     own <- loadSimulation(pkml_of(our_models, pair$ours), loadFromCache = FALSE)
     values <- function(sim) {
       paths <- getAllParameterPathsIn(sim)
-      paths <- paths[!grepl("^(Events|Applications)\\|", paths)]
+      paths <- paths[!grepl("^(Events|Applications)\\|", paths) & !grepl("*", paths, fixed = TRUE)]
       v <- getQuantityValuesByPath(paths, sim)
       stats::setNames(as.numeric(v), paths)
     }

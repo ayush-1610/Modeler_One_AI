@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — Midazolam round trip on real PK-Sim: oral curves 1.4–3.7× the published ones (run 36003028399)
+- **Gut-wall permeabilities set per simulation were dropped.** The published Midazolam model sets the PI-identified
+  `Neighborhoods|<segment>_int_<segment>_cell|Midazolam|P (interstitial<->intracellular)` (11 gut segments, 22 values)
+  in its simulations. The importer only took `<Compound>|…` paths, so our oral simulations had PK-Sim's default gut-wall
+  permeability and far less intestinal first-pass (IV matched to 0.3 %; oral AUC 1.2–2.7× and Cmax 2.2–3.7× high,
+  worst at microdoses where gut CYP3A4 is not saturated). Any compound path the simulations set is now a `sim.*`
+  record when every simulation setting it agrees and at least half set it; a simulation that leaves it at the default
+  is named in the notes (Midazolam: the 30-min IV infusion).
+- **The published expression profile now wins over the library copy.** The builder used the harvested library profile
+  (CYP3A4 from the Dapagliflozin model, `t1/2 (liver)` 37 h); the Midazolam and Rifampicin models use 36 h, which sets
+  the enzyme turnover that induction acts on. Each value of the published individual's profiles that differs from the
+  library becomes an `expr.<path>` record (ExpressionProfile building block) applied over the library profile at build.
+- **Published simulations named with "/" (`iv 0.075 mg/kg (1 min)`) were reported "not exported".** PK-Sim writes the
+  "/" as a subdirectory; `reference_compare.R` now lists the export recursively and falls back to an alphanumeric
+  name match. Its parameter diff skips wildcard paths (`Organism|R*T`), which `getQuantityValuesByPath` rejects.
+- Impact: 6 Midazolam IV studies join the round trip; oral Midazolam and Rifampicin induction are regenerated from the
+  published values. Re-run pending on real PK-Sim.
+
+### Changed — reference workflow
+- `run_reference.py evaluate <drug>`: the published model judged on every study it can simulate by the pipeline's own
+  evaluation (GMFE, within 1.25/1.5/2-fold of AUC and Cmax), one engine run; matrix jobs for the three drugs.
+  `roundtrip.study_snapshot` builds that snapshot. The workflow no longer cancels a running set on push.
+
 ### Fixed — the model regenerated from a published CPF was not the published model (found preparing the round trip)
 - **Simulation-level compound values were dropped.** Every published Dapagliflozin simulation sets
   `Dapagliflozin|logP (veg.oil/water)` = 2.083 (drives Rodgers & Rowland tissue partitioning) and the measured
