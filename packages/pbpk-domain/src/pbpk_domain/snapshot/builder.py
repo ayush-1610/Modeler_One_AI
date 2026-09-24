@@ -750,6 +750,31 @@ class OralProtocolSpec(_MultipleDoseMixin):
     dose: Measured
     start_time_h: float = Field(default=0.0, ge=0)
     water_volume_ml_per_kg: float = Field(default=3.5, ge=0)
+    # A product given as several particle-size bins at once (OSP Ketoconazole "PD_tablet_3Bins"): one schema item per
+    # bin formulation (FormulationKey = its name) with its mass fraction of the dose, the water on the first item only.
+    bins: tuple[tuple[str, float], ...] = ()
+
+    @model_validator(mode="after")
+    def _bins(self):
+        if self.bins and abs(sum(f for _n, f in self.bins) - 1.0) > 1e-6:
+            raise ValueError("the bins' mass fractions must sum to 1")
+        return self
+
+    def _bin_protocol(self) -> Protocol:
+        items = [SchemaItem(name=f"Schema Item {i + 1}", application_type="Oral", formulation_key=name, parameters=[
+                     Parameter(name="Start time", value=0.0, unit="h"),
+                     self.dose.model_copy(update={"value": self.dose.value * fraction}).to_parameter(name="InputDose"),
+                     Parameter(name="Volume of water/body weight", value=self.water_volume_ml_per_kg if i == 0 else 0.0,
+                               unit="ml/kg")])
+                 for i, (name, fraction) in enumerate(self.bins)]
+        # a single dose is one repetition 0 h apart, as the published single-dose bin protocols write it
+        repetitions, interval = (self.repetitions, self.repetition_interval_h) if self.repetitions else (1, 0.0)
+        schema = Schema(name="Schema 1", schema_items=items, parameters=[
+            Parameter(name="Start time", value=self.start_time_h, unit="h"),
+            Parameter(name="NumberOfRepetitions", value=float(repetitions)),
+            Parameter(name="TimeBetweenRepetitions", value=interval, unit="h"),
+        ])
+        return Protocol(name=self.name, dosing_interval="Single", schemas=[schema], time_unit="h")
 
     @field_validator("dose")
     @classmethod
@@ -758,6 +783,10 @@ class OralProtocolSpec(_MultipleDoseMixin):
         return _check(v, unit="mg/kg" if _nfc(v.unit) == "mg/kg" else "mg", label="InputDose")
 
     def to_protocol(self) -> Protocol:
+        if self.bins:
+            if self.dosing_interval != "Single":
+                raise ValueError("a binned product is dosed by schema repetitions, not a named DosingInterval")
+            return self._bin_protocol()
         schema = self._schema_protocol("Oral", [
             self.dose.to_parameter(name="InputDose"),
             Parameter(name="Volume of water/body weight", value=self.water_volume_ml_per_kg, unit="ml/kg"),
@@ -842,7 +871,50 @@ class WeibullFormulationSpec(Spec):
         )
 
 
-FormulationSpec = Annotated[DissolvedFormulationSpec | WeibullFormulationSpec, Field(discriminator="kind")]
+class ParticleFormulationSpec(Spec):
+    """Particle dissolution (PK-Sim ``Formulation_Particles``, Noyes-Whitney) with a monodisperse size distribution,
+    as the OSP Ketoconazole model writes it: the unstirred water layer thickness, the distribution type (0:
+    monodisperse, the only one placed here) and the mean particle radius. Dissolution is limited by the compound's
+    solubility, so a "solution" given as 8 nm particles (the model's PD_solution) still respects it."""
+
+    kind: Literal["particles"] = "particles"
+    name: str = Field(min_length=1)
+    thickness: Measured
+    radius: Measured
+    distribution_type: float = 0.0
+
+    @field_validator("thickness")
+    @classmethod
+    def _thickness(cls, v: Measured) -> Measured:
+        return _check(v, unit="mm", label="Thickness (unstirred water layer)")
+
+    @field_validator("radius")
+    @classmethod
+    def _radius(cls, v: Measured) -> Measured:
+        return _check(v, unit="µm", label="Particle radius (mean)")
+
+    @field_validator("distribution_type")
+    @classmethod
+    def _monodisperse(cls, v: float) -> float:
+        if v != 0.0:
+            raise ValueError("only the monodisperse particle size distribution (type 0) is placed; its other parameters "
+                             "are not harvested yet")
+        return v
+
+    def to_formulation(self) -> Formulation:
+        return Formulation(
+            name=self.name,
+            formulation_type="Formulation_Particles",
+            parameters=[
+                self.thickness.to_parameter(name="Thickness (unstirred water layer)"),
+                Parameter(name="Type of particle size distribution", value=self.distribution_type),
+                self.radius.to_parameter(name="Particle radius (mean)"),
+            ],
+        )
+
+
+FormulationSpec = Annotated[DissolvedFormulationSpec | WeibullFormulationSpec | ParticleFormulationSpec,
+                            Field(discriminator="kind")]
 
 
 class MealEventSpec(Spec):
@@ -862,6 +934,7 @@ class CoCompoundSpec(Spec):
     name: str = Field(min_length=1)
     protocol: str | None = None
     formulation: str | None = None
+    formulation_bins: tuple[str, ...] = ()
 
 
 class SimulationSpec(Spec):
@@ -870,6 +943,8 @@ class SimulationSpec(Spec):
     compound: str
     protocol: str
     formulation: str | None = None
+    # a binned product: every bin formulation, each selected under its own key (Key = Name, as published)
+    formulation_bins: tuple[str, ...] = ()
     end_time_h: float = Field(gt=0)
     resolution_pts_per_h: float = Field(default=10.0, gt=0)
     model: str = "4Comp"
@@ -915,7 +990,7 @@ class SnapshotBuilder:
         self._compounds: dict[str, CompoundSpec] = {}
         self._subjects: dict[str, SubjectSpec] = {}
         self._protocols: dict[str, OralProtocolSpec | IntravenousProtocolSpec] = {}
-        self._formulations: dict[str, DissolvedFormulationSpec | WeibullFormulationSpec] = {}
+        self._formulations: dict[str, DissolvedFormulationSpec | WeibullFormulationSpec | ParticleFormulationSpec] = {}
         self._events: dict[str, MealEventSpec] = {}
         self._simulations: dict[str, SimulationSpec] = {}
         self._observer_sets: dict[str, dict] = {}
@@ -938,7 +1013,7 @@ class SnapshotBuilder:
         self._register(self._protocols, "protocol", spec)
         return self
 
-    def add_formulation(self, spec: DissolvedFormulationSpec | WeibullFormulationSpec) -> SnapshotBuilder:
+    def add_formulation(self, spec: DissolvedFormulationSpec | WeibullFormulationSpec | ParticleFormulationSpec) -> SnapshotBuilder:
         self._register(self._formulations, "formulation", spec)
         return self
 
@@ -1000,7 +1075,8 @@ class SnapshotBuilder:
             raise SnapshotBuildError(issues)
         return snapshot
 
-    def _simulation_compound(self, name: str, protocol: str | None, formulation: str | None) -> tuple[SimulationCompound, list[dict]]:
+    def _simulation_compound(self, name: str, protocol: str | None, formulation: str | None,
+                             bins: tuple[str, ...] = ()) -> tuple[SimulationCompound, list[dict]]:
         compound_fields: dict = {"name": name}
         compound = self._compounds.get(name)
         interactions: list[dict] = []
@@ -1020,14 +1096,16 @@ class SnapshotBuilder:
                 compound_fields["processes"] = selections
         if protocol is not None:
             protocol_fields: dict = {"name": protocol}
-            if formulation is not None:
+            if bins:
+                protocol_fields["formulations"] = [FormulationSelection(name=b, key=b) for b in bins]
+            elif formulation is not None:
                 protocol_fields["formulations"] = [FormulationSelection(name=formulation, key="Formulation")]
             compound_fields["protocol"] = ProtocolSelection(**protocol_fields)
         return SimulationCompound(**compound_fields), interactions
 
     def _simulation(self, spec: SimulationSpec) -> Simulation:
-        entries = [self._simulation_compound(spec.compound, spec.protocol, spec.formulation),
-                   *(self._simulation_compound(c.name, c.protocol, c.formulation) for c in spec.co_compounds)]
+        entries = [self._simulation_compound(spec.compound, spec.protocol, spec.formulation, spec.formulation_bins),
+                   *(self._simulation_compound(c.name, c.protocol, c.formulation, c.formulation_bins) for c in spec.co_compounds)]
         interactions = [sel for _entry, sels in entries for sel in sels]
         plasma = [PLASMA_OUTPUT_PATH.format(compound=name) for name in (spec.compound, *(c.name for c in spec.co_compounds))]
 

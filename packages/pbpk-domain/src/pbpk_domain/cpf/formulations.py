@@ -9,16 +9,32 @@ published OSP tablet model (Dapagliflozin, Midazolam, Itraconazole reference sna
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus
-from pbpk_domain.snapshot.builder import DissolvedFormulationSpec, WeibullFormulationSpec
+from pbpk_domain.snapshot.builder import (
+    DissolvedFormulationSpec,
+    Measured,
+    ParticleFormulationSpec,
+    WeibullFormulationSpec,
+)
 
 # form.{name}.type values the builder can place. Lint80, particle dissolution and table release are MS-01
 # formulation types the builder does not place yet (T-10 tail).
 WEIBULL = "Weibull"
 DISSOLVED = "Dissolved"
-SUPPORTED_TYPES = (WEIBULL, DISSOLVED)
+# Particle dissolution (Noyes-Whitney, monodisperse) and a product given as several particle-size bins at once, as the
+# OSP Ketoconazole model writes them: form.{name}.particles.{thickness,radius,distribution}; form.{product}.bins is the
+# bins' names and mass fractions (JSON), taken from the published protocol that doses them together.
+PARTICLES = "Particles"
+PARTICLE_BINS = "ParticleBins"
+SUPPORTED_TYPES = (WEIBULL, DISSOLVED, PARTICLES, PARTICLE_BINS)
+PARTICLE_PARAMETERS = {
+    "thickness": ("Thickness (unstirred water layer)", "mm"),
+    "radius": ("Particle radius (mean)", "µm"),
+    "distribution": ("Type of particle size distribution", None),
+}
 
 # Weibull CPF key -> the PK-Sim formulation parameter (harvested from an exported simulation on ospsuite 12.4.4,
 # 2026-09-24: "Events|<protocol>|<formulation>|Dissolution time (50% dissolved)", "…|Dissolution shape", "…|Lag time").
@@ -40,12 +56,29 @@ class CpfFormulation:
     t50_min: float | None = None
     shape: float | None = None
     lag_min: float = 0.0
+    thickness_mm: float | None = None
+    radius_um: float | None = None
+    distribution: float = 0.0
+    bins: tuple[tuple[CpfFormulation, float], ...] = ()  # PARTICLE_BINS: each bin and its mass fraction
 
-    def to_spec(self) -> WeibullFormulationSpec | DissolvedFormulationSpec:
+    def to_spec(self) -> WeibullFormulationSpec | DissolvedFormulationSpec | ParticleFormulationSpec:
         if self.type == DISSOLVED:
             return DissolvedFormulationSpec(name=self.name)
+        if self.type == PARTICLES:
+            return ParticleFormulationSpec(name=self.name, thickness=Measured(value=self.thickness_mm, unit="mm"),
+                                           radius=Measured(value=self.radius_um, unit="µm"),
+                                           distribution_type=self.distribution)
+        if self.type == PARTICLE_BINS:
+            raise FormulationError(f"{self.name!r} is a product of several bins: use to_specs()")
         return WeibullFormulationSpec(name=self.name, dissolution_time_50_min=self.t50_min, shape=self.shape,
                                       lag_time_min=self.lag_min)
+
+    def to_specs(self) -> tuple[list, tuple[tuple[str, float], ...]]:
+        """(the formulation specs the product needs, its bins as (formulation, mass fraction)); no bins for a single
+        formulation."""
+        if self.type != PARTICLE_BINS:
+            return [self.to_spec()], ()
+        return [b.to_spec() for b, _f in self.bins], tuple((b.name, f) for b, f in self.bins)
 
 
 def _present(record: ParameterRecord | None) -> bool:
@@ -73,6 +106,23 @@ def cpf_formulation(cpf: CPF, name: str) -> CpfFormulation:
         raise FormulationError(f"formulation {name!r} is of type {kind!r}; the builder places {', '.join(SUPPORTED_TYPES)}")
     if kind == DISSOLVED:
         return CpfFormulation(name=name, type=kind)
+    if kind == PARTICLES:
+        values = {key: cpf.get(f"form.{name}.particles.{key}") for key in PARTICLE_PARAMETERS}
+        missing = [f"form.{name}.particles.{k}" for k in ("thickness", "radius") if not _present(values[k])]
+        if missing:
+            raise FormulationError(f"particle formulation {name!r} needs {', '.join(missing)}")
+        distribution = values["distribution"].numeric_value if _present(values["distribution"]) else 0.0
+        return CpfFormulation(name=name, type=kind, thickness_mm=values["thickness"].numeric_value,
+                              radius_um=values["radius"].numeric_value, distribution=distribution)
+    if kind == PARTICLE_BINS:
+        record = cpf.get(f"form.{name}.bins")
+        if not _present(record):
+            raise FormulationError(f"binned product {name!r} needs form.{name}.bins (its bins and mass fractions)")
+        bins = tuple((cpf_formulation(cpf, entry["formulation"]), float(entry["fraction"]))
+                     for entry in json.loads(str(record.value)))
+        if any(b.type == PARTICLE_BINS for b, _f in bins):
+            raise FormulationError(f"binned product {name!r}: a bin cannot itself be a binned product")
+        return CpfFormulation(name=name, type=kind, bins=bins)
     values = {key: cpf.get(f"form.{name}.weibull.{key}") for key in WEIBULL_PARAMETERS}
     missing = [f"form.{name}.weibull.{k}" for k in ("t50", "shape") if not _present(values[k])]
     if missing:

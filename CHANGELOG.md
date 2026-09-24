@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — particle dissolution and binned products (OSP Ketoconazole: 5 -> 53 importable studies)
+- `Formulation_Particles` (Noyes-Whitney, monodisperse), harvested from the Ketoconazole model: the unstirred water
+  layer thickness (mm), the size distribution type (only 0, monodisperse, is placed; another is named), the mean
+  particle radius (converted to µm; published in mm or µm). CPF `form.{name}.type = Particles`,
+  `form.{name}.particles.{thickness,radius,distribution}`; builder `ParticleFormulationSpec`.
+- Binned products: a tablet given as several particle-size bins at once ("PD_tablet_3Bins_B1..B3": 99.0 / 0.90 /
+  0.10 % of the dose). CPF `form.{product}.type = ParticleBins` with `form.{product}.bins` (each bin and its mass
+  fraction, from the published protocol, 12 digits: the published splits differ in the 7th and each is kept). The
+  protocol is written as published: one schema item per bin keyed by its formulation, the water with the first only,
+  one repetition 0 h apart for a single dose; the simulation selects every bin (Key = Name). A multiple-dose regimen
+  becomes schema repetitions. A study linked to a binned protocol never falls back to its first bin alone.
+- A "solution" the published model gives as a particle formulation (Ketoconazole's 8 nm PD_solution, dissolution
+  still limited by solubility) is simulated with it; other solutions stay dissolved.
+- Importer: a binned protocol's dose is the sum of its bins at the same moment; an unreported formulation is
+  classified from the published formulation's name; a dataset whose molecule matches the compound on letters only is
+  the parent's ("voriconazole" for Voriconazole1). A dose that is not reported, where the published protocol gives a
+  loading dose, is named as such (Voriconazole's own studies); loading-dose regimens are not placed yet.
+- Ketoconazole snapshot vendored; round-trip CI job. Library: 21 of 24 importable models S0-ready as single
+  compounds (plus Dabigatran as a system); Warfarin (no compartment, racemic data) and Voriconazole (loading doses)
+  remain named gaps.
+
 ### Added — campaigns on a model system (phase 1 wiring)
 - API: `PUT /projects/{id}/system` stores the system's links (`SystemLinks`: roles, formation, products, observers,
   analytes) next to each compound's CPF, refusing it until every compound's CPF is there. `campaign:prepare` on a

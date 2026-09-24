@@ -35,6 +35,7 @@ from pbpk_domain.snapshot.builder import (
     MichaelisMentenMetabolism,
     MicrosomalMichaelisMenten,
     OralProtocolSpec,
+    ParticleFormulationSpec,
     SimulationSpec,
     SnapshotBuilder,
     SpecificBinding,
@@ -45,7 +46,7 @@ from pbpk_domain.snapshot.builder import (
 from pbpk_domain.snapshot.models import Snapshot, ValueOrigin, value_origin_source
 from pbpk_domain.system import ModelSystem
 
-FormulationSpec = DissolvedFormulationSpec | WeibullFormulationSpec
+FormulationSpec = DissolvedFormulationSpec | WeibullFormulationSpec | ParticleFormulationSpec
 ProtocolSpec = OralProtocolSpec | IntravenousProtocolSpec
 
 
@@ -60,6 +61,8 @@ class Scenario(BaseModel):
     events: tuple[MealEventSpec, ...] = ()
     # A model system's other dosed compounds each get their own protocol (SimulationSpec.co_compounds names them).
     extra_protocols: tuple[ProtocolSpec, ...] = ()
+    # a binned product's other bin formulations (the first is `formulation`)
+    extra_formulations: tuple[FormulationSpec, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -487,9 +490,10 @@ def build_from_cpf(
             if protocol.name not in seen_protocols:
                 builder.add_protocol(protocol)
                 seen_protocols.add(protocol.name)
-        if scenario.formulation is not None and scenario.formulation.name not in seen_formulations:
-            builder.add_formulation(scenario.formulation)
-            seen_formulations.add(scenario.formulation.name)
+        for formulation in ([scenario.formulation] if scenario.formulation is not None else []) + list(scenario.extra_formulations):
+            if formulation.name not in seen_formulations:
+                builder.add_formulation(formulation)
+                seen_formulations.add(formulation.name)
         for event in scenario.events:
             if event.name not in seen_events:
                 builder.add_event(event)
@@ -570,9 +574,10 @@ def build_from_system(
             if protocol.name not in seen_protocols:
                 builder.add_protocol(protocol)
                 seen_protocols.add(protocol.name)
-        if scenario.formulation is not None and scenario.formulation.name not in seen_formulations:
-            builder.add_formulation(scenario.formulation)
-            seen_formulations.add(scenario.formulation.name)
+        for formulation in ([scenario.formulation] if scenario.formulation is not None else []) + list(scenario.extra_formulations):
+            if formulation.name not in seen_formulations:
+                builder.add_formulation(formulation)
+                seen_formulations.add(formulation.name)
         for event in scenario.events:
             if event.name not in seen_events:
                 builder.add_event(event)

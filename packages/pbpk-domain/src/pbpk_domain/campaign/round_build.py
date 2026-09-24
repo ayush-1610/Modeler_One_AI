@@ -131,14 +131,28 @@ def protocol_name(study_id: str) -> str:
     return f"{study_id} protocol"
 
 
-def _solid_formulation(scenario: MapScenario, cpf: CPF | None) -> tuple[FormulationSpec, str | None]:
+def _bin_schedule(scenario: MapScenario) -> dict:
+    """A binned product's regimen as schema repetitions (the published bin protocols: n doses, interval apart; a
+    single dose is one repetition)."""
+    if scenario.dosing_interval_h is None:
+        return {}
+    if scenario.n_doses is None:
+        raise ScenarioBuildError(
+            f"scenario {scenario.study_id!r}: a multiple-dose study needs its number of doses; none is recorded"
+        )
+    return {"repetitions": scenario.n_doses, "repetition_interval_h": float(scenario.dosing_interval_h)}
+
+
+def _solid_formulation(scenario: MapScenario, cpf: CPF | None) -> tuple[list, tuple[tuple[str, float], ...], str | None]:
+    """(formulation specs — one, or every bin of a binned product —, the bins, a note)."""
     from pbpk_domain.cpf.formulations import FormulationError, cpf_formulation, resolve_formulation_name
 
     if cpf is None:
         raise ScenarioBuildError(f"scenario {scenario.study_id!r}: a solid oral form needs the CPF formulation")
     try:
         name, note = resolve_formulation_name(cpf, scenario.formulation_name)
-        return cpf_formulation(cpf, name).to_spec(), (f"{scenario.study_id}: {note}" if note else None)
+        specs, bins = cpf_formulation(cpf, name).to_specs()
+        return specs, bins, (f"{scenario.study_id}: {note}" if note else None)
     except FormulationError as exc:
         raise ScenarioBuildError(f"scenario {scenario.study_id!r} ({scenario.formulation}): {exc}") from exc
 
@@ -151,13 +165,21 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
     sim_end_time_h = _sim_end(scenario, sim_end_time_h)
 
     if scenario.route in _ORAL_ROUTES:
-        protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, **schedule)
-        if scenario.formulation in _DISSOLVED_FORMULATIONS:
+        extra: list = []
+        bins: tuple[tuple[str, float], ...] = ()
+        # a solution the published model gives as its own formulation (Ketoconazole: 8 nm particles, dissolution still
+        # limited by solubility) uses it; otherwise a solution is dissolved
+        if scenario.formulation in _DISSOLVED_FORMULATIONS and not scenario.formulation_name:
             formulation: FormulationSpec = DissolvedFormulationSpec(name=f"{sid} formulation")
         else:
-            formulation, note = _solid_formulation(scenario, cpf)
+            specs, bins, note = _solid_formulation(scenario, cpf)
+            formulation, extra = specs[0], specs[1:]
             if note and notes is not None:
                 notes.append(note)
+        if bins:
+            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, bins=bins, **_bin_schedule(scenario))
+        else:
+            protocol = OralProtocolSpec(name=protocol_name(sid), dose=dose, **schedule)
         meal_events: tuple[MealEventSpec, ...] = ()
         event_names: tuple[str, ...] = ()
         if scenario.food_state == "fed" and scenario.meal_template:
@@ -166,8 +188,10 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
         simulation = SimulationSpec(
             name=sid, subject=subject_name, compound=compound, protocol=protocol.name,
             formulation=formulation.name, end_time_h=sim_end_time_h, events=event_names,
+            formulation_bins=tuple(name for name, _f in bins),
         )
-        return Scenario(simulation=simulation, protocol=protocol, formulation=formulation, events=meal_events)
+        return Scenario(simulation=simulation, protocol=protocol, formulation=formulation, events=meal_events,
+                        extra_formulations=tuple(extra))
 
     if scenario.route in _IV_ROUTES:
         if scenario.infusion_time_min is None:

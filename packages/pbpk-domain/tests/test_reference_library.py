@@ -130,3 +130,49 @@ def test_every_reported_route_in_the_library_is_read_or_refused(reported, expect
 def test_a_dose_without_unit_is_taken_only_when_the_dataset_name_repeats_it(name, dose, expected):
     got = _dataset_dose(name, {"Dose": dose}, None, [])
     assert got == expected if expected is not None else isinstance(got, str)
+
+
+def test_ketoconazole_particle_dissolution_and_a_three_bin_tablet():
+    imported, ours, pairs = _built("Ketoconazole")
+    cpf = imported.cpf
+    assert imported.unplaced == ()
+    # Noyes-Whitney particle formulations, units converted to the builder's (radius published in mm or µm)
+    assert (cpf.require("form.PD_tablet_3Bins_B2.particles.radius").value, cpf.require("form.PD_tablet_3Bins_B2.particles.radius").unit) \
+        == (pytest.approx(111.06), "µm")
+    assert cpf.require("form.PD_solution.particles.radius").value == pytest.approx(0.008)
+    # the tablet: three bins given together, each with its mass fraction of the dose (from the published protocol)
+    bins = json.loads(cpf.require("form.PD_tablet_3Bins.bins").value)
+    assert [b["formulation"] for b in bins] == ["PD_tablet_3Bins_B1", "PD_tablet_3Bins_B2", "PD_tablet_3Bins_B3"]
+    assert sum(b["fraction"] for b in bins) == pytest.approx(1.0)
+    assert len(imported.studies) >= 50 and len(pairs) >= 50
+    tablet = next(s for s in ours["Simulations"] if "PD_tablet_3Bins_B1" in json.dumps(s["Compounds"]))
+    selection = tablet["Compounds"][0]["Protocol"]["Formulations"]
+    assert selection == [{"Name": f"PD_tablet_3Bins_B{i}", "Key": f"PD_tablet_3Bins_B{i}"} for i in (1, 2, 3)]
+    protocol = next(p for p in ours["Protocols"] if p["Name"] == tablet["Compounds"][0]["Protocol"]["Name"])
+    items = protocol["Schemas"][0]["SchemaItems"]
+    assert [i["FormulationKey"] for i in items] == [f"PD_tablet_3Bins_B{i}" for i in (1, 2, 3)]
+    water = [next(q["Value"] for q in i["Parameters"] if q["Name"] == "Volume of water/body weight") for i in items]
+    assert water == [3.5, 0.0, 0.0]  # the water with the first bin only, as published
+    formulations = {f["Name"]: f for f in ours["Formulations"]}
+    assert formulations["PD_tablet_3Bins_B1"]["FormulationType"] == "Formulation_Particles"
+    # a "solution" the published model gives as 8 nm particles is simulated so (dissolution limited by solubility)
+    solution = next(s for s in imported.studies if s.get("formulation_name") == "PD_solution")
+    assert solution["formulation"] == "solution"
+
+
+def test_a_binned_product_splits_every_dose_and_only_monodisperse_particles_are_placed():
+    from pbpk_domain.snapshot.builder import Measured, OralProtocolSpec, ParticleFormulationSpec
+
+    protocol = OralProtocolSpec(name="p", dose=Measured(value=400.0, unit="mg"), bins=(("B1", 0.99), ("B2", 0.01)),
+                                repetitions=10, repetition_interval_h=12.0).to_protocol()
+    schema = protocol.schemas[0]
+    assert [q.value for q in schema.parameters if q.name == "NumberOfRepetitions"] == [10.0]
+    assert [next(q.value for q in i.parameters if q.name == "InputDose") for i in schema.schema_items] == \
+        [pytest.approx(396.0), pytest.approx(4.0)]
+    single = OralProtocolSpec(name="s", dose=Measured(value=200.0, unit="mg"), bins=(("B1", 0.5), ("B2", 0.5))).to_protocol()
+    assert {q.name: q.value for q in single.schemas[0].parameters}["TimeBetweenRepetitions"] == 0.0  # as published
+    with pytest.raises(ValueError, match="sum to 1"):
+        OralProtocolSpec(name="x", dose=Measured(value=1.0, unit="mg"), bins=(("B1", 0.5), ("B2", 0.4)))
+    with pytest.raises(ValueError, match="monodisperse"):
+        ParticleFormulationSpec(name="f", thickness=Measured(value=0.02, unit="mm"), radius=Measured(value=10.0, unit="µm"),
+                                distribution_type=1.0)

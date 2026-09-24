@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from collections import Counter
 from contextvars import ContextVar
@@ -122,6 +123,7 @@ _SAME_DIMENSION = (
     {"l/min": 1.0, "ml/min": 1e-3, "l/h": 1.0 / 60.0},
     {"mg/ml": 1.0, "mg/l": 1e-3, "g/l": 1.0, "µg/ml": 1e-3, "µg/l": 1e-6, "mg/dl": 1e-2},
     {"cm/min": 1.0, "dm/min": 10.0, "µm/min": 1e-4, "cm/s": 60.0},
+    {"µm": 1.0, "mm": 1e3, "nm": 1e-3, "cm": 1e4},
     {"": 1.0, "%": 1e-2},  # dimensionless fraction
 )
 
@@ -475,7 +477,14 @@ def _simulation_parameter_records(snapshot: dict[str, Any], compound: str, out: 
 
 
 def _formulation_records(snapshot: dict[str, Any], out: _Records, unplaced: list[str]) -> None:
-    from pbpk_domain.cpf.formulations import DISSOLVED, WEIBULL, WEIBULL_PARAMETERS
+    from pbpk_domain.cpf.formulations import (
+        DISSOLVED,
+        PARTICLE_BINS,
+        PARTICLE_PARAMETERS,
+        PARTICLES,
+        WEIBULL,
+        WEIBULL_PARAMETERS,
+    )
 
     engine_to_key = {v: k for k, v in WEIBULL_PARAMETERS.items()}
     for formulation in snapshot.get("Formulations", []):
@@ -489,8 +498,79 @@ def _formulation_records(snapshot: dict[str, Any], out: _Records, unplaced: list
                 if key is not None:
                     out.add(f"form.{name}.weibull.{key}", parameter["Value"], unit=parameter.get("Unit"),
                             parameter=parameter)
+        elif kind == "Formulation_Particles":
+            values = {q.get("Name"): q for q in formulation.get("Parameters", [])}
+            distribution = float((values.get("Type of particle size distribution") or {}).get("Value") or 0.0)
+            if distribution != 0.0:
+                unplaced.append(f"formulation {name!r}: particle size distribution type {distribution:g} (only "
+                                "monodisperse, type 0, is placed)")
+                continue
+            out.add(f"form.{name}.type", PARTICLES)
+            for key, (engine, unit) in PARTICLE_PARAMETERS.items():
+                parameter = values.get(engine)
+                if parameter is not None and parameter.get("Value") is not None:
+                    out.add(f"form.{name}.particles.{key}", _convert(float(parameter["Value"]), parameter.get("Unit"), unit),
+                            unit=unit, parameter=parameter)
         else:
             unplaced.append(f"formulation {name!r} ({kind}): type not placed by the builder yet")
+    for product, bins in _binned_products(snapshot).items():
+        out.add(f"form.{product}.type", PARTICLE_BINS)
+        out.add(f"form.{product}.bins", json.dumps([{"formulation": b, "fraction": f} for b, f in bins]))
+
+
+def _bin_items(protocol: dict[str, Any]) -> list[tuple[str, float]] | None:
+    """A protocol that gives several formulations at the same moment: [(formulation key, dose)] of its first dose."""
+    schemas = protocol.get("Schemas") or []
+    if not schemas:
+        return None
+    items = [(i.get("FormulationKey"), next((float(q["Value"]) for q in i.get("Parameters", []) if q.get("Name") == "InputDose"), None),
+              next((float(q["Value"]) for q in i.get("Parameters", []) if q.get("Name") == "Start time"), 0.0))
+             for i in schemas[0].get("SchemaItems", [])]
+    first = [(key, dose) for key, dose, start in items if start == items[0][2]] if items else []
+    if len({key for key, _d in first}) < 2 or any(key is None or dose is None for key, dose in first):
+        return None
+    return first
+
+
+def _binned_products(snapshot: dict[str, Any]) -> dict[str, tuple[tuple[str, float], ...]]:
+    """Products the published protocols give as several particle-size bins at once (OSP Ketoconazole
+    "PD_tablet_3Bins_B1..B3"): named by the bins' common prefix, each bin with its mass fraction of the dose."""
+    protocols = {p["Name"]: p for p in snapshot.get("Protocols", [])}
+    products: dict[str, tuple[tuple[str, float], ...]] = {}
+    for sim in snapshot.get("Simulations", []):
+        for entry in sim.get("Compounds", []):
+            ref = entry.get("Protocol") or {}
+            key_to_name = {f.get("Key"): f.get("Name") for f in ref.get("Formulations", []) or []}
+            bins = _split(protocols.get(ref.get("Name"), {}), key_to_name)
+            if bins is None:
+                continue
+            if bins in products.values():
+                continue  # the same split (the published protocols round it differently: each kept exact)
+            names = [b for b, _f in bins]
+            base = os.path.commonprefix(names).rstrip("_-B ") or "+".join(names)
+            taken = [n for n in products if n == base or n.startswith(f"{base} (")]
+            products[base if not taken else f"{base} ({len(taken) + 1})"] = bins
+    return products
+
+
+def _binned_product_of(snapshot: dict[str, Any], protocol_ref: dict[str, Any]) -> str | None:
+    """The binned product a simulation's protocol gives, by its bins and fractions."""
+    protocols = {p["Name"]: p for p in snapshot.get("Protocols", [])}
+    key_to_name = {f.get("Key"): f.get("Name") for f in protocol_ref.get("Formulations", []) or []}
+    bins = _split(protocols.get(protocol_ref.get("Name"), {}), key_to_name)
+    if bins is None:
+        return None
+    return next((name for name, known in _binned_products(snapshot).items() if known == bins), None)
+
+
+def _split(protocol: dict[str, Any], key_to_name: dict[str, str]) -> tuple[tuple[str, float], ...] | None:
+    """A binned protocol's bins and their mass fractions of the dose (12 digits: the published splits differ in the
+    7th, and each is reproduced)."""
+    items = _bin_items(protocol) if len(key_to_name) > 1 else None
+    if not items:
+        return None
+    total = sum(dose for _k, dose in items)
+    return tuple((key_to_name.get(key, key), round(dose / total, 12)) for key, dose in items)
 
 
 def _individual_records(snapshot: dict[str, Any], out: _Records, notes: list[str]) -> None:
@@ -635,7 +715,9 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
                                      if individual and main is not None and individual["Name"] != main["Name"] else None),
             "simulation": sim["Name"],
             "protocol": protocols.get(protocol_ref.get("Name"), {}),
-            "formulation": formulations[0]["Name"] if formulations else None,
+            # a binned protocol is its product (never its first bin alone, which would put the whole dose in one bin)
+            "formulation": (_binned_product_of(snapshot, protocol_ref) if len(formulations) > 1 else
+                            formulations[0]["Name"]) if formulations else None,
             "fed": bool(sim.get("Events")),
             "infusion_min": infusion,
         }
@@ -749,7 +831,13 @@ def _application_type(protocol: dict[str, Any]) -> str | None:
 
 
 def _protocol_dose(protocol: dict[str, Any]) -> tuple[float, bool] | None:
-    """The one dose a published protocol gives (every administration the same), in mg or mg/kg."""
+    """The one dose a published protocol gives (every administration the same), in mg or mg/kg; a binned product's
+    dose is the sum of its bins given at the same moment."""
+    bins = _bin_items(protocol)
+    if bins:
+        units = {q.get("Unit") for s in protocol.get("Schemas", []) for i in s.get("SchemaItems", [])
+                 for q in i.get("Parameters", []) if q.get("Name") == "InputDose"}
+        return (sum(d for _k, d in bins), units == {"mg/kg"}) if units <= {"mg", "mg/kg"} and len(units) == 1 else None
     doses = {(float(q["Value"]), q.get("Unit")) for i in [protocol, *[i for s in protocol.get("Schemas", []) for i in s.get("SchemaItems", [])]]
              for q in i.get("Parameters", []) if q.get("Name") == "InputDose"}
     if len(doses) != 1:
@@ -775,6 +863,12 @@ def _dataset_dose(name: str, props: dict[str, Any], link: dict[str, Any] | None,
             said.append(f"dose {reported!r} has no unit; mg as the dataset's name gives it")
             return bare, False
     published = _protocol_dose(link["protocol"]) if link else None
+    if published is None and link:
+        doses = sorted({float(q["Value"]) for i in [link["protocol"], *[i for s in link["protocol"].get("Schemas", [])
+                        for i in s.get("SchemaItems", [])]] for q in i.get("Parameters", []) if q.get("Name") == "InputDose"})
+        if len(doses) > 1:
+            return (f"dose not reported and the published protocol gives different doses ({', '.join(f'{d:g}' for d in doses)}"
+                    " mg: a loading dose); such regimens are not placed yet")
     if published is not None:
         said.append(f"dose {reported!r} not usable; {published[0]:g} {'mg/kg' if published[1] else 'mg'} as in the "
                     "published simulation")
@@ -876,12 +970,18 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         elif linked_form is not None and formulation_types.get(linked_form) == "Weibull":
             kind = "ir_tablet"
             said.append(f"formulation not reported; the published model uses the tablet {linked_form!r}")
+        elif linked_form is not None and formulation_types.get(linked_form) in ("Particles", "ParticleBins") \
+                and (named := next((k for word, k in _FORMULATION_WORDS if word in linked_form.lower()), None)):
+            kind = named
+            said.append(f"formulation not reported; the published model gives {linked_form!r} (classified {kind})")
         else:
             kind = "ir_tablet"
             said.append("formulation not reported; recorded as an immediate-release tablet, simulated as the "
                         f"published model does ({linked_form or 'Dissolved'})")
         row["formulation"] = kind
-        if kind in ("ir_tablet", "ir_capsule", "other") and linked_form is not None:
+        if linked_form is not None and (kind in ("ir_tablet", "ir_capsule", "other")
+                                        or formulation_types.get(linked_form) in ("Particles", "ParticleBins")):
+            # a particle formulation is simulated as published even for a solution (dissolution limited by solubility)
             row["formulation_name"] = linked_form
 
     reported = _given(props.get("Food state"))
@@ -984,7 +1084,9 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, 
         props = _props(dataset)
         label = dataset["Name"]
         molecule = str(props.get("Molecule") or "")
-        if molecule != name and molecule.lower() != name.lower() and label not in mapped_to_parent:
+        # the same name up to case, digits and punctuation ("voriconazole" for the compound "Voriconazole1")
+        same = re.sub(r"[^a-z]", "", molecule.lower()) == re.sub(r"[^a-z]", "", name.lower()) and bool(molecule)
+        if not same and label not in mapped_to_parent:
             skipped.append(f"{label}: data for {props.get('Molecule')}, not the parent drug")
             continue
         if molecule != name:
