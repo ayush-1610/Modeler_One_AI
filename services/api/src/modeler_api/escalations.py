@@ -185,7 +185,8 @@ async def record_deviation(
 
 
 class ResolveRequest(BaseModel):
-    action: Literal["retry", "accept_best", "abort"]
+    # "approve" signs a gate (the S4/S5 evaluation before S6, MS-01 §4) and continues the campaign.
+    action: Literal["retry", "accept_best", "abort", "approve"]
     note: str = ""
 
 

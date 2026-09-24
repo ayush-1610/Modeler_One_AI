@@ -23,7 +23,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
     setResult(null);
     try {
       const res = await resolveEscalation(escalation.campaignId, escalation.stage, {
-        action: choice as "retry" | "accept_best" | "abort",
+        action: choice as "retry" | "accept_best" | "abort" | "approve",
         note: rationale,
       });
       if (!res.ok) {

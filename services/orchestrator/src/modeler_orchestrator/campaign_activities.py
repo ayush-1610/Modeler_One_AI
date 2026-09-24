@@ -117,17 +117,22 @@ def plan_campaign(request: CampaignRequest) -> S0Readiness:
     if text is None:
         return S0Readiness(ready=True, findings=["CPF not loadable in this environment; completeness not checked (T-07 pending)"])
     from pbpk_domain.cpf import CPF, check_completeness
-    from pbpk_domain.cpf.build import missing_expression_profiles
+    from pbpk_domain.cpf.build import missing_expression_profiles, unplaceable_parameters
 
     cpf = CPF.model_validate_json(text)
     report = check_completeness(cpf)
     findings = list(report.missing)
+    # A pathway the CPF names but the builder cannot place would be silently absent from every simulation.
+    unplaced = unplaceable_parameters(cpf) if report.ready else ()
+    for pid in unplaced:
+        findings.append(f"{pid} cannot be placed in the model (no engine binding the builder supports): the "
+                        "simulation would run without this pathway")
     # MS-01 §S0: every enzyme/transporter a process names must have an expression profile, or the process
     # silently eliminates nothing on the engine.
     for molecule in missing_expression_profiles(cpf):
         findings.append(f"no expression profile for {molecule}: its processes cannot act in PK-Sim "
                         "(harvest it from an OSP reference model into the expression library)")
-    return S0Readiness(ready=report.ready and not missing_expression_profiles(cpf), findings=findings)
+    return S0Readiness(ready=report.ready and not unplaced and not missing_expression_profiles(cpf), findings=findings)
 
 
 @activity.defn(name="plan_stage")
@@ -293,8 +298,10 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     try:
         # A validation stage judges every study it can build and names the rest; a fitting stage must not
         # silently fit to fewer studies than the MAP planned, so it fails on any unbuildable one.
-        stage = build_stage_snapshot(cpf, list(map_doc.scenarios), stage=ctx.stage, seed=ctx.seed,
-                                     skip_unbuildable=ctx.stage in VALIDATION_STAGES)
+        # S6 predicts from the internal studies (S4's scenarios) with the final CPF.
+        scenario_stage = "S4" if ctx.stage == "S6" else ctx.stage
+        stage = build_stage_snapshot(cpf, list(map_doc.scenarios), stage=scenario_stage, seed=ctx.seed,
+                                     skip_unbuildable=scenario_stage in VALIDATION_STAGES)
     except ScenarioBuildError as exc:
         echoed = _echo(str(exc))
         echoed.notes = [str(exc)]
@@ -334,7 +341,8 @@ def prepare_round_job(ctx: RoundContext, build: RoundBuild) -> EngineJob:
         inputs=[EngineInput(name=ROUND_SNAPSHOT_INPUT, uri=build.snapshot_uri, sha256=build.snapshot_sha256)],
         outputs_uri=f"{root}/tenants/{ctx.tenant_id}/campaigns/{ctx.campaign_id}/{ctx.stage}/{round_dir}",
         # pkml per simulation: the fit's models on a fit round, and the VPC's models on a stage the VPC gates.
-        options={"export_pkml": True} if (build.needs_fit and build.fit_request is not None) or _vpc_stage(ctx.stage) else {},
+        options={"export_pkml": True} if ((build.needs_fit and build.fit_request is not None) or _vpc_stage(ctx.stage)
+                                          or ctx.stage == "S6") else {},
         timeout_s=int(max(60.0, ctx.deadline_seconds)) if ctx.deadline_seconds else 600,
     )
 

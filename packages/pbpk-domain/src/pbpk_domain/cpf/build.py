@@ -76,6 +76,15 @@ def process_molecules(cpf: CPF) -> tuple[str, ...]:
     return tuple(seen)
 
 
+def unplaceable_parameters(cpf: CPF) -> tuple[str, ...]:
+    """Process parameters (elimination, transport) the builder cannot place in the model — the S0 check.
+
+    Each one is a pathway the CPF says exists but the simulation would not contain (a missing clearance makes
+    every exposure wrong while the run looks valid), so a campaign must not start with any."""
+    _compound, _used, unresolved = _compound_from_cpf(cpf)
+    return tuple(unresolved)
+
+
 def missing_expression_profiles(cpf: CPF) -> tuple[str, ...]:
     """Process proteins with no harvested expression profile — the S0 readiness check."""
     from pbpk_domain.expression import expression_library

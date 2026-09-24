@@ -91,6 +91,13 @@ _VALIDATION_OPTIONS = [
     {"id": "accept_best", "label": "Record a limitation and continue (MS-01 §6.6)", "requiresSignature": True},
     {"id": "abort", "label": "Stop the campaign", "requiresSignature": True},
 ]
+# MS-01 §4 S6 "runs only after S4 and S5 are signed" (decision D5: evaluation signatures are a human touchpoint).
+_SIGNATURE_OPTIONS = [
+    {"id": "approve", "label": "Sign the internal and external validation and continue to prediction and the report",
+     "requiresSignature": True},
+    {"id": "abort", "label": "Stop the campaign", "requiresSignature": True},
+]
+_GATED_STAGE = "S6"
 
 
 def default_engine() -> EngineRun:
@@ -142,6 +149,8 @@ class _RoundOutcome:
     choice: object
     notes: list[str]
     fitted: bool = False  # the round applied fitted estimates and was judged on the re-simulated, fitted model
+    snapshot_uri: str | None = None           # the snapshot the judged simulation ran
+    outputs: list[dict] = field(default_factory=list)  # that engine run's outputs (name, uri, sha256)
 
 
 def _gof_series(results_uri: str, observed_uri: str) -> list[dict]:
@@ -181,6 +190,8 @@ class CampaignArtifactWriter:
     budget_seconds: int
     stages: list[str]
     resume: dict | None = None  # how to continue this campaign after a human decision (set on escalation)
+    prediction: dict | None = None  # the S6 result (sensitivity ranking, prediction intervals)
+    package: dict | None = None     # the S7 record (reproduction verdict, report files, exportable package)
     _started: float = field(default_factory=time.monotonic)
     _rounds: dict[str, list[dict]] = field(default_factory=dict)
     _status: dict[str, str] = field(default_factory=dict)
@@ -209,6 +220,8 @@ class CampaignArtifactWriter:
             writer._notes[row["stage"]] = list(row.get("notes", []))
         writer._gof = list(campaign.get("gof", []))
         writer._gof_by_stage = {k: list(v) for k, v in (campaign.get("gofByStage") or {}).items()}
+        writer.prediction = campaign.get("prediction")
+        writer.package = campaign.get("package")
         writer._started = time.monotonic() - float(campaign.get("elapsedSeconds", 0))
         return writer
 
@@ -261,7 +274,19 @@ class CampaignArtifactWriter:
             ],
             "gof": self._gof,
             "gofByStage": self._gof_by_stage,
+            "prediction": self.prediction,
+            "package": self.package,
             "resume": self.resume,
+        })
+
+    def record_signature_request(self, stage: str) -> None:
+        """The review-inbox item that holds the campaign until the S4/S5 evaluation is signed (MS-01 §4 S6)."""
+        self.store.upsert_escalation(self.tenant_id, {
+            "id": f"{self.campaign_id}-{stage}", "campaignId": self.campaign_id, "stage": stage,
+            "reasonCode": "SIGNATURE_REQUIRED",
+            "evidence": "Internal (S4) and external (S5) validation are complete. MS-01 requires them signed before "
+                        "the model is used for prediction (S6) and the report and package are assembled (S7).",
+            "options": _SIGNATURE_OPTIONS,
         })
 
     def record_escalation(self, stage: str, reason: str, findings: list[str]) -> None:
@@ -279,6 +304,8 @@ class LocalExecutor:
 
     engine: EngineRun
     writer: CampaignArtifactWriter | None = None
+    approved_gates: set[str] = field(default_factory=set)  # signature gates already signed (resumed campaigns)
+    _last: dict[str, dict] = field(default_factory=dict)   # stage -> its judged round (metrics, snapshot, outputs)
 
     def run(
         self, request: CampaignRequest, *,
@@ -313,6 +340,18 @@ class LocalExecutor:
         for stage in request.stages:
             if stage == "S0":
                 continue
+            if stage == _GATED_STAGE and stage not in self.approved_gates:
+                # Pause for the S4/S5 evaluation signature; a signed "approve" in the review inbox resumes here.
+                if self.writer:
+                    self.writer.resume = {"request": asdict(original), "cpf_uri": cpf_uri, "cpf_sha256": cpf_sha,
+                                          "completed_stages": completed, "escalated_stage": stage}
+                    self.writer.record_signature_request(stage)
+                    self.writer.flush(current_stage=stage, status="AWAITING_SIGNATURE")
+                return CampaignOutcome(
+                    campaign_id=request.campaign_id, status="AWAITING_SIGNATURE", stages=outcomes,
+                    final_cpf_uri=cpf_uri, final_cpf_sha256=cpf_sha,
+                    reason="the internal and external validation await signature before prediction (MS-01 §4 S6)",
+                )
             plan = plan_stage(StageRequest(
                 campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=stage, cpf_uri=cpf_uri,
                 cpf_sha256=cpf_sha, budget_seconds=0, map_uri=request.map_uri, map_sha256=request.map_sha256,
@@ -322,11 +361,14 @@ class LocalExecutor:
             if plan.skip_reason:
                 # Nothing to simulate at this stage: a documented limitation, not a failure (MS-01 §6.2 / §6.7,
                 # §3.3 rule 2). The CPF carries forward unchanged.
-                outcomes.append(StageOutcome(stage=stage, status="SKIPPED", rounds_run=0, cpf_uri=cpf_uri,
-                                             cpf_sha256=cpf_sha, findings=[plan.skip_reason, *plan.notes]))
+                skipped = StageOutcome(stage=stage, status="SKIPPED", rounds_run=0, cpf_uri=cpf_uri,
+                                       cpf_sha256=cpf_sha, findings=[plan.skip_reason, *plan.notes])
+                outcomes.append(skipped)
                 completed.append(stage)
                 if self.writer:
                     self.writer.stage_notes(stage, [plan.skip_reason])
+                self._persist(request, skipped)
+                if self.writer:
                     self.writer.stage_status(stage, "SKIPPED")
                     self.writer.flush(current_stage=stage, status="RUNNING")
                 continue
@@ -336,6 +378,10 @@ class LocalExecutor:
             try:
                 if plan.kind == "validate":
                     outcome = self._run_validation(request, stage, cpf_uri, cpf_sha)
+                elif plan.kind == "predict":
+                    outcome = self._run_prediction(request, cpf_uri, cpf_sha)
+                elif plan.kind == "report":
+                    outcome = self._run_package(request, cpf_uri, cpf_sha)
                 else:
                     outcome = self._run_stage(request, stage, cpf_uri, cpf_sha)
             except Exception as exc:  # noqa: BLE001 - an engine or activity failure must surface, not hang
@@ -349,6 +395,7 @@ class LocalExecutor:
             cpf_uri, cpf_sha = outcome.cpf_uri, outcome.cpf_sha256
             if outcome.status not in _STOP_STATUSES:
                 completed.append(stage)
+                self._persist(request, outcome)
             if self.writer:
                 self.writer.stage_status(stage, outcome.status)
                 self.writer.flush(current_stage=stage, status="RUNNING")
@@ -404,6 +451,7 @@ class LocalExecutor:
             rounds_run = round_index
             result = self._run_round(ctx)
             run_result, evaluation, diagnosis, choice = result.run_result, result.evaluation, result.diagnosis, result.choice
+            self._remember(stage, result)
             cpf_uri, cpf_sha = run_result.cpf_uri, run_result.cpf_sha256
             best_uri, best_sha = cpf_uri, cpf_sha
 
@@ -445,6 +493,7 @@ class LocalExecutor:
         )
         result = self._run_round(ctx, judge_only=True)
         evaluation = result.evaluation
+        self._remember(stage, result)
         if self.writer:
             self.writer.stage_notes(stage, result.notes)
             self.writer.add_round(stage, 1, "validate", evaluation)
@@ -456,6 +505,94 @@ class LocalExecutor:
                                 findings=findings)
         return StageOutcome(stage=stage, status="ESCALATED", rounds_run=1, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
                             findings=findings, escalation_reason=_VALIDATION_FAILURE.get(stage, "validation_failed"))
+
+    def _remember(self, stage: str, result: _RoundOutcome) -> None:
+        """Keep the stage's latest judged round — its metrics, snapshot and outputs — for the package (S7)."""
+        self._last[stage] = {"metrics": result.evaluation.metrics, "snapshot_uri": result.snapshot_uri,
+                             "outputs": result.outputs}
+
+    def _persist(self, request: CampaignRequest, outcome: StageOutcome) -> None:
+        """Write the finished stage's evidence where S7 reads it, even across a pause for a signature."""
+        from modeler_orchestrator.package_activities import persist_stage_evidence
+
+        stage = outcome.stage
+        writer = self.writer
+        evidence = {
+            "status": outcome.status, "findings": list(outcome.findings), "cpf_uri": outcome.cpf_uri,
+            "rounds": list(writer._rounds.get(stage, [])) if writer else [],
+            "notes": list(writer._notes.get(stage, [])) if writer else [],
+            **self._last.get(stage, {}),
+        }
+        try:
+            persist_stage_evidence(request.tenant_id, request.campaign_id, stage, evidence)
+        except OSError:
+            pass  # evidence is for the package; failing to write it must not stop the campaign — S7 will say so
+
+    def _run_prediction(self, request: CampaignRequest, cpf_uri: str, cpf_sha: str) -> StageOutcome:
+        """S6 (MS-01 §4): from the final CPF, re-simulate the internal studies, then run a local sensitivity
+        analysis and propagate the fitted parameters' uncertainty to prediction intervals of AUC and Cmax."""
+        from modeler_orchestrator.package_activities import evaluate_s6, prepare_s6_jobs
+
+        ctx = RoundContext(
+            campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage="S6", round_index=1,
+            cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, seed=request.seed,
+            deadline_seconds=float(request.stage_budgets_seconds.get("S6", _DEFAULT_STAGE_BUDGET_S)),
+            map_uri=request.map_uri, map_sha256=request.map_sha256,
+            observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+        )
+        build, manifest = self._simulate(ctx)
+        if manifest is None:
+            reason = "; ".join(getattr(build, "notes", []) or []) or "no internal study could be simulated"
+            return StageOutcome(stage="S6", status="SKIPPED", rounds_run=0, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
+                                findings=[f"S6 not run: {reason}"])
+        jobs, notes = prepare_s6_jobs(ctx, manifest)
+        result = evaluate_s6(ctx, jobs, self._run_jobs(jobs))
+        notes.append("application templates for the question of interest (DDI, paediatric, organ impairment, VBE) "
+                     "are the next phase (T-31); S6 characterises the validated model")
+        result["notes"] = notes
+        self._last["S6"] = {"prediction": result}
+        if self.writer:
+            self.writer.prediction = result
+            self.writer.stage_notes("S6", notes)
+            self.writer.flush(current_stage="S6", status="RUNNING")
+        return StageOutcome(stage="S6", status="PASSED", rounds_run=1, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
+                            findings=notes)
+
+    def _run_package(self, request: CampaignRequest, cpf_uri: str, cpf_sha: str) -> StageOutcome:
+        """S7 (MS-01 §4): assemble the data bundle from the persisted evidence, re-run every bundled simulation on
+        a fresh engine process, write the MAR, and release the package only if the reproduction passed (D13)."""
+        from modeler_orchestrator.package_activities import (
+            collect_bundle,
+            finish_package,
+            load_stage_evidence,
+            prepare_reproduction_jobs,
+            verify_package_reproduction,
+        )
+
+        evidence = load_stage_evidence(request.tenant_id, request.campaign_id)
+        files, numeric, snapshots = collect_bundle(request.tenant_id, request.campaign_id, cpf_uri=cpf_uri,
+                                                   map_uri=request.map_uri, observed_uri=request.observed_uri,
+                                                   evidence=evidence)
+        jobs = prepare_reproduction_jobs(request.tenant_id, request.campaign_id, files, snapshots)
+        reproduction = verify_package_reproduction(files, numeric, jobs, self._run_jobs(jobs))
+        record = finish_package(
+            request.tenant_id, request.campaign_id, files=files, numeric=numeric, map_uri=request.map_uri,
+            cpf_uri=cpf_uri, evidence=evidence, prediction=(evidence.get("S6") or {}).get("prediction"),
+            reproduction=reproduction, engine_image_digest=os.environ.get("MODELER_IMAGE_DIGEST", ""),
+        )
+        if self.writer:
+            self.writer.package = record
+            self.writer.flush(current_stage="S7", status="RUNNING")
+        if record["exportable"]:
+            return StageOutcome(stage="S7", status="PASSED", rounds_run=1, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
+                                findings=[(f"package released: {record['files']} files, reproduction passed on "
+                                           f"{record['reproduction']['compared']} result tables")])
+        findings = [f"{f['path']}: {f['status']} {f.get('detail', '')}".strip() for f in record["reproduction"]["failures"]]
+        findings += [f"report: {i['detail']}" for i in record["report_issues"]]
+        if not record["reproduction"]["compared"]:
+            findings.append("no result table to reproduce (no S4/S5 simulation in the evidence)")
+        return StageOutcome(stage="S7", status="ESCALATED", rounds_run=1, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
+                            findings=findings, escalation_reason="package_not_reproducible")
 
     def _simulate(self, ctx: RoundContext) -> tuple[object, EngineManifest | None]:
         """Build the round's snapshot from ctx's CPF and run it on the engine (skipped when nothing was built)."""
@@ -478,7 +615,7 @@ class LocalExecutor:
         run_result = run_round(RoundRun(context=ctx, build=build, fit_outcome=fit_outcome, manifest=manifest))
         judged_ctx = ctx
         fitted = run_result.cpf_uri != ctx.cpf_uri
-        judged_manifest = manifest
+        judged_manifest, judged_build = manifest, build
         if fitted:
             # The simulation above ran the CPF *before* the fit. Judge the fit in the round it happened: simulate
             # the fitted CPF and evaluate that, or a successful fit is scored on stale values, its action counts as
@@ -486,13 +623,16 @@ class LocalExecutor:
             judged_ctx = replace(ctx, cpf_uri=run_result.cpf_uri, cpf_sha256=run_result.cpf_sha256,
                                  pending_action=None, pending_bounds_override=None, phase="postfit")
             post_build, post_manifest = self._simulate(judged_ctx)
-            judged_manifest = post_manifest
+            judged_manifest, judged_build = post_manifest, post_build
             notes.extend(n for n in (getattr(post_build, "notes", []) or []) if n not in notes)
             run_result = run_round(RoundRun(context=judged_ctx, build=post_build, fit_outcome=None, manifest=post_manifest))
 
         evaluation = evaluate_round(judged_ctx, run_result)
         diagnosis = RoundDiagnosis()
         choice = None
+        judged = {"snapshot_uri": judged_build.snapshot_uri if judged_manifest is not None else None,
+                  "outputs": [{"name": o.name, "uri": o.uri, "sha256": o.sha256}
+                              for o in (judged_manifest.outputs if judged_manifest is not None else [])]}
         if evaluation.gate_passed and judged_manifest is not None:
             vpc_jobs = prepare_vpc_jobs(judged_ctx, judged_manifest)  # none outside the VPC stages (no pkml)
             if vpc_jobs:
@@ -502,13 +642,13 @@ class LocalExecutor:
                     diagnosis = RoundDiagnosis(escalate=True, escalation_reason="vpc_coverage_below_80",
                                                evidence=[f for f in evaluation.findings if "VPC" in f])
                     return _RoundOutcome(run_result=run_result, evaluation=evaluation, diagnosis=diagnosis,
-                                         choice=None, notes=notes, fitted=fitted)
+                                         choice=None, notes=notes, fitted=fitted, **judged)
         if not evaluation.gate_passed and not judge_only:
             diagnosis = diagnose_round(judged_ctx, evaluation)
             if not diagnosis.escalate:
                 choice = choose_action(judged_ctx, diagnosis)
         return _RoundOutcome(run_result=run_result, evaluation=evaluation, diagnosis=diagnosis, choice=choice,
-                             notes=notes, fitted=fitted)
+                             notes=notes, fitted=fitted, **judged)
 
     def _run_fit(self, fit_request) -> object:
         """Reproduce FitRoundWorkflow without Temporal: plan the multistart, run the starts on the engine in
@@ -548,7 +688,7 @@ def run_campaign(
 
 
 # MS-01 §4 decisions a reviewer may take on an escalated stage.
-ESCALATION_ACTIONS = ("retry", "accept_best", "abort")
+ESCALATION_ACTIONS = ("retry", "accept_best", "abort", "approve")
 
 
 def resolve_escalation(
@@ -560,6 +700,7 @@ def resolve_escalation(
     ``abort``       — the stage is abandoned and the campaign ends there.
     ``accept_best`` — the best CPF found so far is accepted and the remaining stages continue.
     ``retry``       — the stage runs again from the CPF it escalated with (e.g. after new data or a wider bound).
+    ``approve``     — a signature gate (the S4/S5 evaluation before S6) is signed and the campaign continues.
 
     Continuing runs the remaining stages on a background thread, exactly as starting a campaign does, so the
     caller returns immediately and the monitor fills in live. Raises LookupError/ValueError for a campaign that
@@ -605,7 +746,8 @@ def resolve_escalation(
     writer.flush(current_stage=remaining[0], status="RUNNING")
 
     continuation = replace(request, stages=remaining, cpf_uri=cpf_uri, cpf_sha256=cpf_sha)
-    executor = LocalExecutor(engine=engine or default_engine(), writer=writer)
+    executor = LocalExecutor(engine=engine or default_engine(), writer=writer,
+                             approved_gates={stage} if action == "approve" else set())
 
     def _continue() -> None:
         executor.run(continuation, original=request, completed_before=completed)

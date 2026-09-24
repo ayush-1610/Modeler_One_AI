@@ -51,10 +51,12 @@ STAGE_PLAN: dict[str, dict] = {
            "branches": (), "max_rounds": 2},
     "S4": {"fit_candidates": (), "branches": (), "max_rounds": 1},
     "S5": {"fit_candidates": (), "branches": (), "max_rounds": 1},
+    "S6": {"fit_candidates": (), "branches": (), "max_rounds": 1},
+    "S7": {"fit_candidates": (), "branches": (), "max_rounds": 1},
 }
 
-# Campaign-budget split (MS-01 §7). S0–S5 are run by the campaign workflow; S6/S7 are separate tasks.
-BUDGET_FRACTION = {"S0": 0.01, "S1": 0.25, "S2": 0.25, "S3": 0.12, "S4": 0.05, "S5": 0.05}
+# Campaign-budget split (MS-01 §7).
+BUDGET_FRACTION = {"S0": 0.01, "S1": 0.25, "S2": 0.25, "S3": 0.12, "S4": 0.05, "S5": 0.05, "S6": 0.20, "S7": 0.07}
 
 # Stage kinds (MS-01 §4). S1–S3 are round loops that may fit; S4/S5 simulate the final CPF once and judge it,
 # never fitting — a validation failure escalates rather than refits.
@@ -84,6 +86,7 @@ _SKIP_REASON = {
           "and judged in S5 (MS-01 decision tree §6.7).",
     "S4": "No study was fitted, so there is nothing to validate internally.",
     "S5": "No external study: external validation is not achievable — a documented limitation (MS-01 §3.3 rule 2).",
+    "S6": "No internal study to predict from: sensitivity and uncertainty need the validated simulations of S4.",
 }
 
 ESCALATION_TRIGGERS = (
@@ -318,8 +321,11 @@ def stage_coverage(map_doc: MapDocument, stage: str) -> StageCoverage:
 
     For S5 the notes also name every external study that is *not* judged there — flagged studies validate their
     S6 application (rule 4) — so the record shows each study's fate, not just the ones that ran."""
-    kind = "validate" if stage in VALIDATION_STAGES else "fit" if stage in FIT_STAGES else "readiness"
-    studies = tuple(dict.fromkeys(s.study_id for s in map_doc.scenarios if s.stage == stage))
+    kind = ("validate" if stage in VALIDATION_STAGES else "fit" if stage in FIT_STAGES
+            else "predict" if stage == "S6" else "report" if stage == "S7" else "readiness")
+    # S6 predicts from the internal studies' simulations (the final CPF); S7 packages whatever the campaign made.
+    source = "S4" if stage == "S6" else stage
+    studies = tuple(dict.fromkeys(s.study_id for s in map_doc.scenarios if s.stage == source))
     notes: list[str] = []
     if stage == "S5":
         judged = set(studies)
@@ -331,7 +337,7 @@ def stage_coverage(map_doc: MapDocument, stage: str) -> StageCoverage:
                              "in S6, not S5 (MS-01 §3.3 rule 4)")
             elif row.assignment == Assignment.SUPPORTIVE.value:
                 notes.append(f"{row.study_id} ({row.study_class}) is supportive context only; not simulated")
-    skip = _SKIP_REASON.get(stage) if kind != "readiness" and not studies else None
+    skip = _SKIP_REASON.get(stage) if kind in ("fit", "validate", "predict") and not studies else None
     return StageCoverage(stage=stage, kind=kind, studies=studies, skip_reason=skip, notes=tuple(notes))
 
 

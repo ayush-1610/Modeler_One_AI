@@ -34,8 +34,23 @@ def render_docx(markdown: str, out_path: Path, *, pandoc: str = "pandoc", refere
 
 
 def render_pdf_a(markdown: str, out_path: Path, *, pandoc: str = "pandoc", gs: str = "gs") -> Path:
-    """Write the MAR as PDF/A-2b. Pandoc emits a PDF with a PDF/A intent via ``pdfx``; if Ghostscript is
-    present the output is normalised to PDF/A-2b, which is the reliable path to a conformant file."""
+    """Write the MAR as PDF/A-2b.
+
+    Preferred path: Pandoc converts to Typst markup and Typst compiles it with the PDF/A-2b standard (fonts
+    embedded, XMP ``pdfaid`` declared) — no TeX installation, and both tools are pinned Python packages. Fallback:
+    Pandoc's LaTeX route with a ``pdfx`` PDF/A intent, normalised by Ghostscript when present."""
+    try:
+        import typst  # the pinned typst package; absent -> LaTeX route
+    except ImportError:
+        typst = None
+    if typst is not None:
+        with _tempfile(suffix=".typ", text="") as typ:
+            _run_pandoc([pandoc, "-f", "markdown", "-t", "typst", "-s", "-o", str(typ)], markdown)
+            try:
+                typst.compile(str(typ), output=str(out_path), pdf_standards="a-2b")
+            except Exception as exc:
+                raise RenderError(f"typst could not compile the report to PDF/A-2b: {exc}") from exc
+        return out_path
     header = _PDFA_HEADER
     with _tempfile(suffix=".tex", text=header) as header_file:
         args = [pandoc, "-f", "markdown", "-t", "pdf", "-o", str(out_path), "-H", str(header_file)]

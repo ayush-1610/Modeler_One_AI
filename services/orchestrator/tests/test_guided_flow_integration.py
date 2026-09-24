@@ -20,7 +20,7 @@ from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.main import app
 from modeler_contracts.runs import CampaignRequest, EngineJob, EngineManifest, OutputFile
 from modeler_orchestrator.local_runner import run_campaign
-from pbpk_domain.cpf import CPF, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.cpf import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
 
 PROFILE = {"times": [30.0, 60.0, 120.0, 240.0, 480.0], "values": [40.0, 34.0, 19.0, 6.6, 0.4],
            "time_unit": "min", "unit": "µmol/l"}
@@ -45,7 +45,10 @@ def _renal_cpf() -> dict:
         ParameterRecord(id="phys.pka.neutral", value=1.0, status=ParameterStatus.FIXED, provenance=prov),
         ParameterRecord(id="bind.fu", value=0.85, status=ParameterStatus.FIXED, provenance=prov),
         ParameterRecord(id="phys.solubility.ref", value=1.3, unit="mg/ml", status=ParameterStatus.FIXED, provenance=prov),
-        ParameterRecord(id="elim.renal.gfr_fraction", value=1.0, status=ParameterStatus.FIXED, provenance=prov),
+        # bound to PK-Sim's GFR process, or the pathway could not be placed and S0 refuses the CPF
+        ParameterRecord(id="elim.renal.gfr_fraction", value=1.0, status=ParameterStatus.FIXED, provenance=prov,
+                        engine_binding=EngineBinding(building_block="Compound", process="GlomerularFiltration",
+                                                     parameter="GFR fraction", data_source="Literature")),
     )).model_dump(mode="json")
 
 

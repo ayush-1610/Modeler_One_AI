@@ -112,6 +112,39 @@ external study). The data are the example's illustrative IV profile, not clinica
   simulations per start), capped by the machine's CPUs; `MODELER_FIT_WORKERS` overrides it (e.g. on a laptop's
   Docker engine). They ran one after another, multiplying a planned fit's time by up to 32.
 
+### Added — S6 prediction and S7 report & reproducible package (plan Phase 2, R8/R9)
+- **S6 and S7 are campaign stages** (`CAMPAIGN_STAGES` S0–S7; MAP budget split per MS-01 §7: S6 20 %, S7 7 %).
+- **Signature gate before S6** (MS-01 §4 S6 "runs only after S4 and S5 are signed", decision D5): after S5 the
+  campaign pauses as `AWAITING_SIGNATURE` with a review-inbox item; a signed **approve** (new decision, API and web)
+  resumes it into S6/S7.
+- **S6** re-simulates the internal studies from the final CPF, then per study runs a local sensitivity analysis over
+  every FITTED/PREDICTED parameter (engine `sensitivity`) and propagates the fitted parameters' SD — 200 draws,
+  log-normal for log-scaled parameters, truncated to the fit bounds — through an engine `batch` to 5/50/95 %
+  intervals of AUC and Cmax (`pbpk_domain.campaign.prediction`). Parameter correlations are not propagated yet.
+  Application templates (DDI, paediatric, organ impairment, VBE) remain the next phase (T-31).
+- **The engine's batch task converts run values to base units** (`options.parameter_units`), the same trap as the fit.
+- **S7** assembles the data bundle from evidence each stage persists as it finishes (`evidence/<stage>.json`: rounds,
+  final metrics, notes, the judged snapshot and outputs — so the package survives the pause for signature): final
+  CPF, MAP, observed data, S4/S5 snapshots and result tables, every fit's specs and results, S6. Every bundled
+  snapshot is **re-run on a fresh engine process** and compared at 1e-6; the MAR (`report/campaign_mar.py`, ICH M15
+  Appendix 2 structure, every number an evidence reference) records the verdict and the data-bundle hash; the
+  package zip (manifest + `rerun_all.R`) is written **only if reproduction passed** (D13), else S7 escalates.
+- **DOCX and PDF/A-2b without TeX**: pandoc 3.9 (`pypandoc-binary`) and Typst 0.15 (`typst`, PDF/A-2b with embedded
+  fonts) are pinned in `uv.lock`, so the report renderer is reproducible; the LaTeX route remains as a fallback.
+- **S0 refuses a CPF with an elimination/transport parameter the builder cannot place** (no engine binding).
+  Found when a finished report listed "NOT PLACED IN THE MODEL: elim.renal.gfr_fraction" yet concluded the model
+  met its tier — the simulation had no renal clearance at all. Test fixtures that carried the unbound parameter fixed.
+- Verified on the server's PK-Sim with the known-truth campaign (before the S0 and renderer changes): S0 → S5, the
+  signature, S6 and S7 completed in 264 s; S6 ranked GFR fraction first for AUC (−0.84) and the tablet t50 for its
+  Cmax (−0.35); S7 reproduced 7 of 7 result tables and released a 147-file package. The prediction intervals were
+  degenerate because noise-free synthetic data identify the parameters almost exactly (SD 4e-12) — the draws were
+  applied; real clinical data (Phase 4) will give real intervals.
+
+### Known gap — Phase 2 still open
+- No API yet to list / download the package and report (Phase 2 exit); the files are on the object store.
+- The Temporal workflow does not run S6/S7 (it marks them SKIPPED with that reason); the single-node runner does.
+- The M15 table's model influence and decision consequence are not captured by the MAP yet; the report says so.
+
 ### Verified — the whole S0 → S5 loop on real PK-Sim, by known-truth recovery (2026-09-24, server engine)
 A "true" Aciclovir model (IV, oral solution, a Weibull tablet) was simulated on PK-Sim to produce the observed
 profiles; the campaign started from a wrong model — intestinal permeability 10× too low, tablet release (t50) 55

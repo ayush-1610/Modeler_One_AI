@@ -162,9 +162,10 @@ def derive_chunk_seed(run_seed: int, chunk_index: int) -> int:
 
 # --- campaign (MS-01 stage pipeline S0–S5; task T-13) --------------------------------------------
 
-# Stages in order. S0 is readiness (no engine), S1–S3 fit, S4/S5 validate. S6/S7 (application, report)
-# are separate tasks (T-31, T-24) and not run by ModelingCampaignWorkflow.
-CAMPAIGN_STAGES = ("S0", "S1", "S2", "S3", "S4", "S5")
+# Stages in order. S0 is readiness (no engine), S1–S3 fit, S4/S5 validate, S6 predicts (sensitivity and
+# uncertainty of the validated model) and S7 assembles the report and the reproducible package. S6 starts only
+# after the S4/S5 evaluation is signed (MS-01 §4 S6, decision D5).
+CAMPAIGN_STAGES = ("S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7")
 # SKIPPED: the stage has no study to train or judge it (e.g. S2 with no oral data, S5 with no external study).
 # The reason is a documented limitation carried in the stage's findings, never a silent pass.
 STAGE_STATUS = ("PASSED", "ACCEPTED", "SKIPPED", "ESCALATED", "ABORTED", "FAILED")

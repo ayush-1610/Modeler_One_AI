@@ -349,6 +349,15 @@ class ModelingCampaignWorkflow:
         for stage in request.stages:
             if stage == "S0" or stage in completed:
                 continue
+            if stage in ("S6", "S7"):
+                # S6 prediction and S7 package run on the single-node runner (local_runner); their Temporal wiring
+                # (signature gate, sensitivity/uncertainty jobs, reproduction) is not built yet — say so, never
+                # run them as a fitting loop.
+                stage_outcomes.append(StageOutcome(
+                    stage=stage, status="SKIPPED", rounds_run=0, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
+                    findings=[f"{stage} is not wired in the Temporal workflow yet; run it with the single-node runner"],
+                ))
+                continue
             stage_req = StageRequest(
                 campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=stage,
                 cpf_uri=cpf_uri, cpf_sha256=cpf_sha, budget_seconds=_stage_budget(request, stage),

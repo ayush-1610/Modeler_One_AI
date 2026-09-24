@@ -84,7 +84,8 @@ def test_cpf_parameter_table_carries_source_and_fit_policy():
 def test_stage_plan_budgets_and_candidates():
     m = _map(campaign_budget_seconds=3600)
     plan = {p.stage: p for p in m.stage_plan}
-    assert set(plan) == {"S0", "S1", "S2", "S3", "S4", "S5"}
+    assert set(plan) == {"S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"}
+    assert abs(sum(p.budget_seconds for p in plan.values()) - 3600) <= 8  # MS-01 §7 split adds up to the campaign
     assert plan["S1"].budget_seconds == round(3600 * BUDGET_FRACTION["S1"])  # 900
     assert "phys.logp" in plan["S1"].fit_candidates
     assert "dist.partition_method" in plan["S1"].branches

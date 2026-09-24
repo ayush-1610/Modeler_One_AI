@@ -227,9 +227,19 @@ run_task <- function() {
     batch <- createSimulationBatch(simulation = sim, parametersOrPaths = param_paths, moleculesOrPaths = molecule_paths)
     runs <- job$options$runs
     if (length(runs) == 0) stop("batch task needs options.runs")
+    # SimulationBatch takes values in each parameter's BASE unit. options.parameter_units (aligned with the paths,
+    # "" for dimensionless) says which unit the run values are in, and they are converted here — the same trap as
+    # parameter identification, where values given "in cm/min" were silently applied as dm/min.
+    units <- if (!is.null(job$options$parameter_units)) as.character(unlist(job$options$parameter_units)) else NULL
+    to_base <- function(values) {
+      if (is.null(units)) return(values)
+      vapply(seq_along(values), function(k) {
+        if (nzchar(units[[k]])) toBaseUnit(getParameter(param_paths[[k]], sim), values[[k]], units[[k]]) else values[[k]]
+      }, numeric(1))
+    }
     run_ids <- character(length(runs))
     for (i in seq_along(runs)) {
-      values <- as.numeric(unlist(runs[[i]]$parameter_values))
+      values <- to_base(as.numeric(unlist(runs[[i]]$parameter_values)))
       initials <- if (!is.null(runs[[i]]$initial_values)) as.numeric(unlist(runs[[i]]$initial_values)) else NULL
       run_ids[[i]] <- batch$addRunValues(parameterValues = values, initialValues = initials)
     }

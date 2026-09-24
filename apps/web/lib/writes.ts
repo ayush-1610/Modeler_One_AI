@@ -94,7 +94,7 @@ export async function startCampaign(
 export async function resolveEscalation(
   campaignId: string,
   stage: string,
-  body: { action: "retry" | "accept_best" | "abort"; note?: string },
+  body: { action: "retry" | "accept_best" | "abort" | "approve"; note?: string },
 ): Promise<{ ok: boolean; status?: string; detail?: string; signature?: { manifestation: string } }> {
   const { ok, body: data } = await rawPost<{ status?: string; detail?: string; signature?: { manifestation: string } }>(
     `/api/v1/campaigns/${campaignId}/stages/${stage}/escalation:resolve`, body);

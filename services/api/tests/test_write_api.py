@@ -10,7 +10,7 @@ from modeler_api import write_api
 from modeler_api.auth import get_verifier
 from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.main import app
-from pbpk_domain.cpf import CPF, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.cpf import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
 
 
 class FakeVerifier:
@@ -49,7 +49,10 @@ def _renal_cpf() -> dict:
         ParameterRecord(id="phys.pka.neutral", value=1.0, status=ParameterStatus.FIXED, provenance=prov),
         ParameterRecord(id="bind.fu", value=0.85, status=ParameterStatus.FIXED, provenance=prov),
         ParameterRecord(id="phys.solubility.ref", value=1.3, unit="mg/ml", status=ParameterStatus.FIXED, provenance=prov),
-        ParameterRecord(id="elim.renal.gfr_fraction", value=1.0, status=ParameterStatus.FIXED, provenance=prov),
+        # bound to PK-Sim's GFR process, or the pathway could not be placed and S0 refuses the CPF
+        ParameterRecord(id="elim.renal.gfr_fraction", value=1.0, status=ParameterStatus.FIXED, provenance=prov,
+                        engine_binding=EngineBinding(building_block="Compound", process="GlomerularFiltration",
+                                                     parameter="GFR fraction", data_source="Literature")),
     ))
     return cpf.model_dump(mode="json")
 
@@ -122,7 +125,7 @@ def _prepared(tmp_path, study: dict, body: dict | None = None):
 def test_prepare_schedules_every_stage_by_default(tmp_path):
     """R0: the campaign used to be prepared for S0–S2 only (and the UI asked for S0–S1)."""
     _, prep, _ = _prepared(tmp_path, _study())
-    assert prep["stages"] == ["S0", "S1", "S2", "S3", "S4", "S5"]
+    assert prep["stages"] == ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"]
 
 
 def test_prepare_converts_observed_data_to_engine_units(tmp_path):

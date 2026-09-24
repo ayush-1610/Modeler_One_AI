@@ -26,7 +26,7 @@ from pbpk_domain.campaign.split import (
     StudyRecord,
     split_studies,
 )
-from pbpk_domain.cpf import CPF, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.cpf import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.m15 import Rating
 
 GOLDEN = Path(__file__).parents[2] / "engine-worker" / "golden" / "results_sample" / "results.csv"
@@ -42,7 +42,10 @@ def _renal_cpf() -> CPF:
         ParameterRecord(id="phys.pka.neutral", value=1.0, status=ParameterStatus.FIXED, provenance=prov),
         ParameterRecord(id="bind.fu", value=0.85, status=ParameterStatus.FIXED, provenance=prov),
         ParameterRecord(id="phys.solubility.ref", value=1.3, unit="mg/ml", status=ParameterStatus.FIXED, provenance=prov),
-        ParameterRecord(id="elim.renal.gfr_fraction", value=1.0, status=ParameterStatus.FIXED, provenance=prov),
+        # bound to PK-Sim's GFR process, or the pathway could not be placed and S0 refuses the CPF
+        ParameterRecord(id="elim.renal.gfr_fraction", value=1.0, status=ParameterStatus.FIXED, provenance=prov,
+                        engine_binding=EngineBinding(building_block="Compound", process="GlomerularFiltration",
+                                                     parameter="GFR fraction", data_source="Literature")),
     ))
 
 
@@ -419,3 +422,130 @@ def test_s4_reports_a_low_vpc_but_does_not_gate_on_it(tmp_path: Path) -> None:
     assert outcome.status == "COMPLETED", outcome.reason
     s4 = next(s for s in outcome.stages if s.stage == "S4")
     assert s4.status == "PASSED" and any("reported, not gated at S4" in f for f in s4.findings)
+
+
+class FullStubEngine(VpcStubEngine):
+    """Everything S0–S7 asks of the engine: simulations with result tables, VPC bands, sensitivity, batches."""
+
+    def __call__(self, job: EngineJob) -> EngineManifest:
+        manifest = super().__call__(job)
+        out_dir = Path(unquote(urlparse(job.outputs_uri).path))
+        outputs = list(manifest.outputs)
+
+        def emit(name: str, data: bytes) -> None:
+            p = out_dir / name
+            p.write_bytes(data)
+            outputs.append(OutputFile(name=name, uri=p.as_uri(), sha256=hashlib.sha256(data).hexdigest(), size_bytes=len(data)))
+
+        golden = GOLDEN.read_bytes()
+        if job.task == "simulate":
+            emit("snapshot-iv-Results.csv", golden)
+        if job.task == "sensitivity":
+            path = job.options["parameter_paths"][0]
+            emit("sensitivity.csv", ("QuantityPath,Parameter,PKParameter,Value\n"
+                                     f"Organism|PeripheralVenousBlood|Renaldrug|Plasma (Peripheral Venous Blood),{path},C_max,-0.42\n"
+                                     ).encode())
+        if job.task == "batch":
+            runs = job.options["runs"]
+            index = {"parameter_paths": job.options["parameter_paths"], "runs": []}
+            for i, _run in enumerate(runs, start=1):
+                emit(f"batch-{i:03d}-results.csv", golden)
+                index["runs"].append({"run": i, "results": f"batch-{i:03d}-results.csv"})
+            emit("batch_index.json", json.dumps(index).encode())
+        return manifest.__class__(**{**manifest.__dict__, "outputs": outputs})
+
+
+def test_campaign_runs_s0_to_s7_with_the_signature_gate_and_releases_a_reproducible_package(tmp_path: Path, monkeypatch) -> None:
+    """The whole pipeline: S6 waits for the signed S4/S5 evaluation (MS-01 §4 S6), then S6 predicts and S7
+    re-runs every bundled simulation, writes the MAR and releases the package only because reproduction passed."""
+    from dataclasses import replace
+
+    from modeler_orchestrator.local_runner import resolve_escalation
+    from pbpk_domain.cpf import FitPolicy, Uncertainty
+
+    monkeypatch.setenv("MODELER_OBJECT_STORE_URI", (tmp_path / "objstore").as_uri())
+    request, root = _seed_campaign(tmp_path, observed=_golden_observed())
+    cpf_path = Path(unquote(urlparse(request.cpf_uri).path))
+    cpf = CPF.model_validate_json(cpf_path.read_text())
+    prov = Provenance(source_type="ParameterIdentification", run="camp-loc-S1-r2")
+    fitted = cpf.get("phys.logp").model_copy(update={
+        "status": ParameterStatus.FITTED, "provenance": prov, "fit_policy": FitPolicy(stage=("S1",), lower=-3.0, upper=0.0),
+        "uncertainty": Uncertainty(sd=0.1, cv_percent=6.0, ci95_lower=-1.8, ci95_upper=-1.4)})
+    cpf_path.write_text(cpf.replace(fitted).model_dump_json())
+    request = replace(request, stages=["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"],
+                      cpf_sha256=hashlib.sha256(cpf_path.read_bytes()).hexdigest())
+    engine = FullStubEngine(low=0.5, high=2.0)
+
+    first = run_campaign(request, read_root=root, project="p", engine=engine)
+    assert first.status == "AWAITING_SIGNATURE"
+    inbox = FileReadStore(root).list_escalations("t1")
+    assert inbox[0]["reasonCode"] == "SIGNATURE_REQUIRED" and inbox[0]["options"][0]["id"] == "approve"
+
+    resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S6", action="approve",
+                       engine=engine, background=False)
+    campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
+    assert campaign["status"] == "COMPLETED", [s["notes"] for s in campaign["stages"]]
+    status = {s["stage"]: s["status"] for s in campaign["stages"]}
+    assert status["S6"] == "PASSED" and status["S7"] == "PASSED"
+    # S6: a sensitivity ranking and prediction intervals from 200 uncertainty draws
+    assert campaign["prediction"]["sensitivity"]["iv"][0]["parameter"] == "phys.logp"
+    assert campaign["prediction"]["intervals"]["iv"]["AUC"]["n"] == 200
+    # S7: reproduction passed on the bundled result table, the MAR rendered, the package released
+    package = campaign["package"]
+    assert package["reproduction"]["passes"] and package["reproduction"]["compared"] >= 1
+    assert package["exportable"] and Path(package["package"]).exists()
+    mar = Path(package["report"]["md"]).read_text()
+    assert "Internal validation" in mar and "Prediction intervals" in mar and "phys.logp" in mar
+    import zipfile
+
+    names = zipfile.ZipFile(package["package"]).namelist()
+    assert {"manifest.json", "rerun_all.R", "cpf/final.json", "map/map.json"} <= set(names)
+    assert any(n.startswith("results/S4-camp-loc/") for n in names)  # the numeric tables the re-run is judged on
+
+
+def test_package_is_withheld_when_reproduction_fails(tmp_path: Path, monkeypatch) -> None:
+    """Decision D13: no export unless the re-run reproduces the bundled results."""
+    from dataclasses import replace
+
+    from modeler_orchestrator.local_runner import resolve_escalation
+
+    monkeypatch.setenv("MODELER_OBJECT_STORE_URI", (tmp_path / "objstore").as_uri())
+    request, root = _seed_campaign(tmp_path, observed=_golden_observed())
+    request = replace(request, stages=["S0", "S1", "S4", "S6", "S7"])
+
+    class Drifting(FullStubEngine):
+        def __call__(self, job: EngineJob) -> EngineManifest:
+            manifest = super().__call__(job)
+            if job.job_id.startswith("camp-loc-S7-rerun"):
+                for o in manifest.outputs:
+                    if o.name.endswith("-Results.csv"):
+                        p = Path(unquote(urlparse(o.uri).path))
+                        p.write_text(p.read_text().replace("50.25272", "51.0"))  # the re-run disagrees
+            return manifest
+
+    engine = Drifting(low=0.5, high=2.0)
+    run_campaign(request, read_root=root, project="p", engine=engine)
+    resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S6", action="approve",
+                       engine=engine, background=False)
+    campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
+    assert campaign["status"] == "ESCALATED"
+    assert campaign["package"]["exportable"] is False and "package" not in campaign["package"]
+    assert campaign["package"]["reproduction"]["failures"]
+
+
+def test_s0_refuses_an_elimination_pathway_the_builder_cannot_place(tmp_path: Path) -> None:
+    """A CPF clearance with no engine binding would be silently absent from every simulation (found 2026-09-24
+    when a finished report listed 'NOT PLACED IN THE MODEL' yet concluded the model met its tier)."""
+    from modeler_contracts.runs import CampaignRequest as _Req
+    from modeler_orchestrator.campaign_activities import plan_campaign
+
+    prov = Provenance(source_type="measured", reference="x")
+    params = [p if p.id != "elim.renal.gfr_fraction" else
+              ParameterRecord(id=p.id, value=1.0, status=ParameterStatus.FIXED, provenance=prov)  # unbound
+              for p in _renal_cpf().parameters]
+    path = tmp_path / "cpf.json"
+    path.write_text(CPF(compound="Renaldrug", parameters=tuple(params)).model_dump_json(), encoding="utf-8")
+    readiness = plan_campaign(_Req(campaign_id="c", tenant_id="t1", compound="Renaldrug", map_id="m",
+                                   cpf_uri=path.as_uri(), cpf_sha256="a" * 64))
+    assert readiness.ready is False
+    assert any("elim.renal.gfr_fraction cannot be placed in the model" in f for f in readiness.findings)

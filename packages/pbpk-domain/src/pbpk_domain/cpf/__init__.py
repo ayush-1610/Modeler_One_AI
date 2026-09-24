@@ -22,6 +22,7 @@ from pbpk_domain.cpf.models import (
     ParameterStatus,
     Plausibility,
     Provenance,
+    Uncertainty,
 )
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "Plausibility",
     "Provenance",
     "Scenario",
+    "Uncertainty",
     "bind",
     "build_from_cpf",
     "check_completeness",
