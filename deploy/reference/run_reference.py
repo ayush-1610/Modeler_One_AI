@@ -307,6 +307,24 @@ def summary(step: str, result: dict) -> str:
     return "\n".join(lines)
 
 
+def recap(text: str) -> str:
+    """The headline and every round-trip row outside 1e-6 of the peak, again at the end of the log (the parameter
+    lists above run long; a log tail must still show the result)."""
+    keep = [line for line in text.splitlines() if line.startswith(("### ", "| group", "| stage", "| S"))
+            or (line.startswith("| ") and _off_row(line))]
+    return "\n".join(["#### recap", *keep])
+
+
+def _off_row(line: str) -> bool:
+    cells = [c.strip() for c in line.strip("|").split("|")]
+    if len(cells) < 4 or cells[0] in ("ours", "study", "parameter", "---"):
+        return False
+    try:
+        return float(cells[3]) > 1e-6
+    except ValueError:
+        return cells[3].startswith("ERROR")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("step", choices=["roundtrip", "campaign", "evaluate"])
@@ -325,6 +343,7 @@ def main() -> int:
         result = campaign(args.model, args.mode, args.out, system=args.system)
     text = summary(args.step, result)
     print(text)
+    print(recap(text))
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary:
         with open(step_summary, "a", encoding="utf-8") as handle:

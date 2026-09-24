@@ -15,6 +15,10 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — reference logs end with a recap
+- `deploy/reference/run_reference.py` prints the headline and every round-trip pair outside 1e-6 again at the end of
+  the log: the parameter lists run long, and log tails missed the result.
+
 ### Fixed — a model value the published simulation leaves at its default stays default
 - The model's simulation-level values (`sim.*`, `sim[route].*`) were applied to every simulation of the route. A
   published simulation that does not set one keeps PK-Sim's default. The study now names those paths
