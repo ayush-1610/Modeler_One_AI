@@ -38,6 +38,12 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **`docker_engine.sh` on Linux** runs the engine as the calling user (the job directory is 0700; the image's uid
   10001 could not write there).
 
+### Fixed — the engine image was not the qualified engine
+- **The Dockerfile pinned nothing but R and .NET.** Built today it pulled rSharp 2.0.0 (needs .NET 10) with the
+  .NET 8 runtime, and PK-Sim could not start (`No .NET 10 runtime was found`; first reference run). The qualified
+  engine (golden/catalog.json) is ospsuite 12.4.4 / PI 2.2.0 / rSharp 1.2.2. rSharp is now installed from its
+  tagged 1.2.2 release, and the build fails unless all three versions match.
+
 ### Added — reference runs on real PK-Sim (GitHub Actions)
 - `deploy/reference/run_reference.py` (round trip / as-is / refit) and `.github/workflows/reference-models.yml`. The
   workflow builds the pinned engine image on a GitHub runner, where CRAN and the OSP r-universe are reachable (they
