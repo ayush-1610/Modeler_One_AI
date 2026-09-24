@@ -65,6 +65,25 @@ external study). The data are the example's illustrative IV profile, not clinica
   carry per-study and per-group results. Stage notes (skip reasons, studies not simulated) are shown under the stage
   rail. Each stage keeps its own goodness-of-fit plot (`gofByStage`).
 
+### Fixed — enzymes and transporters now act on PK-Sim (plan item 1.2, R4)
+- **Every enzyme-cleared drug had been simulated with zero metabolic clearance.** The CPF build never gave the
+  individual an expression profile for the enzymes its processes name, so the processes had no protein to act on.
+  Proven on PK-Sim: a UGT1A9-cleared compound (CLspec 0.4 l/µmol/min) built the old way gives AUC(0–48 h) 1242.7
+  µmol·min/l — identical to no clearance at all. The run looked valid; nothing warned.
+- **Expression library harvested from the OSP reference models** (`pbpk_domain/data/expression_library.json`,
+  `scripts/harvest_expression_library.py`): 16 proteins (CYP3A4, CYP1A1, UGT1A1/1A4/1A9/2B7, AADAC, P-gp, ABCB1,
+  ABCG2, OATP1B1, …) copied verbatim with their per-organ relative expression, half-lives, transport directions and
+  ontogeny, each with its source model recorded. A profile needs those tables — with only a reference concentration
+  every organ's relative expression is zero and the process still does nothing.
+- The CPF build gives every subject the harvested profile of every process protein. Same compound, now: AUC 112.8
+  µmol·min/l, t½ 8.5 h — the enzyme clears the drug.
+- **S0 refuses a CPF whose process names a protein with no harvested profile** (MS-01 §S0), instead of running a
+  model that silently eliminates nothing. Build notes name each profile's source.
+- **Transporter direction was being dropped.** The builder wrote `TransporterType`; the snapshot key (per the
+  engine-harvested catalog) is `TransportType`, so PK-Sim ignored it and defaulted the direction — an influx
+  transporter such as OATP1B1 would have been modelled wrongly. The test fixture that "confirmed" the old key was
+  hand-written; corrected.
+
 ### Changed — diagnostics ruleset `diag-rules` 0.1 → 0.2 (UNVERIFIED; change approved by the project owner)
 - **R6 — the clearance rule offers renal clearance before logP**: `fit elim.renal.gfr_fraction`, then
   `fit elim.renal.ts_clspec`, then `fit phys.logp`. Under 0.1 a renally cleared compound with wrong renal clearance
@@ -79,6 +98,12 @@ external study). The data are the example's illustrative IV profile, not clinica
 - **`deploy/dev/deploy_to_server.sh`**: rsync + dependencies + web build + restart, as one command.
 - **Server redeployed** to the current build (it was running a 2026-09-20 build), autostart installed, engine gate
   (`golden_roundtrip.R`, `verify_run_round.sh`) passes there. Tailscale installed in userspace mode, awaiting login.
+
+### Known gap — found while fixing the above
+- **Fit starts run one after another on the single-node runner** (`LocalExecutor._run_fit`), even on the 48-core
+  server: the verification campaign took 4 min 50 s on the server for one two-round stage. Priority #2 (a campaign
+  within an hour) needs the starts run in parallel.
+- `modeler_intake` keeps its own unit tables; they should use `pbpk_domain.units` so there is one source.
 
 ### Known gap — diagnosed 2026-09-24 (the reason every campaign stopped at S1)
 Tracked as R1–R13 in the plan. The critical ones:

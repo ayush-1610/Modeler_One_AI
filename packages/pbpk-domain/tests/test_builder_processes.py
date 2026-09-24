@@ -115,7 +115,7 @@ def test_enzyme_expression_keeps_localization() -> None:
 def test_transporter_type_emitted_when_set() -> None:
     profile = ExpressionSpec(type="Transporter", molecule="P-gp", transporter_type="Efflux").to_profile()
     dumped = profile.model_dump(by_alias=True, exclude_none=True)
-    assert dumped["TransporterType"] == "Efflux"
+    assert dumped["TransportType"] == "Efflux"  # the snapshot key per the engine catalog (was an invented "TransporterType")
 
 
 # --- full snapshot with the new processes builds and validates -----------------------------------

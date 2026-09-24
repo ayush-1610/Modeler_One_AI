@@ -7,9 +7,10 @@ snapshot from the CPF (`pbpk_domain.cpf.build_from_cpf`). The mapping is determi
 value: a study-specific unknown the scenario does not carry (an IV infusion time, an IR/MR dissolution model)
 raises `ScenarioBuildError` naming the gap rather than guessing one.
 
-What is deferred, and surfaced as a build note rather than silently dropped:
-- expression profiles for the compound's process molecules (needed for the run; the CPF does not yet model
-  reference concentrations), and
+Each process protein (enzyme, transporter, binding partner) is given its expression profile, harvested from the
+OSP reference models (`pbpk_domain.expression`). What is deferred, and surfaced as a build note rather than
+silently dropped:
+- a process protein with no harvested profile (its process cannot act), and
 - an explicit study weight/height (the OSP reference individuals carry none; the OriginData keys await
   harvest — see `pbpk_domain.campaign.split.Demographics`).
 """
@@ -156,17 +157,17 @@ def _deferral_notes(snapshot: Snapshot, scenarios: Sequence[MapScenario], report
             "NOT PLACED IN THE MODEL: " + ", ".join(report.unresolved) + " — these CPF parameters have no engine "
             "binding the builder can use, so the simulation does not include them"
         )
-    molecules = sorted({
-        p.molecule
-        for c in snapshot.compounds
-        for p in c.processes
-        if p.molecule and p.internal_name != "GlomerularFiltration"
-    })
-    if molecules:
+    if report is not None and report.missing_expression:
         notes.append(
-            "expression profiles are required for " + ", ".join(molecules) + " for these processes to act in the "
-            "simulation; they are not emitted yet (the CPF does not model reference concentrations)"
+            "NOT ACTIVE IN THE MODEL: no harvested expression profile for " + ", ".join(report.missing_expression)
+            + " — their processes have no protein to act on (harvest the profile from an OSP reference model)"
         )
+    if report is not None and report.expression_profiles:
+        from pbpk_domain.expression import expression_source
+
+        notes.append("expression profiles: " + "; ".join(
+            f"{m} from the {expression_source(m)}" for m in report.expression_profiles
+        ))
     weighed = sorted({s.study_id for s in scenarios if s.weight_kg is not None or s.height_cm is not None})
     if weighed:
         notes.append(

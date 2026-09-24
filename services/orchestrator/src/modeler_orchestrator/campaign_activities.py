@@ -117,9 +117,17 @@ def plan_campaign(request: CampaignRequest) -> S0Readiness:
     if text is None:
         return S0Readiness(ready=True, findings=["CPF not loadable in this environment; completeness not checked (T-07 pending)"])
     from pbpk_domain.cpf import CPF, check_completeness
+    from pbpk_domain.cpf.build import missing_expression_profiles
 
-    report = check_completeness(CPF.model_validate_json(text))
-    return S0Readiness(ready=report.ready, findings=list(report.missing))
+    cpf = CPF.model_validate_json(text)
+    report = check_completeness(cpf)
+    findings = list(report.missing)
+    # MS-01 §S0: every enzyme/transporter a process names must have an expression profile, or the process
+    # silently eliminates nothing on the engine.
+    for molecule in missing_expression_profiles(cpf):
+        findings.append(f"no expression profile for {molecule}: its processes cannot act in PK-Sim "
+                        "(harvest it from an OSP reference model into the expression library)")
+    return S0Readiness(ready=report.ready and not missing_expression_profiles(cpf), findings=findings)
 
 
 @activity.defn(name="plan_stage")

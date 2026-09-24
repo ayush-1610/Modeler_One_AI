@@ -42,7 +42,7 @@
   },
   "expression_types": [
     {"type": "Enzyme", "fields": ["Type", "Species", "Molecule", "Category", "Localization"], "seen_in": ["Midazolam-Model"]},
-    {"type": "Transporter", "fields": ["Type", "Species", "Molecule", "Category", "TransporterType", "Localization"], "seen_in": ["Dapagliflozin-Model"]}
+    {"type": "Transporter", "fields": ["Type", "Species", "Molecule", "Category", "TransportType", "Localization"], "seen_in": ["Dapagliflozin-Model"]}
   ],
   "event_templates": [
     {"name": "Meal", "seen_in": ["Itraconazole-Model"]}

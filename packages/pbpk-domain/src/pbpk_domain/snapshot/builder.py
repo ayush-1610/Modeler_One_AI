@@ -447,8 +447,13 @@ _ENZYME_LOCALIZATION = "Intracellular, BloodCellsIntracellular, VascEndosome"
 
 class ExpressionSpec(Spec):
     """An enzyme, transporter or other-protein expression profile. Real OSP transporter profiles carry no
-    Localization and no TransporterType (PK-Sim supplies both from its database for the named transporter),
-    so those are emitted only when set; enzymes keep the standard intracellular localization by default."""
+    Localization (PK-Sim supplies it for the named transporter), so it is emitted only when set; enzymes keep
+    the standard intracellular localization by default.
+
+    ``harvested`` is a profile copied verbatim from an OSP reference snapshot (`pbpk_domain.expression`): its
+    per-organ relative expressions, half-lives, transport directions and ontogeny. Without those every organ's
+    relative expression is zero and the protein's processes do nothing, so a campaign build always uses a
+    harvested profile; the bare form (molecule and reference concentration only) exists for builder tests."""
 
     type: Literal["Enzyme", "Transporter", "OtherProtein"] = "Enzyme"
     molecule: str = Field(min_length=1)
@@ -458,6 +463,7 @@ class ExpressionSpec(Spec):
     transporter_type: str | None = None  # e.g. "Efflux", "Influx"; Transporter profiles only
     ontogeny: str | None = None
     reference_concentration: Measured | None = None
+    harvested: dict | None = None
 
     @field_validator("reference_concentration")
     @classmethod
@@ -469,6 +475,8 @@ class ExpressionSpec(Spec):
         return expression_profile_reference(self.molecule, self.species, self.category)
 
     def to_profile(self) -> ExpressionProfile:
+        if self.harvested is not None:
+            return self._harvested_profile()
         fields: dict = {"type": self.type, "species": self.species, "molecule": self.molecule, "category": self.category}
         if self.reference_concentration is not None:
             fields["parameters"] = [
@@ -478,10 +486,22 @@ class ExpressionSpec(Spec):
         if localization is not None:
             fields["localization"] = localization
         if self.transporter_type is not None:
-            fields["TransporterType"] = self.transporter_type
+            fields["TransportType"] = self.transporter_type  # the snapshot key, as in the engine catalog
         if self.ontogeny:
             fields["ontogeny"] = {"Name": self.ontogeny}
         return ExpressionProfile(**fields)
+
+    def _harvested_profile(self) -> ExpressionProfile:
+        """The harvested profile under this spec's identity (category, species), with a reference-concentration
+        override applied when one is set."""
+        doc = dict(self.harvested or {})
+        doc.update({"Type": self.type, "Species": self.species, "Molecule": self.molecule, "Category": self.category})
+        if self.reference_concentration is not None:
+            path = f"{self.molecule}|Reference concentration"
+            override = self.reference_concentration.to_parameter(path=path).model_dump(by_alias=True, exclude_none=True)
+            params = [p for p in doc.get("Parameters", []) if p.get("Path") != path]
+            doc["Parameters"] = [override, *params]
+        return ExpressionProfile.model_validate(doc)
 
 
 class SubjectSpec(Spec):

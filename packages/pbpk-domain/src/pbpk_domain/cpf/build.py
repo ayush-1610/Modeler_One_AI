@@ -59,6 +59,49 @@ class BuildReport:
     cpf_version: int
     bindings_used: tuple[str, ...]   # CPF parameter ids placed into the snapshot
     unresolved: tuple[str, ...]      # CPF parameter ids the current builder cannot place (need T-10)
+    expression_profiles: tuple[str, ...] = ()  # proteins given a harvested expression profile on every subject
+    missing_expression: tuple[str, ...] = ()   # proteins a process names but the library has no profile for
+
+
+def process_molecules(cpf: CPF) -> tuple[str, ...]:
+    """The proteins (enzymes, transporters, binding partners) the CPF's processes act through, in CPF order.
+    Each needs an expression profile on the individual, or its process does nothing (MS-01 §S0)."""
+    seen: dict[str, None] = {}
+    for record in cpf.parameters:
+        eb = record.engine_binding
+        if record.status is ParameterStatus.MISSING or eb is None or eb.process_internal_name is None:
+            continue
+        if eb.molecule:
+            seen.setdefault(eb.molecule, None)
+    return tuple(seen)
+
+
+def missing_expression_profiles(cpf: CPF) -> tuple[str, ...]:
+    """Process proteins with no harvested expression profile — the S0 readiness check."""
+    from pbpk_domain.expression import expression_library
+
+    library = expression_library()
+    return tuple(m for m in process_molecules(cpf) if m not in library)
+
+
+def _with_expression(subjects: Sequence[SubjectSpec], molecules: Sequence[str]) -> tuple[list[SubjectSpec], list[str], list[str]]:
+    """Every subject gets the harvested profile of every process protein it does not already express."""
+    from pbpk_domain.expression import library_expression
+
+    specs, placed, missing = [], [], []
+    for molecule in molecules:
+        spec = library_expression(molecule)
+        if spec is None:
+            missing.append(molecule)
+        else:
+            specs.append(spec)
+            placed.append(molecule)
+    out = []
+    for subject in subjects:
+        have = {e.molecule for e in subject.expression}
+        extra = [e for e in specs if e.molecule not in have]
+        out.append(subject.model_copy(update={"expression": [*subject.expression, *extra]}) if extra else subject)
+    return out, placed, missing
 
 
 # CPF id prefixes that must reach the engine as a process; anything here that the builder does not place
@@ -273,6 +316,8 @@ def build_from_cpf(
     Raises SnapshotBuildError (referential problems) or ValueError (missing required CPF parameters).
     """
     compound, used, unresolved = _compound_from_cpf(cpf)
+    # Each process's protein must be expressed in the individual, or the process eliminates nothing.
+    subjects, expressed, missing = _with_expression(subjects, process_molecules(cpf))
 
     builder = SnapshotBuilder(snapshot_version) if snapshot_version is not None else SnapshotBuilder()
     builder.add_compound(compound)
@@ -301,5 +346,7 @@ def build_from_cpf(
         cpf_version=cpf.version,
         bindings_used=tuple(dict.fromkeys(used)),
         unresolved=tuple(unresolved),
+        expression_profiles=tuple(expressed),
+        missing_expression=tuple(missing),
     )
     return snapshot, report

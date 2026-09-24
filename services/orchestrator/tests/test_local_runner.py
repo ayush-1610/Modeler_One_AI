@@ -296,3 +296,23 @@ def test_failed_internal_validation_escalates_without_refitting(tmp_path: Path) 
     escalation = FileReadStore(root).list_escalations("t1")[0]
     assert escalation["reasonCode"] == "INTERNAL_VALIDATION_FAILED"
     assert [o["id"] for o in escalation["options"]] == ["accept_best", "abort"]  # §6.6: no blind retry
+
+
+def test_s0_refuses_a_process_whose_protein_has_no_expression_profile(tmp_path: Path) -> None:
+    """MS-01 §S0: an enzyme with no expression profile would eliminate nothing on PK-Sim (proven 2026-09-24)."""
+    from modeler_contracts.runs import CampaignRequest as _Req
+    from modeler_orchestrator.campaign_activities import plan_campaign
+    from pbpk_domain.cpf import EngineBinding
+
+    prov = Provenance(source_type="measured", reference="x")
+    base = list(_renal_cpf().parameters)
+    unharvested = ParameterRecord(
+        id="elim.hepatic.CYP2C99.clspec", value=0.5, unit="l/µmol/min", status=ParameterStatus.FIXED, provenance=prov,
+        engine_binding=EngineBinding(building_block="Compound", process="MetabolizationSpecific_FirstOrder:CYP2C99",
+                                     parameter="CLspec/[Enzyme]", data_source="Optimized"))
+    path = tmp_path / "cpf.json"
+    path.write_text(CPF(compound="Renaldrug", parameters=(*base, unharvested)).model_dump_json(), encoding="utf-8")
+    readiness = plan_campaign(_Req(campaign_id="c", tenant_id="t1", compound="Renaldrug", map_id="m",
+                                   cpf_uri=path.as_uri(), cpf_sha256="a" * 64))
+    assert readiness.ready is False
+    assert any("no expression profile for CYP2C99" in f for f in readiness.findings)
