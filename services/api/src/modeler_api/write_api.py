@@ -147,6 +147,9 @@ class StudyUpload(BaseModel):
     food_state: str = "fasted"
     # every meal as given: [{time_h (after the first dose; negative: before), template, name, parameters}]
     meals: list[dict[str, Any]] = Field(default_factory=list)
+    # process selections the study's simulation leaves out (compound -> names): a phenotype such as a CYP2C19 poor
+    # metaboliser; such a study is a genotype (PGx) study
+    inactive_processes: dict[str, list[str]] = Field(default_factory=dict)
     # Who was studied: a patient or special population (e.g. renal impairment) is classified SPECIAL by the split
     # (MS-01 §3.2) and never fits the healthy-volunteer model; without these it would be taken as healthy.
     population_type: str = "healthy"

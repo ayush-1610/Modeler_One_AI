@@ -204,6 +204,9 @@ class StudyRecord(BaseModel):
     # each daily dose and standard meals; Metformin: a 300 kcal standard meal). Empty: a fed study's meal is the MAP's
     # template at the dose; a fasted one has none.
     meals: tuple[Meal, ...] = ()
+    # process selections (compound -> names) the study's simulation leaves out: a phenotype the model represents by
+    # switching a pathway off (OSP Omeprazole CYP2C19 poor metabolisers: "CYP2C19-2C19 Linear Fit" not selected)
+    inactive_processes: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     demographics: Demographics | None = None  # the studied individual; DEFAULT_DEMOGRAPHICS when absent
     statistic: Statistic = Statistic.MEAN_SD
     n_timepoints: int = Field(gt=0)

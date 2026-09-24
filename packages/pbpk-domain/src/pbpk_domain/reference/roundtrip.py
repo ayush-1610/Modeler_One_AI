@@ -20,9 +20,14 @@ from pbpk_domain.reference.osp_import import ReferenceImport, SystemImport
 ROUNDTRIP_STAGE = "RT"
 
 
-def study_records(imported: ReferenceImport) -> list[StudyRecord]:
+def study_records(imported: ReferenceImport | SystemImport) -> list[StudyRecord]:
+    """The imported studies as campaign records. A genotype the published model expresses as switched-off processes
+    (a poor metaboliser) is planned as an ordinary scenario here: the round trip checks that the build reproduces the
+    published simulation, and the campaign still classes such a study PGX (MS-01 §3.3 rule 4)."""
     fields = StudyRecord.model_fields
-    return [StudyRecord.model_validate({k: v for k, v in s.items() if k in fields}) for s in imported.studies]
+    return [StudyRecord.model_validate({k: v for k, v in s.items() if k in fields
+                                        and not (k == "genotype" and s.get("inactive_processes"))})
+            for s in imported.studies]
 
 
 def study_snapshot(imported: ReferenceImport, *, linked_only: bool) -> tuple[dict[str, Any], dict[str, str], list[str]]:
@@ -73,8 +78,7 @@ def system_roundtrip_inputs(imported: SystemImport) -> tuple[dict[str, Any], lis
     """The round trip of a model system: every linked study built as the system simulates it, each pair compared on
     the study's analyte (a compound's plasma, or a published sum observer) at the same output path on both sides."""
     system = imported.system
-    studies = [StudyRecord.model_validate({k: v for k, v in s.items() if k in StudyRecord.model_fields})
-               for s in imported.studies]
+    studies = study_records(imported)
     main_cpf = system.cpf(system.parents[0])
     sampling_end_h = {s["study_id"]: max(s["profile"]["times"]) / 60.0 if s["profile"]["time_unit"] == "min"
                       else max(s["profile"]["times"]) for s in imported.studies}

@@ -367,6 +367,19 @@ def _selection_molecule_records(snapshot: dict[str, Any], compound: dict[str, An
         out.add(f"molecule.{name}", molecule, binding=EngineBinding(building_block=PROCESS_SELECTION, parameter=name))
 
 
+def _common_selections(snapshot: dict[str, Any]) -> dict[str, set[str]]:
+    """Per compound, the process selections most (over half) of the simulations containing it make: the model's
+    pathways, against which a simulation that leaves one out is recognised."""
+    counts: dict[str, Counter[str]] = {}
+    totals: Counter[str] = Counter()
+    for sim in snapshot.get("Simulations", []):
+        for entry in sim.get("Compounds", []):
+            totals[entry["Name"]] += 1
+            counts.setdefault(entry["Name"], Counter()).update(
+                {q["Name"] for q in entry.get("Processes", []) or [] if q.get("Name")})
+    return {name: {n for n, k in c.items() if 2 * k > totals[name]} for name, c in counts.items()}
+
+
 def _selection_name(process: dict[str, Any]) -> str:
     """How a simulation selects a compound process (harvested: molecule-based, GFR, total hepatic, renal)."""
     ds = process.get("DataSource")
@@ -788,6 +801,7 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
     protocols = {p["Name"]: p for p in snapshot.get("Protocols", [])}
     individuals = {i["Name"]: i for i in snapshot.get("Individuals", [])}
     events = {e["Name"]: e for e in snapshot.get("Events", []) or []}
+    common = _common_selections(snapshot)
     main = _main_individual(snapshot)
     by_sim: dict[str, dict[str, Any]] = {}
     links: dict[str, dict[str, Any]] = {}
@@ -820,6 +834,9 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
                               events.get(e.get("Name"), {"Name": e.get("Name")})) for e in sim.get("Events") or []),
                             key=lambda m: m[0]),
             "infusion_min": infusion,
+            # the process selections each compound has in this simulation
+            "selections": {c["Name"]: {q["Name"] for q in c.get("Processes", []) or [] if q.get("Name")}
+                           for c in sim.get("Compounds", [])},
         }
         if members is None:
             link["co_dosed"] = [n for n in _dosed(sim) if n != compound]
@@ -844,6 +861,8 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
                     link["feedback"].append(f"the published simulation runs {name} {selection} on {molecule}; "
                                             f"the model runs it on {imported_on[selection]}")
         # a property alternative this simulation uses that the model would not select: `_alternative_selection`
+        kept = {compound} if members is None else set(members)
+        link["common_selections"] = {name: names for name, names in common.items() if name in kept}
         by_sim[sim["Name"]] = link
         for name in sim.get("ObservedData", []):
             links.setdefault(name, link)
@@ -1433,6 +1452,15 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         co_medication = ", ".join(link["co_dosed"])
     if co_medication is not None:
         row["co_medication"] = co_medication
+    # A pathway the published simulation switches off for this study (a phenotype: OSP Omeprazole's CYP2C19 poor
+    # metabolisers) is switched off here too; the study is then a genotype study (MS-01: never fitted in S1-S3).
+    inactive = {name: tuple(sorted(common - selected)) for name, selected in ((link or {}).get("selections") or {}).items()
+                if (common := (link or {}).get("common_selections", {}).get(name)) and common - selected}
+    if inactive:
+        row["inactive_processes"] = inactive
+        row.setdefault("genotype", "; ".join(f"{name} without {', '.join(off)}" for name, off in inactive.items()))
+        said.append("the published simulation leaves out " + "; ".join(
+            f"{', '.join(off)} ({name})" for name, off in inactive.items()) + ": simulated without them, as a genotype study")
 
     per_h = 60.0 if dataset["BaseGrid"].get("Unit") == "min" else 1.0
     times = [float(t) - shift_h * per_h for t in dataset["BaseGrid"]["Values"]]

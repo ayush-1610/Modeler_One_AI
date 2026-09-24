@@ -424,3 +424,35 @@ def test_every_meal_of_a_fed_regimen_is_given_with_its_template_and_values():
     ours, _pairs, _notes = roundtrip_inputs(metformin)
     event = next(e for e in ours["Events"] if e["Name"].startswith("somogyi-1987-po-195-mg-fed-plasma-n-7"))
     assert {q["Name"]: q["Value"] for q in event["Parameters"]}["Meal energy content"] == 300.0
+
+
+def _processes(ours: dict, name: str) -> dict[str, set[str]]:
+    sim = next(s for s in ours["Simulations"] if s["Name"] == name)
+    return {c["Name"]: {p["Name"] for p in c.get("Processes", []) if p.get("Name")} for c in sim["Compounds"]}
+
+
+def test_a_process_the_published_simulation_switches_off_stays_off():
+    """OSP Omeprazole simulates poor metabolisers without the CYP2C19 process (both enantiomers); OSP Metformin
+    simulates Morrissey 2016 with glomerular filtration only. The study is classed PGX for the campaign (MS-01 §3.3
+    rule 4) and the round trip still builds it as published."""
+    from pbpk_domain.campaign.split import StudyClass, classify
+    from pbpk_domain.reference.roundtrip import roundtrip_inputs, study_records
+
+    omeprazole = import_osp_system(_snapshot("Omeprazole"))
+    pm = _study(omeprazole, "uno2007-omeprazole-20mg-iv-bolus-pm")
+    assert pm["inactive_processes"] == {"Esomeprazole": ("CYP2C19-2C19 Linear Fit",),
+                                        "R-omeprazole": ("CYP2C19-2C19 Linear Fit",)}
+    assert classify(StudyRecord.model_validate({k: v for k, v in pm.items() if k in StudyRecord.model_fields})) \
+        is StudyClass.PGX
+    assert not next(s for s in study_records(omeprazole) if s.study_id == pm["study_id"]).genotype
+    ours, pairs, _notes = system_roundtrip_inputs(omeprazole)
+    assert {"uno2007-omeprazole-20mg-iv-bolus-pm", "fda-esomeprazole-40mg-po-pm"} <= {p["ours"] for p in pairs}
+    off = _processes(ours, "uno2007-omeprazole-20mg-iv-bolus-pm")
+    assert all("CYP2C19-2C19 Linear Fit" not in names and "CYP3A4-3A4 Linear Fit" in names for names in off.values())
+    assert "CYP2C19-2C19 Linear Fit" in _processes(ours, "fda-esomeprazole-40mg-po-em")["Esomeprazole"]
+
+    metformin = import_osp_snapshot(_snapshot("Metformin"))
+    morrissey = _study(metformin, "morrissey-2016-po-662-9-mg-plasma-n-12")
+    assert set(morrissey["inactive_processes"]["Metformin"]) == {"MATE1-Paper", "OCT1-Paper", "OCT2-Paper", "PMAT-Paper"}
+    ours, _pairs, _notes = roundtrip_inputs(metformin)
+    assert not {n for n in _processes(ours, morrissey["study_id"])["Metformin"] if n.endswith("-Paper")}

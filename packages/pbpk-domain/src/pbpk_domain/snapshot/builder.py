@@ -1087,6 +1087,8 @@ class SimulationSpec(Spec):
     co_compounds: tuple[CoCompoundSpec, ...] = ()
     # the main compound's alternative per group (GroupName -> AlternativeName) where it is not the default
     alternatives: dict[str, str] = Field(default_factory=dict)
+    # process selections left out of this simulation, per compound (a phenotype: CYP2C19 poor metabolisers)
+    inactive_processes: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     observer_sets: tuple[str, ...] = ()  # ObserverSets (added with SnapshotBuilder.add_observer_set) this computes
 
 
@@ -1209,6 +1211,7 @@ class SnapshotBuilder:
 
     def _simulation_compound(self, name: str, protocol: str | None, formulation: str | None,
                              bins: tuple[str, ...] = (), chosen: dict[str, str] | None = None,
+                             inactive: tuple[str, ...] = (),
                              ) -> tuple[SimulationCompound, list[dict]]:
         compound_fields: dict = {"name": name}
         compound = self._compounds.get(name)
@@ -1232,6 +1235,7 @@ class SnapshotBuilder:
             selections = [
                 sel.model_copy(update={"molecule_name": mapped[sel.name]}) if sel.molecule_name and sel.name in mapped else sel
                 for p in compound.processes if (sel := process_selection_for(p.to_process())) is not None
+                and sel.name not in inactive
             ]
             if selections:
                 compound_fields["processes"] = selections
@@ -1245,9 +1249,11 @@ class SnapshotBuilder:
         return SimulationCompound(**compound_fields), interactions
 
     def _simulation(self, spec: SimulationSpec) -> Simulation:
+        off = spec.inactive_processes
         entries = [self._simulation_compound(spec.compound, spec.protocol, spec.formulation, spec.formulation_bins,
-                                             spec.alternatives),
-                   *(self._simulation_compound(c.name, c.protocol, c.formulation, c.formulation_bins) for c in spec.co_compounds)]
+                                             spec.alternatives, off.get(spec.compound, ())),
+                   *(self._simulation_compound(c.name, c.protocol, c.formulation, c.formulation_bins,
+                                               inactive=off.get(c.name, ())) for c in spec.co_compounds)]
         interactions = [sel for _entry, sels in entries for sel in sels]
         plasma = [PLASMA_OUTPUT_PATH.format(compound=name) for name in (spec.compound, *(c.name for c in spec.co_compounds))]
 

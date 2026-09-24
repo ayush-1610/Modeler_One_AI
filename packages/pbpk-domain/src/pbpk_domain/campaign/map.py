@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from pbpk_domain.acceptance import load_acceptance_ruleset
 from pbpk_domain.campaign.split import (
@@ -154,6 +154,7 @@ class MapScenario(BaseModel):
     food_state: str
     meal_template: str | None
     meals: tuple[Meal, ...] = ()  # every meal as given (StudyRecord.meals)
+    inactive_processes: dict[str, tuple[str, ...]] = Field(default_factory=dict)  # StudyRecord.inactive_processes
     n_subjects: int
     population: str
     sex: str
@@ -316,7 +317,7 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
                 infusion_time_min=study.infusion_time_min,
                 formulation=study.formulation.value, food_state=study.food_state.value,
                 meal_template=meal_template if study.food_state.value == "fed" else None,
-                meals=study.meals, n_subjects=study.n,
+                meals=study.meals, inactive_processes=study.inactive_processes, n_subjects=study.n,
                 population=demo.population, sex=demo.sex.value, age_years=demo.age_years,
                 weight_kg=demo.weight_kg, height_cm=demo.height_cm, study_class=row.study_class.value,
                 formulation_name=study.formulation_name,

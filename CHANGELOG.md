@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a process the published simulation switches off stays off (poor metabolisers)
+- A study whose published simulation leaves out processes the model's other simulations use now carries them as
+  `inactive_processes` (per compound; the importer compares each simulation's process selection with the one most of
+  them share). The builder leaves them out of that simulation only. OSP Omeprazole's poor-metaboliser studies (Uno
+  2007, FDA esomeprazole) lose CYP2C19 on both enantiomers; OSP Metformin's Morrissey 2016 keeps only glomerular
+  filtration. Before, both were built with every process: the PM curves ran on EM clearance.
+- Such a study is marked with a genotype ("<compound> without <processes>"), so the campaign classes it PGX and keeps
+  it out of S1–S3 (MS-01 §3.3 rule 4, unchanged). The round trip plans it as an ordinary scenario, because it checks
+  the build against the published simulation. Omeprazole's system round trip goes from 9 to 14 pairs.
+- Carried through `StudyRecord`, `MapScenario`, the study upload API and `SimulationSpec.inactive_processes`.
+  Impact: needs a PK-Sim round trip to confirm (Actions is blocked; `deploy/reference/run_all.sh omeprazole`).
+
 ### Added — try it: 12 published models in the wizard; reference checks on the server; the plan to the goal
 - The create-project wizard offers every single-compound OSP library model that imports S0-ready (Rifampicin,
   Midazolam, Alfentanil, Alprazolam, Clarithromycin, Digoxin, Metformin, Raltegravir, Ketoconazole, Voriconazole,
