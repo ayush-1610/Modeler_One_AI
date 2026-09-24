@@ -15,6 +15,40 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the model regenerated from a published CPF was not the published model (found preparing the round trip)
+- **Simulation-level compound values were dropped.** Every published Dapagliflozin simulation sets
+  `Dapagliflozin|logP (veg.oil/water)` = 2.083 (drives Rodgers & Rowland tissue partitioning) and the measured
+  blood/plasma ratio 0.88. The CPF now carries them as `sim.<path>` records (Simulation building block), and the
+  builder writes them into every simulation's `Parameters`.
+- **Inhibition and induction never acted.** The builder selected `CompetitiveInhibition` / `Induction` among the
+  compound's `Processes`. PK-Sim selects them as the simulation's `Interactions`
+  (`{"Name": "<Molecule>-<DataSource>", "MoleculeName", "CompoundName"}`, harvested from the OSP Rifampicin snapshot),
+  so rifampicin's auto-induction of its own metabolism (AADAC) and transport (P-gp, OATP1B1) would have been
+  silently off. Now written as interactions. The old test that asserted the wrong selection is corrected.
+- **Rifampicin imports** (51 plasma studies from its 13 sources; 38 datasets named and not used): values the paper
+  identified are recognised by `ValueOrigin.Method` too, so they are `FITTED`. Studies are linked through the
+  paper's own parameter identifications (`ParameterIdentifications[].OutputMappings`) as well as the simulations.
+  Every OSP regimen notation is read (`(S0-T24-R14)`, `(S-0,T-24,R-7)`, `0-24-48-…`, mixed). A linked
+  multiple-dose protocol applies only when the dataset was sampled after the second dose; irregular schedules are
+  named, not simulated. IV infusion times come from the published simulation's override, else from the dataset's
+  description. Free-text formulations are classified by their words. An antacid arm is a DDI study and a
+  liver-disease arm a hepatic-impairment study, and neither is fitted. Interactions the published simulations
+  never select (DDI with victim drugs: CYP2C8, CYP2C9, BCRP, OATP1B3, OATP2B1, CYP1A2, CYP2E1) are named and left
+  for the DDI phase. The study upload now keeps `co_medication`.
+- **`docker_engine.sh` on Linux** runs the engine as the calling user (the job directory is 0700; the image's uid
+  10001 could not write there).
+
+### Added — reference runs on real PK-Sim (GitHub Actions)
+- `deploy/reference/run_reference.py` (round trip / as-is / refit) and `.github/workflows/reference-models.yml`. The
+  workflow builds the pinned engine image on a GitHub runner, where CRAN and the OSP r-universe are reachable (they
+  are not from the development container). `reference_compare.R` compares each published simulation with our
+  regenerated one on identical time points (tolerance 1e-6 of the peak). The refit (`pbpk_domain.reference.refit`)
+  frees what the published model identified within the user-approved bounds (0.1×–10×; logP ±1.5), from shifted
+  starts. Campaigns stop at the S6 signature gate; CI never signs.
+- **Known gap (needs approval, SME-governed):** the diagnostics clearance rule offers only first-order `clspec`,
+  GFR fraction, tubular secretion and logP as fit targets. A Michaelis-Menten `kcat` (rifampicin's AADAC metabolism,
+  P-gp / OATP1B1 transport) can never be fitted, so the Rifampicin refit is held.
+
 ### Added — the reference importer: a published OSP model becomes a CPF and its real clinical studies (Phase 4)
 - **`pbpk_domain.reference.import_osp_snapshot`** turns a published single-compound OSP model snapshot into a CPF
   plus its plasma studies in the API's upload shape. The data are real: they are the OSP model's own clinical

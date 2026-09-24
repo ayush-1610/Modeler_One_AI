@@ -16,7 +16,8 @@ listed in ``skipped`` / ``unplaced`` with the reason, never dropped in silence.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from itertools import pairwise
 from typing import Any
 
 from pbpk_domain.cpf.models import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
@@ -87,8 +88,15 @@ def _convert(value: float, unit: str | None, target: str | None) -> float:
             return value * table[src] / table[dst]
     raise ReferenceImportError(f"cannot convert {unit!r} to {target!r}")
 
-_FORMULATION_KIND = {"solution": "solution", "suspension": "suspension", "tablet": "ir_tablet", "capsule": "ir_capsule"}
-_REGIMEN = re.compile(r"\(S(?P<start>[\d.]+)-T(?P<interval>[\d.]+)-R(?P<n>\d+)\)")
+# A reported formulation, by the words it contains ("300 mg capsules Rimactan®" is a capsule, "Rifa 600 Dragees" a
+# coated tablet); the first match wins and the study notes the words it was classified from.
+_FORMULATION_WORDS = (("solution", "solution"), ("suspension", "suspension"), ("capsule", "ir_capsule"),
+                      ("tablet", "ir_tablet"), ("tab", "ir_tablet"), ("dragee", "ir_tablet"))
+# OSP "Times of Administration [h]" schedules: "(S0-T24-R14)" / "(S-0,T-24,R-7)" = start, interval, repetitions.
+_SCHEDULE = re.compile(r"\(S-?(?P<start>[\d.]+)[-,]\s*T-?(?P<interval>[\d.]+)[-,]\s*R-?(?P<n>\d+)\)")
+_INFUSION_IN_NAME = re.compile(r"(?P<value>[\d.]+)\s*(?P<unit>h|min) infusion")
+# Co-medication named in a dataset's grouping: such an arm is not the drug alone and must not train it (MS-01 §3.2).
+_CO_MEDICATION_WORDS = ("antacid",)
 _DOSE = re.compile(r"^\s*(?P<value>[\d.]+)\s*mg\s*$")
 
 
@@ -105,6 +113,10 @@ class ReferenceImport:
     skipped: tuple[str, ...]         # datasets not imported, each "name: reason"
     unplaced: tuple[str, ...]        # compound processes / parameters the builder cannot place
     notes: tuple[str, ...]           # assumptions the import made, one sentence each
+    # study id -> the published simulation that runs its dataset, and the minutes its dose is given after that
+    # simulation's time zero (e.g. the Dapagliflozin IV microdose at 60 min); what the round trip compares against.
+    simulation_of: dict[str, str] = field(default_factory=dict)
+    offset_min: dict[str, float] = field(default_factory=dict)
 
 
 def _props(dataset: dict[str, Any]) -> dict[str, Any]:
@@ -137,7 +149,8 @@ class _Records:
     def add(self, pid: str, value: Any, *, unit: str | None = None, parameter: dict[str, Any] | None = None,
             binding: EngineBinding | None = None) -> None:
         origin = (parameter or {}).get("ValueOrigin") or {}
-        status = ParameterStatus.FITTED if origin.get("Source") == "ParameterIdentification" else ParameterStatus.FIXED
+        identified = "ParameterIdentification" in (origin.get("Source"), origin.get("Method"))
+        status = ParameterStatus.FITTED if identified else ParameterStatus.FIXED
         self.records.append(ParameterRecord(id=pid, value=value, unit=unit, status=status,
                                             provenance=self.provenance(parameter), engine_binding=binding))
 
@@ -200,12 +213,27 @@ def _compound_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _
                 out.add(pid, method)
 
 
-def _process_records(compound: dict[str, Any], out: _Records, unplaced: list[str]) -> None:
+def _selected_interactions(snapshot: dict[str, Any], compound: str) -> set[str]:
+    return {i.get("Name") for sim in snapshot.get("Simulations", []) for i in sim.get("Interactions", []) or []
+            if i.get("CompoundName") == compound}
+
+
+def _process_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _Records, unplaced: list[str],
+                     notes: list[str]) -> None:
+    from pbpk_domain.snapshot.validation import INTERACTION_PROCESSES
+
+    selected = _selected_interactions(snapshot, compound["Name"])
+    not_selected: list[str] = []
     for process in compound.get("Processes", []):
         internal = process.get("InternalName")
         wanted = _PROCESS_PARAMETERS.get(internal)
         molecule = process.get("Molecule")
         label = f"{internal}" + (f" ({molecule})" if molecule else "")
+        if internal in INTERACTION_PROCESSES and f"{molecule}-{process.get('DataSource')}" not in selected:
+            # Defined for its victim drugs (DDI), selected in none of this model's own simulations: it cannot act on
+            # the compound's own kinetics, so it is left for the DDI application (T-31), named here.
+            not_selected.append(label)
+            continue
         if wanted is None:
             unplaced.append(f"{label}: process type not placed by the builder yet")
             continue
@@ -223,6 +251,30 @@ def _process_records(compound: dict[str, Any], out: _Records, unplaced: list[str
             binding = EngineBinding(building_block="Compound", parameter=parameter["Name"], process=engine_process,
                                     data_source=process.get("DataSource"))
             out.add(f"{prefix}.{suffix}", value, unit=unit, parameter=parameter, binding=binding)
+    if not_selected:
+        notes.append("Interactions defined for victim drugs and selected in none of the model's simulations, left "
+                     "for the DDI application: " + ", ".join(not_selected) + ".")
+
+
+def _simulation_parameter_records(snapshot: dict[str, Any], compound: str, out: _Records, notes: list[str]) -> None:
+    """Compound values the published simulations set themselves (e.g. ``<Compound>|logP (veg.oil/water)``). One that
+    every simulation sets to the same value is part of the model and becomes a ``sim.*`` record; one that varies
+    between simulations is named, not imported."""
+    sims = [s for s in snapshot.get("Simulations", []) if any(c.get("Name") == compound for c in s.get("Compounds", []))]
+    values: dict[str, list[dict[str, Any]]] = {}
+    for sim in sims:
+        for parameter in sim.get("Parameters", []) or []:
+            path = parameter.get("Path") or ""
+            if path.startswith(f"{compound}|"):
+                values.setdefault(path, []).append(parameter)
+    for path, found in values.items():
+        distinct = {(p.get("Value"), p.get("Unit")) for p in found}
+        if len(found) == len(sims) and len(distinct) == 1:
+            parameter = found[0]
+            out.add(f"sim.{path}", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
+                    binding=EngineBinding(building_block="Simulation", parameter=path))
+        else:
+            notes.append(f"Simulation parameter {path!r} differs between the published simulations; not imported.")
 
 
 def _formulation_records(snapshot: dict[str, Any], out: _Records, unplaced: list[str]) -> None:
@@ -246,10 +298,17 @@ def _formulation_records(snapshot: dict[str, Any], out: _Records, unplaced: list
 
 def _individual_records(snapshot: dict[str, Any], out: _Records, notes: list[str]) -> None:
     individuals = snapshot.get("Individuals", [])
-    if len(individuals) != 1:
-        notes.append(f"The model has {len(individuals)} individuals; no individual physiology imported.")
+    if not individuals:
         return
-    individual = individuals[0]
+    # The individual most of the published simulations use; any simulation on another one is named.
+    used = [s.get("Individual") for s in snapshot.get("Simulations", []) if s.get("Individual")]
+    main = max(individuals, key=lambda i: used.count(i["Name"]))
+    others = sorted({f"{s['Name']} ({s['Individual']})" for s in snapshot.get("Simulations", [])
+                     if s.get("Individual") and s["Individual"] != main["Name"]})
+    if others:
+        notes.append(f"Individual physiology imported from {main['Name']!r}; these published simulations use another "
+                     "individual and are regenerated with the main one: " + "; ".join(others) + ".")
+    individual = main
     for parameter in individual.get("Parameters", []):
         path = parameter.get("Path")
         if not path or parameter.get("Value") is None:
@@ -265,8 +324,12 @@ def _individual_records(snapshot: dict[str, Any], out: _Records, notes: list[str
 
 
 def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict[str, Any]]:
-    """Observed dataset name -> how the published model simulates it: protocol, formulation, meal events."""
+    """Observed dataset name -> how the published model simulates it: protocol, formulation, meal events, infusion.
+
+    A dataset is linked by the simulation that lists it, else by the published parameter identification that fits it
+    against a simulation's output (``ParameterIdentifications[].OutputMappings``: the paper's own fitting design)."""
     protocols = {p["Name"]: p for p in snapshot.get("Protocols", [])}
+    by_sim: dict[str, dict[str, Any]] = {}
     links: dict[str, dict[str, Any]] = {}
     for sim in snapshot.get("Simulations", []):
         entry = next((c for c in sim.get("Compounds", []) if c.get("Name") == compound), None)
@@ -274,15 +337,70 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
             continue
         protocol_ref = entry.get("Protocol") or {}
         formulations = protocol_ref.get("Formulations") or []
+        infusion = next((float(p["Value"]) * (60.0 if p.get("Unit") == "h" else 1.0)
+                         for p in sim.get("Parameters", []) or []
+                         if str(p.get("Path", "")).endswith("|Application_1|ProtocolSchemaItem|Infusion time")), None)
         link = {
             "simulation": sim["Name"],
             "protocol": protocols.get(protocol_ref.get("Name"), {}),
             "formulation": formulations[0]["Name"] if formulations else None,
             "fed": bool(sim.get("Events")),
+            "infusion_min": infusion,
         }
+        by_sim[sim["Name"]] = link
         for name in sim.get("ObservedData", []):
             links.setdefault(name, link)
+    for pi in snapshot.get("ParameterIdentifications", []) or []:
+        for mapping in pi.get("OutputMappings", []) or []:
+            sim_name = str(mapping.get("Path", "")).split("|", 1)[0]
+            if sim_name in by_sim and mapping.get("ObservedData"):
+                links.setdefault(mapping["ObservedData"], by_sim[sim_name])
     return links
+
+
+def _dose_times(administered: Any) -> list[float] | None:
+    """Dose times (h) from OSP "Times of Administration [h]": a number, "0-24-48", "(S0-T24-R14)" or a mix."""
+    if administered is None:
+        return None
+    if isinstance(administered, int | float):
+        return [float(administered)]
+    text = str(administered)
+    times: list[float] = []
+    for match in _SCHEDULE.finditer(text):
+        start, interval, n = float(match.group("start")), float(match.group("interval")), int(match.group("n"))
+        times.extend(start + k * interval for k in range(n))
+    rest = _SCHEDULE.sub(" ", text)
+    for token in re.split(r"[-\s]+", rest):
+        if token:
+            try:
+                times.append(float(token))
+            except ValueError:
+                return None
+    return sorted(set(times)) or None
+
+
+def _protocol_dose_times(protocol: dict[str, Any]) -> list[float] | None:
+    """Dose times (h) of a published protocol: a simple one-dose protocol, or schemas repeated at an interval."""
+    def hours(params: list[dict[str, Any]], name: str, default: float = 0.0) -> float:
+        p = next((q for q in params if q.get("Name") == name), None)
+        if p is None:
+            return default
+        return float(p["Value"]) / (60.0 if p.get("Unit") == "min" else 1.0)
+
+    if not protocol:
+        return None
+    if not protocol.get("Schemas"):
+        return [hours(protocol.get("Parameters", []), "Start time")] if protocol.get("DosingInterval") == "Single" else None
+    times: list[float] = []
+    for schema in protocol["Schemas"]:
+        params = schema.get("Parameters", [])
+        start = hours(params, "Start time")
+        n = int(next((q["Value"] for q in params if q.get("Name") == "NumberOfRepetitions"), 1))
+        interval = hours(params, "TimeBetweenRepetitions")
+        for item in schema.get("SchemaItems", []):
+            item_start = hours(item.get("Parameters", []), "Start time")
+            times.extend(start + item_start + k * interval for k in range(n))
+    return sorted(set(times))
 
 
 def _infusion_time_min(protocol: dict[str, Any]) -> float | None:
@@ -315,26 +433,44 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
 
     route = _given(props.get("Route"))
     if route == "IV":
-        infusion = _infusion_time_min(link["protocol"]) if link else None
+        # The infusion time the published simulation uses, else its protocol's, else the one the dataset names.
+        infusion = (link.get("infusion_min") or _infusion_time_min(link["protocol"])) if link else None
         if infusion is None:
-            return None, "IV dataset with no linked protocol giving its infusion time"
+            named = _INFUSION_IN_NAME.search(str(props.get("Grouping", "")))
+            if named is not None:
+                infusion = float(named.group("value")) * (60.0 if named.group("unit") == "h" else 1.0)
+                said.append(f"infusion time {infusion:g} min from the dataset's description")
+        if infusion is None:
+            return None, "IV dataset with no infusion time (no linked protocol, none in its description)"
         row.update(route="iv_infusion", infusion_time_min=infusion, formulation="solution")
     elif route == "PO":
         row["route"] = "oral"
     else:
         return None, f"route {route!r} is not IV or PO"
 
-    # Regimen: a numeric administration time is a single dose given then; "(S0-T24-R14)" is a regular schedule.
-    administered = props.get("Times of Administration [h]")
-    shift_h = 0.0
-    regimen = _REGIMEN.search(str(administered)) if administered is not None else None
-    if regimen is not None:
-        row.update(design="MD", dosing_interval_h=float(regimen.group("interval")), n_doses=int(regimen.group("n")))
-        shift_h = float(regimen.group("start"))
-    elif isinstance(administered, int | float):
-        shift_h = float(administered)
+    # Regimen: the dataset's own administration times, else the linked published protocol's. One dose is a single
+    # dose given then (times are shifted to it); a regular schedule is a multiple-dose study; an irregular one cannot
+    # be placed by the builder (regular schedules only) and is named.
+    doses = _dose_times(props.get("Times of Administration [h]"))
+    if doses is None:
+        return None, f"administration times {props.get('Times of Administration [h]')!r} could not be read"
+    if len(doses) == 1 and link is not None:
+        # Only when the dataset was sampled after the second dose: a day-1 profile the paper fitted against a
+        # multiple-dose simulation is still a single-dose profile (and is classified as one).
+        linked = _protocol_dose_times(link["protocol"])
+        last_h = max(float(t) for t in dataset["BaseGrid"]["Values"]) * (1 / 60.0 if dataset["BaseGrid"].get("Unit") == "min" else 1.0)
+        if linked and len(linked) > 1 and last_h > linked[1]:
+            doses = linked
+            said.append(f"dosing schedule from the published protocol {link['protocol'].get('Name')!r}")
+    shift_h = doses[0]
+    multiple = len(doses) > 1
+    if multiple:
+        gaps = {round(b - a, 6) for a, b in pairwise(doses)}
+        if len(gaps) != 1:
+            return None, f"irregular dosing schedule (doses at {', '.join(f'{d:g}' for d in doses)} h)"
+        row.update(design="MD", dosing_interval_h=gaps.pop(), n_doses=len(doses))
     if shift_h:
-        said.append(f"dose given at {shift_h:g} h in the study; times shifted so the dose is at 0")
+        said.append(f"first dose at {shift_h:g} h in the study; times shifted so it is at 0")
 
     if row["route"] == "oral":
         stated = _given(props.get("Formulation"))
@@ -345,9 +481,11 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
                 linked_form = dissolved[0]
                 said.append(f"no published simulation runs this dataset; simulated with {linked_form!r}")
         if stated is not None:
-            kind = _FORMULATION_KIND.get(stated.lower())
+            kind = next((k for word, k in _FORMULATION_WORDS if word in stated.lower()), None)
             if kind is None:
                 return None, f"formulation {stated!r} is not one the pipeline classifies"
+            if stated.lower() not in ("solution", "suspension", "tablet", "capsule"):
+                said.append(f"formulation {stated!r} classified as {kind}")
         elif linked_form is not None and formulation_types.get(linked_form) == "Weibull":
             kind = "ir_tablet"
             said.append(f"formulation not reported; the published model uses the tablet {linked_form!r}")
@@ -370,10 +508,15 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     grouping = str(props.get("Grouping", "")).lower()
     if "renal impairment" in grouping:
         row["special_population"] = "renal_impairment"
+    if "liver disease" in grouping or "hepatic impairment" in grouping:
+        row["special_population"] = "hepatic_impairment"
     if "t2dm" in grouping or "patient" in grouping:
         row["population_type"] = "patient"
     if "placebo" in grouping:
         said.append("control arm of a DDI study (perpetrator placebo): the drug given alone")
+    co_medication = next((w for w in _CO_MEDICATION_WORDS if w in grouping), None)
+    if co_medication is not None:
+        row["co_medication"] = co_medication
 
     times = [float(t) - shift_h for t in dataset["BaseGrid"]["Values"]]
     values = [float(v) for v in column["Values"]]
@@ -385,6 +528,7 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
         "time_unit": dataset["BaseGrid"].get("Unit", "h"), "unit": column["Unit"],
     }
     row["n_timepoints"] = len(keep)
+    row["_offset_min"] = shift_h * 60.0
 
     source = " ".join(str(props.get(k)) for k in ("Source",) if _given(props.get(k)))
     reference = f"{props.get('Study Id', '')} — {props.get('Grouping', '')}"
@@ -409,7 +553,8 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None) 
     notes: list[str] = []
     unplaced: list[str] = []
     _compound_records(snapshot, compound, records, notes)
-    _process_records(compound, records, unplaced)
+    _process_records(snapshot, compound, records, unplaced, notes)
+    _simulation_parameter_records(snapshot, name, records, notes)
     _formulation_records(snapshot, records, unplaced)
     _individual_records(snapshot, records, notes)
     cpf = CPF(compound=name, parameters=tuple(records.records), note=f"Imported from the {source} snapshot")
@@ -421,6 +566,8 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None) 
     studies: list[dict[str, Any]] = []
     skipped: list[str] = []
     seen: set[str] = set()
+    simulation_of: dict[str, str] = {}
+    offset_min: dict[str, float] = {}
     for dataset in snapshot.get("ObservedData", []):
         props = _props(dataset)
         label = dataset["Name"]
@@ -443,6 +590,12 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None) 
             continue
         seen.add(row["study_id"])
         studies.append(row)
+        link = links.get(label)
+        if link is not None:
+            simulation_of[row["study_id"]] = link["simulation"]
+            offset_min[row["study_id"]] = row.pop("_offset_min", 0.0)
+        row.pop("_offset_min", None)
 
     return ReferenceImport(compound=name, source=source, cpf=cpf, studies=tuple(studies), skipped=tuple(skipped),
-                           unplaced=tuple(unplaced), notes=tuple(notes))
+                           unplaced=tuple(unplaced), notes=tuple(notes), simulation_of=simulation_of,
+                           offset_min=offset_min)

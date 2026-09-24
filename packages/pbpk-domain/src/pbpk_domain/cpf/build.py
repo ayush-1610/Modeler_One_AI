@@ -127,6 +127,18 @@ def individual_parameters(cpf: CPF) -> dict[str, ParameterRecord]:
     return out
 
 
+def simulation_parameters(cpf: CPF) -> dict[str, ParameterRecord]:
+    """CPF records bound to the Simulation building block (``sim.*`` ids), keyed by full path; they apply to every
+    simulation, as the published Dapagliflozin model sets ``Dapagliflozin|logP (veg.oil/water)`` in each of its."""
+    out: dict[str, ParameterRecord] = {}
+    for record in cpf.parameters:
+        eb = record.engine_binding
+        if record.status is ParameterStatus.MISSING or eb is None or eb.building_block != "Simulation":
+            continue
+        out[eb.parameter] = record
+    return out
+
+
 def _with_individual_parameters(subjects: Sequence[SubjectSpec], cpf: CPF) -> tuple[list[SubjectSpec], list[str]]:
     records = individual_parameters(cpf)
     if not records:
@@ -351,7 +363,12 @@ def build_from_cpf(
     # Each process's protein must be expressed in the individual, or the process eliminates nothing.
     subjects, expressed, missing = _with_expression(subjects, process_molecules(cpf))
     subjects, individual_used = _with_individual_parameters(subjects, cpf)
-    used = [*used, *individual_used]
+    sim_records = simulation_parameters(cpf)
+    if sim_records:
+        overrides = {path: _measured(record) for path, record in sim_records.items()}
+        scenarios = [s.model_copy(update={"simulation": s.simulation.model_copy(
+            update={"parameters": {**s.simulation.parameters, **overrides}})}) for s in scenarios]
+    used = [*used, *individual_used, *(r.id for r in sim_records.values())]
 
     builder = SnapshotBuilder(snapshot_version) if snapshot_version is not None else SnapshotBuilder()
     builder.add_compound(compound)

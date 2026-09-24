@@ -130,6 +130,23 @@ def test_the_imported_model_runs_the_ms01_split_and_every_stage_builds(dapa):
     assert {p["Path"]: p["Value"] for p in ours["Individuals"][0]["Parameters"]} == published_indiv
 
 
+def test_rifampicin_keeps_its_auto_induction_and_the_simulations_select_it():
+    """The published simulations select inhibition / induction on AADAC, P-gp, OATP1B1 and CYP3A4 as interactions;
+    rifampicin induces its own metabolism (AADAC) and transport, so they change its own kinetics."""
+    imported = import_osp_snapshot(_snapshot("Rifampicin"))
+    ids = {p.id for p in imported.cpf.parameters}
+    assert {"ddi.perp.AADAC.ec50", "ddi.perp.AADAC.emax", "ddi.perp.P-gp.ec50", "ddi.perp.OATP1B1.ki"} <= ids
+    assert "ddi.perp.CYP2C8.ki" not in ids
+    assert check_completeness(imported.cpf).ready and unplaceable_parameters(imported.cpf) == ()
+
+
+def test_simulation_level_compound_values_are_carried():
+    """Every published Dapagliflozin simulation sets the veg-oil logP (tissue partitioning) and B/P ratio."""
+    imported = import_osp_snapshot(_snapshot("Dapagliflozin"))
+    assert imported.cpf.require("sim.Dapagliflozin|logP (veg.oil/water)").value == 2.0831076805
+    assert imported.cpf.require("sim.Dapagliflozin|Blood/Plasma concentration ratio").value == 0.88
+
+
 def test_display_units_are_converted_to_the_builders_units():
     imported = import_osp_snapshot(_snapshot("Rifampicin"))
     assert imported.cpf.require("bind.fu").unit is None
@@ -145,7 +162,9 @@ def test_display_units_are_converted_to_the_builders_units():
 
 def test_gaps_in_other_reference_models_are_named_not_hidden():
     rifampicin = import_osp_snapshot(_snapshot("Rifampicin"))
-    assert "CYP2C8" in missing_expression_profiles(rifampicin.cpf)  # S0 refuses it until the profile is harvested
+    # Interactions the published simulations never select (DDI with victim drugs) are named, not imported.
+    assert missing_expression_profiles(rifampicin.cpf) == ()
+    assert any("CompetitiveInhibition (CYP2C8)" in n for n in rifampicin.notes)
     midazolam = import_osp_snapshot(_snapshot("Midazolam"))
     assert any(u.startswith("MetabolizationLiverMicrosomes_MM") for u in midazolam.unplaced)
     with pytest.raises(ReferenceImportError, match="expected one compound"):

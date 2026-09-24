@@ -39,7 +39,7 @@ from pbpk_domain.snapshot.models import (
     ValueOrigin,
     expression_profile_reference,
 )
-from pbpk_domain.snapshot.validation import process_selection_for, validate_references
+from pbpk_domain.snapshot.validation import interaction_selection_for, process_selection_for, validate_references
 
 SNAPSHOT_VERSION_PKSIM_12 = 80
 SNAPSHOT_VERSION_PKSIM_13 = 81
@@ -678,6 +678,9 @@ class SimulationSpec(Spec):
     additional_outputs: tuple[str, ...] = ()
     events: tuple[str, ...] = ()  # meal-event names applied in this simulation, each starting at t=0
     event_start_time_h: float = Field(default=0.0, ge=0)
+    # Simulation-level values addressed by full path (e.g. "<Compound>|logP (veg.oil/water)"), as the OSP reference
+    # simulations carry them in `Simulations[].Parameters`.
+    parameters: dict[str, Measured] = Field(default_factory=dict)
 
 
 # --- builder --------------------------------------------------------------------------------------
@@ -772,7 +775,12 @@ class SnapshotBuilder:
     def _simulation(self, spec: SimulationSpec) -> Simulation:
         compound_fields: dict = {"name": spec.compound}
         compound = self._compounds.get(spec.compound)
+        interactions: list[dict] = []
         if compound is not None:
+            interactions = [
+                sel for p in compound.processes
+                if (sel := interaction_selection_for(p.to_process(), spec.compound)) is not None
+            ]
             compound_fields["calculation_methods"] = list(compound.calculation_methods)
             alternatives = compound.selected_alternatives()
             if alternatives:
@@ -804,6 +812,10 @@ class SnapshotBuilder:
             "individual": spec.subject,
             "compounds": [SimulationCompound(**compound_fields)],
         }
+        if interactions:
+            sim_fields["interactions"] = interactions
+        if spec.parameters:
+            sim_fields["parameters"] = [m.to_parameter(path=path) for path, m in spec.parameters.items()]
         if spec.events:
             sim_fields["events"] = [
                 {"Name": name, "StartTime": {"Value": spec.event_start_time_h, "Unit": "h"}} for name in spec.events

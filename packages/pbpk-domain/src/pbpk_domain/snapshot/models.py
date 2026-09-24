@@ -243,6 +243,9 @@ class Simulation(SnapshotModel):
     population: str | None = Field(default=None, alias="Population")
     compounds: list[SimulationCompound] = Field(default_factory=list, alias="Compounds")
     events: list[dict[str, Any]] = Field(default_factory=list, alias="Events")
+    # Inhibition / induction selected in this simulation, as the OSP snapshots write them:
+    # {"Name": "<Molecule>-<DataSource>", "MoleculeName": ..., "CompoundName": ...} (Rifampicin reference model).
+    interactions: list[dict[str, Any]] = Field(default_factory=list, alias="Interactions")
     has_results: bool | None = Field(default=None, alias="HasResults")
 
 

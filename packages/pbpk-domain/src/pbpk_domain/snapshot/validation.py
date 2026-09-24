@@ -12,8 +12,22 @@ from __future__ import annotations
 from pbpk_domain.issues import Issue
 from pbpk_domain.snapshot.models import CompoundProcess, ProcessSelection, Protocol, Snapshot
 
+# Processes a simulation selects as interactions (Simulations[].Interactions with the compound's name), not among
+# the compound's own processes — as the OSP Rifampicin reference snapshot selects its inhibition and induction.
+INTERACTION_PROCESSES = ("CompetitiveInhibition", "UncompetitiveInhibition", "NoncompetitiveInhibition",
+                         "MixedInhibition", "IrreversibleInhibition", "Induction")
+
+
+def interaction_selection_for(process: CompoundProcess, compound: str) -> dict | None:
+    if process.internal_name not in INTERACTION_PROCESSES or not process.molecule:
+        return None
+    return {"Name": f"{process.molecule}-{process.data_source or ''}", "MoleculeName": process.molecule,
+            "CompoundName": compound}
+
 
 def process_selection_for(process: CompoundProcess) -> ProcessSelection | None:
+    if process.internal_name in INTERACTION_PROCESSES:
+        return None  # selected as an interaction of the simulation (interaction_selection_for)
     data_source = process.data_source or ""
     if process.internal_name == "GlomerularFiltration":
         return ProcessSelection(name=f"Glomerular Filtration-{data_source}", systemic_process_type="GFR")

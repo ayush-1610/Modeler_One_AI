@@ -1,0 +1,97 @@
+# Published OSP models through Modeler One on real PK-Sim (plan Phase 4).
+#
+# Builds the pinned engine image (services/engine-worker/Dockerfile: ospsuite 12.4.4 / PK-Sim 12.3), checks it with
+# the golden round trip, then per model:
+#   roundtrip  every published simulation vs the one regenerated from the imported CPF, identical time points
+#   as-is      the published CPF as imported, judged by the pipeline's gates against the real clinical data
+#   refit      the published model's identified parameters freed from shifted starts (user-approved bounds)
+# Campaigns stop at the S6 signature gate: this run never signs on anyone's behalf. Results: the job summary and
+# the "reference-models" artifact (JSON per step).
+name: Reference models (PK-Sim)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main-1czavz]
+    paths:
+      - ".github/workflows/reference-models.yml"
+      - "deploy/reference/**"
+      - "deploy/dev/docker_engine.sh"
+      - "services/engine-worker/**"
+      - "packages/pbpk-domain/src/pbpk_domain/**"
+      - "services/orchestrator/src/**"
+
+concurrency:
+  group: reference-models-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ENGINE_IMAGE: modeler-engine:ospsuite-12.4.4
+
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build engine image (layer cache between runs)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/engine-worker/Dockerfile
+          platforms: linux/amd64
+          tags: ${{ env.ENGINE_IMAGE }}
+          load: true
+          cache-from: type=gha,scope=engine
+          cache-to: type=gha,mode=max,scope=engine
+
+      - name: Engine check (golden round trip)
+        run: docker run --rm "$ENGINE_IMAGE" Rscript /engine/golden/golden_roundtrip.R /engine/golden/example_snapshot.json /tmp/golden
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install the workspace
+        run: uv sync --all-packages
+
+      - name: Engine wiring for the steps below
+        run: |
+          echo "MODELER_ENGINE_COMMAND=bash $GITHUB_WORKSPACE/deploy/dev/docker_engine.sh" >> "$GITHUB_ENV"
+          echo "MODELER_ENGINE_IMAGE=$ENGINE_IMAGE" >> "$GITHUB_ENV"
+          echo "MODELER_FIT_WORKERS=4" >> "$GITHUB_ENV"
+          echo "REFERENCE_RSCRIPT=docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e LC_ALL=en_US.UTF-8 -v $GITHUB_WORKSPACE:$GITHUB_WORKSPACE -w $GITHUB_WORKSPACE $ENGINE_IMAGE Rscript" >> "$GITHUB_ENV"
+          mkdir -p reports/reference
+
+      - name: Dapagliflozin round trip
+        continue-on-error: true
+        run: uv run python deploy/reference/run_reference.py roundtrip Dapagliflozin --out reports/reference/dapagliflozin
+
+      - name: Dapagliflozin as-is campaign
+        continue-on-error: true
+        run: uv run python deploy/reference/run_reference.py campaign Dapagliflozin --mode as-is --out reports/reference/dapagliflozin
+
+      - name: Dapagliflozin refit campaign
+        continue-on-error: true
+        run: uv run python deploy/reference/run_reference.py campaign Dapagliflozin --mode refit --out reports/reference/dapagliflozin
+
+      - name: Rifampicin round trip
+        continue-on-error: true
+        run: uv run python deploy/reference/run_reference.py roundtrip Rifampicin --out reports/reference/rifampicin
+
+      - name: Rifampicin as-is campaign
+        continue-on-error: true
+        run: uv run python deploy/reference/run_reference.py campaign Rifampicin --mode as-is --out reports/reference/rifampicin
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-models
+          path: |
+            reports/reference/**/*.json
+          if-no-files-found: warn

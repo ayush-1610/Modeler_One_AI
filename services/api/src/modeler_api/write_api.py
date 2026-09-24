@@ -118,6 +118,7 @@ class StudyUpload(BaseModel):
     # (MS-01 §3.2) and never fits the healthy-volunteer model; without these it would be taken as healthy.
     population_type: str = "healthy"
     special_population: str | None = None
+    co_medication: str | None = None  # a co-medicated arm is a DDI study (MS-01 §3.2), never the drug alone
     n_timepoints: int = Field(default=10, gt=0)
     lloq: float | None = None
     profile: ObservedProfile

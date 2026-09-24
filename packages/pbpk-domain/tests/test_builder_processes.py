@@ -88,11 +88,21 @@ def test_new_processes_get_molecule_dash_datasource_selection() -> None:
     for proc in (
         MichaelisMentenMetabolism(molecule="CYP3A4", data_source="lit", vmax=umin(6.5), km=um(195)).to_process(),
         TransporterMichaelisMenten(molecule="P-gp", data_source="Collett 2004", vmax=umin(2.87), km=um(55)).to_process(),
-        CompetitiveInhibition(molecule="CYP2C8", data_source="Kajosaari 2005", ki=um(30.2)).to_process(),
     ):
         sel = process_selection_for(proc)
         assert sel is not None
         assert sel.name == f"{proc.molecule}-{proc.data_source}"
+
+
+def test_inhibition_and_induction_are_simulation_interactions_not_compound_processes() -> None:
+    """As the OSP Rifampicin snapshot selects them: Simulations[].Interactions with the compound's name. Selected
+    among the compound's processes they would not act (auto-induction silently off)."""
+    from pbpk_domain.snapshot.validation import interaction_selection_for
+
+    inhibition = CompetitiveInhibition(molecule="CYP3A4", data_source="Kajosaari 2005", ki=um(18.5)).to_process()
+    assert process_selection_for(inhibition) is None
+    assert interaction_selection_for(inhibition, "Rifampicin") == {
+        "Name": "CYP3A4-Kajosaari 2005", "MoleculeName": "CYP3A4", "CompoundName": "Rifampicin"}
 
 
 # --- transporter expression profile --------------------------------------------------------------
