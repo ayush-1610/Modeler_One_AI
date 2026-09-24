@@ -1,12 +1,13 @@
 # Published OSP models through Modeler One on real PK-Sim (plan Phase 4).
 #
-# Builds the pinned engine image (services/engine-worker/Dockerfile: ospsuite 12.4.4 / PK-Sim 12.3), checks it with
-# the golden round trip, then per model:
+# Every job builds the pinned engine image (services/engine-worker/Dockerfile: ospsuite 12.4.4 / PI 2.2.0 /
+# rSharp 1.2.2; the layer cache makes it a two-minute step), checks it with the golden round trip, then runs one task:
 #   roundtrip  every published simulation vs the one regenerated from the imported CPF, identical time points
 #   as-is      the published CPF as imported, judged by the pipeline's gates against the real clinical data
 #   refit      the published model's identified parameters freed from shifted starts (user-approved bounds)
-# Campaigns stop at the S6 signature gate: this run never signs on anyone's behalf. Results: the job summary and
-# the "reference-models" artifact (JSON per step).
+#   portfolio  the whole OSP model library: import, S0, split, round trip per drug
+# Tasks run as parallel jobs so each result is readable when its own job ends. Campaigns stop at the S6 signature
+# gate: this run never signs on anyone's behalf. Results: each job's summary and its "reference-<task>" artifact.
 name: Reference models (PK-Sim)
 
 on:
@@ -23,7 +24,7 @@ on:
 
 concurrency:
   group: reference-models-${{ github.ref }}
-  cancel-in-progress: false  # a PK-Sim run takes long; a new push queues behind it
+  cancel-in-progress: true  # tasks are independent jobs now; the newest code supersedes a running set
 
 permissions:
   contents: read
@@ -33,8 +34,22 @@ env:
 
 jobs:
   reference:
+    name: ${{ matrix.task }}
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {task: dapagliflozin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Dapagliflozin"}
+          - {task: dapagliflozin-as-is, run: "deploy/reference/run_reference.py campaign Dapagliflozin --mode as-is"}
+          - {task: dapagliflozin-refit, run: "deploy/reference/run_reference.py campaign Dapagliflozin --mode refit"}
+          - {task: rifampicin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Rifampicin"}
+          - {task: rifampicin-as-is, run: "deploy/reference/run_reference.py campaign Rifampicin --mode as-is"}
+          - {task: rifampicin-refit, run: "deploy/reference/run_reference.py campaign Rifampicin --mode refit"}
+          - {task: midazolam-roundtrip, run: "deploy/reference/run_reference.py roundtrip Midazolam"}
+          - {task: midazolam-as-is, run: "deploy/reference/run_reference.py campaign Midazolam --mode as-is"}
+          - {task: portfolio, run: "deploy/reference/portfolio.py --roundtrip"}
     steps:
       - uses: actions/checkout@v4
 
@@ -59,51 +74,20 @@ jobs:
       - name: Install the workspace
         run: uv sync --all-packages
 
-      - name: Engine wiring for the steps below
+      - name: ${{ matrix.task }}
+        env:
+          MODELER_ENGINE_IMAGE: ${{ env.ENGINE_IMAGE }}
+          MODELER_FIT_WORKERS: "4"
         run: |
-          echo "MODELER_ENGINE_COMMAND=bash $GITHUB_WORKSPACE/deploy/dev/docker_engine.sh" >> "$GITHUB_ENV"
-          echo "MODELER_ENGINE_IMAGE=$ENGINE_IMAGE" >> "$GITHUB_ENV"
-          echo "MODELER_FIT_WORKERS=4" >> "$GITHUB_ENV"
-          echo "REFERENCE_RSCRIPT=docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e LC_ALL=en_US.UTF-8 -v $GITHUB_WORKSPACE:$GITHUB_WORKSPACE -w $GITHUB_WORKSPACE $ENGINE_IMAGE Rscript" >> "$GITHUB_ENV"
-          mkdir -p reports/reference
+          export MODELER_ENGINE_COMMAND="bash $GITHUB_WORKSPACE/deploy/dev/docker_engine.sh"
+          export REFERENCE_RSCRIPT="docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e LC_ALL=en_US.UTF-8 -v $GITHUB_WORKSPACE:$GITHUB_WORKSPACE -w $GITHUB_WORKSPACE $ENGINE_IMAGE Rscript"
+          mkdir -p "reports/reference/${{ matrix.task }}"
+          uv run python ${{ matrix.run }} --out "reports/reference/${{ matrix.task }}"
 
-      - name: Dapagliflozin round trip
-        continue-on-error: true
-        run: uv run python deploy/reference/run_reference.py roundtrip Dapagliflozin --out reports/reference/dapagliflozin
-
-      - name: Dapagliflozin as-is campaign
-        continue-on-error: true
-        run: uv run python deploy/reference/run_reference.py campaign Dapagliflozin --mode as-is --out reports/reference/dapagliflozin
-
-      - name: Dapagliflozin refit campaign
-        continue-on-error: true
-        run: uv run python deploy/reference/run_reference.py campaign Dapagliflozin --mode refit --out reports/reference/dapagliflozin
-
-      - name: Rifampicin round trip
-        continue-on-error: true
-        run: uv run python deploy/reference/run_reference.py roundtrip Rifampicin --out reports/reference/rifampicin
-
-      - name: Rifampicin as-is campaign
-        continue-on-error: true
-        run: uv run python deploy/reference/run_reference.py campaign Rifampicin --mode as-is --out reports/reference/rifampicin
-
-      - name: Rifampicin refit campaign
-        continue-on-error: true
-        run: uv run python deploy/reference/run_reference.py campaign Rifampicin --mode refit --out reports/reference/rifampicin
-
-      - name: Midazolam as-is campaign
-        continue-on-error: true
-        run: uv run python deploy/reference/run_reference.py campaign Midazolam --mode as-is --out reports/reference/midazolam
-
-      - name: OSP library portfolio (import, S0, round trip per drug)
-        continue-on-error: true
-        run: uv run python deploy/reference/portfolio.py --roundtrip --out reports/reference/portfolio
-
-      - name: Upload reports
+      - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reference-models
-          path: |
-            reports/reference/**/*.json
+          name: reference-${{ matrix.task }}
+          path: reports/reference/${{ matrix.task }}/**/*.json
           if-no-files-found: warn
