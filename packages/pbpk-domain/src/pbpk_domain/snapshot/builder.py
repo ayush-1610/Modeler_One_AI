@@ -1091,6 +1091,8 @@ class SimulationSpec(Spec):
     inactive_processes: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     # simulation-level values of the model (full paths) this simulation leaves at PK-Sim's default
     default_parameters: tuple[str, ...] = ()
+    # solver settings this simulation sets (PK-Sim snapshot "Solver", e.g. {"RelTol": 1e-09}); empty: PK-Sim's defaults
+    solver: dict[str, float] = Field(default_factory=dict)
     observer_sets: tuple[str, ...] = ()  # ObserverSets (added with SnapshotBuilder.add_observer_set) this computes
 
 
@@ -1262,7 +1264,7 @@ class SnapshotBuilder:
         sim_fields: dict = {
             "name": spec.name,
             "model": spec.model,
-            "solver": {},
+            "solver": dict(spec.solver),
             "output_schema": _output_schema(spec),
             "output_selections": list(dict.fromkeys([*plasma, *spec.additional_outputs])),
             "individual": spec.subject,

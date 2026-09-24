@@ -507,3 +507,33 @@ def test_a_tablet_not_used_as_a_suspension_keeps_its_setting(model, formulation)
     spec = cpf_formulation(imported.cpf, formulation).to_spec()
     assert spec.use_as_suspension is False
     assert cpf_formulation(import_osp_snapshot(_snapshot("Dapagliflozin")).cpf, "IC tablet (Chang 2015)").to_spec().use_as_suspension
+
+
+def test_a_published_simulation_s_own_solver_settings_are_kept():
+    """OSP Dabigatran's Härtter 2012 simulation sets RelTol 1e-09; the study carries it and its build writes it."""
+    dabigatran = import_osp_system(_snapshot("Dabigatran"))
+    row = _study(dabigatran, "h-rtter-2012-rifa-dabi-control-sum")
+    assert row["solver"] == {"RelTol": 1e-09}
+    record = StudyRecord.model_validate({k: v for k, v in row.items() if k in StudyRecord.model_fields})
+    assert record.solver == {"RelTol": 1e-09}
+    dapagliflozin = import_osp_snapshot(_snapshot("Dapagliflozin"))
+    (scenario,) = _first_scenarios_for(dapagliflozin, ["boulton-2013-14c-dapagliflozin-iv"])
+    built = build_stage_snapshot(dapagliflozin.cpf, [scenario.model_copy(update={"solver": {"RelTol": 1e-09}})], stage="S1")
+    doc = json.loads(built.snapshot.model_dump_json(by_alias=True, exclude_none=True))
+    assert doc["Simulations"][0]["Solver"] == {"RelTol": 1e-09}
+
+
+def test_a_snapshot_written_before_pksim_10_keeps_its_individuals_expression_and_calculation_methods():
+    """OSP Voriconazole keeps each individual's enzymes under "Molecules" (no ExpressionProfiles documents) and sets
+    the partition method in its simulations. Run 26: CYP2C19 gut expression 25-fold off and the partition coefficients
+    from another method (fat 1.6 vs 20.6)."""
+    from pbpk_domain.reference.roundtrip import roundtrip_inputs
+
+    imported = import_osp_snapshot(_snapshot("Voriconazole"))
+    assert imported.cpf.get("dist.partition_method").value == "Cellular partition coefficient method - Poulin and Theil"
+    ours, pairs, _notes = roundtrip_inputs(imported)
+    sim = next(s for s in ours["Simulations"] if s["Name"] == pairs[0]["ours"])
+    assert "Cellular partition coefficient method - Poulin and Theil" in sim["Compounds"][0]["CalculationMethods"]
+    jejunum = {p["Category"]: q["Value"] for p in ours["ExpressionProfiles"] if p["Molecule"] == "CYP2C19"
+               for q in p["Parameters"] if q["Path"] == "Organism|SmallIntestine|Mucosa|UpperJejunum|Intracellular|CYP2C19|Relative expression"}
+    assert jejunum and all(v == pytest.approx(0.3238009746) for v in jejunum.values())

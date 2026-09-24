@@ -242,7 +242,7 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
             formulation=formulation.name, end_time_h=sim_end_time_h, events=event_names,
             formulation_bins=tuple(name for name, _f in bins), alternatives=chosen,
             event_times=event_times, inactive_processes=dict(scenario.inactive_processes),
-            default_parameters=scenario.default_simulation_values,
+            default_parameters=scenario.default_simulation_values, solver=dict(scenario.solver),
         )
         return Scenario(simulation=simulation, protocol=protocol, formulation=formulation, events=meal_events,
                         extra_formulations=tuple(extra))
@@ -263,6 +263,7 @@ def _scenario_specs(scenario: MapScenario, *, subject_name: str, compound: str, 
         simulation = SimulationSpec(
             name=sid, subject=subject_name, compound=compound, protocol=protocol.name, end_time_h=sim_end_time_h,
             inactive_processes=dict(scenario.inactive_processes), default_parameters=scenario.default_simulation_values,
+            solver=dict(scenario.solver),
         )
         return Scenario(simulation=simulation, protocol=protocol, formulation=None, events=())
 

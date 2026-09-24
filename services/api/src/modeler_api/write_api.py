@@ -156,6 +156,7 @@ class StudyUpload(BaseModel):
     inactive_processes: dict[str, list[str]] = Field(default_factory=dict)
     # simulation-level model values (full paths) the study's simulation leaves at PK-Sim's default
     default_simulation_values: list[str] = Field(default_factory=list)
+    solver: dict[str, float] = Field(default_factory=dict)  # the published simulation's own solver settings
     # Who was studied: a patient or special population (e.g. renal impairment) is classified SPECIAL by the split
     # (MS-01 §3.2) and never fits the healthy-volunteer model; without these it would be taken as healthy.
     population_type: str = "healthy"

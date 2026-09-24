@@ -15,6 +15,20 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — older snapshots' expression, simulation calculation methods and solver settings (found by run 26)
+- A snapshot written before PK-Sim 10 (OSP Voriconazole) keeps each individual's enzymes under "Molecules" and has no
+  ExpressionProfiles documents; the importer read none and the builder used the library's CYP2C19 profile (gut
+  relative expression 0.013 instead of 0.324). Each such enzyme is now converted to a profile document: the harvested
+  library profile of the same protein (paths, localization) with the individual's relative expressions, reference
+  concentration, half-lives and ontogeny. Other proteins or localizations are left unconverted.
+- A compound's calculation methods are taken from what most of its published simulations use. OSP Voriconazole's
+  simulations all use "Poulin and Theil", its compound building block says "PK-Sim Standard" (fat partition
+  coefficient 1.6 vs 20.6 in run 26). Recorded in the import notes.
+- A published simulation's own solver settings (OSP Dabigatran Härtter 2012: RelTol 1e-09) are carried by its study
+  (`StudyRecord.solver`) and written to its simulation.
+- Run 26 also confirmed on PK-Sim: Clarithromycin 17 of 17 identical (the suspension fix), Alfentanil 13 of 15
+  (Kharasch 2012 fixed), Digoxin 44 of 44.
+
 ### Added — model your own compound from the wizard; a user guide
 - New starting point "Your own compound": the parameters the S0 gate requires (molecular weight, logP, pKa or
   neutral, fraction unbound, solubility, and total hepatic clearance bound as PK-Sim's LiverClearance "Plasma

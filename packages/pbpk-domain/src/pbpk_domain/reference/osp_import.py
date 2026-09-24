@@ -312,10 +312,20 @@ def _compound_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _
         out.add("phys.pka.neutral", 1.0)
         notes.append("The model defines no pKa; recorded as neutral.")
 
-    for method in compound.get("CalculationMethods", []):
-        for prefix, pid in _CALCULATION_METHODS.items():
-            if method.startswith(prefix):
-                out.add(pid, method)
+    # A simulation sets the compound's calculation methods itself; the model's is the one most of its simulations use
+    # (OSP Voriconazole: "Poulin and Theil" in all four, "PK-Sim Standard" on the compound building block).
+    used = Counter(m for sim in snapshot.get("Simulations", []) for entry in sim.get("Compounds", [])
+                   if entry.get("Name") == compound["Name"] for m in entry.get("CalculationMethods") or [])
+    for prefix, pid in _CALCULATION_METHODS.items():
+        own = next((m for m in compound.get("CalculationMethods", []) if m.startswith(prefix)), None)
+        ranked = [m for m, _n in used.most_common() if m.startswith(prefix)]
+        method = ranked[0] if ranked else own
+        if method is None:
+            continue
+        out.add(pid, method)
+        if own is not None and method != own:
+            notes.append(f"{compound['Name']}: {prefix.lower()} {method.split(' - ', 1)[-1]!r} as the published "
+                         f"simulations use it (the compound building block says {own.split(' - ', 1)[-1]!r}).")
 
 
 def _dosed(sim: dict[str, Any]) -> list[str]:
@@ -1059,6 +1069,12 @@ def _own_sim_values(snapshot: dict[str, Any], simulation: str, cpf: CPF, route: 
             f"(e.g. {own[0]!r})")
 
 
+def _sim_solver(snapshot: dict[str, Any], simulation: str) -> dict[str, float]:
+    """The solver settings the published simulation sets itself (its snapshot "Solver"); empty for PK-Sim's defaults."""
+    sim = next((s for s in snapshot.get("Simulations", []) if s.get("Name") == simulation), None)
+    return {k: float(v) for k, v in ((sim or {}).get("Solver") or {}).items() if isinstance(v, int | float)}
+
+
 def _default_sim_values(snapshot: dict[str, Any], simulation: str, cpf: CPF, route: str | None) -> tuple[str, ...]:
     """The model's simulation-level values (full paths) the published simulation does not set: it keeps PK-Sim's
     default there (OSP Alfentanil's Kharasch 2012 oral simulation, without the gut-wall permeabilities its other oral
@@ -1521,12 +1537,59 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     return row, ""
 
 
+# The expression localization of an enzyme in snapshots written before PK-Sim 10 ("Molecules" on the individual:
+# TissueLocation Intracellular, IntracellularVascularEndoLocation Endosomal), as the harvested library profiles of
+# the same enzymes write it.
+_LEGACY_ENZYME = ("Intracellular", "Endosomal")
+
+
+def _with_expression_profiles(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """A snapshot written before PK-Sim 10 keeps each individual's proteins in its own "Molecules" (OSP Voriconazole)
+    rather than in ExpressionProfiles documents. Each enzyme is converted to the document the importer reads: the
+    harvested library profile of the same protein (its PK-Sim paths and localization) with the individual's relative
+    expressions, reference concentration, half-lives and ontogeny, under a category named after the individual. A
+    protein the library lacks, or one with another localization, stays unconverted and is named."""
+    if snapshot.get("ExpressionProfiles") or not any(i.get("Molecules") for i in snapshot.get("Individuals", [])):
+        return snapshot
+    from pbpk_domain.expression import expression_library
+
+    library = expression_library()
+    profiles: list[dict[str, Any]] = []
+    individuals = []
+    for individual in snapshot.get("Individuals", []):
+        refs = []
+        for molecule in individual.get("Molecules") or []:
+            name = molecule.get("Name")
+            entry = library.get(name)
+            located = (molecule.get("TissueLocation"), molecule.get("IntracellularVascularEndoLocation"))
+            if entry is None or molecule.get("Type") != "Enzyme" or located != _LEGACY_ENZYME:
+                continue
+            doc = json.loads(json.dumps(entry["profile"]))
+            relative = {e.get("Name"): e.get("Value") for e in molecule.get("Expression") or []}
+            own = {f"{name}|{q.get('Name')}": q for q in molecule.get("Parameters") or []}
+            for parameter in doc.get("Parameters", []):
+                path = parameter.get("Path", "")
+                if path.endswith("|Relative expression"):
+                    parameter["Value"] = float(relative.get(path.split("|")[-4]) or 0.0)  # not listed: not expressed
+                elif path in own:
+                    parameter.update({"Value": own[path].get("Value"), "Unit": own[path].get("Unit")})
+            doc.update({"Molecule": name, "Species": (individual.get("OriginData") or {}).get("Species", "Human"),
+                        "Category": individual["Name"]})
+            if molecule.get("Ontogeny"):
+                doc["Ontogeny"] = molecule["Ontogeny"]
+            profiles.append(doc)
+            refs.append(f"{name}|{doc['Species']}|{individual['Name']}")
+        individuals.append({**individual, "ExpressionProfiles": refs})
+    return {**snapshot, "Individuals": individuals, "ExpressionProfiles": profiles}
+
+
 def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, compound: str | None = None,
                         ) -> ReferenceImport:
     """Turn a published OSP model snapshot into a CPF and its plasma studies for one compound: ``compound``, the only
     one, or the one most of the simulations dose. The other compounds (metabolites, co-administered drugs) are named;
     a study simulated with another dosed drug is a DDI arm (co_medication), one whose metabolites act on the parent's
     clearance differs by design from the parent-only simulation the pipeline builds."""
+    snapshot = _with_expression_profiles(snapshot)
     parent = _parent_compound(snapshot, compound)
     compound = parent
     name = compound["Name"]
@@ -1608,6 +1671,8 @@ def import_osp_snapshot(snapshot: dict[str, Any], *, source: str | None = None, 
                 why.append(own)
             if (unset := _default_sim_values(snapshot, link["simulation"], cpf, "oral" if row.get("route") == "oral" else "iv")):
                 row["default_simulation_values"] = unset
+            if (solver := _sim_solver(snapshot, link["simulation"])):
+                row["solver"] = solver
             why.extend(link.get("feedback") or [])
             if why:
                 differs_by_design[row["study_id"]] = "; ".join(why)
@@ -1737,6 +1802,7 @@ def import_osp_system(snapshot: dict[str, Any], *, source: str | None = None,
     """Turn a published OSP model snapshot into a model system — a CPF per compound, the formation links, the products
     the studies administer, the published sum observers — and its plasma studies, each with its analyte. The main
     parent is the compound most simulations dose; ``parents`` names the dosed compounds explicitly."""
+    snapshot = _with_expression_profiles(snapshot)
     main = _parent_compound(snapshot, None)["Name"]
     parent_names, metabolite_names = _system_members(snapshot, main, parents)
     members = frozenset(parent_names + metabolite_names)
@@ -1843,6 +1909,8 @@ def import_osp_system(snapshot: dict[str, Any], *, source: str | None = None,
                                              "oral" if row.get("route") == "oral" else "iv"))
         if unset:
             row["default_simulation_values"] = tuple(unset)
+        if (solver := _sim_solver(snapshot, link["simulation"])):
+            row["solver"] = solver
         why.extend(link.get("feedback") or [])
         if why:
             differs_by_design[row["study_id"]] = "; ".join(why)
