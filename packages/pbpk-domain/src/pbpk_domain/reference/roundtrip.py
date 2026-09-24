@@ -21,13 +21,17 @@ ROUNDTRIP_STAGE = "RT"
 
 
 def study_records(imported: ReferenceImport | SystemImport) -> list[StudyRecord]:
-    """The imported studies as campaign records. A genotype the published model expresses as switched-off processes
-    (a poor metaboliser) is planned as an ordinary scenario here: the round trip checks that the build reproduces the
-    published simulation, and the campaign still classes such a study PGX (MS-01 §3.3 rule 4)."""
+    """The imported studies as campaign records. A study the published model simulates in its own terms is planned as
+    an ordinary scenario here, because the round trip checks that the build reproduces the published simulation: a
+    genotype expressed as switched-off processes (a poor metaboliser) and a paediatric study in the published child
+    individual. The campaign still classes them PGX / SPECIAL (MS-01 §3.3 rule 4)."""
     fields = StudyRecord.model_fields
-    return [StudyRecord.model_validate({k: v for k, v in s.items() if k in fields
-                                        and not (k == "genotype" and s.get("inactive_processes"))})
-            for s in imported.studies]
+
+    def planned(s: dict, k: str) -> bool:
+        return k in fields and not (k == "genotype" and s.get("inactive_processes")) and not (
+            k == "special_population" and s.get(k) == "pediatric" and s.get("demographics"))
+
+    return [StudyRecord.model_validate({k: v for k, v in s.items() if planned(s, k)}) for s in imported.studies]
 
 
 def study_snapshot(imported: ReferenceImport, *, linked_only: bool) -> tuple[dict[str, Any], dict[str, str], list[str]]:

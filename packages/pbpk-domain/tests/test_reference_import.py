@@ -472,3 +472,25 @@ def test_a_simulation_value_the_published_simulation_leaves_at_default_stays_def
     sims = {s["Name"]: s for s in ours["Simulations"]}
     assert not sims["kharasch2012-alfentanil-alone-po"].get("Parameters")
     assert len(sims["kharasch-2011-po-control-perpetrator-placebo"]["Parameters"]) == 22
+
+
+def test_a_named_perpetrator_arm_is_a_ddi_study_and_a_child_a_special_population():
+    """Run 24 fitted OSP Midazolam's Greenblatt 2003 grapefruit-juice arm in S3 and Itraconazole's Abdel-Rahman 2007
+    12-16 y study in S1. Both are now flagged (MS-01 §3.2: never fitted in S1-S3); the round trip still builds the
+    paediatric studies in the published child individual."""
+    from pbpk_domain.campaign.split import StudyClass, classify
+
+    def record(row):
+        return StudyRecord.model_validate({k: v for k, v in row.items() if k in StudyRecord.model_fields})
+
+    midazolam = import_osp_snapshot(_snapshot("Midazolam"))
+    gfj = _study(midazolam, "greenblat-2003-with-perpetrator-gfj")
+    assert gfj["co_medication"] == "gfj" and classify(record(gfj)) is StudyClass.DDI
+    assert "co_medication" not in _study(midazolam, "greenblat-2003-control-perpetrator-placebo")
+    itraconazole = import_osp_system(_snapshot("Itraconazole"))
+    child = _study(itraconazole, "abdel-rahman-2007-12-16y")
+    assert child["special_population"] == "pediatric" and classify(record(child)) is StudyClass.SPECIAL
+    # its own plasma "with Perpetrator (Itraconazole)" is not a DDI arm of itraconazole
+    assert "co_medication" not in _study(itraconazole, "kivist-1997-with-perpetrator-itraconazole")
+    _ours, pairs, _notes = system_roundtrip_inputs(itraconazole)
+    assert "abdel-rahman-2007-12-16y" in {p["ours"] for p in pairs}

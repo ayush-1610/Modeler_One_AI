@@ -15,6 +15,16 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — DDI arms and paediatric studies are no longer fitted (found by run 24)
+- A dataset named "with Perpetrator (X)" or "after Perpetrator (X)" (not placebo) is a DDI arm: `co_medication = X`
+  (OSP Midazolam Greenblatt 2003 grapefruit juice, Reitman 2011 rifampicin; Digoxin Reitman 2011, Gurley 2008b
+  echinacea). A dataset of the perpetrator itself (OSP Itraconazole's own plasma) is not. Run 24 fitted the
+  grapefruit-juice arm in Midazolam S3.
+- A study whose individual is under 18 is `special_population = pediatric` (OSP Itraconazole Abdel-Rahman 2007,
+  four age groups). Run 24 fitted the 12–16 y group in S1 of the Itraconazole system.
+- MS-01's classification is unchanged: these are data labels the importer now reads. The round trip still builds the
+  paediatric studies in the published child individual; the campaign classes them SPECIAL.
+
 ### Changed — reference logs end with a recap
 - `deploy/reference/run_reference.py` prints the headline and every round-trip pair outside 1e-6 again at the end of
   the log: the parameter lists run long, and log tails missed the result.

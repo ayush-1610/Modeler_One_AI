@@ -156,6 +156,7 @@ _INFUSION_IN_NAME = re.compile(r"(?P<value>[\d.]+)\s*(?P<unit>h|min) infusion")
 _FOOD_STATE = {"fasted": "fasted", "fed": "fed", "breakfast": "fed", "light breakfast": "fed", "semifed": "fed"}
 # Co-medication named in a dataset's grouping: such an arm is not the drug alone and must not train it (MS-01 §3.2).
 _CO_MEDICATION_WORDS = ("antacid",)
+_PERPETRATOR = re.compile(r"perpetrator\s*\(([^)]+)\)")
 _DOSE = re.compile(r"^\s*(?P<value>[\d.]+)\s*(?P<unit>mg|µg|ug|mg/kg|µg/kg|ug/kg)\s*$")
 _TO_MG = {"mg": 1.0, "µg": 1e-3, "ug": 1e-3, "mg/kg": 1.0, "µg/kg": 1e-3, "ug/kg": 1e-3}
 
@@ -1457,9 +1458,17 @@ def _study(dataset: dict[str, Any], link: dict[str, Any] | None, formulation_typ
     demographics = (link or {}).get("demographics")
     if demographics and all(demographics.values()):
         row["demographics"] = demographics  # the individual the published simulation uses for this study
+    if (age := (row.get("demographics") or {}).get("age_years")) is not None and float(age) < 18:
+        row["special_population"] = "pediatric"  # the published simulation's individual is a child (MS-01 §3.2)
+        said.append(f"a paediatric study (individual aged {float(age):g} years): a special population")
     if (link or {}).get("published_individual"):
         row["published_individual"] = link["published_individual"]
     co_medication = next((w for w in _CO_MEDICATION_WORDS if w in grouping), None)
+    if ((named := _PERPETRATOR.search(grouping)) and "placebo" not in named.group(1)
+            and named.group(1).strip() != str(props.get("Molecule", "")).lower()):
+        # the OSP datasets name a DDI arm "with Perpetrator (GFJ)", "Week 4 after Perpetrator (Rifampicin)"; a dataset
+        # of the perpetrator itself (OSP Itraconazole: its own plasma "with Perpetrator (Itraconazole)") is not one
+        co_medication = named.group(1)
     if (link or {}).get("co_dosed"):
         # the published simulation doses another drug with it: a DDI arm, never the drug alone (MS-01 §3.2)
         co_medication = ", ".join(link["co_dosed"])
