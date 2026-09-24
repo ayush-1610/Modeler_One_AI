@@ -15,6 +15,14 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the Ketoconazole model system
+- A metabolite the published simulations form (their `MetaboliteName`) is a member and a formation link even when the
+  building block names none (OSP Ketoconazole: n-deacetyl-ketoconazole → n-deacetyl-n-hydroxy-ketoconazole by FMO3);
+  the metabolite most selecting simulations form is taken. A cellular permeability of 0 (a published input for that
+  metabolite) is accepted.
+- CI round trip and example project for the Ketoconazole system. The parent-only Ketoconazole round trip is ~35×
+  off by design (its metabolites inhibit its CYP3A4 / P-gp clearance); its template says so.
+
 ### Fixed — older snapshots' expression, simulation calculation methods and solver settings (found by run 26)
 - A snapshot written before PK-Sim 10 (OSP Voriconazole) keeps each individual's enzymes under "Molecules" and has no
   ExpressionProfiles documents; the importer read none and the builder used the library's CYP2C19 profile (gut

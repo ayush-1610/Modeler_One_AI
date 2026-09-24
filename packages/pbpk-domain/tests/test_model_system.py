@@ -197,7 +197,7 @@ def test_a_verapamil_study_builds_both_enantiomers_their_metabolites_and_the_sum
     assert pair["output"].endswith("|Sum-Verapamil Plasma (Peripheral Venous Blood)")
 
 
-@pytest.mark.parametrize("model", ["Omeprazole", "Dabigatran", "Itraconazole"])
+@pytest.mark.parametrize("model", ["Omeprazole", "Dabigatran", "Itraconazole", "Ketoconazole"])
 def test_every_system_study_with_a_published_simulation_builds(model):
     from pbpk_domain.reference.roundtrip import system_roundtrip_inputs
 
@@ -205,3 +205,14 @@ def test_every_system_study_with_a_published_simulation_builds(model):
     _ours, pairs, notes = system_roundtrip_inputs(imported)
     assert pairs
     assert not [n for n in notes if n.startswith("NOT SIMULATED")]
+
+
+def test_a_metabolite_formed_only_in_the_simulations_is_a_member():
+    """OSP Ketoconazole's n-deacetyl-ketoconazole forms n-deacetyl-n-hydroxy-ketoconazole through FMO3 in its
+    simulations (MetaboliteName), not on its building block; its permeability 0 is a published input."""
+    system = _system("Ketoconazole").system
+    assert set(system.roles) == {"ketoconazole", "n-deacetyl-ketoconazole", "n-deacetyl-n-hydroxy-ketoconazole"}
+    assert {(f.compound, f.molecule, f.metabolite) for f in system.formation} == {
+        ("ketoconazole", "AADAC", "n-deacetyl-ketoconazole"),
+        ("n-deacetyl-ketoconazole", "FMO3", "n-deacetyl-n-hydroxy-ketoconazole")}
+    assert system.cpf("n-deacetyl-n-hydroxy-ketoconazole").get("perm.cellular").value == 0.0

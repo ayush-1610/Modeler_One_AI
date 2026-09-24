@@ -535,10 +535,19 @@ class CompoundSpec(Spec):
     def _solubility(cls, v: Measured | None) -> Measured | None:
         return _check(v, unit="mg/ml", label="Solubility at reference pH")
 
-    @field_validator("intestinal_permeability", "permeability")
+    @field_validator("intestinal_permeability")
     @classmethod
     def _permeability(cls, v: Measured | None) -> Measured | None:
         return _check(v, unit="cm/min", label="Permeability")
+
+    @field_validator("permeability")
+    @classmethod
+    def _cellular_permeability(cls, v: Measured | None) -> Measured | None:
+        # 0 is a published input: OSP Ketoconazole's n-deacetyl-n-hydroxy metabolite does not cross cell membranes
+        checked = _check(v, unit="cm/min", label="Permeability", positive=False)
+        if checked is not None and checked.value < 0:
+            raise ValueError(f"Permeability must be >= 0 (got {checked.value})")
+        return checked
 
     @field_validator("halogens")
     @classmethod

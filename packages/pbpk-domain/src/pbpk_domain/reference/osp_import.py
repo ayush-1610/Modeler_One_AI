@@ -1734,12 +1734,13 @@ def _system_members(snapshot: dict[str, Any], main: str, parents: tuple[str, ...
             raise ReferenceImportError(f"no compound {', '.join(map(repr, unknown))} in the snapshot")
         chosen = set(parents)
     compounds = {c["Name"]: c for c in snapshot.get("Compounds", [])}
+    in_simulations = _formed_in_simulations(snapshot)
     members, grew = set(chosen), True
     while grew:
         grew = False
         for name in list(members):
             for process in compounds[name].get("Processes", []):
-                formed = process.get("Metabolite")
+                formed = _metabolite_of(name, process, in_simulations)
                 if formed in compounds and formed not in members:
                     members.add(formed)
                     grew = True
@@ -1747,16 +1748,37 @@ def _system_members(snapshot: dict[str, Any], main: str, parents: tuple[str, ...
     return [n for n in order if n in chosen], [n for n in order if n in members - chosen]
 
 
+def _formed_in_simulations(snapshot: dict[str, Any]) -> dict[tuple[str, str], str]:
+    """(compound, process selection name) -> the metabolite the published simulations form with it. A process whose
+    building block names no metabolite can form one in the simulation that selects it (OSP Ketoconazole:
+    n-deacetyl-ketoconazole's "FMO3-Rodriguez 1997" forms n-deacetyl-n-hydroxy-ketoconazole)."""
+    seen: dict[tuple[str, str], Counter] = {}
+    for sim in snapshot.get("Simulations", []):
+        for entry in sim.get("Compounds", []):
+            for selection in entry.get("Processes", []) or []:
+                if selection.get("Name"):
+                    seen.setdefault((entry["Name"], selection["Name"]), Counter())[selection.get("MetaboliteName")] += 1
+    # the metabolite most simulations selecting the process form (a single simulation's own choice is not the model's)
+    return {key: top for key, counts in seen.items()
+            if (top := counts.most_common(1)[0][0]) is not None and counts[top] * 2 > sum(counts.values())}
+
+
+def _metabolite_of(compound: str, process: dict[str, Any], formed: dict[tuple[str, str], str]) -> str | None:
+    return process.get("Metabolite") or formed.get((compound, _selection_name(process)))
+
+
 def _formation(snapshot: dict[str, Any], members: set[str]) -> list[Formation]:
+    formed = _formed_in_simulations(snapshot)
     out = []
     for compound in snapshot.get("Compounds", []):
         if compound["Name"] not in members:
             continue
         for process in compound.get("Processes", []):
-            if process.get("Metabolite") in members and process.get("Molecule"):
+            metabolite = _metabolite_of(compound["Name"], process, formed)
+            if metabolite in members and process.get("Molecule"):
                 out.append(Formation(compound=compound["Name"], internal_name=process["InternalName"],
                                      molecule=process["Molecule"], data_source=process.get("DataSource") or "",
-                                     metabolite=process["Metabolite"]))
+                                     metabolite=metabolite))
     return out
 
 

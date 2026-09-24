@@ -31,7 +31,7 @@ at any time: examples already in the tool are skipped. It refuses to start with 
 | Dapagliflozin (as published) / (refit S1-S3) | The plan-exit drug: 40 real studies (IV microdose, solution, tablets, fed, multiple dose, renal impairment). As published: the peer-reviewed parameters judged stage by stage. Refit: the parameters MS-01 lets S1–S3 fit, freed and fitted on PK-Sim. |
 | Rifampicin (as published) / (refit S1-S3) | The second plan-exit drug: saturable AADAC metabolism, OATP1B1 / P-gp transport, auto-induction, 53 studies. |
 | Midazolam, Alfentanil, Alprazolam, Clarithromycin, Digoxin, Metformin, Raltegravir, Ketoconazole, Voriconazole, Itraconazole | The other published OSP library models with their clinical data (CYP3A4 / UGT metabolism, transporters, particle dissolution, loading-dose regimens, pH-dependent solubility, fed-state alternatives). |
-| Verapamil, Omeprazole, Dabigatran, Itraconazole systems | Parent with enantiomers and metabolites simulated together (sum observers, CYP2C19 poor metabolisers, prodrug). The parent is fitted and gated; metabolite data are reported (phase 2 needs the MS-01 amendment). |
+| Verapamil, Omeprazole, Dabigatran, Itraconazole, Ketoconazole systems | Parent with enantiomers and metabolites simulated together (sum observers, CYP2C19 poor metabolisers, prodrug). The parent is fitted and gated; metabolite data are reported (phase 2 needs the MS-01 amendment). |
 | Aciclovir (illustrative) | A hand-made quick check of the software path; labelled as such, not evidence. |
 
 ## 3. What each campaign does

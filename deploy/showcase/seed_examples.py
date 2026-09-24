@@ -44,6 +44,7 @@ SYSTEMS = {
     "Omeprazole": "esomeprazole and R-omeprazole; CYP2C19 extensive and poor metabolisers, CYP3A4",
     "Dabigatran": "dabigatran etexilate prodrug, dabigatran and its glucuronide; esterases, P-gp, UGT",
     "Itraconazole": "itraconazole with hydroxy-, keto- and N-desalkyl-itraconazole; CYP3A4, solubility per product",
+    "Ketoconazole": "ketoconazole with n-deacetyl- and n-deacetyl-n-hydroxy-ketoconazole; AADAC, FMO3, particle dissolution",
 }
 REFIT = ("dapagliflozin-osp", "rifampicin-osp")  # plan exit (docs/plans/2026-09-24-remaining-to-goal.md)
 
