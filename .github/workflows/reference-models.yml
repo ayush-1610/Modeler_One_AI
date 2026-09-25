@@ -10,17 +10,10 @@
 # gate: this run never signs on anyone's behalf. Results: each job's summary and its "reference-<task>" artifact.
 name: Reference models (PK-Sim)
 
+# Manual only (Actions tab → Run workflow): the reference checks run on the server's PK-Sim
+# (bash deploy/reference/run_all.sh); a private repository's Actions minutes are kept for CI.
 on:
   workflow_dispatch:
-  push:
-    branches: [main-1czavz]
-    paths:
-      - ".github/workflows/reference-models.yml"
-      - "deploy/reference/**"
-      - "deploy/dev/docker_engine.sh"
-      - "services/engine-worker/**"
-      - "packages/pbpk-domain/src/pbpk_domain/**"
-      - "services/orchestrator/src/**"
 
 # No concurrency group: a push starts a new set beside a running one, whose results (hours of PK-Sim) are kept.
 

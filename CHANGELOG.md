@@ -15,6 +15,12 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — reference checks run on the server; the PK-Sim workflow is manual
+- `.github/workflows/reference-models.yml` no longer runs on push (only "Run workflow" by hand): the reference set runs
+  on the server's PK-Sim (`bash deploy/reference/run_all.sh`), and the repository goes private. Last full run on
+  Actions (run 35, da2b2c8): every round-trip pair identical, within 1e-3 of the peak, or labelled by design;
+  Ketoconazole's parent-only curves 90–100 % of the published (2 % before its compound settings).
+
 ### Fixed — compound settings beyond MW and halogens; the water of administrations given together (run 33)
 - A compound's other parameters in the published snapshot are imported by their PK-Sim name and unit (`cmpd.<name>`,
   bound to the Compound building block) and written back. OSP Ketoconazole sets "Enable supersaturation" 1, "Treat
