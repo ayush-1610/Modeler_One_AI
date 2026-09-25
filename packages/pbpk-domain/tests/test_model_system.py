@@ -224,3 +224,14 @@ def test_administrations_at_one_moment_are_one_dose():
     imported = _system("Verapamil")
     row = next(s for s in imported.studies if s["study_id"] == "ratiopharm-1989-unknown")
     assert imported.system.products[row["product"]] == {"R-Verapamil": 0.462883625, "S-Verapamil": 0.462883625}
+
+
+def test_compound_settings_and_the_water_of_administrations_given_together():
+    """OSP Ketoconazole sets supersaturation, precipitation, diffusion and density on its compound (run 33: every
+    curve ~50x lower without them); Verapamil Ratiopharm 1989 gives two tablets at 0 h, each with 3.5 ml/kg."""
+    ketoconazole = _system("Ketoconazole").system.cpf("ketoconazole")
+    assert ketoconazole.get("cmpd.Enable supersaturation").value == 1.0
+    assert ketoconazole.get("cmpd.Treat precipitated drug as").value == 0.0
+    assert ketoconazole.get("cmpd.Aqueous diffusion coefficient").unit == "dm²/min"
+    row = next(s for s in _system("Verapamil").studies if s["study_id"] == "ratiopharm-1989-unknown")
+    assert row["water_ml_per_kg"] == 7.0

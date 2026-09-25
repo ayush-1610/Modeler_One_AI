@@ -474,6 +474,8 @@ class CompoundSpec(Spec):
     permeability: Measured | None = None
     pka: list[PkaSpec] = Field(default_factory=list, max_length=3)  # PK-Sim supports up to 3 pKa values [VERIFY]
     halogens: dict[Literal["F", "Cl", "Br", "I"], int] = Field(default_factory=dict)
+    # other compound parameters by their PK-Sim name (as a published snapshot sets them: "Enable supersaturation")
+    other_parameters: dict[str, Measured] = Field(default_factory=dict)
     # None leaves the partner unset, so PK-Sim applies its own default: as a published compound that does not set it
     # does (OSP Alprazolam, Verapamil; PK-Sim stores 2 there, where an explicit "Albumin" stores 1)
     binding_partner: Literal["Albumin", "Glycoprotein", "Unknown"] | None = "Albumin"
@@ -622,6 +624,7 @@ class CompoundSpec(Spec):
         fields["parameters"] = [
             *(Parameter(name=h, value=float(n)) for h, n in sorted(self.halogens.items()) if n),
             self.molecular_weight.to_parameter(name="Molecular weight"),
+            *(m.to_parameter(name=name) for name, m in self.other_parameters.items()),
         ]
         return Compound(**fields)
 

@@ -575,6 +575,12 @@ def _compound_from_cpf(cpf: CPF) -> tuple[CompoundSpec, list[str], list[str]]:
             used.append(record.id)
     if halogens:
         fields["halogens"] = halogens
+    # other compound parameters by their harvested PK-Sim name (ids "cmpd.<name>")
+    other = {r.id.split(".", 1)[1]: _measured(r) for r in cpf.with_prefix("cmpd") if r.value is not None
+             and r.status is not ParameterStatus.MISSING}
+    if other:
+        fields["other_parameters"] = other
+        used.extend(f"cmpd.{name}" for name in other)
 
     # Compound processes (metabolism, transport, inhibition, induction, binding, GFR), grouped by process.
     processes, process_used, unresolved = _build_processes(cpf)

@@ -15,6 +15,15 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — compound settings beyond MW and halogens; the water of administrations given together (run 33)
+- A compound's other parameters in the published snapshot are imported by their PK-Sim name and unit (`cmpd.<name>`,
+  bound to the Compound building block) and written back. OSP Ketoconazole sets "Enable supersaturation" 1, "Treat
+  precipitated drug as" 0, its aqueous diffusion coefficient and drug density; without them every Ketoconazole curve
+  was ~2 % of the published one (run 33, parent-only and system round trips).
+- A dose given as several administrations at 0 h (OSP Verapamil Ratiopharm 1989: two tablets, 3.5 ml/kg each) is
+  given with their combined water (7 ml/kg); run 33 had the right dose but 3.5 ml/kg (Cmax +14 %).
+- Run 33 also: Verapamil system 69 of 75 identical (60 in run 26).
+
 ### Changed — round-trip summaries separate solver-level residuals from real differences
 - The headline now also counts pairs off by more than 1e-6 but at most 1e-3 of the peak with AUC and Cmax within
   1e-3 ("solver level"), and the pairs labelled by design. Acceptance (T-10) is unchanged: identical means 1e-6.

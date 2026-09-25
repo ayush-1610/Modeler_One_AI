@@ -268,6 +268,11 @@ def _compound_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _
             out.add("phys.mw", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter)
         elif parameter.get("Name") in _HALOGENS and parameter.get("Value"):
             out.add(f"phys.halogens.{parameter['Name']}", parameter["Value"], parameter=parameter)
+        elif parameter.get("Name") and parameter.get("Value") is not None and parameter["Name"] not in _HALOGENS:
+            # any other compound value the published model sets, by its PK-Sim name and unit (OSP Ketoconazole:
+            # "Enable supersaturation", "Treat precipitated drug as", "Aqueous diffusion coefficient", "Density (drug)")
+            out.add(f"cmpd.{parameter['Name']}", parameter["Value"], unit=parameter.get("Unit"), parameter=parameter,
+                    binding=EngineBinding(building_block="Compound", parameter=parameter["Name"]))
 
     for group, name, pid, unit in _ALTERNATIVE_PARAMETERS:
         if not compound.get(group):
@@ -875,6 +880,14 @@ def _simulation_links(snapshot: dict[str, Any], compound: str) -> dict[str, dict
             "water_by_application": by_application,
             # applications per dose: a product given as several bins (OSP Ketoconazole) numbers each bin
             "items_per_dose": max([1, *[len(sc.get("SchemaItems") or []) for sc in protocol_doc.get("Schemas") or []][:1]]),
+            # administrations given together as one dose, one schema each (OSP Verapamil Ratiopharm 1989: two tablets
+            # at 0 h): their waters add up
+            "together": max([1, *[n for _t, n in _dose_moments(protocol_doc).values()]]),
+            "together_water": sum(float(q["Value"]) for sc in protocol_doc.get("Schemas") or []
+                                  for item in sc.get("SchemaItems", []) for q in item.get("Parameters", [])
+                                  if q.get("Name") == "Volume of water/body weight" and q.get("Unit") == "ml/kg"
+                                  and _hours(sc.get("Parameters", []), "Start time") + _hours(item.get("Parameters", []),
+                                                                                           "Start time") == 0.0),
             # the process selections each compound has in this simulation
             "selections": {c["Name"]: {q["Name"] for q in c.get("Processes", []) or [] if q.get("Name")}
                            for c in sim.get("Compounds", [])},
@@ -1091,6 +1104,14 @@ def _water(row: dict[str, Any], link: dict[str, Any], said: list[str]) -> None:
     the first dose's differs (OSP Itraconazole: 2.82 ml/kg with the first dose, 3.5 after), per regimen phase."""
     base = link.get("water_ml_per_kg")
     by_app = link.get("water_by_application") or {}
+    if (link.get("together") or 1) > 1 and (link.get("items_per_dose") or 1) == 1 and _administrations(row) == 1:
+        # one dose given as several administrations at 0 h: the dose is their total, and so is the water
+        total = link.get("together_water") or 0.0
+        if total != _DEFAULT_WATER_ML_PER_KG:
+            row["water_ml_per_kg"] = total
+            said.append(f"{total:g} ml/kg of water with the dose (the published simulation gives "
+                        f"{link['together']} administrations at once)")
+        return
     n = _administrations(row)
     step = link.get("items_per_dose") or 1  # the first application of each dose carries its water
     waters = [by_app.get(1 + k * step, base) for k in range(n)]
