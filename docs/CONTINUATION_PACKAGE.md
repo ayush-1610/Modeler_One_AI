@@ -27,6 +27,11 @@ generate and sign the analysis plan (MAP) → run a campaign → watch it live �
 or silently skipped — see the coverage table in §4.1. Closing that is the active plan:
 `docs/plans/2026-09-24-s0-s7-real-pbpk.md`.
 
+**Draft plan awaiting approval (2026-09-25):** `docs/plans/2026-09-25-project-startup-pipeline.md`: project
+phases P0–P6 in front of S0 (proposal intake, literature and client data, planning canvas) and a non-linear
+backend (SJ joint refinement, external-validation feedback). It is the newest file in `docs/plans/` but does not
+replace the active plan until the owner approves it; its decisions D-01…D-24 are open.
+
 **Engine:** runs only on Linux — on macOS snapshot execution is unsupported and `loadProjectFromSnapshot` segfaults.
 Server `ssh adt-server` (LAN 192.168.1.10, user `adt-ayush`, no sudo, repo rsynced to `~/Modeler_One_AI`, engine in
 `~/modeler-engine`, data in `~/modeler-data`). It drops off the LAN, has no Tailscale yet, and its root disk is 95%

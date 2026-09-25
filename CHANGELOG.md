@@ -16,6 +16,16 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 ### Docs
+- **Draft plan: the project start-up pipeline (P0–P6) and a non-linear model backend**
+  (`docs/plans/2026-09-25-project-startup-pipeline.md`, DRAFT, awaiting the owner's answers and approval; nothing
+  built). Why: campaigns so far were judged against illustrative or self-simulated profiles, and every input (CPF,
+  studies) is typed in as raw JSON with no document intake, literature work, client Excel handling, reviewable plan
+  or way to edit an early decision later. The plan puts phase-gated, multi-agent intake in front of S0 (technical
+  proposal → Project Brief, literature and client data with provenance, PK-Sim input pages, a three-diagram planning
+  canvas), a rule that only real observed data can pass, and a non-linear backend (no-regression gate, a joint
+  refinement stage SJ over all internal studies, external-validation feedback cycles, influence map). SJ and any
+  criterion change are MS-01 / ruleset proposals that need explicit approval. Impact: none until approved; it does
+  not replace the 2026-09-24 plan, whose Phase 4 continues.
 - **Added `CHANGELOG.md` (this file) and `CLAUDE.md`.** There was no change log and the continuation doc was 50
   commits out of date; project context lived only in commit messages and a private assistant memory, so it was lost
   whenever the session or AI model changed. `CLAUDE.md` is loaded into every Claude Code session, which is what makes
@@ -328,3 +338,4 @@ record it here so a reader knows which context produced which work.
 | 2026-09-16 → 20 | Claude Opus 4.8 | Planning (MS-01, engineering plan), T-01 → T-32 core, web app, single-node execution, create-project flow |
 | 2026-09-23 → 24 | Claude Opus 5 | Real example, calibration, review decisions, server scripts, autostart, case studies, redesign |
 | 2026-09-24 → | Claude Opus 5.5 | Diagnosis of the S1 stop; S0 → S7 plan and execution; this change log |
+| 2026-09-25 | per commit trailer (new session) | Plan for the project start-up pipeline (P0–P6) and the non-linear backend (draft, awaiting approval) |
