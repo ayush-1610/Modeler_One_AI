@@ -1,11 +1,19 @@
-import { Card, Completeness, ProvenanceChip } from "@/components/ui";
-import { COMPOUND, MEASURED_SOURCES } from "@/lib/fixtures";
+import { ApiProblem, Card, Completeness, ProvenanceChip } from "@/components/ui";
+import { MEASURED_SOURCES } from "@/lib/types";
 import { getCompoundCpf } from "@/lib/reads";
 
 export default async function CompoundPage({ params }: { params: Promise<{ projectId: string; compound: string }> }) {
   const { projectId, compound } = await params;
   const live = await getCompoundCpf(projectId, compound);
-  const cpf = live ?? COMPOUND;
+  const cpf = live.data;
+  if (!cpf) {
+    return (
+      <main>
+        <h1>{decodeURIComponent(compound)} — Compound Parameter Framework</h1>
+        <ApiProblem problem={live.problem ?? `No CPF for ${decodeURIComponent(compound)} in project ${projectId} yet.`} />
+      </main>
+    );
+  }
   const fitted = cpf.parameters.filter((p) => p.source === "ParameterIdentification").length;
   const measured = cpf.parameters.filter((p) => MEASURED_SOURCES.includes(p.source)).length;
 
@@ -19,7 +27,6 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
         The CPF is the system of record: every simulation is regenerated from it. Each parameter shows its value,
         provenance and the stages in which it may be fitted.
       </p>
-      {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
 
       <Card>
         <div className="kpi">

@@ -33,7 +33,7 @@ def po(**kw) -> StudyResidual:
 
 
 def test_ruleset_version_is_unverified() -> None:
-    assert diag_ruleset_version() == "diag-rules@0.3-UNVERIFIED"
+    assert diag_ruleset_version() == "diag-rules@0.5-UNVERIFIED"
 
 
 # --- individual rules ----------------------------------------------------------------------------
@@ -42,14 +42,23 @@ def test_ruleset_version_is_unverified() -> None:
 def test_clearance_offers_clearance_parameters_before_logp() -> None:
     d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)])
     assert d.escalate is False
-    assert d.permitted_actions == ("fit elim.hepatic.{enzyme}.clspec", "fit elim.renal.gfr_fraction",
+    assert d.permitted_actions == ("fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat",
+                                   "fit transp.{name}.kcat", "fit elim.renal.gfr_fraction",
                                    "fit elim.renal.ts_clspec", "fit phys.logp")
+
+
+def test_saturable_clearance_is_offered_its_catalytic_rates_before_logp() -> None:
+    """diag-rules 0.4: a compound cleared by Michaelis-Menten metabolism or transport (rifampicin: AADAC, OATP1B1,
+    P-gp) is offered its kcat fits; before 0.4 only first-order clspec, renal clearance and logP were offered."""
+    d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.9)], actions_tried=["fit elim.hepatic.{enzyme}.clspec"])
+    assert d.permitted_actions[:2] == ("fit elim.hepatic.{enzyme}.kcat", "fit transp.{name}.kcat")
 
 
 def test_renally_cleared_compound_is_offered_renal_clearance_not_logp_first() -> None:
     """diag-rules 0.2: with hepatic clearance ruled out (the compound has none), the next offer is the renal
     clearance — not logP, which would distort distribution to hide a clearance error (seen on PK-Sim)."""
-    d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.9)], actions_tried=["fit elim.hepatic.{enzyme}.clspec"])
+    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat", "fit transp.{name}.kcat"]
+    d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.9)], actions_tried=tried)
     assert d.permitted_actions[0] == "fit elim.renal.gfr_fraction"
 
 
@@ -148,6 +157,40 @@ def test_fed_tmax_escalates() -> None:
     assert d.escalate is True
 
 
+def test_exposure_fallback_fits_clearance_when_thalf_contradicts_auc() -> None:
+    """diag-rules 0.5: AUC 2-fold high with t1/2 short (several parameters wrong at once, the refit case seen on
+    PK-Sim) matches no specific rule; the fallback offers the clearance parameters, then logP."""
+    d = _diag("S1", [iv(thalf_ratio=0.7, auc_ratio=2.0)])
+    assert d.escalate is False
+    assert "exposure_off" in d.evidence
+    assert d.permitted_actions == ("fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat",
+                                   "fit transp.{name}.kcat", "fit phys.logp")
+
+
+@pytest.mark.parametrize("auc", [1.49, 0.68, 1.0])
+def test_exposure_fallback_needs_more_than_one_and_a_half_fold(auc: float) -> None:
+    d = _diag("S1", [iv(thalf_ratio=1.0, auc_ratio=auc)])
+    assert "exposure_off" not in d.evidence
+    assert d.escalate is True
+
+
+def test_exposure_fallback_yields_to_a_specific_rule() -> None:
+    # clearance_off matches: the clearance rule's own order (renal before logP) applies, not the fallback's
+    d = _diag("S1", [iv(thalf_ratio=2.0, auc_ratio=2.0)])
+    assert d.causes == ("Systemic clearance mis-specified",)
+    # oral AUC low without dose trend: first-pass rule, not the fallback
+    d = _diag("S2", [po(auc_ratio=0.4)])
+    assert "Exposure off with no specific diagnosis (clearance first)" not in d.causes
+    assert d.permitted_actions[0] == "fit perm.intestinal"
+
+
+def test_exposure_fallback_escalates_once_its_actions_are_tried() -> None:
+    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat", "fit transp.{name}.kcat", "fit phys.logp"]
+    d = _diag("S1", [iv(thalf_ratio=0.7, auc_ratio=2.0)], actions_tried=tried)
+    assert d.escalate is True
+    assert "already been tried" in d.reason
+
+
 def test_no_evidence_escalates() -> None:
     d = _diag("S1", [iv(thalf_ratio=1.0, auc_ratio=1.0)])
     assert d.escalate is True
@@ -158,14 +201,15 @@ def test_no_evidence_escalates() -> None:
 
 
 def test_tried_action_is_skipped() -> None:
-    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit elim.renal.gfr_fraction", "fit elim.renal.ts_clspec"]
+    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat", "fit transp.{name}.kcat", "fit elim.renal.gfr_fraction",
+             "fit elim.renal.ts_clspec"]
     d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)], actions_tried=tried)
     assert d.permitted_actions == ("fit phys.logp",)
 
 
 def test_all_actions_tried_escalates() -> None:
-    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit elim.renal.gfr_fraction", "fit elim.renal.ts_clspec",
-             "fit phys.logp"]
+    tried = ["fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat", "fit transp.{name}.kcat", "fit elim.renal.gfr_fraction",
+             "fit elim.renal.ts_clspec", "fit phys.logp"]
     d = _diag("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)], actions_tried=tried)
     assert d.escalate is True
     assert "already been tried" in d.reason
@@ -200,7 +244,7 @@ CASES = [
      "fit elim.hepatic.{enzyme}.clspec"),
     ("S2", [po(cmax_ratio=2.0, tmax_ratio=0.4)], {}, "fit perm.intestinal"),
     ("S2", [po(cmax_ratio=0.4, tmax_ratio=2.0, auc_in_limits=True)], {}, "fit perm.intestinal"),
-    ("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)], {"actions_tried": ["fit elim.hepatic.{enzyme}.clspec"]},
+    ("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)], {"actions_tried": ["fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat", "fit transp.{name}.kcat"]},
      "fit elim.renal.gfr_fraction"),
     ("S3", [po()], {"fed": FedSignals(auc_ratio_off=True, cmax_consistent=True)}, "fit food.fed_solubility_factor"),
     ("S2", [po(study_id="lo", dose_mg=5, observed_auc=50), po(study_id="hi", dose_mg=50, observed_auc=1500)], {},

@@ -18,32 +18,37 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from pbpk_domain.acceptance import load_acceptance_ruleset
 from pbpk_domain.campaign.split import (
     DEFAULT_DEMOGRAPHICS,
     Assignment,
+    DosePhase,
+    Meal,
+    PublishedIndividual,
     SplitResult,
     StudyClass,
     StudyRecord,
 )
 from pbpk_domain.cpf.models import CPF
 from pbpk_domain.m15 import Rating
+from pbpk_domain.system import ModelSystem
 
 # Per-stage fitting plan (MS-01 §4). Candidate ids use `{enzyme}`/`{name}` where the concrete parameter is
 # resolved from the CPF at build time. Branches are discrete method choices, compared not fitted.
 STAGE_PLAN: dict[str, dict] = {
     "S0": {"fit_candidates": (), "branches": (), "max_rounds": 1},
     "S1": {
-        "fit_candidates": ("elim.hepatic.{enzyme}.clspec", "phys.logp", "elim.renal.gfr_fraction", "elim.renal.ts_clspec",
-                           "perm.cellular", "bind.fu"),
+        "fit_candidates": ("elim.hepatic.{enzyme}.clspec", "elim.hepatic.{enzyme}.kcat", "transp.{name}.kcat",
+                           "phys.logp", "elim.renal.gfr_fraction", "elim.renal.ts_clspec", "perm.cellular", "bind.fu"),
         "branches": ("dist.partition_method", "dist.permeability_method"),
         "max_rounds": 4,
     },
     "S2": {
         "fit_candidates": ("perm.intestinal", "phys.solubility.ref", "elim.ehc_fraction",
-                           "elim.hepatic.{enzyme}.km", "elim.hepatic.{enzyme}.vmax", "elim.hepatic.{enzyme}.clspec"),
+                           "elim.hepatic.{enzyme}.km", "elim.hepatic.{enzyme}.vmax", "elim.hepatic.{enzyme}.clspec",
+                           "elim.hepatic.{enzyme}.kcat", "transp.{name}.kcat"),
         "branches": (),
         "max_rounds": 4,
     },
@@ -143,10 +148,16 @@ class MapScenario(BaseModel):
     stage: str
     route: str
     dose_mg: float
+    dose_per_kg: bool = False  # dose_mg per kg body weight (PK-Sim InputDose in mg/kg)
     infusion_time_min: float | None
     formulation: str
     food_state: str
     meal_template: str | None
+    meals: tuple[Meal, ...] = ()  # every meal as given (StudyRecord.meals)
+    inactive_processes: dict[str, tuple[str, ...]] = Field(default_factory=dict)  # StudyRecord.inactive_processes
+    default_simulation_values: tuple[str, ...] = ()  # StudyRecord.default_simulation_values
+    solver: dict[str, float] = Field(default_factory=dict)  # StudyRecord.solver
+    water_ml_per_kg: float | None = None  # StudyRecord.water_ml_per_kg
     n_subjects: int
     population: str
     sex: str
@@ -158,9 +169,20 @@ class MapScenario(BaseModel):
     # Multiple-dose regimen (a dose every `dosing_interval_h`, `n_doses` times); None for a single dose.
     dosing_interval_h: float | None = None
     n_doses: int | None = None
+    # A regimen whose doses differ (loading, then maintenance), phase by phase (StudyRecord.dose_phases).
+    dose_phases: tuple[DosePhase, ...] = ()
     # The study's last sampling time: the simulation must cover it, or the prediction is scored on a shorter
     # window than the observation.
     sim_end_time_h: float | None = None
+    # A reference model's own individual for this study (physiology and expression that differ from the main one).
+    published_individual: PublishedIndividual | None = None
+    # A model system's analyte the study measures and the product it administers (None: the single compound).
+    analyte: str | None = None
+    product: str | None = None
+    # the analyte's simulation output (a compound's plasma or a published sum observer) and whether the study enters
+    # the acceptance gate and the fit — phase 1: only the fitted parent's plasma (owner decision 3, 2026-09-24)
+    analyte_output: str | None = None
+    gated: bool = True
     # The VPC population's age range (the study's own, else the MS-01 default ±10 y around the mean; `vpc.age_range`).
     vpc_age_min: float | None = None
     vpc_age_max: float | None = None
@@ -206,6 +228,8 @@ class MapDocument(BaseModel):
     status: MapStatus = MapStatus.DRAFT
     signature: MapSignature | None = None
     supersedes_sha256: str | None = None
+    # a model system's content hash (pbpk_domain.system.ModelSystem.sha256) when the campaign simulates one
+    model_system_sha256: str | None = None
 
     # --- identity & lifecycle --------------------------------------------------------------------
 
@@ -292,15 +316,22 @@ def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template:
         for stage in _scenario_stages(row.assignment, row.study_class, train):
             scenarios.append(MapScenario(
                 study_id=study.study_id, stage=stage, route=study.route.value, dose_mg=study.dose_mg,
+                dose_per_kg=study.dose_per_kg,
                 infusion_time_min=study.infusion_time_min,
                 formulation=study.formulation.value, food_state=study.food_state.value,
-                meal_template=meal_template if study.food_state.value == "fed" else None, n_subjects=study.n,
+                meal_template=meal_template if study.food_state.value == "fed" else None,
+                meals=study.meals, inactive_processes=study.inactive_processes,
+                default_simulation_values=study.default_simulation_values, solver=study.solver,
+                water_ml_per_kg=study.water_ml_per_kg, n_subjects=study.n,
                 population=demo.population, sex=demo.sex.value, age_years=demo.age_years,
                 weight_kg=demo.weight_kg, height_cm=demo.height_cm, study_class=row.study_class.value,
                 formulation_name=study.formulation_name,
                 dosing_interval_h=study.dosing_interval_h if multiple else None,
                 n_doses=study.n_doses if multiple else None,
+                dose_phases=study.dose_phases,
                 sim_end_time_h=ends.get(study.study_id),
+                published_individual=study.published_individual,
+                analyte=study.analyte, product=study.product,
                 vpc_age_min=vpc_ages[0], vpc_age_max=vpc_ages[1],
             ))
     return tuple(scenarios)
@@ -338,7 +369,25 @@ def stage_coverage(map_doc: MapDocument, stage: str) -> StageCoverage:
             elif row.assignment == Assignment.SUPPORTIVE.value:
                 notes.append(f"{row.study_id} ({row.study_class}) is supportive context only; not simulated")
     skip = _SKIP_REASON.get(stage) if kind in ("fit", "validate", "predict") and not studies else None
+    if skip is None and kind in ("fit", "validate") and studies and map_doc.model_system_sha256:
+        gated_studies = {s.study_id for s in map_doc.scenarios if s.stage == source and s.gated}
+        if not gated_studies:
+            # a model system whose studies here all measure a metabolite or a sum (Verapamil's IV data are racemic):
+            # reported beside the gate in phase 1, so nothing judges or fits this stage (owner decision 3)
+            skip = (f"no study of this stage measures the fitted parent's plasma: {', '.join(studies)} measure other "
+                    "analytes of the model system, reported but not gated or fitted in phase 1")
     return StageCoverage(stage=stage, kind=kind, studies=studies, skip_reason=skip, notes=tuple(notes))
+
+
+def _system_scenarios(scenarios: tuple[MapScenario, ...], system: ModelSystem | None, fitted: str) -> tuple[MapScenario, ...]:
+    """Each scenario of a model system names its analyte's output path and whether it is gated (fitted parent only)."""
+    if system is None:
+        return scenarios
+    from pbpk_domain.system import gated
+
+    return tuple(s.model_copy(update={
+        "analyte_output": system.analytes[s.analyte].output_path if s.analyte in system.analytes else None,
+        "gated": gated(system, s.analyte, fitted)}) for s in scenarios)
 
 
 def generate_map(
@@ -358,6 +407,7 @@ def generate_map(
     diagnostics_ruleset_version: str | None = None,
     meal_template: str = "Meal: High-fat breakfast (Human)",
     sampling_end_h: Mapping[str, float] | None = None,
+    system: ModelSystem | None = None,
 ) -> MapDocument:
     """Produce the MAP (version 1, DRAFT) from the standard and the campaign's inputs (MS-01 §9).
 
@@ -397,7 +447,9 @@ def generate_map(
         split_rationale=split.rationale,
         split_limitations=split.limitations,
         stage_plan=stage_plan,
-        scenarios=_scenarios(studies, split, meal_template=meal_template, cpf=cpf, sampling_end_h=sampling_end_h),
+        scenarios=_system_scenarios(_scenarios(studies, split, meal_template=meal_template, cpf=cpf,
+                                               sampling_end_h=sampling_end_h), system, cpf.compound),
+        model_system_sha256=system.sha256 if system is not None else None,
         diagnostics_ruleset_version=diagnostics_ruleset_version,
         acceptance=_acceptance(model_risk),
         engine_image_digest=engine_image_digest,

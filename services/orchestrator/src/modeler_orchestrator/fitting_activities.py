@@ -106,6 +106,9 @@ def assess_round(
         findings=findings,
         best_start_index=assessment.best.start_index if assessment.best else None,
         deadline_reached=deadline_reached,
+        at_bound=[f.parameter for f in assessment.findings if f.code == "AT_BOUND" and f.parameter],
+        correlated_pairs=[list(pair) for pair in assessment.correlated_pairs],
+        starts_agreement=assessment.agreement_fraction if assessment.best else None,
     )
 
 

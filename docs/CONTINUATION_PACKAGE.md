@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-09-24 (HEAD 0854342 + change docs).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-09-24 (HEAD 62bceff + Phase 4 importer).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -23,8 +23,10 @@ built and tested in code but not deployed.
 generate and sign the analysis plan (MAP) → run a campaign → watch it live → decide escalations in the review inbox
 (signed).
 
-**The honest limit:** the pipeline only really runs **S0 → S1 (S2 for an oral solution)**. S3–S7 are unbuilt, stubbed
-or silently skipped — see the coverage table in §4.1. Closing that is the active plan:
+**The honest limit:** every stage S0 → S7 now runs on real PK-Sim, but only on known-truth (synthetic) data so
+far — see the coverage table in §4.1. Real clinical data is the open item: the Phase 4 reference importer turns the
+published OSP Dapagliflozin model into a CPF and 40 real clinical studies (`pbpk_domain.reference`), and every stage
+builds from it; running that campaign on the server's PK-Sim is next. Active plan:
 `docs/plans/2026-09-24-s0-s7-real-pbpk.md`.
 
 **Engine:** runs only on Linux — on macOS snapshot execution is unsupported and `loadProjectFromSnapshot` segfaults.
@@ -210,10 +212,20 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 | S4 internal validation | final CPF vs internal studies, no fitting | **Done — PK-Sim** | every trained study re-simulated once, judged, never fitted; VPC per study reported; failure escalates with §6.6 choices | — | — |
 | S5 external validation | fasted and fed judged separately | **Done — PK-Sim** | external core-class studies (IV, oral, tablet, MD) judged from the final CPF, fasted / fed as separate groups; unbuildable ones named; "not achievable" with no external study | clinical-data proof; fed studies await the fed sub-loop | 4 |
 | S6 prediction | sensitivity + uncertainty on the question | **Partial — PK-Sim** | runs after the signed S4/S5 gate; local sensitivity over FITTED/PREDICTED parameters; uncertainty of fitted parameters (n = 200) → AUC/Cmax intervals; verified on the server (known-truth) | application templates (T-31); correlated sampling; Temporal wiring | next phase |
-| S7 report & package | MAR, M15 table, bundle, re-run | **Partial — PK-Sim** | evidence persisted per stage; data bundle; fresh-engine re-run compared at 1e-6; MAR (MD, DOCX, PDF/A-2b) with evidence index; zip released only if reproduction passed; 7/7 tables reproduced on the server | MAR signature; M15 influence/consequence capture; Temporal wiring (download API and monitor card done) | Phase 3 |
+| S7 report & package | MAR, M15 table, bundle, re-run | **Partial — PK-Sim** | evidence persisted per stage; data bundle; fresh-engine re-run compared at 1e-6; MAR (MD, DOCX, PDF/A-2b) with evidence index; zip released only if reproduction passed; the PK-Sim project of each bundled simulation (`pksim/*.pksim5`, engine `convert_to_project`; not yet run in a campaign on the server); 7/7 tables reproduced on the server | MAR signature; M15 influence/consequence capture; Temporal wiring (download API and monitor card done) | Phase 3 |
 
 Roadblocks R1–R13 are defined in the active plan. **Evidence rule:** a stage is "Done" only when a campaign has passed
 it on real PK-Sim, not on a stub or the analytical stand-in.
+
+**Session 2026-09-24 (late), in brief.** GitHub Actions runs again (repo public): the reference matrix runs on
+every push. Run 24 found, and these commits fix: processes a published simulation switches off (Omeprazole poor
+metabolisers, Metformin Morrissey), model values it leaves at default (Alfentanil Kharasch 2012), a tablet's "Use as
+suspension" (Clarithromycin, Voriconazole, Dabigatran), DDI arms named "with Perpetrator (X)" and paediatric studies
+being fitted, per-project CPF storage (two projects on one drug overwrote each other), readable study ids. Run 26 then showed, and later commits fix: pre-PK-Sim-10 individuals' expression (Voriconazole), calculation methods taken from the simulations, per-simulation solver settings, the water given with each oral dose (Verapamil, Itraconazole, Dabigatran, Ketoconazole), every meal of a simulated regimen, administrations at one moment as one dose, the Ketoconazole system. Residuals of 1e-6 to 3e-5 of the peak with AUC ratios 1.00000x (Metformin, Omeprazole, Itraconazole system) are not yet explained. Run 35 (da2b2c8, last on Actions): every pair identical, within 1e-3, or labelled; Ketoconazole fixed by its compound settings; its Verapamil and Ketoconazole system round trips finished but were not read. From here the reference checks run on the server (`deploy/reference/run_all.sh`); the Actions reference workflow is manual and the repository private. Added:
+`.pksim5` projects in the S7 package, the example seeder (`deploy/server/seed_examples.sh`), "Your own compound" in
+the wizard, `docs/USING_THE_TOOL.md`. Open data issue for the owner: OSP Rifampicin's Stone 2004 dataset is labelled
+mg/l with values ~1000× too low (the published model never simulates it); it sits in the fitting set and needs an
+exclusion decision (D5). This cloud session cannot reach the server (LAN only, no Tailscale).
 
 ### 4.2 Platform
 
@@ -225,7 +237,7 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 | Object store | `file://` — used. MinIO presigned I/O — not built |
 | Engine | Real PK-Sim on the server, and on the Mac through Docker (`deploy/dev/docker_engine.sh`, image from `services/engine-worker/Dockerfile`; set `MODELER_ENGINE_COMMAND="bash <repo>/deploy/dev/docker_engine.sh"`). `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
 | Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog, installed 2026-09-24) / Tailscale (installed userspace, awaiting the owner's login). Redeploy from the Mac: `bash deploy/dev/deploy_to_server.sh` |
-| Web | Dark design system, project wizard, data intake, campaign monitor with fold-error gauge, review inbox. Playwright acceptance flows not written |
+| Web | Dark design system, project wizard (starting points from `GET /templates`: the published Dapagliflozin model with real data, or the labelled illustrative quick check), data intake, campaign monitor with fold-error gauge and engine label (red banner for a software-fixture run), review inbox. No sample-data fallback: pages state the real problem. Playwright flows in `apps/web/e2e` (4, pass on the stub engine; the PK-Sim run of the same flow is pending) |
 
 ### 4.3 Task status (specs in §2)
 
@@ -233,13 +245,15 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 |---|---|
 | T-01 → T-09, T-11, T-12, T-18, T-25 | Done |
 | T-03 | Done — server acceptance (a CPF reconstructed from Dapagliflozin regenerates it) folds into the Phase 4 importer |
-| T-10 | Partial — missing particle/Table formulations, Populations block, total-hepatic / biliary / tubular-secretion clearance, `MetabolizationLiverMicrosomes_MM`, `rCYP450_MM` |
+| T-10 | Partial — Weibull/Dissolved formulations, individual overrides (`indiv.*`), per-study published individual, study weight/height, expression overrides (`expr.*`), pH-solubility tables, IV bolus protocols (`IntravenousBolus`), simulation values scoped to a route (`sim[oral|iv].*`), a process selected on another molecule of the individual (`molecule.*`, Dabigatran ABCB1 on P-gp), an unset plasma protein binding partner kept unset, regimens of phases (loading dose then maintenance, unevenly spaced doses, a phase's own infusion time: `StudyRecord.dose_phases`), published expression profiles verbatim (`expr.profile.*`), solubility / intestinal-permeability alternatives per product and food state (`<id>@<alternative>`, `alt.select`), every meal with its time, template and values (`StudyRecord.meals`), processes a published simulation switches off (`StudyRecord.inactive_processes`: poor metabolisers, classed PGX); processes: specific FO/MM, liver-microsome MM, recombinant-CYP MM/FO, intrinsic FO, total hepatic and renal clearance, GFR, transporter MM / Hill / vesicular assay, competitive / noncompetitive / mixed / irreversible inhibition, induction, specific binding (names harvested from the OSP library). Model systems (plan `2026-09-24-multi-compound.md`, approved): `ModelSystem`, system import, multi-compound build (formation, per-compound protocols, observers), round trip per analyte, engine outputs per path, campaigns (API `PUT /system`, per-analyte evaluation, only the fitted parent gated — phase 2 needs the MS-01 amendment). Particle dissolution (monodisperse) and binned products placed (Ketoconazole). Missing: Table / Lint80 formulations, polydisperse particles, Populations block, biliary clearance |
+| Phase 4 reference runs | OSP library (25 public JSON snapshots): **22 import S0-ready as single compounds (Voriconazole added with loading-dose regimens), Dabigatran as a system** (2026-09-24; 3 before), gaps named per drug by `deploy/reference/portfolio.py` — Warfarin (racemic data vs enantiomer compounds, no compartment in its data) remains; Ketoconazole (particle formulation) and Voriconazole (loading doses) are placed. Round trips on PK-Sim (`.github/workflows/reference-models.yml`): Dapagliflozin 28/34 within 6.3e-5 of the peak; Rifampicin 20/21; Midazolam oral gap traced to per-simulation gut-wall permeabilities (fixed, re-run pending). Round trips on PK-Sim, run 14 (2026-09-24): every parameter identical for Dapagliflozin (25/34 curves within 1e-6, the rest by design or 2e-6–2e-5 solver noise at high doses), Rifampicin (20/21), Midazolam (all but Bornemann "1 h before a meal", 0.015, and Mikus 2017, now labelled mixed-route); Dabigatran system: IV exact, oral 2-fold off, fixed afterwards (ABCB1 selected on P-gp); Alprazolam and Alfentanil gaps (route-scoped values, IV bolus, binding partner) fixed afterwards, to be confirmed by the next run |
 | T-13 | Done (Temporal) + single-node `LocalExecutor` |
 | T-14 | Done — ruleset **UNVERIFIED** pending SME sign-off (T-30) |
 | T-15, T-17, T-20 | Done — agent `RunStore` still file-backed |
 | T-16 | Done — but the MAP never schedules S4/S5 work (R1) |
 | T-23, T-24, T-32 | Done as libraries — not wired into campaigns (R9) |
-| T-26 / T-27 / T-28 | Built — Playwright acceptance missing |
+| T-26 / T-27 / T-28 | Built — Playwright create-project flow + failure-mode flows written and passing (stub engine); intake / review-inbox decision flows not yet; wizard offers 12 published OSP models with real data |
+| Remaining to the goal | `docs/plans/2026-09-24-remaining-to-goal.md`: plan exit ≈ 7–11 sessions, regulator-reviewable product ≈ 22–34 sessions + SME time. Verification blocked on GitHub Actions minutes; `deploy/reference/run_all.sh` runs the same checks on the server |
 | T-19, T-21, T-22, T-29 | Not started |
 | T-30 | Human (SME / QA sign-off) — pending |
 | T-31 | Not started — next phase after S0 → S7 |
@@ -250,6 +264,8 @@ it on real PK-Sim, not on a stub or the analytical stand-in.
 make sync && make test && make lint          # Python: uv workspace, pytest, ruff
 npm --prefix apps/web run typecheck           # web
 npm --prefix apps/web run build
+npm --prefix apps/web run e2e                 # Playwright: starts its own API + web; stub engine unless
+                                              # E2E_ENGINE_COMMAND="Rscript $PWD/services/engine-worker/r/run_job.R"
 ```
 
 On the server (one URL, `http://<server>:3000`): `deploy/server/run_modeler.sh`, `stop_modeler.sh`,

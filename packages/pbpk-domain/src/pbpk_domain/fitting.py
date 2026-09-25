@@ -165,6 +165,7 @@ class FitAssessment:
     agreement_fraction: float
     clusters: list[list[StartResult]]
     findings: list[Finding]
+    correlated_pairs: tuple[tuple[str, str], ...] = ()
 
     @property
     def acceptable(self) -> bool:
@@ -222,8 +223,10 @@ def assess_fit(
         if u <= bound_tolerance or u >= 1 - bound_tolerance:
             findings.append(Finding("AT_BOUND", f"{p.name} = {best.estimates[p.name]:.4g} is at its bound", p.name))
 
+    correlated: list[tuple[str, str]] = []
     for (a, b), r in (correlations or {}).items():
         if a != b and abs(r) > correlation_limit:
+            correlated.append((a, b))
             findings.append(
                 Finding("HIGHLY_CORRELATED", f"{a} and {b} are correlated (r = {r:.2f}); fix one of them or add data", a)
             )
@@ -235,4 +238,4 @@ def assess_fit(
                 Finding("POORLY_DETERMINED", f"{name}: 95% CI [{lower:.3g}, {upper:.3g}] is wide relative to the estimate", name)
             )
 
-    return FitAssessment(best, agreement, clusters, findings)
+    return FitAssessment(best, agreement, clusters, findings, tuple(correlated))
