@@ -11,22 +11,23 @@ import { ROLE_LABEL, type OverallStudy, type PlanView, type Role, violationsFor 
 export const STUDY_MIME = "application/x-modeler-study";
 const NODE_MIME = "application/x-modeler-node";
 const W = 960;
-const H = 740;
+const H = 830;
 
-type NodeId = "S1" | "S2" | "S3" | "S4" | "S5" | "S6" | "SUPPORTIVE";
+type NodeId = "S1" | "S2" | "S3" | "SJ" | "S4" | "S5" | "S6" | "SUPPORTIVE";
 type NodeSpec = { id: NodeId; title: string; sub: string; role: Role | null; w: number; h: number; x: number; y: number };
 
 const DEFAULT_NODES: NodeSpec[] = [
   { id: "S1", title: "S1 · IV", sub: "trains distribution and elimination", role: "S1", w: 290, h: 190, x: 16, y: 40 },
   { id: "S2", title: "S2 · oral fasted", sub: "trains absorption", role: "S2", w: 290, h: 190, x: 335, y: 40 },
   { id: "S3", title: "S3 · formulation / fed", sub: "trains release and fed effects", role: "S3", w: 290, h: 190, x: 654, y: 40 },
-  { id: "S4", title: "S4 · internal validation", sub: "every training study, final CPF", role: null, w: 760, h: 74, x: 100, y: 280 },
-  { id: "S5", title: "S5 · external validation", sub: "judged, never fitted", role: "S5", w: 760, h: 92, x: 100, y: 390 },
-  { id: "S6", title: "S6 · application", sub: "DDI · PGx · special populations · preclinical", role: "S6", w: 760, h: 74, x: 100, y: 508 },
-  { id: "SUPPORTIVE", title: "Supportive", sub: "context only", role: "SUPPORTIVE", w: 760, h: 74, x: 100, y: 610 },
+  { id: "SJ", title: "SJ · joint refinement", sub: "one fit over every training study (MS-01 v1.1, UNVERIFIED)", role: null, w: 760, h: 74, x: 100, y: 272 },
+  { id: "S4", title: "S4 · internal validation", sub: "every training study, final CPF", role: null, w: 760, h: 74, x: 100, y: 376 },
+  { id: "S5", title: "S5 · external validation", sub: "judged, never fitted", role: "S5", w: 760, h: 92, x: 100, y: 480 },
+  { id: "S6", title: "S6 · application", sub: "DDI · PGx · special populations · preclinical", role: "S6", w: 760, h: 74, x: 100, y: 602 },
+  { id: "SUPPORTIVE", title: "Supportive", sub: "context only", role: "SUPPORTIVE", w: 760, h: 74, x: 100, y: 706 },
 ];
 // The CPF flows along these edges; dropping a dataset on an edge places it on the edge's target.
-const EDGES: [NodeId, NodeId][] = [["S1", "S2"], ["S2", "S3"], ["S3", "S4"], ["S4", "S5"], ["S5", "S6"]];
+const EDGES: [NodeId, NodeId][] = [["S1", "S2"], ["S2", "S3"], ["S3", "SJ"], ["SJ", "S4"], ["S4", "S5"], ["S5", "S6"]];
 // Where a dataset dropped on the training layer (not on a node) trains, by its MS-01 class; the validator has the last word.
 const TRAINS: Record<string, Role> = { "IV-SD": "S1", "PO-SOL-FASTED": "S2", "PO-IR-FASTED": "S2", "PO-FED": "S3" };
 
@@ -128,10 +129,11 @@ export function D3Dag({ view, onDrop, onLayout }: {
           );
         })}
         {nodes.map((n) => {
-          const here = n.id === "S4" ? trained : studies.filter((s) => s.role === n.role);
+          const derived = n.id === "S4" || n.id === "SJ";
+          const here = derived ? trained : studies.filter((s) => s.role === n.role);
           const fits = Object.entries(view.plan.fits).filter(([, f]) => f.stages.includes(n.id));
           return (
-            <div key={n.id} className={`dag-node ${n.id === "S4" ? "derived" : ""}${over === n.id ? " over" : ""}`}
+            <div key={n.id} className={`dag-node ${derived ? "derived" : ""}${over === n.id ? " over" : ""}`}
                  style={{ left: n.x, top: n.y, width: n.w, minHeight: n.h }} data-testid={`node-${n.id}`}
                  onDragOver={n.role ? (e) => { accept(e); setOver(n.id); } : undefined}
                  onDragLeave={n.role ? () => setOver(null) : undefined}
@@ -147,7 +149,7 @@ export function D3Dag({ view, onDrop, onLayout }: {
                 <span className="muted">{n.sub}{view.plan.budgets[n.id] ? ` · ${Math.round(view.plan.budgets[n.id] / 60)} min` : ""}</span>
               </div>
               <div className="dag-chips">
-                {here.map((s) => n.id === "S4"
+                {here.map((s) => derived
                   ? <span key={s.study_id} className="study-chip ghost">■ {s.study_id}</span>
                   : <StudyChip key={s.study_id} s={s} view={view} compact />)}
                 {here.length === 0 && <span className="muted" style={{ fontSize: 12 }}>{n.role ? "drop datasets here" : "nothing trained"}</span>}

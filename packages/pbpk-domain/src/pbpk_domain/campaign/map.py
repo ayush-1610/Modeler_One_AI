@@ -54,14 +54,18 @@ STAGE_PLAN: dict[str, dict] = {
     },
     "S3": {"fit_candidates": ("form.{name}.weibull.t50", "form.{name}.weibull.shape", "food.fed_solubility_factor"),
            "branches": (), "max_rounds": 2},
+    # MS-01 v1.1 (UNVERIFIED, D-04): one joint fit of the parameters S1–S3 fitted, over every internal study
+    "SJ": {"fit_candidates": ("fitted in S1–S3",), "branches": (), "max_rounds": 1},
     "S4": {"fit_candidates": (), "branches": (), "max_rounds": 1},
     "S5": {"fit_candidates": (), "branches": (), "max_rounds": 1},
     "S6": {"fit_candidates": (), "branches": (), "max_rounds": 1},
     "S7": {"fit_candidates": (), "branches": (), "max_rounds": 1},
 }
 
-# Campaign-budget split (MS-01 §7).
-BUDGET_FRACTION = {"S0": 0.01, "S1": 0.25, "S2": 0.25, "S3": 0.12, "S4": 0.05, "S5": 0.05, "S6": 0.20, "S7": 0.07}
+# Campaign-budget split (MS-01 §7; v1.1 UNVERIFIED, D-04: S1 20 %, S2 20 %, S3 7 %, SJ 15 %, the rest unchanged).
+BUDGET_FRACTION = {"S0": 0.01, "S1": 0.20, "S2": 0.20, "S3": 0.07, "SJ": 0.15, "S4": 0.05, "S5": 0.05, "S6": 0.20,
+                   "S7": 0.07}
+MS01_VERSION = "1.1 (SJ UNVERIFIED)"
 
 # Stage kinds (MS-01 §4). S1–S3 are round loops that may fit; S4/S5 simulate the final CPF once and judge it,
 # never fitting — a validation failure escalates rather than refits.

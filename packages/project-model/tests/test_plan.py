@@ -56,7 +56,7 @@ def test_the_default_plan_is_ms01_and_its_map_equals_generate_map():
     plan = build_default(cpf, ROWS, structure)
     roles = {s: p.role for s, p in plan.placements.items()}
     assert roles["iv-1"] == "S1" and roles["iv-2"] == "S5" and roles["po-10"] == "S2" and roles["po-100"] in ("S2", "S5")
-    assert sum(r == "S3" for r in roles.values()) == 1 and plan.fit_candidates["S1"] and plan.budgets["S1"] == 900
+    assert sum(r == "S3" for r in roles.values()) == 1 and plan.fit_candidates["S1"] and plan.budgets["S1"] == 720 and plan.budgets["SJ"] == 540
     assert not blocking(validate(plan, cpf, ROWS))
     expected, _ = default_map(cpf, ROWS, structure)
     assert map_from_plan(plan, cpf, ROWS).content_sha256() == expected.content_sha256()

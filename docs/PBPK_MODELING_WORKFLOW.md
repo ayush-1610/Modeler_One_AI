@@ -2,6 +2,10 @@
 
 **Status: FINALIZED for engineering (v1.0, 2026-09-15). Scientific defaults marked [SME] need PBPK lead sign-off before the first GxP project; they are data in versioned rulesets, not code.**
 
+**v1.1 (2026-10-05): stage SJ (joint refinement) and the §7 budget split. UNVERIFIED — approved by the owner with the
+start-up pipeline plan (decision D-04: SJ yes, equal weights per study, S1-CI guard, budget S1 20 / S2 20 / S3 7 / SJ
+15 %), awaiting SME sign-off. Code: `pbpk_domain.campaign.map.MS01_VERSION`.**
+
 This document is the operating procedure the platform executes for every compound. It is embedded verbatim, with its
 ruleset versions, in the Model Analysis Plan (MAP) of each project, so that what regulators read is what the machine ran.
 
@@ -243,6 +247,26 @@ questions.
 - Gate: fed INTERNAL study within tier limits; fed/fasted AUC and Cmax ratios within Guest-style limits (delta 2 [SME]).
 - Output: CPF v(S3), formulation set, meal mapping.
 
+### SJ Joint refinement (v1.1, UNVERIFIED, D-04)
+
+The sequential stages give a chain of conditional estimates (S2 fitted with S1's values fixed, S3 with S2's). SJ runs
+one parameter identification over **every internal study of S1–S3 at once**, refitting the parameters those stages
+fitted, started from their sequential estimates.
+
+- Build: one simulation per internal study of S1–S3 (their training scenarios), the current CPF.
+- Round 1: no fitting; judge every internal study (the baseline). Round 2: the joint fit.
+- Parameters and bounds: the union of the parameters fitted in S1–S3, within their fit policies; a parameter fitted
+  at S1 is held within its S1 95 % CI (compensation guard: an absorption misfit must not be absorbed by clearance)
+  unless a signed decision widens it.
+- Weighting: each study contributes equally [SME] (residuals scaled by 1 / number of points; until the engine's
+  parameter identification takes weights per output mapping, points are weighted equally — recorded in the stage).
+- Acceptance: the joint estimate is kept only if every internal study passes its gate and the agreement (mean of the
+  AUC and Cmax GMFE) is no worse; otherwise the sequential estimates stay and the attempt is recorded.
+- Nothing fitted in S1–S3: SJ is skipped (S4 judges every internal study).
+- **No-regression gate** (between stages): when S2 or S3 changes the CPF, every earlier stage that passed is judged again
+  on the new CPF (its internal studies only). A regression is first answered by a joint fit over the stages up to the
+  current one (same rules); if that does not restore every study, the stage escalates with the regression named.
+
 ### S4 Internal validation
 
 Re-simulate every INTERNAL study from the final CPF (nothing fitted here). Produce the acceptance table (AUC, Cmax,
@@ -355,8 +379,8 @@ parameters FIXED from in vitro; qualification via OSP library victims.
 
 ## 7. Time budget and compute
 
-Campaign budget default 60 min (MAP may set another). Allocation: S0 1 %, S1 25 %, S2 25 %, S3 12 %, S4 5 %, S5 5 %,
-S6 20 %, S7 7 %. Each stage's fitting rounds use `plan_multistart` with the measured seconds-per-simulation from the
+Campaign budget default 60 min (MAP may set another). Allocation (v1.1, UNVERIFIED, D-04): S0 1 %, S1 20 %, S2 20 %,
+S3 7 %, SJ 15 %, S4 5 %, S5 5 %, S6 20 %, S7 7 % (v1.0: S1 25 %, S2 25 %, S3 12 %, no SJ). Each stage's fitting rounds use `plan_multistart` with the measured seconds-per-simulation from the
 engine benchmark on the target servers; a round that cannot fit in the remaining budget is not started, the stage ends
 with the best round so far and escalates. Seeds: campaign seed → stage → round → start, all recorded. Engine: one pinned
 image per campaign.

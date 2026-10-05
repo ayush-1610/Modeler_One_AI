@@ -126,7 +126,7 @@ def _prepared(tmp_path, study: dict, body: dict | None = None):
 def test_prepare_schedules_every_stage_by_default(tmp_path):
     """R0: the campaign used to be prepared for S0–S2 only (and the UI asked for S0–S1)."""
     _, prep, _ = _prepared(tmp_path, _study())
-    assert prep["stages"] == ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"]
+    assert prep["stages"] == ["S0", "S1", "S2", "S3", "SJ", "S4", "S5", "S6", "S7"]
 
 
 def test_prepare_converts_observed_data_to_engine_units(tmp_path):

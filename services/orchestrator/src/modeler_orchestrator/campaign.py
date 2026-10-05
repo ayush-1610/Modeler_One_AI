@@ -353,7 +353,7 @@ class ModelingCampaignWorkflow:
         for stage in request.stages:
             if stage == "S0" or stage in completed:
                 continue
-            if stage in ("S6", "S7"):
+            if stage in ("SJ", "S6", "S7"):
                 # S6 prediction and S7 package run on the single-node runner (local_runner); their Temporal wiring
                 # (signature gate, sensitivity/uncertainty jobs, reproduction) is not built yet — say so, never
                 # run them as a fitting loop.

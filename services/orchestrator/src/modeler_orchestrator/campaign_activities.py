@@ -159,6 +159,15 @@ def plan_stage(request: StageRequest) -> StagePlan:
 
     kind = "validate" if request.stage in VALIDATION_STAGES else "fit" if request.stage in FIT_STAGES else "readiness"
     map_text = _load_local_text(request.map_uri) if request.map_uri else None
+    if request.stage == "SJ":
+        # the joint refinement (MS-01 v1.1, UNVERIFIED): every internal study of S1–S3; what it refits is decided from
+        # the CPF when it runs (the parameters S1–S3 fitted)
+        if map_text is None:
+            return StagePlan(stage="SJ", kind="joint", notes=["MAP not locally loadable; stage not pre-planned"])
+        doc = MapDocument.model_validate_json(map_text)
+        studies = sorted({s.study_id for s in doc.scenarios if s.stage in FIT_STAGES})
+        return StagePlan(stage="SJ", kind="joint", studies=studies,
+                         skip_reason=None if studies else "No internal study: there is nothing to refine jointly.")
     if map_text is None:
         # Without a loadable MAP the stage cannot be planned here; run it and let the round report why.
         return StagePlan(stage=request.stage, kind=kind, notes=["MAP not locally loadable; stage not pre-planned"])
@@ -210,7 +219,8 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     from pbpk_domain.units import is_molar
 
     target = ctx.pending_action.split(" ", 1)[1] if ctx.pending_action and " " in ctx.pending_action else ""
-    fit_ids = list(resolve_fit_ids(cpf, target))
+    # a joint fit names several parameters, "a+b+c" (SJ); a single target resolves as before
+    fit_ids = list(dict.fromkeys(cid for part in target.split("+") for cid in resolve_fit_ids(cpf, part)))
     if not fit_ids:
         activity.logger.info("build_round_snapshot %s %s: no fittable CPF parameter for %r", ctx.campaign_id, ctx.stage, target)
         return None

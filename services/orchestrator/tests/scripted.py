@@ -1,8 +1,11 @@
 """A scripted executor for the non-linear backend's control flow (no engine, no PK-Sim).
 
 Each round's verdict is looked up by (stage, parameter set): `verdicts[(stage, cpf)]` is True (passes), False (fails),
-or the name of the parameter set a fit produces (the round fits and the fitted set passes). It exercises sequencing,
-propagation, joint refinement and feedback decisions only; every number in a real campaign comes from the engine.
+the name of the parameter set a fit produces (the fitted set passes), or (name, passes). Before a fit, a round with a
+fit scripted fails and asks for the fit, except the joint stage's baseline, judged by `base[(stage, cpf)]` (default
+passes). `gmfe[(stage, cpf)]` is the agreement the joint
+stage compares. It exercises sequencing, propagation, joint refinement and feedback decisions only; every number in a
+real campaign comes from the engine.
 """
 
 from __future__ import annotations
@@ -34,21 +37,33 @@ def request(stages: list[str]) -> CampaignRequest:
 @dataclass
 class ScriptedExecutor(LocalExecutor):
     verdicts: dict = field(default_factory=dict)
+    base: dict = field(default_factory=dict)
+    gmfe: dict = field(default_factory=dict)
+    joint_ids: tuple = ("phys.logp", "perm.intestinal")
     calls: list = field(default_factory=list)
+
+    def _metrics(self, stage: str, cpf: str) -> dict:
+        g = self.gmfe.get((stage, cpf), 1.3)
+        return {"AUC": {"gmfe": g}, "Cmax": {"gmfe": g}}
 
     def _run_round(self, ctx, *, judge_only: bool = False) -> _RoundOutcome:
         cpf = cpf_name(ctx.cpf_sha256)
-        self.calls.append((ctx.stage, cpf, ctx.phase))
+        self.calls.append((ctx.stage, cpf, ctx.phase, ctx.pending_action))
         verdict = self.verdicts.get((ctx.stage, cpf), True)
-        if isinstance(verdict, str) and ctx.pending_action:                     # the fit: a new parameter set
-            run = RoundRunResult(results_uri="", cpf_uri=f"file:///cpf-{verdict}", cpf_sha256=f"sha-{verdict}")
-            return _RoundOutcome(run_result=run, evaluation=RoundEvaluation(True, True, {}, [f"fitted {verdict}"]),
+        if isinstance(verdict, str | tuple) and ctx.pending_action:            # the fit: a new parameter set
+            name, passes = (verdict, True) if isinstance(verdict, str) else verdict
+            run = RoundRunResult(results_uri="", cpf_uri=f"file:///cpf-{name}", cpf_sha256=f"sha-{name}")
+            return _RoundOutcome(run_result=run, evaluation=RoundEvaluation(passes, passes, self._metrics(ctx.stage, name),
+                                                                            [f"fitted {name}"]),
                                  diagnosis=RoundDiagnosis(), choice=None, notes=[], fitted=True)
+        if isinstance(verdict, str | tuple):
+            # before the fit: the joint stage's baseline passes unless scripted; a fit stage fails and asks to fit
+            verdict = self.base.get((ctx.stage, cpf), True if ctx.stage == "SJ" else "fit")
         run = RoundRunResult(results_uri="", cpf_uri=ctx.cpf_uri, cpf_sha256=ctx.cpf_sha256)
         if verdict is True:
-            return _RoundOutcome(run_result=run, evaluation=RoundEvaluation(True, True, {}, []), diagnosis=RoundDiagnosis(),
-                                 choice=None, notes=[])
-        evaluation = RoundEvaluation(False, False, {}, [f"{ctx.stage} misses with parameter set {cpf}"])
+            return _RoundOutcome(run_result=run, evaluation=RoundEvaluation(True, True, self._metrics(ctx.stage, cpf), []),
+                                 diagnosis=RoundDiagnosis(), choice=None, notes=[])
+        evaluation = RoundEvaluation(False, False, self._metrics(ctx.stage, cpf), [f"{ctx.stage} misses with parameter set {cpf}"])
         if judge_only or verdict is False:
             return _RoundOutcome(run_result=run, evaluation=evaluation,
                                  diagnosis=RoundDiagnosis(escalate=verdict is False and not judge_only,
@@ -59,9 +74,18 @@ class ScriptedExecutor(LocalExecutor):
     def _persist(self, request, outcome) -> None:
         pass
 
+    def _joint_plan(self, cpf_uri, stages):
+        from modeler_orchestrator.joint import JointPlan
+
+        return JointPlan(fit_ids=tuple(self.joint_ids), bounds={}, guarded=())
+
+    def _joint_map(self, request, stages, tag):
+        return "", "", [f"study-{s}" for s in stages]
+
 
 def patch_planning(monkeypatch) -> None:
     """Every stage has scenarios; S0 is ready; validation stages judge once."""
     monkeypatch.setattr(local_runner, "plan_campaign", lambda request: S0Readiness(ready=True, findings=[]))
     monkeypatch.setattr(local_runner, "plan_stage", lambda r: StagePlan(
-        stage=r.stage, kind="validate" if r.stage in ("S4", "S5") else "fit" if r.stage in ("S1", "S2", "S3", "SJ") else "readiness"))
+        stage=r.stage, kind={"S4": "validate", "S5": "validate", "SJ": "joint"}.get(
+            r.stage, "fit" if r.stage in ("S1", "S2", "S3") else "readiness")))

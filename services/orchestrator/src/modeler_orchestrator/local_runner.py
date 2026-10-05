@@ -74,7 +74,7 @@ EngineRun = Callable[[EngineJob], EngineManifest]
 
 STAGE_LABELS = {
     "S0": "Readiness", "S1": "IV disposition", "S2": "Oral fasted",
-    "S3": "Formulation / fed", "S4": "Internal validation", "S5": "External validation",
+    "S3": "Formulation / fed", "SJ": "Joint refinement", "S4": "Internal validation", "S5": "External validation",
     "S6": "Prediction", "S7": "Report & package",
 }
 # Stages that stop the campaign when a stage ends there.
@@ -155,6 +155,17 @@ def fit_workers(fit_request, n_jobs: int) -> int:
     per_start = max(1, int(getattr(fit_request, "simulations_per_evaluation", 1) or 1))
     planned = max(1, int(getattr(fit_request, "cores", 1) or 1) // per_start)
     return max(1, min(planned, os.cpu_count() or 1, n_jobs))
+
+
+def _local_text(uri: str) -> str | None:
+    parsed = urlparse(uri)
+    path = Path(unquote(parsed.path))
+    if parsed.scheme != "file" or not path.is_file():
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
 
 
 def _local_json(uri: str) -> dict | None:
@@ -436,7 +447,9 @@ class LocalExecutor:
                 self.writer.stage_status(stage, "RUNNING")
                 self.writer.flush(current_stage=stage, status="RUNNING")
             try:
-                if plan.kind == "validate":
+                if plan.kind == "joint":
+                    outcome = self._run_joint(request, cpf_uri, cpf_sha, stages=FIT_STAGES, record_stage="SJ")
+                elif plan.kind == "validate":
                     outcome = self._run_validation(request, stage, cpf_uri, cpf_sha)
                 elif plan.kind == "predict":
                     outcome = self._run_prediction(request, cpf_uri, cpf_sha)
@@ -456,9 +469,18 @@ class LocalExecutor:
                     # the stage changed the parameter set: every earlier stage that passed is judged again on it
                     regressions = self._no_regression(request, stage, outcome.cpf_uri, outcome.cpf_sha256)
                     if regressions:
-                        outcome = StageOutcome(stage=stage, status="ESCALATED", rounds_run=outcome.rounds_run,
-                                               cpf_uri=outcome.cpf_uri, cpf_sha256=outcome.cpf_sha256,
-                                               findings=regressions, escalation_reason="regression")
+                        # the remedy first: one joint fit over the stages up to this one (N2 → N3); else escalate
+                        upto = FIT_STAGES[: FIT_STAGES.index(stage) + 1]
+                        joint = self._run_joint(request, outcome.cpf_uri, outcome.cpf_sha256, stages=upto,
+                                                record_stage=stage, after_regression=True)
+                        if joint.status == "PASSED":
+                            outcome = StageOutcome(stage=stage, status="PASSED", rounds_run=outcome.rounds_run + 1,
+                                                   cpf_uri=joint.cpf_uri, cpf_sha256=joint.cpf_sha256,
+                                                   findings=[*regressions, *joint.findings])
+                        else:
+                            outcome = StageOutcome(stage=stage, status="ESCALATED", rounds_run=outcome.rounds_run,
+                                                   cpf_uri=outcome.cpf_uri, cpf_sha256=outcome.cpf_sha256,
+                                                   findings=[*regressions, *joint.findings], escalation_reason="regression")
                 if outcome.status == "PASSED":
                     self._passed.add(stage)
             outcomes.append(outcome)
@@ -712,6 +734,79 @@ class LocalExecutor:
                 regressions.append(f"{earlier} no longer passes with the CPF {stage} fitted (no-regression gate, plan §12.3 "
                                    f"N2): {why}")
         return regressions
+
+    def _joint_plan(self, cpf_uri: str, stages: tuple[str, ...]):
+        """The parameters `stages` fitted and the S1-CI guard (from the CPF the joint fit starts from)."""
+        from modeler_orchestrator.joint import joint_parameters
+        from pbpk_domain.cpf import CPF
+
+        text = _local_text(cpf_uri)
+        return joint_parameters(CPF.model_validate_json(text), stages) if text else None
+
+    def _joint_map(self, request: CampaignRequest, stages: tuple[str, ...], tag: str) -> tuple[str, str, list[str]]:
+        from modeler_orchestrator.joint import joint_map
+
+        return joint_map(request.map_uri, stages, tag=tag) if request.map_uri else ("", "", [])
+
+    def _run_joint(self, request: CampaignRequest, cpf_uri: str, cpf_sha: str, *, stages: tuple[str, ...],
+                   record_stage: str, after_regression: bool = False) -> StageOutcome:
+        """SJ (plan §12.3 N3, MS-01 v1.1 UNVERIFIED): refit the parameters `stages` fitted, in one parameter
+        identification over all their internal studies, from the sequential estimates; keep the joint estimate only
+        if every study passes and the agreement is no worse, else keep the sequential set and record why."""
+        from modeler_orchestrator.joint import JOINT, agreement
+
+        label = "S1–" + stages[-1] if len(stages) > 1 else stages[0]
+        plan = self._joint_plan(cpf_uri, stages)
+        if plan is None or not plan.fit_ids:
+            why = f"no parameter was fitted in {label}: nothing to refine jointly (S4 judges every internal study)"
+            if self.writer and not after_regression:
+                self.writer.stage_notes(record_stage, [why])
+            return StageOutcome(stage=JOINT, status="SKIPPED" if not after_regression else "ESCALATED", rounds_run=0,
+                                cpf_uri=cpf_uri, cpf_sha256=cpf_sha, findings=[why])
+        map_uri, map_sha, studies = self._joint_map(request, stages, tag=f"{request.campaign_id}-{stages[-1]}")
+        budget = float(request.stage_budgets_seconds.get(JOINT, _DEFAULT_STAGE_BUDGET_S))
+        base_ctx = RoundContext(
+            campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=JOINT, round_index=1, cpf_uri=cpf_uri,
+            cpf_sha256=cpf_sha, pending_action=None, deadline_seconds=budget, seed=request.seed,
+            map_uri=map_uri or request.map_uri, map_sha256=map_sha or request.map_sha256,
+            observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256,
+            phase="after-regression" if after_regression else "",
+        )
+        base = self._run_round(base_ctx, judge_only=True)
+        fit_ctx = replace(base_ctx, round_index=2, pending_action="fit " + "+".join(plan.fit_ids),
+                          pending_bounds_override=plan.bounds or None)
+        joint = self._run_round(fit_ctx, judge_only=True)
+        base_score, joint_score = agreement(base.evaluation), agreement(joint.evaluation)
+        kept = joint.fitted and joint.evaluation.gate_passed and (
+            base_score is None or joint_score is None or joint_score <= base_score + 1e-9)
+        if self.writer:
+            what = "joint refit after the regression" if after_regression else "joint baseline (sequential estimates)"
+            self.writer.add_round(record_stage, self.writer.next_round(record_stage), what, base.evaluation, model_set=self._model_set(request, JOINT, cpf_sha))
+            self.writer.add_round(record_stage, self.writer.next_round(record_stage), f"joint fit of {', '.join(plan.fit_ids)}",
+                                  joint.evaluation, model_set=self._model_set(request, JOINT, joint.run_result.cpf_sha256))
+        notes = [f"joint refinement over {len(studies) or 'the'} internal studies of {label} ({', '.join(studies)})"
+                 if studies else f"joint refinement over the internal studies of {label}",
+                 f"refitted: {', '.join(plan.fit_ids)}"
+                 + (f"; held within their S1 95 % CI: {', '.join(plan.guarded)}" if plan.guarded else ""),
+                 *plan.notes,
+                 "studies weighted per observed point (equal weight per study, D-04, waits for run_pi.R weights)"]
+        if kept:
+            notes.append(f"joint estimate kept: every internal study passes, GMFE {base_score} → {joint_score}"
+                         if base_score is not None else "joint estimate kept: every internal study passes")
+            outcome = StageOutcome(stage=JOINT, status="PASSED", rounds_run=2, cpf_uri=joint.run_result.cpf_uri,
+                                   cpf_sha256=joint.run_result.cpf_sha256, findings=notes)
+        else:
+            why = ("the fit produced no estimate" if not joint.fitted else "an internal study fails with the joint estimate"
+                   if not joint.evaluation.gate_passed else f"the agreement got worse (GMFE {base_score} → {joint_score})")
+            notes.append(f"joint estimate not kept: {why}; the sequential estimates stay")
+            status = "PASSED" if base.evaluation.gate_passed and not after_regression else "ESCALATED"
+            outcome = StageOutcome(stage=JOINT, status=status, rounds_run=2, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
+                                   findings=[*notes, *([] if status == "PASSED" else base.evaluation.findings[:3])],
+                                   escalation_reason=None if status == "PASSED" else "joint_refinement_failed")
+        if self.writer:
+            self.writer.stage_notes(record_stage, notes)
+        return outcome
 
     def _model_set(self, request: CampaignRequest, stage: str, cpf_sha: str) -> dict:
         map_doc = _local_json(request.map_uri) if request.map_uri else None

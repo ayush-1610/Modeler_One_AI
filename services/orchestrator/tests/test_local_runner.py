@@ -654,3 +654,56 @@ def test_a_second_identical_campaign_runs_no_engine_job_and_records_its_model_se
     run_campaign(third, read_root=root, project="p", engine=engine, memo=True)
     assert engine.calls > calls
     assert rounds(store.get_campaign("t1", "camp-changed"))[0]["modelSet"]["id"] != s1["id"]
+
+
+@pytest.mark.req("T-53")
+def test_sj_runs_through_the_real_build_and_evaluation_path(tmp_path: Path, monkeypatch) -> None:
+    """SJ on the stub engine (software path only): the derived MAP's internal scenarios are built and judged, the
+    joint fit is requested for the parameters S1 fitted, held within their S1 CI; the stub returns no estimate, so the
+    sequential estimates stay and SJ says why."""
+    from dataclasses import replace
+
+    from pbpk_domain.cpf import FitPolicy, Uncertainty
+
+    monkeypatch.setenv("MODELER_OBJECT_STORE_URI", (tmp_path / "objstore").as_uri())
+    request, root = _seed_campaign(tmp_path, observed=_golden_observed())
+    cpf_path = Path(unquote(urlparse(request.cpf_uri).path))
+    cpf = CPF.model_validate_json(cpf_path.read_text())
+    fitted = cpf.get("phys.logp").model_copy(update={
+        "status": ParameterStatus.FITTED, "fitted_at_stage": "S1", "provenance": Provenance(source_type="ParameterIdentification"),
+        "fit_policy": FitPolicy(stage=("S1",), lower=-3.0, upper=0.0),
+        "uncertainty": Uncertainty(sd=0.1, cv_percent=6.0, ci95_lower=-1.8, ci95_upper=-1.4)})
+    cpf_path.write_text(cpf.replace(fitted).model_dump_json())
+    request = replace(request, stages=["S0", "SJ", "S4"], cpf_sha256=hashlib.sha256(cpf_path.read_bytes()).hexdigest())
+    seen_bounds: list = []
+
+    class PiStub(FullStubEngine):
+        """Answers a parameter identification with its start values (a converged, unchanged estimate)."""
+
+        def __call__(self, job: EngineJob) -> EngineManifest:
+            if job.task != "parameter_identification":
+                return super().__call__(job)
+            seen_bounds.append(job.options.get("start_values"))
+            out = Path(unquote(urlparse(job.outputs_uri).path))
+            out.mkdir(parents=True, exist_ok=True)
+            result = out / "pi_result.json"
+            result.write_text(json.dumps({"convergence": True, "objective_value": 1.0, "function_evaluations": 10,
+                                          "estimates": [{"name": k, "estimate": v} for k, v in job.options["start_values"].items()]}))
+            data = result.read_bytes()
+            return EngineManifest(job_id=job.job_id, status="SUCCEEDED", engine_id="stub", image_digest="stub", started_at="t0",
+                                  finished_at="t1", inputs={}, warnings=[], engine_info={}, stderr_tail="",
+                                  outputs=[OutputFile("pi_result.json", result.as_uri(), hashlib.sha256(data).hexdigest(), len(data))])
+
+    outcome = run_campaign(request, read_root=root, project="p", engine=PiStub(low=0.5, high=2.0))
+    sj = next(s for s in outcome.stages if s.stage == "SJ")
+    assert sj.status == "PASSED" and outcome.status == "COMPLETED", outcome.reason
+    assert any("refitted: phys.logp; held within their S1 95 % CI: phys.logp" in f for f in sj.findings)
+    assert any("joint estimate kept" in f for f in sj.findings), sj.findings
+    # every start lies within the S1 95 % CI, not the wider fit policy (the compensation guard)
+    assert seen_bounds and all(-1.8 <= v <= -1.4 for starts in seen_bounds for v in starts.values())
+    final = CPF.model_validate_json(Path(unquote(urlparse(outcome.final_cpf_uri).path)).read_text())
+    assert final.get("phys.logp").fitted_at_stage == "SJ"
+    derived = json.loads((Path(unquote(urlparse(request.map_uri).path)).with_name("map-SJ-camp-loc-S3.json")).read_text())
+    assert {s["stage"] for s in derived["scenarios"]} == {"SJ"} and [s["study_id"] for s in derived["scenarios"]] == ["iv"]
+    rounds = next(s for s in FileReadStore(root).get_campaign("t1", "camp-loc")["stages"] if s["stage"] == "SJ")["rounds"]
+    assert [r["action"] for r in rounds] == ["joint baseline (sequential estimates)", "joint fit of phys.logp"]

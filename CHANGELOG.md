@@ -664,6 +664,27 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Changed — MS-01 v1.1 (UNVERIFIED): stage SJ, joint refinement, and the budget split (T-53, plan §12.3 N3, D-04)
+- **Science change, owner-approved (D-04: SJ yes, equal weights per study, S1-CI guard, budget S1 20 / S2 20 / S3 7 /
+  SJ 15 %), UNVERIFIED pending SME sign-off; MS-01 bumped to v1.1** (`docs/PBPK_MODELING_WORKFLOW.md`, status line,
+  new §4 SJ, §7; `campaign.map.MS01_VERSION`, `STAGE_PLAN["SJ"]`, `BUDGET_FRACTION`).
+- **SJ** (`modeler_orchestrator.joint`, `LocalExecutor._run_joint`): between S3 and S4, one parameter identification
+  over every internal study of S1–S3 at once, refitting the parameters those stages fitted from their sequential
+  estimates; a parameter fitted at S1 is held within its S1 95 % CI (compensation guard). Round 1 judges every internal
+  study on the sequential estimates; round 2 is the joint fit. The joint estimate is kept only if every internal
+  study passes and the agreement (mean AUC / Cmax GMFE) is no worse; otherwise the sequential estimates stay and the
+  stage says why. Nothing fitted in S1–S3: SJ is skipped. The joint round is judged on a derived MAP next to the
+  signed one (its internal scenarios relabeled SJ), so the evaluation code is unchanged.
+- **A regression (T-52) is first answered by a joint fit** over the stages up to the regressing one; the stage passes
+  with the joint estimate if it restores every study, else escalates with the regression and the joint attempt named.
+- Campaign stages are now S0, S1, S2, S3, **SJ**, S4, S5, S6, S7 (`CAMPAIGN_STAGES`); the MAP's stage plan has SJ
+  (540 s of a 60-minute budget). A fit action may name several parameters (`fit a+b`, `_build_fit_request`; one target
+  resolves as before). The Temporal workflow skips SJ with the reason (single-node only, like S6/S7). The D3 canvas
+  shows the SJ node.
+- **Known gap:** equal weight per study (D-04) needs weights per output mapping in `run_pi.R`; until verified, points
+  are weighted equally and the stage records it. All of this runs on the stub engine and a scripted executor here;
+  the PK-Sim acceptance (Dapagliflozin joint fit ≥ sequential on every internal study, budget measured) is the server's.
+
 ### Added — the no-regression gate (T-52, plan §12.3 N2)
 - When a fit stage (S2, S3) passes with a parameter set different from the one it started from, every earlier fit stage
   that had passed is simulated again from the new model set and judged against its own gate (its internal studies
