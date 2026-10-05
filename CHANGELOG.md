@@ -664,6 +664,26 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — the T-56 proof kit: Dapagliflozin from a mock proposal through P0 → P6, with a trace report
+- `deploy/proof/run_t56.py` (and `deploy/proof/README.md`) drives the API the web app uses: **prepare** starts a
+  project from a mock technical proposal (`deploy/proof/dapagliflozin/proposal.md`, labelled MOCK, no values), fills the
+  brief by hand from it (each field citing its section), derives the data plan, proposes every parameter of the
+  published OSP Dapagliflozin model as evidence citing the model and its ValueOrigin text (42, `OSP_LIBRARY`, each on
+  its data-plan item or carried with its group's item, said so), proposes the 39 clinical datasets the model carries
+  with their PubMed link and figure (statistic as the snapshot records it), and delivers the fed arm of Kasichayanula
+  2011a in the client-data template as the mock client's study. **accept** records the owner's decisions under their
+  own name (`--as`) up to P5 and stops before the MAP signature (a person's act, step-up, in the web app); **start**
+  runs the campaign from the signed MAP; **trace** writes `trace.md` — every CPF parameter → evidence → source, every
+  judged study → dataset → publication, the ledger, the MAR's evidence index — and exits 1 on any broken link.
+- Verified in software (`services/api/tests/test_t56_kit.py`): P0 → P5 with nothing blocking, the campaign refused before
+  the signature, a stub-engine campaign started from the signed MAP, the trace complete with "Not a PBPK result" stated.
+- **Departures from Appendix A, and why:** no dissolution table (no measured profile is public; the release item is
+  answered from the published model's Weibull, with the reason, rather than inventing data); no scripted canvas move
+  (the MS-01 default already keeps 33 studies external, and a move is the reviewer's choice); no fits by default
+  (every value is the published one; freeing parameters on D1/D2 is the reviewer's choice, so the default run judges
+  the published model through P0–P5); A2 is not used (the values are entered by the manual path; A2 needs a provider
+  key). The PK-Sim run itself is the server's (`deploy/proof/README.md`).
+
 ### Changed — MS-01 v1.2 (UNVERIFIED): external-validation feedback cycles (T-55, plan §12.3 N4 / §12.4, D-05, D-06)
 - **Science change, owner-approved (D-05: one learn cycle per class, more only by a signed deviation; D-06: new evidence
   re-judges the same external studies, flagged, with a model-risk review), UNVERIFIED pending SME sign-off; MS-01

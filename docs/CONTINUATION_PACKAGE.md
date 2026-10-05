@@ -35,8 +35,8 @@ decision record in its §21). Built and verified in software (stub engine, scrip
 flows): Lane A P0–P5 (T-40 → T-50: proposal intake and brief, requirements and data plan, literature evidence with the
 real-data rule, client data intake and reconciliation, dissolution, PK-Sim input pages / CPF v1, the P5 plan canvas
 with its signed MAP) and Lane B T-51 → T-55 (model sets, memoized runs, no-regression gate, SJ, change ledger and
-influence map, external-validation feedback cycles). **Next: T-56**, the end-to-end Dapagliflozin proof on the
-server's PK-Sim — every engine-dependent acceptance (Weibull equation, P4 dry run, ValueOrigin.Method, T-52 → T-55
+influence map, external-validation feedback cycles). **Next: T-56** — the kit is built (`deploy/proof/README.md`);
+run it on the server's PK-Sim — every engine-dependent acceptance (Weibull equation, P4 dry run, ValueOrigin.Method, T-52 → T-55
 PK-Sim acceptances, run_pi.R per-study weights) is listed in the coverage table. The S0–S7 plan's Phase 4 continues
 alongside it (`2026-09-24-remaining-to-goal.md`).
 
@@ -284,7 +284,7 @@ exclusion decision (D5). This cloud session cannot reach the server (LAN only, n
 | T-31 | Not started — next phase after S0 → S7 |
 | Start-up pipeline T-40 → T-50 | Done in software (plan `2026-09-25-project-startup-pipeline.md`); A1–A5 agents run with scripted models in tests, live provider runs pending; D-14 (MAP deviations after signature) and D-15 (blinding) not built |
 | Non-linear backend T-51 → T-55 | Done in software; Temporal parity (SJ, feedback cycles) and A6 feedback proposals not built; PK-Sim acceptances pending |
-| T-56 | Not started — end-to-end Dapagliflozin proof on the server's PK-Sim (cannot run in a cloud container) |
+| T-56 | Kit built and checked in software (`deploy/proof/run_t56.py`, README there): P0 → P5 from a mock proposal with the published model's cited values and datasets, the owner's acceptances, the MAP signed in the UI, then start / watch / trace. **Next: run it on the server's PK-Sim** and keep `trace.md` with the package |
 
 ### 4.4 How to run
 
