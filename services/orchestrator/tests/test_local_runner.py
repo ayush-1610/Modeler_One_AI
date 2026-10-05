@@ -617,3 +617,40 @@ def test_real_observed_data_is_passed_and_signable(tmp_path: Path, monkeypatch) 
     resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S6", action="approve",
                        engine=engine, background=False)
     assert FileReadStore(root).get_campaign("t1", "camp-loc")["status"] != "AWAITING_SIGNATURE"
+
+
+@pytest.mark.req("T-51")
+def test_a_second_identical_campaign_runs_no_engine_job_and_records_its_model_sets(tmp_path: Path, monkeypatch) -> None:
+    """Plan §12.3 N7: identical engine jobs reuse their outputs; N1: each verdict names the model set it judged."""
+    from dataclasses import replace
+
+    monkeypatch.setenv("MODELER_OBJECT_STORE_URI", (tmp_path / "objstore").as_uri())
+    request, root = _seed_campaign(tmp_path, observed=_golden_observed())
+    request = replace(request, stages=["S0", "S1", "S4"])
+    engine = FullStubEngine(low=0.5, high=2.0)
+    first = run_campaign(request, read_root=root, project="p", engine=engine, memo=True)
+    calls = engine.calls
+    assert first.status == "COMPLETED" and calls >= 2
+    second = run_campaign(replace(request, campaign_id="camp-again"), read_root=root, project="p", engine=engine, memo=True)
+    assert second.status == "COMPLETED" and engine.calls == calls          # not one engine job the second time
+    store = FileReadStore(root)
+    one, two = store.get_campaign("t1", "camp-loc"), store.get_campaign("t1", "camp-again")
+
+    def rounds(c):
+        return [r for s in c["stages"] for r in s["rounds"]]
+
+    assert [r["modelSet"]["id"] for r in rounds(one)] == [r["modelSet"]["id"] for r in rounds(two)]
+    assert [r["verdict"] for r in rounds(one)] == [r["verdict"] for r in rounds(two)]
+    s1 = rounds(one)[0]["modelSet"]
+    assert s1["stage"] == "S1" and s1["cpf_sha256"] == request.cpf_sha256 and s1["engine"].startswith("injected:")
+    # a different CPF is a different model set and runs on the engine
+    cpf_path = Path(unquote(urlparse(request.cpf_uri).path))
+    changed = CPF.model_validate_json(cpf_path.read_text())
+    changed = changed.replace(changed.get("bind.fu").model_copy(update={"value": 0.8}))
+    other = tmp_path / "other-cpf.json"
+    other.write_text(changed.model_dump_json())
+    third = replace(request, campaign_id="camp-changed", cpf_uri=other.as_uri(),
+                    cpf_sha256=hashlib.sha256(other.read_bytes()).hexdigest())
+    run_campaign(third, read_root=root, project="p", engine=engine, memo=True)
+    assert engine.calls > calls
+    assert rounds(store.get_campaign("t1", "camp-changed"))[0]["modelSet"]["id"] != s1["id"]

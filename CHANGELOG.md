@@ -664,6 +664,20 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — Lane B start: model sets and memoized engine runs (T-51, plan §12.3 N1 / N7)
+- **Memoized runs** (`modeler_orchestrator.memo.MemoEngine`): an engine job is keyed by its task, the content hash of
+  every input, its options (seeds included) and the engine (command and image digest). An identical job that already
+  succeeded, whose outputs are still there with their hashes, gets those outputs copied into its own output directory
+  and a manifest marked "memoized"; no engine process starts. A missing or changed output, or a failed earlier run, is a
+  miss. S7's reproduction re-runs (`-S7-rerun-`) always run (D13). On by default for the configured engine; an injected
+  engine (tests) only when asked (`run_campaign(memo=True)` or `MODELER_MEMO=1`). Memo records live under
+  `<read root>/<tenant>/memo/`.
+- **Model sets**: every judged round records `modelSet` (CPF content hash, engine, hash of the stage's MAP scenarios,
+  builder version, an id), so each verdict names the one parameter set it judged.
+- Why: propagation and joint refinement (T-52 / T-53) re-simulate every internal study after each change; without
+  memoization a repeated cycle would cost the engine time twice. Verified with stub engines only (a second identical
+  campaign starts no engine job); the saving on PK-Sim is to be measured on the server.
+
 ### Added — P5 model plan: the canvas (D1, D2, D3), live validator, A5, MAP from plan, signature (T-50)
 - **ModelPlan** (`modeler_project.plan`, MODEL_PLAN/main): starts as the MS-01 default computed exactly as today
   (`split_studies`, the MAP's own training-stage rule, the stage plan's fit candidates resolved on CPF v1, budgets);

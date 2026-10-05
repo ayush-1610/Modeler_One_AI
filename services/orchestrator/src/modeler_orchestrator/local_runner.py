@@ -64,6 +64,7 @@ from modeler_orchestrator.campaign_activities import (
 )
 from modeler_orchestrator.fitting_activities import assess_round as assess_fit_round
 from modeler_orchestrator.fitting_activities import plan_jobs
+from modeler_orchestrator.memo import model_set
 from pbpk_domain.data_origin import real_data_summary, signature_refusal
 from pbpk_domain.fitting import BudgetTooSmallError
 
@@ -269,7 +270,8 @@ class CampaignArtifactWriter:
             if note and note not in kept:
                 kept.append(note)
 
-    def add_round(self, stage: str, round_index: int, action: str, evaluation: RoundEvaluation) -> None:
+    def add_round(self, stage: str, round_index: int, action: str, evaluation: RoundEvaluation,
+                  model_set: dict | None = None) -> None:
         auc = evaluation.metrics.get("AUC", {}).get("gmfe")
         cmax = evaluation.metrics.get("Cmax", {}).get("gmfe")
         # What the verdict rests on (plan §9.4): a pass judged on data that is not real is shown for what it is.
@@ -288,6 +290,7 @@ class CampaignArtifactWriter:
             "vpc": evaluation.metrics.get("vpc", {}),  # per study: coverage and the 5/50/95 % band for the plot
             "findings": list(evaluation.findings),
             "realData": real_data,
+            "modelSet": model_set,  # the parameter set, engine and scenarios this verdict judged (plan §12.3 N1)
         })
 
     def set_gof(self, series: list[dict], stage: str | None = None) -> None:
@@ -353,6 +356,7 @@ class LocalExecutor:
     engine: EngineRun
     writer: CampaignArtifactWriter | None = None
     approved_gates: set[str] = field(default_factory=set)  # signature gates already signed (resumed campaigns)
+    engine_key: str = ""                                    # what the engine is (command, image digest): model sets
     _last: dict[str, dict] = field(default_factory=dict)   # stage -> its judged round (metrics, snapshot, outputs)
 
     def run(
@@ -516,7 +520,8 @@ class LocalExecutor:
                 action = pending_action or "baseline"
                 if pending_action and pending_action.startswith("fit") and not result.fitted:
                     action += " (fit produced no estimates; judged unchanged)"
-                self.writer.add_round(stage, round_index, action, evaluation)
+                self.writer.add_round(stage, round_index, action, evaluation,
+                                      model_set=self._model_set(request, stage, run_result.cpf_sha256))
                 self.writer.set_gof(_gof_series(run_result.results_uri, request.observed_uri), stage)
                 self.writer.flush(current_stage=stage, status="RUNNING")
 
@@ -553,7 +558,8 @@ class LocalExecutor:
         self._remember(stage, result)
         if self.writer:
             self.writer.stage_notes(stage, result.notes)
-            self.writer.add_round(stage, 1, "validate", evaluation)
+            self.writer.add_round(stage, 1, "validate", evaluation,
+                                  model_set=self._model_set(request, stage, result.run_result.cpf_sha256))
             self.writer.set_gof(_gof_series(result.run_result.results_uri, request.observed_uri), stage)
             self.writer.flush(current_stage=stage, status="RUNNING")
         findings = list(evaluation.findings) + [n for n in result.notes if n.startswith("NOT SIMULATED")]
@@ -664,6 +670,11 @@ class LocalExecutor:
         return StageOutcome(stage="S7", status="ESCALATED", rounds_run=1, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
                             findings=findings, escalation_reason="package_not_reproducible")
 
+    def _model_set(self, request: CampaignRequest, stage: str, cpf_sha: str) -> dict:
+        map_doc = _local_json(request.map_uri) if request.map_uri else None
+        scenarios = [s for s in (map_doc or {}).get("scenarios", []) if s.get("stage") == stage]
+        return model_set(cpf_sha256=cpf_sha, engine_key=self.engine_key, scenarios=scenarios, stage=stage)
+
     def _simulate(self, ctx: RoundContext) -> tuple[object, EngineManifest | None]:
         """Build the round's snapshot from ctx's CPF and run it on the engine (skipped when nothing was built)."""
         build = build_round_snapshot(ctx)
@@ -743,9 +754,26 @@ class LocalExecutor:
             return list(pool.map(self.engine, jobs))
 
 
+def engine_key(engine: EngineRun | None = None) -> str:
+    """The engine a model set and a memoized run are bound to: its identity and image digest."""
+    ident = engine_identity(engine)
+    return f"{ident['kind']}:{ident['command']}@{os.environ.get('MODELER_IMAGE_DIGEST', 'local')}"
+
+
+def _executor_engine(engine: EngineRun | None, *, read_root: str, tenant_id: str, memo: bool | None) -> EngineRun:
+    """The engine the executor calls: memoized (plan §12.3 N7) by default for the configured engine, and for an
+    injected one only when asked (tests count their engine's calls)."""
+    from modeler_orchestrator.memo import MemoEngine
+
+    base = engine or default_engine()
+    if memo if memo is not None else (engine is None or os.environ.get("MODELER_MEMO") == "1"):
+        return MemoEngine(base, root=Path(read_root) / tenant_id / "memo", engine_key=engine_key(engine))
+    return base
+
+
 def run_campaign(
     request: CampaignRequest, *, read_root: str, project: str, question: str = "", model_risk: str = "medium",
-    budget_seconds: int | None = None, engine: EngineRun | None = None,
+    budget_seconds: int | None = None, engine: EngineRun | None = None, memo: bool | None = None,
 ) -> CampaignOutcome:
     """Run a campaign to completion single-node, writing live monitor artifacts under ``read_root``."""
     total_budget = budget_seconds or (sum(request.stage_budgets_seconds.values()) or 3600)
@@ -756,7 +784,8 @@ def run_campaign(
         origins=observed_origins(request.observed_uri),
     )
     writer.flush(current_stage=request.stages[0], status="RUNNING")
-    return LocalExecutor(engine=engine or default_engine(), writer=writer).run(request)
+    return LocalExecutor(engine=_executor_engine(engine, read_root=read_root, tenant_id=request.tenant_id, memo=memo),
+                         writer=writer, engine_key=engine_key(engine)).run(request)
 
 
 def observed_origins(observed_uri: str) -> dict[str, str | None]:
@@ -834,8 +863,9 @@ def resolve_escalation(
     writer.flush(current_stage=remaining[0], status="RUNNING")
 
     continuation = replace(request, stages=remaining, cpf_uri=cpf_uri, cpf_sha256=cpf_sha)
-    executor = LocalExecutor(engine=engine or default_engine(), writer=writer,
-                             approved_gates={stage} if action == "approve" else set())
+    executor = LocalExecutor(engine=_executor_engine(engine, read_root=read_root, tenant_id=tenant_id, memo=None),
+                             writer=writer, approved_gates={stage} if action == "approve" else set(),
+                             engine_key=engine_key(engine))
 
     def _continue() -> None:
         executor.run(continuation, original=request, completed_before=completed)
