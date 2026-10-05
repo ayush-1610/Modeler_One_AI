@@ -699,6 +699,11 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   limitation). **Known gaps:** the Temporal workflow does not run feedback cycles (single-node only, like SJ); A6 does
   not propose a feedback decision; the PK-Sim acceptance (Dapagliflozin fed failure → learn → S5 on the remaining fed
   study) is the server's.
+- **Departures from plan §12.3 / §12.4:** (1) the "work queue" is the persisted continuation — a decision writes the
+  cycle's stage list into the campaign's resume state and the existing `LocalExecutor.run` runs it — rather than a
+  rewrite of `run` as a queue: the same behaviour, and a cycle survives a restart the way an escalation does.
+  (2) Quantitative influence is computed after S5 on the failing studies and in S6 on the internal studies, not after
+  SJ (one more engine pass per campaign for a view S6 already gives); the structural map is there throughout.
 
 ### Added — the change ledger and the influence map (T-54, plan §12.3 N5 / N6)
 - **Change ledger** (`modeler_orchestrator.history.Ledger`, kept on the campaign record as `ledger`): every change of
