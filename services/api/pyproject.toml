@@ -15,11 +15,13 @@ dependencies = [
   "pyjwt[crypto]>=2.9",
   "pbpk-domain",
   "modeler-contracts",
+  "modeler-project",
 ]
 
 [tool.uv.sources]
 pbpk-domain = { workspace = true }
 modeler-contracts = { workspace = true }
+modeler-project = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

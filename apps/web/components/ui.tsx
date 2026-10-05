@@ -45,6 +45,7 @@ export function StatusChip({ status }: { status: string }) {
     PASSED: "low", ACCEPTED: "low", COMPLETED: "low", RUNNING: "brand",
     ESCALATED: "high", REJECTED: "high", FAILED: "high", ABORTED: "high", PROPOSED: "medium",
     SKIPPED: "neutral", AWAITING_SIGNATURE: "medium",
+    APPROVED: "low", DRAFT: "medium", STALE: "high", SUPERSEDED: "neutral", IN_REVIEW: "medium",
   };
   return <span className={`chip ${map[status] ?? "neutral"}`}>{status.toLowerCase()}</span>;
 }

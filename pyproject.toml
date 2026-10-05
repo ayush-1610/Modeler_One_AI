@@ -11,6 +11,7 @@ dependencies = [
   "modeler-orchestrator",
   "modeler-engine-worker",
   "modeler-agents",
+  "modeler-project",
 ]
 
 [dependency-groups]
@@ -34,6 +35,7 @@ members = [
   "services/orchestrator",
   "services/engine-worker",
   "services/agents",
+  "packages/project-model",
 ]
 
 [tool.uv.sources]
@@ -44,6 +46,7 @@ modeler-api = { workspace = true }
 modeler-orchestrator = { workspace = true }
 modeler-engine-worker = { workspace = true }
 modeler-agents = { workspace = true }
+modeler-project = { workspace = true }
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
@@ -52,6 +55,7 @@ testpaths = [
   "packages/pbpk-domain/tests",
   "packages/data-intake/tests",
   "packages/run-contracts/tests",
+  "packages/project-model/tests",
   "services/api/tests",
   "services/engine-worker/tests",
   "services/agents/tests",
@@ -66,4 +70,4 @@ target-version = "py312"
 ignore = ["C408"]  # dict(key=value) reads better for keyword-heavy test fixtures
 
 [tool.ruff.lint.isort]
-known-first-party = ["pbpk_domain", "modeler_intake","modeler_contracts", "modeler_api", "modeler_orchestrator", "modeler_engine", "modeler_agents"]
+known-first-party = ["pbpk_domain", "modeler_intake","modeler_contracts", "modeler_api", "modeler_orchestrator", "modeler_engine", "modeler_agents", "modeler_project"]

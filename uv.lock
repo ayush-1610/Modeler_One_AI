@@ -15,6 +15,7 @@ members = [
     "modeler-intake",
     "modeler-one",
     "modeler-orchestrator",
+    "modeler-project",
     "pbpk-domain",
 ]
 
@@ -949,6 +950,7 @@ dependencies = [
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "modeler-contracts" },
+    { name = "modeler-project" },
     { name = "pbpk-domain" },
     { name = "pyarrow" },
     { name = "pydantic-settings" },
@@ -964,6 +966,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.1" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "modeler-contracts", editable = "packages/run-contracts" },
+    { name = "modeler-project", editable = "packages/project-model" },
     { name = "pbpk-domain", editable = "packages/pbpk-domain" },
     { name = "pyarrow", specifier = ">=17" },
     { name = "pydantic-settings", specifier = ">=2.4" },
@@ -1028,6 +1031,7 @@ dependencies = [
     { name = "modeler-engine-worker" },
     { name = "modeler-intake" },
     { name = "modeler-orchestrator" },
+    { name = "modeler-project" },
     { name = "pbpk-domain" },
 ]
 
@@ -1048,6 +1052,7 @@ requires-dist = [
     { name = "modeler-engine-worker", editable = "services/engine-worker" },
     { name = "modeler-intake", editable = "packages/data-intake" },
     { name = "modeler-orchestrator", editable = "services/orchestrator" },
+    { name = "modeler-project", editable = "packages/project-model" },
     { name = "pbpk-domain", editable = "packages/pbpk-domain" },
 ]
 
@@ -1085,6 +1090,23 @@ requires-dist = [
     { name = "pypandoc-binary", specifier = ">=1.17" },
     { name = "temporalio", specifier = ">=1.7" },
     { name = "typst", specifier = ">=0.15.0" },
+]
+
+[[package]]
+name = "modeler-project"
+version = "0.1.0"
+source = { editable = "packages/project-model" }
+dependencies = [
+    { name = "pbpk-domain" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pbpk-domain", editable = "packages/pbpk-domain" },
+    { name = "pydantic", specifier = ">=2.11" },
+    { name = "pyyaml", specifier = ">=6" },
 ]
 
 [[package]]

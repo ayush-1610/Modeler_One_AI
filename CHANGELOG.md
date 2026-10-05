@@ -664,6 +664,22 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — project start-up pipeline, T-40: versioned artifacts, staleness, impact preview, audit chain
+- **New workspace package `packages/project-model` (`modeler_project`)**, the spine every phase P0–P6 stores into
+  (plan §13). An artifact version is immutable (written once), hashed, and names the exact upstream versions it was
+  derived from. An edit creates the next version and needs a reason; everything made from the old version is
+  reported **stale** with that reason (computed, never stored, so it cannot drift), never deleted or silently
+  redone. Approvals bind a version's hash and are refused for stale or superseded versions.
+- **Impact preview** (`POST /api/v1/projects/{id}/impact`): the field changes an edit would make and every
+  artifact it would make stale, with the effect (re-derive, re-review, signature needed: a signed MAP is superseded
+  and its campaigns invalidated) before anything is saved.
+- **Single-node audit trail**: every commit and approval is appended to a per-tenant hash chain
+  (`<root>/<tenant>/audit.jsonl`) with the same event shape and row hash as the Postgres `audit_events` table (a
+  test pins identical hashes), so it migrates unchanged. Before this the single-node store kept no audit trail.
+- API: `/projects/{id}/phases`, `/artifacts`, `/artifacts/{kind}/{id}` (+`?version=`), `/history`, `/audit`. Web:
+  a **phase rail** (P0–P6 with status) on project pages and a **History** page (stale items with reasons, every
+  version with its field changes and approvals, the audit trail and whether its chain verifies).
+
 ### Docs
 - **The start-up pipeline plan is approved (owner, v0.2, 2026-10-05) and its build has started.** The owner answered
   D-03 (fold tiers + symmetric PE limits + the proposal's own criteria, all metrics gating; ruleset change
