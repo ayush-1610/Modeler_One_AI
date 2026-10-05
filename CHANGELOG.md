@@ -664,6 +664,32 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — dissolution: canonical profiles, checks, f2 and the Weibull fit in PK-Sim's parameterization (T-48)
+- **Profiles** (`pbpk_domain.dissolution`, `modeler_project.dissolution_register`): every client file's dissolution rows
+  (template, or a confirmed mapping recipe) become canonical profiles, one per product × role × strength × batch ×
+  apparatus × rpm × medium × pH × volume, with times in minutes, per-vessel values, mean, SD, CV, n and the source cells
+  (DISSOLUTION artifacts, rebuilt idempotently; a profile repeated in a later file is replaced by it, and the replacement
+  is noted).
+- **Checks** say which release model the data support: Weibull; Dissolved (≥ 85 % within 15 min, MS-01 §4 S2); or
+  Table, for release that plateaus well below complete (refused as a Weibull release model; table formulations are not
+  placed by the builder yet). Means above 110 %, dissolution at t = 0 and falling means are flagged.
+- **f2** for each TEST profile against the RLD / REFERENCE profile under the same conditions, computed only when its
+  conditions hold (12 units, ≥ 3 points, one point after 85 %, CV ≤ 20 % early / ≤ 10 % later); otherwise the reasons;
+  both ≥ 85 % within 15 min is similar without f2. Conditions are ruleset data: **new ruleset
+  `rulesets/dissolution_similarity.yaml` (2026.1-draft, UNVERIFIED)**, owner-approved with the plan, awaiting SME sign-off.
+- **Weibull fit**: deterministic least squares of t50 and shape (lag 0, as the OSP tablets have it), with standard
+  errors and RMSE, in PK-Sim's parameterization (`Dissolution time (50% dissolved)` min, `Dissolution shape`, `Lag time`
+  min, harvested from the OSP formulation catalog): fraction dissolved = 1 − exp(−ln 2 · ((t − lag)/t50)^shape). A person
+  proposes a profile as a formulation's release model (D-12: the choice is a planning decision); its values become
+  evidence (`form.<name>.type`, `form.<name>.weibull.t50/shape/lag`, extraction COMPUTED, grade C) to accept like any
+  other. Evidence assessment now keeps flags that start with `unconfirmed`.
+- Web: a Dissolution card on the L2b page (mean points with the fitted curve, t50 / shape ± SE, f2 verdicts with the
+  ruleset version, propose-as-release-model). Playwright covers it.
+- **Known gap:** the equation has not yet been compared with PK-Sim's own release curve on the engine (plan harvest
+  rule; acceptance "within 1 %"): `ENGINE_CONFIRMED` is False and every proposed Weibull value carries the
+  `unconfirmed` flag until that run is recorded on the server (e.g. the OSP Dapagliflozin IC tablet, t50 30 min, shape
+  0.6, dissolved fraction over time against the equation).
+
 ### Added — P3 client data: the client-data template, sheet triage, agent A4 and reconciliation (T-47)
 - **Client-data template** (`modeler_intake.client_template`, `GET /client-data/template.xlsx`, plan §10.2, D-11):
   README plus Studies, PK_Individual, PK_Summary, PK_Parameters, Dissolution, Product, Physchem_InVitro, Urine_Feces;

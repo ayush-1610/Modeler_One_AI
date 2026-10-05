@@ -37,6 +37,7 @@ from modeler_project.client_data import (
 )
 from modeler_project.dataset_register import propose_dataset
 from modeler_project.datasets import DatasetError
+from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
 from modeler_project.requirements import RequirementMatrix
 
@@ -67,6 +68,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "data_plan": {"version": matrix_version.version, "status": ws.status(matrix_version).value},
         "files": submissions(ws),
         "reconciliation": recon.to_content(),
+        "dissolution": {"profiles": profiles(ws), **comparisons(ws)},
         "register": version_view(ws, register, with_content=False) if register else None,
         "agents": agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
     }
@@ -232,6 +234,23 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
     record_mapping(ws, sid, recipe=review.recipe.model_dump(mode="json"), dataset_ids=ids,
                    dissolution=[o.model_dump(mode="json") for o in review.dissolution], by=principal.user_id)
     return envelope({**preview, "datasets": ids, **_view(ws)})
+
+
+class ReleaseModelRequest(BaseModel):
+    formulation: str = Field(min_length=1)
+
+
+@router.post("/projects/{project_id}/dissolution/{profile_id}:propose", status_code=201)
+def propose_release(project_id: str, profile_id: str, body: ReleaseModelRequest, principal: Writer,
+                    store: StoreDep) -> dict[str, Any]:
+    """Propose a profile's fit as a formulation's release model: evidence to accept or reject on the Parameters tab
+    (which profile represents in vivo release is a planning decision, D-12)."""
+    ws = workspace_for(project_id, principal, store)
+    try:
+        proposed = propose_release_model(ws, profile_id, formulation=body.formulation, by=principal.user_id)
+    except DissolutionRegisterError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return envelope({"evidence": [e.id for e in proposed], **_view(ws)})
 
 
 class CloseRequest(BaseModel):

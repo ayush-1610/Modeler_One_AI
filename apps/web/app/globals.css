@@ -319,3 +319,7 @@ tbody tr:last-child td { border-bottom: none; }
 
 /* P3 client data (L2b) */
 .mapper { margin-top: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 6px; display: grid; gap: 6px; }
+.release-plot { background: var(--surface-2, transparent); border-radius: 4px; }
+.release-plot .ref { stroke: var(--line); stroke-dasharray: 3 3; }
+.release-plot .fit { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.release-plot .pt { fill: var(--ink); }

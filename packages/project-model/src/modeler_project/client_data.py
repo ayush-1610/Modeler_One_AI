@@ -324,6 +324,10 @@ def ingest(ws: Workspace, library: DocumentLibrary, data: bytes, filename: str, 
             content["issues"] = [asdict(i) for i in issues]
     ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, derived_from=[doc.ref], actor=by,
               reason=f"client file {content['file']}" + (" (template)" if content["template"] else ""))
+    if content["dissolution"]:
+        from modeler_project.dissolution_register import rebuild
+
+        rebuild(ws, by=by)
     return content | {"id": sid}
 
 
@@ -396,6 +400,10 @@ def record_mapping(ws: Workspace, sid: str, *, recipe: dict[str, Any], dataset_i
     content["dissolution_records"] = [*content.get("dissolution_records", []), *dissolution]
     ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,
               reason=f"mapping recipe {recipe.get('recipe_id')} confirmed: {len(dataset_ids)} datasets")
+    if dissolution:
+        from modeler_project.dissolution_register import rebuild
+
+        rebuild(ws, by=by)
     return content | {"id": sid}
 
 
@@ -465,6 +473,8 @@ def reconcile(ws: Workspace, matrix: RequirementMatrix) -> Reconciliation:
         elif item.kind == "formulation" or item.data_category == "dissolution":
             keys = _dissolution_keys(subs, item.product)
             used_diss = used_diss or bool(keys)
+            # a release model proposed from a client profile (form.<name>.*) serves this item
+            used_ev.update(e.id for e in client_ev if e.target.startswith("form."))
             delivered = tuple(sorted(f"{m} pH {p}" if p else m for m, p in keys))
             promised = _PROMISED_COUNT.search(item.provider_statement or "")
             count = (_NUMBER_WORDS.get(promised.group(1).lower()) or int(promised.group(1))) if promised else 0

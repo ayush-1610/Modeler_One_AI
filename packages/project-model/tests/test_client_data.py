@@ -80,7 +80,8 @@ def _project(tmp_path):
 
 def test_a_filled_template_becomes_client_datasets_and_evidence_quoted_from_their_rows(tmp_path):
     ws, library, brief, matrix, _ = _project(tmp_path)
-    sub = ingest(ws, library, _workbook(), "client-2026-10.xlsx", by="u", matrix=matrix, brief=brief)
+    data = _workbook()
+    sub = ingest(ws, library, data, "client-2026-10.xlsx", by="u", matrix=matrix, brief=brief)
     assert sub["template"] and len(sub["datasets"]) == 2 and len(sub["evidence"]) == 2
     found = {d.study["study_id"]: d for d in datasets(ws)}
     test, rld = found["BE-01-TEST"], found["BE-01-RLD"]
@@ -99,7 +100,7 @@ def test_a_filled_template_becomes_client_datasets_and_evidence_quoted_from_thei
     assert any("'Brand 25 mg' is not one of the brief's products" in m for m in sub["brief_mismatches"])
     assert len(sub["dissolution"]) == 6
     # the same bytes again: the same submission, nothing proposed twice
-    again = ingest(ws, library, _workbook(), "client-2026-10.xlsx", by="u", matrix=matrix, brief=brief)
+    again = ingest(ws, library, data, "client-2026-10.xlsx", by="u", matrix=matrix, brief=brief)
     assert again["repeat"] and len(datasets(ws)) == 2
 
 

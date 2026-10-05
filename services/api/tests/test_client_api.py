@@ -162,3 +162,26 @@ def test_p3_closes_only_when_required_client_items_are_met_or_skipped(setup):
         ok = c.post("/api/v1/projects/p1/client-data:approve", headers=H, json={"note": "nothing promised by the client"})
         assert ok.status_code == 200 and ok.json()["data"]["register"]["status"] == "APPROVED"
         assert ws.phases()["P3"] == "APPROVED"
+
+
+@pytest.mark.req("T-48")
+def test_dissolution_profiles_are_shown_and_a_fit_is_proposed_as_a_release_model(setup):
+    import numpy as np
+
+    from pbpk_domain.dissolution import weibull_fraction
+
+    c, _ws = setup
+    wb = load_workbook(io.BytesIO(c.get("/api/v1/client-data/template.xlsx", headers=H).content))
+    times = (5, 10, 15, 20, 30, 45, 60)
+    for t, f in zip(times, weibull_fraction(np.array(times), 25.0, 1.1), strict=True):
+        wb["Dissolution"].append(["Tab 10", "TEST", 10, "B7", "USP 2 paddle", 50, "FaSSIF", 6.5, 500, 37, None, t, "min",
+                                  *[round(100 * float(f) + d, 2) for d in np.linspace(-1, 1, 12)]])
+    view = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("diss.xlsx", _save(wb), XLSX))]).json()["data"]
+    profile = view["dissolution"]["profiles"][0]
+    assert profile["release_model"] == "Weibull" and profile["fit"]["t50_min"] == pytest.approx(25.0, rel=0.01)
+    r = c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H, json={"formulation": "Tab10"})
+    assert r.status_code == 201 and len(r.json()["data"]["evidence"]) == 4
+    targets = {e["target"] for e in c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["evidence"]}
+    assert {"form.Tab10.type", "form.Tab10.weibull.t50", "form.Tab10.weibull.shape", "form.Tab10.weibull.lag"} <= targets
+    bad = c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H, json={"formulation": "Tab 1.0"})
+    assert bad.status_code == 422 and "no dots" in bad.json()["detail"]

@@ -126,7 +126,9 @@ def _missing_conditions(required: tuple[str, ...], given: dict[str, str]) -> lis
 
 def assess(item: EvidenceItem, *, required_conditions: tuple[str, ...] = (), value_in_quote: bool | None = None) -> EvidenceItem:
     """Convert to the storage unit, grade (plan §8.4) and flag. Returns the item with these fields set."""
-    flags: list[str] = [f for f in item.flags if f.startswith("conflict")]
+    # recomputed here, except conflicts (set when read) and what the proposer knows is unconfirmed (e.g. an equation
+    # not yet compared with the engine's own curve)
+    flags: list[str] = [f for f in item.flags if f.startswith(("conflict", "unconfirmed"))]
     value_pksim, unit_pksim, how = item.value_pksim, item.unit_pksim, item.conversion
     if isinstance(item.value, int | float) and value_pksim is None:
         try:

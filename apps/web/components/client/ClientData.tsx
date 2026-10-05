@@ -15,8 +15,16 @@ type ClientFile = {
 };
 type Reconciled = { req_id: string; label: string; criticality: string; applies: string; status: string;
                     delivered: string[]; detail: string; cross_check: boolean; literature_accepted: string[] };
+type Fit = { t50_min: number | null; shape: number | null; lag_min: number; se_t50: number | null; se_shape: number | null;
+             rmse_percent: number | null; n_points: number; converged: boolean; note: string; engine_confirmed: boolean };
+type Profile = { id: string; label: string; key: Record<string, unknown>; times_min: number[]; mean: number[];
+                 cv: (number | null)[]; n: number; flags: string[]; release_model: "Weibull" | "Dissolved" | "Table";
+                 fit: Fit | null; files: string[] };
+type Comparison = { test: string; reference: string; condition: string; f2: number | null; similar: boolean | null;
+                    applicable: boolean; reasons: string[]; times_used: number[]; ruleset: string };
 type View = {
   template: string;
+  dissolution: { profiles: Profile[]; comparisons: Comparison[]; problems: string[] };
   files: ClientFile[];
   reconciliation: { rows: Reconciled[]; unpromised: string[]; blocking: string[] };
   register: { status: string; approvals: { printed_name: string; at: string }[] } | null;
@@ -199,6 +207,98 @@ function ReconRow({ r, onDecide }: { r: Reconciled; onDecide: (body: Record<stri
   );
 }
 
+/** Mean % dissolved (points) and the fitted PK-Sim Weibull curve, on a fixed 0–100 % scale. */
+function ReleasePlot({ p }: { p: Profile }) {
+  const W = 220, H = 90, tMax = Math.max(...p.times_min, 1);
+  const x = (t: number) => 6 + (t / tMax) * (W - 12);
+  const y = (v: number) => H - 6 - (Math.min(Math.max(v, 0), 110) / 110) * (H - 12);
+  const fit = p.fit && p.fit.t50_min && p.fit.shape ? p.fit : null;
+  const curve = fit ? Array.from({ length: 41 }, (_, i) => {
+    const t = (tMax * i) / 40, s = Math.max(t - fit.lag_min, 0);
+    return `${x(t).toFixed(1)},${y(100 * (1 - Math.exp(-Math.LN2 * (s / (fit.t50_min as number)) ** (fit.shape as number)))).toFixed(1)}`;
+  }).join(" ") : "";
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="release-plot" role="img" aria-label={`release of ${p.label}`}>
+      <line x1={6} x2={W - 6} y1={y(100)} y2={y(100)} className="ref" />
+      {curve && <polyline points={curve} className="fit" />}
+      {p.times_min.map((t, i) => <circle key={t} cx={x(t)} cy={y(p.mean[i])} r={2.5} className="pt" />)}
+    </svg>
+  );
+}
+
+function ProfileRow({ p, onPropose }: { p: Profile; onPropose: (formulation: string) => Promise<string | null> }) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const fit = p.fit;
+  return (
+    <tr data-testid={`profile-${p.id}`}>
+      <td>{p.label}<div className="muted" style={{ fontSize: 12 }}>n {p.n} · {p.files.join(", ")}</div>
+        {p.flags.length > 0 && <ul className="flags">{p.flags.map((f) => <li key={f}>{f}</li>)}</ul>}</td>
+      <td><ReleasePlot p={p} /></td>
+      <td>
+        <span className={`chip ${p.release_model === "Table" ? "high" : "low"}`}>{p.release_model.toLowerCase()}</span>
+        {fit && fit.t50_min !== null && (
+          <div className="series">t50 {+fit.t50_min.toPrecision(4)} min{fit.se_t50 !== null ? ` ± ${fit.se_t50.toPrecision(2)}` : ""} ·
+            shape {fit.shape === null ? "—" : +fit.shape.toPrecision(4)}{fit.se_shape !== null ? ` ± ${fit.se_shape.toPrecision(2)}` : ""} ·
+            RMSE {fit.rmse_percent} %</div>
+        )}
+        {fit && !fit.engine_confirmed && <div className="muted" style={{ fontSize: 12 }}>equation not yet compared with PK-Sim&apos;s own curve</div>}
+      </td>
+      <td>
+        {p.release_model !== "Table" && (
+          <div className="row" style={{ gap: 4 }}>
+            <input placeholder="formulation name" value={name} onChange={(e) => setName(e.target.value)} style={{ width: 130 }} />
+            <button className="btn" disabled={!name.trim()} onClick={async () => setError(await onPropose(name))}>Propose as release model</button>
+          </div>
+        )}
+        {error && <div className="banner err">{error}</div>}
+      </td>
+    </tr>
+  );
+}
+
+function Dissolution({ projectId, d, act }: {
+  projectId: string; d: View["dissolution"];
+  act: (fn: () => Promise<{ errors: { message: string }[] }>) => Promise<string | null>;
+}) {
+  const label = (id: string) => d.profiles.find((p) => p.id === id)?.label ?? id;
+  return (
+    <Card title={`Dissolution (${d.profiles.length} profiles)`}>
+      <p className="muted" style={{ margin: "0 0 6px", fontSize: 13 }}>
+        Each profile is fitted with PK-Sim&apos;s Weibull release (t50, shape, lag 0). Which profile stands for release in
+        the body is a planning decision; proposing one makes its values evidence to accept on the Literature page.
+      </p>
+      <table>
+        <thead><tr><th>Profile</th><th>Mean and fit</th><th>Release model</th><th>Use</th></tr></thead>
+        <tbody>
+          {d.profiles.map((p) => (
+            <ProfileRow key={p.id} p={p} onPropose={(formulation) =>
+              act(() => apiSend(`/api/v1/projects/${projectId}/dissolution/${p.id}:propose`, "POST", { formulation }))} />
+          ))}
+        </tbody>
+      </table>
+      {d.comparisons.length > 0 && (
+        <table style={{ marginTop: 10 }}>
+          <thead><tr><th>Test vs reference</th><th>Condition</th><th className="num">f2</th><th>Verdict</th></tr></thead>
+          <tbody>
+            {d.comparisons.map((c) => (
+              <tr key={`${c.test}-${c.reference}`} data-testid="f2-row">
+                <td>{label(c.test)}<div className="muted" style={{ fontSize: 12 }}>vs {label(c.reference)}</div></td>
+                <td>{c.condition}</td>
+                <td className="num">{c.f2 ?? "—"}</td>
+                <td>{c.applicable ? <span className={`chip ${c.similar ? "low" : "high"}`}>{c.similar ? "similar" : "not similar"}</span>
+                     : <span className="muted" style={{ fontSize: 13 }}>{c.reasons.join("; ")}</span>}
+                  <div className="muted" style={{ fontSize: 11 }}>{c.ruleset}</div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {d.problems.length > 0 && <ul className="flags">{d.problems.map((x) => <li key={x}>{x}</li>)}</ul>}
+    </Card>
+  );
+}
+
 /** P3 client data (plan §10): the files, how they were read, and the reconciliation with the data plan. */
 export function ClientData({ projectId }: { projectId: string }) {
   const [view, setView] = useState<View | null>(null);
@@ -260,6 +360,7 @@ export function ClientData({ projectId }: { projectId: string }) {
           <FileCard key={f.id} projectId={projectId} file={f} agents={view.agents.enabled} running={view.running} act={act} reload={load} />
         ))}
       </Card>
+      {view.dissolution.profiles.length > 0 && <Dissolution projectId={projectId} d={view.dissolution} act={act} />}
       <Card title="Reconciliation with the data plan">
         {recon.rows.length === 0 ? <p className="muted" style={{ margin: 0 }}>The data plan expects nothing from the client.</p> : (
           <table>

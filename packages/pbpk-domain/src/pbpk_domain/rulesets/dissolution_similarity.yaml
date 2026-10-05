@@ -1,0 +1,32 @@
+# Dissolution profile comparison (f2) and release-profile checks (plan 2026-09-25 §10.3, T-48).
+# status must be SME_APPROVED before GxP use. Owner-approved with the plan (v0.2, 2026-10-05) as ruleset data,
+# awaiting SME sign-off: every number below is the commonly cited value from the guidances named in `source` and has
+# to be checked against their current text before a similarity verdict is relied on.
+id: dissolution-similarity
+version: "2026.1-draft"
+status: UNVERIFIED
+source: >-
+  FDA Guidance for Industry, Dissolution Testing of Immediate Release Solid Oral Dosage Forms (1997), and
+  Dissolution Testing and Acceptance Criteria for IR Solid Oral Dosage Form Drug Products (2018);
+  EMA Guideline on the Investigation of Bioequivalence (CPMP/EWP/QWP/1401/98 Rev. 1, 2010), Appendix I [VERIFY]
+f2:
+  similar_at_least: 50          # f2 >= 50: the profiles are similar
+  min_units: 12                 # dosage units (vessels) per product
+  min_time_points: 3            # time points used, zero excluded
+  max_points_after_85: 1        # at most one time point with either product's mean above 85 %
+  cv_early_max_percent: 20      # CV allowed at the early time points …
+  early_until_min: 10           # … up to and including this time
+  cv_later_max_percent: 10      # CV allowed at the later time points
+  very_rapid:                   # both products at least this % within this time: similar without f2
+    percent: 85
+    within_min: 15
+profile:
+  max_percent: 110              # a mean above this is implausible (assay or units)
+  zero_time_max_percent: 1      # dissolved at t = 0 above this: check the time origin
+  plateau:                      # release that stops well below complete cannot be represented by a Weibull curve
+    window_points: 2            # the last points …
+    max_change_percent: 2       # … change by at most this (percentage points) …
+    below_percent: 85           # … and stay below this
+  rapidly_dissolving:           # MS-01 §4 S2: modelled as Dissolved
+    percent: 85
+    within_min: 15

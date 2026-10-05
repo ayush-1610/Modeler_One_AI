@@ -43,9 +43,22 @@ test("client files are read cell by cell, sorted, and reconciled with the data p
   await notes.getByRole("button", { name: "Set" }).click();
   await expect(raw.getByTestId("sheet-Notes")).toContainText("product info");
 
+  // dissolution: each profile fitted (PK-Sim Weibull), test vs reference compared by f2 under its conditions
+  await expect(page.getByTestId("f2-row")).toContainText("similar");
+  const testProfile = page.locator("tr[data-testid^='profile-']", { hasText: "Test 10 mg" });
+  await expect(testProfile).toContainText("t50 18 min");
+  await testProfile.getByPlaceholder("formulation name").fill("Test10");
+  await testProfile.getByRole("button", { name: "Propose as release model" }).click();
+  await expect(page.getByText(/Problems|Error/)).toHaveCount(0);
+
   // the client's study arrived without the plan promising it; the client dataset is on the observed-data tab too
   await expect(page.getByText(/CL-01 .*delivered, not promised/)).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });
   await page.goto(`/projects/${projectId}/evidence?tab=observed`);
   await expect(page.locator(".evidence", { hasText: "CL-01" })).toContainText("client");
+  // the proposed release model waits for acceptance on the Parameters tab, flagged until PK-Sim confirms the equation
+  const views = await request.get(`/api/v1/projects/${projectId}/evidence`, { headers: { Authorization: "Bearer dev" } });
+  const t50 = (await views.json()).data.evidence.find((e: { target: string }) => e.target === "form.Test10.weibull.t50");
+  expect(t50.state).toBe("PROPOSED");
+  expect(t50.flags.join(" ")).toContain("unconfirmed");
 });
