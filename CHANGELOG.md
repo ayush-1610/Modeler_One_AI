@@ -664,6 +664,20 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — agents on Gemini or Groq (decision D-16)
+- **`modeler_agents.llm`**: one OpenAI-compatible client for the owner's two providers (Gemini, Groq) and a
+  provider-agnostic tool loop: the model calls tools, deterministic handlers check and record what it proposes and
+  answer it (rejections included), and every model turn and tool result goes to the agent run's step log. Retries
+  with backoff on overload / rate limits (429, 5xx), no retry on a refusal. Selected by `MODELER_LLM_PROVIDER`
+  (`gemini` | `groq` | unset = agents off, manual paths only); keys only from `GEMINI_API_KEY` / `GROQ_API_KEY`.
+- **Gemini needs its thought signature echoed back**: a follow-up turn whose function call lost
+  `extra_content.google.thought_signature` is refused (HTTP 400, seen live on 2026-10-05). The loop returns each
+  call exactly as the provider sent it. Verified live on the owner's key: tool calls work on `gemini-flash-latest`,
+  `gemini-3.5-flash`, `gemini-3.1-flash-lite`; the pro models are over the key's free quota and the free tier
+  throttles quickly (429). Groq is unreachable from this build container (network policy) and untested live.
+- **Server**: `deploy/server/_env.sh` sources `~/.modeler-secrets.env` (owner-only, outside the repository;
+  template `deploy/server/modeler-secrets.env.example`). The keys pasted into the plan should be rotated.
+
 ### Added — project start-up pipeline, T-40: versioned artifacts, staleness, impact preview, audit chain
 - **New workspace package `packages/project-model` (`modeler_project`)**, the spine every phase P0–P6 stores into
   (plan §13). An artifact version is immutable (written once), hashed, and names the exact upstream versions it was

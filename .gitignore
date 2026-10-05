@@ -25,3 +25,7 @@ reports/
 # Playwright
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Agent provider keys (D-16): never in the repository
+.modeler-secrets.env
+modeler-secrets.env

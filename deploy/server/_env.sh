@@ -27,6 +27,14 @@ export MODELER_ENGINE_COMMAND="Rscript $REPO/services/engine-worker/r/run_job.R"
 export MODELER_IMAGE_DIGEST="sha256:0000000000000000000000000000000000000000000000000000000000000000"
 export MODELER_API_BASE="http://127.0.0.1:$API_PORT"
 
+# --- agents (decision D-16): provider and key live OUTSIDE the repository, in a file only the owner can read ---
+# ~/.modeler-secrets.env (chmod 600), e.g.:
+#   export MODELER_LLM_PROVIDER=gemini          # or groq; unset or "disabled" = agents off, manual paths only
+#   export GEMINI_API_KEY=...                   # or GROQ_API_KEY=...
+#   export MODELER_LLM_MODEL=gemini-flash-latest  # optional override
+SECRETS_FILE="${MODELER_SECRETS_FILE:-$HOME/.modeler-secrets.env}"
+[ -f "$SECRETS_FILE" ] && . "$SECRETS_FILE"
+
 # node, for `next start`
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1
