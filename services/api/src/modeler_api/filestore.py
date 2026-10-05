@@ -48,13 +48,17 @@ class ReadStore(Protocol):
 
     def list_studies(self, tenant_id: str, project_id: str) -> list[dict[str, Any]]: ...
 
+    def get_system(self, tenant_id: str, project_id: str) -> dict[str, Any] | None: ...
+
 
 class WriteStore(Protocol):
     def put_project(self, tenant_id: str, project: dict[str, Any]) -> None: ...
 
-    def put_cpf(self, tenant_id: str, compound: str, cpf: CPF) -> None: ...
+    def put_cpf(self, tenant_id: str, project_id: str, compound: str, cpf: CPF) -> None: ...
 
     def put_studies(self, tenant_id: str, project_id: str, studies: list[dict[str, Any]]) -> None: ...
+
+    def put_system(self, tenant_id: str, project_id: str, links: dict[str, Any]) -> None: ...
 
     def upsert_campaign(self, tenant_id: str, campaign: dict[str, Any]) -> None: ...
 
@@ -96,7 +100,10 @@ class FileReadStore(_FileStoreBase):
         return None
 
     def get_cpf(self, tenant_id: str, project_id: str, compound: str) -> CPF | None:
-        data = self._read_json(self.root / tenant_id / "cpf" / f"{compound}.json")
+        # a project's own CPF; before 2026-09-24 CPFs were kept per compound for the whole tenant (two projects on one
+        # drug overwrote each other), and a project that has no own CPF yet still reads that one
+        data = (self._read_json(self.root / tenant_id / "cpf" / project_id / f"{compound}.json")
+                or self._read_json(self.root / tenant_id / "cpf" / f"{compound}.json"))
         return CPF.model_validate(data) if data else None
 
     def list_campaigns(self, tenant_id: str) -> list[dict[str, Any]]:
@@ -116,6 +123,10 @@ class FileReadStore(_FileStoreBase):
 
     def list_studies(self, tenant_id: str, project_id: str) -> list[dict[str, Any]]:
         return [s for s in self._read_list(tenant_id, "studies.json", "studies") if s.get("project") == project_id]
+
+    def get_system(self, tenant_id: str, project_id: str) -> dict[str, Any] | None:
+        """The project's model-system links (pbpk_domain.system.SystemLinks), or None for a single-compound project."""
+        return self._read_json(self.root / tenant_id / "systems" / f"{project_id}.json")
 
 
 class FileWriteStore(_FileStoreBase):
@@ -142,8 +153,11 @@ class FileWriteStore(_FileStoreBase):
     def put_project(self, tenant_id: str, project: dict[str, Any]) -> None:
         self._upsert(tenant_id, "projects.json", "projects", project)
 
-    def put_cpf(self, tenant_id: str, compound: str, cpf: CPF) -> None:
-        self._write_json(self.root / tenant_id / "cpf" / f"{compound}.json", cpf.model_dump(mode="json"))
+    def put_cpf(self, tenant_id: str, project_id: str, compound: str, cpf: CPF) -> None:
+        self._write_json(self.root / tenant_id / "cpf" / project_id / f"{compound}.json", cpf.model_dump(mode="json"))
+
+    def put_system(self, tenant_id: str, project_id: str, links: dict[str, Any]) -> None:
+        self._write_json(self.root / tenant_id / "systems" / f"{project_id}.json", links)
 
     def put_studies(self, tenant_id: str, project_id: str, studies: list[dict[str, Any]]) -> None:
         """Replace this project's studies, leaving other projects' rows untouched."""

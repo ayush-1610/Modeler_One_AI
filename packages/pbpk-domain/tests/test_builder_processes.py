@@ -88,11 +88,21 @@ def test_new_processes_get_molecule_dash_datasource_selection() -> None:
     for proc in (
         MichaelisMentenMetabolism(molecule="CYP3A4", data_source="lit", vmax=umin(6.5), km=um(195)).to_process(),
         TransporterMichaelisMenten(molecule="P-gp", data_source="Collett 2004", vmax=umin(2.87), km=um(55)).to_process(),
-        CompetitiveInhibition(molecule="CYP2C8", data_source="Kajosaari 2005", ki=um(30.2)).to_process(),
     ):
         sel = process_selection_for(proc)
         assert sel is not None
         assert sel.name == f"{proc.molecule}-{proc.data_source}"
+
+
+def test_inhibition_and_induction_are_simulation_interactions_not_compound_processes() -> None:
+    """As the OSP Rifampicin snapshot selects them: Simulations[].Interactions with the compound's name. Selected
+    among the compound's processes they would not act (auto-induction silently off)."""
+    from pbpk_domain.snapshot.validation import interaction_selection_for
+
+    inhibition = CompetitiveInhibition(molecule="CYP3A4", data_source="Kajosaari 2005", ki=um(18.5)).to_process()
+    assert process_selection_for(inhibition) is None
+    assert interaction_selection_for(inhibition, "Rifampicin") == {
+        "Name": "CYP3A4-Kajosaari 2005", "MoleculeName": "CYP3A4", "CompoundName": "Rifampicin"}
 
 
 # --- transporter expression profile --------------------------------------------------------------
@@ -228,3 +238,42 @@ def test_cpf_incomplete_mm_is_unresolved_not_error() -> None:
     subjects, scenarios = _subjects_scenarios()
     _, report = build_from_cpf(cpf, subjects, scenarios)
     assert "elim.hepatic.CYP3A4.vmax" in report.unresolved
+
+
+def test_a_harvested_process_type_refuses_a_parameter_name_it_does_not_carry():
+    from pbpk_domain.snapshot.builder import HarvestedProcess, Measured
+
+    ok = HarvestedProcess(internal_name="MetabolizationIntrinsic_FirstOrder", molecule="CYP3A4", data_source="x",
+                          parameters={"Intrinsic clearance": Measured(value=1.0, unit="l/min")})
+    assert ok.to_process().species == "Human"
+    with pytest.raises(ValueError, match="not a harvested name"):
+        HarvestedProcess(internal_name="MetabolizationIntrinsic_FirstOrder", molecule="CYP3A4", data_source="x",
+                         parameters={"CLint": Measured(value=1.0, unit="l/min")})
+    with pytest.raises(ValueError, match="must be given in"):
+        HarvestedProcess(internal_name="MetabolizationIntrinsic_FirstOrder", molecule="CYP3A4", data_source="x",
+                         parameters={"Intrinsic clearance": Measured(value=1.0, unit="ml/min")})
+    with pytest.raises(ValueError, match="no harvested parameter table"):
+        HarvestedProcess(internal_name="SomethingNew", molecule="CYP3A4", data_source="x",
+                         parameters={"Km": Measured(value=1.0, unit="µmol/l")})
+    with pytest.raises(ValueError, match="forbidden for a systemic"):
+        HarvestedProcess(internal_name="LiverClearance", molecule="CYP3A4", data_source="x",
+                         parameters={"Plasma clearance": Measured(value=1.0, unit="ml/min/kg")})
+
+
+def test_vmax_zero_is_a_published_input_only_when_kcat_carries_the_rate():
+    from pbpk_domain.snapshot.builder import Measured, MicrosomalMichaelisMenten, TransporterMichaelisMenten
+
+    zero = Measured(value=0.0, unit="µmol/l/min")
+    TransporterMichaelisMenten(molecule="OCT1", data_source="x", vmax=zero, km=Measured(value=1.0, unit="µmol/l"),
+                               kcat=Measured(value=2.0, unit="1/min"))
+    with pytest.raises(ValueError, match="unless kcat"):
+        TransporterMichaelisMenten(molecule="OCT1", data_source="x", vmax=zero, km=Measured(value=1.0, unit="µmol/l"))
+    # liver microsomes: in-vitro Vmax 0 with a fitted kcat (Clarithromycin); kcat left to PK-Sim when only Vmax is given
+    MicrosomalMichaelisMenten(molecule="CYP3A4", data_source="x", km=Measured(value=1.0, unit="µmol/l"),
+                              in_vitro_vmax=Measured(value=0.0, unit="pmol/min/mg mic. protein"),
+                              kcat=Measured(value=3.0, unit="1/min"))
+    no_kcat = MicrosomalMichaelisMenten(molecule="UGT1A1", data_source="x", km=Measured(value=1.0, unit="µmol/l"),
+                                        in_vitro_vmax=Measured(value=5.0, unit="pmol/min/mg mic. protein"))
+    assert [p.name for p in no_kcat.to_process().parameters] == ["In vitro Vmax for liver microsomes", "Km"]
+    with pytest.raises(ValueError, match="needs kcat or the in-vitro Vmax"):
+        MicrosomalMichaelisMenten(molecule="UGT1A1", data_source="x", km=Measured(value=1.0, unit="µmol/l"))

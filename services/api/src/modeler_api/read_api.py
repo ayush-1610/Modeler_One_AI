@@ -167,6 +167,9 @@ def get_campaign_package(campaign_id: str, principal: PrincipalDep, store: Store
         "report_notes": record.get("report_notes", []),
         "report_issues": record.get("report_issues", []),
         "artifacts": _available(record),
+        # the PK-Sim projects inside the package (pksim/<stem>.pksim5), and why one is missing
+        "pksim_projects": record.get("pksim_projects", []),
+        "project_notes": record.get("project_notes", []),
     })
 
 

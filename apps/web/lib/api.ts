@@ -11,19 +11,31 @@ export type Envelope<T> = {
 const SERVER_API_BASE = process.env.MODELER_API_BASE ?? "http://127.0.0.1:8000";
 const WEB_TOKEN = process.env.MODELER_WEB_TOKEN ?? "dev";
 
-/** Server-side GET returning the envelope's `data`, or null if the API is unreachable or returns an error. */
-export async function serverGet<T>(path: string): Promise<T | null> {
+/** A server-side read: the data, or what went wrong. Pages show the problem; they never substitute sample data,
+ *  because a page that looks live but is not hides the real fault (and fake numbers must never pass as results). */
+export type Live<T> = { data: T | null; problem: string | null; notFound: boolean };
+
+export async function serverRead<T>(path: string): Promise<Live<T>> {
+  let response: Response;
   try {
-    const response = await fetch(`${SERVER_API_BASE}${path}`, {
+    response = await fetch(`${SERVER_API_BASE}${path}`, {
       headers: { Authorization: `Bearer ${WEB_TOKEN}` },
       cache: "no-store",
     });
-    if (!response.ok) return null;
-    const env = (await response.json()) as Envelope<T>;
-    return env.errors?.length ? null : env.data;
-  } catch {
-    return null; // API not running — caller falls back to sample data so the UI still renders
+  } catch (err) {
+    const cause = (err as { cause?: { code?: string } })?.cause?.code ?? (err as Error)?.message ?? "no answer";
+    return { data: null, notFound: false,
+             problem: `The API at ${SERVER_API_BASE} is not reachable (${cause}). Start it, or point MODELER_API_BASE at it.` };
   }
+  if (response.status === 404) return { data: null, notFound: true, problem: null };
+  if (!response.ok) {
+    let detail = "";
+    try { detail = ((await response.json()) as { detail?: string }).detail ?? ""; } catch { /* not JSON */ }
+    return { data: null, notFound: false, problem: `The API answered HTTP ${response.status}${detail ? `: ${detail}` : ""}` };
+  }
+  const env = (await response.json()) as Envelope<T>;
+  if (env.errors?.length) return { data: null, notFound: false, problem: env.errors[0].message };
+  return { data: env.data, notFound: false, problem: null };
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<Envelope<T>> {

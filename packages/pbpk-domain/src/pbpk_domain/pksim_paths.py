@@ -11,6 +11,17 @@ Harvested facts (compound "Example-A", molecule "CYP3A4", data source "Example")
 - compound physicochemistry:  ``{compound}|<name>``            e.g. ``Example-A|Lipophilicity``
 - molecule-based process:     ``{compound}-{molecule}-{data_source}|<name>``  e.g. ``Example-A-CYP3A4-Example|CLspec/[Enzyme]``
 - glomerular filtration:      ``Neighborhoods|Kidney_pls_Kidney_ur|{compound}|Glomerular Filtration-{data_source}-{compound}|GFR fraction``
+
+Further shapes harvested from the ``LinkedParameters`` of the published parameter identifications in the OSP model
+library (2026-09-24), per process type:
+- ``{compound}-{molecule}-{data_source}|<name>``: specific first-order and MM metabolism, liver-microsome MM,
+  recombinant-CYP MM (Efavirenz ``Efavirenz-CYP1A2-Ward2003|kcat``), intrinsic first-order (Alfentanil
+  ``Alfentanil-CYP3A4-1st order CL|Intrinsic clearance``), specific binding (Midazolam ``Midazolam-GABRG2-Buhr 1997|koff``)
+- ``{compound}|{molecule}-{data_source}|<name>``: active transport (Cimetidine ``Cimetidine|OCT1-Paper|kcat``),
+  competitive inhibition (``Cimetidine|CYP3A4-Wrighton 1994|Ki``), induction (``Carbamazepine|CYP3A4-DMPK|EC50``)
+- ``{compound}-Total Hepatic Clearance-{data_source}|<name>``: total hepatic clearance (Cimetidine)
+Before this harvest transport, inhibition and induction were assumed to share the metabolism container; they do not.
+A process type with no harvested shape raises, so it is never fitted at an invented path.
 """
 
 from __future__ import annotations
@@ -27,12 +38,14 @@ _COMPOUND_PARAM: dict[str, str] = {
     "perm.cellular": "Permeability",
 }
 
-# Process internal names whose kinetic input parameters live in the `{compound}-{molecule}-{data_source}`
-# reaction container (harvested for metabolization; the other molecule-based processes share the structure).
+# {compound}-{molecule}-{data_source}|<name>: the reaction container (harvested per type, see the module docstring).
 _MOLECULE_PROCESSES = frozenset({
     "MetabolizationSpecific_FirstOrder", "MetabolizationSpecific_MM", "MetabolizationLiverMicrosomes_MM",
-    "rCYP450_MM", "ActiveTransportSpecific_MM", "CompetitiveInhibition", "Induction", "SpecificBinding",
+    "rCYP450_MM", "MetabolizationIntrinsic_FirstOrder", "SpecificBinding",
 })
+# {compound}|{molecule}-{data_source}|<name>: transport and interaction parameters (harvested per type).
+_NESTED_PROCESSES = frozenset({"ActiveTransportSpecific_MM", "CompetitiveInhibition", "Induction"})
+_HEPATIC_CLEARANCE = "LiverClearance"
 _GFR_PROCESS = "GlomerularFiltration"
 
 
@@ -65,10 +78,15 @@ def pksim_parameter_path(record: ParameterRecord, *, compound: str) -> str:
     if internal == _GFR_PROCESS:
         return f"Neighborhoods|Kidney_pls_Kidney_ur|{compound}|Glomerular Filtration-{data_source}-{compound}|{param}"
 
-    if internal in _MOLECULE_PROCESSES:
+    if internal == _HEPATIC_CLEARANCE:
+        return f"{compound}-Total Hepatic Clearance-{data_source}|{param}"
+
+    if internal in _MOLECULE_PROCESSES or internal in _NESTED_PROCESSES:
         molecule = binding.molecule
         if not molecule:
             raise ParameterPathError(f"{record.id!r}: molecule-based process {internal} needs a molecule")
+        if internal in _NESTED_PROCESSES:
+            return f"{compound}|{molecule}-{data_source}|{param}"
         return f"{compound}-{molecule}-{data_source}|{param}"
 
     raise ParameterPathError(f"{record.id!r}: no harvested path for process {internal!r}")

@@ -59,7 +59,8 @@ write_manifest <- function(extra = list()) {
 PLASMA_TEMPLATE <- "Organism|PeripheralVenousBlood|%s|Plasma (Peripheral Venous Blood)"
 
 # Normalize the OSP result CSVs runSimulationsFromSnapshot wrote into the canonical bundle the campaign reads:
-# {"profiles": {<SimulationName>: {times_min, concentrations, path, unit}}}. Keying by simulation name (which
+# {"profiles": {<SimulationName>: {times_min, concentrations, path, unit, outputs: {<output path>: {concentrations,
+# unit}}}}}; the first compound's plasma stays the top-level curve. Keying by simulation name (which
 # the platform sets to the study id) avoids depending on PK-Sim's CSV file naming. NOTE: the CSV file <-> sim
 # mapping is derived from the file name; confirm PK-Sim's naming on the Linux engine (F-405 golden run).
 write_profiles <- function(snapshot_path, out_dir) {
@@ -108,11 +109,26 @@ write_profiles <- function(snapshot_path, out_dir) {
       next
     }
     unit <- sub(".*\\[(.*)\\]$", "\\1", conc_col[[1]])
+    # A model system's simulation outputs every compound's plasma and its sum observers: each selected peripheral
+    # venous output is kept by its path ("<path> [<unit>]" columns, matched exactly), with its own unit (a mass-sum
+    # observer reports mass concentration).
+    outputs <- list()
+    for (path in unlist(sim$OutputSelections)) {
+      if (!startsWith(path, "Organism|PeripheralVenousBlood|")) next
+      col <- col_names[col_names == path | startsWith(col_names, paste0(path, " ["))]
+      if (length(col) == 0) {
+        cat("WARNING ", sprintf("no column for output '%s' of '%s'", path, sim_name), "\n", sep = "")
+        next
+      }
+      outputs[[path]] <- list(concentrations = as.numeric(data[[col[[1]]]]),
+                              unit = sub(".*\\[(.*)\\]$", "\\1", col[[1]]))
+    }
     profiles[[sim_name]] <- list(
       times_min = as.numeric(data[[time_col[[1]]]]),
       concentrations = as.numeric(data[[conc_col[[1]]]]),
       path = plasma_path,
-      unit = unit
+      unit = unit,
+      outputs = outputs
     )
   }
 

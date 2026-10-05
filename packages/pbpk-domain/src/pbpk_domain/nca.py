@@ -50,22 +50,37 @@ def auc_linup_logdown(times: list[float], concs: list[float]) -> float:
     return total
 
 
+# Two regressions whose adjusted R^2 differ by less than this are equally good; the one with more points is taken
+# (the "best fit" lambda_z rule of standard NCA software).
+ADJ_R2_TOLERANCE = 1e-4
+
+
 def terminal_slope(times: list[float], concs: list[float], *, min_points: int = 3) -> tuple[float, int] | None:
-    """Terminal elimination rate from a log-linear regression, choosing the number of trailing positive
-    points (>= min_points) that maximizes the adjusted R^2 (the standard NCA lambda_z selection)."""
+    """Terminal elimination rate from a log-linear regression over the trailing points after Cmax, choosing the
+    number of points (>= min_points) with the best adjusted R^2 (ties within ADJ_R2_TOLERANCE go to more points).
+
+    Trailing points that do not fall below the point before them are left out of the regression (they stay in
+    AUClast): a terminal phase declines, and a flat or repeated tail is an assay-limit or digitisation artefact
+    that would otherwise read as a near-zero elimination rate (the OSP Boulton 2013 IV dataset ends 4.48e-5,
+    4.48e-5 and gave a 275 h half-life for a drug eliminated with a half-life near 12 h)."""
     ts, cs = _clean(times, concs)
-    tail = [(t, c) for t, c in zip(ts, cs, strict=True) if c > 0]
+    points = [(t, c) for t, c in zip(ts, cs, strict=True) if c > 0]
+    if not points:
+        return None
+    i_max = max(range(len(points)), key=lambda i: points[i][1])
+    tail = points[i_max + 1:]
+    while len(tail) >= 2 and tail[-1][1] >= tail[-2][1]:
+        tail.pop()
     if len(tail) < min_points:
         return None
     best: tuple[float, float, int] | None = None  # (adj_r2, lambda_z, n)
     for n in range(min_points, len(tail) + 1):
-        window = tail[-n:]
-        fit = _loglinear(window)
+        fit = _loglinear(tail[-n:])
         if fit is None or fit[0] <= 0:  # need a declining tail (positive elimination rate)
             continue
         lambda_z, adj_r2 = fit
-        if best is None or adj_r2 > best[0]:
-            best = (adj_r2, lambda_z, n)
+        if best is None or adj_r2 > best[0] - ADJ_R2_TOLERANCE:
+            best = (max(adj_r2, best[0]) if best else adj_r2, lambda_z, n)
     if best is None:
         return None
     return best[1], best[2]

@@ -37,8 +37,8 @@ export function RunCampaignButton({
       }
       setStep("Signing the MAP…");
       const signed = await signMap(projectId, { record_id: prep.data.map_id, record_sha256: prep.data.map_sha256 });
-      if (!signed) {
-        setError("The MAP signature was rejected (step-up required).");
+      if (!signed.ok) {
+        setError(`The MAP signature was rejected: ${signed.error ?? "step-up required"}`);
         return;
       }
       setStep("Starting the campaign on the engine…");
@@ -53,7 +53,7 @@ export function RunCampaignButton({
         stages: prep.data.stages,
       });
       if (started.campaign_id) window.location.assign(`/campaigns/${started.campaign_id}`);
-      else setError("The campaign did not start.");
+      else setError(`The campaign did not start: ${started.error ?? "no campaign id returned"}`);
     } catch {
       setError("Could not reach the API.");
     } finally {

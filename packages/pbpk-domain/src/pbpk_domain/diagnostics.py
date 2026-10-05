@@ -136,6 +136,12 @@ def compute_evidence(
     if any_fit(lambda r: r.thalf_ratio is not None and r.auc_ratio is not None and r.thalf_ratio < lo and r.auc_ratio < lo):
         labels.add("clearance_off")
 
+    # Exposure off by more than the fallback fold, whatever t1/2 does (diag-rules 0.5 fallback rule).
+    fold = float(th.get("exposure_fallback_fold", 0) or 0)
+    if fold > 1 and any_fit(lambda r: r.auc_ratio is not None and r.auc_ratio > 0
+                            and (r.auc_ratio > fold or r.auc_ratio < 1.0 / fold)):
+        labels.add("exposure_off")
+
     # Distribution (IV): AUC in limits, early concentrations off, Vss off.
     if any_fit(lambda r: r.route == "iv" and r.auc_in_limits and r.early_phase_off and r.vss_off):
         labels.add("distribution_off")
@@ -231,7 +237,10 @@ def diagnose(
     ev = compute_evidence(residuals, fit=fit, fed=fed, ruleset=ruleset)
     candidates, branches, tried = set(stage_candidates), set(stage_branches), set(actions_tried)
 
-    fired = [rule for rule in ruleset["rules"] if stage in rule["stages"] and rule["evidence"] in ev.labels]
+    matched = [rule for rule in ruleset["rules"] if stage in rule["stages"] and rule["evidence"] in ev.labels]
+    # A fallback rule fires only when no other rule's evidence is present.
+    specific = [rule for rule in matched if not rule.get("fallback")]
+    fired = specific or matched
     evidence_labels = tuple(sorted(ev.labels))
 
     escalations = [r for r in fired if r["type"] == "escalate"]

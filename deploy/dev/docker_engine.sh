@@ -31,7 +31,15 @@ for item in job.get("inputs", []):
 PY
 )
 
+# On Linux the job directory belongs to the calling user (EngineRunner stages it 0700), and the image's own user
+# (uid 10001) could not write there: run as the caller, with a writable HOME for .NET. Docker Desktop on the Mac
+# maps ownership itself, so there the image's user is kept.
+as_caller=()
+if [ "$(uname -s)" = "Linux" ]; then
+  as_caller=(--user "$(id -u):$(id -g)" -e HOME=/tmp)
+fi
+
 exec docker run --rm -i --init --platform linux/amd64 \
-  -v "$workdir:$workdir" ${extra[@]+"${extra[@]}"} -w "$workdir" \
+  -v "$workdir:$workdir" ${extra[@]+"${extra[@]}"} -w "$workdir" ${as_caller[@]+"${as_caller[@]}"} \
   -e LC_ALL=en_US.UTF-8 \
   "$image" Rscript /engine/run_job.R "$job"

@@ -105,16 +105,13 @@ jobs:
       security-events: write  # upload SARIF to the Security tab
     steps:
       - uses: actions/checkout@v4
+      # The trivy-action tag this used (0.28.0) was withdrawn upstream and the job could no longer start; the scanner
+      # runs from Aqua's official image instead, with the same settings. Report-only: dependency CVEs do not block.
       - name: Trivy vulnerability + misconfig scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scanners: vuln,secret,misconfig
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          format: sarif
-          output: trivy-results.sarif
-          exit-code: "0"  # report-only; dependency CVEs do not block the pipeline
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:latest fs \
+            --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed \
+            --format sarif --output trivy-results.sarif --exit-code 0 .
       - name: Upload Trivy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3

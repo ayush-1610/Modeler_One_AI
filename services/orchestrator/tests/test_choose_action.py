@@ -46,7 +46,9 @@ def test_delegates_to_strategist_first_permitted() -> None:
 def test_skips_tried_action() -> None:
     diag = _diagnose("S1", [iv(thalf_ratio=1.4, auc_ratio=1.4)])
     choice = choose_action(_ctx("S1", actions_tried=["fit elim.hepatic.{enzyme}.clspec"]), diag)
-    assert choice.action_id == "fit elim.renal.gfr_fraction"  # diag-rules 0.2: renal clearance before logP
+    # diag-rules 0.4: saturable clearance (kcat) next; for a compound without kcat records the per-compound candidate
+    # filter drops it and renal clearance follows (0.2), still before logP
+    assert choice.action_id == "fit elim.hepatic.{enzyme}.kcat"
 
 
 def test_no_permitted_action_returns_none() -> None:

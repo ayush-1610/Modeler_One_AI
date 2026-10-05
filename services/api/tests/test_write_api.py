@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from modeler_api import write_api
@@ -143,6 +144,14 @@ def test_prepare_converts_observed_data_to_engine_units(tmp_path):
     assert {sc["sim_end_time_h"] for sc in map_doc["scenarios"] if sc["study_id"] == "iv"} == {8.0}
 
 
+def test_a_special_population_study_is_classified_special_not_fitted(tmp_path):
+    """The upload keeps who was studied: a renal-impairment arm must never train the healthy model (MS-01 §3.2)."""
+    study = _study() | {"population_type": "patient", "special_population": "renal_impairment"}
+    _, _, (_observed, map_doc) = _prepared(tmp_path, study)
+    row = next(s for s in map_doc["studies"] if s["study_id"] == "iv")
+    assert row["study_class"] == "SPECIAL" and row["assignment"] != "INTERNAL"
+
+
 def test_prepare_rejects_an_unknown_unit(tmp_path):
     study = _study() | {"profile": {"times": [1, 2], "values": [1.0, 0.5], "time_unit": "min", "unit": "mg"}}
     r, _, _ = _prepared(tmp_path, study)
@@ -172,3 +181,15 @@ def test_writes_require_project_membership(tmp_path):
     c = client_with(tmp_path, claims(projects=("other",)))
     r = c.put("/api/v1/projects/renal-demo/compounds/Renaldrug/cpf", json=_renal_cpf(), headers=_auth())
     assert r.status_code == 403
+
+@pytest.mark.req("T-08")
+def test_two_projects_on_one_compound_keep_their_own_cpf(tmp_path):
+    """A refit project and an as-published one on the same drug each keep their CPF (they shared one file before)."""
+    write, read = FileWriteStore(str(tmp_path)), FileReadStore(str(tmp_path))
+    write.put_cpf("t1", "as-is", "Drug", CPF(compound="Drug", version=1))
+    write.put_cpf("t1", "refit", "Drug", CPF(compound="Drug", version=2))
+    assert read.get_cpf("t1", "as-is", "Drug").version == 1
+    assert read.get_cpf("t1", "refit", "Drug").version == 2
+    # a CPF stored the old way (per tenant) is still read by a project without its own
+    (tmp_path / "t1" / "cpf" / "Old.json").write_text(CPF(compound="Old").model_dump_json(), encoding="utf-8")
+    assert read.get_cpf("t1", "any", "Old").compound == "Old"

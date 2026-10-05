@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import type { Escalation } from "@/lib/fixtures";
+import type { Escalation } from "@/lib/types";
 import { resolveEscalation } from "@/lib/writes";
 
 type Result = { kind: "ok" | "err"; message: string } | null;

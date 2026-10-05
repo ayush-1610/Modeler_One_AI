@@ -1,0 +1,104 @@
+# Published OSP models through Modeler One on real PK-Sim (plan Phase 4).
+#
+# Every job builds the pinned engine image (services/engine-worker/Dockerfile: ospsuite 12.4.4 / PI 2.2.0 /
+# rSharp 1.2.2; the layer cache makes it a two-minute step), checks it with the golden round trip, then runs one task:
+#   roundtrip  every published simulation vs the one regenerated from the imported CPF, identical time points
+#   as-is      the published CPF as imported, judged by the pipeline's gates against the real clinical data
+#   refit      the published model's identified parameters freed from shifted starts (user-approved bounds)
+#   portfolio  the whole OSP model library: import, S0, split per drug (round trips run per vendored model above)
+# Tasks run as parallel jobs so each result is readable when its own job ends. Campaigns stop at the S6 signature
+# gate: this run never signs on anyone's behalf. Results: each job's summary and its "reference-<task>" artifact.
+name: Reference models (PK-Sim)
+
+# Manual only (Actions tab → Run workflow): the reference checks run on the server's PK-Sim
+# (bash deploy/reference/run_all.sh); a private repository's Actions minutes are kept for CI.
+on:
+  workflow_dispatch:
+
+# No concurrency group: a push starts a new set beside a running one, whose results (hours of PK-Sim) are kept.
+
+permissions:
+  contents: read
+
+env:
+  ENGINE_IMAGE: modeler-engine:ospsuite-12.4.4
+
+jobs:
+  reference:
+    name: ${{ matrix.task }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {task: dapagliflozin-evaluate, run: "deploy/reference/run_reference.py evaluate Dapagliflozin"}
+          - {task: rifampicin-evaluate, run: "deploy/reference/run_reference.py evaluate Rifampicin"}
+          - {task: midazolam-evaluate, run: "deploy/reference/run_reference.py evaluate Midazolam"}
+          - {task: dapagliflozin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Dapagliflozin"}
+          - {task: dapagliflozin-as-is, run: "deploy/reference/run_reference.py campaign Dapagliflozin --mode as-is"}
+          - {task: dapagliflozin-refit, run: "deploy/reference/run_reference.py campaign Dapagliflozin --mode refit"}
+          - {task: rifampicin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Rifampicin"}
+          - {task: rifampicin-as-is, run: "deploy/reference/run_reference.py campaign Rifampicin --mode as-is"}
+          - {task: rifampicin-refit, run: "deploy/reference/run_reference.py campaign Rifampicin --mode refit"}
+          - {task: midazolam-roundtrip, run: "deploy/reference/run_reference.py roundtrip Midazolam"}
+          - {task: midazolam-as-is, run: "deploy/reference/run_reference.py campaign Midazolam --mode as-is"}
+          - {task: itraconazole-roundtrip, run: "deploy/reference/run_reference.py roundtrip Itraconazole"}
+          - {task: alfentanil-roundtrip, run: "deploy/reference/run_reference.py roundtrip Alfentanil"}
+          - {task: alprazolam-roundtrip, run: "deploy/reference/run_reference.py roundtrip Alprazolam"}
+          - {task: clarithromycin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Clarithromycin"}
+          - {task: digoxin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Digoxin"}
+          - {task: metformin-roundtrip, run: "deploy/reference/run_reference.py roundtrip Metformin"}
+          - {task: raltegravir-roundtrip, run: "deploy/reference/run_reference.py roundtrip Raltegravir"}
+          - {task: ketoconazole-roundtrip, run: "deploy/reference/run_reference.py roundtrip Ketoconazole"}
+          - {task: voriconazole-roundtrip, run: "deploy/reference/run_reference.py roundtrip Voriconazole"}
+          - {task: verapamil-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Verapamil --system"}
+          - {task: omeprazole-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Omeprazole --system"}
+          - {task: dabigatran-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Dabigatran --system"}
+          - {task: itraconazole-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Itraconazole --system"}
+          - {task: ketoconazole-system-roundtrip, run: "deploy/reference/run_reference.py roundtrip Ketoconazole --system"}
+          - {task: verapamil-system-as-is, run: "deploy/reference/run_reference.py campaign Verapamil --mode as-is --system"}
+          - {task: itraconazole-system-as-is, run: "deploy/reference/run_reference.py campaign Itraconazole --mode as-is --system"}
+          - {task: portfolio, run: "deploy/reference/portfolio.py"}  # import / S0 / split of the whole library
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build engine image (layer cache between runs)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/engine-worker/Dockerfile
+          platforms: linux/amd64
+          tags: ${{ env.ENGINE_IMAGE }}
+          load: true
+          cache-from: type=gha,scope=engine
+          cache-to: type=gha,mode=max,scope=engine
+
+      - name: Engine check (golden round trip)
+        run: docker run --rm "$ENGINE_IMAGE" Rscript /engine/golden/golden_roundtrip.R /engine/golden/example_snapshot.json /tmp/golden
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install the workspace
+        run: uv sync --all-packages
+
+      - name: ${{ matrix.task }}
+        env:
+          MODELER_ENGINE_IMAGE: ${{ env.ENGINE_IMAGE }}
+          MODELER_FIT_WORKERS: "4"
+          REFERENCE_STAGE_BUDGET_S: "5400"  # 4 cores, not the server's 48: 1.5 h per stage
+        run: |
+          export MODELER_ENGINE_COMMAND="bash $GITHUB_WORKSPACE/deploy/dev/docker_engine.sh"
+          export REFERENCE_RSCRIPT="docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e LC_ALL=en_US.UTF-8 -v $GITHUB_WORKSPACE:$GITHUB_WORKSPACE -w $GITHUB_WORKSPACE $ENGINE_IMAGE Rscript"
+          mkdir -p "reports/reference/${{ matrix.task }}"
+          uv run python ${{ matrix.run }} --out "reports/reference/${{ matrix.task }}"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-${{ matrix.task }}
+          path: reports/reference/${{ matrix.task }}/**/*.json
+          if-no-files-found: warn

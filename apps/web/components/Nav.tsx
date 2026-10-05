@@ -4,15 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/", label: "Projects", group: "" },
-  { href: "/review", label: "Review inbox", group: "" },
-];
-
-// The pre-loaded example project: real CPF + observed data, runnable from its project page.
-const EXAMPLE = [
-  { href: "/projects/aciclovir-example", label: "Aciclovir FIH" },
-  { href: "/projects/aciclovir-example/compounds/Aciclovir", label: "Compound / CPF" },
-  { href: "/projects/aciclovir-example/intake", label: "Data intake" },
+  { href: "/", label: "Projects" },
+  { href: "/projects/new", label: "+ New project" },
+  { href: "/review", label: "Review inbox" },
 ];
 
 export function Nav() {
@@ -30,14 +24,6 @@ export function Nav() {
             {l.label}
           </Link>
         ))}
-        <div className="group">
-          <h3>Example project</h3>
-          {EXAMPLE.map((l) => (
-            <Link key={l.href} href={l.href} className={is(l.href) ? "active" : ""}>
-              {l.label}
-            </Link>
-          ))}
-        </div>
       </nav>
     </aside>
   );

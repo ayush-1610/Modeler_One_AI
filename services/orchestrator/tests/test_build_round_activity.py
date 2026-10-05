@@ -237,3 +237,50 @@ def test_fit_request_uses_strategist_bounds_override(tmp_path: Path) -> None:
     p = spec["parameters"][0]
     assert p["min"] == 0.5 and p["max"] == 3.0
     assert p["start"] == 2.6  # within the override bounds -> unchanged
+
+
+def test_a_fit_of_a_default_alternative_leaves_out_studies_selecting_another(tmp_path: Path) -> None:
+    """A study whose simulation selects another solubility alternative (OSP Itraconazole capsule fed) does not use the
+    default's value; fitting it there would overwrite the alternative, so it is left out of that fit only."""
+    from pbpk_domain.campaign.round_build import scenarios_for_stage
+
+    prov = Provenance(source_type="measured", reference="x")
+    policy = FitPolicy(stage=("S1", "S2"), lower=0.001, upper=1.0)
+    cpf = CPF(compound="Example-A", parameters=(
+        ParameterRecord(id="phys.mw", value=408.5, unit="g/mol", status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="phys.logp", value=2.6, unit="Log Units", status=ParameterStatus.PREDICTED, provenance=prov,
+                        fit_policy=FitPolicy(stage=("S1", "S2"), lower=1.0, upper=4.0)),
+        ParameterRecord(id="bind.fu", value=0.02, status=ParameterStatus.FIXED, provenance=prov),
+        ParameterRecord(id="phys.solubility.ref", value=0.1, unit="mg/ml", status=ParameterStatus.PREDICTED,
+                        provenance=prov, fit_policy=policy),
+        ParameterRecord(id="phys.solubility.ref@Solution FaSSIF", value=0.05, unit="mg/ml", status=ParameterStatus.FIXED,
+                        provenance=prov),
+        ParameterRecord(id="alt.select", status=ParameterStatus.FIXED, provenance=prov, value=json.dumps(
+            [{"group": "Solubility", "formulation": None, "food": "fasted", "alternative": "Solution FaSSIF"}])),
+    ))
+    adult = Demographics(sex=Sex.MALE, age_years=35.0)
+    studies = [StudyRecord(study_id="po", n=20, design="SD", route=Route.ORAL, dose_mg=10.0,
+                           formulation=FormulationKind.SOLUTION, food_state=FoodState.FASTED, n_timepoints=15,
+                           demographics=adult)]
+    m = generate_map(compound="Example-A", cpf=cpf, studies=studies, split=split_studies(studies, QuestionOfInterest()),
+                     objective="o", context_of_use="c", food_effect_in_question=False, model_risk=Rating.HIGH,
+                     engine_image_digest="sha256:abcd", software_versions={"ospsuite": "12.4.4"})
+    stage = next(s.stage for s in m.scenarios if s.study_id == "po")
+    assert [s.study_id for s in scenarios_for_stage(m.scenarios, stage)] == ["po"]
+    (tmp_path / "cpf.json").write_text(cpf.model_dump_json(), encoding="utf-8")
+    (tmp_path / "map.json").write_text(m.model_dump_json(), encoding="utf-8")
+    obs = {"po": {"auc": 100.0, "cmax": 20.0, "profile": {"times": [0.5, 1, 4], "values": [12.0, 20.0, 5.0],
+                                                          "time_unit": "h", "unit": "ng/ml"}}}
+    (tmp_path / "observed.json").write_text(json.dumps(obs), encoding="utf-8")
+
+    def ctx(action):
+        return RoundContext(campaign_id="camp1", tenant_id="t1", stage=stage, round_index=1,
+                            cpf_uri=(tmp_path / "cpf.json").as_uri(), cpf_sha256="a" * 64, pending_action=action,
+                            map_uri=(tmp_path / "map.json").as_uri(), observed_uri=(tmp_path / "observed.json").as_uri())
+
+    assert build_round_snapshot(ctx("fit phys.solubility.ref")).fit_request is None  # its only study selects FaSSIF
+    assert build_round_snapshot(ctx("fit phys.logp")).fit_request is not None
+    # and the regenerated simulation selects the alternative
+    doc = json.loads(Path(build_round_snapshot(ctx(None)).snapshot_uri.removeprefix("file://")).read_text())
+    selected = {a["GroupName"]: a["AlternativeName"] for a in doc["Simulations"][0]["Compounds"][0]["Alternatives"]}
+    assert selected["COMPOUND_SOLUBILITY"] == "Solution FaSSIF"

@@ -15,8 +15,9 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from enum import Enum
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class StudyClass(str, Enum):
@@ -88,11 +89,9 @@ class Demographics(BaseModel):
     """The representative individual a study is simulated with (MS-01 §2.3).
 
     Age, sex and population (ethnicity) define a typical PK-Sim individual; PK-Sim derives weight, height
-    and organ sizes from the population physiology for that age and sex. Study mean ``weight_kg`` /
-    ``height_cm`` are recorded here for the record but are not yet written into the snapshot: the OSP
-    reference models set no explicit ``Weight`` / ``Height`` in ``OriginData`` (only Species / Population /
-    Gender / Age), so those keys await harvest from an engine snapshot that uses them (harvest rule) before
-    the builder may emit them. When a weight is recorded, the round build carries a note so it is not lost.
+    and organ sizes from the population physiology for that age and sex. A study mean ``weight_kg`` /
+    ``height_cm`` is written into the individual's ``OriginData`` (``Weight`` in kg, ``Height`` in cm, keys harvested
+    from the OSP Midazolam model's Korean individual) and PK-Sim scales the physiology to it.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -102,8 +101,65 @@ class Demographics(BaseModel):
     age_years: float = Field(default=30.0, gt=0)
     age_min: float | None = Field(default=None, ge=0)  # the study's reported age range, for its VPC population
     age_max: float | None = Field(default=None, gt=0)
-    weight_kg: float | None = Field(default=None, gt=0)  # recorded; not yet emitted (see class docstring)
-    height_cm: float | None = Field(default=None, gt=0)  # recorded; not yet emitted (see class docstring)
+    weight_kg: float | None = Field(default=None, gt=0)  # study mean, written to the individual's OriginData
+    height_cm: float | None = Field(default=None, gt=0)
+
+
+class PathValue(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    value: float
+    unit: str | None = None
+
+
+class Meal(BaseModel):
+    """One meal of a study (StudyRecord.meals)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    time_h: float                       # after the first dose; negative: before it
+    template: str = Field(min_length=1)  # the PK-Sim meal template, e.g. "Meal: Standard (Human)"
+    name: str = Field(min_length=1)     # as the published model names it
+    parameters: dict[str, PathValue] = Field(default_factory=dict)  # values changed from the template
+
+
+class DosePhase(BaseModel):
+    """One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),
+    ``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two
+    phases (OSP Voriconazole, Saari 2006: 400 mg twice 12 h apart, then 200 mg every 12 h from 24 h)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    start_h: float = Field(ge=0)
+    dose_mg: float = Field(gt=0)
+    n_doses: int = Field(default=1, gt=0)
+    interval_h: float | None = Field(default=None, gt=0)
+    infusion_time_min: float | None = Field(default=None, gt=0)  # an IV phase's own infusion time; None: the study's
+    water_ml_per_kg: float | None = Field(default=None, ge=0)  # an oral phase's own water with each dose; None: the study's
+
+    @model_validator(mode="after")
+    def _interval(self) -> DosePhase:
+        if self.n_doses > 1 and self.interval_h is None:
+            raise ValueError("a phase of several doses needs the interval between them")
+        return self
+
+
+class PublishedIndividual(BaseModel):
+    """The individual a published model simulates one study in, when it differs from the model's main individual
+    (the OSP Rifampicin model's "EHC off" individual for its 7-day study; the Midazolam model's Korean individual,
+    CYP3A5 *3/*3, for Yu 2004). ``parameters`` is that individual's complete set of physiology overrides (it replaces
+    the CPF's indiv.* records for this study: a value the main individual sets and this one does not is left at the
+    PK-Sim default, never invented); ``expression`` holds its profile values that differ from the harvested library.
+    Paths and units are copied from the snapshot."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(min_length=1)
+    seed: int | None = Field(default=None, ge=-(2**31), le=2**31 - 1)  # the individual's Seed (organ-volume percentiles)
+    parameters: dict[str, PathValue] = Field(default_factory=dict)
+    expression: dict[str, PathValue] = Field(default_factory=dict)
+    # its expression profiles copied verbatim (molecule -> profile document): localization, transport type, ontogeny
+    profiles: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 # The documented default when a study reports no demographics: the OSP reference 30-year-old European male.
@@ -132,14 +188,34 @@ class StudyRecord(BaseModel):
     # Multiple-dose regimen, needed to simulate an MD study (a regular schedule: one dose every interval).
     dosing_interval_h: float | None = Field(default=None, gt=0)
     n_doses: int | None = Field(default=None, gt=0)
+    # A regimen whose doses differ (loading, then maintenance), phase by phase; it then defines every administration,
+    # `dose_mg` is its first dose and `dosing_interval_h` / `n_doses` are unset.
+    dose_phases: tuple[DosePhase, ...] = ()
     crossover: bool = False
     route: Route = Route.ORAL
     dose_mg: float = Field(gt=0)
-    infusion_time_min: float | None = Field(default=None, gt=0)  # required to simulate an IV study
+    dose_per_kg: bool = False  # dose_mg is mg per kg body weight (PK-Sim scales it by the individual's weight)
+    infusion_time_min: float | None = Field(default=None, gt=0)  # required for an IV infusion; none: an IV bolus
     formulation: FormulationKind = FormulationKind.SOLUTION
     formulation_name: str | None = None  # the CPF formulation (form.{name}.*) a solid oral study used
     food_state: FoodState = FoodState.FASTED
     meal_type: str | None = None
+    # every meal as given: h after the first dose (negative: before it), the PK-Sim meal template and its changed
+    # values (OSP Midazolam Bornemann 1986: 1 h before / after a high-fat breakfast; OSP Itraconazole: a breakfast with
+    # each daily dose and standard meals; Metformin: a 300 kcal standard meal). Empty: a fed study's meal is the MAP's
+    # template at the dose; a fasted one has none.
+    meals: tuple[Meal, ...] = ()
+    # process selections (compound -> names) the study's simulation leaves out: a phenotype the model represents by
+    # switching a pathway off (OSP Omeprazole CYP2C19 poor metabolisers: "CYP2C19-2C19 Linear Fit" not selected)
+    inactive_processes: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+    # simulation-level model values (full paths, `sim.*` / `sim[route].*` records) the study's simulation leaves at
+    # PK-Sim's default: OSP Alfentanil's Kharasch 2012 oral simulation keeps the default gut-wall permeabilities that
+    # its other oral simulations set to the identified values
+    default_simulation_values: tuple[str, ...] = ()
+    # the water drunk with an oral dose (PK-Sim "Volume of water/body weight"); None: PK-Sim's default, 3.5 ml/kg
+    water_ml_per_kg: float | None = Field(default=None, ge=0)
+    # solver settings the study's published simulation sets (OSP Dabigatran Härtter 2012: {"RelTol": 1e-09})
+    solver: dict[str, float] = Field(default_factory=dict)
     demographics: Demographics | None = None  # the studied individual; DEFAULT_DEMOGRAPHICS when absent
     statistic: Statistic = Statistic.MEAN_SD
     n_timepoints: int = Field(gt=0)
@@ -148,6 +224,25 @@ class StudyRecord(BaseModel):
     co_medication: str | None = None
     genotype: str | None = None
     multiple_dose_levels: bool = False  # the study itself reports more than one dose level
+    published_individual: PublishedIndividual | None = None  # a reference model's own individual for this study
+    # Model systems (several compounds): what the study measures and the product it administers (ModelSystem.analytes /
+    # .products). None: the single compound's plasma, dosed as reported.
+    analyte: str | None = None
+    product: str | None = None
+
+    @model_validator(mode="after")
+    def _phases(self) -> StudyRecord:
+        if not self.dose_phases:
+            return self
+        if self.dosing_interval_h is not None or self.n_doses is not None:
+            raise ValueError(f"{self.study_id}: a phased regimen replaces dosing_interval_h / n_doses")
+        if [p.start_h for p in self.dose_phases] != sorted(p.start_h for p in self.dose_phases):
+            raise ValueError(f"{self.study_id}: dose phases are given in time order")
+        if self.dose_phases[0].dose_mg != self.dose_mg:
+            raise ValueError(f"{self.study_id}: dose_mg is the regimen's first dose")
+        if not self.is_multiple_dose:
+            raise ValueError(f"{self.study_id}: a phased regimen is a multiple-dose (MD) study")
+        return self
 
     @property
     def is_multiple_dose(self) -> bool:
@@ -314,6 +409,8 @@ class _Planner:
                 "S2 is skipped and oral exposure is predicted, not fitted."
             )
             return
+        # Dose levels are compared in one unit: absolute doses when there are any, else per-kg doses.
+        fasted = [i for i in fasted if not self.by_id[i].dose_per_kg] or fasted
         doses = sorted({self.by_id[i].dose_mg for i in fasted})
         # highest-scoring study at the lowest dose and at the highest dose (one study if a single dose level)
         picks: list[str] = []

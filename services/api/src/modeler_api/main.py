@@ -23,6 +23,7 @@ from modeler_api.read_api import router as read_router
 from modeler_api.responses import envelope
 from modeler_api.results_api import router as results_router
 from modeler_api.signatures_api import router as signatures_router
+from modeler_api.templates_api import router as templates_router
 from modeler_api.write_api import router as write_router
 from modeler_contracts.runs import RUN_TASKS, RunRequest
 from pbpk_domain.m15 import AssessmentTable, Stage, allowed_model_risk, validate_table
@@ -55,6 +56,7 @@ app.include_router(campaign_router)
 app.include_router(results_router)
 app.include_router(read_router)
 app.include_router(write_router)
+app.include_router(templates_router)
 
 
 @app.get("/health")

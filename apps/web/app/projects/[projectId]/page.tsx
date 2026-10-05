@@ -1,8 +1,7 @@
 import Link from "next/link";
 
 import { RunCampaignButton } from "@/components/RunCampaignButton";
-import { Card, RiskChip, StatusChip } from "@/components/ui";
-import { PROJECTS, QUESTIONS } from "@/lib/fixtures";
+import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
 
 function points(study: { profile?: { times: number[] } }) {
@@ -11,16 +10,26 @@ function points(study: { profile?: { times: number[] } }) {
 
 export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const [live, studies, campaigns] = await Promise.all([
+  const [live, liveStudies, liveCampaigns] = await Promise.all([
     getProject(projectId),
     getStudies(projectId),
     getCampaigns(projectId),
   ]);
-  const project = live ?? PROJECTS.find((p) => p.id === projectId) ?? PROJECTS[0];
-  const questions = live?.questions ?? QUESTIONS;
+  const project = live.data;
+  if (!project) {
+    return (
+      <main>
+        <h1>Project {projectId}</h1>
+        <ApiProblem problem={live.problem ?? `Project ${projectId} does not exist.`} />
+      </main>
+    );
+  }
+  const studies = liveStudies.data;
+  const campaigns = liveCampaigns.data;
+  const questions = project.questions ?? [];
   const compound = project.compounds[0] ?? "";
   const question = questions[0];
-  const runnable = Boolean(live && question && compound && studies && studies.length > 0);
+  const runnable = Boolean(question && compound && studies && studies.length > 0);
 
   return (
     <main>
@@ -29,10 +38,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
         <RiskChip rating={project.risk} />
       </div>
       <p className="muted">Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table.</p>
-      {!live && <div className="banner warn" style={{ marginBottom: 14 }}>Showing sample data — the API is not reachable.</div>}
+      {(liveStudies.problem || liveCampaigns.problem) && (
+        <ApiProblem problem={(liveStudies.problem ?? liveCampaigns.problem)!} />
+      )}
 
       {runnable && (
-        <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S5</span>}>
+        <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S7</span>}>
           <p className="muted" style={{ marginTop: 0 }}>
             Generates the Model Analysis Plan from this project&apos;s CPF and {studies!.length} observed
             study(ies), records the Part 11 signature, then runs the stage loop on the OSP engine — building

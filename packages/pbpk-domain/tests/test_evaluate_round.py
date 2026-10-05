@@ -111,3 +111,42 @@ def test_prediction_is_reduced_over_the_observed_window():
     naive = assess_round([profile], {"s": ObservedPK(auc=observed_auc, cmax=concs[0])}, model_risk=Rating.HIGH)
     assert naive.studies[0].predicted_auc > observed_auc * 1.5
     assert not naive.gate_passed
+
+
+def test_the_prediction_is_read_at_the_observed_sampling_times():
+    """Like with like: an IV peak between samples is not compared with the sampled observed Cmax; the prediction is
+    interpolated at the observed times (the Dapagliflozin IV microdose is sampled from 5 min)."""
+    times = [0.0, 1.0, 2.0, 5.0, 10.0, 60.0, 120.0]
+    concs = [0.0, 10.0, 8.0, 5.0, 3.0, 1.0, 0.5]
+    sampled = (5.0, 10.0, 60.0, 120.0)
+    obs = ObservedPK(auc=None, cmax=5.0, t_first=5.0, t_last=120.0, sample_times=sampled)
+    result = assess_round([SimulatedProfile("s", "fitting", times, concs)], {"s": obs}, model_risk=Rating.HIGH)
+    study = result.studies[0]
+    assert study.predicted_cmax == 5.0 and study.predicted_tmax == 5.0
+
+
+def _biexp(times, a=10.0, alpha=0.05, b=2.0, beta=0.005):
+    return [a * math.exp(-alpha * t) + b * math.exp(-beta * t) for t in times]
+
+
+@pytest.mark.req("T-14")
+def test_iv_profile_shape_evidence_early_phase_and_vss():
+    # A prediction with the observed elimination but a smaller initial volume (peak twice as high, same AUC share
+    # late on): the early samples read high and Vss reads low, the IV distribution rule's evidence (MS-01 §5).
+    t = [5.0, 15, 30, 60, 120, 240, 480, 720, 1440]
+    obs_c = _biexp(t)
+    pred_times = [float(x) for x in range(0, 1441, 5)]
+    pred = _biexp(pred_times, a=30.0)
+    observed = {"iv": ObservedPK(auc=None, cmax=max(obs_c), tmax=5.0, sample_times=tuple(t), sample_values=tuple(obs_c),
+                                 infusion_time=1.0)}
+    study = assess_round([SimulatedProfile("iv", "fitting", pred_times, pred)], observed, model_risk=Rating.MEDIUM).studies[0]
+    assert study.early_ratio > 1.25
+    assert study.vss_ratio < 0.8
+    # identical curves: both ratios 1
+    same = assess_round([SimulatedProfile("iv", "fitting", pred_times, _biexp(pred_times))], observed,
+                        model_risk=Rating.MEDIUM).studies[0]
+    assert same.early_ratio == pytest.approx(1.0, rel=1e-3) and same.vss_ratio == pytest.approx(1.0, rel=1e-3)
+    # an oral study (no infusion time) carries no IV shape evidence
+    oral = {"iv": ObservedPK(auc=None, cmax=max(obs_c), tmax=5.0, sample_times=tuple(t), sample_values=tuple(obs_c))}
+    s = assess_round([SimulatedProfile("iv", "fitting", pred_times, pred)], oral, model_risk=Rating.MEDIUM).studies[0]
+    assert (s.early_ratio, s.vss_ratio) == (None, None)

@@ -33,12 +33,21 @@ RUN apt-get update \
  && bash /tmp/dotnet-install.sh --runtime dotnet --channel "${DOTNET_CHANNEL}" --install-dir /opt/dotnet \
  && rm -rf /var/lib/apt/lists/* /tmp/dotnet-install.sh
 
+# The qualified engine (T-01, golden/catalog.json "engine"): ospsuite 12.4.4, PI 2.2.0, rSharp 1.2.2 on .NET 8. The
+# repositories serve their newest builds, so rSharp is replaced by its tagged 1.2.2 release (2.x needs .NET 10), and
+# the build fails if any version differs: an image that is not the qualified engine must never be produced.
+ARG OSPSUITE_VERSION=12.4.4
+ARG PI_VERSION=2.2.0
+ARG RSHARP_VERSION=1.2.2
 RUN Rscript -e "options(repos = c(osp = '${OSP_LINUX_BINARIES}', getOption('repos'))); \
                 install.packages(c('jsonlite', 'digest', 'ospsuite', 'ospsuite.parameteridentification'))" \
- && Rscript -e "library(ospsuite); library(ospsuite.parameteridentification); \
-                cat('ospsuite', as.character(packageVersion('ospsuite')), \
-                    'PI', as.character(packageVersion('ospsuite.parameteridentification')), \
-                    'rSharp', as.character(packageVersion('rSharp')), '\n')"
+ && curl -fsSL "https://github.com/Open-Systems-Pharmacology/rSharp/archive/refs/tags/v${RSHARP_VERSION}.tar.gz" \
+      -o /tmp/rSharp.tar.gz \
+ && R CMD INSTALL /tmp/rSharp.tar.gz && rm -f /tmp/rSharp.tar.gz \
+ && Rscript -e "want <- c(ospsuite = '${OSPSUITE_VERSION}', ospsuite.parameteridentification = '${PI_VERSION}', \
+                          rSharp = '${RSHARP_VERSION}'); \
+                got <- vapply(names(want), function(p) as.character(packageVersion(p)), ''); \
+                print(got); if (!identical(unname(got), unname(want))) stop('engine versions differ from the qualified set')"
 
 RUN python3 -m venv /opt/venv
 COPY packages/run-contracts /src/packages/run-contracts

@@ -152,6 +152,19 @@ class FitRoundOutcome:
     findings: list[str]
     best_start_index: int | None
     deadline_reached: bool
+    # Structured optimiser evidence for the diagnostics ruleset (MS-01 §5): the fitted parameters at a bound, pairs
+    # correlated beyond the limit, and the share of converged starts that reached the best solution.
+    at_bound: list[str] = field(default_factory=list)
+    correlated_pairs: list[list[str]] = field(default_factory=list)
+    starts_agreement: float | None = None
+
+
+def fit_signals(outcome: FitRoundOutcome | None) -> dict | None:
+    """The optimiser evidence a post-fit round passes to diagnostics (RoundContext.fit_signals)."""
+    if outcome is None:
+        return None
+    return {"at_bound": list(outcome.at_bound), "correlated_pairs": [list(p) for p in outcome.correlated_pairs],
+            "starts_agreement": outcome.starts_agreement}
 
 
 def derive_chunk_seed(run_seed: int, chunk_index: int) -> int:
@@ -183,6 +196,8 @@ class CampaignRequest:
     map_sha256: str = ""
     observed_uri: str = ""  # observed PK per study (study_id -> {auc, cmax}); evaluate_round's gate needs it
     observed_sha256: str = ""
+    system_uri: str = ""     # a model system's links + CPFs (pbpk_domain.system); "" for one compound
+    system_sha256: str = ""
     stages: list[str] = field(default_factory=lambda: list(CAMPAIGN_STAGES))
     stage_budgets_seconds: dict[str, int] = field(default_factory=dict)
     max_rounds_per_stage: int = 4
@@ -202,6 +217,8 @@ class StageRequest:
     map_sha256: str = ""
     observed_uri: str = ""
     observed_sha256: str = ""
+    system_uri: str = ""     # a model system's links + CPFs (pbpk_domain.system); "" for one compound
+    system_sha256: str = ""
     max_rounds: int = 4
     seed: int = 1
     signature_timeout_days: int = 14
@@ -224,9 +241,14 @@ class RoundContext:
     map_sha256: str = ""
     observed_uri: str = ""  # observed PK per study, for the acceptance gate in evaluate_round
     observed_sha256: str = ""
+    system_uri: str = ""     # a model system's links + CPFs (pbpk_domain.system); "" for one compound
+    system_sha256: str = ""
     # "" for the round's main pass; "postfit" when the round re-simulates from the CPF its fit just produced,
     # so the fit is judged in the round it happened. Keeps the two passes' snapshots and outputs apart.
     phase: str = ""
+    # set on the post-fit pass: the fit's optimiser evidence (fit_signals), so a parameter the fit left at its bound,
+    # a non-identifiable pair or disagreeing starts reach the diagnostics that judge this round
+    fit_signals: dict | None = None
 
 
 @dataclass

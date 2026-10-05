@@ -47,6 +47,7 @@ from modeler_contracts.runs import (
     RoundRunResult,
     StageOutcome,
     StageRequest,
+    fit_signals,
 )
 from modeler_orchestrator.campaign_activities import (
     build_round_snapshot,
@@ -63,6 +64,7 @@ from modeler_orchestrator.campaign_activities import (
 )
 from modeler_orchestrator.fitting_activities import assess_round as assess_fit_round
 from modeler_orchestrator.fitting_activities import plan_jobs
+from pbpk_domain.fitting import BudgetTooSmallError
 
 # One callable dispatches an engine job to a manifest — the real EngineRunner.run in production, a stub in tests.
 EngineRun = Callable[[EngineJob], EngineManifest]
@@ -116,6 +118,28 @@ def default_engine() -> EngineRun:
         image_digest=os.environ.get("MODELER_IMAGE_DIGEST", "local"),
     )
     return runner.run
+
+
+# Engine commands that are software fixtures, not PK-Sim (CLAUDE.md: their numbers are never simulation results).
+_FIXTURE_ENGINES = ("stub_engine.py", "analytical_engine.py")
+_PKSIM_ENGINES = ("run_job.R", "docker_engine.sh")
+
+
+def engine_identity(engine: EngineRun | None = None) -> dict:
+    """What a campaign's numbers come from, for the monitor: real PK-Sim, a software fixture, or an injected engine.
+
+    Shown on every campaign so a run on the stub can never be read as a PBPK result."""
+    if engine is not None:
+        return {"kind": "injected", "command": getattr(engine, "__name__", type(engine).__name__)}
+    command = os.environ.get("MODELER_ENGINE_COMMAND", "Rscript run_job.R")
+    words = [os.path.basename(w) for w in shlex.split(command)]
+    if any(w in _FIXTURE_ENGINES for w in words):
+        kind = "software-fixture"
+    elif any(w in _PKSIM_ENGINES for w in words):
+        kind = "pksim"
+    else:
+        kind = "unknown"
+    return {"kind": kind, "command": " ".join(words)}
 
 
 def fit_workers(fit_request, n_jobs: int) -> int:
@@ -193,6 +217,7 @@ class CampaignArtifactWriter:
     resume: dict | None = None  # how to continue this campaign after a human decision (set on escalation)
     prediction: dict | None = None  # the S6 result (sensitivity ranking, prediction intervals)
     package: dict | None = None     # the S7 record (reproduction verdict, report files, exportable package)
+    engine: dict | None = None      # what produced the numbers (`engine_identity`): PK-Sim or a software fixture
     _started: float = field(default_factory=time.monotonic)
     _rounds: dict[str, list[dict]] = field(default_factory=dict)
     _status: dict[str, str] = field(default_factory=dict)
@@ -222,6 +247,7 @@ class CampaignArtifactWriter:
         writer._gof = list(campaign.get("gof", []))
         writer._gof_by_stage = {k: list(v) for k, v in (campaign.get("gofByStage") or {}).items()}
         writer.prediction = campaign.get("prediction")
+        writer.engine = campaign.get("engine")
         writer.package = campaign.get("package")
         writer._started = time.monotonic() - float(campaign.get("elapsedSeconds", 0))
         return writer
@@ -277,6 +303,7 @@ class CampaignArtifactWriter:
             "gofByStage": self._gof_by_stage,
             "prediction": self.prediction,
             "package": self.package,
+            "engine": self.engine,
             "resume": self.resume,
         })
 
@@ -448,9 +475,17 @@ class LocalExecutor:
                 pending_bounds_override=pending_bounds, deadline_seconds=remaining, seed=request.seed,
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+                system_uri=request.system_uri, system_sha256=request.system_sha256,
             )
             rounds_run = round_index
-            result = self._run_round(ctx)
+            try:
+                result = self._run_round(ctx)
+            except BudgetTooSmallError as exc:
+                # The stage's remaining time cannot hold the planned fit (D8): escalate with the best CPF so far and
+                # say why, rather than failing the stage and losing the rounds already run.
+                return StageOutcome(stage=stage, status="ESCALATED", rounds_run=rounds_run - 1, cpf_uri=best_uri,
+                                    cpf_sha256=best_sha, findings=[f"stage time budget exhausted: {exc}"],
+                                    escalation_reason="budget_exhausted")
             run_result, evaluation, diagnosis, choice = result.run_result, result.evaluation, result.diagnosis, result.choice
             self._remember(stage, result)
             cpf_uri, cpf_sha = run_result.cpf_uri, run_result.cpf_sha256
@@ -491,6 +526,7 @@ class LocalExecutor:
             cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, deadline_seconds=float(budget), seed=request.seed,
             map_uri=request.map_uri, map_sha256=request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256,
         )
         result = self._run_round(ctx, judge_only=True)
         evaluation = result.evaluation
@@ -540,6 +576,7 @@ class LocalExecutor:
             deadline_seconds=float(request.stage_budgets_seconds.get("S6", _DEFAULT_STAGE_BUDGET_S)),
             map_uri=request.map_uri, map_sha256=request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256,
         )
         build, manifest = self._simulate(ctx)
         if manifest is None:
@@ -564,8 +601,10 @@ class LocalExecutor:
         a fresh engine process, write the MAR, and release the package only if the reproduction passed (D13)."""
         from modeler_orchestrator.package_activities import (
             collect_bundle,
+            collect_projects,
             finish_package,
             load_stage_evidence,
+            prepare_project_jobs,
             prepare_reproduction_jobs,
             verify_package_reproduction,
         )
@@ -573,13 +612,23 @@ class LocalExecutor:
         evidence = load_stage_evidence(request.tenant_id, request.campaign_id)
         files, numeric, snapshots = collect_bundle(request.tenant_id, request.campaign_id, cpf_uri=cpf_uri,
                                                    map_uri=request.map_uri, observed_uri=request.observed_uri,
-                                                   evidence=evidence)
+                                                   evidence=evidence, system_uri=request.system_uri)
         jobs = prepare_reproduction_jobs(request.tenant_id, request.campaign_id, files, snapshots)
         reproduction = verify_package_reproduction(files, numeric, jobs, self._run_jobs(jobs))
+        projects: dict[str, bytes] = {}
+        project_notes: list[str] = []
+        project_jobs = prepare_project_jobs(request.tenant_id, request.campaign_id, files, snapshots)
+        try:
+            projects = collect_projects(project_jobs, self._run_jobs(project_jobs))
+        except Exception as exc:  # noqa: BLE001 - the package is still released on reproduction; the gap is reported
+            project_notes.append(f"PK-Sim project (.pksim5) not written: {exc}")
+        if project_jobs and not projects and not project_notes:
+            project_notes.append("PK-Sim project (.pksim5) not written: the engine returned no project file")
         record = finish_package(
             request.tenant_id, request.campaign_id, files=files, numeric=numeric, map_uri=request.map_uri,
             cpf_uri=cpf_uri, evidence=evidence, prediction=(evidence.get("S6") or {}).get("prediction"),
             reproduction=reproduction, engine_image_digest=os.environ.get("MODELER_IMAGE_DIGEST", ""),
+            projects=projects, project_notes=project_notes,
         )
         if self.writer:
             self.writer.package = record
@@ -622,7 +671,8 @@ class LocalExecutor:
             # the fitted CPF and evaluate that, or a successful fit is scored on stale values, its action counts as
             # tried, and the stage can run out of actions and escalate although the fit worked.
             judged_ctx = replace(ctx, cpf_uri=run_result.cpf_uri, cpf_sha256=run_result.cpf_sha256,
-                                 pending_action=None, pending_bounds_override=None, phase="postfit")
+                                 pending_action=None, pending_bounds_override=None, phase="postfit",
+                                 fit_signals=fit_signals(fit_outcome))
             post_build, post_manifest = self._simulate(judged_ctx)
             judged_manifest, judged_build = post_manifest, post_build
             notes.extend(n for n in (getattr(post_build, "notes", []) or []) if n not in notes)
@@ -682,7 +732,7 @@ def run_campaign(
     writer = CampaignArtifactWriter(
         store=FileWriteStore(read_root), tenant_id=request.tenant_id, campaign_id=request.campaign_id,
         project=project, compound=request.compound, question=question, model_risk=model_risk,
-        budget_seconds=total_budget, stages=list(request.stages),
+        budget_seconds=total_budget, stages=list(request.stages), engine=engine_identity(engine),
     )
     writer.flush(current_stage=request.stages[0], status="RUNNING")
     return LocalExecutor(engine=engine or default_engine(), writer=writer).run(request)

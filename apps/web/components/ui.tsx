@@ -62,3 +62,8 @@ export function Card({ title, action, children }: { title?: string; action?: Rea
     </section>
   );
 }
+
+/** What stopped a page from showing live data. Never paired with sample data. */
+export function ApiProblem({ problem }: { problem: string }) {
+  return <div className="banner err" data-testid="api-problem" style={{ marginBottom: 14 }}>{problem}</div>;
+}

@@ -127,6 +127,9 @@ class OriginData(SnapshotModel):
     population: str | None = Field(default=None, alias="Population")
     gender: str | None = Field(default=None, alias="Gender")
     age: Quantity | None = Field(default=None, alias="Age")
+    # Keys harvested from the OSP Midazolam model's "Korean (Yu 2004 study)" individual ({"Value", "Unit": "kg"/"cm"}).
+    weight: Quantity | None = Field(default=None, alias="Weight")
+    height: Quantity | None = Field(default=None, alias="Height")
 
 
 class Individual(SnapshotModel):
@@ -165,6 +168,7 @@ class Formulation(SnapshotModel):
 class SchemaItem(SnapshotModel):
     name: str = Field(alias="Name")
     application_type: str = Field(alias="ApplicationType")
+    formulation_key: str | None = Field(default=None, alias="FormulationKey")
     parameters: list[Parameter] = Field(default_factory=list, alias="Parameters")
 
 
@@ -199,6 +203,7 @@ class AlternativeSelection(SnapshotModel):
 class ProcessSelection(SnapshotModel):
     name: str = Field(alias="Name")
     molecule_name: str | None = Field(default=None, alias="MoleculeName")
+    metabolite_name: str | None = Field(default=None, alias="MetaboliteName")  # the compound the process forms
     systemic_process_type: str | None = Field(default=None, alias="SystemicProcessType")
 
 
@@ -243,6 +248,11 @@ class Simulation(SnapshotModel):
     population: str | None = Field(default=None, alias="Population")
     compounds: list[SimulationCompound] = Field(default_factory=list, alias="Compounds")
     events: list[dict[str, Any]] = Field(default_factory=list, alias="Events")
+    # Inhibition / induction selected in this simulation, as the OSP snapshots write them:
+    # {"Name": "<Molecule>-<DataSource>", "MoleculeName": ..., "CompoundName": ...} (Rifampicin reference model).
+    interactions: list[dict[str, Any]] = Field(default_factory=list, alias="Interactions")
+    # Sums of compounds the simulation computes, selected by name ({"Name": ...}) from the snapshot's ObserverSets.
+    observer_sets: list[dict[str, Any]] = Field(default_factory=list, alias="ObserverSets")
     has_results: bool | None = Field(default=None, alias="HasResults")
 
 

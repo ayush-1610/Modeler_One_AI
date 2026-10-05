@@ -49,6 +49,7 @@ with workflow.unsafe.imports_passed_through():
         StageOutcome,
         StagePlan,
         StageRequest,
+        fit_signals,
     )
 
 ACT_RETRY = RetryPolicy(maximum_attempts=3)
@@ -115,6 +116,7 @@ class StageLoopWorkflow:
                 deadline_seconds=remaining, seed=request.seed,
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+                system_uri=request.system_uri, system_sha256=request.system_sha256,
             )
             rounds_run = round_index
             run_result, evaluation, diagnosis, choice = await self._run_round(ctx, remaining)
@@ -167,6 +169,7 @@ class StageLoopWorkflow:
             deadline_seconds=float(request.budget_seconds), seed=request.seed,
             map_uri=request.map_uri, map_sha256=request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256,
         )
         _run_result, evaluation, _diagnosis, _choice = await self._run_round(ctx, float(request.budget_seconds), judge_only=True)
         if evaluation.gate_passed:
@@ -248,7 +251,8 @@ class StageLoopWorkflow:
         if run_result.cpf_uri != ctx.cpf_uri:
             # The fit changed the CPF: judge the fitted model in this round, not the pre-fit simulation.
             judged = replace(ctx, cpf_uri=run_result.cpf_uri, cpf_sha256=run_result.cpf_sha256,
-                             pending_action=None, pending_bounds_override=None, phase="postfit")
+                             pending_action=None, pending_bounds_override=None, phase="postfit",
+                             fit_signals=fit_signals(fit_outcome))
             post_build, post_manifest = await self._simulate(judged, remaining)
             judged_manifest = post_manifest
             run_result = await workflow.execute_activity(
@@ -363,6 +367,7 @@ class ModelingCampaignWorkflow:
                 cpf_uri=cpf_uri, cpf_sha256=cpf_sha, budget_seconds=_stage_budget(request, stage),
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+                system_uri=request.system_uri, system_sha256=request.system_sha256,
                 max_rounds=request.max_rounds_per_stage, seed=request.seed,
                 signature_timeout_days=request.signature_timeout_days,
             )

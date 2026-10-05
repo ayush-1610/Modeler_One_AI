@@ -2,7 +2,7 @@
   "$defs": {
     "EngineBinding": {
       "additionalProperties": false,
-      "description": "Where a parameter lives in a PK-Sim snapshot (MS-01 §2.1).\n\n`building_block` is Compound/Individual/Formulation/Protocol. For a compound process the `process`\nfield carries the process internal name and, for molecule-based processes, the molecule after a\ncolon, e.g. \"MetabolizationSpecific_FirstOrder:CYP3A4\"; `parameter` is the engine parameter name.",
+      "description": "Where a parameter lives in a PK-Sim snapshot (MS-01 \u00a72.1).\n\n`building_block` is Compound/Individual/Formulation/Protocol. For a compound process the `process`\nfield carries the process internal name and, for molecule-based processes, the molecule after a\ncolon, e.g. \"MetabolizationSpecific_FirstOrder:CYP3A4\"; `parameter` is the engine parameter name.\nIndividual, Simulation and ExpressionProfile bindings carry the full PK-Sim path in `parameter`. A Simulation\nbinding's `route` limits it to the simulations dosed that way (the published model sets it only there).",
       "properties": {
         "building_block": {
           "title": "Building Block",
@@ -35,6 +35,22 @@
           ],
           "default": null,
           "title": "Data Source"
+        },
+        "route": {
+          "anyOf": [
+            {
+              "enum": [
+                "oral",
+                "iv"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Route"
         }
       },
       "required": [

@@ -4,7 +4,8 @@ Naming conventions used here were read from a PK-Sim 12 snapshot:
 - individuals reference expression profiles as ``Molecule|Species|Category``
 - simulations select molecule-based processes as ``{Molecule}-{DataSource}``
 - glomerular filtration is selected as ``Glomerular Filtration-{DataSource}`` with ``SystemicProcessType: GFR``
-Other systemic process types are not checked until their naming is harvested from an engine catalog.
+- total hepatic clearance as ``Total Hepatic Clearance-{DataSource}`` (``Hepatic``), renal clearance as
+  ``Renal Clearances-{DataSource}`` (``Renal``), harvested from the OSP model library
 """
 
 from __future__ import annotations
@@ -12,13 +13,35 @@ from __future__ import annotations
 from pbpk_domain.issues import Issue
 from pbpk_domain.snapshot.models import CompoundProcess, ProcessSelection, Protocol, Snapshot
 
+# Processes a simulation selects as interactions (Simulations[].Interactions with the compound's name), not among
+# the compound's own processes — as the OSP Rifampicin reference snapshot selects its inhibition and induction.
+INTERACTION_PROCESSES = ("CompetitiveInhibition", "UncompetitiveInhibition", "NoncompetitiveInhibition",
+                         "MixedInhibition", "IrreversibleInhibition", "Induction")
+
+
+def interaction_selection_for(process: CompoundProcess, compound: str) -> dict | None:
+    if process.internal_name not in INTERACTION_PROCESSES or not process.molecule:
+        return None
+    return {"Name": f"{process.molecule}-{process.data_source or ''}", "MoleculeName": process.molecule,
+            "CompoundName": compound}
+
 
 def process_selection_for(process: CompoundProcess) -> ProcessSelection | None:
+    if process.internal_name in INTERACTION_PROCESSES:
+        return None  # selected as an interaction of the simulation (interaction_selection_for)
     data_source = process.data_source or ""
     if process.internal_name == "GlomerularFiltration":
         return ProcessSelection(name=f"Glomerular Filtration-{data_source}", systemic_process_type="GFR")
+    # harvested from the OSP Cimetidine/Warfarin (hepatic) and Clarithromycin/Omeprazole (renal) simulations
+    if process.internal_name == "LiverClearance":
+        return ProcessSelection(name=f"Total Hepatic Clearance-{data_source}", systemic_process_type="Hepatic")
+    if process.internal_name == "KidneyClearance":
+        return ProcessSelection(name=f"Renal Clearances-{data_source}", systemic_process_type="Renal")
     if process.molecule:
-        return ProcessSelection(name=f"{process.molecule}-{data_source}", molecule_name=process.molecule)
+        # a process forming a metabolite selects it too (harvested: {"Name": "CYP3A4-Norverapamil", "MoleculeName":
+        # "CYP3A4", "MetaboliteName": "R-Norverapamil"})
+        formed = {"metabolite_name": process.metabolite} if process.metabolite else {}
+        return ProcessSelection(name=f"{process.molecule}-{data_source}", molecule_name=process.molecule, **formed)
     return None
 
 
@@ -65,7 +88,7 @@ def validate_references(snapshot: Snapshot) -> list[Issue]:
             else:
                 known = compound_processes[sc.name]
                 for sel in sc.processes:
-                    if sel.systemic_process_type not in (None, "GFR"):
+                    if sel.systemic_process_type not in (None, "GFR", "Hepatic", "Renal"):
                         continue
                     if sel.name not in known:
                         issues.append(
