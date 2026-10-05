@@ -665,6 +665,13 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
 ### Docs
+- **The start-up pipeline plan is approved (owner, v0.2, 2026-10-05) and its build has started.** The owner answered
+  D-03 (fold tiers + symmetric PE limits + the proposal's own criteria, all metrics gating; ruleset change
+  owner-approved, stays UNVERIFIED) and D-16 (Gemini or Groq), and approved the rest as recommended; the plan's new
+  §21 records how the build applies each answer, and the owner's P5 canvas specification is kept in §5.2. **Two API
+  keys the owner pasted into the plan were removed before commit**: keys come only from host environment variables.
+  The branch now also carries the parallel session's work (`main-1czavz`, merged so this build sits on the current
+  importer, wizard and runner).
 - **Draft plan: the project start-up pipeline (P0–P6) and a non-linear model backend**
   (`docs/plans/2026-09-25-project-startup-pipeline.md`, DRAFT, awaiting the owner's answers and approval; nothing
   built). Why: campaigns so far were judged against illustrative or self-simulated profiles, and every input (CPF,

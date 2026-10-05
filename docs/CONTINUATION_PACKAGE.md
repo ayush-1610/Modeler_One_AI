@@ -29,10 +29,10 @@ published OSP Dapagliflozin model into a CPF and 40 real clinical studies (`pbpk
 builds from it; running that campaign on the server's PK-Sim is next. Active plan:
 `docs/plans/2026-09-24-s0-s7-real-pbpk.md`.
 
-**Draft plan awaiting approval (2026-09-25):** `docs/plans/2026-09-25-project-startup-pipeline.md`: project
-phases P0–P6 in front of S0 (proposal intake, literature and client data, planning canvas) and a non-linear
-backend (SJ joint refinement, external-validation feedback). It is the newest file in `docs/plans/` but does not
-replace the active plan until the owner approves it; its decisions D-01…D-24 are open.
+**Active plans (2026-10-05):** `docs/plans/2026-09-25-project-startup-pipeline.md` is **approved** (owner, v0.2,
+decision record in its §21) and being built: project phases P0–P6 in front of S0 (proposal intake, literature and
+client data, PK-Sim input pages, the P5 planning canvas) and the non-linear backend (SJ, feedback cycles). The
+S0–S7 plan's Phase 4 (real-data proof on PK-Sim) continues alongside it (`2026-09-24-remaining-to-goal.md`).
 
 **Engine:** runs only on Linux — on macOS snapshot execution is unsupported and `loadProjectFromSnapshot` segfaults.
 Server `ssh adt-server` (LAN 192.168.1.10, user `adt-ayush`, no sudo, repo rsynced to `~/Modeler_One_AI`, engine in

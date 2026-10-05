@@ -1,30 +1,30 @@
-# Plan (DRAFT for review): the project start-up pipeline (P0–P6) and a non-linear model backend
+# Plan: the project start-up pipeline (P0–P6) and a non-linear model backend
 
 | | |
 |---|---|
-| **Status** | **DRAFT v0.1, 2026-09-25. Nothing in this document is built yet.** It needs your answers to §19 and your approval before any code is written. |
+| **Status** | **APPROVED v0.2 (owner, 2026-10-05).** The owner answered §19 inline (D-03, D-16) and approved; every other D-number takes the recommendation in its row. Build started 2026-10-05; progress is in `CHANGELOG.md` and `docs/CONTINUATION_PACKAGE.md` §4. |
 | **Relation to the active plan** | `docs/plans/2026-09-24-s0-s7-real-pbpk.md` stays active for its remaining work (Phase 4: proof on published OSP models with real clinical data). This plan adds **project phases P0–P6** in front of MS-01 stage S0, and **Track N** (the non-linear backend) inside stages S1–S5. When approved, `docs/CONTINUATION_PACKAGE.md` §4.1 gains rows for P0–P5 and SJ. |
 | **Naming** | **P0–P6** = project phases (this plan). **S0–S7** = MS-01 modeling stages (existing). **SJ** = the proposed joint-refinement stage. **D-xx** = a decision you make (§19). **R-xx** = your requirement (§2). **T-40+** = new task IDs for the trace matrix (T-01…T-32 exist). |
-| **Your parallel session** | You said you will correct evaluation and the stage steps in another session. §12.7 defines the interface between that work and this plan so the two do not collide. |
-| **SME-governed content** | Anything here that touches `rulesets/*.yaml`, acceptance criteria or MS-01 is a **proposal**. It changes only with your explicit approval, stays `UNVERIFIED`, and bumps the version (CLAUDE.md). Those items are marked **[SME]**. |
-| **How to review** | Read §1 (one page), then §19 (decisions). Everything else is the detail behind them. Mark up the file or answer the D-numbers in chat. |
+| ** Parallel session** | You said you will correct evaluation and the stage steps in another session. §12.7 defines the interface between that work and this plan so the two do not collide. - YES |
+| **SME-governed content** | Anything here that touches `rulesets/*.yaml`, acceptance criteria or MS-01 is a **proposal**. It changes only with your explicit approval, stays `UNVERIFIED`, and bumps the version (CLAUDE.md). Those items are marked **[SME]**. - YES | 
+| **How to review** | Read §1 (one page), then §19 (decisions). Everything else is the detail behind them. Mark up the file or answer the D-numbers in chat. - OKAY, likewise I have done. |
 
 ---
 
 ## 1. Summary
 
-**The problem you named.** The engine runs, but the verdicts it shows are not evidence: the example campaigns were judged
+**The problem.** The engine runs, but the verdicts it shows are not evidence: the example campaigns were judged
 against an illustrative IV profile and against profiles we simulated ourselves (known-truth tests). A model should pass
 only when its predictions are compared with **real observed data** (client or literature), study by study, with the
-prediction error shown. And the inputs themselves (compound parameters, observed data, the plan) are typed in as raw
+prediction error [PE(%)] shown. And the inputs themselves (compound parameters, observed data, the plan) are typed in as raw
 JSON today, with no document intake, no literature work, no client Excel handling, no reviewable plan and no way to
 edit an early decision later without starting over.
 
-**What this plan builds.** A phase-gated, multi-agent start-up pipeline that becomes the beginning of every project:
+**What this plan builds.** A phase-gated, multi-agent start-up pipeline [Being specififc, every single agent in a multi-agent system is an instance of Agentic AI] that becomes the beginning of every project:
 
 ```
 P0 Initiate ─► P1 Brief & data plan ─► P2 Literature & public data ─┐
- (upload        (review layer 1)        (agent; review layer 2a)      ├─► P4 Model inputs ─► P5 Model plan ─► P6 Run S0–S7
+ (upload        (review layer 1)        (agent; review layer 2a)     ├─► P4 Model inputs ─► P5 Model plan ─► P6 Run S0–S7
   proposal,                            P3 Client data (Excel)        │   (PK-Sim building   (3 diagrams,     (existing engine,
   drug name)                            (agent; review layer 2b) ────┘    blocks, S0 check)  canvas; layer 3;  + non-linear
                                                                                              MAP signed)       backend)
@@ -54,7 +54,7 @@ work is wiring, new schemas, four review pages, the canvas, and the non-linear c
 
 ---
 
-## 2. What you asked for (tick or correct each line)
+## 2. What you asked for
 
 | ID | Requirement as I understood it |
 |---|---|
@@ -63,17 +63,17 @@ work is wiring, new schemas, four review pages, the canvas, and the non-linear c
 | R-03 | Two to three layers of review and editing **before** the pipeline runs. |
 | R-04 | P0: the user uploads the technical proposal (PDF or Word), enters the drug name and any initial context. Nothing else. |
 | R-05 | P1: an agent reads everything and extracts only what matters for PBPK/popPK modeling into a **fixed structure** (dose, route, plan, objective, what the client provides, what the client does not provide, what must come from the literature, etc.). A review page shows it; the user edits and approves. |
-| R-06 | The PK-Sim inputs a project needs are defined **early and at a high level**, and every input stays within defined limits. |
-| R-07 | P2: an agent gets every compound parameter from open literature, the way a literature-review scientist does; it **skips items the client will provide**; it also gets observed data: mostly in vitro data for disposition, and oral clinical data for external validation when needed; it records **exactly which source and which part** (page, table, figure). |
+| R-06 | The PK-Sim inputs a project needs are defined **early and at a low/high level** (as required), and every input stays within defined limits. |
+| R-07 | P2: an agent gets every compound parameter from open literature, the way a literature-review scientist does; it **skips items the client will provide or it will cross check it to make sure eavryhting is alinged and correct**; it also gets observed data: mostly in vitro data for disposition, and oral clinical data for external validation when needed; it records **exactly which source and which part** (page, table, figure). |
 | R-08 | A review page for the literature results, with edit and approve. |
-| R-09 | P3: the client delivers data in Excel (possibly several workbooks and sheets): RLD data, dissolution data, observed data for internal and external validation, and anything else the project needs. An agent reads all sheets, arranges the data (dissolution in particular) in the context of the project. |
-| R-10 | Any part of the process can be edited at any moment (e.g., an updated technical proposal mid-project), and the consequences are handled. |
+| R-09 | P3: the client delivers data in Excel (possibly several workbooks and sheets): RLD data, dissolution data, observed data for internal and external validation, and anything else the project needs. An agent reads all sheets, arranges the data (dissolution in particular) in the context of the project. | 
+| R-10 | Any part of the process can be edited at any moment (e.g., an updated technical proposal mid-project), and the consequences are handled. And restarts or continue if required. |
 | R-11 | P4: the modeling tool has input pages that take everything gathered; the engine's own planning merges with the agent's planning. |
 | R-12 | Three diagrams: disposition studied first, then absorption; a canvas where the whole plan is laid out and connected. |
-| R-13 | Generic: any drug, any PBPK scenario, not only the drugs used so far; this applies to the engine too. |
-| R-14 | P5: the user reviews the plan (which data trains, which validates internally, which validates externally, under which conditions, for which application, and why) as a DAG/tree on a canvas; the agent pre-plans; the user can drag and drop; later data changes can be placed there too. |
-| R-15 | After the plan is approved, the engine follows it without change. |
-| R-16 | Non-linear backend: when a later step (e.g., external validation) shows that a parameter must change, the change propagates to all data, including earlier fits and internal validation; every model is built from one parameter set, and all simulations and parameter identification use the same data. |
+| R-13 | Generic: any drug, any PBPK scenario, not only the drugs used so far; this applies to the engine too. It must able to use any thing or evertyhting than is possible in PK-Sim |
+| R-14 | P5: the user reviews the plan (which data trains, which validates internally, which validates externally, under which conditions, for which application, and why) as a DAG/tree on a canvas; the agent pre-plans; the user can drag and drop; later data changes can be placed there too. This i have updated more and provided below as prompt to what and how to design [Implement P5 Model Plan Interactive Canvas & Workflow Review Layer (L3)]. |
+| R-15 | After the plan is approved, the engine follows it without change, not only follow but it built actual regulatory acceptable PBPK model for intended application. |
+| R-16 | Non-linear backend: when a later step (e.g., external validation) shows that a parameter must change, the change propagates to all data, including earlier fits and internal validation; every model is built from one parameter set, and all simulations and parameter identification use the same data. Basically making sure all planed simulation are having prediction error (%) less thsn 10% (or say alinged with regulatore acceptance criteria) |
 | R-17 | Multi-agent. |
 | R-18 | Provenance per value and dataset: source type, exact source, extraction confidence, purpose (model building / internal / external validation), and whether it came from the client or the literature. |
 | R-19 | Per phase: review page, edit, approve, version history, audit trail. |
@@ -87,10 +87,10 @@ Each row is my best reading. Confirm or correct; the plan changes where marked.
 
 | # | Your phrase | My reading | Consequence in this plan |
 |---|---|---|---|
-| 1 | "folding, folding, folding" | The **fold-error** display: the monitor shows a GMFE gauge per round (`apps/web/components/FoldError.tsx`, `aucGmfe`/`cmaxGmfe` per round). Not k-fold cross-validation (the code has none). | §9.5: the primary result becomes a per-study observed vs predicted table with PE %; fold stays as a secondary column. Criterion form is D-03. |
-| 2 | "results like 1424" | Probably a fold/GMFE value (e.g., 1.424) or a count shown on the monitor, for a campaign whose observed data were not real clinical data. | §9.4 real-data guard. **Please send a screenshot** so I can confirm what produced it. |
-| 3 | "flexing the train" | "fits the training [data]": the example drug fits its training studies. | None. |
-| 4 | "PKA SIM" | PK-Sim (OSP Suite; our engine is PK-Sim 12.3 via ospsuite 12.4.4). | All inputs map to PK-Sim building blocks (§7). |
+| 1 | "folding, folding, folding" | The **fold-error** display: the monitor shows a GMFE gauge per round (`apps/web/components/FoldError.tsx`, `aucGmfe`/`cmaxGmfe` per round). Not k-fold cross-validation (the code has none). | §9.5: the primary result becomes a per-study observed vs predicted table with PE %; fold stays as a secondary column. Criterion form is D-03. So here basically this is the evalutation we use of individual/participants or say mean data we have one predicted and one observe data but when its Popu;ation Studies we need to guage accordignly, still we will get prediction error (%) but in addition will do non-compartmental analysis, we will look for GMR, Confidance Interval 90% and other whatever regulatorey asks and required.|
+| 2 | "results like 1424" | Probably a fold/GMFE value (e.g., 1.424) or a count shown on the monitor, for a campaign whose observed data were not real clinical data. | §9.4 real-data guard. **Please send a screenshot** so I can confirm what produced it. i think its same as 1. |
+| 3 | "flexing the train" | "fits the training [data]": the example drug fits its training studies. | None. may be its like there we need ot have observe data to fit for building regulatory grade pbpk modeliing|
+| 4 | "PKA SIM" | PK-Sim (OSP Suite; our engine is PK-Sim 12.3 via ospsuite 12.4.4). | All inputs map to PK-Sim building blocks (§7). very important as we are using its CLI so our things and datamust properly nad correctly nad withput confusion they all must be shared/translate to PK Sim |
 | 5 | "BB modelling" | PBPK modeling. | None. |
 | 6 | "H and everything" | "each and everything": every model (IV, oral, fed, validation, application) is generated from **one parameter set** (the CPF), and every fit uses the same data. | §12: model set, joint PI. |
 | 7 | "PI" | **Parameter identification** (the PK-Sim term), not prediction interval. | §12.3 joint PI. If you meant prediction intervals: S6 already produces them. |
@@ -101,7 +101,7 @@ Each row is my best reading. Confirm or correct; the plan changes where marked.
 | 12 | "dissolution" | In vitro dissolution profiles (% dissolved vs time) per product, strength, batch, medium, pH, apparatus, speed. Used to parameterize the PK-Sim formulation (Weibull or other release model), to compare TEST vs RLD (f2), and later for virtual BE. | §10.3. |
 | 13 | fixed structured fields | Proposed in §6 (the Project Brief). | D-08. |
 | 14 | acceptance criteria | Today: fold tiers by ICH M15 model risk (1.25 / 1.5 / 2-fold) in an UNVERIFIED ruleset. | D-03. |
-| 15 | client file formats | `.xlsx`, `.xls`, `.csv`, multi-sheet. I also propose a standard client template (§10.2). | D-11. |
+| 15 | client file formats | `.xlsx`, `.xls`, `.csv`, multi-sheet. I also propose a standard client template (§10.2). | D-11. and other as well like pdf, word, csv, .md and other|
 | 16 | "three diagram" | **D1** disposition map, **D2** absorption and formulation map, **D3** development and validation DAG (the drag-and-drop canvas). | §11. D-13. |
 | 17 | "editing market date" | "anything that must be decided or edited, mark it": I read this as a request to list decisions explicitly. | §19 lists D-01…D-24. |
 | 18 | codebase and engine | This repository: FastAPI + Next.js + file-backed single-node store; PK-Sim 12.3 on Linux via `run_job.R`. | §4. |
@@ -215,6 +215,37 @@ Every phase has the same shape: **inputs → worker (agent or code) → artifact
 | Artifacts | `ModelPlan` vN (assignments, structure choices, rationale, canvas layout); on approval the **MAP** is generated from it deterministically and signed (existing signature flow). |
 | Page | `/projects/[id]/plan`: three diagrams (D1 disposition, D2 absorption and formulation, D3 development and validation DAG) with a side panel listing all datasets ("overall data"); drag and drop on D3 (§11). |
 | Gate | Live validator green (no rule violations); MAP signed (MIDD lead, D-07). |
+
+Okay for above one, you acutlly need to build this: Implement P5 Model Plan Interactive Canvas & Workflow Review Layer (L3)
+
+You are an expert full-stack engineer embedded in our project. You have full access to our application's codebase, data models, and architectural context. Your task is to implement the **P5 · Model plan (review layer L3)** workflow interface, which fully replaces our existing canvas implementation. This sub-module acts as the interactive, human-in-the-loop bridge between the `A5 Planning Agent` and our downstream deterministic `MAP` (Modeling and Simulation Plan) generation and signing pipeline. 
+
+Review our existing codebase to analyze our exact frontend framework, state management patterns, visual layout utilities, and signing schemas. Implement this feature directly inside the **`/projects/[id]/plan`** route, ensuring it seamlessly adopts our system's native tech stack and design conventions.
+
+### 1. Functional Specifications & Visual Layout
+Design and build a unified canvas interface matching these explicit structural criteria:
+*   **The Main Workspace:** Render three distinct diagrams side-by-side or in tabbed canvas views:
+    1.  `D1 Disposition`
+    2.  `D2 Absorption and Formulation`
+    3.  `D3 Development and Validation DAG` (Directed Acyclic Graph).
+*   **The Data Pane:** A persistent side panel listing all available data objects, explicitly titled **"Overall Data"** (populated via `CPF v1` and the project `study catalog`).
+*   **Drag-and-Drop Interaction:** Enable full HTML5 drag-and-drop mechanics specifically targeted at **D3 (Development and Validation DAG)**. Users must be able to drag unassigned datasets from the "Overall Data" list and drop them directly onto specific nodes, edges, or structural layers within the DAG.
+
+### 2. Core Execution & State Pipeline
+Integrate your code directly into our multi-stage planning engine:
+*   **Initial Computation:** Your code must first execute the default workflow planning logic from `MS-01` (handling the split section 3.3, stage plan, parameter fit candidates, and computational budgets) exactly as our current `generate_map` engine behaves today.
+*   **Agent Interaction & Diff Engine:** The `A5 Planning Agent` will then draft the custom model structure choices and append explanatory logic for every structural assignment. If the agent proposes a departure from the default `MS-01` baseline, your UI must render these changes explicitly as a visual structural/parameter **diff view**, requiring the user to see exactly what the AI altered and why.
+*   **Human Modifications & Persistence:** When a scientist manually drags data, alters a node connection, or changes a parameter inside the canvas, flag these fields using our system's native locking convention (e.g., `userLocked: true`). This ensures manual human adjustments are preserved and never overwritten by subsequent automated AI agent passes.
+
+### 3. Artifact Generation & Boundary Gates
+Ensure your component complies with our system's strict transactional gates:
+*   **State Serialization:** On manual or agent modification, compile the system state into the **`ModelPlan vN`** artifact, encapsulating all data assignments, structure choices, natural language rationales, and canvas layouts.
+*   **Deterministic Promotion:** Upon final user approval, your canvas must trigger the deterministic generation of the actual `MAP` object from the `ModelPlan vN` state payload.
+*   **Safety Gates:** Embed our **Live Validator** directly into the interface. The "Approve and Sign" action must remain disabled until the validator returns a clean green state (zero rule violations). Once green, route the output directly into our existing cryptographic signature flow (**MIDD lead, D-07** approval).
+
+Provide a comprehensive architectural integration plan detailing how your solution hooks into our existing data routes, followed by production-ready, highly type-safe source code for the P5 review layer component.
+
+----------------------
 
 #### P6 · Run (S0 → S7, existing engine plus Track N)
 | | |
@@ -1125,7 +1156,7 @@ in T-56.
 |---|---|---|---|
 | **D-01** | Order of literature (P2) and client data (P3) | (a) parallel after the data plan; (b) literature first, then client; (c) client first | **(a)**: the data plan already says who provides what |
 | **D-02** | Items the client will provide | (a) skip entirely (your words); (b) skip the search, but check client values against plausibility ranges; (c) also cross-check against literature | **(b)**, with (c) as a per-item toggle |
-| **D-03** | Pass/fail criterion **[SME]** | (a) keep fold tiers by model risk (1.25 / 1.5 / 2-fold ≈ PE −20…+25 %, −33…+50 %, −50…+100 %); (b) symmetric PE limits (e.g. ±20 % / ±30 % / ±50 %); (c) the criteria written in each proposal, never looser than the tier | **(c) on top of (a)**; which metrics gate (AUC, Cmax; tmax and t½ flag only?) |
+| **D-03** | Pass/fail criterion **[SME]** | (a) keep fold tiers by model risk (1.25 / 1.5 / 2-fold ≈ PE −20…+25 %, −33…+50 %, −50…+100 %); (b) symmetric PE limits (e.g. ±20 % / ±30 % / ±50 %); (c) the criteria written in each proposal, never looser than the tier | **(c) on top of (a)**; which metrics gate (AUC, Cmax; tmax and t½ flag only? - all) also **(b)** will always important (include that as well, as required) |
 | **D-04** | Joint refinement SJ **[SME]** | add as MS-01 v1.1 stage (yes/no); weighting (equal per study / information score / PK-Sim default); IV-identified parameters held within S1 95 % CI (yes/no); budget split S1 20 / S2 20 / S3 7 / SJ 15 % | yes; equal per study; yes; as proposed, then measured |
 | **D-05** | External-feedback "learn" | allowed cycles per class: 1 (MS-01 today) / 2 / unlimited with signature | **1 per class**, more only by a signed deviation |
 | **D-06** | "New evidence" after an S5 failure | re-judge the same external studies (flagged "prompted by S5") / only unspent ones | re-judge with the flag and a model-risk review |
@@ -1138,7 +1169,7 @@ in T-56.
 | **D-13** | The three diagrams | confirm D1 disposition, D2 absorption/formulation, D3 development/validation DAG | as proposed; D1/D2 read-mostly in the first release |
 | **D-14** | Canvas moves after MAP signature | deviation with signature (ICH M15 §4.2) / not allowed / free | deviation with signature |
 | **D-15** | Blind external data values until the MAP is signed | yes / no / per project | per project, default yes for high model risk |
-| **D-16** | LLM provider for client documents | Anthropic API / Bedrock / Vertex / self-hosted / none | you decide with the client contracts; until then manual paths |
+| **D-16** | LLM provider for client documents | Anthropic API / Bedrock / Vertex / self-hosted / none | you decide with the client contracts; until then manual paths - use either of two providers: **(1)** Gemini, **(2)** Groq. [Keys redacted from the repository on 2026-10-05: they are set as `GEMINI_API_KEY` / `GROQ_API_KEY` on the host, never committed.] |
 | **D-17** | Outbound network from the server | allowed to the LLM provider and PubMed/Europe PMC/ChEMBL/PubChem/openFDA (via self-hosted MCP) / not allowed | needed for P2 agents; please confirm with the server admin |
 | **D-18** | First-release scope of "any drug" | which archetypes first | small molecule, IV/oral, IR solids, APP-01 + VBE (APP-11/14) + food effect; DDI/pediatric next; large molecules, other routes, metabolites later |
 | **D-19** | Real-data rule | no PASS on synthetic/illustrative data outside exploratory projects | yes |
@@ -1148,7 +1179,7 @@ in T-56.
 | **D-23** | "In vitro data for disposition kinetics" | in vitro ADME parameters (CLint, fu, B:P, Papp) / in vitro time courses to fit | parameters (§9.3); tell me if you need time-course fitting |
 | **D-24** | Priority | Lane A first / Lane B first / both | both, Lane A starting now |
 
-## 20. Material I need from you
+## 20. Material I need from you (will provide in future as required)
 
 1. 2–3 real technical proposals (redacted is fine): they define the Brief schema and the A1 evaluation set.
 2. 1–2 real client workbooks (redacted): for A4 triage and the template.
@@ -1158,6 +1189,22 @@ in T-56.
 6. Confirmation of who signs what (roles and names) for §16.
 
 ---
+
+## 21. Decision record (2026-10-05, how the build reads the owner's answers)
+
+| Item | Owner's answer | How the build applies it |
+|---|---|---|
+| D-03 | (c) on top of (a); **all** metrics gate (AUC, Cmax, tmax, t½); (b) symmetric PE limits always included | The MAP carries all three: the tier's fold limits (a), symmetric PE limits (b) and the proposal's own criteria (c), never looser than the tier. The ruleset change (PE limits, gating tmax and t½) is SME-governed: added as a new **UNVERIFIED** ruleset version, owner-approved 2026-10-05. Enforcement inside `acceptance.py` / `campaign/evaluate.py` stays with the evaluation lane (§12.7) unless the owner reassigns it. |
+| §3 #1 | Population studies: PE % plus NCA, GMR and 90 % CI as regulators ask | Recorded as an evaluation-lane requirement: population (VPC / virtual-trial) comparisons report NCA of simulated individuals, the geometric mean ratio predicted/observed and its 90 % CI (`pbpk_domain.bioequivalence` already computes paired GMR and CI). |
+| R-16 | "all planned simulations have PE < 10 % (or aligned with regulatory acceptance criteria)" | A project may set a stricter internal target (MS-01 §8 allows stricter MAP criteria for internal groups); the canvas offers "absolute PE ≤ 10 %" as a per-project target. The gate never becomes looser than the tier. |
+| R-07 | skip client items **or** cross-check them | D-02 (b) with the (c) toggle: client values are always checked against plausibility; a per-item "cross-check against literature" switch runs A2 on that item too. |
+| R-10 | edits restart or continue as required | §13: every edit shows its impact; the user chooses "continue" (re-run only stale work, memoized) or "restart" (new campaign from the edited inputs). |
+| R-13 | anything possible in PK-Sim | The feasibility check (§7.5) reports every PK-Sim feature the project needs and whether the builder covers it yet; coverage grows by harvest (CLAUDE.md rule). |
+| R-15 | the engine builds a regulatory-acceptable model for the intended application | Unchanged pipeline guarantees (MS-01, ICH M15 MAP/MAR, signatures, reproducible package); S6 application templates remain T-31. |
+| §3 #15 | client files also as PDF, Word, CSV, Markdown | Document intake (T-41) reads PDF, DOCX, Markdown, plain text, CSV and Excel; tables in PDF/Word go through A4/A3 as documents, not as spreadsheets. |
+| P5 prompt | full specification for the plan canvas | Implemented as written (§11 + the owner's P5 prompt): three diagrams, "Overall Data" pane, HTML5 drag and drop on D3, MS-01 default first, A5 diff view, `userLocked` preservation, `ModelPlan vN`, live validator gating **Approve and Sign**, deterministic MAP, MIDD-lead signature. Integration notes in `docs/P5_PLAN_CANVAS.md`. |
+| D-16 | Gemini or Groq | `MODELER_LLM_PROVIDER` = `gemini` or `groq` with `GEMINI_API_KEY` / `GROQ_API_KEY` from the host environment (OpenAI-compatible endpoints). Keys are never stored in the repository; the ones pasted into the plan were removed and should be rotated. Every agent step keeps its manual path. |
+| Other D-numbers | approved as recommended | D-01 (a) parallel · D-02 (b) + toggle · D-04 SJ yes, equal weights per study, S1-CI guard, budget 20/20/7/15 · D-05 1 per class · D-06 re-judge with flag · D-07 L1/L2 simple approvals, L3/P6 signatures · D-09 open access + access requests · D-10 allowed, grade C · D-11 both · D-12 A5 proposes, signed in the MAP · D-13 as proposed · D-14 deviation with signature · D-15 per project, default on for high risk · D-17 to confirm with the server admin · D-18 as recommended · D-19 yes · D-20 contract §12.7 · D-21 Dapagliflozin first · D-22 yes · D-23 parameters · D-24 both lanes |
 
 ## Appendix A · Worked example: Dapagliflozin (public data, the Phase 4 proof compound)
 
