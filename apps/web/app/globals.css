@@ -307,3 +307,12 @@ tbody tr:last-child td { border-bottom: none; }
 .evidence.rejected { border-left-color: var(--fail); opacity: 0.7; }
 .quote { margin: 4px 0; padding: 4px 10px; border-left: 2px solid var(--obs); color: var(--ink); font-size: 13px; background: var(--raised); }
 .flags { margin: 4px 0; padding-left: 18px; font-size: 12px; color: var(--warn); }
+.series { font-family: var(--font-mono), monospace; font-size: 12px; margin: 2px 0; overflow-wrap: anywhere; }
+.digitizer fieldset { border: 1px solid var(--line); border-radius: var(--radius-sm); margin: 0 0 8px; padding: 6px 8px; display: grid; gap: 4px; }
+.digitizer legend { font-size: 12px; color: var(--ink-dim); padding: 0 4px; }
+.figure { position: relative; flex: 1; min-width: 0; max-width: 760px; border: 1px solid var(--line); background: #fff; }
+.figure canvas { display: block; width: 100%; height: auto; }
+.figure .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.figure .ref { stroke: var(--sim); stroke-width: 2; stroke-dasharray: 8 6; }
+.figure .pt { fill: var(--obs); stroke: #000; stroke-width: 1.5; }
+.figure .pt.other { fill: var(--sim); }

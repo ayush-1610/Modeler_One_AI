@@ -70,7 +70,7 @@ def test_initiate_creates_project_documents_and_a_first_brief(client):
 def test_unsupported_upload_is_refused(client):
     c, _ = client
     r = c.post("/api/v1/projects:initiate", headers=H, data={"drug_name": "X", "extract": "false"},
-               files=[("files", ("scan.png", b"\x89PNG", "image/png"))])
+               files=[("files", ("scan.gif", b"GIF89a", "image/gif"))])
     assert r.status_code == 422 and "unsupported" in r.json()["detail"]
 
 

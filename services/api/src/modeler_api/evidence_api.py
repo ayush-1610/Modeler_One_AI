@@ -20,6 +20,8 @@ from modeler_api.responses import envelope
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
+from modeler_project.dataset_register import approve_overlay, datasets, decide_dataset, digitized_dataset, propose_dataset
+from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, new_dataset_id
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import (
@@ -54,22 +56,25 @@ def _evidence_view(item: EvidenceItem) -> dict[str, Any]:
 def _view(ws: Workspace) -> dict[str, Any]:
     matrix_version, matrix = _matrix(ws)
     evidence = items(ws)
-    rows = coverage(matrix, evidence)
+    observed = datasets(ws)
+    rows = coverage(matrix, evidence, observed)
     register = ws.latest(ArtifactKind.EVIDENCE, REGISTER_LITERATURE)
     from modeler_agents.run_store import FileRunStore
 
     root = getattr(ws.store, "root", None)
     runs = [r for r in (FileRunStore(root).runs(ws.tenant_id, project_id=ws.project_id) if root else [])
-            if r["agent"].startswith("A2")]
+            if r["agent"].startswith(("A2", "A3"))]
     return {
         "data_plan": {"version": matrix_version.version, "status": ws.status(matrix_version).value},
         "evidence": [_evidence_view(e) for e in evidence],
+        "datasets": [d.to_content() for d in observed],
         "coverage": [r.__dict__ | {"accepted": list(r.accepted), "proposed": list(r.proposed)} for r in rows],
         "blocking": [r.req_id for r in blocking(rows)],
         "access_requests": [{"id": v.id, **v.content} for v in ws.list(ArtifactKind.ACCESS_REQUEST)],
         "register": version_view(ws, register, with_content=False) if register else None,
         "agents": agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
-        "runs": [{k: r.get(k) for k in ("run_id", "status", "model", "started_at", "finished_at", "summary")} for r in runs[:5]],
+        "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "model", "started_at", "finished_at", "summary")}
+                 for r in runs[:5]],
     }
 
 
@@ -79,8 +84,10 @@ def get_evidence(project_id: str, principal: Reader, store: StoreDep) -> dict[st
 
 
 def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, model, europe_pmc=None,
-                     max_turns: int = 120) -> dict[str, Any]:
+                     max_turns: int = 120, agent: Literal["A2", "A3"] = "A2") -> dict[str, Any]:
+    """A2 (parameter values) or A3 (observed clinical data) over the data plan's literature items."""
     from modeler_agents.evidence_agent import ResearchContext, run_research
+    from modeler_agents.observed_data_agent import run_observed_data
     from modeler_agents.run_store import FileRunStore
     from modeler_agents.sources import EuropePMC
 
@@ -89,7 +96,8 @@ def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
     brief_version = ws.latest(ArtifactKind.BRIEF, "main")
     drug = ProjectBrief.from_content(brief_version.content).drug_name if brief_version else project_id
     runs = FileRunStore(store.root, project_id=project_id)  # type: ignore[attr-defined]
-    run_id = runs.start_run(tenant_id=tenant_id, agent="A2-literature", provider=model.provider, model=model.model,
+    run_id = runs.start_run(tenant_id=tenant_id, agent="A2-literature" if agent == "A2" else "A3-observed-data",
+                            provider=model.provider, model=model.model,
                             campaign_id=None, budget={"max_turns": max_turns})
     seq = [0]
 
@@ -99,7 +107,8 @@ def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
 
     ctx = ResearchContext(ws=ws, library=DocumentLibrary(ws), requirements=literature_items(matrix), actor=f"agent:{run_id}",
                           europe_pmc=europe_pmc or EuropePMC())
-    outcome = run_research(model, ctx, drug=drug, max_turns=max_turns, log_step=log_step)
+    runner = run_research if agent == "A2" else run_observed_data
+    outcome = runner(model, ctx, drug=drug, max_turns=max_turns, log_step=log_step)
     summary = {"proposed": len(outcome.proposed), "rejected": len(outcome.rejected), "not_found": outcome.not_found,
                "access_requests": len(outcome.access_requests), "summary": outcome.summary[:4000], "error": outcome.error}
     runs.finish_run(run_id=run_id, status=outcome.status, input_tokens=outcome.usage["input_tokens"],
@@ -108,7 +117,8 @@ def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
 
 
 @router.post("/projects/{project_id}/evidence:research", status_code=202)
-def start_research(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+def start_research(project_id: str, principal: Writer, store: StoreDep, agent: Literal["A2", "A3"] = "A2") -> dict[str, Any]:
+    """Run A2 (values) or, with ``?agent=A3``, the observed-data agent, in the background."""
     from modeler_agents.llm import LLMConfigError, chat_model_from_env
 
     ws = workspace_for(project_id, principal, store)
@@ -127,7 +137,7 @@ def start_research(project_id: str, principal: Writer, store: StoreDep) -> dict[
 
     def job() -> None:
         try:
-            run_research_job(store, principal.tenant_id, project_id, model=model)
+            run_research_job(store, principal.tenant_id, project_id, model=model, agent=agent)
         finally:
             with _LOCK:
                 _RUNNING.discard(key)
@@ -231,5 +241,109 @@ async def fulfil_request(project_id: str, request_id: str, principal: Writer, st
                                       note=note or f"supplied for {request_id}")
         fulfil_access(ws, request_id, doc_sha256=doc.content["sha256"], by=principal.user_id)
     except (DocumentError, EvidenceError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return envelope(_view(ws))
+
+
+# --- observed datasets (T-45) --------------------------------------------------------------------------------
+
+
+class DatasetBody(BaseModel):
+    kind: Literal["profile", "pk_parameters"] = "profile"
+    study: dict[str, Any]
+    analyte: str = "parent"
+    matrix: str = "plasma"
+    time_unit: str = "h"
+    unit: str = "ng/ml"
+    series: list[Series] = Field(default_factory=list)
+    reported: list[ReportedPK] = Field(default_factory=list)
+    origin: Literal["CLIENT", "LITERATURE", "OSP_LIBRARY", "SYNTHETIC", "ILLUSTRATIVE"] = "LITERATURE"
+    source: SourceRef = Field(default_factory=SourceRef)
+    quote: str = ""
+    purpose: str = "model_building"
+    note: str = ""
+
+
+def _mol_weight(ws: Workspace) -> float | None:
+    brief = ws.latest(ArtifactKind.BRIEF, "main")
+    if brief is None:
+        return None
+    value = ProjectBrief.from_content(brief.content).value("drug.mw_free_base")
+    return float(value) if value else None
+
+
+@router.post("/projects/{project_id}/datasets", status_code=201)
+def add_dataset(project_id: str, body: DatasetBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """The manual path for observed data (typed from a table or a report). Its origin says what it is: synthetic or
+    illustrative data are accepted for software checks but can never pass a gate (plan §9.4)."""
+    ws = workspace_for(project_id, principal, store)
+    if body.origin in ("CLIENT", "LITERATURE") and not (body.source.doc_sha256 or body.source.doi or body.source.pmid
+                                                         or body.source.url or body.source.title):
+        raise HTTPException(status_code=422, detail="cite the source of the data (document, DOI, PMID, URL or title)")
+    dataset = ObservedDataset(
+        id=new_dataset_id(), kind=body.kind, study=body.study, analyte=body.analyte, matrix=body.matrix,
+        time_unit=body.time_unit, unit=body.unit, series=tuple(body.series), reported=tuple(body.reported),
+        origin=Origin(body.origin), extraction="MANUAL", source=body.source, quote=body.quote, purpose=body.purpose,
+        provider="CLIENT" if body.origin == "CLIENT" else "LITERATURE", note=body.note)
+    try:
+        stored = propose_dataset(ws, dataset, actor=principal.user_id, mol_weight=_mol_weight(ws))
+    except (DatasetError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return envelope(stored.to_content())
+
+
+class DigitizeBody(BaseModel):
+    study: dict[str, Any]
+    doc_sha256: str
+    page: int = Field(ge=1)
+    locator: str = ""
+    calibration: dict[str, dict[str, Any]]
+    pixels: dict[str, list[tuple[float, float]]]
+    time_unit: str = "h"
+    unit: str = "ng/ml"
+    statistic: Literal["individual", "arithmetic_mean", "geometric_mean", "median"] = "arithmetic_mean"
+    n: int | None = None
+    purpose: str = "model_building"
+    title: str = ""
+    doi: str | None = None
+
+
+@router.post("/projects/{project_id}/datasets:digitize", status_code=201)
+def digitize_dataset(project_id: str, body: DigitizeBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """A figure digitized by a person: the server maps the picked pixels with the calibration (no client arithmetic)."""
+    from pbpk_domain.digitize import CalibrationError
+
+    ws = workspace_for(project_id, principal, store)
+    if DocumentLibrary(ws).by_sha(body.doc_sha256) is None:
+        raise HTTPException(status_code=404, detail="no such document")
+    try:
+        dataset = digitized_dataset(study={**body.study, "n_timepoints": body.study.get("n_timepoints") or
+                                           max((len(p) for p in body.pixels.values()), default=1)},
+                                    doc_sha256=body.doc_sha256, page=body.page, locator=body.locator,
+                                    calibration=body.calibration, pixels=body.pixels, time_unit=body.time_unit,
+                                    unit=body.unit, statistic=body.statistic, n=body.n,
+                                    source=SourceRef(title=body.title, doi=body.doi), purpose=body.purpose)
+        stored = propose_dataset(ws, dataset, actor=principal.user_id, mol_weight=_mol_weight(ws))
+    except (CalibrationError, DatasetError, ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return envelope(stored.to_content())
+
+
+@router.post("/projects/{project_id}/datasets/{dataset_id}:overlay")
+def approve_dataset_overlay(project_id: str, dataset_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    ws = workspace_for(project_id, principal, store)
+    try:
+        updated = approve_overlay(ws, dataset_id, by=principal.user_id)
+    except DatasetError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return envelope(updated.to_content())
+
+
+@router.post("/projects/{project_id}/datasets/{dataset_id}:decide")
+def decide_on_dataset(project_id: str, dataset_id: str, body: Decision, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    ws = workspace_for(project_id, principal, store)
+    try:
+        decide_dataset(ws, dataset_id, state=EvidenceState(body.state), reason=body.reason, by=principal.user_id)
+    except DatasetError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return envelope(_view(ws))

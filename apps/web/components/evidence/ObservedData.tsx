@@ -1,0 +1,154 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+import { Digitizer } from "@/components/evidence/Digitizer";
+import { Card } from "@/components/ui";
+import type { DocumentView } from "@/lib/brief";
+import { apiGet, apiSend } from "@/lib/writes";
+
+type Series = { name: string; statistic: string; times: number[]; values: (number | null)[]; error: number[] | null;
+                error_kind: string; n: number | null };
+type Dataset = {
+  id: string; kind: "profile" | "pk_parameters"; study: Record<string, unknown>; analyte: string; matrix: string;
+  time_unit: string; unit: string; series: Series[];
+  reported: { parameter: string; value: number; unit: string; statistic: string }[];
+  origin: string; extraction: string;
+  source: { doc_sha256: string | null; page: number | null; locator: string; title: string; doi: string | null };
+  digitization: { page: number; resolution: Record<string, number>; overlay_approved_by: string | null } | null;
+  purpose: string; provider: string; flags: string[]; state: string; proposed_by: string; decided_by: string | null;
+  decision_reason: string;
+};
+type View = {
+  datasets: Dataset[];
+  coverage: { req_id: string; label: string; target: string; status: string; criticality: string; applies: string }[];
+  agents: { enabled: boolean };
+  running: boolean;
+};
+
+const ORIGIN_CHIP: Record<string, string> = {
+  CLIENT: "low", LITERATURE: "low", FIGURE_DIGITIZED: "medium", OSP_LIBRARY: "low", SYNTHETIC: "high", ILLUSTRATIVE: "high",
+};
+
+function DatasetCard({ d, onDecide, onOverlay }: {
+  d: Dataset;
+  onDecide: (d: Dataset, state: string, reason: string) => Promise<string | null>;
+  onOverlay: (d: Dataset) => Promise<string | null>;
+}) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const s = d.study;
+  return (
+    <div className={`evidence ${d.state.toLowerCase()}`} data-testid={`dataset-${d.id}`}>
+      <div className="spread">
+        <div className="row">
+          <strong>{String(s.study_id)}</strong>
+          <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{d.origin.toLowerCase().replace("_", " ")}</span>
+          <span className="chip neutral">{d.kind === "profile" ? "profile" : "PK parameters only"}</span>
+          <span className={`chip ${d.state === "ACCEPTED" ? "low" : d.state === "REJECTED" ? "high" : "medium"}`}>{d.state.toLowerCase()}</span>
+        </div>
+        <span className="muted">{d.purpose.replace(/_/g, " ")}</span>
+      </div>
+      <p className="muted" style={{ margin: "4px 0", fontSize: 13 }}>
+        {String(s.route).replace("_", " ")} · {String(s.dose_mg)} mg · {String(s.formulation ?? "")} · {String(s.food_state ?? "fasted")} · n {String(s.n)}
+        {" · "}{d.source.title || "source"}{d.source.locator ? ` · ${d.source.locator}` : ""}{d.source.page ? ` p.${d.source.page}` : ""}
+      </p>
+      {d.series.map((series) => (
+        <div key={series.name} className="series">
+          <span className="muted">{series.name} ({series.statistic.replace("_", " ")}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
+          {series.times.map((t, i) => `${+t.toPrecision(4)}: ${series.values[i] === null ? "<LLOQ" : +(series.values[i] as number).toPrecision(4)}`).join(" · ")}
+        </div>
+      ))}
+      {d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${r.parameter} ${r.value} ${r.unit}`).join(" · ")}</div>}
+      {d.digitization && (
+        <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
+          digitized from p.{d.digitization.page}; resolution ±{(d.digitization.resolution.x / 2).toPrecision(2)} {d.time_unit},
+          ±{(d.digitization.resolution.y / 2).toPrecision(2)} {d.unit}; overlay {d.digitization.overlay_approved_by ? `approved by ${d.digitization.overlay_approved_by}` : "not approved"}
+        </p>
+      )}
+      {d.flags.length > 0 && <ul className="flags">{d.flags.map((f) => <li key={f}>{f}</li>)}</ul>}
+      {d.decision_reason && <p className="muted" style={{ margin: 0, fontSize: 12 }}>{d.state.toLowerCase()} by {d.decided_by}: {d.decision_reason}</p>}
+      <div className="row" style={{ marginTop: 6 }}>
+        {d.digitization && !d.digitization.overlay_approved_by && (
+          <button className="btn" onClick={async () => setError(await onOverlay(d))}>Approve the overlay</button>
+        )}
+        <input style={{ flex: 1, minWidth: 180 }} placeholder="reason (required)" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <button className="btn" disabled={!reason.trim()} onClick={async () => setError(await onDecide(d, "ACCEPTED", reason))}>Accept</button>
+        <button className="btn" disabled={!reason.trim()} onClick={async () => setError(await onDecide(d, "REJECTED", reason))}>Reject</button>
+      </div>
+      {error && <div className="banner err" style={{ marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
+
+/** P2 observed data (plan §9): clinical PK datasets with their origin, from tables, figures or by hand. */
+export function ObservedData({ projectId }: { projectId: string }) {
+  const [view, setView] = useState<View | null>(null);
+  const [docs, setDocs] = useState<DocumentView[]>([]);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [digitizing, setDigitizing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const [v, d] = await Promise.all([
+      apiGet<View>(`/api/v1/projects/${projectId}/evidence`),
+      apiGet<{ documents: DocumentView[] }>(`/api/v1/projects/${projectId}/documents`),
+    ]);
+    if (v.data) { setView(v.data); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
+    if (d.data) setDocs(d.data.documents);
+  }, [projectId]);
+  useEffect(() => { void load(); }, [load]);
+
+  if (problem) return <div className="banner err">{problem}</div>;
+  if (!view) return <p className="muted">Loading…</p>;
+
+  const act = async (fn: () => Promise<{ errors: { message: string }[] }>) => {
+    const env = await fn();
+    if (env.errors?.length) return env.errors[0].message;
+    await load();
+    return null;
+  };
+  const needs = view.coverage.filter((c) => ["IV-SD", "PO-SOL-FASTED / PO-IR-FASTED", "PO-FED", "PO-MD", "EXTERNAL", "urine", "DDI",
+                                               "SPECIAL", "lloq", "BE study"].includes(c.target));
+  return (
+    <>
+      <Card title="Dataset needs of the data plan">
+        <table>
+          <tbody>
+            {needs.map((n) => (
+              <tr key={n.req_id}>
+                <td>{n.label}</td>
+                <td><span className={`chip ${n.status === "ACCEPTED" ? "low" : n.status === "PROPOSED" ? "medium" : n.status === "NOT_AVAILABLE" ? "neutral" : "high"}`}
+                          data-testid={`need-${n.req_id}`}>{n.status.toLowerCase().replace("_", " ")}</span></td>
+                <td className="muted">{n.criticality.toLowerCase()}{n.applies === "undetermined" ? " · if applicable" : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="row" style={{ marginTop: 10 }}>
+          <button className="btn" disabled={!view.agents.enabled || view.running}
+                  onClick={async () => setNotice(await act(() => apiSend(`/api/v1/projects/${projectId}/evidence:research?agent=A3`, "POST", {}))
+                    ?? "The observed-data agent is searching; datasets appear as it records them.")}>
+            Find observed data (agent)
+          </button>
+          <button className="btn" onClick={() => setDigitizing(!digitizing)} data-testid="open-digitizer">
+            {digitizing ? "Close the digitizer" : "Digitize a figure"}
+          </button>
+        </div>
+        {notice && <div className="banner ok" style={{ marginTop: 8 }}>{notice}</div>}
+      </Card>
+      {digitizing && (
+        <Card title="Digitize a figure">
+          <Digitizer projectId={projectId} documents={docs} onSaved={async () => { setDigitizing(false); await load(); }} />
+        </Card>
+      )}
+      <Card title={`Datasets (${view.datasets.length})`}>
+        {view.datasets.length === 0 ? <p className="muted" style={{ margin: 0 }}>No observed data yet.</p> : view.datasets.map((d) => (
+          <DatasetCard key={d.id} d={d}
+                       onDecide={(ds, state, reason) => act(() => apiSend(`/api/v1/projects/${projectId}/datasets/${ds.id}:decide`, "POST", { state, reason }))}
+                       onOverlay={(ds) => act(() => apiSend(`/api/v1/projects/${projectId}/datasets/${ds.id}:overlay`, "POST", {}))} />
+        ))}
+      </Card>
+    </>
+  );
+}

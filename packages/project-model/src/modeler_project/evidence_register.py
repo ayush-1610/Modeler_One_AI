@@ -85,13 +85,22 @@ def _matches(requirement: RequirementItem, item: EvidenceItem) -> bool:
     return item.target == requirement.target or item.target.startswith(base + ".") or item.target == base
 
 
-def coverage(matrix: RequirementMatrix, evidence: list[EvidenceItem]) -> list[Coverage]:
-    """For every literature item of the data plan: what was found, accepted, or not found."""
+def coverage(matrix: RequirementMatrix, evidence: list[EvidenceItem], observed: list | None = None) -> list[Coverage]:
+    """For every literature item of the data plan: what was found, accepted, or not found. Dataset needs (IV study,
+    fasted oral range, external studies …) are met by observed datasets."""
+    from modeler_project.dataset_register import dataset_matches
+
     out = []
     for requirement in literature_items(matrix):
-        mine = [e for e in evidence if _matches(requirement, e)]
-        accepted = tuple(e.id for e in mine if e.state is EvidenceState.ACCEPTED)
-        proposed = tuple(e.id for e in mine if e.state is EvidenceState.PROPOSED)
+        if requirement.kind == "dataset":
+            mine_ds = [d for d in (observed or []) if dataset_matches(requirement, d)]
+            accepted = tuple(d.id for d in mine_ds if d.state is EvidenceState.ACCEPTED)
+            proposed = tuple(d.id for d in mine_ds if d.state is EvidenceState.PROPOSED)
+            mine: list[EvidenceItem] = []
+        else:
+            mine = [e for e in evidence if _matches(requirement, e)]
+            accepted = tuple(e.id for e in mine if e.state is EvidenceState.ACCEPTED)
+            proposed = tuple(e.id for e in mine if e.state is EvidenceState.PROPOSED)
         if requirement.status in ("NOT_AVAILABLE", "WAIVED"):
             status = requirement.status
         elif accepted:
@@ -117,13 +126,18 @@ def blocking(rows: list[Coverage]) -> list[Coverage]:
 def close_register(ws: Workspace, matrix_ref, matrix: RequirementMatrix, *, by: str, note: str = "",
                    printed_name: str = "") -> None:
     """Snapshot the accepted literature evidence and approve it (named approval, D-07)."""
+    from modeler_project.dataset_register import datasets
+
     evidence = items(ws)
-    rows = coverage(matrix, evidence)
+    observed = datasets(ws)
+    rows = coverage(matrix, evidence, observed)
     gaps = blocking(rows)
     if gaps:
         raise EvidenceError("required literature items still open: " + ", ".join(r.req_id for r in gaps))
     accepted = [ws.latest(ArtifactKind.EVIDENCE, e.id) for e in evidence if e.state is EvidenceState.ACCEPTED
                 and e.provider == "LITERATURE"]
+    accepted += [ws.latest(ArtifactKind.DATASET, d.id) for d in observed if d.state is EvidenceState.ACCEPTED
+                 and d.provider == "LITERATURE"]
     content = {"accepted": [v.ref.model_dump(mode="json") for v in accepted],
                "coverage": [r.__dict__ | {"accepted": list(r.accepted), "proposed": list(r.proposed)} for r in rows]}
     version = ws.commit(ArtifactKind.EVIDENCE, REGISTER_LITERATURE, content,

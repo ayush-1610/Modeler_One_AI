@@ -26,12 +26,13 @@ MAX_BYTES = 60 * 1024 * 1024
 
 KINDS = {
     ".pdf": "pdf", ".docx": "docx", ".md": "markdown", ".markdown": "markdown", ".txt": "text", ".text": "text",
-    ".csv": "csv", ".tsv": "csv", ".xlsx": "xlsx", ".xlsm": "xlsx",
+    ".csv": "csv", ".tsv": "csv", ".xlsx": "xlsx", ".xlsm": "xlsx", ".png": "image", ".jpg": "image", ".jpeg": "image",
 }
 MEDIA_TYPES = {
     "pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "markdown": "text/markdown", "text": "text/plain", "csv": "text/csv",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "image": "image/png",
 }
 
 
@@ -69,11 +70,13 @@ def detect_kind(data: bytes, filename: str) -> str:
     if kind is None:
         if data.startswith(b"%PDF"):
             return "pdf"
-        raise DocumentError(f"unsupported file type {suffix or '(none)'}: use PDF, DOCX, Markdown, text, CSV or XLSX")
+        raise DocumentError(f"unsupported file type {suffix or '(none)'}: use PDF, DOCX, Markdown, text, CSV, XLSX, PNG or JPEG")
     if kind == "pdf" and not data.startswith(b"%PDF"):
         raise DocumentError(f"{filename} is not a PDF file")
     if kind in ("docx", "xlsx") and not data.startswith(b"PK"):
         raise DocumentError(f"{filename} is not a valid {kind.upper()} file")
+    if kind == "image" and not data.startswith((b"\x89PNG", b"\xff\xd8")):
+        raise DocumentError(f"{filename} is not a PNG or JPEG image")
     return kind
 
 
@@ -193,10 +196,14 @@ def extract_document(data: bytes, filename: str) -> ExtractedDocument:
         texts = _chunk(_docx_blocks(data))
     elif kind in ("markdown", "text"):
         texts = _text_pages(data)
+    elif kind == "image":
+        texts = [""]
+        warnings.append("an image has no text: it can be digitized (figure), not quoted")
     else:
         texts = _sheet_pages(data, kind, filename)
+    media_type = "image/jpeg" if kind == "image" and data.startswith(b"\xff\xd8") else MEDIA_TYPES[kind]
     return ExtractedDocument(
         sha256=hashlib.sha256(data).hexdigest(), name=PurePath(filename).name, kind=kind,
-        media_type=MEDIA_TYPES[kind], size_bytes=len(data),
+        media_type=media_type, size_bytes=len(data),
         pages=tuple(DocumentPage(page=i, text=t) for i, t in enumerate(texts, start=1)), warnings=tuple(warnings),
     )

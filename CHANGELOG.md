@@ -664,6 +664,25 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — P2 observed data: datasets with their origin, agent A3 and the figure digitizer (T-45)
+- **Observed datasets** (`modeler_project.datasets`, `dataset_register`): every clinical PK dataset is a DATASET
+  artifact (proposed → accepted / rejected with a reason) carrying the study design, analyte and matrix, one or more
+  series (statistic, error kind, n, values below LLOQ kept as such), reported PK parameters, the source page and
+  locator, and its **origin** (CLIENT, LITERATURE, FIGURE_DIGITIZED, OSP_LIBRARY, SYNTHETIC, ILLUSTRATIVE). Code flags
+  what a person must look at: too few time points, a profile that never declines, a reported AUC or Cmax that the
+  profile's own NCA does not reproduce (> 20 %), a design that contradicts the data plan. Coverage now includes the
+  data plan's observed-data needs.
+- **Agent A3** (`modeler_agents.observed_data_agent`): extracts tables only when every row carries a verbatim quote
+  from the stored page that contains that row's time and value (checked by code; one bad row refuses the whole
+  table); figures become digitization requests for a person, never values the agent reads off a picture.
+- **Digitizer** (`pbpk_domain.digitize`, web `Digitizer`): a person calibrates two references per axis (linear or
+  log) on the PDF page or uploaded image and clicks the points; code maps pixels to values and records the click
+  resolution. A digitized dataset can be accepted only after its overlay is approved by a named person. Uploads now
+  take PNG / JPEG figures (stored as documents without text).
+- API `/projects/{id}/datasets` (manual entry, `:digitize`, `:overlay`, `:decide`) and `evidence:research?agent=A3`;
+  the L2a page gains an Observed data tab. Playwright: a drawn figure with markers at known values is digitized to
+  within 1 % of the truth (1 h → 0.999 h / 100.3, 2 h → 1.996 h / 75.4, 4 h → 3.99 h / 50.5), approved and accepted.
+
 ### Added — P2 literature evidence: the evidence register and agent A2 (T-44)
 - **Evidence register** (`modeler_project.evidence`, `evidence_register`): every value that may enter a model is an
   EVIDENCE artifact (proposed → accepted / rejected, each decision a new version with its reason) carrying the

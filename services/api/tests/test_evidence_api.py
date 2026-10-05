@@ -77,3 +77,32 @@ def test_research_job_runs_a2_and_records_the_run(setup):
     assert result["status"] == "COMPLETED"
     view = c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]
     assert view["runs"][0]["run_id"] == result["run_id"]
+
+
+@pytest.mark.req("T-45", "T-19")
+def test_observed_data_manual_digitized_overlay_and_coverage(setup):
+    c, ws = setup
+    from modeler_project.documents import DocumentLibrary
+
+    study = {"study_id": "doe-2019-iv-5mg", "reference": "Doe 2019", "n": 8, "route": "iv_infusion", "dose_mg": 5,
+             "infusion_time_min": 30, "statistic": "mean_sd"}
+    no_source = c.post("/api/v1/projects/p1/datasets", headers=H, json={"study": study, "series": [
+        {"times": [0.5, 1, 2], "values": [80, 60, 40]}]})
+    assert no_source.status_code == 422 and "cite the source" in no_source.json()["detail"]
+
+    doc = DocumentLibrary(ws).add(b"Figure 2 shows the fed arm", "fig.txt", role="paper", by="u1")
+    cal = {"x": {"p1": 100, "v1": 0, "p2": 700, "v2": 24}, "y": {"p1": 500, "v1": 0, "p2": 100, "v2": 200}}
+    made = c.post("/api/v1/projects/p1/datasets:digitize", headers=H, json={
+        "study": study, "doc_sha256": doc.content["sha256"], "page": 1, "locator": "Figure 2", "calibration": cal,
+        "pixels": {"mean": [[125, 300], [150, 350], [200, 400]]}, "time_unit": "h", "unit": "ng/ml", "n": 8})
+    assert made.status_code == 201, made.text
+    ds = made.json()["data"]
+    assert ds["series"][0]["times"] == [1.0, 2.0, 4.0] and ds["series"][0]["values"] == [100.0, 75.0, 50.0]
+    assert "digitized: overlay not yet approved" in ds["flags"]
+    early = c.post(f"/api/v1/projects/p1/datasets/{ds['id']}:decide", headers=H, json={"state": "ACCEPTED", "reason": "ok"})
+    assert early.status_code == 422 and "overlay" in early.json()["detail"]
+    assert c.post(f"/api/v1/projects/p1/datasets/{ds['id']}:overlay", headers=H).status_code == 200
+    view = c.post(f"/api/v1/projects/p1/datasets/{ds['id']}:decide", headers=H,
+                  json={"state": "ACCEPTED", "reason": "overlay matches the figure"}).json()["data"]
+    iv = next(r for r in view["coverage"] if r["req_id"] == "REQ-obs.iv_sd")
+    assert iv["status"] == "ACCEPTED" and iv["accepted"] == [ds["id"]]

@@ -97,7 +97,11 @@ def test_unreadable_files_are_refused_with_a_reason():
         extract_document(b"\xd0\xcf\x11\xe0", "old.xls")
     with pytest.raises(DocumentError, match="not a PDF"):
         extract_document(b"hello", "fake.pdf")
-    with pytest.raises(DocumentError, match="unsupported"):
+    with pytest.raises(DocumentError, match="not a PNG"):
         extract_document(b"x", "image.png")
+    with pytest.raises(DocumentError, match="unsupported"):
+        extract_document(b"x", "image.gif")
+    figure = extract_document(b"\x89PNG\r\n\x1a\n....", "figure2.png")
+    assert figure.kind == "image" and figure.pages[0].text == "" and "digitized" in figure.warnings[0]
     with pytest.raises(DocumentError, match="empty"):
         extract_document(b"", "a.txt")

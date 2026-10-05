@@ -107,10 +107,12 @@ def propose_value(ctx: ResearchContext, *, req_id: str, target: str, value: Any,
     return f"RECORDED {stored.id} grade {stored.confidence}{flags}"
 
 
-def build_tools(ctx: ResearchContext) -> list[Tool]:
+def reading_tools(ctx: ResearchContext, *, kinds: tuple[str, ...] = ("parameter", "formulation", "system")) -> list[Tool]:
     def list_requirements() -> str:
         rows = []
         for r in ctx.requirements:
+            if r.kind not in kinds:
+                continue
             rows.append({"req_id": r.req_id, "label": r.label, "target": r.target, "unit_in_pksim": r.unit,
                          "record_conditions": list(r.conditions), "criticality": r.criticality,
                          "client_item_cross_check": r.cross_check})
@@ -173,7 +175,7 @@ def build_tools(ctx: ResearchContext) -> list[Tool]:
 
     s = {"type": "string"}
     return [
-        Tool("list_requirements", "The data-plan items to find values for, with the conditions to record.",
+        Tool("list_requirements", "The data-plan items to find, with the conditions to record.",
              {"type": "object", "properties": {}}, list_requirements),
         Tool("search_literature", "Search Europe PMC (PubMed, PMC). Returns ids, years, journals, open-access status.",
              {"type": "object", "properties": {"query": s, "max_results": {"type": "integer"}}, "required": ["query"]},
@@ -188,14 +190,6 @@ def build_tools(ctx: ResearchContext) -> list[Tool]:
         Tool("search_documents", "Keyword search over the uploaded and stored documents.",
              {"type": "object", "properties": {"query": s, "max_results": {"type": "integer"}}, "required": ["query"]},
              search_documents),
-        Tool("propose_value", "Propose one value for a requirement, with a verbatim quote from a page you read.",
-             {"type": "object", "properties": {
-                 "req_id": s, "target": s, "value": s, "unit": s, "quote": s, "doc_sha256": s, "page": {"type": "integer"},
-                 "source_type": {"type": "string", "enum": [t.value for t in SourceType]}, "locator": s,
-                 "conditions": {"type": "object", "description": "e.g. {\"species\": \"human\", \"method\": \"equilibrium dialysis\"}"},
-                 "note": s},
-              "required": ["req_id", "target", "value", "quote", "doc_sha256", "page", "source_type"]},
-             lambda **kw: propose_value(ctx, **kw)),
         Tool("request_full_text", "Ask a person to supply a paper that is not open access.",
              {"type": "object", "properties": {"title": s, "authors": s, "needed_for": s, "doi": s, "journal": s,
                                                "year": {"type": "integer"}}, "required": ["title", "authors", "needed_for"]},
@@ -204,6 +198,20 @@ def build_tools(ctx: ResearchContext) -> list[Tool]:
              {"type": "object", "properties": {"req_id": s, "searched": s}, "required": ["req_id", "searched"]},
              mark_not_found),
     ]
+
+
+def build_tools(ctx: ResearchContext) -> list[Tool]:
+    """A2: the reading tools plus propose_value."""
+    s = {"type": "string"}
+    return [*reading_tools(ctx), Tool(
+        "propose_value", "Propose one value for a requirement, with a verbatim quote from a page you read.",
+        {"type": "object", "properties": {
+            "req_id": s, "target": s, "value": s, "unit": s, "quote": s, "doc_sha256": s, "page": {"type": "integer"},
+            "source_type": {"type": "string", "enum": [t.value for t in SourceType]}, "locator": s,
+            "conditions": {"type": "object", "description": "e.g. {\"species\": \"human\", \"method\": \"equilibrium dialysis\"}"},
+            "note": s},
+         "required": ["req_id", "target", "value", "quote", "doc_sha256", "page", "source_type"]},
+        lambda **kw: propose_value(ctx, **kw))]
 
 
 @dataclass
