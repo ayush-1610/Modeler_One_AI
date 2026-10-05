@@ -3,6 +3,7 @@ import { FoldError } from "@/components/FoldError";
 import { PackageDownloads } from "@/components/PackageDownloads";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
+import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
 import { getCampaign } from "@/lib/reads";
 
 function mmss(s: number) {
@@ -138,6 +139,18 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
             </tbody>
         </table>
       </Card>
+
+      {(c.ledger?.entries.length ?? 0) > 0 && (
+        <Card title="Model development history" action={<span className="muted">each parameter change and the verdicts it moved</span>}>
+          <LedgerTable entries={c.ledger!.entries} />
+        </Card>
+      )}
+
+      {c.influence && c.influence.parameters.length > 0 && (
+        <Card title="Influence map" action={<span className="muted">parameters × studies</span>}>
+          <InfluenceHeatMap map={c.influence} />
+        </Card>
+      )}
 
       {prediction && (
         <Card title="Prediction (S6)" action={<span className="muted">what the validated model's predictions rest on</span>}>

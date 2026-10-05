@@ -26,7 +26,7 @@ from pbpk_domain.report.mar import (
 
 STAGE_TITLES = {
     "S0": "Readiness", "S1": "IV disposition", "S2": "Oral absorption (fasted)", "S3": "Formulation and fed state",
-    "S4": "Internal validation", "S5": "External validation", "S6": "Prediction", "S7": "Report and package",
+    "SJ": "Joint refinement", "S4": "Internal validation", "S5": "External validation", "S6": "Prediction", "S7": "Report and package",
 }
 
 
@@ -93,6 +93,24 @@ def _vpc_table(stage: str, vpc: Mapping[str, Mapping]) -> TableRef:
                     rows=rows, source=f"population simulations {stage}")
 
 
+def _value(v) -> str:
+    return _fmt(v) if isinstance(v, int | float) and not isinstance(v, bool) else str(v) if v is not None else "—"
+
+
+def _history_table(entries: Sequence[Mapping]) -> TableRef:
+    """The change ledger: every parameter-set change, what it changed and which study verdicts it moved."""
+    rows = []
+    for e in entries:
+        changes = [f"{c['parameter']} {_value(c.get('before'))} → {_value(c.get('after'))}" + (f" {c['unit']}" if c.get("unit") else "")
+                   for c in e.get("changes", [])]
+        verdicts = [f"{v['study_id']} {v['before']} → {v['after']}" for v in e.get("verdicts", [])]
+        rows.append((str(e.get("seq")), str(e.get("stage")), f"{e.get('kind')}: {e.get('reason')}",
+                     "; ".join(changes) or e.get("note", "none"), "; ".join(verdicts) or "none"))
+    return TableRef(id="development_history", title="Model development history",
+                    columns=("Change", "Stage", "Cause", "Parameters changed", "Study verdicts moved"), rows=tuple(rows),
+                    source="campaign change ledger")
+
+
 def assemble_campaign_mar(
     *,
     map_doc: MapDocument,
@@ -102,9 +120,11 @@ def assemble_campaign_mar(
     reproduction: Mapping | None = None,
     data_bundle_sha256: str | None = None,
     generated_at: datetime | None = None,
+    history: Mapping | None = None,
 ) -> MarDocument:
     """``stage_evidence[stage]`` = {"status", "rounds": [...], "metrics": {...}, "notes": [...]} per stage;
-    ``prediction`` = the S6 result; ``reproduction`` = {"passes", "verdicts": [{path, status, detail}]}."""
+    ``prediction`` = the S6 result; ``reproduction`` = {"passes", "verdicts": [{path, status, detail}]};
+    ``history`` = the campaign's change ledger (``entries``), the model development history."""
     values: list[ValueRef] = [ValueRef(id="acceptance_tier", value=map_doc.acceptance.tier,
                                        source=f"acceptance ruleset {map_doc.acceptance.ruleset}")]
     tables: list[TableRef] = [_study_table(map_doc), _cpf_table(final_cpf)]
@@ -141,8 +161,16 @@ def assemble_campaign_mar(
                     parts.append(f"The final {q} geometric mean fold error is {{{{value:{vid}}}}}.")
         return "\n\n".join(parts)
 
+    developed = ("S1", "S2", "S3", *(("SJ",) if "SJ" in stage_evidence else ()))
     development = tuple(MarSection(number=f"4.{i}", heading=f"{s} — {STAGE_TITLES[s]}", body=stage_body(s))
-                        for i, s in enumerate(("S1", "S2", "S3"), start=1))
+                        for i, s in enumerate(developed, start=1))
+    if history and history.get("entries"):
+        tables.append(_history_table(history["entries"]))
+        development += (MarSection(number=f"4.{len(development) + 1}", heading="Model development history",
+                                   body="Every change of the parameter set during development, in order: the parameters "
+                                        "it changed and the study verdicts it moved. A verdict that changed is listed "
+                                        "under the change that produced the parameter set it was judged on.\n\n"
+                                        "{{table:development_history}}"),)
     evaluation = tuple(MarSection(number=f"5.{i}", heading=f"{s} — {STAGE_TITLES[s]}", body=stage_body(s))
                        for i, s in enumerate(("S4", "S5"), start=1))
 

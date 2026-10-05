@@ -664,6 +664,28 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — the change ledger and the influence map (T-54, plan §12.3 N5 / N6)
+- **Change ledger** (`modeler_orchestrator.history.Ledger`, kept on the campaign record as `ledger`): every change of
+  the working parameter set is an entry (a fit round in S1–S3, a joint estimate that was kept) with the stage, the
+  cause, the parameters that changed (value before → after, unit, status, fitting stage; read from both CPFs, or a note
+  when they are not readable) and every study verdict the new set moved (fail → pass, pass → fail, with the model sets).
+  A study's verdict comes from its round flags (AUC or Cmax out of limits = fail). A verdict that changes is attached
+  to the entry that introduced the parameter set it was judged on; a trial estimate that was not kept (a rejected
+  joint fit) moves nothing. A resumed campaign continues its ledger.
+- **Influence map** (`history.influence_map`, campaign record `influence`): fitted, fittable and predicted parameters
+  × the studies the signed MAP simulates. Structural layer: whether the parameter is in the study's simulation
+  (compound parameters: every study; `form.<name>.*`: the studies of that product; `food.*`: fed studies). Quantitative
+  layer: the engine's normalized local sensitivity of AUC and Cmax from S6, for the parameters S6 ranked among a
+  study's most influential. Recomputed after every stage on the working parameter set.
+- **Monitor**: "Model development history" (the ledger) and "Influence map" (heat map; blank = not in the simulation)
+  cards. **MAR**: section 4 gains the SJ subsection when SJ ran and "Model development history" (table
+  `development_history`) from the ledger.
+- Why: with the non-linear backend a verdict can change because of a later stage's fit; the reviewer must be able to
+  see which change caused it (plan §12.1, §12.3). Verified on the scripted executor (S2's fit makes po-1 pass and
+  breaks iv-1, the joint refit mends iv-1: both listed under the change that caused them) and on the stub engine in
+  the browser (structural map only; the stub's numbers are not evidence). The sensitivities in the map are PK-Sim's
+  once S6 runs on the server.
+
 ### Changed — MS-01 v1.1 (UNVERIFIED): stage SJ, joint refinement, and the budget split (T-53, plan §12.3 N3, D-04)
 - **Science change, owner-approved (D-04: SJ yes, equal weights per study, S1-CI guard, budget S1 20 / S2 20 / S3 7 /
   SJ 15 %), UNVERIFIED pending SME sign-off; MS-01 bumped to v1.1** (`docs/PBPK_MODELING_WORKFLOW.md`, status line,

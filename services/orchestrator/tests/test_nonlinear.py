@@ -87,3 +87,53 @@ def test_a_regression_is_first_remedied_by_a_joint_refit_of_the_stages_up_to_it(
     campaign = FileReadStore(str(tmp_path)).get_campaign("t1", "camp-s")
     actions = [r["action"] for s in campaign["stages"] if s["stage"] == "S2" for r in s["rounds"]]
     assert "joint refit after the regression" in actions
+
+
+_STUDIES = {"S1": ["iv-1"], "S2": ["po-1"], "SJ": ["iv-1", "po-1"], "S4": ["iv-1", "po-1"]}
+
+
+@pytest.mark.req("T-54")
+def test_the_ledger_explains_every_verdict_change(tmp_path, monkeypatch):
+    """Plan §12.3 N6 (T-54 acceptance, in software): S2's fit (A → B) makes po-1 pass and breaks iv-1; the joint
+    refit (B → D) mends iv-1. Every verdict change is listed under the parameter change that caused it."""
+    patch_planning(monkeypatch)
+    stages = ["S0", "S1", "S2", "S4"]
+    executor = ScriptedExecutor(engine=None, writer=_writer(tmp_path, stages), studies=_STUDIES,  # type: ignore[arg-type]
+                                verdicts={("S2", "A"): "B", ("S1", "B"): False, ("SJ", "B"): "D"},
+                                base={("SJ", "B"): False}, study_ok={("po-1", "B"): True})
+    assert executor.run(request(stages)).status == "COMPLETED"
+    ledger = FileReadStore(str(tmp_path)).get_campaign("t1", "camp-s")["ledger"]
+    fit, joint = ledger["entries"]
+    assert (fit["stage"], fit["kind"], fit["cpf_before"], fit["cpf_after"]) == ("S2", "fit", "sha-A", "sha-B")
+    assert [(v["study_id"], v["before"], v["after"]) for v in fit["verdicts"]] == [("po-1", "fail", "pass"),
+                                                                                  ("iv-1", "pass", "fail")]
+    assert (joint["kind"], joint["cpf_before"], joint["cpf_after"]) == ("joint refit", "sha-B", "sha-D")
+    assert [(v["study_id"], v["before"], v["after"]) for v in joint["verdicts"]] == [("iv-1", "fail", "pass")]
+    assert ledger["current"] == "sha-D" and {s: v["verdict"] for s, v in ledger["verdicts"].items()} == {"iv-1": "pass",
+                                                                                                         "po-1": "pass"}
+    assert "not readable" in fit["note"]   # the scripted CPFs are not files: the parameter diff says so
+
+
+@pytest.mark.req("T-54")
+def test_a_trial_estimate_that_was_not_kept_moves_nothing(tmp_path, monkeypatch):
+    patch_planning(monkeypatch)
+    stages = ["S0", "S1", "S2", "SJ", "S4"]
+    executor = ScriptedExecutor(engine=None, writer=_writer(tmp_path, stages), studies=_STUDIES,  # type: ignore[arg-type]
+                                verdicts={("S2", "A"): "B", ("SJ", "B"): ("C", False)})
+    assert executor.run(request(stages)).final_cpf_sha256 == "sha-B"
+    ledger = FileReadStore(str(tmp_path)).get_campaign("t1", "camp-s")["ledger"]
+    assert [e["kind"] for e in ledger["entries"]] == ["fit"] and ledger["current"] == "sha-B"
+    assert all(v["cpf"] == "sha-B" or v["cpf"] == "sha-A" for v in ledger["verdicts"].values())
+    assert {v["verdict"] for v in ledger["verdicts"].values()} == {"pass"}      # C's failures are not on the record
+
+
+@pytest.mark.req("T-54")
+def test_the_ledger_continues_on_a_resumed_campaign(tmp_path, monkeypatch):
+    patch_planning(monkeypatch)
+    stages = ["S0", "S1", "S2", "S4"]
+    executor = ScriptedExecutor(engine=None, writer=_writer(tmp_path, stages), studies=_STUDIES,  # type: ignore[arg-type]
+                                verdicts={("S2", "A"): "B"})
+    executor.run(request(stages))
+    campaign = FileReadStore(str(tmp_path)).get_campaign("t1", "camp-s")
+    resumed = CampaignArtifactWriter.from_campaign(FileWriteStore(str(tmp_path)), "t1", campaign)
+    assert resumed.ledger.to_content() == campaign["ledger"] and resumed.ledger.current == "sha-B"

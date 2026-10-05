@@ -321,7 +321,7 @@ def _pandoc() -> str:
 def finish_package(tenant_id: str, campaign_id: str, *, files: dict[str, bytes], numeric: set[str], map_uri: str,
                    cpf_uri: str, evidence: dict[str, dict], prediction: dict | None, reproduction: dict,
                    engine_image_digest: str = "", projects: dict[str, bytes] | None = None,
-                   project_notes: list[str] | None = None) -> dict:
+                   project_notes: list[str] | None = None, history: dict | None = None) -> dict:
     """The MAR (from the evidence, the reproduction verdict and the data bundle hash), rendered; and, only when the
     reproduction passed, the downloadable package (zip with manifest and rerun_all.R, and the PK-Sim project of every
     bundled simulation, ``pksim/<stem>.pksim5``, when the engine converted it). Returns the package record."""
@@ -337,7 +337,8 @@ def finish_package(tenant_id: str, campaign_id: str, *, files: dict[str, bytes],
     data_manifest = assemble_bundle(f"{campaign_id}-data", campaign_id, files, numeric_paths=numeric,
                                     engine_image_digest=engine_image_digest, software_versions=map_doc.software_versions)
     mar = assemble_campaign_mar(map_doc=map_doc, final_cpf=cpf, stage_evidence=evidence, prediction=prediction,
-                                reproduction=reproduction, data_bundle_sha256=data_manifest.content_sha256())
+                                reproduction=reproduction, data_bundle_sha256=data_manifest.content_sha256(),
+                                history=history)
     issues = check_report(mar)
     out = campaign_dir(tenant_id, campaign_id) / "package"
     out.mkdir(parents=True, exist_ok=True)

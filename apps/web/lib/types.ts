@@ -97,12 +97,36 @@ export type PackageRecord = {
   report_notes?: string[];
 };
 export type EngineIdentity = { kind: "pksim" | "software-fixture" | "injected" | "unknown"; command: string };
+// Plan §12.3 N6: every change of the working parameter set and the study verdicts it moved.
+export type LedgerEntry = {
+  seq: number;
+  stage: string;
+  kind: string;
+  reason: string;
+  cpf_before: string;
+  cpf_after: string;
+  changes: { parameter: string; before: number | string | null; after: number | string | null; unit?: string | null; status?: string; fitted_at_stage?: string | null }[];
+  verdicts: { study_id: string; stage: string; before: string; after: string; model_set_before?: string | null; model_set_after?: string | null }[];
+  note?: string;
+};
+// Plan §12.3 N5: parameters × studies, structural (in the simulation) and quantitative (S6 sensitivity).
+export type InfluenceMap = {
+  cpf_sha256: string;
+  parameters: string[];
+  studies: string[];
+  cells: Record<string, Record<string, { structural: boolean; auc: number | null; cmax: number | null }>>;
+  quantitative: boolean;
+  status?: Record<string, string>;
+  fitted_at_stage?: Record<string, string | null>;
+};
 export type CampaignDetail = Campaign & {
   gof?: GofSeries[];
   prediction?: Prediction | null;
   package?: PackageRecord | null;
   engine?: EngineIdentity | null;
   realData?: Record<string, RealData>; // per stage, its last judged round
+  ledger?: { entries: LedgerEntry[] } | null;
+  influence?: InfluenceMap | null;
 };
 
 export type Escalation = {

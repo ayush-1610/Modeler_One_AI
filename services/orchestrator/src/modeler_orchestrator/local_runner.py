@@ -64,6 +64,7 @@ from modeler_orchestrator.campaign_activities import (
 )
 from modeler_orchestrator.fitting_activities import assess_round as assess_fit_round
 from modeler_orchestrator.fitting_activities import plan_jobs
+from modeler_orchestrator.history import Ledger, influence_map
 from modeler_orchestrator.memo import model_set
 from pbpk_domain.campaign.map import FIT_STAGES
 from pbpk_domain.data_origin import real_data_summary, signature_refusal
@@ -234,6 +235,8 @@ class CampaignArtifactWriter:
     package: dict | None = None     # the S7 record (reproduction verdict, report files, exportable package)
     engine: dict | None = None      # what produced the numbers (`engine_identity`): PK-Sim or a software fixture
     origins: dict[str, str | None] = field(default_factory=dict)  # study -> origin of its observed data (plan §9.4)
+    ledger: Ledger = field(default_factory=Ledger)  # every parameter-set change and the verdicts it moved (§12.3 N6)
+    influence: dict | None = None                   # parameters × studies on the working set (§12.3 N5)
     _started: float = field(default_factory=time.monotonic)
     _rounds: dict[str, list[dict]] = field(default_factory=dict)
     _status: dict[str, str] = field(default_factory=dict)
@@ -266,6 +269,8 @@ class CampaignArtifactWriter:
         writer.engine = campaign.get("engine")
         writer.package = campaign.get("package")
         writer.origins = dict(campaign.get("observedOrigins") or {})
+        writer.ledger = Ledger.from_content(campaign.get("ledger"))
+        writer.influence = campaign.get("influence")
         writer._started = time.monotonic() - float(campaign.get("elapsedSeconds", 0))
         return writer
 
@@ -304,6 +309,14 @@ class CampaignArtifactWriter:
             "realData": real_data,
             "modelSet": model_set,  # the parameter set, engine and scenarios this verdict judged (plan §12.3 N1)
         })
+        if model_set:
+            self.ledger.judged(stage=stage, cpf_sha=model_set["cpf_sha256"], model_set=model_set["id"],
+                               studies=evaluation.metrics.get("studies", []))
+
+    def record_change(self, stage: str, kind: str, reason: str, before: tuple[str, str], after: tuple[str, str]) -> None:
+        """A new working parameter set (uri, sha): recorded before the rounds judged on it, which explain themselves."""
+        if before[1] != after[1]:
+            self.ledger.change(stage=stage, kind=kind, reason=reason, before=before, after=after)
 
     def next_round(self, stage: str) -> int:
         return len(self._rounds.setdefault(stage, [])) + 1
@@ -333,6 +346,8 @@ class CampaignArtifactWriter:
             "engine": self.engine,
             "observedOrigins": self.origins,
             "realData": self.real_data(),
+            "ledger": self.ledger.to_content(),
+            "influence": self.influence,
             "resume": self.resume,
         })
 
@@ -485,6 +500,7 @@ class LocalExecutor:
                     self._passed.add(stage)
             outcomes.append(outcome)
             cpf_uri, cpf_sha = outcome.cpf_uri, outcome.cpf_sha256
+            self._influence(request, cpf_uri, cpf_sha)
             if outcome.status not in _STOP_STATUSES:
                 completed.append(stage)
                 self._persist(request, outcome)
@@ -560,6 +576,8 @@ class LocalExecutor:
                 action = pending_action or "baseline"
                 if pending_action and pending_action.startswith("fit") and not result.fitted:
                     action += " (fit produced no estimates; judged unchanged)"
+                self.writer.record_change(stage, "fit", f"round {round_index}: {action}", (ctx.cpf_uri, ctx.cpf_sha256),
+                                          (run_result.cpf_uri, run_result.cpf_sha256))
                 self.writer.add_round(stage, round_index, action, evaluation,
                                       model_set=self._model_set(request, stage, run_result.cpf_sha256))
                 self.writer.set_gof(_gof_series(run_result.results_uri, request.observed_uri), stage)
@@ -695,6 +713,7 @@ class LocalExecutor:
             cpf_uri=cpf_uri, evidence=evidence, prediction=(evidence.get("S6") or {}).get("prediction"),
             reproduction=reproduction, engine_image_digest=os.environ.get("MODELER_IMAGE_DIGEST", ""),
             projects=projects, project_notes=project_notes,
+            history=self.writer.ledger.to_content() if self.writer else None,
         )
         if self.writer:
             self.writer.package = record
@@ -782,7 +801,12 @@ class LocalExecutor:
             base_score is None or joint_score is None or joint_score <= base_score + 1e-9)
         if self.writer:
             what = "joint refit after the regression" if after_regression else "joint baseline (sequential estimates)"
-            self.writer.add_round(record_stage, self.writer.next_round(record_stage), what, base.evaluation, model_set=self._model_set(request, JOINT, cpf_sha))
+            self.writer.add_round(record_stage, self.writer.next_round(record_stage), what, base.evaluation,
+                                  model_set=self._model_set(request, JOINT, cpf_sha))
+            if kept:
+                self.writer.record_change(record_stage, "joint refit", f"joint fit of {', '.join(plan.fit_ids)} over {label} "
+                                          "kept: every internal study passes, agreement no worse", (cpf_uri, cpf_sha),
+                                          (joint.run_result.cpf_uri, joint.run_result.cpf_sha256))
             self.writer.add_round(record_stage, self.writer.next_round(record_stage), f"joint fit of {', '.join(plan.fit_ids)}",
                                   joint.evaluation, model_set=self._model_set(request, JOINT, joint.run_result.cpf_sha256))
         notes = [f"joint refinement over {len(studies) or 'the'} internal studies of {label} ({', '.join(studies)})"
@@ -807,6 +831,12 @@ class LocalExecutor:
         if self.writer:
             self.writer.stage_notes(record_stage, notes)
         return outcome
+
+    def _influence(self, request: CampaignRequest, cpf_uri: str, cpf_sha: str) -> None:
+        """The influence map on the working parameter set (plan §12.3 N5), with S6's sensitivities once they ran."""
+        map_doc = _local_json(request.map_uri) if request.map_uri else None
+        if self.writer and map_doc:
+            self.writer.influence = influence_map(map_doc, cpf_uri, self.writer.prediction, cpf_sha=cpf_sha)
 
     def _model_set(self, request: CampaignRequest, stage: str, cpf_sha: str) -> dict:
         map_doc = _local_json(request.map_uri) if request.map_uri else None

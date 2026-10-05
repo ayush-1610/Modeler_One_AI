@@ -4,7 +4,8 @@ Each round's verdict is looked up by (stage, parameter set): `verdicts[(stage, c
 the name of the parameter set a fit produces (the fitted set passes), or (name, passes). Before a fit, a round with a
 fit scripted fails and asks for the fit, except the joint stage's baseline, judged by `base[(stage, cpf)]` (default
 passes). `gmfe[(stage, cpf)]` is the agreement the joint
-stage compares. It exercises sequencing, propagation, joint refinement and feedback decisions only; every number in a
+stage compares. With `studies[stage]` set, rounds carry per-study results: each study's flags follow the round's
+verdict unless `study_ok[(study, cpf)]` says otherwise. It exercises sequencing, propagation, joint refinement and feedback decisions only; every number in a
 real campaign comes from the engine.
 """
 
@@ -40,11 +41,17 @@ class ScriptedExecutor(LocalExecutor):
     base: dict = field(default_factory=dict)
     gmfe: dict = field(default_factory=dict)
     joint_ids: tuple = ("phys.logp", "perm.intestinal")
+    studies: dict = field(default_factory=dict)
+    study_ok: dict = field(default_factory=dict)
     calls: list = field(default_factory=list)
 
-    def _metrics(self, stage: str, cpf: str) -> dict:
+    def _metrics(self, stage: str, cpf: str, passes: bool = True) -> dict:
         g = self.gmfe.get((stage, cpf), 1.3)
-        return {"AUC": {"gmfe": g}, "Cmax": {"gmfe": g}}
+        metrics: dict = {"AUC": {"gmfe": g}, "Cmax": {"gmfe": g}}
+        if self.studies:
+            ok = {sid: self.study_ok.get((sid, cpf), passes) for sid in self.studies.get(stage, [])}
+            metrics["studies"] = [{"study_id": sid, "auc_in_limits": v, "cmax_in_limits": v} for sid, v in ok.items()]
+        return metrics
 
     def _run_round(self, ctx, *, judge_only: bool = False) -> _RoundOutcome:
         cpf = cpf_name(ctx.cpf_sha256)
@@ -53,7 +60,7 @@ class ScriptedExecutor(LocalExecutor):
         if isinstance(verdict, str | tuple) and ctx.pending_action:            # the fit: a new parameter set
             name, passes = (verdict, True) if isinstance(verdict, str) else verdict
             run = RoundRunResult(results_uri="", cpf_uri=f"file:///cpf-{name}", cpf_sha256=f"sha-{name}")
-            return _RoundOutcome(run_result=run, evaluation=RoundEvaluation(passes, passes, self._metrics(ctx.stage, name),
+            return _RoundOutcome(run_result=run, evaluation=RoundEvaluation(passes, passes, self._metrics(ctx.stage, name, passes),
                                                                             [f"fitted {name}"]),
                                  diagnosis=RoundDiagnosis(), choice=None, notes=[], fitted=True)
         if isinstance(verdict, str | tuple):
@@ -63,7 +70,7 @@ class ScriptedExecutor(LocalExecutor):
         if verdict is True:
             return _RoundOutcome(run_result=run, evaluation=RoundEvaluation(True, True, self._metrics(ctx.stage, cpf), []),
                                  diagnosis=RoundDiagnosis(), choice=None, notes=[])
-        evaluation = RoundEvaluation(False, False, self._metrics(ctx.stage, cpf), [f"{ctx.stage} misses with parameter set {cpf}"])
+        evaluation = RoundEvaluation(False, False, self._metrics(ctx.stage, cpf, False), [f"{ctx.stage} misses with parameter set {cpf}"])
         if judge_only or verdict is False:
             return _RoundOutcome(run_result=run, evaluation=evaluation,
                                  diagnosis=RoundDiagnosis(escalate=verdict is False and not judge_only,

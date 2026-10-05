@@ -33,6 +33,10 @@ test("a new project from the published Dapagliflozin model runs from the wizard 
   await expect(page.locator(".spread .chip").first()).toHaveText(TERMINAL, { timeout: 8 * 60_000 });
   await expect(page.locator(".stage").first()).toContainText("S0");
   await expect(page.locator(".stage").first()).toContainText("passed");
+  // T-54: the influence map (parameters × studies) is drawn from the signed MAP and the working parameter set.
+  await expect(page.getByTestId("influence-map")).toBeVisible();
+  await expect(page.getByTestId("influence-map")).toContainText("elim.hepatic.UGT1A9.clspec");
+  await page.getByTestId("influence-map").screenshot({ path: test.info().outputPath("influence.png") });
   await page.screenshot({ path: test.info().outputPath("monitor.png"), fullPage: true });
   // What produced the numbers is on the page: a stub run is flagged, a PK-Sim run is not.
   if (process.env.E2E_ENGINE_COMMAND) await expect(page.getByTestId("engine-warning")).toHaveCount(0);

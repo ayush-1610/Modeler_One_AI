@@ -384,3 +384,15 @@ tr.pending { background: color-mix(in srgb, var(--warn) 8%, transparent); }
 .diff-to { color: var(--sim); font-weight: 600; }
 .dialog-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: grid; place-items: center; z-index: 50; padding: 16px; }
 .dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; width: min(560px, 100%); }
+
+/* T-54: development history and the influence heat map */
+ul.plain { list-style: none; margin: 0; padding: 0; }
+ul.plain li + li { margin-top: 2px; }
+.table-scroll { overflow-x: auto; }
+table.heat th.rot { vertical-align: bottom; padding: 4px 2px; }
+table.heat th.rot span { writing-mode: vertical-rl; transform: rotate(180deg); display: inline-block; max-height: 180px;
+                         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, ui-monospace, monospace);
+                         font-size: 11px; text-transform: none; letter-spacing: 0; }
+table.heat td:first-child { min-width: 220px; }
+table.heat td.heat-cell { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+table.heat td.heat-cell.out { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--line-soft) 4px 5px); }
