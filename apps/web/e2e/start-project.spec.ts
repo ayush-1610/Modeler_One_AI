@@ -31,7 +31,16 @@ test("a project starts from its technical proposal and the brief is edited with 
   await expect(page.getByTestId("brief-version")).toContainText("title from the proposal header");
   await page.screenshot({ path: test.info().outputPath("brief.png"), fullPage: true });
 
-  await page.goto(page.url().replace(/\/brief$/, "/history"));
+  // The data plan is derived from the brief (a draft until the brief is approved), with the feasibility beside it.
+  const briefUrl = page.url();
+  await page.getByTestId("tab-data-plan").click();
+  await page.getByRole("button", { name: "Derive from the brief" }).click();
+  await expect(page.getByTestId("req-REQ-phys.logp")).toContainText("Lipophilicity");
+  await expect(page.getByRole("button", { name: "Approve data plan" })).toBeDisabled();
+  await page.getByTestId("tab-feasibility").click();
+  await expect(page.getByTestId("feasibility")).toContainText("undetermined");
+
+  await page.goto(briefUrl.replace(/\/brief.*$/, "/history"));
   await expect(page.getByText("brief/main").first()).toBeVisible();
   await expect(page.getByText("hash chain verifies")).toBeVisible();
 });

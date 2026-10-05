@@ -1,0 +1,11 @@
+# Food effect (APP-12). Status UNVERIFIED (owner-approved plan 2026-10-05; awaiting SME sign-off).
+id: req-app-food-effect
+version: "2026.1-draft"
+status: UNVERIFIED
+applies_to: [APP-12]
+items:
+  - {id: REQ-fe.meal, label: Meal composition of each fed study, kind: dataset, target: meal, group: Food effect,
+     criticality: REQUIRED, data_category: clinical_pk_fed, default_provider: STUDY, needed_for: [S3, S5]}
+  - {id: REQ-fe.biorelevant, label: FaSSIF / FeSSIF solubility, kind: parameter, target: food.fed_solubility_factor,
+     group: Food effect, pksim_status: TO_HARVEST, criticality: REQUIRED, data_category: physchem,
+     default_provider: CLIENT, needed_for: [S3], note: "MS-01 rule 5: food effect predicted mechanistically, all fed studies external"}

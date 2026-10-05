@@ -1,0 +1,18 @@
+# Virtual bioequivalence / dissolution safe space (APP-11, APP-14): generic products against the RLD.
+# Status UNVERIFIED (owner-approved plan 2026-10-05; awaiting SME sign-off).
+id: req-app-vbe
+version: "2026.1-draft"
+status: UNVERIFIED
+applies_to: [APP-11, APP-14]
+items:
+  - {id: REQ-vbe.rld_dissolution, label: RLD and Test dissolution in the same media, kind: dataset, target: dissolution,
+     group: VBE, criticality: REQUIRED, data_category: dissolution, default_provider: CLIENT, needed_for: [S3, S6],
+     purpose: model_building, conditions: [media, pH, apparatus, rpm, 12 units, batches]}
+  - {id: REQ-vbe.be_study, label: Bioequivalence study data (reference arm at least), kind: dataset, target: BE study,
+     group: VBE, criticality: REQUIRED, data_category: rld_data, default_provider: CLIENT, needed_for: [S5, S6],
+     purpose: external_validation}
+  - {id: REQ-vbe.variability, label: Intra- and inter-subject variability of AUC and Cmax, kind: parameter, target: variability,
+     group: VBE, criticality: REQUIRED, data_category: rld_data, default_provider: LITERATURE, needed_for: [S6],
+     purpose: application_verification}
+  - {id: REQ-vbe.criteria, label: BE criteria (90 % CI of the GMR within 80–125 %), kind: parameter, target: be_limits,
+     group: VBE, criticality: REQUIRED, data_category: other, default_provider: PROPOSAL, needed_for: [S6]}

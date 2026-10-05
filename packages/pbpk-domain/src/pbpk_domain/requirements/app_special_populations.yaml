@@ -1,0 +1,14 @@
+# Pediatric, organ impairment, pregnancy (APP-06 to APP-10). Status UNVERIFIED (owner-approved plan 2026-10-05).
+id: req-app-special-populations
+version: "2026.1-draft"
+status: UNVERIFIED
+applies_to: [APP-06, APP-07, APP-08, APP-09, APP-10]
+items:
+  - {id: REQ-sp.ontogeny, label: Ontogeny of every named enzyme / transporter, kind: system, target: ontogeny, group: Special populations,
+     criticality: REQUIRED, data_category: other, default_provider: LIBRARY, needed_for: [S6]}
+  - {id: REQ-sp.studies, label: Clinical studies in the special population, kind: dataset, target: SPECIAL, group: Special populations,
+     criticality: CONDITIONAL, when: {}, condition_text: "verification of the application when available (MS-01 §3.3 rule 4)",
+     data_category: clinical_pk_special, default_provider: LITERATURE, needed_for: [S6], purpose: application_verification}
+  - {id: REQ-sp.physiology, label: "Disease-state physiology (Child-Pugh, eGFR) or population database", kind: system,
+     target: population, group: Special populations, pksim_status: TO_HARVEST, criticality: REQUIRED, data_category: other,
+     default_provider: LITERATURE, needed_for: [S6]}

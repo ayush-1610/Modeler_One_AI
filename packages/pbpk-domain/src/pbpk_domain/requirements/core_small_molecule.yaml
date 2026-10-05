@@ -1,0 +1,107 @@
+# Core requirement template: a small-molecule PBPK model in PK-Sim, IV and / or oral (APP-01).
+# Status UNVERIFIED: the items follow MS-01 §2.2 (parameters) and §3.3 (observed data); approved as part of the
+# start-up pipeline plan by the project owner on 2026-10-05, awaiting PBPK SME sign-off (T-30).
+id: req-core-small-molecule
+version: "2026.1-draft"
+status: UNVERIFIED
+applies_to: all
+items:
+  # --- identity and phys-chem -------------------------------------------------------------------------------------
+  - {id: REQ-phys.mw, label: Molecular weight, kind: parameter, target: phys.mw, group: Phys-chem,
+     pksim: {building_block: Compound, location: Molecular weight}, unit: g/mol, criticality: REQUIRED,
+     needed_for: [S0], data_category: physchem, default_provider: STRUCTURE, conditions: [free base or salt]}
+  - {id: REQ-phys.halogens, label: "Halogen counts (F, Cl, Br, I)", kind: parameter, target: phys.halogens, group: Phys-chem,
+     pksim: {building_block: Compound, location: "F, Cl, Br, I"}, unit: count, criticality: REQUIRED,
+     needed_for: [S0], data_category: physchem, default_provider: STRUCTURE}
+  - {id: REQ-phys.logp, label: Lipophilicity (logP / logD), kind: parameter, target: phys.logp, group: Phys-chem,
+     pksim: {building_block: Compound, location: 'Lipophilicity alternative "Lipophilicity"'}, unit: Log Units,
+     criticality: REQUIRED, needed_for: [S0, S1], data_category: physchem, default_provider: LITERATURE,
+     conditions: [logP or logD, pH, method, measured or predicted], plausibility: "measured ±1.5; predicted [-2, 7]"}
+  - {id: REQ-phys.pka, label: pKa values (or a documented neutral statement), kind: parameter, target: phys.pka, group: Phys-chem,
+     pksim: {building_block: Compound, location: PkaTypes}, criticality: REQUIRED, needed_for: [S0],
+     data_category: physchem, default_provider: LITERATURE, conditions: [acid or base, method, measured or predicted]}
+  - {id: REQ-phys.solubility.ref, label: Reference solubility and its pH, kind: parameter, target: phys.solubility.ref,
+     group: Phys-chem, pksim: {building_block: Compound, location: 'Solubility alternative "Solubility at reference pH", "Reference pH"'},
+     unit: mg/ml, criticality: REQUIRED, needed_for: [S0, S2], data_category: physchem, default_provider: LITERATURE,
+     conditions: [medium, pH, temperature, solid form]}
+  - {id: REQ-phys.solubility.table, label: Solubility vs pH table, kind: parameter, target: phys.solubility.table, group: Phys-chem,
+     pksim: {building_block: Compound, location: Solubility table alternative}, unit: mg/ml, criticality: CONDITIONAL,
+     when: {bcs: [II, IV]}, condition_text: "ionizable drug or BCS II / IV", needed_for: [S2],
+     data_category: physchem, default_provider: CLIENT, conditions: [buffer per pH]}
+  # --- binding and distribution ------------------------------------------------------------------------------------
+  - {id: REQ-bind.fu, label: Fraction unbound in plasma, kind: parameter, target: bind.fu, group: Binding,
+     pksim: {building_block: Compound, location: "FractionUnbound \"Fraction unbound (plasma, reference value)\""},
+     criticality: REQUIRED, needed_for: [S0, S1], data_category: binding, default_provider: LITERATURE,
+     conditions: [species, matrix, method, drug concentration]}
+  - {id: REQ-bind.partner, label: Plasma protein binding partner, kind: parameter, target: bind.partner, group: Binding,
+     pksim: {building_block: Compound, location: PlasmaProteinBindingPartner}, criticality: OPTIONAL,
+     needed_for: [S6], data_category: binding, default_provider: LITERATURE, note: needed for special populations}
+  - {id: REQ-dist.bp_ratio, label: Blood / plasma ratio, kind: parameter, target: dist.bp_ratio, group: Distribution,
+     pksim: {building_block: Compound, location: Blood/Plasma concentration ratio}, criticality: OPTIONAL,
+     needed_for: [S1], data_category: binding, default_provider: LITERATURE, conditions: [species, hematocrit]}
+  # --- permeability ------------------------------------------------------------------------------------------------
+  - {id: REQ-perm.intestinal, label: Intestinal permeability (or Caco-2 with its IVIVC), kind: parameter, target: perm.intestinal,
+     group: Permeability, pksim: {building_block: Compound, location: "IntestinalPermeability \"Specific intestinal permeability (transcellular)\""},
+     unit: cm/min, criticality: CONDITIONAL, when: {route: [oral]}, condition_text: oral administration, needed_for: [S2],
+     data_category: in_vitro_adme, default_provider: LITERATURE, conditions: [cell line, direction, IVIVC used]}
+  # --- elimination -------------------------------------------------------------------------------------------------
+  - {id: REQ-elim.pathway, label: At least one elimination pathway with its parameters, kind: parameter, target: elim,
+     group: Elimination, pksim: {building_block: Compound, location: "Processes (e.g. MetabolizationSpecific_FirstOrder, GlomerularFiltration)"},
+     criticality: REQUIRED, needed_for: [S0, S1], data_category: in_vitro_adme, default_provider: LITERATURE,
+     conditions: [system (HLM, hepatocytes, rCYP), protein or cell concentration, fu,inc, scaling factors]}
+  - {id: REQ-elim.fm, label: Fraction metabolized per pathway (clinical), kind: parameter, target: elim.fm, group: Elimination,
+     criticality: CONDITIONAL, when: {application: [APP-03, APP-04, APP-05]}, condition_text: DDI or pharmacogenomic application,
+     needed_for: [S6], data_category: clinical_ddi, default_provider: LITERATURE}
+  - {id: REQ-elim.renal, label: Renal elimination (fe or urine data), kind: parameter, target: elim.renal.gfr_fraction,
+     group: Elimination, pksim: {building_block: Compound, location: "GlomerularFiltration \"GFR fraction\""},
+     criticality: CONDITIONAL, when: {pathway: [renal]}, condition_text: renal elimination stated, needed_for: [S1],
+     data_category: urine_feces, default_provider: LITERATURE}
+  - {id: REQ-elim.biliary, label: Biliary or tubular-secretion clearance, kind: parameter, target: elim.biliary.cl, group: Elimination,
+     pksim_status: TO_HARVEST, criticality: CONDITIONAL, when: {pathway: [biliary, secretion]},
+     condition_text: biliary excretion or tubular secretion stated, needed_for: [S1], data_category: urine_feces,
+     default_provider: LITERATURE}
+  - {id: REQ-elim.mm, label: Km / Vmax of the saturable pathway, kind: parameter, target: "elim.hepatic.{enzyme}.km/vmax",
+     group: Elimination, pksim: {building_block: Compound, location: MetabolizationSpecific_MM}, criticality: CONDITIONAL,
+     when: {nonlinear: true}, condition_text: nonlinear pharmacokinetics stated, needed_for: [S2],
+     data_category: in_vitro_adme, default_provider: LITERATURE}
+  - {id: REQ-elim.ehc, label: Enterohepatic recycling evidence, kind: parameter, target: elim.ehc_fraction, group: Elimination,
+     criticality: CONDITIONAL, when: {ehc: true}, condition_text: enterohepatic recycling stated, needed_for: [S2],
+     data_category: clinical_pk_oral, default_provider: LITERATURE}
+  - {id: REQ-expr.profiles, label: Expression profile for every named enzyme / transporter, kind: system, target: expression,
+     group: System, pksim: {building_block: Individual, location: ExpressionProfiles}, criticality: REQUIRED,
+     needed_for: [S0], data_category: other, default_provider: LIBRARY,
+     note: "from the harvested OSP expression library; a protein without a profile is an S0 failure"}
+  # --- formulation (one per solid product) -------------------------------------------------------------------------
+  - {id: REQ-form.release, label: Release model of the product (dissolution), kind: formulation, target: "form.{product}",
+     group: Formulation, pksim: {building_block: Formulation, location: "Formulation_Tablet_Weibull / Formulation_Particles / Formulation_Dissolved"},
+     criticality: REQUIRED, per: solid_product, needed_for: [S3], data_category: dissolution, default_provider: CLIENT,
+     conditions: [medium, pH, apparatus, rpm, batch, vessels]}
+  - {id: REQ-food.fed_solubility, label: Fed-state solubility (FeSSIF / FaSSIF), kind: parameter, target: food.fed_solubility_factor,
+     group: Food, pksim_status: TO_HARVEST, criticality: CONDITIONAL, when: {food: [fed]}, condition_text: fed scenario or food-effect question,
+     needed_for: [S3], data_category: physchem, default_provider: CLIENT}
+  # --- system ------------------------------------------------------------------------------------------------------
+  - {id: REQ-sys.demographics, label: "Demographics of every study (age, sex, population, weight)", kind: system, target: individual,
+     group: System, pksim: {building_block: Individual, location: "OriginData (Species, Population, Gender, Age)"},
+     criticality: REQUIRED, needed_for: [S0], data_category: other, default_provider: STUDY}
+  # --- observed data (MS-01 §3.3) ----------------------------------------------------------------------------------
+  - {id: REQ-obs.iv_sd, label: IV single-dose study in healthy adults, kind: dataset, target: IV-SD, group: Observed data,
+     criticality: CONDITIONAL, when: {}, condition_text: "recommended; without IV data clearance and bioavailability are confounded (MS-01 §6.1)",
+     needed_for: [S1], data_category: clinical_pk_iv, default_provider: LITERATURE, purpose: model_building}
+  - {id: REQ-obs.po_fasted_range, label: Fasted oral single-dose studies at the lowest and highest dose, kind: dataset,
+     target: PO-SOL-FASTED / PO-IR-FASTED, group: Observed data, criticality: CONDITIONAL, when: {route: [oral]},
+     condition_text: oral administration, needed_for: [S2], data_category: clinical_pk_oral, default_provider: LITERATURE,
+     purpose: model_building}
+  - {id: REQ-obs.fed, label: Fed-state study (one more kept external), kind: dataset, target: PO-FED, group: Observed data,
+     criticality: CONDITIONAL, when: {food: [fed]}, condition_text: fed scenario or food-effect question, needed_for: [S3, S5],
+     data_category: clinical_pk_fed, default_provider: LITERATURE, purpose: external_validation}
+  - {id: REQ-obs.md, label: Multiple-dose study, kind: dataset, target: PO-MD, group: Observed data, criticality: OPTIONAL,
+     needed_for: [S5], data_category: clinical_pk_md, default_provider: LITERATURE, purpose: external_validation}
+  - {id: REQ-obs.external, label: "External validation studies (fasted, other dose, other formulation)", kind: dataset,
+     target: EXTERNAL, group: Observed data, criticality: REQUIRED, needed_for: [S5], data_category: clinical_pk_oral,
+     default_provider: LITERATURE, purpose: external_validation,
+     note: "MS-01 §3.3 rule 3: at least one per class that exists; otherwise external validation is not achievable"}
+  - {id: REQ-obs.urine, label: Urine excretion data, kind: dataset, target: urine, group: Observed data, criticality: CONDITIONAL,
+     when: {pathway: [renal]}, condition_text: renal elimination stated, needed_for: [S1], data_category: urine_feces,
+     default_provider: LITERATURE, purpose: model_building}
+  - {id: REQ-obs.bioanalytical, label: LLOQ and analyte of every study, kind: dataset, target: lloq, group: Observed data,
+     criticality: REQUIRED, needed_for: [S1, S2], data_category: bioanalytical, default_provider: STUDY}

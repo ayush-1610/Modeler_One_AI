@@ -1,0 +1,14 @@
+# Enzyme / transporter DDI (APP-03, APP-04). Status UNVERIFIED (owner-approved plan 2026-10-05; awaiting SME sign-off).
+id: req-app-ddi
+version: "2026.1-draft"
+status: UNVERIFIED
+applies_to: [APP-03, APP-04]
+items:
+  - {id: REQ-ddi.fm_clinical, label: Clinical support for fm (strong-inhibitor DDI or PGx study), kind: dataset, target: DDI,
+     group: DDI, criticality: REQUIRED, data_category: clinical_ddi, default_provider: LITERATURE, needed_for: [S6],
+     purpose: application_verification, note: "MS-01 §6.10: external validation of S6, never S1 training"}
+  - {id: REQ-ddi.inhibition, label: "In vitro Ki,u / kinact,KI / EC50,Emax", kind: parameter, target: ddi.perp, group: DDI,
+     pksim: {building_block: Compound, location: "CompetitiveInhibition / Induction processes"}, criticality: REQUIRED,
+     data_category: in_vitro_adme, default_provider: LITERATURE, needed_for: [S6], conditions: [system, fu,inc, probe substrate]}
+  - {id: REQ-ddi.perpetrator, label: Qualified perpetrator / victim models (OSP library), kind: system, target: co-compound,
+     group: DDI, criticality: REQUIRED, data_category: other, default_provider: LIBRARY, needed_for: [S6]}

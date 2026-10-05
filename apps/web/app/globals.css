@@ -293,3 +293,10 @@ tbody tr:last-child td { border-bottom: none; }
 .question { padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
 .issues { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
 @media (max-width: 1100px) { .brief-layout { grid-template-columns: 1fr; } .brief-side { position: static; } }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 6px 0 16px; }
+.tabs a { padding: 8px 14px; color: var(--ink-dim); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; }
+.tabs a:hover { color: var(--ink); }
+.tabs a.active { color: var(--brand-ink); border-bottom-color: var(--sim); }
+.plan-table td { vertical-align: top; }
+.plan-table tr.na { opacity: 0.55; }
+.plan-table select { max-width: 160px; }

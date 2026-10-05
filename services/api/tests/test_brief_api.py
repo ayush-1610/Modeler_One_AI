@@ -118,3 +118,44 @@ def test_extraction_with_a_scripted_agent_then_edit_preview_answer_and_approve(c
     bad = c.put(f"/api/v1/projects/{pid}/brief", headers=H,
                 json={"changes": [{"path": "drug.modality", "status": "EDITED", "value": "pill", "note": "x"}], "reason": "r"})
     assert bad.status_code == 422 and "not one of" in bad.json()["detail"]
+
+
+@pytest.mark.req("T-42")
+def test_approved_brief_derives_the_data_plan_which_takes_overrides_and_closes_p1(client):
+    c, store = client
+    pid = _initiate(c)
+    sha = next(d["sha256"] for d in c.get(f"/api/v1/projects/{pid}/documents", headers=H).json()["data"]["documents"]
+               if d["role"] == "proposal")
+    from modeler_project import ArtifactKind, Workspace
+    from modeler_project.brief import Citation, FieldStatus, ProjectBrief
+    from modeler_project.brief_ops import agent_set
+
+    ws = Workspace(store, "t1", pid)
+    brief = ProjectBrief.from_content(ws.latest(ArtifactKind.BRIEF, "main").content)
+    cite = (Citation(doc_sha256=sha, page=1, quote="single oral dose of 50 mg"),)
+    for path, value in [("proj.title", "Exampleamide PBPK"), ("proj.type", "research"), ("drug.modality", "small_molecule"),
+                        ("qoi.text", "exposure after 50 mg"), ("qoi.context_of_use", "internal decision"),
+                        ("qoi.applications", ["APP-01"]), ("products[0].name", "50 mg tablet"), ("products[0].role", "TEST"),
+                        ("scenarios[0].population", "healthy adults"), ("scenarios[0].route", "oral"),
+                        ("scenarios[0].dose", 50), ("data_plan[0].item", "clinical PK of EX-101"),
+                        ("data_plan[0].category", "clinical_pk_oral"), ("data_plan[0].provider", "CLIENT")]:
+        brief = agent_set(brief, path, value=value, unit=None, citations=cite, status=FieldStatus.EXTRACTED, confidence="A",
+                          by="agent:t")
+    ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), derived_from=ws.latest(ArtifactKind.BRIEF, "main").derived_from,
+              actor="agent:t", reason="filled")
+    assert c.post(f"/api/v1/projects/{pid}/requirements:approve", headers=H, json={}).status_code == 409
+
+    approved = c.post(f"/api/v1/projects/{pid}/brief:approve", headers=H, json={"note": "checked against the PDF"})
+    assert approved.status_code == 200, approved.text
+    plan = c.get(f"/api/v1/projects/{pid}/requirements", headers=H).json()["data"]
+    assert plan["brief_status"] == "APPROVED" and plan["counts"]["applicable"] > 10
+    po = next(i for i in plan["matrix"]["items"] if i["req_id"] == "REQ-obs.po_fasted_range")
+    assert po["provider"] == "CLIENT" and po["provider_statement"] == "clinical PK of EX-101"
+
+    changed = c.put(f"/api/v1/projects/{pid}/requirements/REQ-phys.logp", headers=H,
+                    json={"provider": "CLIENT", "reason": "the client measured logD7.4"}).json()["data"]
+    logp = next(i for i in changed["matrix"]["items"] if i["req_id"] == "REQ-phys.logp")
+    assert logp["provider"] == "CLIENT" and logp["provider_source"] == "override"
+    assert c.post(f"/api/v1/projects/{pid}/requirements:approve", headers=H, json={}).status_code == 200
+    phases = {p["phase"]: p["status"] for p in c.get(f"/api/v1/projects/{pid}/phases", headers=H).json()["data"]["phases"]}
+    assert phases["P1"] == "APPROVED"

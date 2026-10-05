@@ -1,0 +1,10 @@
+# FIH translation from preclinical species (APP-02). Status UNVERIFIED (owner-approved plan 2026-10-05).
+id: req-app-fih
+version: "2026.1-draft"
+status: UNVERIFIED
+applies_to: [APP-02]
+items:
+  - {id: REQ-fih.species_clint, label: In vitro CLint per species, kind: parameter, target: elim.species, group: FIH,
+     criticality: REQUIRED, data_category: in_vitro_adme, default_provider: CLIENT, needed_for: [S1]}
+  - {id: REQ-fih.preclinical_pk, label: Preclinical PK per species, kind: dataset, target: PRECLINICAL, group: FIH,
+     criticality: REQUIRED, data_category: other, default_provider: CLIENT, needed_for: [S1], purpose: model_building}

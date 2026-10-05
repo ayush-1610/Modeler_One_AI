@@ -664,6 +664,23 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — the P1 data plan and the feasibility check (T-42 / T-43)
+- **Requirement templates** (`pbpk_domain/requirements/*.yaml`, **UNVERIFIED**, version 2026.1-draft; owner-approved
+  with the plan, awaiting SME sign-off): the core small-molecule template (MS-01 §2.2 parameters with their PK-Sim
+  locations as MS-01 records them, the MS-01 §3.3 observed-data needs) and application templates for VBE, food
+  effect, DDI, special populations and FIH. Items not in the harvested catalog are marked *to harvest*, never named.
+- **The data plan** (`modeler_project.requirements`): derived deterministically from the brief. A condition is
+  true, false or *undetermined* when the brief does not say (shown, never assumed); formulation items repeat per
+  solid product. Each item's provider comes from a person's override (kept across re-derivations), else the
+  proposal's own data-plan statement (its words shown), else the template default; a client item can be flagged for
+  a literature cross-check (D-02). P2 searches exactly the literature items and the flagged client items.
+- **The feasibility check** (`modeler_project.feasibility`, plan §7.5): each feature the brief needs (modality,
+  routes, release types, expression profiles of the named proteins, clearance processes, populations,
+  applications) as supported, limited, needs harvest, not supported or undetermined, with the route to support.
+- API `/projects/{id}/requirements` (derive, view, override with a reason, approve); approving the brief derives the
+  data plan at once, and the P1 gate closes when both are approved. Web: *Data plan* and *Feasibility* tabs on
+  the P1 page; the Playwright flow covers them.
+
 ### Added — P0 initiate and the P1 Project Brief (T-41), with agent A1
 - **Start a project from its technical proposal** (`/projects/start`, `POST /api/v1/projects:initiate`): the drug
   name, any context, and any number of PDF, Word, Markdown, text, CSV or Excel files. Each file is kept unchanged in
