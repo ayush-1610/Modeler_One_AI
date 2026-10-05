@@ -10,10 +10,11 @@ that commit and §4 was not updated with it, §4 is stale — fix it before trus
 Modeler One automates PBPK model development on the open-source OSP engine (ospsuite R 12.4.x, PK-Sim 12.3, .NET 8,
 run as an isolated subprocess through `services/engine-worker/r/run_job.R`) and is meant to produce
 regulator-reproducible packages under ICH M15 and 21 CFR Part 11. The scientific procedure is MS-01
-(`docs/PBPK_MODELING_WORKFLOW.md`): stages **S0 readiness → S1 IV → S2 oral fasted → S3 formulation/fed → S4 internal
-validation → S5 external validation → S6 prediction → S7 report & package**.
+(`docs/PBPK_MODELING_WORKFLOW.md`): stages **S0 readiness → S1 IV → S2 oral fasted → S3 formulation/fed → SJ joint
+refinement → S4 internal validation → S5 external validation (with feedback cycles) → S6 prediction → S7 report &
+package** (MS-01 v1.2; SJ and the feedback cycles are UNVERIFIED pending SME sign-off).
 
-**What it is today:** a git repository (`main`), uv workspace, **429 Python tests pass (13 skip without Docker), ruff
+**What it is today:** a git repository (`main`), uv workspace, **740 Python tests (725 pass, 13 skip without Docker; in a cloud container 15 fail for want of the Temporal test server download and a root-run vault check), ruff
 clean**. It runs as a *single-node* tool: the web app (Next.js, :3000) proxies `/api/*` to the FastAPI service (:8000);
 campaigns execute in-process (`LocalExecutor`, `MODELER_EXECUTION_BACKEND=local`) with file-backed stores; simulations
 run on **real PK-Sim on the Linux server**. The distributed path (Temporal, Postgres with RLS, Keycloak, MinIO) is
@@ -30,9 +31,14 @@ builds from it; running that campaign on the server's PK-Sim is next. Active pla
 `docs/plans/2026-09-24-s0-s7-real-pbpk.md`.
 
 **Active plans (2026-10-05):** `docs/plans/2026-09-25-project-startup-pipeline.md` is **approved** (owner, v0.2,
-decision record in its §21) and being built: project phases P0–P6 in front of S0 (proposal intake, literature and
-client data, PK-Sim input pages, the P5 planning canvas) and the non-linear backend (SJ, feedback cycles). The
-S0–S7 plan's Phase 4 (real-data proof on PK-Sim) continues alongside it (`2026-09-24-remaining-to-goal.md`).
+decision record in its §21). Built and verified in software (stub engine, scripted executor, API tests, 11 Playwright
+flows): Lane A P0–P5 (T-40 → T-50: proposal intake and brief, requirements and data plan, literature evidence with the
+real-data rule, client data intake and reconciliation, dissolution, PK-Sim input pages / CPF v1, the P5 plan canvas
+with its signed MAP) and Lane B T-51 → T-55 (model sets, memoized runs, no-regression gate, SJ, change ledger and
+influence map, external-validation feedback cycles). **Next: T-56**, the end-to-end Dapagliflozin proof on the
+server's PK-Sim — every engine-dependent acceptance (Weibull equation, P4 dry run, ValueOrigin.Method, T-52 → T-55
+PK-Sim acceptances, run_pi.R per-study weights) is listed in the coverage table. The S0–S7 plan's Phase 4 continues
+alongside it (`2026-09-24-remaining-to-goal.md`).
 
 **Engine:** runs only on Linux — on macOS snapshot execution is unsupported and `loadProjectFromSnapshot` segfaults.
 Server `ssh adt-server` (LAN 192.168.1.10, user `adt-ayush`, no sudo, repo rsynced to `~/Modeler_One_AI`, engine in
@@ -204,7 +210,7 @@ T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) 
 Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
-## 4. Where things stand (2026-09-24)
+## 4. Where things stand (2026-10-05)
 
 ### 4.1 Pipeline coverage — update this table in the same commit as any stage change
 
@@ -256,7 +262,7 @@ exclusion decision (D5). This cloud session cannot reach the server (LAN only, n
 | Object store | `file://` — used. MinIO presigned I/O — not built |
 | Engine | Real PK-Sim on the server, and on the Mac through Docker (`deploy/dev/docker_engine.sh`, image from `services/engine-worker/Dockerfile`; set `MODELER_ENGINE_COMMAND="bash <repo>/deploy/dev/docker_engine.sh"`). `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
 | Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog, installed 2026-09-24) / Tailscale (installed userspace, awaiting the owner's login). Redeploy from the Mac: `bash deploy/dev/deploy_to_server.sh` |
-| Web | Dark design system, project wizard (starting points from `GET /templates`: the published Dapagliflozin model with real data, or the labelled illustrative quick check), data intake, campaign monitor with fold-error gauge and engine label (red banner for a software-fixture run), review inbox. No sample-data fallback: pages state the real problem. Playwright flows in `apps/web/e2e` (4, pass on the stub engine; the PK-Sim run of the same flow is pending) |
+| Web | Dark design system, project wizard (starting points from `GET /templates`: the published Dapagliflozin model with real data, or the labelled illustrative quick check), data intake, campaign monitor with fold-error gauge and engine label (red banner for a software-fixture run), review inbox (feedback decisions with their diagnosis), start-up pipeline pages (brief, requirements, evidence, client data, inputs, plan canvas), monitor with development history, influence map and feedback timeline. No sample-data fallback: pages state the real problem. Playwright flows in `apps/web/e2e` (11, pass on the stub engine; the PK-Sim run of the same flows is pending) |
 
 ### 4.3 Task status (specs in §2)
 
@@ -276,6 +282,9 @@ exclusion decision (D5). This cloud session cannot reach the server (LAN only, n
 | T-19, T-21, T-22, T-29 | Not started |
 | T-30 | Human (SME / QA sign-off) — pending |
 | T-31 | Not started — next phase after S0 → S7 |
+| Start-up pipeline T-40 → T-50 | Done in software (plan `2026-09-25-project-startup-pipeline.md`); A1–A5 agents run with scripted models in tests, live provider runs pending; D-14 (MAP deviations after signature) and D-15 (blinding) not built |
+| Non-linear backend T-51 → T-55 | Done in software; Temporal parity (SJ, feedback cycles) and A6 feedback proposals not built; PK-Sim acceptances pending |
+| T-56 | Not started — end-to-end Dapagliflozin proof on the server's PK-Sim (cannot run in a cloud container) |
 
 ### 4.4 How to run
 
