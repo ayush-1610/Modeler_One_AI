@@ -14,7 +14,7 @@ regulator-reproducible packages under ICH M15 and 21 CFR Part 11. The scientific
 refinement → S4 internal validation → S5 external validation (with feedback cycles) → S6 prediction → S7 report &
 package** (MS-01 v1.2; SJ and the feedback cycles are UNVERIFIED pending SME sign-off).
 
-**What it is today:** a git repository (`main`), uv workspace, **740 Python tests (725 pass, 13 skip without Docker; in a cloud container 15 fail for want of the Temporal test server download and a root-run vault check), ruff
+**What it is today:** a git repository (`main`), uv workspace, **753 Python tests (725 pass, 13 skip without Docker; in a cloud container 15 fail for want of the Temporal test server download and a root-run vault check), ruff
 clean**. It runs as a *single-node* tool: the web app (Next.js, :3000) proxies `/api/*` to the FastAPI service (:8000);
 campaigns execute in-process (`LocalExecutor`, `MODELER_EXECUTION_BACKEND=local`) with file-backed stores; simulations
 run on **real PK-Sim on the Linux server**. The distributed path (Temporal, Postgres with RLS, Keycloak, MinIO) is
