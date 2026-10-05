@@ -50,7 +50,11 @@ class ScriptedExecutor(LocalExecutor):
         metrics: dict = {"AUC": {"gmfe": g}, "Cmax": {"gmfe": g}}
         if self.studies:
             ok = {sid: self.study_ok.get((sid, cpf), passes) for sid in self.studies.get(stage, [])}
-            metrics["studies"] = [{"study_id": sid, "auc_in_limits": v, "cmax_in_limits": v} for sid, v in ok.items()]
+            # a failing study is over-predicted 2.6-fold, a passing one 1.1-fold (for the S5 diagnosis)
+            metrics["studies"] = [{"study_id": sid, "auc_in_limits": v, "cmax_in_limits": v,
+                                   "group": "fed" if sid.startswith("fed") else "fasted",
+                                   "observed_auc": 100.0, "predicted_auc": 110.0 if v else 260.0,
+                                   "observed_cmax": 10.0, "predicted_cmax": 11.0 if v else 26.0} for sid, v in ok.items()]
         return metrics
 
     def _run_round(self, ctx, *, judge_only: bool = False) -> _RoundOutcome:

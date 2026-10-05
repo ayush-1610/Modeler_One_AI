@@ -204,6 +204,9 @@ class CampaignRequest:
     max_rounds_per_stage: int = 4
     seed: int = 1
     signature_timeout_days: int = 14
+    # the external-validation feedback cycle (plan §12.3 N4): 1 for the first pass; a signed learn / new-evidence
+    # decision continues the campaign as cycle 2, 3 … so its rounds never overwrite an earlier cycle's artifacts
+    cycle: int = 1
 
 
 @dataclass
@@ -250,6 +253,7 @@ class RoundContext:
     # set on the post-fit pass: the fit's optimiser evidence (fit_signals), so a parameter the fit left at its bound,
     # a non-identifiable pair or disagreeing starts reach the diagnostics that judge this round
     fit_signals: dict | None = None
+    cycle: int = 1  # the feedback cycle the round belongs to (CampaignRequest.cycle)
 
 
 @dataclass

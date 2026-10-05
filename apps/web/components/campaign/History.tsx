@@ -15,10 +15,10 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
         {entries.map((e) => (
           <tr key={e.seq}>
             <td className="num">{e.seq}</td>
-            <td>{e.stage}</td>
+            <td>{e.stage}{(e.cycle ?? 1) > 1 ? <span className="muted"> · cycle {e.cycle}</span> : null}</td>
             <td><span className="chip neutral">{e.kind}</span> <span className="muted">{e.reason}</span></td>
             <td>
-              {e.changes.length === 0 ? <span className="muted">{e.note ?? "none"}</span> : (
+              {e.changes.length === 0 ? <span className="muted">{e.event ? "no parameter change" : e.note ?? "none"}</span> : (
                 <ul className="plain">
                   {e.changes.map((c) => (
                     <li key={c.parameter}><code>{c.parameter}</code> {num(c.before)} → <strong>{num(c.after)}</strong>

@@ -54,6 +54,7 @@ export type Round = {
   cmaxGmfe: number | null;
   verdict: string;
   realData?: RealData;
+  cycle?: number;
 };
 
 export type Stage = {
@@ -101,6 +102,8 @@ export type EngineIdentity = { kind: "pksim" | "software-fixture" | "injected" |
 export type LedgerEntry = {
   seq: number;
   stage: string;
+  cycle?: number;
+  event?: boolean;
   kind: string;
   reason: string;
   cpf_before: string;
@@ -127,6 +130,37 @@ export type CampaignDetail = Campaign & {
   realData?: Record<string, RealData>; // per stage, its last judged round
   ledger?: { entries: LedgerEntry[] } | null;
   influence?: InfluenceMap | null;
+  cycle?: number;
+  feedback?: FeedbackDecision[];
+  feedbackPending?: FeedbackDiagnosis | null;
+};
+
+// Plan §12.3 N4: the diagnosis of a failed external validation (S5), and the decisions it allows.
+export type FeedbackDiagnosis = {
+  cycle?: number;
+  failing: {
+    study_id: string; class: string; group?: string | null; failed: string[]; ratio: Record<string, number>;
+    direction: string; learn_stage: string; differences: string[];
+    influences: { parameter: string; auc: number | null; cmax: number | null }[];
+  }[];
+  classes: Record<string, { failing: string[]; unspent: string[]; cycles: number;
+    learn: { possible: boolean; reason: string; needs_deviation?: boolean } }>;
+  notAchievable: string[];
+  notes?: string[];
+};
+export type FeedbackDecision = {
+  cycle: number;
+  action: "limitation" | "learn" | "new_evidence" | "stop";
+  failing?: string[];
+  studies?: string[];
+  stages?: Record<string, string>;
+  statement?: string;
+  parameter?: string;
+  value?: number;
+  unit?: string | null;
+  reference?: string;
+  signature_id?: string;
+  note?: string;
 };
 
 export type Escalation = {
@@ -135,7 +169,8 @@ export type Escalation = {
   stage: string;
   reasonCode: string;
   evidence: string;
-  options: { id: string; label: string; requiresSignature: boolean }[];
+  options: { id: string; label: string; requiresSignature: boolean; disabled?: string }[];
+  feedback?: FeedbackDiagnosis;
 };
 
 export type Proposal = {

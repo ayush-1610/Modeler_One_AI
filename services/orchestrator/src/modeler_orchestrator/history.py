@@ -61,14 +61,23 @@ class Ledger:
         self.verdicts: dict[str, dict] = dict(verdicts or {})   # study -> its latest verdict on the working set
         self.current = current                                   # the working parameter set (CPF content hash)
 
-    def change(self, *, stage: str, kind: str, reason: str, before: tuple[str, str], after: tuple[str, str]) -> dict:
+    def change(self, *, stage: str, kind: str, reason: str, before: tuple[str, str], after: tuple[str, str],
+               cycle: int = 1) -> dict:
         """A new working parameter set: (uri, sha) before and after."""
         changes = parameter_changes(before[0], after[0])
-        entry = {"seq": len(self.entries) + 1, "stage": stage, "kind": kind, "reason": reason, "cpf_before": before[1],
-                 "cpf_after": after[1], "changes": changes or [], "verdicts": [],
+        entry = {"seq": len(self.entries) + 1, "stage": stage, "cycle": cycle, "kind": kind, "reason": reason,
+                 "cpf_before": before[1], "cpf_after": after[1], "changes": changes or [], "verdicts": [],
                  **({"note": "the CPFs are not readable here; parameter changes not listed"} if changes is None else {})}
         self.entries.append(entry)
         self.current = after[1]
+        return entry
+
+    def event(self, *, stage: str, kind: str, reason: str, cycle: int) -> dict:
+        """A change that is not a parameter change (a study moved to the internal set): on the record, explaining no
+        verdict by itself (the refits it leads to are their own entries)."""
+        entry = {"seq": len(self.entries) + 1, "stage": stage, "cycle": cycle, "kind": kind, "reason": reason,
+                 "cpf_before": self.current, "cpf_after": self.current, "changes": [], "verdicts": [], "event": True}
+        self.entries.append(entry)
         return entry
 
     def judged(self, *, stage: str, cpf_sha: str, model_set: str | None, studies: list[dict]) -> None:
@@ -77,7 +86,7 @@ class Ledger:
         if self.current and cpf_sha != self.current:
             return
         self.current = cpf_sha
-        entry = next((e for e in reversed(self.entries) if e["cpf_after"] == cpf_sha), None)
+        entry = next((e for e in reversed(self.entries) if e["cpf_after"] == cpf_sha and not e.get("event")), None)
         for study in studies:
             sid, verdict = str(study.get("study_id")), study_verdict(study)
             previous = self.verdicts.get(sid)

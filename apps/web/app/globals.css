@@ -396,3 +396,4 @@ table.heat th.rot span { writing-mode: vertical-rl; transform: rotate(180deg); d
 table.heat td:first-child { min-width: 220px; }
 table.heat td.heat-cell { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
 table.heat td.heat-cell.out { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--line-soft) 4px 5px); }
+.cycles { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }

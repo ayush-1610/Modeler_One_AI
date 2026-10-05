@@ -184,10 +184,44 @@ async def record_deviation(
 # endpoint applies the decision to the persisted campaign instead: retry / accept_best / abort (MS-01 §4).
 
 
+class FeedbackEvidence(BaseModel):
+    """New evidence after an S5 failure (plan §12.3 N4 c): one parameter's measured value, in the CPF's own unit."""
+
+    parameter: str = Field(min_length=1)
+    value: float
+    unit: str | None = None
+    reference: str = Field(min_length=1)
+
+
 class ResolveRequest(BaseModel):
-    # "approve" signs a gate (the S4/S5 evaluation before S6, MS-01 §4) and continues the campaign.
-    action: Literal["retry", "accept_best", "abort", "approve"]
+    # "approve" signs a gate (the S4/S5 evaluation before S6, MS-01 §4) and continues the campaign; "learn" and
+    # "new_evidence" answer a failed external validation (S5) with a new cycle (plan §12.3 N4).
+    action: Literal["retry", "accept_best", "abort", "approve", "learn", "new_evidence"]
     note: str = ""
+    studies: list[str] = Field(default_factory=list)  # learn: the failing studies to move (default: every learnable one)
+    beyond_cap: str = ""                              # learn beyond the cycle cap (D-05): the signed deviation reason
+    evidence: FeedbackEvidence | None = None          # new_evidence
+
+
+class FeedbackRequest(ResolveRequest):
+    action: Literal["accept_best", "learn", "new_evidence", "abort"]
+
+
+@router.post("/campaigns/{campaign_id}/feedback:decide")
+def decide_feedback(campaign_id: str, request: FeedbackRequest, principal: CurrentPrincipal) -> dict[str, Any]:
+    """The signed decision on a failed external validation (plan §12.4 FEEDBACK_PENDING): limitation (accept_best),
+    learn, new evidence, or stop (abort)."""
+    return resolve_escalation_decision(campaign_id, "S5", request, principal)
+
+
+def _payload(request: ResolveRequest) -> dict[str, Any] | None:
+    if request.action == "learn":
+        return {"studies": request.studies, "beyond_cap": request.beyond_cap}
+    if request.action == "new_evidence":
+        if request.evidence is None:
+            raise HTTPException(status_code=422, detail="new evidence needs the parameter, its value, unit and source")
+        return request.evidence.model_dump()
+    return None
 
 
 @router.post("/campaigns/{campaign_id}/stages/{stage}/escalation:resolve")
@@ -212,13 +246,25 @@ def resolve_escalation_decision(
     if project_id:
         require_project(project_id, principal)
 
-    from modeler_orchestrator.local_runner import gate_refusal, resolve_escalation  # lazy: orchestrator depends on this package
+    from modeler_orchestrator.feedback import decision_digest
+    from modeler_orchestrator.local_runner import (  # lazy: orchestrator depends on this package
+        check_feedback,
+        gate_refusal,
+        resolve_escalation,
+    )
 
     # Nothing judged on data that is not real is signed outside an exploratory project (plan §9.4, D-19); refused
     # before the signature is taken, so no signature exists for a decision that was not applied.
     if request.action == "approve" and (refusal := gate_refusal(campaign, FileReadStore(settings.read_root).get_project(
             principal.tenant_id, project_id or ""))):
         raise HTTPException(status_code=409, detail=refusal)
+    # A feedback decision's guardrails (plan §12.3 N4: spent studies, the cycle cap, the evidence's unit and source)
+    # are checked before the signature too.
+    payload = _payload(request)
+    try:
+        check_feedback(campaign, stage, request.action, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     # Every decision that resumes or ends a stage is an approval (MS-01 §4 / 21 CFR 11), so it is signed
     # before anything is applied — an unsigned decision must not be able to move the campaign.
@@ -226,15 +272,17 @@ def resolve_escalation_decision(
     signature = sign_after_step_up(
         signer=Signer(user_id=principal.user_id, printed_name=principal.printed_name),
         meaning=DECISION_MEANING, record_type="escalation", record_id=f"{campaign_id}-{stage}",
-        record_sha256=hashlib.sha256(
-            f"{campaign_id}:{stage}:{request.action}".encode()).hexdigest(),
+        # the signature binds the decision and, for a feedback cycle, its content (studies learned, evidence given)
+        record_sha256=decision_digest(campaign_id, stage, request.action, payload) if payload is not None
+        else hashlib.sha256(f"{campaign_id}:{stage}:{request.action}".encode()).hexdigest(),
         acr=principal.acr or "",
     )
 
     try:
         result = resolve_escalation(
             read_root=settings.read_root, tenant_id=principal.tenant_id,
-            campaign_id=campaign_id, stage=stage, action=request.action,
+            campaign_id=campaign_id, stage=stage, action=request.action, payload=payload,
+            signature_id=signature.signature_id, printed_name=principal.printed_name, note=request.note,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

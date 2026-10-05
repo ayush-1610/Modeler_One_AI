@@ -102,12 +102,72 @@ def _parameter_paths(cpf, records, scenario) -> tuple[list[str], list[str], list
     return paths, units, ids
 
 
+def _sensitivity_job(ctx: RoundContext, cpf, records, scenario, sim_input: list[EngineInput], *, base: str,
+                     label: str) -> EngineJob | None:
+    """The engine's local sensitivity of the study's plasma PK to `records` (None: none is in its simulation)."""
+    from pbpk_domain.campaign.prediction import SENSITIVITY_VARIATION
+
+    paths, _units, ids = _parameter_paths(cpf, records, scenario)
+    if not paths:
+        return None
+    return EngineJob(
+        job_id=f"{ctx.campaign_id}-{label}-sens-{scenario.study_id}", tenant_id=ctx.tenant_id, task="sensitivity",
+        inputs=sim_input, outputs_uri=f"{base}/sensitivity/{scenario.study_id}",
+        options={"study": scenario.study_id, "parameter_paths": paths, "cpf_ids": ids, "number_of_steps": 2,
+                 "variation_range": SENSITIVITY_VARIATION},
+        timeout_s=1800,
+    )
+
+
+def prepare_feedback_sensitivity(ctx: RoundContext, outputs: list[dict], study_ids: list[str]) -> tuple[list[EngineJob], list[str]]:
+    """Plan §12.3 N5: after S5 fails, the sensitivity of each failing external study's PK to the fitted and predicted
+    parameters, from the models S5 simulated (`outputs` of its judged round), so the feedback decision sees which
+    parameters act on it."""
+    from pbpk_domain.campaign.map import MapDocument
+    from pbpk_domain.campaign.prediction import sensitivity_candidates
+    from pbpk_domain.campaign.round_build import scenarios_for_stage
+    from pbpk_domain.cpf import CPF
+
+    cpf = CPF.model_validate_json(_path(ctx.cpf_uri).read_text(encoding="utf-8"))
+    map_doc = MapDocument.model_validate_json(_path(ctx.map_uri).read_text(encoding="utf-8"))
+    models = {Path(o["name"]).name: o for o in outputs if o["name"].endswith(".pkml")}
+    records = sensitivity_candidates(cpf)
+    base = f"{_root()}/tenants/{ctx.tenant_id}/campaigns/{ctx.campaign_id}/feedback/c{ctx.cycle}"
+    jobs, notes = [], []
+    for scenario in scenarios_for_stage(map_doc.scenarios, "S5"):
+        if scenario.study_id not in study_ids:
+            continue
+        model = models.get(exported_pkml_name(scenario.study_id))
+        if model is None:
+            notes.append(f"{scenario.study_id}: no exported model from S5; its sensitivity was not computed")
+            continue
+        sim_input = [EngineInput(name="simulation.pkml", uri=model["uri"], sha256=model["sha256"])]
+        if (job := _sensitivity_job(ctx, cpf, records, scenario, sim_input, base=base, label=f"S5-c{ctx.cycle}")) is not None:
+            jobs.append(job)
+    return jobs, notes
+
+
+def reduce_sensitivity(jobs: list[EngineJob], manifests: list[EngineManifest]) -> dict[str, list[dict]]:
+    """Per study, the sensitivity rows ranked by magnitude (CPF ids where known), the top `SENSITIVITY_TOP`."""
+    from pbpk_domain.campaign.prediction import parse_sensitivity
+
+    out: dict[str, list[dict]] = {}
+    for job, manifest in zip(jobs, manifests, strict=True):
+        outputs = {Path(o.name).name: o for o in manifest.outputs}
+        if job.task == "sensitivity" and "sensitivity.csv" in outputs:
+            by_path = dict(zip(job.options["parameter_paths"], job.options["cpf_ids"], strict=True))
+            rows = parse_sensitivity(_path(outputs["sensitivity.csv"].uri).read_bytes())
+            rows.sort(key=lambda r: abs(r.value), reverse=True)
+            out[job.options["study"]] = [{"parameter": by_path.get(r.parameter, r.parameter), "pk_parameter": r.pk_parameter,
+                                          "value": r.value} for r in rows[:SENSITIVITY_TOP]]
+    return out
+
+
 def prepare_s6_jobs(ctx: RoundContext, manifest: EngineManifest) -> tuple[list[EngineJob], list[str]]:
     """Per internal study: a sensitivity job and, when fitted parameters carry an SD, an uncertainty batch.
     Returns the jobs and the notes on what could not be done."""
     from pbpk_domain.campaign.map import MapDocument
     from pbpk_domain.campaign.prediction import (
-        SENSITIVITY_VARIATION,
         UNCERTAINTY_SAMPLES,
         sample_parameters,
         sensitivity_candidates,
@@ -137,15 +197,8 @@ def prepare_s6_jobs(ctx: RoundContext, manifest: EngineManifest) -> tuple[list[E
             notes.append(f"{scenario.study_id}: no exported model from the S6 simulation; not analysed")
             continue
         sim_input = [EngineInput(name="simulation.pkml", uri=model.uri, sha256=model.sha256)]
-        paths, _units, ids = _parameter_paths(cpf, sens_records, scenario)
-        if paths:
-            jobs.append(EngineJob(
-                job_id=f"{ctx.campaign_id}-S6-sens-{scenario.study_id}", tenant_id=ctx.tenant_id, task="sensitivity",
-                inputs=sim_input, outputs_uri=f"{base}/sensitivity/{scenario.study_id}",
-                options={"study": scenario.study_id, "parameter_paths": paths, "cpf_ids": ids, "number_of_steps": 2,
-                         "variation_range": SENSITIVITY_VARIATION},
-                timeout_s=1800,
-            ))
+        if (job := _sensitivity_job(ctx, cpf, sens_records, scenario, sim_input, base=base, label="S6")) is not None:
+            jobs.append(job)
         if draws:
             paths, units, ids = _parameter_paths(cpf, unc_records, scenario)
             if paths:
@@ -162,20 +215,14 @@ def prepare_s6_jobs(ctx: RoundContext, manifest: EngineManifest) -> tuple[list[E
 def evaluate_s6(ctx: RoundContext, jobs: list[EngineJob], manifests: list[EngineManifest]) -> dict:
     """Reduce the S6 jobs: sensitivity ranked by magnitude (CPF ids where known), and 5/50/95 % intervals of
     AUC (over the study's observed window) and Cmax from the uncertainty batch."""
-    from pbpk_domain.campaign.prediction import parse_sensitivity, prediction_interval, results_csv_pk
+    from pbpk_domain.campaign.prediction import prediction_interval, results_csv_pk
 
     observed = _read_json(ctx.observed_uri) if ctx.observed_uri else {}
-    sensitivity: dict[str, list[dict]] = {}
+    sensitivity = reduce_sensitivity(jobs, manifests)
     intervals: dict[str, dict] = {}
     for job, manifest in zip(jobs, manifests, strict=True):
         study = job.options["study"]
         outputs = {Path(o.name).name: o for o in manifest.outputs}
-        if job.task == "sensitivity" and "sensitivity.csv" in outputs:
-            by_path = dict(zip(job.options["parameter_paths"], job.options["cpf_ids"], strict=True))
-            rows = parse_sensitivity(_path(outputs["sensitivity.csv"].uri).read_bytes())
-            rows.sort(key=lambda r: abs(r.value), reverse=True)
-            sensitivity[study] = [{"parameter": by_path.get(r.parameter, r.parameter), "pk_parameter": r.pk_parameter,
-                                   "value": r.value} for r in rows[:SENSITIVITY_TOP]]
         if job.task == "batch" and "batch_index.json" in outputs:
             index = _read_json(outputs["batch_index.json"].uri) or {}
             times = ((observed or {}).get(study) or {}).get("profile", {}).get("times") or []

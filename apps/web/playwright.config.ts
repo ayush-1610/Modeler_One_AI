@@ -15,7 +15,9 @@ import { defineConfig } from "@playwright/test";
 const REPO = resolve(__dirname, "../..");
 const API_PORT = Number(process.env.E2E_API_PORT ?? 8011);
 const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3011);
-const DATA = process.env.E2E_DATA_DIR ?? mkdtempSync(join(tmpdir(), "modeler-e2e-"));
+// Set once in the runner process, so the workers (which re-read this file) and the specs that seed the read root
+// all see the same data directory as the servers.
+const DATA = (process.env.E2E_DATA_DIR ??= mkdtempSync(join(tmpdir(), "modeler-e2e-")));
 const ENGINE = process.env.E2E_ENGINE_COMMAND ?? `python3 ${REPO}/deploy/dev/stub_engine.py`;
 const API_BASE = `http://127.0.0.1:${API_PORT}`;
 

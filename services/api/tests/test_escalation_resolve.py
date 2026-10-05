@@ -173,3 +173,59 @@ def test_the_evaluation_of_test_data_is_refused_before_a_signature_is_taken(tmp_
     campaign = json.loads((tmp_path / "t1" / "campaigns.json").read_text())["campaigns"][0]
     assert campaign["status"] == "AWAITING_SIGNATURE"
     assert json.loads((tmp_path / "t1" / "escalations.json").read_text())["escalations"]
+
+
+FEEDBACK_URL = "/api/v1/campaigns/camp-1/feedback:decide"
+
+
+def _seed_feedback(tmp_path, *, learnable: bool):
+    """A campaign stopped at a failed external validation (S5) with its diagnosis."""
+    campaign = seed_campaign(tmp_path)
+    campaign["resume"]["escalated_stage"] = "S5"
+    reason = "confirmed afterwards on fed-2" if learnable else "external validation of PO-FED not achievable: no other"
+    campaign["resume"]["feedback"] = {
+        "failing": [{"study_id": "fed-1", "class": "PO-FED", "failed": ["AUC"], "learn_stage": "S3"}],
+        "classes": {"PO-FED": {"failing": ["fed-1"], "unspent": ["fed-2"] if learnable else [], "cycles": 0,
+                               "learn": {"possible": learnable, "reason": reason}}},
+        "notAchievable": [] if learnable else [reason],
+    }
+    (tmp_path / "t1" / "campaigns.json").write_text(json.dumps({"campaigns": [campaign]}))
+    (tmp_path / "t1" / "escalations.json").write_text(json.dumps({"escalations": [{"id": "camp-1-S5", "campaignId": "camp-1"}]}))
+
+
+@pytest.mark.req("T-55")
+def test_a_learn_the_guardrails_forbid_is_refused_before_a_signature_is_taken(tmp_path, monkeypatch):
+    _seed_feedback(tmp_path, learnable=False)
+    _patch_settings(monkeypatch, tmp_path)
+    app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
+    r = TestClient(app).post(FEEDBACK_URL, json={"action": "learn", "note": "try"}, headers=_auth())
+    assert r.status_code == 409 and "not achievable" in r.text
+    assert json.loads((tmp_path / "t1" / "escalations.json").read_text())["escalations"]      # still open
+    r = TestClient(app).post(FEEDBACK_URL, json={"action": "new_evidence"}, headers=_auth())
+    assert r.status_code == 422 and "parameter" in r.text
+    r = TestClient(app).post(FEEDBACK_URL, json={"action": "approve"}, headers=_auth())       # not a feedback decision
+    assert r.status_code == 422
+
+
+@pytest.mark.req("T-55")
+def test_a_feedback_signature_binds_the_decisions_content(tmp_path, monkeypatch):
+    import modeler_orchestrator.local_runner as runner
+    from modeler_orchestrator.feedback import decision_digest
+
+    _seed_feedback(tmp_path, learnable=True)
+    _patch_settings(monkeypatch, tmp_path)
+    app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
+    applied = {}
+    monkeypatch.setattr(runner, "resolve_escalation", lambda **kw: applied.update(kw) or {"status": "RUNNING"})
+    signed = {}
+    import modeler_api.escalations as esc
+
+    real_sign = esc.sign_after_step_up
+    monkeypatch.setattr(esc, "sign_after_step_up", lambda **kw: signed.update(kw) or real_sign(**kw))
+    r = TestClient(app).post(FEEDBACK_URL, json={"action": "learn", "studies": ["fed-1"], "note": "fed is the question"},
+                             headers=_auth())
+    assert r.status_code == 200, r.text
+    payload = {"studies": ["fed-1"], "beyond_cap": ""}
+    assert signed["record_sha256"] == decision_digest("camp-1", "S5", "learn", payload)
+    assert applied["payload"] == payload and applied["signature_id"] == r.json()["signature"]["signature_id"]
+    assert applied["printed_name"] == "Dr Reviewer" and applied["note"] == "fed is the question"

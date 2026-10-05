@@ -188,7 +188,8 @@ def _round_system(ctx, cpf):
 
 def _round_stem(ctx: RoundContext) -> str:
     """The round's artifact name; a post-fit re-simulation gets its own, so it never overwrites the main pass."""
-    return f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}" + (f"-{ctx.phase}" if ctx.phase else "")
+    return (f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}" + (f"-{ctx.phase}" if ctx.phase else "")
+            + (f"-c{ctx.cycle}" if ctx.cycle > 1 else ""))
 
 
 @activity.defn(name="resume_campaign")
@@ -503,14 +504,15 @@ def _apply_round_fit(ctx: RoundContext, fit_outcome) -> tuple[str, str]:
     try:
         best = next(s for s in fit_outcome.starts if s.start_index == fit_outcome.best_start_index)
         updated = apply_fit_estimates(CPF.model_validate_json(cpf_text), estimates, stage=ctx.stage,
-                                      run=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}",
+                                      run=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}" + (f"-c{ctx.cycle}" if ctx.cycle > 1 else ""),
                                       uncertainty=getattr(best, "uncertainty", None))
     except FitSpecError as exc:
         activity.logger.warning("run_round %s %s round %d: fit not applied (%s)", ctx.campaign_id, ctx.stage, ctx.round_index, exc)
         return ctx.cpf_uri, ctx.cpf_sha256
 
     payload = updated.model_dump_json().encode("utf-8")
-    out = _local_path(ctx.cpf_uri).parent / "cpf" / f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}.json"
+    cycle = f"-c{ctx.cycle}" if ctx.cycle > 1 else ""
+    out = _local_path(ctx.cpf_uri).parent / "cpf" / f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}{cycle}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(payload)
     activity.logger.info(

@@ -140,7 +140,13 @@ export async function startCampaign(
 export async function resolveEscalation(
   campaignId: string,
   stage: string,
-  body: { action: "retry" | "accept_best" | "abort" | "approve"; note?: string },
+  body: {
+    action: "retry" | "accept_best" | "abort" | "approve" | "learn" | "new_evidence";
+    note?: string;
+    studies?: string[];                // learn: the failing studies to move to the internal set
+    beyond_cap?: string;               // learn beyond the cycle cap (D-05): the deviation reason
+    evidence?: { parameter: string; value: number; unit: string | null; reference: string };  // new_evidence
+  },
 ): Promise<{ ok: boolean; status?: string; detail?: string; signature?: { manifestation: string } }> {
   const { ok, body: data, error } = await rawPost<{ status?: string; detail?: string; signature?: { manifestation: string } }>(
     `/api/v1/campaigns/${campaignId}/stages/${stage}/escalation:resolve`, body);

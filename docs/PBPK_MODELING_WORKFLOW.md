@@ -6,6 +6,11 @@
 start-up pipeline plan (decision D-04: SJ yes, equal weights per study, S1-CI guard, budget S1 20 / S2 20 / S3 7 / SJ
 15 %), awaiting SME sign-off. Code: `pbpk_domain.campaign.map.MS01_VERSION`.**
 
+**v1.2 (2026-10-05): §6.6 runs as an external-validation feedback cycle inside the campaign, with a third path "new
+evidence". UNVERIFIED — approved by the owner with the start-up pipeline plan (D-05: one learn cycle per class, more
+only by a signed deviation; D-06: new evidence re-judges the same external studies, flagged, with a model-risk review),
+awaiting SME sign-off.**
+
 This document is the operating procedure the platform executes for every compound. It is embedded verbatim, with its
 ruleset versions, in the Model Analysis Plan (MAP) of each project, so that what regulators read is what the machine ran.
 
@@ -356,6 +361,21 @@ revision (requires metabolite CPF and MoBi/PK-Sim metabolite processes).
    affected stage only, re-run S4 and S5. Allowed once per class.
 3. Else → external validation for that class is *not achievable*; the model may still be used with the M15 model risk
    rated accordingly, or the project waits for more data.
+
+**v1.2 (UNVERIFIED, D-05 / D-06): the feedback cycle.** An S5 failure stops the campaign for a signed decision; code
+diagnoses each failing study (metric, direction, class, documented differences from training, the parameters acting on
+it from the engine's sensitivity) and offers:
+- *limitation* — path 1 (or path 3 when the class cannot learn; "not achievable" is recorded);
+- *learn* — path 2, executed by the engine: the failing study moves to INTERNAL in a new MAP version signed by the
+  decision (it supersedes the signed MAP); the campaign re-enters at the stage its class trains (IV → S1; other dose
+  or MD → S2; fed or another, non-dissolved formulation → S3), refits that stage only, runs SJ (every internal study,
+  with the learned one), S4, and S5 on the external studies left. The learned study is spent: external claims rest
+  on the studies left. Once per class; a further cycle needs a signed deviation reason;
+- *new evidence* — one parameter takes a better **measured** value (its unit, its source, inside its plausibility
+  range; fixed, never fitted to the failing study); the whole chain re-runs from S1 and S5 re-judges the same studies,
+  flagged as prompted by S5, with a model-risk review;
+- *stop*.
+Every cycle is in the change ledger and the MAR's model development history.
 
 ### 6.7 No fed data
 Fed exposure is a prediction from the meal model and measured/estimated fed solubility; reported as prediction with the

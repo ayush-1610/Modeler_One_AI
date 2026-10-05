@@ -3,6 +3,7 @@ import { FoldError } from "@/components/FoldError";
 import { PackageDownloads } from "@/components/PackageDownloads";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
+import { FeedbackDiagnosisView, FeedbackTimeline } from "@/components/campaign/Feedback";
 import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
 import { getCampaign } from "@/lib/reads";
 
@@ -45,6 +46,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
     : [];
   const testOnly = Object.entries(c.realData ?? {}).filter(([, d]) => d.judged > 0 && !d.passable);
   const fmt = (v: number) => (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toPrecision(3));
+  const cycles = (c.cycle ?? 1) > 1; // a feedback cycle ran: rounds and changes say which cycle they belong to
 
   return (
     <main>
@@ -119,12 +121,13 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
       <Card title="Round history" action={<span className="muted">each round&apos;s agreement with the observed data</span>}>
           <table>
             <thead>
-              <tr><th>Stage</th><th className="num">Round</th><th>Action</th><th>AUC vs observed</th><th>Cmax vs observed</th><th>Judged studies</th><th>Verdict</th></tr>
+              <tr><th>Stage</th>{cycles && <th className="num">Cycle</th>}<th className="num">Round</th><th>Action</th><th>AUC vs observed</th><th>Cmax vs observed</th><th>Judged studies</th><th>Verdict</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i}>
                   <td>{r.stage}</td>
+                  {cycles && <td className="num">{r.cycle ?? 1}</td>}
                   <td className="num">{r.round}</td>
                   <td><code>{r.action}</code></td>
                   <td><FoldError ratio={r.aucGmfe ?? null} limit={foldLimit} label={`${r.stage} round ${r.round} AUC`} /></td>
@@ -139,6 +142,21 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
             </tbody>
         </table>
       </Card>
+
+      {(c.feedbackPending || (c.feedback?.length ?? 0) > 0) && (
+        <Card title="External-validation feedback" action={<span className="muted">cycle {c.cycle ?? 1}</span>}>
+          {(c.feedback?.length ?? 0) > 0 && <FeedbackTimeline decisions={c.feedback!} />}
+          {c.feedbackPending && (
+            <>
+              <div className="banner warn" data-testid="feedback-pending" style={{ margin: "8px 0" }}>
+                External validation failed: a signed decision is needed in the <a href="/review">review inbox</a> —
+                record a limitation, learn from the failing study, bring new evidence, or stop.
+              </div>
+              <FeedbackDiagnosisView diagnosis={c.feedbackPending} />
+            </>
+          )}
+        </Card>
+      )}
 
       {(c.ledger?.entries.length ?? 0) > 0 && (
         <Card title="Model development history" action={<span className="muted">each parameter change and the verdicts it moved</span>}>

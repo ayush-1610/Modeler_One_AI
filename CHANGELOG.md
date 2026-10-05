@@ -664,6 +664,42 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Changed — MS-01 v1.2 (UNVERIFIED): external-validation feedback cycles (T-55, plan §12.3 N4 / §12.4, D-05, D-06)
+- **Science change, owner-approved (D-05: one learn cycle per class, more only by a signed deviation; D-06: new evidence
+  re-judges the same external studies, flagged, with a model-risk review), UNVERIFIED pending SME sign-off; MS-01
+  bumped to v1.2** (`docs/PBPK_MODELING_WORKFLOW.md` status line and §6.6; `campaign.map.MS01_VERSION`).
+- **Diagnosis** (`modeler_orchestrator.feedback.diagnose`, `LocalExecutor._diagnose_s5`): when S5 fails, each failing
+  external study with the metric that failed, the direction (predicted / observed), its class, how it differs from the
+  training studies (fed with no fed training, formulation, dose range, multiple dose), and the parameters acting on it —
+  the engine's sensitivity for that study from the models S5 simulated (`prepare_feedback_sensitivity`), else the
+  structural map. Per class: the external studies left, the learn cycles used, and whether learn is possible.
+- **The decision** (review inbox, `POST /campaigns/{id}/feedback:decide` or `escalation:resolve` at S5), signed; the
+  signature binds the decision's content (`feedback.decision_digest`). Guardrails are checked before the signature
+  (`check_feedback`, 409): only failing studies can be learned; a class with no other external study cannot learn
+  ("not achievable", recorded); the cycle cap; new evidence must name a CPF parameter, give the value in the CPF's
+  own unit (no conversion), inside its plausibility range, with its source.
+  - *limitation* (`accept_best`): recorded on S5 (and in the MAR's limitations), the campaign goes on to the S4/S5
+    signature.
+  - *learn*: a new MAP version (supersedes the signed one, signed by the decision) moves the studies to INTERNAL at the
+    stage their class trains and S4; cycle c+1 runs [S(k), SJ, S4, S5, S6 …] — the affected stage only (MS-01 §6.6),
+    SJ re-judges and refines every internal study — and S5 judges the external studies left.
+  - *new evidence*: CPF vN+1 with the parameter fixed at the measured value (provenance: measured, source, the value it
+    supersedes); cycle c+1 re-runs S1 → S5; S5 is noted "prompted by S5 … model-risk review (D-06)".
+  - *stop* (`abort`): recorded.
+- **Record**: campaign `cycle`, `feedback` (every decision), `feedbackPending` (the diagnosis while waiting); rounds and
+  ledger entries carry their cycle (a learn is a ledger event, a new value a parameter change); the MAR's development
+  history names the cycle. A cycle's artifacts never overwrite an earlier cycle's: `CampaignRequest.cycle` /
+  `RoundContext.cycle` suffix round stems, fitted-CPF files and the SJ map (`-c2`; cycle 1 names unchanged).
+- **UI**: the review inbox shows the diagnosis, disables an option the guardrails forbid with the reason, asks for the
+  studies (learn) or the measured value and source (new evidence); the monitor shows the feedback timeline, the
+  pending diagnosis, and a Cycle column on rounds.
+- Verified on the scripted executor with a real MAP and CPF (fed-1 fails S5 → learn → S3 refit with fed-1, no-regression,
+  SJ, S4, S5 on fed-2 and fed-3; a single fed study cannot learn; new evidence re-runs S1 → S5 with the value fixed),
+  the API (refusal before signature, signature bound to the content) and the browser (seeded S5 failure → signed
+  limitation). **Known gaps:** the Temporal workflow does not run feedback cycles (single-node only, like SJ); A6 does
+  not propose a feedback decision; the PK-Sim acceptance (Dapagliflozin fed failure → learn → S5 on the remaining fed
+  study) is the server's.
+
 ### Added — the change ledger and the influence map (T-54, plan §12.3 N5 / N6)
 - **Change ledger** (`modeler_orchestrator.history.Ledger`, kept on the campaign record as `ledger`): every change of
   the working parameter set is an entry (a fit round in S1–S3, a joint estimate that was kept) with the stage, the

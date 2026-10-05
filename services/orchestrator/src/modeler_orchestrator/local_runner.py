@@ -64,7 +64,7 @@ from modeler_orchestrator.campaign_activities import (
 )
 from modeler_orchestrator.fitting_activities import assess_round as assess_fit_round
 from modeler_orchestrator.fitting_activities import plan_jobs
-from modeler_orchestrator.history import Ledger, influence_map
+from modeler_orchestrator.history import Ledger, influence_map, study_verdict
 from modeler_orchestrator.memo import model_set
 from pbpk_domain.campaign.map import FIT_STAGES
 from pbpk_domain.data_origin import real_data_summary, signature_refusal
@@ -237,6 +237,9 @@ class CampaignArtifactWriter:
     origins: dict[str, str | None] = field(default_factory=dict)  # study -> origin of its observed data (plan §9.4)
     ledger: Ledger = field(default_factory=Ledger)  # every parameter-set change and the verdicts it moved (§12.3 N6)
     influence: dict | None = None                   # parameters × studies on the working set (§12.3 N5)
+    cycle: int = 1                                  # the external-validation feedback cycle (§12.3 N4)
+    feedback: list[dict] = field(default_factory=list)  # every signed feedback decision, in order
+    feedback_pending: dict | None = None            # the S5 failure's diagnosis while a decision is awaited
     _started: float = field(default_factory=time.monotonic)
     _rounds: dict[str, list[dict]] = field(default_factory=dict)
     _status: dict[str, str] = field(default_factory=dict)
@@ -271,6 +274,9 @@ class CampaignArtifactWriter:
         writer.origins = dict(campaign.get("observedOrigins") or {})
         writer.ledger = Ledger.from_content(campaign.get("ledger"))
         writer.influence = campaign.get("influence")
+        writer.cycle = int(campaign.get("cycle", 1))
+        writer.feedback = list(campaign.get("feedback") or [])
+        writer.feedback_pending = campaign.get("feedbackPending")
         writer._started = time.monotonic() - float(campaign.get("elapsedSeconds", 0))
         return writer
 
@@ -308,6 +314,7 @@ class CampaignArtifactWriter:
             "findings": list(evaluation.findings),
             "realData": real_data,
             "modelSet": model_set,  # the parameter set, engine and scenarios this verdict judged (plan §12.3 N1)
+            "cycle": self.cycle,
         })
         if model_set:
             self.ledger.judged(stage=stage, cpf_sha=model_set["cpf_sha256"], model_set=model_set["id"],
@@ -316,7 +323,7 @@ class CampaignArtifactWriter:
     def record_change(self, stage: str, kind: str, reason: str, before: tuple[str, str], after: tuple[str, str]) -> None:
         """A new working parameter set (uri, sha): recorded before the rounds judged on it, which explain themselves."""
         if before[1] != after[1]:
-            self.ledger.change(stage=stage, kind=kind, reason=reason, before=before, after=after)
+            self.ledger.change(stage=stage, kind=kind, reason=reason, before=before, after=after, cycle=self.cycle)
 
     def next_round(self, stage: str) -> int:
         return len(self._rounds.setdefault(stage, [])) + 1
@@ -348,6 +355,9 @@ class CampaignArtifactWriter:
             "realData": self.real_data(),
             "ledger": self.ledger.to_content(),
             "influence": self.influence,
+            "cycle": self.cycle,
+            "feedback": self.feedback,
+            "feedbackPending": self.feedback_pending,
             "resume": self.resume,
         })
 
@@ -368,6 +378,18 @@ class CampaignArtifactWriter:
             "evidence": "Internal (S4) and external (S5) validation are complete. MS-01 requires them signed before "
                         "the model is used for prediction (S6) and the report and package are assembled (S7).",
             "options": _SIGNATURE_OPTIONS,
+        })
+
+    def record_feedback(self, diagnosis: dict, findings: list[str]) -> None:
+        """The review-inbox item for an S5 failure (plan §12.4 FEEDBACK_PENDING): the diagnosis and the decisions."""
+        self.feedback_pending = diagnosis
+        failing = "; ".join(f"{f['study_id']} ({f['class']}): {', '.join(f['failed'])} {f['direction']}"
+                            for f in diagnosis.get("failing", []))
+        self.store.upsert_escalation(self.tenant_id, {
+            "id": f"{self.campaign_id}-S5", "campaignId": self.campaign_id, "stage": "S5",
+            "reasonCode": "EXTERNAL_VALIDATION_FAILED",
+            "evidence": f"External validation failed (cycle {self.cycle}): {failing or '; '.join(findings)}.",
+            "options": diagnosis.get("options", _VALIDATION_OPTIONS), "feedback": diagnosis,
         })
 
     def record_escalation(self, stage: str, reason: str, findings: list[str]) -> None:
@@ -514,7 +536,12 @@ class LocalExecutor:
                         "request": asdict(original), "cpf_uri": cpf_uri, "cpf_sha256": cpf_sha,
                         "completed_stages": completed, "escalated_stage": stage,
                     }
-                    self.writer.record_escalation(stage, outcome.escalation_reason or "escalated", outcome.findings)
+                    if stage == "S5" and outcome.escalation_reason == _VALIDATION_FAILURE["S5"]:
+                        diagnosis = self._diagnose_s5(request, cpf_uri, cpf_sha)
+                        self.writer.resume["feedback"] = diagnosis
+                        self.writer.record_feedback(diagnosis, outcome.findings)
+                    else:
+                        self.writer.record_escalation(stage, outcome.escalation_reason or "escalated", outcome.findings)
                     self.writer.flush(current_stage=stage, status="ESCALATED")
                 # Carry the findings into the reason: a bare code like "stage_failed" tells the user nothing.
                 detail = outcome.escalation_reason or ""
@@ -555,7 +582,7 @@ class LocalExecutor:
                 pending_bounds_override=pending_bounds, deadline_seconds=remaining, seed=request.seed,
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
-                system_uri=request.system_uri, system_sha256=request.system_sha256,
+                system_uri=request.system_uri, system_sha256=request.system_sha256, cycle=request.cycle,
             )
             rounds_run = round_index
             try:
@@ -609,7 +636,7 @@ class LocalExecutor:
             cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, deadline_seconds=float(budget), seed=request.seed,
             map_uri=request.map_uri, map_sha256=request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
-            system_uri=request.system_uri, system_sha256=request.system_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256, cycle=request.cycle,
         )
         result = self._run_round(ctx, judge_only=True)
         evaluation = result.evaluation
@@ -660,7 +687,7 @@ class LocalExecutor:
             deadline_seconds=float(request.stage_budgets_seconds.get("S6", _DEFAULT_STAGE_BUDGET_S)),
             map_uri=request.map_uri, map_sha256=request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
-            system_uri=request.system_uri, system_sha256=request.system_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256, cycle=request.cycle,
         )
         build, manifest = self._simulate(ctx)
         if manifest is None:
@@ -741,7 +768,7 @@ class LocalExecutor:
                 deadline_seconds=float(request.stage_budgets_seconds.get(earlier, _DEFAULT_STAGE_BUDGET_S)),
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
-                system_uri=request.system_uri, system_sha256=request.system_sha256, phase=f"after-{stage}",
+                system_uri=request.system_uri, system_sha256=request.system_sha256, cycle=request.cycle, phase=f"after-{stage}",
             )
             result = self._run_round(ctx, judge_only=True)
             if self.writer:
@@ -782,14 +809,15 @@ class LocalExecutor:
                 self.writer.stage_notes(record_stage, [why])
             return StageOutcome(stage=JOINT, status="SKIPPED" if not after_regression else "ESCALATED", rounds_run=0,
                                 cpf_uri=cpf_uri, cpf_sha256=cpf_sha, findings=[why])
-        map_uri, map_sha, studies = self._joint_map(request, stages, tag=f"{request.campaign_id}-{stages[-1]}")
+        map_uri, map_sha, studies = self._joint_map(request, stages, tag=f"{request.campaign_id}-{stages[-1]}"
+                                                    + (f"-c{request.cycle}" if request.cycle > 1 else ""))
         budget = float(request.stage_budgets_seconds.get(JOINT, _DEFAULT_STAGE_BUDGET_S))
         base_ctx = RoundContext(
             campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=JOINT, round_index=1, cpf_uri=cpf_uri,
             cpf_sha256=cpf_sha, pending_action=None, deadline_seconds=budget, seed=request.seed,
             map_uri=map_uri or request.map_uri, map_sha256=map_sha or request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
-            system_uri=request.system_uri, system_sha256=request.system_sha256,
+            system_uri=request.system_uri, system_sha256=request.system_sha256, cycle=request.cycle,
             phase="after-regression" if after_regression else "",
         )
         base = self._run_round(base_ctx, judge_only=True)
@@ -831,6 +859,39 @@ class LocalExecutor:
         if self.writer:
             self.writer.stage_notes(record_stage, notes)
         return outcome
+
+    def _diagnose_s5(self, request: CampaignRequest, cpf_uri: str, cpf_sha: str) -> dict:
+        """Plan §12.3 N4 step 1: each failing external study — metric, direction, class, the parameters acting on it
+        (the engine's sensitivity for that study, N5) and how it differs from training — and the decisions allowed."""
+        from modeler_orchestrator.feedback import diagnose
+        from modeler_orchestrator.package_activities import prepare_feedback_sensitivity, reduce_sensitivity
+        from pbpk_domain.cpf import CPF
+
+        map_doc = (_local_json(request.map_uri) if request.map_uri else None) or {}
+        last = self._last.get("S5") or {}
+        studies = (last.get("metrics") or {}).get("studies", [])
+        failing = [str(s.get("study_id")) for s in studies if study_verdict(s) == "fail"]
+        notes: list[str] = []
+        sensitivity: dict[str, list[dict]] = {}
+        if failing and last.get("outputs") and request.map_uri:
+            ctx = RoundContext(
+                campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage="S5", round_index=1, cpf_uri=cpf_uri,
+                cpf_sha256=cpf_sha, pending_action=None, seed=request.seed, map_uri=request.map_uri,
+                map_sha256=request.map_sha256, cycle=request.cycle,
+            )
+            try:
+                jobs, notes = prepare_feedback_sensitivity(ctx, last["outputs"], failing)
+                sensitivity = reduce_sensitivity(jobs, self._run_jobs(jobs))
+            except Exception as exc:  # noqa: BLE001 - the decision is still offered; the gap is stated
+                notes.append(f"sensitivity of the failing studies not computed: {type(exc).__name__}: {exc}")
+        influence = influence_map(map_doc, cpf_uri, {"sensitivity": sensitivity}, cpf_sha=cpf_sha) if map_doc else None
+        if self.writer and influence:
+            self.writer.influence = influence
+        text = _local_text(cpf_uri)
+        cpf = CPF.model_validate_json(text) if text else None
+        diagnosis = diagnose(map_doc, studies, influence=influence, history=self.writer.feedback if self.writer else [],
+                             cpf=cpf)
+        return {**diagnosis, "cycle": request.cycle, "notes": notes}
 
     def _influence(self, request: CampaignRequest, cpf_uri: str, cpf_sha: str) -> None:
         """The influence map on the working parameter set (plan §12.3 N5), with S6's sensitivities once they ran."""
@@ -969,13 +1030,45 @@ def gate_refusal(campaign: dict, project: dict | None) -> str | None:
     return signature_refusal(summaries, exploratory=bool((project or {}).get("exploratory")))
 
 
-# MS-01 §4 decisions a reviewer may take on an escalated stage.
-ESCALATION_ACTIONS = ("retry", "accept_best", "abort", "approve")
+# MS-01 §4 decisions a reviewer may take on an escalated stage; learn and new evidence answer an S5 failure (§12.3 N4).
+ESCALATION_ACTIONS = ("retry", "accept_best", "abort", "approve", "learn", "new_evidence")
+_FEEDBACK_CYCLES = ("learn", "new_evidence")
+
+
+def _learn_studies(diagnosis: dict, payload: dict) -> list[str]:
+    """The studies a learn decision moves: the ones named, else every failing study whose class may learn."""
+    if payload.get("studies"):
+        return [str(s) for s in payload["studies"]]
+    return [f["study_id"] for f in diagnosis.get("failing", [])
+            if diagnosis["classes"].get(f["class"], {}).get("learn", {}).get("possible")]
+
+
+def check_feedback(campaign: dict, stage: str, action: str, payload: dict | None) -> None:
+    """The guardrails of a feedback decision, checked before it is signed (ValueError: refused, with the reason)."""
+    from modeler_orchestrator.feedback import check_evidence, check_learn
+
+    if action not in _FEEDBACK_CYCLES:
+        return
+    resume = campaign.get("resume") or {}
+    diagnosis = resume.get("feedback")
+    if stage != "S5" or resume.get("escalated_stage") != "S5" or not diagnosis:
+        raise ValueError(f"{action.replace('_', ' ')} answers a failed external validation (S5) awaiting a decision")
+    payload = payload or {}
+    if action == "learn":
+        check_learn(_learn_studies(diagnosis, payload), diagnosis, beyond_cap=str(payload.get("beyond_cap", "")))
+        return
+    try:
+        value = float(payload.get("value"))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise ValueError("new evidence needs a numeric value") from None
+    check_evidence(resume["cpf_uri"], parameter=str(payload.get("parameter", "")), value=value,
+                   unit=payload.get("unit") or None, reference=str(payload.get("reference", "")))
 
 
 def resolve_escalation(
     *, read_root: str, tenant_id: str, campaign_id: str, stage: str, action: str,
-    engine: EngineRun | None = None, background: bool = True,
+    engine: EngineRun | None = None, background: bool = True, payload: dict | None = None,
+    signature_id: str = "", printed_name: str = "", note: str = "",
 ) -> dict:
     """Apply a signed review-inbox decision to a single-node campaign (MS-01 §4).
 
@@ -983,6 +1076,10 @@ def resolve_escalation(
     ``accept_best`` — the best CPF found so far is accepted and the remaining stages continue.
     ``retry``       — the stage runs again from the CPF it escalated with (e.g. after new data or a wider bound).
     ``approve``     — a signature gate (the S4/S5 evaluation before S6) is signed and the campaign continues.
+    ``learn``       — S5 failed: the failing studies move to the internal set (a MAP deviation signed by this decision)
+                      and cycle c+1 runs from the stage they train through SJ, S4 and S5 on the studies left.
+    ``new_evidence``— S5 failed: one parameter takes a measured value (`payload`: parameter, value, unit, reference)
+                      and cycle c+1 runs the whole chain; S5 re-judges the same studies, flagged as prompted by S5.
 
     Continuing runs the remaining stages on a background thread, exactly as starting a campaign does, so the
     caller returns immediately and the monitor fills in live. Raises LookupError/ValueError for a campaign that
@@ -1003,6 +1100,7 @@ def resolve_escalation(
 
     if action == "approve" and (refusal := gate_refusal(campaign, read.get_project(tenant_id, campaign.get("project", "")))):
         raise ValueError(refusal)
+    check_feedback(campaign, stage, action, payload)
 
     request = CampaignRequest(**resume["request"])
     writer = CampaignArtifactWriter.from_campaign(write, tenant_id, campaign)
@@ -1010,7 +1108,12 @@ def resolve_escalation(
     completed = list(resume.get("completed_stages", []))
     cpf_uri, cpf_sha = resume["cpf_uri"], resume["cpf_sha256"]
 
+    diagnosis = resume.get("feedback")
+    writer.feedback_pending = None
     if action == "abort":
+        if diagnosis:  # §12.4: stop → ABANDONED, on the record with the studies that failed
+            writer.feedback.append({"cycle": writer.cycle, "action": "stop", "signature_id": signature_id, "note": note,
+                                    "failing": [f["study_id"] for f in diagnosis.get("failing", [])]})
         writer.stage_status(stage, "ABORTED")
         writer.resume = None
         writer.flush(current_stage=stage, status="ABORTED")
@@ -1019,6 +1122,18 @@ def resolve_escalation(
     if action == "accept_best":
         writer.stage_status(stage, "ACCEPTED")
         completed.append(stage)
+        if diagnosis:  # MS-01 §6.6 path 1: the failure is a limitation of the context of use, on the record
+            failing = [f["study_id"] for f in diagnosis.get("failing", [])]
+            writer.feedback.append({"cycle": writer.cycle, "action": "limitation", "failing": failing,
+                                    "signature_id": signature_id, "note": note})
+            writer.stage_notes("S5", [f"limitation (cycle {writer.cycle}, signed {signature_id or 'decision'}): "
+                                      f"{', '.join(failing)} failed external validation; the context of use is restricted"
+                                      + (f" ({note})" if note else ""), *diagnosis.get("notAchievable", [])])
+    elif action in _FEEDBACK_CYCLES:
+        request, cpf_uri, cpf_sha, queue = _start_cycle(writer, request, diagnosis or {}, action, payload or {},
+                                                        cpf_uri=cpf_uri, cpf_sha=cpf_sha, signature_id=signature_id,
+                                                        printed_name=printed_name, note=note)
+        completed = [s for s in completed if s not in queue]
 
     remaining = [s for s in request.stages if s != "S0" and s not in completed]
     writer.resume = None
@@ -1046,6 +1161,48 @@ def resolve_escalation(
         _continue()
     return {"campaign_id": campaign_id, "stage": stage, "action": action, "status": "RUNNING",
             "remaining_stages": remaining}
+
+
+def _start_cycle(writer: CampaignArtifactWriter, request: CampaignRequest, diagnosis: dict, action: str, payload: dict, *,
+                 cpf_uri: str, cpf_sha: str, signature_id: str, printed_name: str, note: str):
+    """Plan §12.4: a learn or new-evidence decision starts cycle c+1. Returns the campaign request the cycle runs
+    under (the deviated MAP for learn), the CPF it starts from, and the stages it re-runs (the queue)."""
+    from modeler_orchestrator.feedback import PROMPTED_BY_S5, learn_map, new_evidence_cpf
+
+    failing = [f["study_id"] for f in diagnosis.get("failing", [])]
+    writer.cycle += 1
+    cycle = writer.cycle
+    order = {s: i for i, s in enumerate(STAGE_LABELS)}
+    if action == "learn":
+        map_uri, map_sha, deviation = learn_map(
+            request.map_uri, _learn_studies(diagnosis, payload), diagnosis, cycle=cycle, reason=note,
+            signature_id=signature_id, printed_name=printed_name or "reviewer", beyond_cap=str(payload.get("beyond_cap", "")))
+        entry = min(deviation["stages"].values(), key=order.__getitem__)
+        writer.feedback.append({**deviation, "action": "learn", "failing": failing, "note": note})
+        writer.ledger.event(stage="S5", kind="learn", reason=deviation["statement"], cycle=cycle)
+        writer.stage_notes("S5", [f"cycle {cycle}: {deviation['statement']}"])
+        request = replace(request, map_uri=map_uri, map_sha256=map_sha, cycle=cycle)
+    else:
+        value, unit = float(payload["value"]), payload.get("unit") or None
+        reference = str(payload.get("reference", ""))
+        new_uri, new_sha = new_evidence_cpf(cpf_uri, parameter=str(payload["parameter"]), value=value, unit=unit,
+                                            reference=reference, cycle=cycle, campaign_id=request.campaign_id, failing=failing)
+        reason = (f"{payload['parameter']} = {value:g}{' ' + unit if unit else ''} measured ({reference}), "
+                  f"{PROMPTED_BY_S5} ({', '.join(failing)})")
+        writer.record_change("S5", "new evidence", reason, (cpf_uri, cpf_sha), (new_uri, new_sha))
+        writer.feedback.append({"cycle": cycle, "action": "new_evidence", "parameter": payload["parameter"], "value": value,
+                                "unit": unit, "reference": reference, "failing": failing, "signature_id": signature_id,
+                                "note": note})
+        writer.stage_notes("S5", [(f"cycle {cycle}: S5 re-judges the same external studies after {reason}; the verdict "
+                                   "needs a model-risk review (D-06)")])
+        cpf_uri, cpf_sha = new_uri, new_sha
+        entry = "S1"
+        request = replace(request, cycle=cycle)
+    # learn refits the affected stage only (MS-01 §6.6), then SJ re-judges and refines every internal study, S4 and
+    # S5 follow (plan §12.4: [S(k), SJ, S4, S5]); new evidence re-runs the whole chain from S1
+    skipped = set(FIT_STAGES) - {entry} if action == "learn" else set()
+    queue = [s for s in request.stages if s != "S0" and order.get(s, 99) >= order[entry] and s not in skipped]
+    return request, cpf_uri, cpf_sha, queue
 
 
 def _request_from_spec(spec: dict) -> CampaignRequest:

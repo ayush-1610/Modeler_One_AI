@@ -104,8 +104,10 @@ def _history_table(entries: Sequence[Mapping]) -> TableRef:
         changes = [f"{c['parameter']} {_value(c.get('before'))} → {_value(c.get('after'))}" + (f" {c['unit']}" if c.get("unit") else "")
                    for c in e.get("changes", [])]
         verdicts = [f"{v['study_id']} {v['before']} → {v['after']}" for v in e.get("verdicts", [])]
-        rows.append((str(e.get("seq")), str(e.get("stage")), f"{e.get('kind')}: {e.get('reason')}",
-                     "; ".join(changes) or e.get("note", "none"), "; ".join(verdicts) or "none"))
+        stage = str(e.get("stage")) + (f" (cycle {e['cycle']})" if (e.get("cycle") or 1) > 1 else "")
+        rows.append((str(e.get("seq")), stage, f"{e.get('kind')}: {e.get('reason')}",
+                     "; ".join(changes) or ("no parameter change" if e.get("event") else e.get("note", "none")),
+                     "; ".join(verdicts) or "none"))
     return TableRef(id="development_history", title="Model development history",
                     columns=("Change", "Stage", "Cause", "Parameters changed", "Study verdicts moved"), rows=tuple(rows),
                     source="campaign change ledger")
