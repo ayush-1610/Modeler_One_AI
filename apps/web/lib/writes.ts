@@ -192,3 +192,25 @@ export function listTemplates() {
 export function getTemplate(id: string) {
   return authed<TemplateContent>(`/api/v1/templates/${id}`, "GET");
 }
+
+// --- generic client calls for the start-up pipeline pages (P0–P6) ---------------------------------------------
+
+export function apiGet<T>(path: string) {
+  return authed<T>(path, "GET");
+}
+
+export function apiSend<T>(path: string, method: "POST" | "PUT", body?: unknown) {
+  return authed<T>(path, method, body ?? {});
+}
+
+/** Multipart upload (files and form fields); the browser sets the multipart boundary itself. */
+export async function apiUpload<T>(path: string, form: FormData): Promise<Envelope<T>> {
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", headers: { Authorization: `Bearer ${WEB_TOKEN}` }, body: form, cache: "no-store" });
+  } catch {
+    return errorEnvelope("The web server could not be reached. Check your connection to it.");
+  }
+  if (!res.ok) return errorEnvelope(await failure(res));
+  return (await res.json()) as Envelope<T>;
+}

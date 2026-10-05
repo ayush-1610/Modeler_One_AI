@@ -219,6 +219,20 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 | S6 prediction | sensitivity + uncertainty on the question | **Partial — PK-Sim** | runs after the signed S4/S5 gate; local sensitivity over FITTED/PREDICTED parameters; uncertainty of fitted parameters (n = 200) → AUC/Cmax intervals; verified on the server (known-truth) | application templates (T-31); correlated sampling; Temporal wiring | next phase |
 | S7 report & package | MAR, M15 table, bundle, re-run | **Partial — PK-Sim** | evidence persisted per stage; data bundle; fresh-engine re-run compared at 1e-6; MAR (MD, DOCX, PDF/A-2b) with evidence index; zip released only if reproduction passed; the PK-Sim project of each bundled simulation (`pksim/*.pksim5`, engine `convert_to_project`; not yet run in a campaign on the server); 7/7 tables reproduced on the server | MAR signature; M15 influence/consequence capture; Temporal wiring (download API and monitor card done) | Phase 3 |
 
+
+**Project start-up pipeline (plan `2026-09-25-project-startup-pipeline.md`), phase coverage** — update with each phase change:
+
+| Phase | Job | Status | What exists and works | What is missing | Plan item |
+|---|---|---|---|---|---|
+| spine | versions, staleness, impact, audit | **Done** | `modeler_project`: immutable artifact versions with upstream refs, computed staleness, impact preview, approvals bound to hashes, hash-chained audit (same hash as Postgres); phase rail, History page | Postgres tables (`artifact_versions`, `artifact_edges`) | T-40 |
+| P0 initiate | proposal + drug name | **Done** | `POST /projects:initiate` (PDF, DOCX, Markdown, text, CSV, XLSX → quotable pages), `/projects/start` page | OCR for scanned PDFs | T-41 |
+| P1 brief | fixed brief, review L1 | **Partial** | brief schema §6, A1 agent on Gemini (live: 36 fields from a synthetic proposal, citations verified by code), manual editing with reasons and impact preview, questions, named approval; PubChem identity + RDKit cross-check (PubChem unreachable from the build container) | data plan / requirement matrix, feasibility (T-42/T-43); A1 eval set on real proposals | T-41 → T-43 |
+| P2 literature | evidence + observed data, L2a | Not started | literature agent exists (Anthropic SDK) | rewire to Gemini/Groq + REST sources, evidence register, observed-data extraction, digitizer | T-44/T-45 |
+| P3 client data | Excel, dissolution, L2b | Not started | Excel intake + mapping agent exist | template, triage, reconciliation, f2, Weibull fit | T-47/T-48 |
+| P4 inputs | CPF from evidence, readiness | Not started | CPF, completeness, builder | assembly from evidence, PK-Sim input pages, dry run | T-49 |
+| P5 plan | canvas, MAP from plan, L3 | Not started | split, MAP, signatures | ModelPlan, validator, canvas D1/D2/D3, A5 | T-50 |
+| SJ / feedback | non-linear backend | Not started | multi-simulation PI spec | model sets, no-regression, SJ, influence, feedback | T-51 → T-55 |
+
 Roadblocks R1–R13 are defined in the active plan. **Evidence rule:** a stage is "Done" only when a campaign has passed
 it on real PK-Sim, not on a stub or the analytical stand-in.
 

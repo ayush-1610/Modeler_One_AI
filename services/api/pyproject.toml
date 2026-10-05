@@ -16,12 +16,15 @@ dependencies = [
   "pbpk-domain",
   "modeler-contracts",
   "modeler-project",
+  "modeler-agents",
+  "python-multipart>=0.0.9",
 ]
 
 [tool.uv.sources]
 pbpk-domain = { workspace = true }
 modeler-contracts = { workspace = true }
 modeler-project = { workspace = true }
+modeler-agents = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

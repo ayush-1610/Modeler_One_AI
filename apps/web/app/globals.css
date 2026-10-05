@@ -265,3 +265,31 @@ tbody tr:last-child td { border-bottom: none; }
 .phase.history { flex: 0 0 auto; min-width: 92px; }
 .diff-add { color: var(--pass); }
 .diff-del { color: var(--fail); text-decoration: line-through; }
+
+/* --- P0 / P1: start page, brief review, document viewer ---------------------------------------------------- */
+.dropzone { display: grid; gap: 4px; place-items: center; text-align: center; padding: 28px 16px; cursor: pointer;
+  border: 1.5px dashed var(--line); border-radius: var(--radius); background: var(--raised); }
+.dropzone.over { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 8%, var(--raised)); }
+.brief-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
+.brief-layout .card + .card { margin-top: 16px; }
+.brief-side { position: sticky; top: 16px; }
+.brief-table { width: 100%; }
+.brief-table th { width: 32%; text-align: left; font-weight: 500; color: var(--ink-dim); vertical-align: top; }
+.brief-table td { vertical-align: top; }
+.brief-table tr.has-issue th { color: var(--fail); }
+.brief-table .note { font-size: 12px; margin-top: 2px; }
+.group-table td { white-space: nowrap; }
+.group-table .cell { all: unset; cursor: pointer; border-bottom: 1px dotted var(--ink-faint); }
+.group-table td.cell-missing .cell { color: var(--ink-faint); }
+.cite { font: inherit; font-size: 11px; padding: 1px 6px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid var(--line); background: var(--raised); color: var(--brand-ink); }
+.cite.dot { margin-left: 4px; }
+.editor { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--raised); margin: 6px 0; }
+.multi { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; font-size: 13px; }
+.doc-viewer select { max-width: 60%; }
+.doc-page { white-space: pre-wrap; font-family: var(--font-mono), monospace; font-size: 12px; line-height: 1.55;
+  max-height: 70vh; overflow-y: auto; margin: 0; padding: 10px; background: var(--raised); border-radius: var(--radius-sm); }
+.doc-page mark { background: color-mix(in srgb, var(--obs) 35%, transparent); color: inherit; padding: 0 1px; }
+.question { padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.issues { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+@media (max-width: 1100px) { .brief-layout { grid-template-columns: 1fr; } .brief-side { position: static; } }

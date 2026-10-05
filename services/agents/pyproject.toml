@@ -9,10 +9,12 @@ dependencies = [
   "mcp>=1.0",
   "pydantic>=2.11",
   "modeler-intake",
+  "modeler-project",
 ]
 
 [tool.uv.sources]
 modeler-intake = { workspace = true }
+modeler-project = { workspace = true }
 
 [project.optional-dependencies]
 bedrock = ["anthropic[bedrock]"]

@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from modeler_api.auth import Principal, require_role
+from modeler_api.brief_api import router as brief_router
 from modeler_api.campaign_api import router as campaign_router
 from modeler_api.config import get_settings
 from modeler_api.escalations import router as escalations_router
@@ -59,6 +60,7 @@ app.include_router(read_router)
 app.include_router(write_router)
 app.include_router(templates_router)
 app.include_router(project_router)
+app.include_router(brief_router)
 
 
 @app.get("/health")

@@ -6,11 +6,15 @@ requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.11",
   "pyyaml>=6",
+  "httpx>=0.27",
+  "rdkit>=2024.9",
   "pbpk-domain",
+  "modeler-intake",
 ]
 
 [tool.uv.sources]
 pbpk-domain = { workspace = true }
+modeler-intake = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

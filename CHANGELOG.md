@@ -664,6 +664,31 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — P0 initiate and the P1 Project Brief (T-41), with agent A1
+- **Start a project from its technical proposal** (`/projects/start`, `POST /api/v1/projects:initiate`): the drug
+  name, any context, and any number of PDF, Word, Markdown, text, CSV or Excel files. Each file is kept unchanged in
+  the write-once blob store and read into quotable pages (`modeler_intake.documents`: pypdf, python-docx, openpyxl);
+  a PDF without a text layer is reported as needing OCR, never guessed. The typed context is stored as a document
+  too, so it can be cited like the proposal. The earlier wizard stays as the quick start.
+- **The Project Brief** (`modeler_project.brief`, plan §6): one fixed schema for every project, sections A–J; every
+  field is a record with status (entered, extracted, retrieved, computed, edited, confirmed, missing, not
+  applicable), citations (document hash, page, verbatim quote, locator) and a confidence grade. Lists (products with
+  TEST / RLD roles, scenarios, populations, the data plan of who provides what) are groups. Approval (D-07: a named
+  "Reviewed" approval) is refused while a required field is missing or a question is open.
+- **Agent A1** (`modeler_agents.proposal_intake`): proposes one field at a time; code accepts it only if the field
+  and option exist, the number fits, and the quote is found verbatim on the cited page; rejections go back to the
+  model with the reason. A field a person entered, edited, confirmed or marked not applicable is never overwritten
+  (merged after the run, so edits made during it survive), and the M15 ratings and risk tier are never proposed.
+  Live on Gemini (`gemini-3.1-flash-lite`) with a synthetic proposal: 36 fields accepted with verified quotes,
+  2 rejected by the citation check. Agent runs and every step are kept per tenant (`FileRunStore`).
+- **Drug identity**: PubChem lookup stored as a retrieved-record document (values quoted from exactly what PubChem
+  returned) and an RDKit cross-check (formula, MW, InChIKey, halogen counts; a stated MW that disagrees with the
+  structure raises a question). PubChem is blocked from the build container; it must be reachable from the server.
+- **The L1 review page** (`/projects/{id}/brief`): the brief by section beside the source document, citation chips
+  that open the page with the quote marked, inline edits that require a reason and can preview their impact, open
+  questions, and what blocks approval. Playwright flow `e2e/start-project.spec.ts` (upload → brief → edit → history)
+  passes against the real API.
+
 ### Added — agents on Gemini or Groq (decision D-16)
 - **`modeler_agents.llm`**: one OpenAI-compatible client for the owner's two providers (Gemini, Groq) and a
   provider-agnostic tool loop: the model calls tools, deterministic handlers check and record what it proposes and
