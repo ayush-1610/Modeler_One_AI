@@ -664,6 +664,26 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — P2 literature evidence: the evidence register and agent A2 (T-44)
+- **Evidence register** (`modeler_project.evidence`, `evidence_register`): every value that may enter a model is an
+  EVIDENCE artifact (proposed → accepted / rejected, each decision a new version with its reason) carrying the
+  source (document page, locator, title, authors, year, DOI / PMID / URL), the verbatim quote, the conditions, the
+  extraction method, the purpose and the provider. **Code** converts the stated value to the PK-Sim storage unit
+  (`pbpk_domain.parameter_units`: plain unit changes only; CLint → CLspec is IVIVE and waits for a person) and grades
+  it A–D (plan §8.4) with flags (value not in the quote, missing conditions, species mismatch, physically impossible
+  value). Conflicts (> 2-fold between items of one parameter) are computed when read, shown side by side, never
+  averaged. Coverage per data-plan item; the P2 gate closes only when every required literature item has accepted
+  evidence or is recorded as not available (which changes the data plan, re-approved).
+- **Agent A2** (`modeler_agents.evidence_agent`) on the provider-agnostic loop: searches Europe PMC, reads abstracts
+  and open-access full texts (`modeler_agents.sources`: JATS → text with tables as rows) and the uploaded documents;
+  every text is stored as a document before it can be cited, and every proposal is checked by code against exactly
+  that text. Papers that are not open access become access requests that a person fulfils by uploading the PDF.
+  Europe PMC is unreachable from the build container (tested with a mocked API); the server must reach it (D-17).
+- API `/projects/{id}/evidence` (view, `:research`, manual proposal with a checked quote or a DOI / PMID / URL,
+  `:decide`, `:approve`) and access-request fulfilment; data-plan items can be marked not available. Web: the L2a page
+  (`/projects/{id}/evidence`) with proposals side by side per item, grades, flags, quotes and the source page; the
+  Playwright flow covers the manual path.
+
 ### Added — the P1 data plan and the feasibility check (T-42 / T-43)
 - **Requirement templates** (`pbpk_domain/requirements/*.yaml`, **UNVERIFIED**, version 2026.1-draft; owner-approved
   with the plan, awaiting SME sign-off): the core small-molecule template (MS-01 §2.2 parameters with their PK-Sim

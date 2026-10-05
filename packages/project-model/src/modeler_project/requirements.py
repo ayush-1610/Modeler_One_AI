@@ -43,6 +43,7 @@ class RequirementOverride(BaseModel):
     provider: Provider | None = None
     purpose: str | None = None
     cross_check: bool | None = None
+    status: Literal["OPEN", "NOT_AVAILABLE", "WAIVED"] | None = None   # a person's call that it cannot / need not be met
     reason: str = Field(min_length=1)
     by: str
     at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -250,7 +251,8 @@ def _item(raw: dict[str, Any], template: str, req_id: str, product: str | None, 
         purpose=purpose, due_date=str(due) if due else None,
         cross_check=bool(override.cross_check) if override and override.cross_check is not None else False,
         conditions=tuple(raw.get("conditions", ())), plausibility=str(raw.get("plausibility", "")), product=product,
-        note=str(raw.get("note", "")), status=previous.status if previous else "OPEN",
+        note=str(raw.get("note", "")),
+        status=override.status if override and override.status else (previous.status if previous else "OPEN"),
         satisfied_by=previous.satisfied_by if previous else (),
     )
 

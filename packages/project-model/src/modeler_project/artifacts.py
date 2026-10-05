@@ -24,6 +24,7 @@ class ArtifactKind(StrEnum):
     REQUIREMENTS = "requirements"    # P1: the requirement matrix / data plan (§7)
     FEASIBILITY = "feasibility"      # P1/P4: what the PK-Sim builder can and cannot produce for this brief (§7.5)
     EVIDENCE = "evidence"            # P2/P3: one proposed or accepted value or dataset with its source (§8)
+    ACCESS_REQUEST = "access_request"  # P2: a paper the agent could not read legally; a person supplies the PDF
     DATASET = "dataset"              # P2/P3: an observed dataset (clinical profile, PK parameters) with its origin (§9)
     CLIENT_SUBMISSION = "client_submission"  # P3: client files, recipes and the reconciliation (§10)
     DISSOLUTION = "dissolution"      # P3: a canonical dissolution profile and its release-model fit (§10.3)
@@ -42,6 +43,7 @@ PHASE_OF: dict[ArtifactKind, str] = {
     ArtifactKind.REQUIREMENTS: "P1",
     ArtifactKind.FEASIBILITY: "P1",
     ArtifactKind.EVIDENCE: "P2",
+    ArtifactKind.ACCESS_REQUEST: "P2",
     ArtifactKind.DATASET: "P2",
     ArtifactKind.CLIENT_SUBMISSION: "P3",
     ArtifactKind.DISSOLUTION: "P3",

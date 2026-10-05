@@ -300,3 +300,10 @@ tbody tr:last-child td { border-bottom: none; }
 .plan-table td { vertical-align: top; }
 .plan-table tr.na { opacity: 0.55; }
 .plan-table select { max-width: 160px; }
+
+/* --- P2 evidence ------------------------------------------------------------------------------------------- */
+.evidence { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 10px; }
+.evidence.accepted { border-left-color: var(--pass); }
+.evidence.rejected { border-left-color: var(--fail); opacity: 0.7; }
+.quote { margin: 4px 0; padding: 4px 10px; border-left: 2px solid var(--obs); color: var(--ink); font-size: 13px; background: var(--raised); }
+.flags { margin: 4px 0; padding-left: 18px; font-size: 12px; color: var(--warn); }

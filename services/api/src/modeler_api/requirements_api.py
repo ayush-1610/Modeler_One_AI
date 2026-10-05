@@ -8,7 +8,7 @@ the same way. The P1 gate closes when the brief and the data plan are both appro
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -81,6 +81,7 @@ class OverrideRequest(BaseModel):
     provider: Provider | None = None
     purpose: str | None = None
     cross_check: bool | None = None
+    status: Literal["OPEN", "NOT_AVAILABLE", "WAIVED"] | None = None
     reason: str = Field(min_length=1)
 
 
@@ -92,10 +93,11 @@ def override_requirement(project_id: str, req_id: str, body: OverrideRequest, pr
     current = ws.latest(ArtifactKind.REQUIREMENTS, MAIN)
     if current is None or RequirementMatrix.from_content(current.content).get(req_id) is None:
         raise HTTPException(status_code=404, detail=f"no requirement {req_id}")
-    if body.provider is None and body.purpose is None and body.cross_check is None:
-        raise HTTPException(status_code=422, detail="change the provider, the purpose or the cross-check")
+    if body.provider is None and body.purpose is None and body.cross_check is None and body.status is None:
+        raise HTTPException(status_code=422, detail="change the provider, the purpose, the cross-check or the status")
     override = RequirementOverride(req_id=req_id, provider=body.provider, purpose=body.purpose,
-                                   cross_check=body.cross_check, reason=body.reason, by=principal.user_id)
+                                   cross_check=body.cross_check, status=body.status, reason=body.reason,
+                                   by=principal.user_id)
     derive_data_plan(ws, actor=principal.user_id, reason=f"{req_id}: {body.reason}", extra=override)
     return envelope(_view(ws))
 

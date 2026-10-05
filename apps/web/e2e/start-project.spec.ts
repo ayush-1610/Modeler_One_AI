@@ -40,6 +40,21 @@ test("a project starts from its technical proposal and the brief is edited with 
   await page.getByTestId("tab-feasibility").click();
   await expect(page.getByTestId("feasibility")).toContainText("undetermined");
 
+  // P2, manual path: a value entered with its source, graded by code, accepted with a reason.
+  await page.goto(briefUrl.replace(/\/brief.*$/, "/evidence"));
+  await expect(page.getByTestId("coverage-REQ-bind.fu")).toHaveText("not found");
+  const fu = page.locator(".card", { has: page.getByTestId("coverage-REQ-bind.fu") });
+  await fu.getByRole("button", { name: "Add a value" }).click();
+  await fu.getByPlaceholder("value", { exact: true }).fill("9");
+  await fu.getByPlaceholder("unit as stated").fill("%");
+  await fu.getByPlaceholder("DOI / PMID / URL").fill("10.1000/example-review");
+  await fu.getByPlaceholder("conditions: species=human; method=equilibrium dialysis").fill("species=human; matrix=plasma; method=ED; drug concentration=1 µM");
+  await fu.getByRole("button", { name: "Add value" }).click();
+  await expect(fu.locator(".evidence")).toContainText("→ 0.09000");
+  await fu.getByPlaceholder("reason (required)").fill("primary measurement");
+  await fu.getByRole("button", { name: "Accept" }).click();
+  await expect(page.getByTestId("coverage-REQ-bind.fu")).toHaveText("accepted");
+
   await page.goto(briefUrl.replace(/\/brief.*$/, "/history"));
   await expect(page.getByText("brief/main").first()).toBeVisible();
   await expect(page.getByText("hash chain verifies")).toBeVisible();

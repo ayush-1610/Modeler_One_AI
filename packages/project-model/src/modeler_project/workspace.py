@@ -59,6 +59,7 @@ _EFFECT = {
     ArtifactKind.REQUIREMENTS: "re-derive the data plan (automatic), then re-approve",
     ArtifactKind.FEASIBILITY: "re-run the feasibility check (automatic)",
     ArtifactKind.EVIDENCE: "re-review the evidence",
+    ArtifactKind.ACCESS_REQUEST: "none (a request for a paper)",
     ArtifactKind.DATASET: "re-review the dataset",
     ArtifactKind.CLIENT_SUBMISSION: "re-review the client data and its reconciliation",
     ArtifactKind.DISSOLUTION: "re-fit the release model (automatic), then re-review",
