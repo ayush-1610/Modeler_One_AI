@@ -193,3 +193,23 @@ def test_two_projects_on_one_compound_keep_their_own_cpf(tmp_path):
     # a CPF stored the old way (per tenant) is still read by a project without its own
     (tmp_path / "t1" / "cpf" / "Old.json").write_text(CPF(compound="Old").model_dump_json(), encoding="utf-8")
     assert read.get_cpf("t1", "any", "Old").compound == "Old"
+
+
+@pytest.mark.req("T-46")
+def test_each_study_keeps_its_origin_through_prepare(tmp_path):
+    """Plan §9.4: the origin a study is uploaded with reaches the observed data the campaign judges on."""
+    _, prep, (observed, _) = _prepared(tmp_path, _study() | {"origin": "LITERATURE"})
+    assert observed["iv"]["origin"] == "LITERATURE" and prep["origins"] == {"iv": "LITERATURE"}
+    _, prep, (observed, _) = _prepared(tmp_path / "unrecorded", _study())
+    assert observed["iv"]["origin"] is None and prep["not_evaluable"] == []
+    r, _, _ = _prepared(tmp_path / "bad", _study() | {"origin": "MADE_UP"})
+    assert r.status_code == 422  # the upload itself is refused: an origin is one of the six
+
+
+@pytest.mark.req("T-46")
+def test_a_project_may_be_marked_exploratory(tmp_path):
+    c = client_with(tmp_path)
+    r = c.post("/api/v1/projects", json={"name": "Demo", "compound": "X", "exploratory": True}, headers=_auth())
+    assert r.json()["data"]["exploratory"] is True
+    r = c.post("/api/v1/projects", json={"name": "Real", "compound": "X"}, headers=_auth())
+    assert r.json()["data"]["exploratory"] is False

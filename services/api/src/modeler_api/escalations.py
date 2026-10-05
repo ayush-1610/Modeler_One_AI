@@ -212,6 +212,14 @@ def resolve_escalation_decision(
     if project_id:
         require_project(project_id, principal)
 
+    from modeler_orchestrator.local_runner import gate_refusal, resolve_escalation  # lazy: orchestrator depends on this package
+
+    # Nothing judged on data that is not real is signed outside an exploratory project (plan §9.4, D-19); refused
+    # before the signature is taken, so no signature exists for a decision that was not applied.
+    if request.action == "approve" and (refusal := gate_refusal(campaign, FileReadStore(settings.read_root).get_project(
+            principal.tenant_id, project_id or ""))):
+        raise HTTPException(status_code=409, detail=refusal)
+
     # Every decision that resumes or ends a stage is an approval (MS-01 §4 / 21 CFR 11), so it is signed
     # before anything is applied — an unsigned decision must not be able to move the campaign.
     ensure_step_up(principal)
@@ -222,8 +230,6 @@ def resolve_escalation_decision(
             f"{campaign_id}:{stage}:{request.action}".encode()).hexdigest(),
         acr=principal.acr or "",
     )
-
-    from modeler_orchestrator.local_runner import resolve_escalation  # lazy: orchestrator depends on this package
 
     try:
         result = resolve_escalation(

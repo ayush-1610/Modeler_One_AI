@@ -40,14 +40,16 @@ export function DataIntake({ projectId }: { projectId: string }) {
   const [unit, setUnit] = useState("µmol/l");
   const [timeCol, setTimeCol] = useState(0);
   const [concCol, setConcCol] = useState(1);
+  const [origin, setOrigin] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ kind: "ok" | "err"; message: string } | null>(null);
 
   const table = useMemo(() => parseTable(text), [text]);
 
-  function load(sample: string) {
+  function load(sample: string, sampleOrigin = "") {
     const t = parseTable(sample);
     setText(sample);
+    setOrigin(sampleOrigin);
     setTimeCol(guess(t.headers, ["time", "hr", "min"], 0));
     setConcCol(guess(t.headers, ["conc", "value", "cp", "plasma"], 1));
     setResult(null);
@@ -68,7 +70,7 @@ export function DataIntake({ projectId }: { projectId: string }) {
     return { times, values };
   }, [table, timeCol, concCol]);
 
-  const ready = profile.times.length >= 2 && studyId.trim().length > 0 && Number(dose) > 0;
+  const ready = profile.times.length >= 2 && studyId.trim().length > 0 && Number(dose) > 0 && origin !== "";
 
   async function save() {
     setBusy(true);
@@ -84,6 +86,7 @@ export function DataIntake({ projectId }: { projectId: string }) {
         food_state: "fasted",
         n_timepoints: profile.times.length,
         profile: { times: profile.times, values: profile.values, time_unit: timeUnit, unit },
+        origin,
       };
       const env = await uploadStudies(projectId, [study]);
       if (env.errors?.length) setResult({ kind: "err", message: env.errors[0].message });
@@ -110,7 +113,7 @@ export function DataIntake({ projectId }: { projectId: string }) {
               if (f) load(await f.text());
             }}
           />
-          <button className="btn" onClick={() => load(SAMPLE_CSV)}>Use example data</button>
+          <button className="btn" onClick={() => load(SAMPLE_CSV, "ILLUSTRATIVE")}>Use example data</button>
         </div>
         <div className="field">
           <textarea rows={12} value={text} onChange={(e) => setText(e.target.value)}
@@ -171,6 +174,18 @@ export function DataIntake({ projectId }: { projectId: string }) {
               <input value={studyId} onChange={(e) => setStudyId(e.target.value)} placeholder="e.g. iv-250mg" />
             </div>
             <div className="field">
+              <label>Where the data come from</label>
+              <select value={origin} onChange={(e) => setOrigin(e.target.value)} data-testid="intake-origin">
+                <option value="">choose…</option>
+                <option value="CLIENT">Client clinical data</option>
+                <option value="LITERATURE">Published table or text</option>
+                <option value="FIGURE_DIGITIZED">Digitized published figure</option>
+                <option value="OSP_LIBRARY">OSP model library</option>
+                <option value="SYNTHETIC">Simulated (test only)</option>
+                <option value="ILLUSTRATIVE">Example data (test only)</option>
+              </select>
+            </div>
+            <div className="field">
               <label>Route</label>
               <select value={route} onChange={(e) => setRoute(e.target.value)}>
                 <option value="iv_infusion">IV infusion</option>
@@ -197,7 +212,7 @@ export function DataIntake({ projectId }: { projectId: string }) {
             <button className="btn primary" disabled={!ready || busy} onClick={save}>
               {busy ? "Saving…" : "Confirm mapping & save study"}
             </button>
-            {!ready && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Needs a study id, a dose, and at least two numeric rows.</p>}
+            {!ready && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Needs a study id, a dose, where the data come from, and at least two numeric rows.</p>}
           </>
         )}
         {result && (

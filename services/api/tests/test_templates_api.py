@@ -73,6 +73,7 @@ def test_the_published_template_carries_real_studies_and_names_what_it_left_out(
     t = client.get("/api/v1/templates/dapagliflozin-osp", headers=AUTH).json()["data"]
     assert len(t["studies"]) == 40 and len(t["skipped"]) == 15
     assert any("Komoroski 2009" in s["reference"] for s in t["studies"])
+    assert {s["origin"] for s in t["studies"]} == {"OSP_LIBRARY"}  # plan §9.4: the published clinical data
     assert t["cpf"]["compound"] == "Dapagliflozin"
     # The unplaceable-clearance S0 rule would refuse an unbound clearance: every elim.* record carries its binding.
     assert all(p.get("engine_binding") for p in t["cpf"]["parameters"] if p["id"].startswith("elim."))
@@ -83,6 +84,7 @@ def test_the_illustrative_template_binds_its_clearance(client):
     t = client.get("/api/v1/templates/aciclovir-illustrative", headers=AUTH).json()["data"]
     gfr = next(p for p in t["cpf"]["parameters"] if p["id"] == "elim.renal.gfr_fraction")
     assert gfr["engine_binding"]["process"] == "GlomerularFiltration"
+    assert {s["origin"] for s in t["studies"]} == {"ILLUSTRATIVE"}  # plan §9.4 item 4: never evidence
 
 
 def test_every_published_single_compound_template_loads():

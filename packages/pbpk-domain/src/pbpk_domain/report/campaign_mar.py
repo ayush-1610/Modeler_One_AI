@@ -60,11 +60,19 @@ def _study_table(map_doc: MapDocument) -> TableRef:
                     columns=("Study", "Class", "Assignment", "Simulated in"), rows=rows, source="signed MAP (MS-01 §3)")
 
 
+def _real_data(summary: Mapping | None) -> str:
+    """How many judged studies were real observed data, by origin (plan §9.4 item 3)."""
+    if not summary:
+        return "—"
+    origins = ", ".join(f"{k.lower().replace('_', ' ')} {v}" for k, v in (summary.get("byOrigin") or {}).items())
+    return f"{summary.get('real')} of {summary.get('judged')} real" + (f" ({origins})" if origins else "")
+
+
 def _rounds_table(stage: str, rounds: Sequence[Mapping]) -> TableRef:
     rows = tuple((str(r.get("round")), str(r.get("action")), _fmt(r.get("aucGmfe")), _fmt(r.get("cmaxGmfe")),
-                  str(r.get("verdict"))) for r in rounds)
+                  _real_data(r.get("realData")), str(r.get("verdict"))) for r in rounds)
     return TableRef(id=f"rounds_{stage.lower()}", title=f"Round history — stage {stage}",
-                    columns=("Round", "Action", "AUC GMFE", "Cmax GMFE", "Verdict"), rows=rows,
+                    columns=("Round", "Action", "AUC GMFE", "Cmax GMFE", "Judged studies", "Verdict"), rows=rows,
                     source=f"campaign rounds {stage}")
 
 

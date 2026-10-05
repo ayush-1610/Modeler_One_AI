@@ -70,13 +70,13 @@ def profile(times, values, unit="µmol/l"):
 def iv_study(study_id, dose_mg, prof, *, infusion_min=60, reference="illustrative"):
     return {"study_id": study_id, "reference": reference, "route": "iv_infusion", "dose_mg": dose_mg,
             "infusion_time_min": infusion_min, "formulation": "solution", "food_state": "fasted",
-            "n": 12, "n_timepoints": len(prof["times"]), "profile": prof}
+            "n": 12, "n_timepoints": len(prof["times"]), "profile": prof, "origin": "SYNTHETIC"}
 
 
 def oral_study(study_id, dose_mg, prof, *, reference="illustrative"):
     return {"study_id": study_id, "reference": reference, "route": "oral", "dose_mg": dose_mg,
             "formulation": "solution", "food_state": "fasted", "n": 12,
-            "n_timepoints": len(prof["times"]), "profile": prof}
+            "n_timepoints": len(prof["times"]), "profile": prof, "origin": "SYNTHETIC"}
 
 
 # ---- observed data, synthesised from the stand-in at KNOWN true parameter values -----------------

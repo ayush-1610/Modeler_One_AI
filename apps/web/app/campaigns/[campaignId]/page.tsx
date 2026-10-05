@@ -42,6 +42,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
     ? [...(pkg.exportable ? ["package.zip"] : []),
        ...["pdf", "docx", "md"].filter((f) => pkg.report?.[f]).map((f) => `mar.${f}`)]
     : [];
+  const testOnly = Object.entries(c.realData ?? {}).filter(([, d]) => d.judged > 0 && !d.passable);
   const fmt = (v: number) => (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toPrecision(3));
 
   return (
@@ -70,6 +71,13 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
       )}
       {c.engine?.kind === "pksim" && (
         <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Engine: PK-Sim (<code>{c.engine.command}</code>)</p>
+      )}
+      {testOnly.length > 0 && (
+        <div className="banner err" data-testid="real-data-warning" style={{ marginBottom: 14 }}>
+          <strong>TEST ONLY: no real observed data.</strong> {testOnly.map(([stage, d]) => `${stage}: ${d.label}`).join(" · ")}.
+          {" "}A verdict judged on synthetic, illustrative or unrecorded data is not evidence; the S4/S5 evaluation cannot be
+          signed in a project that is not exploratory (plan §9.4).
+        </div>
       )}
       <AutoRefresh active={c.status === "RUNNING" || c.status === "QUEUED"} />
 
@@ -110,7 +118,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
       <Card title="Round history" action={<span className="muted">each round&apos;s agreement with the observed data</span>}>
           <table>
             <thead>
-              <tr><th>Stage</th><th className="num">Round</th><th>Action</th><th>AUC vs observed</th><th>Cmax vs observed</th><th>Verdict</th></tr>
+              <tr><th>Stage</th><th className="num">Round</th><th>Action</th><th>AUC vs observed</th><th>Cmax vs observed</th><th>Judged studies</th><th>Verdict</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
@@ -120,7 +128,11 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
                   <td><code>{r.action}</code></td>
                   <td><FoldError ratio={r.aucGmfe ?? null} limit={foldLimit} label={`${r.stage} round ${r.round} AUC`} /></td>
                   <td><FoldError ratio={r.cmaxGmfe ?? null} limit={foldLimit} label={`${r.stage} round ${r.round} Cmax`} /></td>
-                  <td>{r.verdict === "passed" ? <span className="chip low">passed</span> : r.verdict}</td>
+                  <td className="muted" title={Object.entries(r.realData?.byOrigin ?? {}).map(([o, n]) => `${o.toLowerCase().replace("_", " ")} ${n}`).join(", ")}>
+                    {r.realData ? `${r.realData.real} of ${r.realData.judged} real` : "—"}
+                  </td>
+                  <td>{r.verdict === "passed" ? <span className="chip low">passed</span>
+                       : r.realData && r.realData.judged > 0 && !r.realData.passable ? <span className="chip high">{r.verdict}</span> : r.verdict}</td>
                 </tr>
               ))}
             </tbody>

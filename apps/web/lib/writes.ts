@@ -63,9 +63,12 @@ export type PrepareResult = {
   stages: string[];
   tier: string;
   studies: { study_id: string; assignment: string }[];
+  origins?: Record<string, string | null>;
+  not_evaluable?: string[];
 };
 
-export function createProject(body: { name: string; compound: string; question?: string; risk?: string; model_risk?: string }) {
+export function createProject(body: { name: string; compound: string; question?: string; risk?: string; model_risk?: string;
+                                      exploratory?: boolean }) {
   return authed<CreatedProject>("/api/v1/projects", "POST", body);
 }
 
@@ -168,6 +171,7 @@ export type StudyRow = {
   design?: string;
   n?: number;
   special_population?: string | null;
+  origin?: string | null;
   profile: { times: number[]; values: number[]; time_unit: string; unit: string };
 };
 

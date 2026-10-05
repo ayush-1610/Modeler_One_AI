@@ -64,6 +64,7 @@ from modeler_orchestrator.campaign_activities import (
 )
 from modeler_orchestrator.fitting_activities import assess_round as assess_fit_round
 from modeler_orchestrator.fitting_activities import plan_jobs
+from pbpk_domain.data_origin import real_data_summary, signature_refusal
 from pbpk_domain.fitting import BudgetTooSmallError
 
 # One callable dispatches an engine job to a manifest — the real EngineRunner.run in production, a stub in tests.
@@ -101,6 +102,7 @@ _SIGNATURE_OPTIONS = [
     {"id": "abort", "label": "Stop the campaign", "requiresSignature": True},
 ]
 _GATED_STAGE = "S6"
+_BEFORE_GATE = ("S1", "S2", "S3", "S4", "S5")
 
 
 def default_engine() -> EngineRun:
@@ -218,6 +220,7 @@ class CampaignArtifactWriter:
     prediction: dict | None = None  # the S6 result (sensitivity ranking, prediction intervals)
     package: dict | None = None     # the S7 record (reproduction verdict, report files, exportable package)
     engine: dict | None = None      # what produced the numbers (`engine_identity`): PK-Sim or a software fixture
+    origins: dict[str, str | None] = field(default_factory=dict)  # study -> origin of its observed data (plan §9.4)
     _started: float = field(default_factory=time.monotonic)
     _rounds: dict[str, list[dict]] = field(default_factory=dict)
     _status: dict[str, str] = field(default_factory=dict)
@@ -249,6 +252,7 @@ class CampaignArtifactWriter:
         writer.prediction = campaign.get("prediction")
         writer.engine = campaign.get("engine")
         writer.package = campaign.get("package")
+        writer.origins = dict(campaign.get("observedOrigins") or {})
         writer._started = time.monotonic() - float(campaign.get("elapsedSeconds", 0))
         return writer
 
@@ -268,7 +272,11 @@ class CampaignArtifactWriter:
     def add_round(self, stage: str, round_index: int, action: str, evaluation: RoundEvaluation) -> None:
         auc = evaluation.metrics.get("AUC", {}).get("gmfe")
         cmax = evaluation.metrics.get("Cmax", {}).get("gmfe")
+        # What the verdict rests on (plan §9.4): a pass judged on data that is not real is shown for what it is.
+        real_data = real_data_summary(self.origins, evaluation.metrics.get("studies", []))
         verdict = "passed" if evaluation.gate_passed else "no pass"
+        if evaluation.gate_passed and real_data["judged"] and not real_data["passable"]:
+            verdict = real_data["label"]
         self._rounds[stage].append({
             "round": round_index, "action": action,
             "aucGmfe": round(auc, 3) if auc is not None else None,
@@ -279,6 +287,7 @@ class CampaignArtifactWriter:
             "groups": evaluation.metrics.get("groups", []),
             "vpc": evaluation.metrics.get("vpc", {}),  # per study: coverage and the 5/50/95 % band for the plot
             "findings": list(evaluation.findings),
+            "realData": real_data,
         })
 
     def set_gof(self, series: list[dict], stage: str | None = None) -> None:
@@ -304,8 +313,19 @@ class CampaignArtifactWriter:
             "prediction": self.prediction,
             "package": self.package,
             "engine": self.engine,
+            "observedOrigins": self.origins,
+            "realData": self.real_data(),
             "resume": self.resume,
         })
+
+    def real_data(self) -> dict[str, dict]:
+        """Each stage's real-data summary of its last judged round (the one the stage's verdict rests on)."""
+        latest: dict[str, dict] = {}
+        for stage, rounds in self._rounds.items():
+            judged = [r["realData"] for r in rounds if (r.get("realData") or {}).get("judged")]
+            if judged:
+                latest[stage] = judged[-1]
+        return latest
 
     def record_signature_request(self, stage: str) -> None:
         """The review-inbox item that holds the campaign until the S4/S5 evaluation is signed (MS-01 §4 S6)."""
@@ -733,9 +753,23 @@ def run_campaign(
         store=FileWriteStore(read_root), tenant_id=request.tenant_id, campaign_id=request.campaign_id,
         project=project, compound=request.compound, question=question, model_risk=model_risk,
         budget_seconds=total_budget, stages=list(request.stages), engine=engine_identity(engine),
+        origins=observed_origins(request.observed_uri),
     )
     writer.flush(current_stage=request.stages[0], status="RUNNING")
     return LocalExecutor(engine=engine or default_engine(), writer=writer).run(request)
+
+
+def observed_origins(observed_uri: str) -> dict[str, str | None]:
+    """Each study's data origin as campaign:prepare recorded it in the observed PK (None: not recorded)."""
+    observed = _local_json(observed_uri) if observed_uri else None
+    return {sid: (pk or {}).get("origin") for sid, pk in (observed or {}).items()}
+
+
+def gate_refusal(campaign: dict, project: dict | None) -> str | None:
+    """Why the S4/S5 evaluation of this campaign may not be signed (plan §9.4, D-19), or None. Every stage before the
+    gate counts: a model fitted or judged on data that is not real is not validated by signing it."""
+    summaries = {stage: summary for stage, summary in (campaign.get("realData") or {}).items() if stage in _BEFORE_GATE}
+    return signature_refusal(summaries, exploratory=bool((project or {}).get("exploratory")))
 
 
 # MS-01 §4 decisions a reviewer may take on an escalated stage.
@@ -769,6 +803,9 @@ def resolve_escalation(
     resume = campaign.get("resume")
     if not resume or resume.get("escalated_stage") != stage:
         raise ValueError(f"campaign {campaign_id} has no open escalation at stage {stage}")
+
+    if action == "approve" and (refusal := gate_refusal(campaign, read.get_project(tenant_id, campaign.get("project", "")))):
+        raise ValueError(refusal)
 
     request = CampaignRequest(**resume["request"])
     writer = CampaignArtifactWriter.from_campaign(write, tenant_id, campaign)

@@ -10,6 +10,7 @@ import json
 import time
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from modeler_api.auth import get_verifier
@@ -142,3 +143,33 @@ def test_temporal_backend_points_at_the_other_endpoint(tmp_path, monkeypatch):
     r = TestClient(app).post(URL, json={"action": "abort"}, headers=_auth())
     assert r.status_code == 409
     assert "escalation:decide" in r.text
+
+
+SIGN_URL = "/api/v1/campaigns/camp-1/stages/S6/escalation:resolve"
+
+
+def _seed_signature_gate(tmp_path, *, exploratory: bool):
+    """A campaign waiting for the S4/S5 signature whose S1 pass was judged on synthetic data only."""
+    from modeler_api.filestore import FileWriteStore
+
+    campaign = seed_campaign(tmp_path)
+    campaign["status"] = "AWAITING_SIGNATURE"
+    campaign["resume"]["escalated_stage"] = "S6"
+    campaign["realData"] = {"S1": {"judged": 2, "real": 0, "byOrigin": {"SYNTHETIC": 2}, "notReal": ["a", "b"],
+                                   "notEvaluable": [], "passable": False, "label": "TEST ONLY: no real observed data"}}
+    (tmp_path / "t1" / "campaigns.json").write_text(json.dumps({"campaigns": [campaign]}))
+    (tmp_path / "t1" / "escalations.json").write_text(json.dumps({"escalations": [{"id": "camp-1-S6", "campaignId": "camp-1"}]}))
+    FileWriteStore(str(tmp_path)).put_project("t1", {"id": "proj-1", "name": "P", "compounds": ["Drug"],
+                                                     "exploratory": exploratory})
+
+
+@pytest.mark.req("T-46")
+def test_the_evaluation_of_test_data_is_refused_before_a_signature_is_taken(tmp_path, monkeypatch):
+    _seed_signature_gate(tmp_path, exploratory=False)
+    _patch_settings(monkeypatch, tmp_path)
+    app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
+    r = TestClient(app).post(SIGN_URL, json={"action": "approve"}, headers=_auth())
+    assert r.status_code == 409 and "not real" in r.text and "S1: TEST ONLY" in r.text
+    campaign = json.loads((tmp_path / "t1" / "campaigns.json").read_text())["campaigns"][0]
+    assert campaign["status"] == "AWAITING_SIGNATURE"
+    assert json.loads((tmp_path / "t1" / "escalations.json").read_text())["escalations"]

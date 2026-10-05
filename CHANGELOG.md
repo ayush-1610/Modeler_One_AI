@@ -664,6 +664,29 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — the real-data rule: only real observed data can sign off a model (T-46, plan §9.4, D-19)
+- **Why:** a campaign could reach "passed" on the illustrative Aciclovir profile or on simulated data, and nothing on
+  the monitor or in the MAR said so ("without any data we completed results").
+- **Origin everywhere** (`pbpk_domain.data_origin`, shared with `modeler_project.datasets`): a study upload takes
+  `origin` (CLIENT, LITERATURE, FIGURE_DIGITIZED, OSP_LIBRARY, SYNTHETIC, ILLUSTRATIVE; anything else is refused);
+  `campaign:prepare` writes it into the observed PK and returns each study's origin and the studies with no observed
+  data (not evaluable). The OSP templates and the showcase systems label their studies OSP_LIBRARY; the illustrative
+  Aciclovir profile is relabelled ILLUSTRATIVE; the dev case studies (analytical stand-in data) SYNTHETIC. The CSV
+  intake asks where the data come from (its example data is ILLUSTRATIVE).
+- **Verdicts say what they rest on:** every round records how many judged studies were real and from which origin.
+  A pass judged on data that is not real is shown as **"TEST ONLY: no real observed data"** (or "origin not recorded
+  for n of m"), on the monitor (red banner, per-round "n of m real") and in the MAR round tables. A study without
+  observed data is not evaluable and never counts.
+- **The S4/S5 signature is refused** (API 409, before a signature is taken; the runner refuses too) when any stage
+  S1–S5 judged a study that is synthetic, illustrative or of unrecorded origin, unless the project is
+  **exploratory** (`POST /projects` `exploratory`; the wizard sets it for the illustrative example, the dev case
+  studies and the showcase's illustrative check). Stopping the campaign stays possible.
+- Impact: the local-runner tests now label their golden PK-Sim data SYNTHETIC in exploratory projects and expect
+  TEST ONLY verdicts. A project created through the API without origins can no longer sign S4/S5 until each study's
+  origin is recorded.
+- **Known gap:** the Temporal backend (`escalation:decide`) does not apply the signature refusal yet; the local
+  backend is what runs today. Accepted P2 datasets do not yet flow into the campaign's studies (T-49).
+
 ### Added — P2 observed data: datasets with their origin, agent A3 and the figure digitizer (T-45)
 - **Observed datasets** (`modeler_project.datasets`, `dataset_register`): every clinical PK dataset is a DATASET
   artifact (proposed → accepted / rejected with a reason) carrying the study design, analyte and matrix, one or more

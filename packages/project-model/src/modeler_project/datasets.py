@@ -12,27 +12,17 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_project.evidence import EvidenceState, SourceRef
 from pbpk_domain.campaign.split import StudyRecord
+from pbpk_domain.data_origin import REAL_ORIGINS, DataOrigin
 from pbpk_domain.nca import nca
 from pbpk_domain.units import UnitError, is_molar, minutes_per, umol_per_l_per
 
-
-class Origin(StrEnum):
-    CLIENT = "CLIENT"
-    LITERATURE = "LITERATURE"
-    FIGURE_DIGITIZED = "FIGURE_DIGITIZED"
-    OSP_LIBRARY = "OSP_LIBRARY"
-    SYNTHETIC = "SYNTHETIC"          # simulated by us (known-truth tests): never evidence
-    ILLUSTRATIVE = "ILLUSTRATIVE"    # hand-made example data: never evidence
-
-
-REAL_ORIGINS = frozenset({Origin.CLIENT, Origin.LITERATURE, Origin.FIGURE_DIGITIZED, Origin.OSP_LIBRARY})
+Origin = DataOrigin  # the six origins of the real-data rule, shared with the campaign path (pbpk_domain.data_origin)
 NCA_TOLERANCE = 0.20  # reported vs recomputed NCA [SME]
 
 

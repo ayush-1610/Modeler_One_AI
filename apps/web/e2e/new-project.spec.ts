@@ -69,3 +69,17 @@ test("a campaign that is not recorded says so and never shows sample data", asyn
   await expect(page.getByTestId("campaign-pending")).toBeVisible();
   await expect(page.getByText("sample data")).toHaveCount(0);
 });
+
+test("the illustrative example runs, but its verdicts are shown as test only (plan §9.4)", async ({ page }) => {
+  await page.goto("/projects/new");
+  await page.getByTestId("template-aciclovir-illustrative").click();
+  await page.getByTestId("create-project").click();
+  await page.getByTestId("save-cpf").click();
+  await page.getByTestId("upload-studies").click();
+  await page.getByTestId("generate-map").click();
+  await page.getByTestId("sign-and-start").click();
+  await page.waitForURL(/\/campaigns\/[^/]+$/);
+  await expect(page.locator(".spread .chip").first()).toHaveText(TERMINAL, { timeout: 8 * 60_000 });
+  await expect(page.getByTestId("real-data-warning")).toContainText("TEST ONLY: no real observed data");
+  await expect(page.getByText(/0 of 1 real/).first()).toBeVisible();
+});

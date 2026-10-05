@@ -26,6 +26,7 @@ from modeler_api.read_api import project_cpf_view
 from modeler_api.responses import envelope
 from modeler_contracts.runs import CAMPAIGN_STAGES
 from pbpk_domain.cpf.models import CPF
+from pbpk_domain.data_origin import DataOrigin
 from pbpk_domain.m15 import Rating
 
 router = APIRouter(prefix="/api/v1", tags=["write"])
@@ -59,6 +60,9 @@ class ProjectCreate(BaseModel):
     question: str = ""
     application: str = ""
     model_risk: str = "medium"
+    # A project that may sign verdicts judged on synthetic or illustrative data (machinery tests, demos). Its verdicts
+    # stay labelled TEST ONLY; any other project needs real observed data to sign S4/S5 (plan §9.4, D-19).
+    exploratory: bool = False
 
 
 @router.post("/projects", status_code=201)
@@ -71,7 +75,7 @@ def create_project(body: ProjectCreate, principal: Author, stores: StoresDep) ->
                           "application": body.application or "PBPK", "modelRisk": body.model_risk,
                           "stage": "planning", "failingCriteria": 0})
     project = {"id": project_id, "name": body.name, "compounds": [body.compound],
-               "openQuestions": len(questions), "risk": body.risk, "questions": questions}
+               "openQuestions": len(questions), "risk": body.risk, "questions": questions, "exploratory": body.exploratory}
     write.put_project(principal.tenant_id, project)
     return envelope(project)
 
@@ -173,6 +177,8 @@ class StudyUpload(BaseModel):
     n_timepoints: int = Field(default=10, gt=0)
     lloq: float | None = None
     profile: ObservedProfile
+    # Where the data came from (plan §9.4). None: not recorded, which is never taken as real.
+    origin: DataOrigin | None = None
 
 
 class StudiesUpload(BaseModel):
@@ -227,7 +233,7 @@ def _observed_from_studies(rows: list[dict[str, Any]], mol_weight: float | None)
         result = nca(list(canonical["times"]), list(canonical["values"]))
         observed[row["study_id"]] = {
             "auc": result.auc_last, "cmax": result.c_max, "tmax": result.t_max, "thalf": result.t_half,
-            "profile": canonical,
+            "profile": canonical, "origin": row.get("origin"),
         }
     return observed
 
@@ -328,5 +334,8 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
         "stages": body.stages or list(CAMPAIGN_STAGES),
         "tier": map_doc.acceptance.tier,
         "studies": [{"study_id": s.study_id, "assignment": s.assignment} for s in map_doc.studies],
+        # what each study's observed data is (plan §9.4); a study with no profile is not evaluable
+        "origins": {sid: o.get("origin") for sid, o in observed.items()},
+        "not_evaluable": sorted(r["study_id"] for r in rows if r["study_id"] not in observed),
         **system_fields,
     })

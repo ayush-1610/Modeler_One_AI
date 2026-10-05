@@ -106,7 +106,8 @@ def _published(snapshot_path: str) -> dict[str, Any]:
         raise ValueError("the model has parts the builder cannot place: " + "; ".join(imported.unplaced))
     return {
         "cpf": imported.cpf.model_dump(mode="json", exclude={"created_at"}),
-        "studies": list(imported.studies),
+        # the clinical data the published model was built and qualified with (plan §9.4)
+        "studies": [{**study, "origin": "OSP_LIBRARY"} for study in imported.studies],
         "skipped": list(imported.skipped),
         "notes": list(imported.notes),
         "source": imported.source,
@@ -138,7 +139,9 @@ def _content(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=f"template {template_id}: {exc}") from exc
     data = json.loads((_HERE / "templates" / spec["file"]).read_text(encoding="utf-8"))
-    return {"cpf": data["cpf"], "studies": data["studies"], "skipped": [], "notes": [], "source": "illustrative"}
+    # hand-made example data: it runs the pipeline but is never evidence (plan §9.4 item 4)
+    studies = [{**study, "origin": "ILLUSTRATIVE"} for study in data["studies"]]
+    return {"cpf": data["cpf"], "studies": studies, "skipped": [], "notes": [], "source": "illustrative"}
 
 
 def _summary(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:

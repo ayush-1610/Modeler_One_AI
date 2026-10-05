@@ -36,12 +36,24 @@ export type Question = {
   failingCriteria: number;
 };
 
+// What a round's verdict rests on (plan §9.4): judged studies, how many are real observed data, by origin.
+export type RealData = {
+  judged: number;
+  real: number;
+  byOrigin: Record<string, number>;
+  notReal: string[];
+  notEvaluable: string[];
+  passable: boolean;
+  label: string;
+};
+
 export type Round = {
   round: number;
   action: string;
   aucGmfe: number | null;
   cmaxGmfe: number | null;
   verdict: string;
+  realData?: RealData;
 };
 
 export type Stage = {
@@ -90,6 +102,7 @@ export type CampaignDetail = Campaign & {
   prediction?: Prediction | null;
   package?: PackageRecord | null;
   engine?: EngineIdentity | null;
+  realData?: Record<string, RealData>; // per stage, its last judged round
 };
 
 export type Escalation = {

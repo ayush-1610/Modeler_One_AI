@@ -14,6 +14,8 @@ import json
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+import pytest
+
 from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_contracts.runs import CampaignRequest, EngineJob, EngineManifest, OutputFile
 from modeler_orchestrator.local_runner import CampaignArtifactWriter, LocalExecutor, run_campaign
@@ -27,6 +29,7 @@ from pbpk_domain.campaign.split import (
     split_studies,
 )
 from pbpk_domain.cpf import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.data_origin import TEST_ONLY
 from pbpk_domain.m15 import Rating
 
 GOLDEN = Path(__file__).parents[2] / "engine-worker" / "golden" / "results_sample" / "results.csv"
@@ -49,8 +52,11 @@ def _renal_cpf() -> CPF:
     ))
 
 
-def _seed_campaign(tmp_path: Path, observed: dict) -> tuple[CampaignRequest, str]:
-    """Write CPF + MAP + observed under a read-root; return the CampaignRequest and the root path."""
+def _seed_campaign(tmp_path: Path, observed: dict, *, exploratory: bool = True) -> tuple[CampaignRequest, str]:
+    """Write CPF + MAP + observed under a read-root; return the CampaignRequest and the root path.
+
+    The observed data are PK-Sim's own simulation of the golden profile, so they are labelled SYNTHETIC and the
+    projects exploratory (plan §9.4): their verdicts are TEST ONLY, and the S4/S5 signature is allowed."""
     root = tmp_path / "read-root"
     tenant_dir = root / "t1"
     (tenant_dir / "cpf").mkdir(parents=True)
@@ -67,7 +73,10 @@ def _seed_campaign(tmp_path: Path, observed: dict) -> tuple[CampaignRequest, str
     map_path = tenant_dir / "map.json"
     map_path.write_text(map_doc.model_dump_json(), encoding="utf-8")
     obs_path = tenant_dir / "observed.json"
-    obs_path.write_text(json.dumps(observed), encoding="utf-8")
+    obs_path.write_text(json.dumps({sid: {**pk, "origin": "SYNTHETIC"} for sid, pk in observed.items()}), encoding="utf-8")
+    store = FileWriteStore(str(root))
+    for project in ("renal-demo", "p"):
+        store.put_project("t1", {"id": project, "name": project, "compounds": ["Renaldrug"], "exploratory": exploratory})
 
     request = CampaignRequest(
         campaign_id="camp-loc", tenant_id="t1", compound="Renaldrug", map_id="map-1",
@@ -123,7 +132,7 @@ def test_campaign_completes_and_writes_live_monitor(tmp_path: Path) -> None:
     assert campaign is not None
     assert campaign["status"] == "COMPLETED" and campaign["project"] == "renal-demo"
     s1 = next(s for s in campaign["stages"] if s["stage"] == "S1")
-    assert s1["status"] == "PASSED" and s1["rounds"][0]["verdict"] == "passed"
+    assert s1["status"] == "PASSED" and s1["rounds"][0]["verdict"] == TEST_ONLY
     assert any(series["kind"] == "simulated" for series in campaign["gof"])
 
 
@@ -280,7 +289,7 @@ def test_iv_only_campaign_runs_every_stage_skipping_those_without_data(tmp_path:
 
     campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
     stages = {s["stage"]: s for s in campaign["stages"]}
-    assert stages["S4"]["rounds"][0]["action"] == "validate" and stages["S4"]["rounds"][0]["verdict"] == "passed"
+    assert stages["S4"]["rounds"][0]["action"] == "validate" and stages["S4"]["rounds"][0]["verdict"] == TEST_ONLY
     assert stages["S4"]["rounds"][0]["studies"][0]["study_id"] == "iv"      # per-study evidence for the monitor
     assert any("§6.2" in n for n in stages["S2"]["notes"])                  # the reason is shown, not just logged
     assert set(campaign["gofByStage"]) == {"S1", "S4"}                      # each stage keeps its own plot
@@ -407,7 +416,7 @@ def test_vpc_gates_s1_and_is_recorded_per_study(tmp_path: Path) -> None:
     assert outcome.status == "COMPLETED", outcome.reason
     assert engine.population_jobs == 1
     rnd = next(s for s in FileReadStore(root).get_campaign("t1", "camp-loc")["stages"] if s["stage"] == "S1")["rounds"][0]
-    assert rnd["verdict"] == "passed"
+    assert rnd["verdict"] == TEST_ONLY
 
 
 def test_vpc_that_misses_the_data_escalates_with_its_own_reason(tmp_path: Path) -> None:
@@ -560,3 +569,51 @@ def test_s0_refuses_an_elimination_pathway_the_builder_cannot_place(tmp_path: Pa
                                    cpf_uri=path.as_uri(), cpf_sha256="a" * 64))
     assert readiness.ready is False
     assert any("elim.renal.gfr_fraction cannot be placed in the model" in f for f in readiness.findings)
+
+
+@pytest.mark.req("T-46")
+def test_a_synthetic_only_campaign_cannot_be_signed_in_a_project_that_is_not_exploratory(tmp_path: Path, monkeypatch) -> None:
+    """Plan §9.4 / D-19: a pass judged on synthetic data is TEST ONLY and its S4/S5 evaluation is not signable."""
+    from dataclasses import replace
+
+    from modeler_orchestrator.local_runner import resolve_escalation
+
+    monkeypatch.setenv("MODELER_OBJECT_STORE_URI", (tmp_path / "objstore").as_uri())
+    request, root = _seed_campaign(tmp_path, observed=_golden_observed(), exploratory=False)
+    request = replace(request, stages=["S0", "S1", "S4", "S6", "S7"])
+    engine = FullStubEngine(low=0.5, high=2.0)
+    assert run_campaign(request, read_root=root, project="p", engine=engine).status == "AWAITING_SIGNATURE"
+    campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
+    s1 = next(s for s in campaign["stages"] if s["stage"] == "S1")
+    assert s1["status"] == "PASSED" and s1["rounds"][-1]["verdict"] == TEST_ONLY
+    assert campaign["realData"]["S1"] == {"judged": 1, "real": 0, "byOrigin": {"SYNTHETIC": 1}, "notReal": ["iv"],
+                                          "notEvaluable": [], "passable": False, "label": TEST_ONLY}
+    with pytest.raises(ValueError, match="not real"):
+        resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S6", action="approve",
+                           engine=engine, background=False)
+    # refused before anything moved: the campaign still waits at the gate, the inbox item is still there
+    assert FileReadStore(root).get_campaign("t1", "camp-loc")["status"] == "AWAITING_SIGNATURE"
+    assert FileReadStore(root).list_escalations("t1")[0]["reasonCode"] == "SIGNATURE_REQUIRED"
+    # stopping the campaign stays possible
+    assert resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S6", action="abort",
+                              engine=engine, background=False)["status"] == "ABORTED"
+
+
+@pytest.mark.req("T-46")
+def test_real_observed_data_is_passed_and_signable(tmp_path: Path, monkeypatch) -> None:
+    from dataclasses import replace
+
+    from modeler_orchestrator.local_runner import resolve_escalation
+
+    monkeypatch.setenv("MODELER_OBJECT_STORE_URI", (tmp_path / "objstore").as_uri())
+    request, root = _seed_campaign(tmp_path, observed=_golden_observed(), exploratory=False)
+    obs_path = Path(unquote(urlparse(request.observed_uri).path))
+    obs_path.write_text(json.dumps({sid: {**pk, "origin": "CLIENT"} for sid, pk in json.loads(obs_path.read_text()).items()}))
+    request = replace(request, stages=["S0", "S1", "S4", "S6", "S7"])
+    engine = FullStubEngine(low=0.5, high=2.0)
+    run_campaign(request, read_root=root, project="p", engine=engine)
+    campaign = FileReadStore(root).get_campaign("t1", "camp-loc")
+    assert next(s for s in campaign["stages"] if s["stage"] == "S1")["rounds"][-1]["verdict"] == "passed"
+    resolve_escalation(read_root=root, tenant_id="t1", campaign_id="camp-loc", stage="S6", action="approve",
+                       engine=engine, background=False)
+    assert FileReadStore(root).get_campaign("t1", "camp-loc")["status"] != "AWAITING_SIGNATURE"

@@ -115,7 +115,8 @@ def examples(base: str) -> list[Example]:
             id=f"{model.lower()}-system-as-is", name=f"{PREFIX}{model} system (as published)", compound=system.parents[0],
             question=f"Predict {model.lower()} and metabolite exposure in healthy adults ({topic})", real_data=True,
             cpfs={c.compound: c.model_dump(mode="json", exclude={"created_at"}) for c in system.compounds},
-            studies=list(imported.studies), links=links_of(system).model_dump(mode="json"), notes=list(imported.notes)))
+            studies=[{**study, "origin": "OSP_LIBRARY"} for study in imported.studies],
+            links=links_of(system).model_dump(mode="json"), notes=list(imported.notes)))
     return out
 
 
@@ -127,7 +128,8 @@ def create(base: str, ex: Example, log: dict[str, Any]) -> dict[str, Any] | None
         return status in ok
 
     st, body = api(base, "POST", "/api/v1/projects", {
-        "name": ex.name, "compound": ex.compound, "question": ex.question[:200], "model_risk": "medium"})
+        "name": ex.name, "compound": ex.compound, "question": ex.question[:200], "model_risk": "medium",
+        "exploratory": not ex.real_data})  # the illustrative check is a demo; its verdicts stay TEST ONLY (plan §9.4)
     if not step("create project", st, body, (201,)):
         return None
     project = body["data"]

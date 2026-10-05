@@ -63,7 +63,9 @@ export default function NewProjectWizard() {
   }
 
   async function step1() {
-    const data = await guard(() => createProject({ name, compound, question, model_risk: modelRisk }));
+    // An illustrative starting point is a demo: its project is exploratory and may sign TEST ONLY verdicts (plan §9.4).
+    const exploratory = Boolean(template && !template.real_data && !template.blank);
+    const data = await guard(() => createProject({ name, compound, question, model_risk: modelRisk, exploratory }));
     if (!data) return;
     setProjectId(data.id);
     setQuestionId(data.questions?.[0]?.id ?? "qoi-1");

@@ -55,7 +55,8 @@ def run_case(base: str, case: dict) -> dict:
 
     st, body = step("create project", *api(base, "POST", "/api/v1/projects", {
         "name": case["title"], "compound": case["compound"], "question": case["narrative"][:120],
-        "application": case["application"], "model_risk": case["model_risk"]}))
+        "application": case["application"], "model_risk": case["model_risk"],
+        "exploratory": True}))  # synthetic known-truth data: a software check, never evidence (plan §9.4)
     if st != 201:
         return _result(case, steps, started, "blocked", "the project could not be created")
     project_id = body["data"]["id"]
