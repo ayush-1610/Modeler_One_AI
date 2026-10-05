@@ -22,6 +22,7 @@ from modeler_api.client_api import router as client_router
 from modeler_api.config import get_settings
 from modeler_api.escalations import router as escalations_router
 from modeler_api.evidence_api import router as evidence_router
+from modeler_api.inputs_api import router as inputs_router
 from modeler_api.project_api import router as project_router
 from modeler_api.read_api import router as read_router
 from modeler_api.requirements_api import router as requirements_router
@@ -67,6 +68,7 @@ app.include_router(brief_router)
 app.include_router(requirements_router)
 app.include_router(evidence_router)
 app.include_router(client_router)
+app.include_router(inputs_router)
 
 
 @app.get("/health")

@@ -55,7 +55,7 @@ _CALCULATION_METHODS = {
 # places, in the unit the builder's validators require (snapshot/builder.py); each process type here is one the
 # builder can put back into a snapshot. A snapshot may display the same quantity in another unit of its dimension
 # (the Rifampicin model writes one transporter concentration in µmol/l, another in nmol/l), so values are converted.
-_PROCESS_PARAMETERS = {
+PROCESS_PARAMETERS = {
     "MetabolizationSpecific_FirstOrder": {"CLspec/[Enzyme]": ("clspec", "l/µmol/min")},
     "MetabolizationSpecific_MM": {"Vmax": ("vmax", "µmol/l/min"), "Km": ("km", "µmol/l"), "kcat": ("kcat", "1/min"),
                                   "Enzyme concentration": ("enzyme_conc", "µmol/l")},
@@ -93,7 +93,7 @@ _PROCESS_PARAMETERS = {
     "MixedInhibition": {"Ki_c": ("ki_c", "µmol/l"), "Ki_u": ("ki_u", "µmol/l")},
     "NoncompetitiveInhibition": {"Ki": ("ki_noncompetitive", "µmol/l")},
 }
-_PROCESS_FAMILY = {
+PROCESS_FAMILY = {
     "MetabolizationIntrinsic_FirstOrder": "elim.hepatic",
     "rCYP450_MM": "elim.hepatic",
     "rCYP450_FirstOrder": "elim.hepatic",
@@ -477,7 +477,7 @@ def _process_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _R
     derived: set[str] = set()
     for process in compound.get("Processes", []):
         internal = process.get("InternalName")
-        wanted = _PROCESS_PARAMETERS.get(internal)
+        wanted = PROCESS_PARAMETERS.get(internal)
         molecule = process.get("Molecule")
         label = f"{internal}" + (f" ({molecule})" if molecule else "")
         if internal in INTERACTION_PROCESSES and f"{molecule}-{process.get('DataSource')}" not in selected:
@@ -498,7 +498,7 @@ def _process_records(snapshot: dict[str, Any], compound: dict[str, Any], out: _R
         elif internal == "KidneyClearance":
             prefix = "elim.renal.total"
         else:
-            prefix = f"{_PROCESS_FAMILY[internal]}.{molecule}"
+            prefix = f"{PROCESS_FAMILY[internal]}.{molecule}"
         planned.append((process, internal, prefix, wanted))
     # Two pathways of one family on one protein (Alprazolam: CYP3A4 alpha-OH and 4-OH) would share ids: those
     # processes' ids name their data source, e.g. elim.hepatic.CYP3A4@alpha-OH pathway.kcat.

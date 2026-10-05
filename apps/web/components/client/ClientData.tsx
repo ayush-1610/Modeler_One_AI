@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { Card } from "@/components/ui";
@@ -301,6 +302,7 @@ function Dissolution({ projectId, d, act }: {
 
 /** P3 client data (plan §10): the files, how they were read, and the reconciliation with the data plan. */
 export function ClientData({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const [view, setView] = useState<View | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -319,6 +321,7 @@ export function ClientData({ projectId }: { projectId: string }) {
     const env = await fn();
     if (env.errors?.length) return env.errors[0].message;
     await load();
+    router.refresh(); // the phase rail is server-rendered
     return null;
   };
   async function upload(files: FileList | null) {

@@ -370,7 +370,8 @@ def _origin(record: ParameterRecord) -> ValueOrigin | None:
     description = prov.reference or None
     if raw and value_origin_source(raw) != raw:
         description = raw if not description else f"{raw} — {description}"
-    return ValueOrigin(source=raw, description=description)
+    # Method only when there is one: the snapshot keeps unset fields out, as the published snapshots do
+    return ValueOrigin(source=raw, description=description, **({"method": prov.method} if prov.method else {}))
 
 
 def _measured(record: ParameterRecord) -> Measured:

@@ -68,6 +68,8 @@ class Provenance(BaseModel):
     reference: str | None = None
     run: str | None = None
     supersedes: str | None = None  # id/version of the value this one replaced
+    method: str | None = None      # PK-Sim ValueOrigin.Method (harvested values only: InVitro, InVivo, Assumption …)
+    evidence: str | None = None    # the accepted evidence item (id@version) the value came from (P4 assembly)
 
 
 class Uncertainty(BaseModel):

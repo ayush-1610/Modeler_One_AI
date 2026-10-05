@@ -32,6 +32,10 @@ _VALUE_ORIGIN_ALIASES = {
 }
 
 
+# ValueOrigin.Method values harvested from the same OSP models (fixtures under services/engine-worker/golden/fixtures).
+VALUE_ORIGIN_METHODS = ("InVitro", "InVivo", "Assumption", "ParameterIdentification", "Other", "Unknown")
+
+
 def value_origin_source(raw: str | None) -> str | None:
     """Map an arbitrary source label to a valid OSP ``ValueOrigin.Source`` (None stays None, unknown -> Other).
 
@@ -66,6 +70,12 @@ class ValueOrigin(SnapshotModel):
     @classmethod
     def _valid_source(cls, v: str | None) -> str | None:
         return value_origin_source(v)
+
+    @field_validator("method")
+    @classmethod
+    def _valid_method(cls, v: str | None) -> str | None:
+        # like Source, a Method outside the harvested set is not written (PK-Sim drops what it cannot read)
+        return v if v is None or v in VALUE_ORIGIN_METHODS else None
 
 
 class Quantity(SnapshotModel):

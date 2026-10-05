@@ -664,6 +664,32 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — P4 model inputs: CPF v1 from accepted evidence, the study catalog, readiness (T-49)
+- **CPF v1 is assembled, never typed** (`modeler_project.inputs`): one record per accepted evidence item, its value in
+  the PK-Sim unit (logP in the builder's "Log Units"; pKa as `phys.pka.{acid|base}.i` from the stated conditions), its
+  provenance carried into PK-Sim's `ValueOrigin`: Source and **Method** from the harvested enums only (Method values
+  harvested from the OSP fixtures: InVitro, InVivo, Assumption, ParameterIdentification, Other, Unknown), the citation,
+  locator, evidence source type and grade in the description, and the evidence id@version on the record
+  (`Provenance.method`, `Provenance.evidence`, new optional fields; the builder writes Method only when set). Two
+  accepted values for one parameter are named, never averaged or chosen between.
+- **Process parameters are bound from the harvested table** (`pbpk_domain.cpf.process_bindings`, the OSP import's
+  process table, now public as `PROCESS_PARAMETERS` / `PROCESS_FAMILY`): GFR fraction, total hepatic / renal clearance
+  bind directly; a quantity carried by several process types (`CLspec/[Enzyme]` on `MetabolizationSpecific_FirstOrder`
+  and `rCYP450_FirstOrder`) waits for a person's choice with a reason (`InputChoices`, also the formulation a solid
+  study used and studies left out); a value in another unit than the builder places is named.
+- **Study catalog** from the accepted datasets (origin kept; the mean / median series is the judged profile; PK-parameter
+  and individual-only datasets are listed as not judged by the current campaign, with why).
+- **Readiness** (READINESS/main): the S0 rules (completeness, placeable pathways, expression profiles, from
+  `pbpk_domain`), formulations of solid studies, observed data to judge on, the real-data rule, the default MS-01 split,
+  and a **software build of every planned simulation** (`build_stage_snapshot` on a default MAP). Loading the snapshots
+  into PK-Sim (the engine dry run) needs the engine and is stated as not run here. P4 closes with a named acceptance
+  when ready; `inputs:publish` hands CPF v1 and the judged studies (with their origin) to the campaign path.
+- API `/projects/{id}/inputs` (`:assemble`, `/choices`, `:accept`, `:publish`); web `/projects/{id}/inputs` with tabs
+  mirroring PK-Sim's building blocks (Compound, Formulations, Individuals, Simulation settings), Studies and Readiness;
+  P3 and P4 pages refresh the phase rail after each action. Playwright covers the flow.
+- **Known gap:** the engine dry run (PK-Sim loads every snapshot) runs on the server; `ValueOrigin.Method` in built
+  snapshots is untested on PK-Sim until that run (the values are those of the OSP snapshots PK-Sim loads).
+
 ### Added — dissolution: canonical profiles, checks, f2 and the Weibull fit in PK-Sim's parameterization (T-48)
 - **Profiles** (`pbpk_domain.dissolution`, `modeler_project.dissolution_register`): every client file's dissolution rows
   (template, or a confirmed mapping recipe) become canonical profiles, one per product × role × strength × batch ×
