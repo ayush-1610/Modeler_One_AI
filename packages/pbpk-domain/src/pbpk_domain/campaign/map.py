@@ -299,6 +299,18 @@ def _scenario_stages(assignment: Assignment, study_class: StudyClass, train: str
     return ()
 
 
+S5_CLASSES = _S5_CLASSES  # the classes S5 judges externally; the others validate their S6 application
+
+
+def training_stages(studies: list[StudyRecord], split: SplitResult, cpf: CPF) -> dict[str, str | None]:
+    """The stage each INTERNAL study of `split` trains, exactly as the MAP's scenarios place it (None: its class
+    trains no stage). Used by the model plan (P5) to check a person's placement against MS-01."""
+    by_id = {s.study_id: s for s in studies}
+    have_solution = any(r.assignment is Assignment.INTERNAL and r.study_class is StudyClass.PO_SOL_FASTED for r in split.splits)
+    return {r.study_id: _training_stage(by_id[r.study_id], r.study_class, cpf, have_solution)
+            for r in split.splits if r.assignment is Assignment.INTERNAL}
+
+
 def _scenarios(studies: list[StudyRecord], split: SplitResult, *, meal_template: str, cpf: CPF | None = None,
                sampling_end_h: Mapping[str, float] | None = None) -> tuple[MapScenario, ...]:
     by_id = {s.study_id: s for s in studies}

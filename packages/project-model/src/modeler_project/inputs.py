@@ -287,7 +287,9 @@ def readiness(cpf: CPF, rows: list[dict[str, Any]], assembly: dict[str, Any], br
     build_notes: list[str] = []
     build_ok = False
     if records and completeness.ready and not unplaced:
-        food = bool(brief and "APP-12" in (brief.value("qoi.applications") or []))
+        from modeler_project.plan import applications
+
+        food = "APP-12" in applications(brief)
         split = split_studies(records, QuestionOfInterest(food_effect=food))
         # each study simulated over its whole sampled window, as campaign:prepare does
         hours = {"min": 1 / 60, "h": 1.0, "day": 24.0}

@@ -664,6 +664,35 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — P5 model plan: the canvas (D1, D2, D3), live validator, A5, MAP from plan, signature (T-50)
+- **ModelPlan** (`modeler_project.plan`, MODEL_PLAN/main): starts as the MS-01 default computed exactly as today
+  (`split_studies`, the MAP's own training-stage rule, the stage plan's fit candidates resolved on CPF v1, budgets);
+  each study's role (S1 / S2 / S3 train, S5 external, S6 application, supportive), fit choices, structure (objective,
+  context of use, model risk, food effect, planned applications, from the brief), A5 rationales and proposals,
+  acknowledged warnings and the canvas layout. A person's change carries a reason and is **userLocked**: rebasing on
+  new inputs or a structure change moves only unlocked placements; A5 cannot touch a locked one.
+- **Live validator** (MS-01 §3.3 rules 1, 3, 4, 5; class ↔ training stage; profile needed to train; core vs applied
+  studies; fit stages and bounds; reasons; real data). Errors block; warnings block until acknowledged with a reason
+  and then become MAP limitations. A drop is validated (dry run) before the person confirms it.
+- **MAP from plan** (`map_from_plan`): the plan's placements as the split, its fits as the campaign CPF's fit policies,
+  its changes and acknowledged warnings in the MAP's rationale and limitations, through `generate_map` unchanged (one
+  public helper added to `campaign/map.py`: `training_stages`). With no change it equals `generate_map` (content hash).
+- **Agent A5** (`modeler_agents.planning_agent`): explains every assignment and proposes departures with reasons;
+  code refuses a proposal on a person's choice or one that breaks a rule; the person accepts or rejects each in the diff.
+- **Sign** (`POST /plan:sign`, role modeler-reviewer = MIDD lead, D-07): refused while anything is open; the MAP is
+  generated, signed from the token's step-up (meaning Approved, bound to its content hash), the campaign inputs are
+  staged like `campaign:prepare` (campaign CPF, signed MAP, observed PK with origins), plan and MAP are approved (P5
+  gate). Later changes are refused (a MAP deviation, D-14).
+- Web `/projects/{id}/plan`: "Overall Data" side panel; D3 development and validation DAG with native HTML5 drag and
+  drop onto nodes, the arrows into a stage and the training layer, node re-layout; D1 disposition and D2 absorption /
+  formulation (read-mostly, D-13) with fit forms; the validator; the diff (MS-01 default → plan, A5 proposals); Approve
+  and Sign; Run the campaign (P6). Integration plan and departures from plan §11.4 (no React Flow; new data placed by
+  the default and marked; edge drops) in `docs/P5_PLAN_CANVAS.md`.
+- Fixed: the P4 readiness read the brief's food-effect application by code (`APP-12`) against stored labels
+  (`APP-12 food effect`), so food effect in question was never seen there; both P4 and P5 now read the code.
+- **Known gap:** A5 has run only against a scripted model; MAP deviations after signature (D-14) and project-wide
+  blinding of external values (D-15) are not built yet.
+
 ### Added — P4 model inputs: CPF v1 from accepted evidence, the study catalog, readiness (T-49)
 - **CPF v1 is assembled, never typed** (`modeler_project.inputs`): one record per accepted evidence item, its value in
   the PK-Sim unit (logP in the builder's "Log Units"; pKa as `phys.pka.{acid|base}.i` from the stated conditions), its
