@@ -65,6 +65,7 @@ from modeler_orchestrator.campaign_activities import (
 from modeler_orchestrator.fitting_activities import assess_round as assess_fit_round
 from modeler_orchestrator.fitting_activities import plan_jobs
 from modeler_orchestrator.memo import model_set
+from pbpk_domain.campaign.map import FIT_STAGES
 from pbpk_domain.data_origin import real_data_summary, signature_refusal
 from pbpk_domain.fitting import BudgetTooSmallError
 
@@ -293,6 +294,9 @@ class CampaignArtifactWriter:
             "modelSet": model_set,  # the parameter set, engine and scenarios this verdict judged (plan §12.3 N1)
         })
 
+    def next_round(self, stage: str) -> int:
+        return len(self._rounds.setdefault(stage, [])) + 1
+
     def set_gof(self, series: list[dict], stage: str | None = None) -> None:
         """The latest goodness-of-fit series, and each stage's own, so validation plots are not overwritten."""
         if series:
@@ -358,6 +362,7 @@ class LocalExecutor:
     approved_gates: set[str] = field(default_factory=set)  # signature gates already signed (resumed campaigns)
     engine_key: str = ""                                    # what the engine is (command, image digest): model sets
     _last: dict[str, dict] = field(default_factory=dict)   # stage -> its judged round (metrics, snapshot, outputs)
+    _passed: set[str] = field(default_factory=set)         # fit stages that passed their gate (no-regression baseline)
 
     def run(
         self, request: CampaignRequest, *,
@@ -369,6 +374,9 @@ class LocalExecutor:
         completed = list(completed_before or [])
         cpf_uri, cpf_sha = request.cpf_uri, request.cpf_sha256
         outcomes: list[StageOutcome] = []
+        # a resumed campaign's fit stages that passed are the no-regression baseline (an accepted-best stage is not)
+        status_of = self.writer._status if self.writer else {}
+        self._passed |= {s for s in completed if s in FIT_STAGES and status_of.get(s, "PASSED") == "PASSED"}
 
         # S0 readiness (no engine) — the MAP is already signed (a campaign only starts after that gate).
         if "S0" in request.stages:
@@ -443,6 +451,16 @@ class LocalExecutor:
                     stage=stage, status="FAILED", rounds_run=0, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
                     findings=[f"{type(exc).__name__}: {exc}"], escalation_reason="stage_failed",
                 )
+            if stage in FIT_STAGES and outcome.status == "PASSED":
+                if outcome.cpf_sha256 != cpf_sha:
+                    # the stage changed the parameter set: every earlier stage that passed is judged again on it
+                    regressions = self._no_regression(request, stage, outcome.cpf_uri, outcome.cpf_sha256)
+                    if regressions:
+                        outcome = StageOutcome(stage=stage, status="ESCALATED", rounds_run=outcome.rounds_run,
+                                               cpf_uri=outcome.cpf_uri, cpf_sha256=outcome.cpf_sha256,
+                                               findings=regressions, escalation_reason="regression")
+                if outcome.status == "PASSED":
+                    self._passed.add(stage)
             outcomes.append(outcome)
             cpf_uri, cpf_sha = outcome.cpf_uri, outcome.cpf_sha256
             if outcome.status not in _STOP_STATUSES:
@@ -669,6 +687,31 @@ class LocalExecutor:
             findings.append("no result table to reproduce (no S4/S5 simulation in the evidence)")
         return StageOutcome(stage="S7", status="ESCALATED", rounds_run=1, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
                             findings=findings, escalation_reason="package_not_reproducible")
+
+    def _no_regression(self, request: CampaignRequest, stage: str, cpf_uri: str, cpf_sha: str) -> list[str]:
+        """Plan §12.3 N2: after `stage` changed the CPF, simulate every internal study of each earlier fit stage that
+        passed, from the new model set, and judge it against its own stage gate (external studies stay unseen). A
+        study that passed before and fails now is a regression; the findings say which and why."""
+        regressions: list[str] = []
+        for earlier in [s for s in FIT_STAGES if s in self._passed and FIT_STAGES.index(s) < FIT_STAGES.index(stage)]:
+            ctx = RoundContext(
+                campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=earlier, round_index=1,
+                cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, seed=request.seed,
+                deadline_seconds=float(request.stage_budgets_seconds.get(earlier, _DEFAULT_STAGE_BUDGET_S)),
+                map_uri=request.map_uri, map_sha256=request.map_sha256,
+                observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
+                system_uri=request.system_uri, system_sha256=request.system_sha256, phase=f"after-{stage}",
+            )
+            result = self._run_round(ctx, judge_only=True)
+            if self.writer:
+                self.writer.add_round(earlier, self.writer.next_round(earlier), f"no-regression check with {stage}'s CPF",
+                                      result.evaluation, model_set=self._model_set(request, earlier, cpf_sha))
+                self.writer.flush(current_stage=stage, status="RUNNING")
+            if not result.evaluation.gate_passed:
+                why = "; ".join(result.evaluation.findings[:3]) or "its gate no longer passes"
+                regressions.append(f"{earlier} no longer passes with the CPF {stage} fitted (no-regression gate, plan §12.3 "
+                                   f"N2): {why}")
+        return regressions
 
     def _model_set(self, request: CampaignRequest, stage: str, cpf_sha: str) -> dict:
         map_doc = _local_json(request.map_uri) if request.map_uri else None

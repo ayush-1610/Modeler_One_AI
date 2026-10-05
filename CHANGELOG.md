@@ -664,6 +664,18 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — the no-regression gate (T-52, plan §12.3 N2)
+- When a fit stage (S2, S3) passes with a parameter set different from the one it started from, every earlier fit stage
+  that had passed is simulated again from the new model set and judged against its own gate (its internal studies
+  only; external studies stay unseen until S5). Each re-check is a round on that stage ("no-regression check with S2's
+  CPF", with its model set). A study that passed before and fails now is a regression: the stage escalates with reason
+  `regression` and the findings name the earlier stage and why, so the campaign stops before S4 instead of S4
+  escalating later as if something unrelated broke. A stage that did not change the parameter set triggers no re-check.
+- Why: a parameter fitted at S2 or S3 that also acts on IV studies (logP, fu, a clearance) was not re-checked against S1
+  until S4 (plan §12.1). The joint refit that resolves a regression is T-53.
+- Verified on a scripted executor (control flow); the PK-Sim acceptance (a deliberate S2 logP change that breaks S1
+  is caught before S4) is to run on the server.
+
 ### Added — Lane B start: model sets and memoized engine runs (T-51, plan §12.3 N1 / N7)
 - **Memoized runs** (`modeler_orchestrator.memo.MemoEngine`): an engine job is keyed by its task, the content hash of
   every input, its options (seeds included) and the engine (command and image digest). An identical job that already
