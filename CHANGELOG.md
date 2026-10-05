@@ -664,6 +664,35 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — P3 client data: the client-data template, sheet triage, agent A4 and reconciliation (T-47)
+- **Client-data template** (`modeler_intake.client_template`, `GET /client-data/template.xlsx`, plan §10.2, D-11):
+  README plus Studies, PK_Individual, PK_Summary, PK_Parameters, Dissolution, Product, Physchem_InVitro, Urine_Feces;
+  one column list builds the download and reads the upload, so they cannot drift. Read with no AI: typed per column,
+  enumerations checked, BLQ / `<LLOQ` kept as below-LLOQ, every value with its cell; a value that does not parse (a
+  decimal comma, a unit in the cell), a value outside the allowed list, a missing required value, a renamed column are
+  reported with their cell, never guessed.
+- **Into the project** (`modeler_project.client_data`): each study arm becomes an observed dataset (origin CLIENT,
+  extraction CELL; individual series per subject, summary series per statistic, NCA rows as reported PK; locator and
+  the quoted row line point at the cells); each Physchem_InVitro row an evidence item quoted from its row and matched to
+  its data-plan item (graded like any other evidence: a row that does not state a required condition is grade B).
+  Dissolution, product and urine/feces rows are kept with their cells for T-48 / T-49. Doses and products that the
+  brief does not mention are listed as questions (plan §10.1 step 7). The same bytes uploaded again change nothing.
+- **Any other workbook** (`modeler_intake.triage`): each sheet is classified by the words of its first rows, quoting
+  the deciding cell; undecided sheets go to **agent A4** (`modeler_agents.sheet_triage`), whose classification is
+  recorded only when code finds its quoted header in that cell; a person can change any. Data are read from such a
+  sheet only with a mapping recipe a person confirms (preview shows records, problems and open questions; confirming
+  needs none). PDF, Word, CSV and Markdown files are stored as citable documents (owner, §3 #15).
+- **Reconciliation** (plan §10.1 step 6): per client item of the data plan, delivered / partial (e.g. "2 of 3 promised
+  media", from the proposal's own words) / missing / not available, and what arrived that the plan did not promise.
+  The P3 gate (CLIENT_SUBMISSION/register, named approval) refuses while a required client item is missing; the person
+  skips it as not available or switches on the literature cross-check (owner, R-07).
+- Web: the L2b page `/projects/{id}/client-data` (template download, upload, per-file sheet triage with changes and
+  reasons, problems with their cells, recipe mapping with preview, reconciliation with skip / cross-check, approval).
+  Playwright: template downloaded, a filled template and a raw workbook uploaded, the decimal comma named at its cell,
+  a sheet reclassified with a reason, the client dataset shown with origin client.
+- **Known gap:** A4 has not run against a live provider yet (scripted model in tests); the data-mapping agent that
+  drafts recipes still uses the older Anthropic client and is not wired to the L2b page (a person writes the recipe).
+
 ### Added — the real-data rule: only real observed data can sign off a model (T-46, plan §9.4, D-19)
 - **Why:** a campaign could reach "passed" on the illustrative Aciclovir profile or on simulated data, and nothing on
   the monitor or in the MAR said so ("without any data we completed results").

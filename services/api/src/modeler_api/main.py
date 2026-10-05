@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from modeler_api.auth import Principal, require_role
 from modeler_api.brief_api import router as brief_router
 from modeler_api.campaign_api import router as campaign_router
+from modeler_api.client_api import router as client_router
 from modeler_api.config import get_settings
 from modeler_api.escalations import router as escalations_router
 from modeler_api.evidence_api import router as evidence_router
@@ -65,6 +66,7 @@ app.include_router(project_router)
 app.include_router(brief_router)
 app.include_router(requirements_router)
 app.include_router(evidence_router)
+app.include_router(client_router)
 
 
 @app.get("/health")

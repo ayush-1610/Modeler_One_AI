@@ -101,7 +101,7 @@ def _load_xlsx(path: Path, sha256: str) -> WorkbookGrid:
                     if (r, col) != (merged.min_row, merged.min_col):
                         grid.cells[(r, col)] = Cell(ws.title, r, col, origin.value, merged_from=origin.ref)
         sheets[ws.title] = grid
-    return WorkbookGrid(path.name, sha256, sheets)
+    return WorkbookGrid(getattr(path, "name", "workbook.xlsx"), sha256, sheets)
 
 
 def _load_csv(path: Path, sha256: str) -> WorkbookGrid:
@@ -115,6 +115,28 @@ def _load_csv(path: Path, sha256: str) -> WorkbookGrid:
                 if value != "":
                     grid.cells[(r, c)] = Cell(name, r, c, value)
     return WorkbookGrid(path.name, sha256, {name: grid})
+
+
+def read_workbook_bytes(data: bytes, filename: str) -> WorkbookGrid:
+    """The same grid from bytes held in memory (an upload): no temporary file."""
+    import io
+
+    sha256 = hashlib.sha256(data).hexdigest()
+    suffix = Path(filename).suffix.lower()
+    if suffix in (".xlsx", ".xlsm"):
+        grid = _load_xlsx(io.BytesIO(data), sha256)  # type: ignore[arg-type]
+        return WorkbookGrid(Path(filename).name, sha256, grid.sheets)
+    if suffix == ".csv":
+        name = Path(filename).stem
+        sheet = SheetGrid(name=name, max_row=0, max_column=0)
+        for r, row in enumerate(csv.reader(io.StringIO(data.decode("utf-8-sig"))), start=1):
+            sheet.max_row = r
+            sheet.max_column = max(sheet.max_column, len(row))
+            for c, value in enumerate(row, start=1):
+                if value != "":
+                    sheet.cells[(r, c)] = Cell(name, r, c, value)
+        return WorkbookGrid(Path(filename).name, sha256, {name: sheet})
+    raise ValueError(f"unsupported spreadsheet type {suffix!r}; convert .xls to .xlsx first")
 
 
 def read_workbook(path: Path, sha256: str) -> WorkbookGrid:

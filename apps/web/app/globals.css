@@ -316,3 +316,6 @@ tbody tr:last-child td { border-bottom: none; }
 .figure .ref { stroke: var(--sim); stroke-width: 2; stroke-dasharray: 8 6; }
 .figure .pt { fill: var(--obs); stroke: #000; stroke-width: 1.5; }
 .figure .pt.other { fill: var(--sim); }
+
+/* P3 client data (L2b) */
+.mapper { margin-top: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 6px; display: grid; gap: 6px; }
