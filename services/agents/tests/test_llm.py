@@ -79,8 +79,10 @@ def test_provider_selection_from_env_never_reads_keys_from_elsewhere():
     assert chat_model_from_env({"MODELER_LLM_PROVIDER": "disabled"}) is None
     with pytest.raises(LLMConfigError, match="LITELLM_KEY"):
         chat_model_from_env({"MODELER_LLM_PROVIDER": "litellm"})
-    with pytest.raises(LLMConfigError, match="unknown"):
+    with pytest.raises(LLMConfigError, match="no longer supported.*MODELER_LLM_PROVIDER=litellm"):
         chat_model_from_env({"MODELER_LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "k"})   # the hosted providers are gone
+    with pytest.raises(LLMConfigError, match="unknown"):
+        chat_model_from_env({"MODELER_LLM_PROVIDER": "other"})
     with pytest.raises(LLMConfigError, match="seconds"):
         chat_model_from_env({"MODELER_LLM_PROVIDER": "litellm", "LITELLM_KEY": "k", "MODELER_LLM_TIMEOUT_S": "soon"})
     model = chat_model_from_env({"MODELER_LLM_PROVIDER": "litellm", "LITELLM_KEY": "k"})

@@ -217,6 +217,10 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
     provider = (env.get("MODELER_LLM_PROVIDER") or "").strip().lower()
     if provider in ("", "disabled", "none"):
         return None
+    if provider in ("gemini", "groq"):
+        raise LLMConfigError(f"MODELER_LLM_PROVIDER={provider} is no longer supported: since 2026-10-06 the agents use the "
+                             "in-house model. Set MODELER_LLM_PROVIDER=litellm with LITELLM_BASE and LITELLM_KEY in "
+                             "~/.modeler-secrets.env (template: deploy/server/modeler-secrets.env.example)")
     defaults = PROVIDERS.get(provider)
     if defaults is None:
         raise LLMConfigError(f"unknown MODELER_LLM_PROVIDER {provider!r}; use one of: {', '.join(PROVIDERS)} or disabled")

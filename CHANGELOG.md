@@ -669,8 +669,9 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   front of Ollama `qwen3-coder:30b`, model alias `qwen-coder`. Configuration only from the environment:
   `MODELER_LLM_PROVIDER=litellm`, `LITELLM_BASE` (default `http://127.0.0.1:4000/v1`), `LITELLM_KEY`,
   `MODELER_LLM_MODEL` (default `qwen-coder`), `MODELER_LLM_TIMEOUT_S` (default 600: a 30B model on a long document
-  needs minutes per turn). The Gemini and Groq providers are removed; selecting them is refused. Client documents no
-  longer leave the company's server.
+  needs minutes per turn). The Gemini and Groq providers are removed; selecting them is refused with the setting to
+  use instead (a server still configured for Gemini says so in plain words). Client documents no longer leave the
+  company's server.
 - Errors now say what to fix: a rejected key (401/403, not retried, "check LITELLM_KEY"); an unknown model (lists what
   the proxy serves, from `GET /models`); an unreachable proxy ("is LiteLLM running, is LITELLM_BASE right?"); a timeout
   (names `MODELER_LLM_TIMEOUT_S`); tool calls the model writes into its text (`<tool_call>{…}</tool_call>`, Qwen's
