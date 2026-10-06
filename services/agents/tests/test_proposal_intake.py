@@ -85,7 +85,7 @@ def test_a1_records_verified_fields_and_rejects_the_rest(library):
 
 def test_run_store_keeps_steps_and_the_finished_run(tmp_path):
     store = FileRunStore(tmp_path, project_id="p1")
-    run_id = store.start_run(tenant_id="t1", agent="A1", provider="gemini", model="m", campaign_id=None, budget={})
+    run_id = store.start_run(tenant_id="t1", agent="A1", provider="litellm", model="m", campaign_id=None, budget={})
     store.record_step(run_id=run_id, seq=1, kind="model_turn", content={"x": 1}, usage={"input_tokens": 3})
     store.finish_run(run_id=run_id, status="COMPLETED", input_tokens=3, output_tokens=1, cost_usd=0.0, summary={"ok": True})
     assert store.get(run_id)["status"] == "COMPLETED" and store.steps(run_id)[0]["content"] == {"x": 1}

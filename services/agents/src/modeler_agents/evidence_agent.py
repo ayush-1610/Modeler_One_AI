@@ -17,6 +17,7 @@ from typing import Any
 from modeler_agents.citations import quote_appears_in, value_stated_in_quote
 from modeler_agents.llm import ChatModel, Tool, run_tool_loop
 from modeler_agents.sources import EuropePMC, SourceError
+from modeler_agents.web_search import search_tool
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceItem, Extraction, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import propose, request_access
@@ -33,6 +34,9 @@ Rules:
 - Report values and units exactly as the source states them; do not convert, do not average. When sources disagree, propose each value separately.
 - Record the conditions that give the value its meaning (species, matrix, method, concentration, pH, temperature, system, fu,inc, cell line, direction) in `conditions` as an object.
 - When a relevant paper is not open access, call request_full_text and continue with other sources.
+- If web_search is available, use it to find primary sources (papers, regulatory reviews, labels) that Europe PMC does not
+  reach. Each result page is stored; read it with read_page and quote from it. Never cite a value from a search result
+  you have not read.
 - When nothing is found for an item after a reasonable search, call mark_not_found with what you searched.
 - Call several tools in one turn whenever you can. Finish with a short summary per requirement: found, not found, conflicting."""
 
@@ -173,8 +177,16 @@ def reading_tools(ctx: ResearchContext, *, kinds: tuple[str, ...] = ("parameter"
         ctx.not_found[req_id] = searched
         return f"NOTED: {req_id} not found"
 
+    def store_page(result: dict[str, str]) -> str:
+        """A web search result page, stored as a document so a quote from it is checked verbatim."""
+        text = f"{result['title']}\n{result['url']}\n\n{result['content']}"
+        name = "web-" + "".join(ch if ch.isalnum() else "-" for ch in result["url"].split("//", 1)[-1])[:80] + ".md"
+        doc = ctx.library.add_text(text, name, role="retrieved_record", by=ctx.actor, note=f"web:{result['url']} (web search)")
+        return doc.content["sha256"]
+
     s = {"type": "string"}
-    return [
+    web = search_tool(store_page)
+    return [*([web] if web is not None else []),
         Tool("list_requirements", "The data-plan items to find, with the conditions to record.",
              {"type": "object", "properties": {}}, list_requirements),
         Tool("search_literature", "Search Europe PMC (PubMed, PMC). Returns ids, years, journals, open-access status.",

@@ -1,18 +1,27 @@
-"""Provider-agnostic chat with tool use, for the start-up pipeline's agents (plan §14, decision D-16).
+"""Chat with tool use for the start-up pipeline's agents (plan §14, decision D-16).
 
-The owner chose Gemini or Groq. Both serve the OpenAI-compatible Chat Completions protocol, so one client covers them:
-`OpenAICompatChat` posts messages and tool schemas and returns the model's text and tool calls. `run_tool_loop` runs
-the agent loop: the model calls tools, deterministic handlers check and record what it proposes, and the handlers'
-answers (including rejections) go back to the model until it stops calling tools or the turn limit is reached.
+The owner's model runs in-house: Ollama serves `qwen3-coder:30b` on the server, and a LiteLLM proxy in front of it
+exposes the OpenAI-compatible Chat Completions protocol under one alias, `qwen-coder`. `OpenAICompatChat` posts
+messages and tool schemas and returns the model's text and tool calls; `run_tool_loop` runs the agent loop: the model
+calls tools, deterministic handlers check and record what it proposes, and the handlers' answers (including
+rejections) go back to the model until it stops calling tools or the turn limit is reached.
 
-Keys come only from the host environment (`GEMINI_API_KEY`, `GROQ_API_KEY`), never from the repository. With no
-provider configured, `chat_model_from_env` returns None and every agent step falls back to its manual path.
+Configuration comes only from the host environment, never from the repository:
+
+    MODELER_LLM_PROVIDER=litellm      unset or "disabled" = agents off, every step on its manual path
+    LITELLM_BASE=http://<host>:4000/v1  the proxy (default http://127.0.0.1:4000/v1, the API on the same server)
+    LITELLM_KEY=...                   the proxy's bearer key
+    MODELER_LLM_MODEL=qwen-coder      the proxy's model alias (default)
+    MODELER_LLM_TIMEOUT_S=600         a local 30B model reading a long document can take minutes per turn
+
+Web search (Ollama's cloud API, its own key) is a tool the agents may call: `modeler_agents.web_search`.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -30,13 +39,13 @@ class ProviderDefaults:
     model: str
 
 
-# Defaults only: MODELER_LLM_MODEL / MODELER_LLM_BASE_URL override them per deployment. The Gemini default is the
-# provider's "latest flash" alias, which served tool calls on the owner's key on 2026-10-05 (the pro models were over
-# its quota); Groq is reachable from the deployment host only (this build's container blocks it).
+# Defaults only: LITELLM_BASE / MODELER_LLM_MODEL override them per deployment. The owner replaced the hosted providers
+# (Gemini, Groq) with the in-house model on 2026-10-06: client documents then never leave the company's server.
 PROVIDERS: dict[str, ProviderDefaults] = {
-    "gemini": ProviderDefaults("https://generativelanguage.googleapis.com/v1beta/openai", "GEMINI_API_KEY", "gemini-flash-latest"),
-    "groq": ProviderDefaults("https://api.groq.com/openai/v1", "GROQ_API_KEY", "llama-3.3-70b-versatile"),
+    "litellm": ProviderDefaults("http://127.0.0.1:4000/v1", "LITELLM_KEY", "qwen-coder"),
 }
+BASE_ENV = {"litellm": "LITELLM_BASE"}
+DEFAULT_TIMEOUT_S = 600.0
 
 _RETRY_STATUS = {408, 409, 429, 500, 502, 503, 504}
 
@@ -73,22 +82,32 @@ class LLMConfigError(RuntimeError):
 
 
 class OpenAICompatChat:
-    """Chat Completions over HTTPS (Gemini's and Groq's OpenAI-compatible endpoints)."""
+    """Chat Completions on an OpenAI-compatible endpoint (the LiteLLM proxy in front of Ollama)."""
 
-    def __init__(self, *, provider: str, base_url: str, api_key: str, model: str, timeout_s: float = 120.0,
+    def __init__(self, *, provider: str, base_url: str, api_key: str, model: str, timeout_s: float = DEFAULT_TIMEOUT_S,
                  max_retries: int = 4, transport: httpx.BaseTransport | None = None,
                  sleep: Callable[[float], None] = time.sleep):
         self.provider = provider
         self.model = model
-        self._url = base_url.rstrip("/") + "/chat/completions"
+        self.base_url = base_url.rstrip("/")
+        self._url = self.base_url + "/chat/completions"
         self._headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         self._timeout = timeout_s
         self._max_retries = max_retries
         self._transport = transport
         self._sleep = sleep
 
+    def list_models(self) -> list[str]:
+        """The model names the endpoint serves (GET /models); [] when it cannot say."""
+        try:
+            with httpx.Client(timeout=30, transport=self._transport) as client:
+                response = client.get(self.base_url + "/models", headers=self._headers)
+            return sorted(str(m.get("id")) for m in response.json().get("data", [])) if response.status_code == 200 else []
+        except (httpx.HTTPError, ValueError, AttributeError):
+            return []
+
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatResult:
-        body: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": 0}
+        body: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": 0, "stream": False}
         if tools:
             body["tools"] = tools
             body["tool_choice"] = "auto"
@@ -97,17 +116,38 @@ class OpenAICompatChat:
             for attempt in range(self._max_retries + 1):
                 try:
                     response = client.post(self._url, headers=self._headers, json=body)
+                except httpx.TimeoutException:
+                    last_error = f"no answer within {self._timeout:g} s (raise MODELER_LLM_TIMEOUT_S for long documents)"
+                except httpx.ConnectError as exc:
+                    last_error = f"cannot reach {self.base_url} ({exc}); is the LiteLLM proxy running and LITELLM_BASE right?"
                 except httpx.HTTPError as exc:
                     last_error = f"{type(exc).__name__}: {exc}"
                 else:
                     if response.status_code == 200:
-                        return _parse(response.json(), self.model)
+                        try:
+                            return _parse(response.json(), self.model, inline_tools=bool(tools))
+                        except ValueError as exc:
+                            raise LLMUnavailableError(f"{self.provider} answered with something that is not JSON: {exc}") from exc
+                    raise_refusal(self, response)
                     last_error = f"HTTP {response.status_code}: {_error_message(response)}"
-                    if response.status_code not in _RETRY_STATUS:
-                        raise LLMUnavailableError(f"{self.provider} refused the request: {last_error}")
                 if attempt < self._max_retries:
                     self._sleep(min(2.0 ** (attempt + 1), 30.0))
         raise LLMUnavailableError(f"{self.provider} unavailable after {self._max_retries + 1} attempts: {last_error}")
+
+
+def raise_refusal(chat: OpenAICompatChat, response: httpx.Response) -> None:
+    """A non-retryable answer becomes an error that says what to fix (the key, the model name); retryable ones return."""
+    status, message = response.status_code, _error_message(response)
+    if status in _RETRY_STATUS:
+        return
+    if status in (401, 403):
+        raise LLMUnavailableError(f"{chat.provider} rejected the key (HTTP {status}: {message}); check LITELLM_KEY")
+    lowered = message.lower()
+    if status in (400, 404) and ("model" in lowered and any(w in lowered for w in ("not found", "invalid", "no such", "does not exist"))):
+        served = chat.list_models()
+        raise LLMUnavailableError(f"{chat.provider} does not serve the model {chat.model!r} (HTTP {status}: {message}); "
+                                  f"it serves: {', '.join(served) or 'unknown'} — set MODELER_LLM_MODEL")
+    raise LLMUnavailableError(f"{chat.provider} refused the request: HTTP {status}: {message}")
 
 
 def _error_message(response: httpx.Response) -> str:
@@ -124,23 +164,47 @@ def _error_message(response: httpx.Response) -> str:
     return str(data)[:300]
 
 
-def _parse(data: dict[str, Any], model: str) -> ChatResult:
+_INLINE_CALL = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
+
+
+def _inline_calls(content: str) -> list[dict[str, Any]]:
+    """Tool calls a model wrote into its text (`<tool_call>{"name": …, "arguments": …}</tool_call>`, Qwen's own format)
+    when the server did not turn them into `tool_calls`."""
+    out = []
+    for index, block in enumerate(_INLINE_CALL.findall(content or "")):
+        try:
+            call = json.loads(block)
+        except json.JSONDecodeError:
+            call = {"name": "", "arguments": block}
+        out.append({"id": f"inline_{index}", "type": "function",
+                    "function": {"name": call.get("name", ""), "arguments": call.get("arguments", {})}})
+    return out
+
+
+def _parse(data: dict[str, Any], model: str, *, inline_tools: bool = False) -> ChatResult:
     choice = (data.get("choices") or [{}])[0]
     message = choice.get("message") or {}
+    raw_calls = message.get("tool_calls") or []
+    content = str(message.get("content") or "")
+    if not raw_calls and inline_tools and "<tool_call>" in content:
+        raw_calls = _inline_calls(content)
+        content = _INLINE_CALL.sub("", content).strip()
     calls = []
-    for index, call in enumerate(message.get("tool_calls") or []):
+    for index, call in enumerate(raw_calls):
         function = call.get("function") or {}
         raw = function.get("arguments") or "{}"
         try:
             arguments = json.loads(raw) if isinstance(raw, str) else dict(raw)
         except json.JSONDecodeError:
             arguments = {"__unparsed__": raw}
+        inline = str(call.get("id", "")).startswith("inline_")
         calls.append(ToolCall(id=str(call.get("id") or f"call_{index}"), name=str(function.get("name", "")),
                               arguments=arguments if isinstance(arguments, dict) else {"__unparsed__": raw},
-                              raw_arguments=raw if isinstance(raw, str) else json.dumps(raw), raw=dict(call)))
+                              raw_arguments=raw if isinstance(raw, str) else json.dumps(raw),
+                              raw={} if inline else dict(call)))
     usage = data.get("usage") or {}
     return ChatResult(
-        content=str(message.get("content") or ""), tool_calls=tuple(calls),
+        content=content, tool_calls=tuple(calls),
         finish_reason=str(choice.get("finish_reason") or ""),
         usage={"input_tokens": int(usage.get("prompt_tokens") or 0), "output_tokens": int(usage.get("completion_tokens") or 0)},
         model=str(data.get("model") or model),
@@ -159,10 +223,23 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
     key = (env.get(defaults.key_env) or "").strip()
     if not key:
         raise LLMConfigError(f"MODELER_LLM_PROVIDER={provider} needs {defaults.key_env} in the environment")
+    try:
+        timeout = float(env.get("MODELER_LLM_TIMEOUT_S") or DEFAULT_TIMEOUT_S)
+    except ValueError as exc:
+        raise LLMConfigError(f"MODELER_LLM_TIMEOUT_S must be a number of seconds, not {env.get('MODELER_LLM_TIMEOUT_S')!r}") from exc
     return OpenAICompatChat(
-        provider=provider, base_url=env.get("MODELER_LLM_BASE_URL") or defaults.base_url, api_key=key,
-        model=env.get("MODELER_LLM_MODEL") or defaults.model,
+        provider=provider, base_url=(env.get(BASE_ENV[provider]) or defaults.base_url).strip(), api_key=key,
+        model=(env.get("MODELER_LLM_MODEL") or defaults.model).strip(), timeout_s=timeout,
     )
+
+
+def chat(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None, *,
+         model: ChatModel | None = None) -> ChatResult:
+    """One chat completion on the configured model (raises LLMConfigError when agents are off)."""
+    model = model or chat_model_from_env()
+    if model is None:
+        raise LLMConfigError("agents are off: set MODELER_LLM_PROVIDER=litellm (with LITELLM_BASE and LITELLM_KEY)")
+    return model.complete(messages, tools or [])
 
 
 # --- the agent loop -------------------------------------------------------------------------------------------

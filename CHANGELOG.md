@@ -664,6 +664,27 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Changed — the agents use the in-house model (LiteLLM → Ollama qwen3-coder) with web search; Gemini and Groq removed (D-16)
+- Owner's decision (2026-10-06): `modeler_agents.llm` now has one provider, `litellm` — the company's LiteLLM proxy in
+  front of Ollama `qwen3-coder:30b`, model alias `qwen-coder`. Configuration only from the environment:
+  `MODELER_LLM_PROVIDER=litellm`, `LITELLM_BASE` (default `http://127.0.0.1:4000/v1`), `LITELLM_KEY`,
+  `MODELER_LLM_MODEL` (default `qwen-coder`), `MODELER_LLM_TIMEOUT_S` (default 600: a 30B model on a long document
+  needs minutes per turn). The Gemini and Groq providers are removed; selecting them is refused. Client documents no
+  longer leave the company's server.
+- Errors now say what to fix: a rejected key (401/403, not retried, "check LITELLM_KEY"); an unknown model (lists what
+  the proxy serves, from `GET /models`); an unreachable proxy ("is LiteLLM running, is LITELLM_BASE right?"); a timeout
+  (names `MODELER_LLM_TIMEOUT_S`); tool calls the model writes into its text (`<tool_call>{…}</tool_call>`, Qwen's
+  format) are read as tool calls; arguments that are not JSON go back to the model to resend (as before).
+- `modeler_agents.web_search`: Ollama's web search (`OLLAMA_API_KEY`, `https://ollama.com/api/web_search`):
+  `web_search(query)`, `ask(question)` (the owner's reference loop: the model calls `web_search`, the results go back as
+  tool messages, the final answer is returned), and `chat(messages, tools)` in `llm`. A2 and A3 get `web_search` when
+  the key is set; every result page is stored as a document first, so a value is still quoted from a stored page and
+  checked verbatim (D-09: the web finds sources, it is never itself the citation).
+- `python -m modeler_agents.llm_check [--search] [--ask "…"]`: the served models, a reply, a tool call, a web search
+  and a searched answer, with the environment the API will use; never prints a key.
+- Verified with mocked HTTP (`test_llm.py`, `test_web_search.py`); the cloud container reaches neither the owner's
+  proxy nor ollama.com, so the live check runs on the server.
+
 ### Docs — agents verified live on Gemini; the free-tier limit noted
 - A1 (proposal intake) ran live on the owner's Gemini key (2026-10-06, in the cloud container, keys only in the
   environment of the run, nothing stored): `gemini-flash-lite-latest` completed with 45 brief fields accepted, each with

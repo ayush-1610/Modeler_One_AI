@@ -27,14 +27,16 @@ export MODELER_ENGINE_COMMAND="Rscript $REPO/services/engine-worker/r/run_job.R"
 export MODELER_IMAGE_DIGEST="sha256:0000000000000000000000000000000000000000000000000000000000000000"
 export MODELER_API_BASE="http://127.0.0.1:$API_PORT"
 
-# --- agents (decision D-16): provider and key live OUTSIDE the repository, in a file only the owner can read ---
-# ~/.modeler-secrets.env (chmod 600), e.g.:
-#   export MODELER_LLM_PROVIDER=gemini          # or groq; unset or "disabled" = agents off, manual paths only
-#   export GEMINI_API_KEY=...                   # or GROQ_API_KEY=...
-#   export MODELER_LLM_MODEL=gemini-flash-latest  # optional override
-# A Gemini key on the free tier allows 20 requests a day per model (2026-10-06), and one agent run can use 15+; when a
-# model's quota is spent its runs end LLM_UNAVAILABLE (HTTP 429). Use a key with billing for real projects, or set
-# MODELER_LLM_MODEL to another model with quota left (e.g. gemini-3.5-flash, gemini-flash-lite-latest).
+# --- agents (decision D-16): the in-house model behind LiteLLM, and Ollama's web search. Keys live OUTSIDE the
+# repository, in a file only the owner can read (~/.bashrc is not read by these scripts: cron and nohup start a
+# non-interactive shell). ~/.modeler-secrets.env (chmod 600), with no spaces around "=":
+#   export MODELER_LLM_PROVIDER=litellm           # unset or "disabled" = agents off, manual paths only
+#   export LITELLM_BASE=http://127.0.0.1:4000/v1   # the LiteLLM proxy (this server)
+#   export LITELLM_KEY=...                         # the proxy's master key
+#   export MODELER_LLM_MODEL=qwen-coder            # the proxy's alias (default); not the Ollama tag
+#   export MODELER_LLM_TIMEOUT_S=600               # a 30B model reading a long document needs minutes per turn
+#   export OLLAMA_API_KEY=...                      # web search for the agents (optional; its own key)
+# Check it before starting: source ~/.modeler-secrets.env && uv run python -m modeler_agents.llm_check --search
 SECRETS_FILE="${MODELER_SECRETS_FILE:-$HOME/.modeler-secrets.env}"
 [ -f "$SECRETS_FILE" ] && . "$SECRETS_FILE"
 
