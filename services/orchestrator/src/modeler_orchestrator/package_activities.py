@@ -23,6 +23,7 @@ from urllib.parse import unquote, urlparse
 
 from modeler_contracts.runs import EngineInput, EngineJob, EngineManifest, RoundContext
 from modeler_orchestrator.campaign_activities import PLASMA_OUTPUT_PATH, exported_pkml_name
+from pbpk_domain.atomic_io import atomic_write_bytes, atomic_write_text
 
 SENSITIVITY_TOP = 12  # rows kept per study in the S6 ranking
 
@@ -59,8 +60,7 @@ def persist_stage_evidence(tenant_id: str, campaign_id: str, stage: str, evidenc
     """Write what a finished stage produced — status, rounds, final metrics, notes, the judged snapshot and its
     engine outputs — so S7 can assemble the package even after the campaign paused for a signature."""
     out = campaign_dir(tenant_id, campaign_id) / "evidence" / f"{stage}.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(evidence, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    atomic_write_text(out, json.dumps(evidence, ensure_ascii=False, indent=1, default=str))
     return out
 
 
@@ -237,8 +237,7 @@ def evaluate_s6(ctx: RoundContext, jobs: list[EngineJob], manifests: list[Engine
             intervals[study] = {"AUC": prediction_interval(aucs), "Cmax": prediction_interval(cmaxs)}
     result = {"sensitivity": sensitivity, "intervals": intervals}
     out = campaign_dir(ctx.tenant_id, ctx.campaign_id) / "s6" / "s6.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(result, indent=1), encoding="utf-8")
+    atomic_write_text(out, json.dumps(result, indent=1))
     return result
 
 
@@ -299,8 +298,7 @@ def prepare_reproduction_jobs(tenant_id: str, campaign_id: str, files: dict[str,
     jobs = []
     for bundle_path, stem in sorted(snapshots.items()):
         src = folder / f"{stem}.json"
-        src.parent.mkdir(parents=True, exist_ok=True)
-        src.write_bytes(files[bundle_path])
+        atomic_write_bytes(src, files[bundle_path])
         jobs.append(EngineJob(
             job_id=f"{campaign_id}-S7-rerun-{stem}", tenant_id=tenant_id, task="simulate",
             inputs=[EngineInput(name="snapshot.json", uri=src.as_uri(), sha256=hashlib.sha256(files[bundle_path]).hexdigest())],
@@ -317,8 +315,7 @@ def prepare_project_jobs(tenant_id: str, campaign_id: str, files: dict[str, byte
     jobs = []
     for bundle_path, stem in sorted(snapshots.items()):
         src = folder / f"{stem}.json"
-        src.parent.mkdir(parents=True, exist_ok=True)
-        src.write_bytes(files[bundle_path])
+        atomic_write_bytes(src, files[bundle_path])
         jobs.append(EngineJob(
             job_id=f"{campaign_id}-S7-project-{stem}", tenant_id=tenant_id, task="convert_to_project",
             inputs=[EngineInput(name="snapshot.json", uri=src.as_uri(), sha256=hashlib.sha256(files[bundle_path]).hexdigest())],
@@ -413,9 +410,9 @@ def finish_package(tenant_id: str, campaign_id: str, *, files: dict[str, bytes],
         full.update(projects or {})  # derived from the bundled snapshots; opened in PK-Sim, not compared numerically
         manifest = assemble_bundle(f"{campaign_id}-package", campaign_id, full, numeric_paths=numeric,
                                    engine_image_digest=engine_image_digest, software_versions=map_doc.software_versions)
-        (out / "package.zip").write_bytes(write_bundle_zip(manifest, full))
+        atomic_write_bytes(out / "package.zip", write_bundle_zip(manifest, full))  # the download API may be serving it
         record.update(exportable=True, package=str(out / "package.zip"), package_sha256=manifest.content_sha256())
-    (out / "package.json").write_text(json.dumps(record, indent=1), encoding="utf-8")
+    atomic_write_text(out / "package.json", json.dumps(record, indent=1))
     return record
 
 

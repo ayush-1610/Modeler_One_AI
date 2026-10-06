@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a campaign's JSON is never read half written, and a started campaign is readable at once
+- **Atomic writes** (`pbpk_domain.atomic_io`: temporary file in the same directory, `fsync`, `os.replace`). The
+  single-node runner rewrites `campaigns.json` from its own thread while the API serves it; a plain `write_text`
+  truncates the live file first, so a GET could read it empty (`JSONDecodeError: Expecting value`, the T-56 kit test
+  about 1 run in 6–8). Every JSON or file the API reads while a campaign runs now goes through it: the file store
+  (`_write_json`, `materialize` — campaigns, escalations, projects, studies, CPF, systems, staged inputs), stage
+  evidence, S6 results, the package record and zip, the rendered MAR (`mar.md`; pandoc's `mar.docx` and Typst's
+  `mar.pdf` are rendered to a temporary file and swapped in only on success), fit specs and fitted-CPF versions,
+  feedback-cycle and joint MAPs, and the run memo (which was already replaced atomically, now also `fsync`-ed). The
+  reader has no retries.
+- **The first campaign record is written before its id is returned** (`local_runner.start_campaign`, used by
+  `POST /projects/{pid}/campaigns`). The id was handed out while the runner thread had not yet written anything, so a
+  GET right after the start could 404 (`KeyError: 'data'` in the same test, about 1 run in 30). The record now exists,
+  as QUEUED, when the start returns.
+- `test_t56_kit.py`: 40 of 40 runs pass (before: 1 failure in 6–8). `make test` 777 passed, lint clean.
+- **Known gap, not changed here:** the project store (`modeler_project.store.put`) creates an artifact version file and
+  then fills it, so the API can read an empty version while an agent job (A1/A2/A4/A5) writes one; and the file
+  store's read-modify-write upserts are not locked, so two writers in one process could lose an update.
+
 ### Changed — reference checks run on the server; the PK-Sim workflow is manual
 - `.github/workflows/reference-models.yml` no longer runs on push (only "Run workflow" by hand): the reference set runs
   on the server's PK-Sim (`bash deploy/reference/run_all.sh`), and the repository goes private. Last full run on
@@ -1520,3 +1539,4 @@ record it here so a reader knows which context produced which work.
 | 2026-09-24 (cloud session) | Claude Opus 5.5 | Phase 4 reference importer (Dapagliflozin real data), wizard templates, e2e flow. No PK-Sim in this container (CRAN / r-universe blocked): engine proof stays on the server |
 | 2026-09-25 | per commit trailer (new session) | Plan for the project start-up pipeline (P0–P6) and the non-linear backend (draft, awaiting approval) |
 | 2026-10-05 (cloud session) | Claude Opus 5.5 | Built the approved start-up pipeline P0–P5 (T-40 → T-50) and the non-linear backend T-51 → T-55 (MS-01 v1.1 SJ, v1.2 feedback cycles, both UNVERIFIED); verified in software only — no PK-Sim in this container, T-56 is the server's |
+| 2026-10-06 (worktree `claude/vbe-template`) | Claude Opus 5.5 | Atomic writes for every file the API reads during a campaign; first campaign record written before the id is returned (T-56 kit test flake); T-31 VBE template |

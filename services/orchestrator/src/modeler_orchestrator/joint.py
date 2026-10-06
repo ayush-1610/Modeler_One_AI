@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+from pbpk_domain.atomic_io import atomic_write_bytes
 from pbpk_domain.campaign.map import FIT_STAGES
 
 JOINT = "SJ"
@@ -68,7 +69,7 @@ def joint_map(map_uri: str, stages: tuple[str, ...], *, tag: str) -> tuple[str, 
     derived = {**doc, "scenarios": scenarios}
     out = _path(map_uri).with_name(f"map-{JOINT}-{tag}.json")
     data = json.dumps(derived, ensure_ascii=False).encode("utf-8")
-    out.write_bytes(data)
+    atomic_write_bytes(out, data)
     return out.as_uri(), hashlib.sha256(data).hexdigest(), [s["study_id"] for s in scenarios]
 
 

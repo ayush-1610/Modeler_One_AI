@@ -1000,21 +1000,51 @@ def _executor_engine(engine: EngineRun | None, *, read_root: str, tenant_id: str
     return base
 
 
-def run_campaign(
-    request: CampaignRequest, *, read_root: str, project: str, question: str = "", model_risk: str = "medium",
-    budget_seconds: int | None = None, engine: EngineRun | None = None, memo: bool | None = None,
-) -> CampaignOutcome:
-    """Run a campaign to completion single-node, writing live monitor artifacts under ``read_root``."""
+def _campaign_writer(request: CampaignRequest, *, read_root: str, project: str, question: str, model_risk: str,
+                     budget_seconds: int | None, engine: EngineRun | None) -> CampaignArtifactWriter:
     total_budget = budget_seconds or (sum(request.stage_budgets_seconds.values()) or 3600)
-    writer = CampaignArtifactWriter(
+    return CampaignArtifactWriter(
         store=FileWriteStore(read_root), tenant_id=request.tenant_id, campaign_id=request.campaign_id,
         project=project, compound=request.compound, question=question, model_risk=model_risk,
         budget_seconds=total_budget, stages=list(request.stages), engine=engine_identity(engine),
         origins=observed_origins(request.observed_uri),
     )
-    writer.flush(current_stage=request.stages[0], status="RUNNING")
+
+
+def _run_with(request: CampaignRequest, writer: CampaignArtifactWriter, *, read_root: str, engine: EngineRun | None,
+              memo: bool | None) -> CampaignOutcome:
     return LocalExecutor(engine=_executor_engine(engine, read_root=read_root, tenant_id=request.tenant_id, memo=memo),
                          writer=writer, engine_key=engine_key(engine)).run(request)
+
+
+def run_campaign(
+    request: CampaignRequest, *, read_root: str, project: str, question: str = "", model_risk: str = "medium",
+    budget_seconds: int | None = None, engine: EngineRun | None = None, memo: bool | None = None,
+) -> CampaignOutcome:
+    """Run a campaign to completion single-node, writing live monitor artifacts under ``read_root``."""
+    writer = _campaign_writer(request, read_root=read_root, project=project, question=question, model_risk=model_risk,
+                              budget_seconds=budget_seconds, engine=engine)
+    writer.flush(current_stage=request.stages[0], status="RUNNING")
+    return _run_with(request, writer, read_root=read_root, engine=engine, memo=memo)
+
+
+def start_campaign(
+    request: CampaignRequest, *, read_root: str, project: str, question: str = "", model_risk: str = "medium",
+    budget_seconds: int | None = None, engine: EngineRun | None = None, memo: bool | None = None,
+):
+    """Write the campaign's first monitor record (QUEUED) now, then run it on a background thread.
+
+    The record exists before the caller hands out the campaign id, so a GET right after the start finds the campaign
+    instead of a 404 (the T-56 kit test polled it before the thread's first write, about 1 run in 30)."""
+    import threading
+
+    writer = _campaign_writer(request, read_root=read_root, project=project, question=question, model_risk=model_risk,
+                              budget_seconds=budget_seconds, engine=engine)
+    writer.flush(current_stage=request.stages[0], status="QUEUED")
+    thread = threading.Thread(target=_run_with, args=(request, writer),
+                              kwargs={"read_root": read_root, "engine": engine, "memo": memo}, daemon=True)
+    thread.start()
+    return thread
 
 
 def observed_origins(observed_uri: str) -> dict[str, str | None]:

@@ -8,7 +8,6 @@ project member (T-06). Starting a campaign runs it through the configured execut
 
 from __future__ import annotations
 
-import threading
 import uuid
 from typing import Annotated, Any
 
@@ -31,16 +30,12 @@ def _launch_local_campaign(campaign_request: Any, *, read_root: str, project: st
     """Run the campaign single-node on a background thread (the local execution backend).
 
     Imported lazily because the orchestrator depends on this package (importing it at module load would be a
-    cycle). The runner writes the live monitor view under ``read_root`` as it progresses.
+    cycle). The campaign's first monitor record is written before this returns, so the id the caller hands out is
+    already readable; the runner then writes the live monitor view under ``read_root`` as it progresses.
     """
-    from modeler_orchestrator.local_runner import run_campaign
+    from modeler_orchestrator.local_runner import start_campaign
 
-    threading.Thread(
-        target=run_campaign,
-        kwargs={"request": campaign_request, "read_root": read_root, "project": project,
-                "question": question, "model_risk": model_risk},
-        daemon=True,
-    ).start()
+    start_campaign(campaign_request, read_root=read_root, project=project, question=question, model_risk=model_risk)
 
 
 class MapGenerateRequest(BaseModel):

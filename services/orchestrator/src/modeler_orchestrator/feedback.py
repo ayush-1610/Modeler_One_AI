@@ -28,6 +28,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from modeler_orchestrator.history import study_verdict
+from pbpk_domain.atomic_io import atomic_write_bytes
 
 LEARN_CAP_PER_CLASS = 1  # D-05: one learn cycle per class; more only by a signed deviation
 FEEDBACK_ACTIONS = ("accept_best", "learn", "new_evidence", "abort")
@@ -225,7 +226,7 @@ def learn_map(map_uri: str, learn: list[str], diagnosis: dict[str, Any], *, cycl
     signed = revised.sign(printed_name=printed_name, signature_id=signature_id)
     data = signed.model_dump_json().encode("utf-8")
     out = _path(map_uri).with_name(f"map-cycle{cycle}.json")
-    out.write_bytes(data)
+    atomic_write_bytes(out, data)
     deviation = {"cycle": cycle, "kind": "learn", "studies": list(learn), "stages": stages, "classes": classes,
                  "map_version": signed.version, "supersedes": signed.supersedes_sha256, "signature_id": signature_id,
                  "statement": statement, "beyond_cap": beyond_cap.strip() or None}
@@ -269,7 +270,7 @@ def new_evidence_cpf(cpf_uri: str, *, parameter: str, value: float, unit: str | 
                                          f"({reference.strip()}), {PROMPTED_BY_S5} ({', '.join(failing)})")
     data = updated.model_dump_json().encode("utf-8")
     out = _path(cpf_uri).parent / f"{campaign_id}-evidence-c{cycle}.json"
-    out.write_bytes(data)
+    atomic_write_bytes(out, data)
     return out.as_uri(), hashlib.sha256(data).hexdigest()
 
 

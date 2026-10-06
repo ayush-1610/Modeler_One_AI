@@ -48,6 +48,7 @@ from modeler_contracts.runs import (
     StageRequest,
 )
 from modeler_orchestrator.campaign_store import CampaignStore
+from pbpk_domain.atomic_io import atomic_write_bytes
 
 # The round simulates one built snapshot (a few small simulations) on the small engine class.
 ROUND_RESOURCE_CLASS = "s"
@@ -282,7 +283,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
 
     spec_path = out_dir / f"{snapshot_stem}-pi_spec.json"
     payload = json.dumps(spec, ensure_ascii=False, indent=2).encode("utf-8")
-    spec_path.write_bytes(payload)
+    atomic_write_bytes(spec_path, payload)
     bounds = [FitParameterBounds(name=p["name"], lower=p["min"], upper=p["max"], log_scale=_is_log_scale(cpf, p["name"]))
               for p in spec["parameters"]]
     activity.logger.info("build_round_snapshot %s %s round %d: fit request for %s over %d study(ies)",
@@ -513,8 +514,7 @@ def _apply_round_fit(ctx: RoundContext, fit_outcome) -> tuple[str, str]:
     payload = updated.model_dump_json().encode("utf-8")
     cycle = f"-c{ctx.cycle}" if ctx.cycle > 1 else ""
     out = _local_path(ctx.cpf_uri).parent / "cpf" / f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}{cycle}.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(payload)
+    atomic_write_bytes(out, payload)
     activity.logger.info(
         "run_round %s %s round %d: applied %d estimate(s) -> CPF v%d",
         ctx.campaign_id, ctx.stage, ctx.round_index, len(estimates), updated.version,

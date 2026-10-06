@@ -13,6 +13,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from pbpk_domain.atomic_io import atomic_output, atomic_write_text
 from pbpk_domain.report.mar import MarDocument, render_markdown
 
 
@@ -47,7 +48,8 @@ def render_pdf_a(markdown: str, out_path: Path, *, pandoc: str = "pandoc", gs: s
         with _tempfile(suffix=".typ", text="") as typ:
             _run_pandoc([pandoc, "-f", "markdown", "-t", "typst", "-s", "-o", str(typ)], markdown)
             try:
-                typst.compile(str(typ), output=str(out_path), pdf_standards="a-2b")
+                # format given explicitly: the output may be an atomic temporary path without a .pdf extension
+                typst.compile(str(typ), output=str(out_path), format="pdf", pdf_standards="a-2b")
             except Exception as exc:
                 raise RenderError(f"typst could not compile the report to PDF/A-2b: {exc}") from exc
         return out_path
@@ -62,17 +64,24 @@ def render_pdf_a(markdown: str, out_path: Path, *, pandoc: str = "pandoc", gs: s
 
 def render_all(doc: MarDocument, out_dir: Path, *, pandoc: str = "pandoc", strict: bool = True) -> dict[str, Path]:
     """Render the MAR to every available format. Always writes ``mar.md``; adds ``mar.docx`` and ``mar.pdf``
-    when Pandoc is installed. Returns the map of format -> path actually written."""
+    when Pandoc is installed. Returns the map of format -> path actually written.
+
+    Each file is written atomically (`pbpk_domain.atomic_io`): the download API may be serving the previous report
+    while a campaign renders a new one, and pandoc / typst write their output in place."""
     out_dir.mkdir(parents=True, exist_ok=True)
     markdown = render_markdown(doc, strict=strict)
     written: dict[str, Path] = {}
     md_path = out_dir / "mar.md"
-    md_path.write_text(markdown, encoding="utf-8")
+    atomic_write_text(md_path, markdown)
     written["md"] = md_path
     if pandoc_available(pandoc):
-        written["docx"] = render_docx(markdown, out_dir / "mar.docx", pandoc=pandoc)
+        with atomic_output(out_dir / "mar.docx") as tmp:
+            render_docx(markdown, tmp, pandoc=pandoc)
+        written["docx"] = out_dir / "mar.docx"
         try:
-            written["pdf"] = render_pdf_a(markdown, out_dir / "mar.pdf", pandoc=pandoc)
+            with atomic_output(out_dir / "mar.pdf") as tmp:
+                render_pdf_a(markdown, tmp, pandoc=pandoc)
+            written["pdf"] = out_dir / "mar.pdf"
         except RenderError:
             pass  # a LaTeX engine may be missing even when pandoc is present; DOCX + MD still delivered
     return written

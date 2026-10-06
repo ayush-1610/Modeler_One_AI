@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import unquote, urlparse
 
+from pbpk_domain.atomic_io import atomic_write_bytes, atomic_write_text
 from pbpk_domain.cpf import CPF
 
 
@@ -83,8 +84,9 @@ class _FileStoreBase:
         return list(data.get(key, [])) if data else []
 
     def _write_json(self, path: Path, data: Any) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        # Atomic (temp file, fsync, os.replace): the campaign runner rewrites these documents from its own thread while
+        # the API serves them, and a reader must never see a truncated file.
+        atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=2))
 
 
 class FileReadStore(_FileStoreBase):
@@ -185,6 +187,5 @@ class FileWriteStore(_FileStoreBase):
         Used to stage the self-contained campaign inputs (CPF, MAP, observed data) the single-node runner reads.
         """
         path = self.root / tenant_id / relpath
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+        atomic_write_bytes(path, data)
         return path

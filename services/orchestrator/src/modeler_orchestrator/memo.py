@@ -25,6 +25,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from modeler_contracts.runs import EngineJob, EngineManifest, OutputFile
+from pbpk_domain.atomic_io import atomic_write_text
 
 EngineRun = Callable[[EngineJob], EngineManifest]
 MEMO_NOTE = "memoized"
@@ -100,9 +101,7 @@ class MemoEngine:
         if manifest.status == "SUCCEEDED":
             path.parent.mkdir(parents=True, exist_ok=True)
             data = asdict(manifest)
-            tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
-            tmp.write_text(json.dumps({"key": key, "manifest": data, "outputs": data["outputs"]}), encoding="utf-8")
-            tmp.replace(path)
+            atomic_write_text(path, json.dumps({"key": key, "manifest": data, "outputs": data["outputs"]}))
         return manifest
 
 
