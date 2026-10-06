@@ -9,7 +9,8 @@ import { Card } from "@/components/ui";
 import { ROLE_LABEL, planApi, type Blinding, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
 import { startCampaign } from "@/lib/writes";
 
-type Pending = { studyId: string; from: Role; to: Role; where: string; preview: Violation[] | null; problem: string | null };
+type Pending = { studyId: string; from: Role; to: Role; where: string; preview: Violation[] | null; problem: string | null;
+                 deviation?: boolean };
 const TABS = ["D3 · development and validation", "D1 · disposition", "D2 · absorption and formulation"] as const;
 
 function DropDialog({ pending, onConfirm, onCancel }: { pending: Pending; onConfirm: (reason: string) => Promise<string | null>; onCancel: () => void }) {
@@ -23,6 +24,10 @@ function DropDialog({ pending, onConfirm, onCancel }: { pending: Pending; onConf
         <h3 style={{ marginTop: 0 }}>{pending.studyId}: {ROLE_LABEL[pending.from]} → {ROLE_LABEL[pending.to]}</h3>
         <p className="muted" style={{ marginTop: 0 }}>Dropped on {pending.where}. The validator&apos;s answer for this move:</p>
         {pending.problem && <div className="banner err">{pending.problem}</div>}
+        {pending.deviation && (
+          <div className="banner warn" data-testid="move-deviation">The MAP is signed: this move is a MAP deviation (D-14). It is
+            recorded and applies only once the MIDD lead signs it into a new MAP version.</div>
+        )}
         {pending.preview === null && !pending.problem && <p className="muted">checking…</p>}
         {pending.preview !== null && (errors.length === 0
           ? <div className="banner ok" data-testid="move-ok">No MS-01 rule is broken by this move.</div>
@@ -171,7 +176,8 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
     const from = view.overall_data.studies.find((s) => s.study_id === studyId)?.role ?? "SUPPORTIVE";
     setPending({ studyId, from, to: role, where, preview: null, problem: null });
     const env = await planApi.place(projectId, studyId, role, "preview of the move", true);
-    setPending((p) => p && p.studyId === studyId ? { ...p, preview: env.data?.violations ?? null, problem: env.errors?.[0]?.message ?? null } : p);
+    setPending((p) => p && p.studyId === studyId ? { ...p, preview: env.data?.violations ?? null, problem: env.errors?.[0]?.message ?? null,
+                                                      deviation: Boolean((env.data as { deviation?: boolean } | null)?.deviation) } : p);
   };
   const stale = view.artifact.status === "STALE";
   const signed = view.signed ?? view.map?.status === "APPROVED";

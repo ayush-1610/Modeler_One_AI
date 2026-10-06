@@ -18,7 +18,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import get_settings
 from modeler_api.filestore import FileReadStore, ReadStore
+from modeler_api.project_api import get_project_store
 from modeler_api.responses import envelope
+from modeler_project import ProjectStore, Workspace
 from pbpk_domain.cpf import CPF
 from pbpk_domain.cpf.completeness import check_completeness
 
@@ -198,10 +200,20 @@ def download_campaign_artifact(campaign_id: str, artifact: str, principal: Princ
 
 
 @router.get("/projects/{project_id}/studies")
-def list_studies(project_id: str, principal: PrincipalDep, store: StoreDep):
+def list_studies(project_id: str, principal: PrincipalDep, store: StoreDep,
+                 projects: Annotated[ProjectStore, Depends(get_project_store)]):
     """The observed clinical studies uploaded for this project (what the campaign fits and validates against)."""
     require_project(project_id, principal)
-    return envelope({"studies": store.list_studies(principal.tenant_id, project_id)})
+    studies = store.list_studies(principal.tenant_id, project_id)
+    from modeler_api.project_api import blinded_studies
+
+    hidden = blinded_studies(Workspace(projects, principal.tenant_id, project_id))
+    if hidden:  # D-15: a pipeline project's external studies, published at P4, keep their values out until the MAP is signed
+        from modeler_project.blinding import redact_row
+
+        studies = [redact_row(s) if str(s.get("study_id")) in hidden else s for s in studies]
+    return envelope({"studies": studies})
+
 
 
 @router.get("/escalations")

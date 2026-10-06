@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from modeler_api import project_api
 from modeler_api.auth import get_verifier
-from modeler_api.filestore import FileWriteStore
+from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.main import app
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.brief import empty_brief
@@ -213,6 +213,14 @@ def test_external_values_are_blinded_until_the_map_is_signed(setup):
     row = next(r for r in catalog if r["study_id"] == sid)
     assert row["blinded"] and "profile" not in row
 
+    from modeler_api.read_api import get_read_store
+
+    # the studies published for the legacy campaign path are blinded the same way
+    FileWriteStore(str(_root)).put_studies("t1", "p1", [{"study_id": sid, "profile": {"values": [1.0]}},
+                                                       {"study_id": "iv-250", "profile": {"values": [2.0]}}])
+    app.dependency_overrides[get_read_store] = lambda: FileReadStore(str(_root))
+    listed = {s["study_id"]: s for s in c.get("/api/v1/projects/p1/studies", headers=H).json()["data"]["studies"]}
+    assert listed[sid]["blinded"] and "profile" not in listed[sid] and listed["iv-250"]["profile"]
     assert c.post(f"/api/v1/projects/p1/datasets/{hidden['id']}:reveal", headers=H, json={}).status_code == 422
     revealed = c.post(f"/api/v1/projects/p1/datasets/{hidden['id']}:reveal", headers=H,
                       json={"reason": "check the digitized points before acceptance"}).json()["data"]

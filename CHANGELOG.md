@@ -683,6 +683,8 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
 - UI: blinded datasets say so on the evidence page with "Reveal for this check"; the plan page shows the state and the
   switch (`blinding.spec.ts`).
 - Known limit: source documents (papers, the client's raw files) are not blinded; blinding covers what the platform shows.
+- Fixed the same day: the study list published at P4 for the campaign path (`GET /projects/{id}/studies`) still carried
+  blinded studies' profiles; it is redacted the same way. The drop dialog now says when a move is a MAP deviation (D-14).
 
 ### Added — MAP deviations after the signature (D-14, ICH M15 §4.2)
 - Once the MAP is signed, a change on the canvas (placement, fit, structure, acknowledgement, A5 decision, rebase on

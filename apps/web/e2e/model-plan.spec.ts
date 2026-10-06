@@ -64,6 +64,7 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   // D-14: after the signature a move is a MAP deviation — recorded, then signed into MAP v2, before the run
   await page.getByTestId("overall-data").getByTestId("chip-po-10").dragTo(page.getByTestId("node-S2"));
   await expect(page.getByTestId("move-ok")).toBeVisible();
+  await expect(page.getByTestId("move-deviation")).toContainText("MAP deviation");
   await page.getByTestId("move-reason").fill("the external dose range is covered by po-50; po-10 trains absorption");
   await page.getByTestId("move-confirm").click();
   await expect(page.getByTestId("deviations-pending")).toContainText("po-10");
