@@ -664,6 +664,34 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Fixed — P4 put names the model does not use into the CPF; the Model inputs page now settles each open item (owner, real project)
+- Owner's report (2026-10-06): P1–P3 approved, P4 "not ready" with a readiness list and no way to act on it. From the
+  screenshots: six accepted fu values, five for `elim`, five for the GFR fraction, permeability and solubility; two
+  pKa values without acid / base; a template target `elim.hepatic.{enzyme}.km/vmax`; and a CPF record named
+  "plasma protein binding".
+- **Fixed (science):** assembly put any accepted target into the CPF. The builder skips ids it does not know, so
+  "plasma protein binding" sat in the CPF without reaching PK-Sim, and a single value under the data plan's
+  placeholder `elim` would have passed the S0 "at least one elimination pathway" check while the model had no
+  clearance (the failure CLAUDE.md warns about). Assembly now keeps out of the CPF, and names, every id that is not a
+  compound field or family the builder reads, a process parameter of the harvested table, or a reference value
+  (`dist.bp_ratio`, shown as "kept for checks; PK-Sim computes it"). A hand-entered value must name such a parameter
+  (or its data-plan item's own placeholder).
+- **Added:** typed assembly issues and a to-do list (`GET /inputs` → `todo`) with what settles each: several accepted
+  values (`POST /evidence/{id}:choose`: keep one, the others rejected with the person's reason); a placeholder,
+  template or unknown target and a pKa without acid / base (`POST /evidence/{id}:correct`: the original kept,
+  rejected, pointing at a corrected copy with the same source and quote; a copy filed under another parameter is
+  proposed again with its converted value, because a new name can change what the number means); missing S0 values
+  with the proposals waiting and the molecular weight from the brief's PubChem record (`POST /inputs:propose-identity`,
+  quoted from the stored record); datasets to accept, with why individual-only studies are not judged by the campaign;
+  the formulation of solid studies. The Model inputs page shows it as "What stops readiness", re-assembling after each
+  decision.
+- **Added:** the project doctor (`python -m modeler_api.doctor`): a project's state as a shareable Markdown report
+  (phases, data plan, client files and reconciliation, evidence per parameter with conflicts and unknown names,
+  dataset metadata, readiness and to-do, last audit events, recent API errors), without observed values or secrets.
+- Impact: CPFs assembled before this change may contain records under unknown names; re-assembling drops them and
+  lists them to correct. Tests: `test_inputs_todo.py` (the project's state reproduced and settled), `test_inputs_api.py`,
+  `test_evidence_api.py`, `test_doctor.py`, e2e `inputs-todo.spec.ts`.
+
 ### Changed — the Client data page reads any client spreadsheet with a guided form; P3 says what stops it (owner, real project)
 - Owner's report (2026-10-06), second round on the same ER-tablet project: Approve stayed disabled although every item
   had been "marked", and reading a sheet meant writing a JSON recipe. Reproduced on a replica (same applications,

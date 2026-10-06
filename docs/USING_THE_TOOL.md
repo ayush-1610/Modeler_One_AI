@@ -86,3 +86,34 @@ button opens when every **required** plan item is delivered or decided.
    once a literature value is accepted. These decisions change the data plan: approve its new version on the Brief
    page.
 4. **Approve the client data.** Then accept the new datasets and release-model values on the Literature page.
+
+## 7. Model inputs (P4): from evidence to a ready CPF
+
+Press **Assemble from the accepted evidence**. Under it, **What stops readiness** lists each open item with what
+settles it; every decision asks for a reason and the inputs are assembled again after it:
+
+- **Several accepted values: keep one.** Pick the value (source, grade and quote are shown) and give the reason; the
+  others are rejected with it. Code never averages or chooses.
+- **Filed under the wrong parameter.** `elim` (the data plan's "an elimination pathway"), a template such as
+  `elim.hepatic.{enzyme}.km/vmax`, or a name the model does not use (e.g. "plasma protein binding") never reaches PK-Sim.
+  Choose the real parameter (and the enzyme) and **Correct**, or **Reject**. A value filed under another parameter is
+  proposed again with its converted value: check the number still means the same (30 % *bound* is fu 0.70, not 0.30).
+- **pKa: acidic or basic?** Choose and save.
+- **Missing for S0.** Accept a proposal shown there, propose the molecular weight from the brief's PubChem record
+  (check it is the free base), or **Ask the literature agent for what is missing**.
+- **Observed data.** Accept the datasets read on the Client data page. Studies with individual subjects only are kept
+  for the population evaluation; the campaign judges mean profiles (e.g. published mean data).
+
+## 8. When something looks wrong: the project doctor
+
+On the server, in `~/Modeler_One_AI`:
+
+    source deploy/server/_env.sh
+    uv run python -m modeler_api.doctor --list            # tenant, project id, drug, phases
+    uv run python -m modeler_api.doctor <project_id>      # also saved as ~/modeler-logs/doctor-<project_id>.md
+
+The report gives each phase's state and blockers, the evidence per parameter (conflicts, unknown names), datasets
+(metadata only, never concentrations), readiness and its to-do list, the last audit events and recent API errors.
+Paste it into a Claude session to get the project diagnosed. To let Claude look at the server directly, run a Claude
+Code session on the server itself (`claude remote-control` in `~/Modeler_One_AI`); that folder is a deploy copy, so code
+changes are still made in the git checkout and deployed.

@@ -106,3 +106,11 @@ def test_observed_data_manual_digitized_overlay_and_coverage(setup):
                   json={"state": "ACCEPTED", "reason": "overlay matches the figure"}).json()["data"]
     iv = next(r for r in view["coverage"] if r["req_id"] == "REQ-obs.iv_sd")
     assert iv["status"] == "ACCEPTED" and iv["accepted"] == [ds["id"]]
+
+
+def test_a_hand_entered_value_must_name_a_parameter_the_model_uses(setup):
+    c = setup[0] if isinstance(setup, tuple) else setup
+    body = {"req_id": "REQ-bind.fu", "value": 30, "unit": "%", "source_type": "PUBLICATION", "doi": "10.2147/x", "quote": "30% bound"}
+    wrong = c.post("/api/v1/projects/p1/evidence", headers=H, json={**body, "target": "plasma protein binding"})
+    assert wrong.status_code == 422 and "not a parameter the model uses" in wrong.json()["detail"]
+    assert c.post("/api/v1/projects/p1/evidence", headers=H, json={**body, "target": "bind.fu"}).status_code == 201

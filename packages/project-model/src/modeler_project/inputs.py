@@ -17,6 +17,7 @@ covers them).
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from typing import Any
 
@@ -46,6 +47,51 @@ VALUE_ORIGIN_SOURCE = {
 # (snapshot.builder: lipophilicity is checked against "Log Units").
 _BUILDER_UNIT = {"phys.logp": "Log Units"}
 _IN_VIVO = ("elim.renal", "elim.fm", "elim.ehc", "food.")
+
+# CPF ids the model takes: the compound fields and families `pbpk_domain.cpf.build` reads (process parameters are
+# checked against the harvested process table instead). An id outside these is never placed in PK-Sim, so it is kept
+# out of the CPF and named: a value under an unknown name once satisfied S0 while the model had no clearance.
+MODEL_IDS = frozenset({
+    "phys.mw", "phys.logp", "bind.fu", "phys.solubility.ref", "phys.solubility.ref_ph", "phys.solubility.table",
+    "perm.intestinal", "perm.cellular", "bind.partner", "dist.partition_method", "dist.permeability_method",
+    "phys.pka.neutral", "alt.select",
+})
+MODEL_PREFIXES = ("phys.pka.acid.", "phys.pka.base.", "phys.halogens.", "cmpd.", "form.", "expr.", "indiv.", "sim.", "sim[")
+# kept in the CPF for checks and the report, not set in PK-Sim (PK-Sim computes the blood-to-plasma ratio itself)
+REFERENCE_IDS = frozenset({"dist.bp_ratio"})
+# what the S0 targets and the data plan's placeholders mean, for the person correcting a value's target
+PLACEHOLDERS = {
+    "elim": "an elimination pathway: give the concrete one (elim.renal.gfr_fraction, elim.hepatic.<enzyme>.clspec, …)",
+    "phys.pka": "a pKa: say whether it is acidic or basic",
+}
+
+
+def placement(cpf_id: str) -> str | None:
+    """"model" (PK-Sim takes it), "process" (a process parameter the harvested table places), "reference" (kept for
+    checks, not set in PK-Sim), or None: not a parameter the model uses."""
+    base = cpf_id.partition("@")[0]
+    if base in MODEL_IDS or base.startswith(MODEL_PREFIXES):
+        return "model"
+    if base in REFERENCE_IDS:
+        return "reference"
+    if is_process_id(base):
+        return "process" if binding_candidates(base) else None
+    return None
+
+
+def target_problem(target: str) -> str | None:
+    """Why a value cannot be filed under `target` (None: it can). For corrections typed by a person."""
+    if "{" in target or "<" in target:
+        return f"{target} is a template: give the concrete parameter"
+    if target == "phys.pka":
+        return None
+    if target in PLACEHOLDERS:
+        return f"{target!r} means {PLACEHOLDERS[target]}"
+    if placement(target) is None:
+        if is_process_id(target):
+            return f"{target}: no harvested PK-Sim process carries this parameter"
+        return f"{target} is not a parameter the model uses"
+    return None
 _IN_VITRO = ("phys.", "bind.", "perm.", "dist.", "elim.hepatic", "transp.", "form.", "ddi.")
 
 
@@ -116,13 +162,19 @@ def _accepted(ws: Workspace) -> list[tuple[EvidenceItem, ArtifactVersion]]:
     return out
 
 
-def _cpf_id(item: EvidenceItem, pka_index: dict[str, int], problems: list[str]) -> str | None:
+def _issue(issues: list[dict[str, Any]], problems: list[str], kind: str, target: str, evidence: list[str], message: str) -> None:
+    """One assembly problem: in words (the readiness report) and typed (what settles it on the page)."""
+    problems.append(message)
+    issues.append({"kind": kind, "target": target, "evidence": evidence, "message": message})
+
+
+def _cpf_id(item: EvidenceItem, pka_index: dict[str, int], problems: list[str], issues: list[dict[str, Any]]) -> str | None:
     target = item.target
-    if "{" in target:
-        problems.append(f"{item.id}: target {target} is a template; give the concrete parameter")
+    if "{" in target or "<" in target:
+        _issue(issues, problems, "correct", target, [item.id], f"{item.id}: target {target} is a template; give the concrete parameter")
         return None
     if target == "phys.halogens":
-        problems.append(f"{item.id}: give one value per atom (phys.halogens.F, .Cl, .Br, .I)")
+        _issue(issues, problems, "correct", target, [item.id], f"{item.id}: give one value per atom (phys.halogens.F, .Cl, .Br, .I)")
         return None
     if target == "phys.pka":
         if isinstance(item.value, str) and item.value.strip().lower() == "neutral":
@@ -130,29 +182,37 @@ def _cpf_id(item: EvidenceItem, pka_index: dict[str, int], problems: list[str]) 
         text = " ".join(f"{k} {v}" for k, v in item.conditions.items()).lower()
         kinds = [k for k in ("acid", "base") if k in text]
         if len(kinds) != 1:
-            problems.append(f"{item.id}: pKa {item.value} — the conditions must say acid or base")
+            _issue(issues, problems, "pka", target, [item.id], f"{item.id}: pKa {item.value} — the conditions must say acid or base")
             return None
         index = pka_index[kinds[0]]
         pka_index[kinds[0]] += 1
         return f"phys.pka.{kinds[0]}.{index}"
+    if not is_process_id(target) and placement(target) is None:
+        what = PLACEHOLDERS.get(target)
+        _issue(issues, problems, "correct", target, [item.id],
+               f"{item.id}: {target!r} " + (f"means {what}" if what else "is not a parameter the model uses: correct its "
+                                                                        "target or reject it") + " (kept out of the CPF)")
+        return None
     return target
 
 
 def assemble_cpf(ws: Workspace, compound: str, picked: InputChoices) -> tuple[CPF, dict[str, Any], list[ArtifactVersion]]:
     """CPF v1 from the accepted evidence: (cpf, report, the evidence versions used)."""
     problems: list[str] = []
+    issues: list[dict[str, Any]] = []
     bindings: list[dict[str, Any]] = []
     by_id: dict[str, list[tuple[EvidenceItem, ArtifactVersion]]] = defaultdict(list)
     pka_index: dict[str, int] = defaultdict(int)
     for item, version in sorted(_accepted(ws), key=lambda iv: (iv[0].target, iv[0].proposed_at)):
-        cpf_id = _cpf_id(item, pka_index, problems)
+        cpf_id = _cpf_id(item, pka_index, problems, issues)
         if cpf_id:
             by_id[cpf_id].append((item, version))
     records, used = [], []
     for cpf_id, accepted in sorted(by_id.items()):
         if len(accepted) > 1:
-            problems.append(f"{cpf_id}: {len(accepted)} accepted values ({', '.join(i.id for i, _v in accepted)}); "
-                            "reject all but one — values are never averaged or chosen between by code")
+            _issue(issues, problems, "conflict", cpf_id, [i.id for i, _v in accepted],
+                   f"{cpf_id}: {len(accepted)} accepted values ({', '.join(i.id for i, _v in accepted)}); "
+                   "reject all but one — values are never averaged or chosen between by code")
             continue
         item, version = accepted[0]
         value = item.value_pksim if isinstance(item.value, int | float) else item.value
@@ -164,14 +224,16 @@ def assemble_cpf(ws: Workspace, compound: str, picked: InputChoices) -> tuple[CP
             prefix = cpf_id.rpartition(".")[0]
             chosen = [c for c in candidates if len(candidates) == 1 or picked.process.get(prefix) == c.process]
             if not candidates:
-                problems.append(f"{cpf_id}: no harvested PK-Sim process carries this parameter; it cannot be placed")
+                _issue(issues, problems, "correct", cpf_id, [item.id],
+                       f"{cpf_id}: no harvested PK-Sim process carries this parameter; it cannot be placed")
             elif len(chosen) != 1:
-                problems.append(f"{cpf_id}: choose the process type for {prefix} "
-                                f"({' or '.join(c.process for c in candidates)})")
+                _issue(issues, problems, "process", prefix, [item.id], f"{cpf_id}: choose the process type for {prefix} "
+                                                                        f"({' or '.join(c.process for c in candidates)})")
             else:
                 c = chosen[0]
                 if (unit or None) != (c.unit or None):
-                    problems.append(f"{cpf_id}: value in {unit!r}, PK-Sim places {c.parameter} in {c.unit!r}; convert it")
+                    _issue(issues, problems, "unit", cpf_id, [item.id],
+                           f"{cpf_id}: value in {unit!r}, PK-Sim places {c.parameter} in {c.unit!r}; convert it")
                 binding = c.binding("Client" if item.provider == "CLIENT" else "Literature")
                 bindings.append({"id": cpf_id, "process": binding.process, "parameter": c.parameter, "unit": c.unit})
         status = ParameterStatus.PREDICTED if item.source_type is SourceType.PREDICTED else ParameterStatus.FIXED
@@ -179,7 +241,7 @@ def assemble_cpf(ws: Workspace, compound: str, picked: InputChoices) -> tuple[CP
                                        provenance=provenance_for(item, version.version), engine_binding=binding))
         used.append(version)
     cpf = CPF(compound=compound, parameters=tuple(records))
-    return cpf, {"problems": problems, "bindings": bindings, "records": len(records)}, used
+    return cpf, {"problems": problems, "issues": issues, "bindings": bindings, "records": len(records)}, used
 
 
 # --- the study catalog -----------------------------------------------------------------------------------------
@@ -360,3 +422,125 @@ def accept_inputs(ws: Workspace, *, by: str, printed_name: str = "", note: str =
 def current_cpf(ws: Workspace) -> CPF | None:
     version = ws.latest(ArtifactKind.CPF, MAIN)
     return CPF.model_validate(version.content["cpf"]) if version else None
+
+
+# --- what is left to do (the page's to-do list) ----------------------------------------------------------------
+
+# the concrete targets an elimination placeholder can become (harvested process table; <enzyme> from the expression
+# library), offered to the person correcting it
+PATHWAY_TARGETS = ("elim.renal.gfr_fraction", "elim.renal.total.plasma_clearance", "elim.hepatic.total.plasma_clearance",
+                   "elim.hepatic.<enzyme>.clspec", "elim.hepatic.<enzyme>.cl_intrinsic", "elim.hepatic.<enzyme>.km",
+                   "elim.hepatic.<enzyme>.vmax")
+_MW_IN_RECORD = re.compile(r'"MolecularWeight"\s*:\s*"?(\d+(?:\.\d+)?)"?')
+
+
+def evidence_view(item: EvidenceItem) -> dict[str, Any]:
+    """An evidence item as the to-do list shows it: the value in both units, where it comes from, how it was graded."""
+    s = item.source
+    return {"id": item.id, "target": item.target, "value": item.value, "unit": item.unit, "value_pksim": item.value_pksim,
+            "unit_pksim": item.unit_pksim, "state": item.state.value, "confidence": item.confidence, "flags": list(item.flags),
+            "provider": item.provider, "source_type": item.source_type.value, "conditions": item.conditions,
+            "source": {"title": s.title, "authors": s.authors, "year": s.year, "doi": s.doi, "page": s.page,
+                       "locator": s.locator},
+            "quote": item.quote[:300]}
+
+
+def _suggestions(target: str) -> dict[str, Any]:
+    from pbpk_domain.expression import expression_library
+
+    molecules = sorted(expression_library())
+    if target.startswith("elim.hepatic.{enzyme}."):
+        quantities = target.removeprefix("elim.hepatic.{enzyme}.").split("/")
+        return {"targets": [f"elim.hepatic.<enzyme>.{q}" for q in quantities], "molecules": molecules}
+    if target == "elim" or target.startswith("elim."):
+        return {"targets": list(PATHWAY_TARGETS), "molecules": molecules}
+    return {"targets": sorted(MODEL_IDS - {"alt.select"}) + ["phys.pka"], "molecules": []}
+
+
+def identity_mw(ws: Workspace) -> dict[str, Any] | None:
+    """The molecular weight in the brief's PubChem record (the stored document), quoted as PubChem returned it."""
+    from modeler_project.documents import DocumentLibrary
+
+    version = ws.latest(ArtifactKind.BRIEF, MAIN)
+    if version is None:
+        return None
+    brief = ProjectBrief.from_content(version.content)
+    record = brief.get("drug.pubchem_cid")
+    cite = next((c for c in (record.citations if record else ()) if c.doc_sha256), None)
+    if cite is None:
+        return None
+    text = DocumentLibrary(ws).page_text(cite.doc_sha256, 1) or ""
+    match = _MW_IN_RECORD.search(text)
+    if match is None:
+        return None
+    return {"value": float(match.group(1)), "unit": "g/mol", "quote": match.group(0), "doc_sha256": cite.doc_sha256,
+            "cid": brief.value("drug.pubchem_cid"), "name": brief.drug_name}
+
+
+def propose_identity_mw(ws: Workspace, *, by: str) -> EvidenceItem:
+    """Propose phys.mw from the brief's PubChem record (a database value, quoted from the stored record; the person
+    accepts it like any other evidence)."""
+    from modeler_project.evidence import Extraction, SourceRef, new_id
+    from modeler_project.evidence_register import propose
+
+    found = identity_mw(ws)
+    if found is None:
+        raise ValueError("the brief has no PubChem record with a molecular weight: resolve the drug's identity on the Brief "
+                         "page (the generic name, e.g. 'desvenlafaxine'), or add the value on the Literature page")
+    item = EvidenceItem(id=new_id(), target="phys.mw", value=found["value"], unit="g/mol", source_type=SourceType.DATABASE,
+                        source=SourceRef(doc_sha256=found["doc_sha256"], page=1, locator=f"PubChem CID {found['cid']}",
+                                         title=f"PubChem compound record ({found['name']})"),
+                        quote=found["quote"], extraction=Extraction.TEXT,
+                        note="from the brief's identity record; PubChem gives the molecular weight of the record's form "
+                             "(check free base vs salt)")
+    return propose(ws, item, actor=by, value_in_quote=True)
+
+
+def todo(ws: Workspace) -> list[dict[str, Any]]:
+    """What stands between the inputs and readiness, each with what settles it. Computed when read, from the latest
+    assembly and readiness, the evidence register and the datasets; nothing here decides anything."""
+    from modeler_project.dataset_register import datasets
+    from modeler_project.evidence_register import items
+    from pbpk_domain.cpf import check_completeness
+
+    cpf_version = ws.latest(ArtifactKind.CPF, MAIN)
+    ready = ws.latest(ArtifactKind.READINESS, MAIN)
+    if cpf_version is None or ready is None:
+        return []
+    evidence = {e.id: e for e in items(ws)}
+    out: list[dict[str, Any]] = []
+    settled_by_issue: set[str] = set()
+    for issue in cpf_version.content["assembly"].get("issues", []):
+        entry = {**issue, "items": [evidence_view(evidence[i]) for i in issue["evidence"] if i in evidence]}
+        if issue["kind"] == "correct":
+            entry["suggestions"] = _suggestions(issue["target"])
+        out.append(entry)
+        # an open issue on a parameter (or on any elimination pathway) is what settles its S0 gap: not listed twice
+        settled_by_issue.update({issue["target"], "elim"} if issue["target"].startswith("elim") else {issue["target"]})
+    cpf = CPF.model_validate(cpf_version.content["cpf"])
+    labels = dict(zip(check_completeness(cpf).missing_ids, check_completeness(cpf).missing, strict=True))
+    for target, label in labels.items():
+        if target in settled_by_issue:
+            continue
+        proposed = [evidence_view(e) for e in evidence.values() if e.state is EvidenceState.PROPOSED
+                    and (e.target == target or e.target.startswith(target + "."))]
+        entry: dict[str, Any] = {"kind": "missing", "target": target, "message": f"missing: {label}", "items": proposed}
+        if target == "phys.mw":
+            entry["identity"] = identity_mw(ws)
+        out.append(entry)
+    observed = [d for d in datasets(ws) if d.state is not EvidenceState.REJECTED]
+    checks = {c["check"]: c for c in ready.content["checks"]}
+    if not checks.get("observed data to judge on", {"ok": True})["ok"]:
+        out.append({"kind": "datasets", "target": "observed data", "message": "no accepted dataset with a mean profile to judge on",
+                    "items": [{"id": d.id, "study_id": d.study.get("study_id"), "purpose": d.purpose, "origin": d.origin.value,
+                               "provider": d.provider, "state": d.state.value, "kind": d.kind,
+                               "statistics": sorted({s.statistic for s in d.series}), "series": len(d.series)}
+                              for d in observed]})
+    formulations = checks.get("formulations of solid studies")
+    if formulations and not formulations["ok"]:
+        proposed = [evidence_view(e) for e in evidence.values() if e.target.startswith("form.") and e.state is EvidenceState.PROPOSED]
+        out.append({"kind": "formulation", "target": "form.*", "message": "; ".join(formulations["detail"]), "items": proposed})
+    build = checks.get("every planned simulation builds (software)")
+    if build and not build["ok"] and not out:
+        out.append({"kind": "check", "target": "build", "message": "; ".join(build["detail"]), "items": []})
+    return out

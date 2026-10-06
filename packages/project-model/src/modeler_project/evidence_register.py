@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from modeler_project.artifacts import ArtifactKind
-from modeler_project.evidence import EvidenceItem, EvidenceState, assess, flag_conflicts
+from modeler_project.evidence import EvidenceItem, EvidenceState, assess, flag_conflicts, new_id
 from modeler_project.requirements import RequirementItem, RequirementMatrix, literature_items
 from modeler_project.workspace import Workspace
 
@@ -63,6 +63,65 @@ def decide(ws: Workspace, evidence_id: str, *, state: EvidenceState, reason: str
     decided = item.model_copy(update=update)
     ws.commit(ArtifactKind.EVIDENCE, evidence_id, decided.to_content(), actor=by, reason=f"{state.value.lower()}: {reason}")
     return decided
+
+
+def choose(ws: Workspace, evidence_id: str, *, reason: str, by: str) -> list[str]:
+    """Keep one value for its parameter: every other accepted value of the same target is rejected, each with the
+    person's reason and the value kept (code never chooses between values; this is the person's choice, recorded).
+    The kept item is accepted if it was only proposed. Returns the ids rejected."""
+    if not reason.strip():
+        raise EvidenceError("say why this value is the one to keep")
+    version = ws.latest(ArtifactKind.EVIDENCE, evidence_id)
+    if version is None:
+        raise EvidenceError(f"no evidence {evidence_id}")
+    kept = EvidenceItem.from_content(version.content)
+    if kept.state is EvidenceState.REJECTED:
+        raise EvidenceError(f"{evidence_id} was rejected; reopen it on the Literature page first")
+    if kept.state is EvidenceState.PROPOSED:
+        decide(ws, evidence_id, state=EvidenceState.ACCEPTED, reason=reason, by=by)
+    others = [e for e in items(ws) if e.target == kept.target and e.id != kept.id and e.state is EvidenceState.ACCEPTED]
+    for other in others:
+        decide(ws, other.id, state=EvidenceState.REJECTED, reason=f"{kept.target}: {evidence_id} kept ({reason})", by=by)
+    return [o.id for o in others]
+
+
+def correct(ws: Workspace, evidence_id: str, *, reason: str, by: str, target: str | None = None,
+            conditions: dict[str, str] | None = None) -> EvidenceItem:
+    """A person corrects what a value is for: the parameter it fills (a template or placeholder target, a name the
+    model does not use) or the conditions it was measured under (a pKa's acid / base). Nothing changes in place: the
+    item is rejected, pointing at its correction, and a corrected copy with the same source and quote takes its place.
+    A copy with new conditions only keeps the acceptance. A copy filed under another parameter is only proposed: its
+    value is converted for the new parameter and must be accepted again, because a new name can change what the number
+    means (30 % "plasma protein binding" is bound, not unbound: as bind.fu it would read 0.30 instead of 0.70)."""
+    from modeler_project.inputs import target_problem
+
+    if not reason.strip():
+        raise EvidenceError("say why the value is corrected")
+    version = ws.latest(ArtifactKind.EVIDENCE, evidence_id)
+    if version is None:
+        raise EvidenceError(f"no evidence {evidence_id}")
+    item = EvidenceItem.from_content(version.content)
+    if item.state is EvidenceState.REJECTED:
+        raise EvidenceError(f"{evidence_id} was rejected; nothing to correct")
+    new_target = (target or item.target).strip()
+    problem = target_problem(new_target)
+    if problem:
+        raise EvidenceError(problem)
+    merged = {**item.conditions, **{k: v for k, v in (conditions or {}).items() if v.strip()}}
+    if new_target == item.target and merged == item.conditions:
+        raise EvidenceError("nothing changes: give a new target or new conditions")
+    copy = item.model_copy(update={
+        "id": new_id(), "target": new_target, "conditions": merged, "value_pksim": None, "unit_pksim": None, "conversion": "",
+        "flags": tuple(f for f in item.flags if f.startswith("unconfirmed")), "state": EvidenceState.PROPOSED,
+        "decided_by": None, "decided_at": None, "decision_reason": "",
+        "note": f"corrected from {evidence_id} by {by}: {reason}" + (f" · {item.note}" if item.note else "")})
+    corrected = propose(ws, copy, actor=by)
+    if item.state is EvidenceState.ACCEPTED and new_target == item.target:
+        numeric = isinstance(corrected.value, int | float)
+        if not numeric or corrected.value_pksim is not None:
+            corrected = decide(ws, corrected.id, state=EvidenceState.ACCEPTED, reason=f"corrected from {evidence_id}: {reason}", by=by)
+    decide(ws, evidence_id, state=EvidenceState.REJECTED, reason=f"corrected as {corrected.id}: {reason}", by=by)
+    return corrected
 
 
 @dataclass(frozen=True)

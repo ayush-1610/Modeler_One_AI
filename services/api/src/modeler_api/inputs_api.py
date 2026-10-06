@@ -20,7 +20,17 @@ from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, Workspace
 from modeler_project.evidence import EvidenceState
 from modeler_project.evidence_register import items
-from modeler_project.inputs import MAIN, accept_inputs, assemble, choices, current_cpf, set_choice
+from modeler_project.inputs import (
+    MAIN,
+    accept_inputs,
+    assemble,
+    choices,
+    current_cpf,
+    placement,
+    propose_identity_mw,
+    set_choice,
+    todo,
+)
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
 
 router = APIRouter(prefix="/api/v1", tags=["inputs"])
@@ -43,6 +53,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
     for record in (cpf.parameters if cpf else ()):
         row = record.model_dump(mode="json")
         row["block"] = _block(record.id)
+        row["placement"] = placement(record.id)
         if is_process_id(record.id) and record.engine_binding is None:
             row["candidates"] = [c.process for c in binding_candidates(record.id)]
         records.append(row)
@@ -54,6 +65,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "readiness": version_view(ws, ready) if ready else None,
         "choices": choices(ws).model_dump(),
         "published": published.content if (published := ws.latest(ArtifactKind.CPF, "published")) else None,
+        "todo": todo(ws),
     }
 
 
@@ -70,6 +82,17 @@ def assemble_inputs(project_id: str, principal: Writer, store: StoreDep) -> dict
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return envelope(_view(ws))
+
+
+@router.post("/projects/{project_id}/inputs:propose-identity", status_code=201)
+def propose_identity(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Propose the molecular weight from the brief's PubChem record (accepted like any other evidence)."""
+    ws = workspace_for(project_id, principal, store)
+    try:
+        item = propose_identity_mw(ws, by=principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return envelope({"evidence": item.id, **_view(ws)})
 
 
 class ChoiceRequest(BaseModel):

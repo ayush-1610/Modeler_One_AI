@@ -6,10 +6,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Card } from "@/components/ui";
 import { apiGet, apiSend } from "@/lib/writes";
 
+import { InputsTodo, type TodoItem } from "./InputsTodo";
+
 type Record_ = {
   id: string; value: number | string | null; unit: string | null; status: string; block: string;
   provenance: { source_type: string; reference: string | null; method: string | null; evidence: string | null } | null;
-  engine_binding: { process: string | null; parameter: string } | null; candidates?: string[];
+  engine_binding: { process: string | null; parameter: string } | null; candidates?: string[]; placement?: string | null;
 };
 type Study = { study_id: string; route: string; dose_mg: number; formulation: string; formulation_name?: string; food_state: string;
                n: number; origin: string; evaluable: boolean; purpose: string; dataset_id: string };
@@ -23,6 +25,7 @@ type View = {
   readiness: Artifact<{ ready: boolean; checks: Check[]; split: Record<string, string[]>; engine_dry_run: string }> | null;
   choices: { process: Record<string, string>; formulation: Record<string, string>; excluded_studies: Record<string, string> };
   published: { studies: string[] } | null;
+  todo: TodoItem[];
 };
 
 const TABS = ["Compound", "Formulations", "Individuals", "Simulation settings", "Studies", "Readiness"] as const;
@@ -50,7 +53,7 @@ export function ModelInputs({ projectId }: { projectId: string }) {
   const [view, setView] = useState<View | null>(null);
   const [tab, setTab] = useState<(typeof TABS)[number]>("Compound");
   const [problem, setProblem] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
     const v = await apiGet<View>(`/api/v1/projects/${projectId}/inputs`);
@@ -63,11 +66,17 @@ export function ModelInputs({ projectId }: { projectId: string }) {
 
   const act = async (fn: () => Promise<{ errors: { message: string }[] }>, ok?: string) => {
     const env = await fn();
-    if (env.errors?.length) { setMessage(env.errors[0].message); return env.errors[0].message; }
-    setMessage(ok ?? null);
+    if (env.errors?.length) { setMessage({ ok: false, text: env.errors[0].message }); return env.errors[0].message; }
+    setMessage(ok ? { ok: true, text: ok } : null);
     await load();
     router.refresh(); // the phase rail is server-rendered
     return null;
+  };
+  // a decision on the evidence or the datasets, then the inputs assembled again so the list shows what is left
+  const run = async (fn: () => Promise<{ errors: { message: string }[] }>, ok: string) => {
+    const env = await fn();
+    if (env.errors?.length) { setMessage({ ok: false, text: env.errors[0].message }); return env.errors[0].message; }
+    return act(() => apiSend(`/api/v1/projects/${projectId}/inputs:assemble`, "POST"), ok || undefined);
   };
   const choose = (kind: string, key: string) => (value: string, reason: string) =>
     act(() => apiSend(`/api/v1/projects/${projectId}/inputs/choices`, "PUT", { kind, key, value, reason }));
@@ -100,8 +109,9 @@ export function ModelInputs({ projectId }: { projectId: string }) {
             {view.published && <> · handed to the plan ({view.published.studies.length} {view.published.studies.length === 1 ? "study" : "studies"})</>}
           </p>
         )}
-        {message && <div className="banner ok" style={{ marginTop: 8 }}>{message}</div>}
+        {message && <div className={`banner ${message.ok ? "ok" : "err"}`} style={{ marginTop: 8 }} role="status">{message.text}</div>}
       </Card>
+      {view.cpf && <InputsTodo projectId={projectId} todo={view.todo ?? []} run={run} />}
       <nav className="tabs" aria-label="PK-Sim building blocks">
         {TABS.map((t) => <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t}</button>)}
       </nav>
@@ -124,6 +134,7 @@ export function ModelInputs({ projectId }: { projectId: string }) {
                     {r.engine_binding ? <>{r.engine_binding.process ?? r.engine_binding.parameter}<div className="muted">{r.engine_binding.parameter}</div></>
                       : r.candidates?.length ? <ChoiceForm label={`process for ${r.id}`} options={r.candidates}
                                                            onSave={choose("process", r.id.split(".").slice(0, -1).join("."))} />
+                      : r.placement === "reference" ? <span className="muted">kept for checks; PK-Sim computes it</span>
                       : <span className="muted">{r.block}</span>}
                   </td>
                 </tr>

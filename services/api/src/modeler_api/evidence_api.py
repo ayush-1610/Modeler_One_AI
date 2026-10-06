@@ -28,7 +28,9 @@ from modeler_project.evidence_register import (
     REGISTER_LITERATURE,
     EvidenceError,
     blocking,
+    choose,
     close_register,
+    correct,
     coverage,
     decide,
     fulfil_access,
@@ -179,6 +181,12 @@ def add_evidence(project_id: str, body: ManualEvidence, principal: Writer, store
     requirement = matrix.get(body.req_id)
     if requirement is None:
         raise HTTPException(status_code=404, detail=f"no requirement {body.req_id}")
+    # the parameter must be the item's own (its placeholder is settled in P4) or one the model uses (the reference
+    # solubility's pH goes with REQ-phys.solubility.ref): a free name ("plasma protein binding") never reaches PK-Sim
+    from modeler_project.inputs import target_problem
+
+    if body.target != requirement.target and (problem := target_problem(body.target)):
+        raise HTTPException(status_code=422, detail=problem)
     stated = None
     if body.doc_sha256:
         page = DocumentLibrary(ws).page_text(body.doc_sha256, body.page or 1)
@@ -216,6 +224,41 @@ def decide_evidence(project_id: str, evidence_id: str, body: Decision, principal
     except EvidenceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return envelope(_view(ws))
+
+
+class ChooseRequest(BaseModel):
+    reason: str = Field(min_length=1)
+
+
+@router.post("/projects/{project_id}/evidence/{evidence_id}:choose")
+def choose_evidence(project_id: str, evidence_id: str, body: ChooseRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Keep this value for its parameter: the other accepted values of the same target are rejected with the reason."""
+    ws = workspace_for(project_id, principal, store)
+    try:
+        rejected = choose(ws, evidence_id, reason=body.reason, by=principal.user_id)
+    except EvidenceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return envelope({"rejected": rejected, **_view(ws)})
+
+
+class CorrectionRequest(BaseModel):
+    target: str | None = None
+    conditions: dict[str, str] = Field(default_factory=dict)
+    reason: str = Field(min_length=1)
+
+
+@router.post("/projects/{project_id}/evidence/{evidence_id}:correct")
+def correct_evidence(project_id: str, evidence_id: str, body: CorrectionRequest, principal: Writer,
+                     store: StoreDep) -> dict[str, Any]:
+    """Correct the parameter a value is for, or its conditions: a corrected copy replaces it (the original is kept,
+    rejected, pointing at the copy)."""
+    ws = workspace_for(project_id, principal, store)
+    try:
+        corrected = correct(ws, evidence_id, reason=body.reason, by=principal.user_id, target=body.target,
+                            conditions=body.conditions)
+    except EvidenceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return envelope({"corrected": _evidence_view(corrected), **_view(ws)})
 
 
 class CloseRequest(BaseModel):

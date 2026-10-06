@@ -99,3 +99,31 @@ def test_a_process_type_can_be_chosen_before_the_first_assembly(setup):
     assert chosen.status_code == 200, chosen.text
     clspec = next(r for r in chosen.json()["data"]["records"] if r["id"] == "elim.hepatic.CYP3A4.clspec")
     assert clspec["engine_binding"]["process"] == "MetabolizationSpecific_FirstOrder:CYP3A4"
+
+
+def test_open_items_are_listed_and_settled_from_the_page(setup):
+    c, ws, _read_root = setup
+    source = SourceRef(title="Second review", year=2020, locator="Table 4")
+    extra = []
+    for target, value in (("bind.fu", 0.80), ("elim", 0.5)):
+        item = propose(ws, EvidenceItem(id=new_id(), target=target, value=value, source=source, quote=f"{target} {value}",
+                                        source_type=SourceType.REGULATORY_REVIEW), actor="u1")
+        decide(ws, item.id, state=EvidenceState.ACCEPTED, reason="checked", by="u1", value_pksim=value)
+        extra.append(item.id)
+    view = c.post("/api/v1/projects/p1/inputs:assemble", headers=H).json()["data"]
+    todo = {(t["kind"], t["target"]): t for t in view["todo"]}
+    conflict = todo[("conflict", "bind.fu")]
+    assert len(conflict["items"]) == 2 and {i["source"]["title"] for i in conflict["items"]} == {"FDA review", "Second review"}
+    assert todo[("correct", "elim")]["items"][0]["id"] == extra[1]
+    kept = next(i["id"] for i in conflict["items"] if i["value"] == 0.85)
+    chosen = c.post(f"/api/v1/projects/p1/evidence/{kept}:choose", headers=H, json={"reason": "the review's own value"})
+    assert chosen.status_code == 200 and chosen.json()["data"]["rejected"] == [extra[0]]
+    refused = c.post(f"/api/v1/projects/p1/evidence/{extra[1]}:correct", headers=H, json={"target": "elim.bile", "reason": "x"})
+    assert refused.status_code == 422 and "no harvested PK-Sim process" in refused.json()["detail"]
+    fixed = c.post(f"/api/v1/projects/p1/evidence/{extra[1]}:correct", headers=H,
+                   json={"target": "elim.renal.gfr_fraction", "reason": "renal route"}).json()["data"]["corrected"]
+    assert fixed["state"] == "PROPOSED" and fixed["target"] == "elim.renal.gfr_fraction"
+    view = c.post("/api/v1/projects/p1/inputs:assemble", headers=H).json()["data"]
+    assert not [t for t in view["todo"] if t["kind"] in ("conflict", "correct")]
+    missing = c.post("/api/v1/projects/p1/inputs:propose-identity", headers=H)
+    assert missing.status_code == 409 and "PubChem record" in missing.json()["detail"]
