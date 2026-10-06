@@ -38,6 +38,12 @@ export type DiffRow = { kind: "role" | "fit" | "structure"; target: string; from
 export type OverallStudy = StudyView & { role: Role; userLocked: boolean; reason: string; rationale: string };
 export type ParamNode = { id: string; value: number | string | null; unit: string | null; status: string; source?: string | null;
                           fit: FitChoice | null; candidate_at: string[] };
+// D-14: a change after the MAP was signed, pending until the MIDD lead signs it into a new MAP version.
+export type Deviation = {
+  kind: string; target: string; change: string; reason: string; by: string; at: string;
+  against_map: number; signature_id: string | null; signed_map: number | null;
+};
+
 export type PlanView = {
   plan: ModelPlan;
   artifact: { version: number; status: "DRAFT" | "APPROVED" | "SUPERSEDED" | "STALE"; stale_reasons: string[] };
@@ -51,9 +57,12 @@ export type PlanView = {
         lanes: { name: string; release: string; parameters: { id: string; value: unknown; unit: string | null }[];
                  studies: { study_id: string; food_state: string; role: Role }[] }[];
         food_effect_in_question: boolean; measured_fed_solubility: boolean };
-  map: { status: string; version: number; map_sha256: string;
+  map: { status: string; version: number; map_sha256: string; map_version?: number; supersedes?: string | null;
          campaign: { compound: string; map_id: string; cpf_uri: string; cpf_sha256: string; map_uri: string;
                      observed_uri: string; stages: string[]; question: string; model_risk: string } } | null;
+  signed?: boolean;               // a MAP is signed: every change is now a deviation (D-14)
+  deviations?: Deviation[];
+  deviations_pending?: number;
   agents: { enabled: boolean };
   running: boolean;
   signature?: { signature_id: string; manifestation: string };

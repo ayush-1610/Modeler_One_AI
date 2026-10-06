@@ -145,8 +145,10 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
     setPending((p) => p && p.studyId === studyId ? { ...p, preview: env.data?.violations ?? null, problem: env.errors?.[0]?.message ?? null } : p);
   };
   const stale = view.artifact.status === "STALE";
-  const signed = view.map?.status === "APPROVED";
-  const canSign = view.blocking === 0 && !stale && !signed;
+  const signed = view.signed ?? view.map?.status === "APPROVED";
+  const pendingDeviations = (view.deviations ?? []).filter((d) => !d.signature_id);
+  // before the first signature: sign the plan; after it: sign the deviations (D-14), nothing else to sign
+  const canSign = view.blocking === 0 && !stale && (!signed || pendingDeviations.length > 0);
   const studies = view.overall_data.studies;
 
   return (
@@ -192,10 +194,13 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
               Draft with A5</button>
             <input placeholder="signature note" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
             <button className="btn primary" disabled={!canSign} data-testid="approve-and-sign"
-                    title={canSign ? "generate the MAP from this plan and sign it (MIDD lead)" : "resolve or acknowledge every violation first"}
-                    onClick={() => apply(planApi.sign(projectId, note), "MAP generated from the plan and signed.")}>
-              Approve and Sign</button>
-            {signed && view.map && (
+                    title={canSign ? "generate the MAP from this plan and sign it (MIDD lead)"
+                      : signed ? "the MAP is signed; a change now is a deviation to sign" : "resolve or acknowledge every violation first"}
+                    onClick={() => apply(planApi.sign(projectId, note), pendingDeviations.length
+                      ? `Deviations signed: MAP v${(view.map?.map_version ?? 1) + 1} supersedes v${view.map?.map_version ?? 1}.`
+                      : "MAP generated from the plan and signed.")}>
+              {signed && pendingDeviations.length ? `Sign the deviation${pendingDeviations.length === 1 ? "" : "s"} (${pendingDeviations.length})` : "Approve and Sign"}</button>
+            {signed && view.map && !pendingDeviations.length && (
               <button className="btn" data-testid="run-campaign" onClick={async () => {
                 const started = await startCampaign(projectId, view.map!.campaign);
                 if (started.campaign_id) window.location.assign(`/campaigns/${started.campaign_id}`);
@@ -203,7 +208,20 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
               }}>Run the campaign (P6)</button>
             )}
           </div>
-          {signed && <p className="muted" style={{ fontSize: 13 }} data-testid="map-signed">MAP v{view.map?.version} signed{view.signature ? `: ${view.signature.manifestation}` : ""} · {view.map?.map_sha256.slice(0, 12)}</p>}
+          {signed && <p className="muted" style={{ fontSize: 13 }} data-testid="map-signed">MAP v{view.map?.map_version ?? view.map?.version} signed{view.signature ? `: ${view.signature.manifestation}` : ""} · {view.map?.map_sha256.slice(0, 12)}{view.map?.supersedes ? " · supersedes the earlier version" : ""}</p>}
+          {signed && pendingDeviations.length > 0 && (
+            <div className="banner warn" data-testid="deviations-pending" style={{ marginTop: 8 }}>
+              <strong>MAP deviations pending signature (D-14, ICH M15 §4.2).</strong> They apply to campaigns once the MIDD
+              lead signs them into a new MAP version; until then the signed MAP stands.
+              <ul className="plain" style={{ marginTop: 6 }}>
+                {pendingDeviations.map((d, i) => <li key={i}><code>{d.target}</code> {d.change} — {d.reason}</li>)}
+              </ul>
+            </div>
+          )}
+          {signed && !pendingDeviations.length && (
+            <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>A change now is a MAP deviation: it is recorded and
+              waits for the MIDD lead&apos;s signature.</p>
+          )}
           {message && <div className="banner ok" style={{ marginTop: 8 }}>{message}</div>}
         </Card>
         <nav className="tabs" aria-label="Diagrams">

@@ -29,6 +29,12 @@ H = {"Authorization": "Bearer t"}
 ROLES = {"value": ["modeler-curator", "modeler-reviewer"]}
 
 
+def map_doc_sha(doc: dict) -> str:
+    from pbpk_domain.campaign.map import MapDocument
+
+    return MapDocument.model_validate(doc).content_sha256()
+
+
 class FakeVerifier:
     def verify(self, token):
         return {"sub": "u1", "name": "Dr MIDD Lead", "tenant_id": "t1", "realm_access": {"roles": ROLES["value"]},
@@ -158,5 +164,21 @@ def test_approve_and_sign_generates_the_map_signs_it_and_stages_the_campaign(set
     observed = json.loads(Path(unquote(urlparse(campaign["observed_uri"]).path)).read_text())
     assert observed["iv-250"]["origin"] == "LITERATURE"
     assert ws.phases()["P5"] == "APPROVED"
+    # D-14: after the signature a change is a MAP deviation, pending until the MIDD lead signs it
     after = c.put("/api/v1/projects/p1/plan/placements/po-10", headers=H, json={"role": "S5", "reason": "late change"})
-    assert after.status_code == 409 and "deviation" in after.json()["detail"]
+    assert after.status_code == 200, after.text
+    view = after.json()["data"]
+    assert view["signed"] and view["deviations_pending"] == 1
+    (dev,) = view["deviations"]
+    assert (dev["kind"], dev["target"], dev["change"], dev["against_map"], dev["signature_id"]) == (
+        "role", "po-10", "placed in S5", 1, None)
+    assert c.put("/api/v1/projects/p1/plan/layout", headers=H, json={"layout": {"S1": {"x": 1, "y": 2}}}).json()[
+        "data"]["deviations_pending"] == 1                                   # the layout is a view, never a deviation
+    resigned = c.post("/api/v1/projects/p1/plan:sign", headers=H, json={"note": "deviation reviewed"})
+    assert resigned.status_code == 200, resigned.text
+    data = resigned.json()["data"]
+    assert data["deviations_pending"] == 0 and data["deviations"][0]["signed_map"] == 2
+    assert data["map"]["map_version"] == 2 and data["map"]["supersedes"] == map_doc_sha(map_doc)
+    v2 = json.loads(Path(unquote(urlparse(data["map"]["campaign"]["map_uri"]).path)).read_text())
+    assert v2["status"] == "SIGNED" and any("Deviation from MAP v1 (role, po-10)" in r for r in v2["split_rationale"])
+    assert c.post("/api/v1/projects/p1/plan:sign", headers=H, json={}).status_code == 409    # nothing new to sign

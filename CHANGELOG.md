@@ -664,6 +664,17 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — MAP deviations after the signature (D-14, ICH M15 §4.2)
+- Once the MAP is signed, a change on the canvas (placement, fit, structure, acknowledgement, A5 decision, rebase on
+  new inputs; not the layout) is no longer refused: it is recorded on the plan as a deviation (kind, target, what
+  changed, reason, who, against which signed MAP version) and applies to nothing until the MIDD lead signs it.
+  Signing (`POST /plan:sign`, step-up, record type `map-deviation`) makes a new MAP version that supersedes the signed
+  one, states every deviation in its rationale and limitations, restages the campaign inputs and marks the deviations
+  signed. Signing with nothing changed is refused. The canvas lists pending deviations, renames the button "Sign the
+  deviation(s)" and hides "Run" until they are signed (`model-plan.spec.ts` covers it).
+- Why: D-14 (owner: deviation with signature). Refusing every change after signature forced a new project for a
+  correction; an unrecorded change would break the link between a campaign and the plan it ran.
+
 ### Added — the T-56 proof kit: Dapagliflozin from a mock proposal through P0 → P6, with a trace report
 - `deploy/proof/run_t56.py` (and `deploy/proof/README.md`) drives the API the web app uses: **prepare** starts a
   project from a mock technical proposal (`deploy/proof/dapagliflozin/proposal.md`, labelled MOCK, no values), fills the

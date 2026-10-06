@@ -132,6 +132,23 @@ class StudyView(BaseModel):
     new: bool = False
 
 
+class Deviation(BaseModel):
+    """A change to the plan after its MAP was signed (D-14, ICH M15 §4.2): it applies to campaigns only once the MIDD
+    lead signs it, which makes a new MAP version superseding the signed one."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: str                         # role | fit | fit removed | unlock | structure | acknowledged | proposal
+    target: str
+    change: str                       # what changed, in words ("S2 → S5", "fitted in S1 [0.1, 10]")
+    reason: str
+    by: str
+    at: datetime
+    against_map: int                  # the signed MAP version it deviates from
+    signature_id: str | None = None   # set when signed
+    signed_map: int | None = None     # the MAP version that carries it
+
+
 class ModelPlan(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -149,6 +166,10 @@ class ModelPlan(BaseModel):
     layout: dict[str, dict[str, float]] = Field(default_factory=dict)  # canvas positions: a view, not the record
     fit_candidates: dict[str, tuple[str, ...]] = Field(default_factory=dict)  # stage -> concrete CPF ids (MS-01 §4)
     budgets: dict[str, int] = Field(default_factory=dict)
+    deviations: tuple[Deviation, ...] = ()   # changes after the MAP was signed (D-14), pending until signed
+
+    def pending_deviations(self) -> tuple[Deviation, ...]:
+        return tuple(d for d in self.deviations if d.signature_id is None)
 
     def to_content(self) -> dict[str, Any]:
         return self.model_dump(mode="json", by_alias=True)

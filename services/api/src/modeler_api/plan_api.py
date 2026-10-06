@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -31,6 +32,7 @@ from modeler_project.inputs import MAIN as INPUTS_MAIN
 from modeler_project.inputs import current_cpf
 from modeler_project.plan import (
     MAIN,
+    Deviation,
     ModelPlan,
     PlanError,
     acknowledge,
@@ -50,6 +52,7 @@ from modeler_project.plan import (
     unlock,
     validate,
 )
+from pbpk_domain.campaign.map import MapDocument, MapStatus
 from pbpk_domain.cpf.models import CPF
 
 router = APIRouter(prefix="/api/v1", tags=["plan"])
@@ -163,7 +166,13 @@ def _view(ws: Workspace, version, plan: ModelPlan, cpf: CPF, rows: list[dict[str
         "d1": _d1(cpf, plan),
         "d2": _d2(cpf, plan, ws),
         "map": ({**version_view(ws, map_version, with_content=False), "campaign": map_version.content.get("campaign"),
-                 "map_sha256": map_version.content.get("map_sha256")} if map_version else None),
+                 "map_sha256": map_version.content.get("map_sha256"),
+                 "map_version": (map_version.content.get("map") or {}).get("version"),
+                 "supersedes": (map_version.content.get("map") or {}).get("supersedes_sha256")} if map_version else None),
+        # D-14: once a MAP is signed, every change is a deviation that waits for the MIDD lead's signature
+        "signed": bool(map_version and map_version.content.get("signature")),
+        "deviations": [d.model_dump(mode="json") for d in plan.deviations],
+        "deviations_pending": len(plan.pending_deviations()),
         "agents": agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
     }
 
@@ -189,22 +198,45 @@ def read_plan(project_id: str, principal: Reader, store: StoreDep) -> dict[str, 
     return envelope(_view(ws, version, plan, cpf, rows))
 
 
-def _change(ws: Workspace, principal: Principal, fn, reason: str, *, dry_run: bool = False) -> dict[str, Any]:
+def _signed_map(ws: Workspace) -> tuple[Any, MapDocument] | None:
+    """The latest signed MAP (it carries a signature; a newer plan version makes it stale, not unsigned)."""
+    version = ws.latest(ArtifactKind.MAP, MAIN)
+    if version is None or not version.content.get("signature"):
+        return None
+    return version, MapDocument.model_validate(version.content["map"])
+
+
+def _deviation(ws: Workspace, plan: ModelPlan, *, kind: str, target: str, change: str, reason: str,
+               by: str) -> ModelPlan:
+    """After the MAP is signed, a change is a deviation (D-14): recorded on the plan, pending the MIDD lead's signature."""
+    signed = _signed_map(ws)
+    if signed is None:
+        return plan
+    record = Deviation(kind=kind, target=target, change=change, reason=reason, by=by, at=datetime.now(UTC),
+                       against_map=signed[1].version)
+    return plan.model_copy(update={"deviations": (*plan.deviations, record)})
+
+
+def _change(ws: Workspace, principal: Principal, fn, reason: str, *, dry_run: bool = False,
+            deviation: tuple[str, str, str] | None = None) -> dict[str, Any]:
+    """Apply a canvas change. ``deviation`` = (kind, target, change): what the change is if the MAP is already signed
+    (D-14); None for a view-only change (the layout), which never deviates."""
     version, plan, cpf, rows = _ensure(ws, principal.user_id)
     if ws.status(version).value == "STALE":
         raise HTTPException(status_code=409, detail="the inputs changed since this plan: bring it up to date (rebase) first")
-    signed = ws.latest(ArtifactKind.MAP, MAIN)
-    if signed is not None and ws.status(signed).value == "APPROVED":
-        raise HTTPException(status_code=409, detail="the MAP is signed: a change now is a MAP deviation (D-14), "
-                                                    "recorded with a signature in the review inbox")
     try:
         changed = fn(plan)
     except (PlanError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    signed = _signed_map(ws) is not None
     if dry_run:  # the canvas asks what a move would do before the person confirms it: nothing is saved
         return envelope({"violations": [v.model_dump() for v in validate(changed, cpf, rows, exploratory=_exploratory(ws))],
-                         "diff": diff(changed)})
-    version = save(ws, changed, by=principal.user_id, reason=reason)
+                         "diff": diff(changed), "deviation": signed and deviation is not None})
+    if deviation is not None:
+        kind, target, what = deviation
+        changed = _deviation(ws, changed, kind=kind, target=target, change=what, reason=reason, by=principal.user_id)
+    version = save(ws, changed, by=principal.user_id,
+                   reason=f"MAP deviation (pending signature): {reason}" if signed and deviation else reason)
     return envelope(_view(ws, version, changed, cpf, rows))
 
 
@@ -219,13 +251,15 @@ def put_placement(project_id: str, study_id: str, body: PlacementRequest, princi
     """A study dropped on a D3 node: placed by a person (userLocked), with the reason. ``dry_run`` validates only."""
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal, lambda p: place(p, study_id, body.role, by=principal.user_id, reason=body.reason),
-                   f"{study_id} → {body.role}: {body.reason}", dry_run=dry_run)
+                   f"{study_id} → {body.role}: {body.reason}", dry_run=dry_run,
+                   deviation=("role", study_id, f"placed in {body.role}"))
 
 
 @router.post("/projects/{project_id}/plan/placements/{study_id}:unlock")
 def unlock_placement(project_id: str, study_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
-    return _change(ws, principal, lambda p: unlock(p, study_id), f"{study_id} back to the MS-01 default")
+    return _change(ws, principal, lambda p: unlock(p, study_id), f"{study_id} back to the MS-01 default",
+                   deviation=("unlock", study_id, "back to the MS-01 default"))
 
 
 class FitRequest(BaseModel):
@@ -241,7 +275,8 @@ def put_fit(project_id: str, parameter: str, body: FitRequest, principal: Writer
     ws = workspace_for(project_id, principal, store)
     fit = {"stages": tuple(body.stages), "lower": body.lower, "upper": body.upper, "scale": body.scale}
     return _change(ws, principal, lambda p: set_fit(p, parameter, fit, by=principal.user_id, reason=body.reason),
-                   f"fit {parameter} in {', '.join(body.stages)}: {body.reason}")
+                   f"fit {parameter} in {', '.join(body.stages)}: {body.reason}",
+                   deviation=("fit", parameter, f"fitted in {', '.join(body.stages)} [{body.lower:g}, {body.upper:g}] {body.scale}"))
 
 
 class ReasonRequest(BaseModel):
@@ -252,7 +287,7 @@ class ReasonRequest(BaseModel):
 def remove_fit(project_id: str, parameter: str, body: ReasonRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal, lambda p: set_fit(p, parameter, None, by=principal.user_id, reason=body.reason),
-                   f"{parameter} fixed again: {body.reason}")
+                   f"{parameter} fixed again: {body.reason}", deviation=("fit removed", parameter, "fixed again"))
 
 
 class StructureRequest(BaseModel):
@@ -272,7 +307,8 @@ def put_structure(project_id: str, body: StructureRequest, principal: Writer, st
         changed = set_structure(plan, body.key, body.value, by=principal.user_id, reason=body.reason)
         return rebase(changed, build_default(cpf, rows, changed.structure)).model_copy(update={"structure": changed.structure})
 
-    return _change(ws, principal, apply, f"{body.key} = {body.value}: {body.reason}")
+    return _change(ws, principal, apply, f"{body.key} = {body.value}: {body.reason}",
+                   deviation=("structure", body.key, f"set to {body.value}"))
 
 
 @router.post("/projects/{project_id}/plan/violations/{violation_id}:acknowledge")
@@ -280,7 +316,8 @@ def acknowledge_violation(project_id: str, violation_id: str, body: ReasonReques
                           store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal, lambda p: acknowledge(p, violation_id, by=principal.user_id, reason=body.reason),
-                   f"acknowledged {violation_id}: {body.reason}")
+                   f"acknowledged {violation_id}: {body.reason}",
+                   deviation=("acknowledged", violation_id, "accepted as a limitation"))
 
 
 class DecisionRequest(BaseModel):
@@ -293,7 +330,8 @@ def decide(project_id: str, proposal_id: str, body: DecisionRequest, principal: 
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal,
                    lambda p: decide_proposal(p, proposal_id, accept=body.accept, by=principal.user_id, reason=body.reason),
-                   f"{'accepted' if body.accept else 'rejected'} {proposal_id}: {body.reason}")
+                   f"{'accepted' if body.accept else 'rejected'} {proposal_id}: {body.reason}",
+                   deviation=("proposal", proposal_id, "accepted" if body.accept else "rejected"))
 
 
 class LayoutRequest(BaseModel):
@@ -313,7 +351,10 @@ def rebase_plan(project_id: str, principal: Writer, store: StoreDep) -> dict[str
     version, plan, _cpf, _rows = _ensure(ws, principal.user_id)
     cpf, rows, refs = _inputs(ws)
     fresh = build_default(cpf, rows, plan.structure)
-    version = save(ws, rebase(plan, fresh), by=principal.user_id, reason="rebased on the current inputs", derived_from=refs)
+    rebased = _deviation(ws, rebase(plan, fresh), kind="rebase", target="inputs", by=principal.user_id,
+                         change="re-placed on the current inputs (a person's choices kept, new studies placed by default)",
+                         reason="the model inputs changed after the MAP was signed")
+    version = save(ws, rebased, by=principal.user_id, reason="rebased on the current inputs", derived_from=refs)
     return envelope(_view(ws, version, ModelPlan.from_content(version.content), cpf, rows))
 
 
@@ -401,11 +442,24 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
     version, plan, cpf, rows = _ensure(ws, principal.user_id)
     if ws.status(version).value == "STALE":
         raise HTTPException(status_code=409, detail="the inputs changed since this plan: rebase it first")
+    previous = _signed_map(ws)
+    pending = plan.pending_deviations()
+    if previous is not None and not pending:
+        raise HTTPException(status_code=409, detail=f"MAP v{previous[1].version} is signed and the plan has not changed since")
     exploratory = _exploratory(ws)
     try:
         doc = map_from_plan(plan, cpf, rows, exploratory=exploratory)
     except PlanError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if previous is not None:
+        # D-14: the deviations make a new MAP version that supersedes the signed one and states each change
+        old = previous[1]
+        lines = tuple(f"Deviation from MAP v{d.against_map} ({d.kind}, {d.target}): {d.change}. Reason: {d.reason}"
+                      for d in pending)
+        doc = doc.model_copy(update={"version": old.version + 1, "supersedes_sha256": old.content_sha256(),
+                                     "status": MapStatus.DRAFT, "signature": None,
+                                     "split_rationale": (*doc.split_rationale, *lines),
+                                     "split_limitations": (*doc.split_limitations, *lines)})
     settings = get_settings()
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Campaign inputs need a read root. Set MODELER_READ_ROOT.")
@@ -413,8 +467,14 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
     content_sha = doc.content_sha256()
     signature = sign_after_step_up(
         signer=Signer(user_id=principal.user_id, printed_name=principal.printed_name), meaning=SignatureMeaning.APPROVED,
-        record_type="map", record_id=f"{project_id}/plan-v{version.version}", record_sha256=content_sha, acr=principal.acr or "")
+        record_type="map-deviation" if previous else "map", record_id=f"{project_id}/plan-v{version.version}",
+        record_sha256=content_sha, acr=principal.acr or "")
     signed = doc.sign(printed_name=principal.printed_name, signature_id=signature.signature_id)
+    if pending:  # the deviations now carry their signature and the MAP version that holds them
+        marked = tuple(d.model_copy(update={"signature_id": signature.signature_id, "signed_map": signed.version})
+                       if d.signature_id is None else d for d in plan.deviations)
+        plan = plan.model_copy(update={"deviations": marked})
+        version = save(ws, plan, by=principal.user_id, reason=f"{len(pending)} deviation(s) signed into MAP v{signed.version}")
 
     # the campaign's inputs, staged like campaign:prepare: the campaign CPF (with the plan's fit policies), the
     # signed MAP, and the observed PK of the judged studies (with their origin)
@@ -431,7 +491,7 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
                                       json.dumps(observed, ensure_ascii=False).encode("utf-8"))
     from modeler_contracts.runs import CAMPAIGN_STAGES
 
-    campaign = {"compound": cpf.compound, "map_id": f"map-{project_id}-v{version.version}",
+    campaign = {"compound": cpf.compound, "map_id": f"map-{project_id}-v{signed.version}",
                 "cpf_uri": cpf_path.as_uri(), "cpf_sha256": hashlib.sha256(cpf_bytes).hexdigest(),
                 "map_uri": map_path.as_uri(), "observed_uri": observed_path.as_uri(), "stages": list(CAMPAIGN_STAGES),
                 "question": plan.structure.objective, "model_risk": plan.structure.model_risk}
@@ -439,7 +499,9 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
                                                      "signature": {"signature_id": signature.signature_id,
                                                                    "manifestation": signature.manifestation()},
                                                      "campaign": campaign},
-                            derived_from=[version.ref], actor=principal.user_id, reason=f"MAP from plan v{version.version}")
+                            derived_from=[version.ref], actor=principal.user_id,
+                            reason=f"MAP v{signed.version} from plan v{version.version}"
+                            + (f" ({len(pending)} deviation(s), superseding v{previous[1].version})" if previous else ""))
     for ref in (version.ref, map_version.ref):
         ws.approve(ref, by=principal.user_id, printed_name=principal.printed_name, meaning="Approved",
                    signature_id=signature.signature_id, note=body.note)

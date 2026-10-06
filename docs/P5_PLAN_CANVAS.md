@@ -56,7 +56,13 @@ before it reaches the diff; `:unlock` gives a study back to the default.
 | `PUT /plan/layout` · `POST /plan:rebase` · `POST /plan:draft` (A5, background) | layout, new inputs, agent |
 | `POST /plan:sign` `{note}` | role `modeler-reviewer` (the MIDD lead, D-07); 409 while any violation is open; MAP from the plan → `ensure_step_up` → `sign_after_step_up` (meaning Approved, bound to the MAP's content hash) → campaign inputs staged under the read root (as `campaign:prepare`) → MAP/main committed; plan and MAP approved with the signature id (P5 gate) |
 
-After the signature every change is refused (409): a change is then a MAP deviation with its own signature (D-14).
+After the signature every change (placement, fit, structure, acknowledgement, A5 decision, rebase on new inputs; not
+the layout) is a **MAP deviation** (D-14, ICH M15 §4.2): it is saved on the plan as `deviations[]` (kind, target, what
+changed, reason, by, the signed MAP version it departs from) and does nothing to campaigns until the MIDD lead signs it.
+`POST /plan:sign` then generates the MAP from the plan as a **new version that supersedes the signed one**
+(`supersedes_sha256`), states each deviation in its split rationale and limitations, signs it (record type
+`map-deviation`, step-up), restages the campaign inputs and marks the deviations with the signature and the MAP version.
+While a deviation is pending the canvas shows it and offers no "Run". Signing again with nothing changed is refused.
 P6 starts with the existing `POST /projects/{id}/campaigns` using the staged inputs (the page's "Run the campaign").
 
 ## 4. The live validator (`plan.validate`)
@@ -100,11 +106,10 @@ Errors block the signature; warnings block until acknowledged with a reason (the
 | React Flow + dagre | plain React, absolutely positioned nodes, SVG edges, native HTML5 drag and drop | the DAG's shape is fixed by MS-01 (seven stage nodes); native DnD is what the owner's spec asked for; no new dependency |
 | new data after the plan appears *unassigned* | placed by the default and marked **new** | every study then has a role the MAP can use; the mark keeps it visible for the person |
 | drop on an edge | the edge's target stage | an edge carries the CPF, not data; a drop on the arrow into a stage is read as "into that stage" |
-| canvas moves after signature as signed deviations (D-14) | refused with the reason; deviation flow not built | needs the deviation record and signature on the plan (next) |
 | blinding external values until signed (D-15) | the plan API never sends observed values; other pages still show them | full blinding needs per-page enforcement (next) |
 
 ## 7. Known gaps
 
 * A5 has run only with a scripted model in tests; a live run needs `MODELER_LLM_PROVIDER` on the server.
 * SJ (joint refinement) and the feedback cycles (Lane B, T-51 → T-55) add stages to D3 when they land.
-* MAP deviations after signature (D-14) and project-wide blinding (D-15).
+* Project-wide blinding (D-15).

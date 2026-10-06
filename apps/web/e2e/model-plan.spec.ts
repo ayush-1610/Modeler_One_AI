@@ -59,7 +59,19 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await expect(sign).toBeEnabled();
   await page.screenshot({ path: test.info().outputPath("plan.png"), fullPage: true });
   await sign.click();
-  await expect(page.getByTestId("map-signed")).toContainText("signed");
+  await expect(page.getByTestId("map-signed")).toContainText("MAP v1 signed");
+
+  // D-14: after the signature a move is a MAP deviation — recorded, then signed into MAP v2, before the run
+  await page.getByTestId("overall-data").getByTestId("chip-po-10").dragTo(page.getByTestId("node-S2"));
+  await expect(page.getByTestId("move-ok")).toBeVisible();
+  await page.getByTestId("move-reason").fill("the external dose range is covered by po-50; po-10 trains absorption");
+  await page.getByTestId("move-confirm").click();
+  await expect(page.getByTestId("deviations-pending")).toContainText("po-10");
+  await expect(page.getByTestId("run-campaign")).toHaveCount(0);           // nothing runs on an unsigned deviation
+  await expect(sign).toHaveText("Sign the deviation (1)");
+  await sign.click();
+  await expect(page.getByTestId("map-signed")).toContainText("MAP v2 signed");
+  await expect(page.getByTestId("map-signed")).toContainText("supersedes");
   await page.getByTestId("run-campaign").click();
   await page.waitForURL(/\/campaigns\/[^/]+$/);
   await expect(page.getByRole("heading", { name: "Planamide" })).toBeVisible({ timeout: 60_000 });
