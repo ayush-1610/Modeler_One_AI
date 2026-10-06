@@ -90,7 +90,14 @@ export const planApi = {
   rebase: (projectId: string) => apiSend<PlanView>(`${base(projectId)}:rebase`, "POST"),
   draft: (projectId: string) => apiSend<{ status: string }>(`${base(projectId)}:draft`, "POST"),
   sign: (projectId: string, note: string) => apiSend<PlanView>(`${base(projectId)}:sign`, "POST", { note }),
+  blinding: (projectId: string) => apiGet<Blinding>(`/api/v1/projects/${projectId}/blinding`),
+  setBlinding: (projectId: string, on: boolean, reason: string) =>
+    apiSend<Blinding>(`/api/v1/projects/${projectId}/blinding`, "PUT", { on, reason }),
 };
+
+// D-15: external datasets' values withheld until the MAP is signed (per project; default on for high model risk).
+export type Blinding = { on: boolean; source: string; reason?: string; by?: string; map_signed: boolean;
+                         blinded: string[]; external: string[] };
 
 export type PlanEnvelope = Envelope<PlanView>;
 

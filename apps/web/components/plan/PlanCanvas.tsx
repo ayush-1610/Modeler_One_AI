@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { D3Dag, STUDY_MIME, StudyChip } from "@/components/plan/D3Dag";
 import { D1Disposition, D2Absorption } from "@/components/plan/Diagrams";
 import { Card } from "@/components/ui";
-import { ROLE_LABEL, planApi, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
+import { ROLE_LABEL, planApi, type Blinding, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
 import { startCampaign } from "@/lib/writes";
 
 type Pending = { studyId: string; from: Role; to: Role; where: string; preview: Violation[] | null; problem: string | null };
@@ -111,6 +111,35 @@ function ValidatorPanel({ view, onAcknowledge }: { view: PlanView; onAcknowledge
   );
 }
 
+/** D-15: whether external values are blinded, and the MIDD lead's switch (with its reason, on the audit chain). */
+function BlindingPanel({ projectId }: { projectId: string }) {
+  const [state, setState] = useState<Blinding | null>(null);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { void planApi.blinding(projectId).then((env) => env.data && setState(env.data)); }, [projectId]);
+  if (!state) return null;
+  return (
+    <div data-testid="blinding" style={{ fontSize: 12 }}>
+      <h3>Blinding (D-15)</h3>
+      <p className="muted" style={{ margin: "0 0 4px" }}>
+        {state.map_signed ? "Lifted: the MAP is signed." : state.on
+          ? `On — ${state.blinded.length} external stud${state.blinded.length === 1 ? "y's" : "ies'"} values withheld until the MAP is signed.`
+          : "Off — external values are visible."} <span className="muted">({state.source}{state.reason ? `: ${state.reason}` : ""})</span>
+      </p>
+      {!state.map_signed && (
+        <div className="row" style={{ gap: 4 }}>
+          <input placeholder="reason (MIDD lead)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 100 }} />
+          <button className="btn tiny" disabled={!reason.trim()} data-testid="blinding-toggle" onClick={async () => {
+            const env = await planApi.setBlinding(projectId, !state.on, reason);
+            if (env.data) { setState(env.data); setReason(""); setError(null); } else setError(env.errors?.[0]?.message ?? "not changed");
+          }}>{state.on ? "Turn off" : "Turn on"}</button>
+        </div>
+      )}
+      {error && <div className="banner err" style={{ marginTop: 4 }}>{error}</div>}
+    </div>
+  );
+}
+
 /** P5 model plan (plan §11, review layer L3): the three diagrams, "Overall Data", the diff, the validator, the signature. */
 export function PlanCanvas({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -164,6 +193,7 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
             <div className="muted" style={{ fontSize: 11 }}>{s.route.replace("_", " ")} · {s.dose_mg} mg · {s.food_state} · {s.design} · n {s.n} → {s.role}</div>
           </div>
         ))}
+        <BlindingPanel projectId={projectId} />
         <h3>Dissolution</h3>
         {view.d2.dissolution.length ? view.d2.dissolution.map((d) => <div key={d.id} className="muted" style={{ fontSize: 12 }}>◆ {d.label}</div>)
           : <p className="muted" style={{ fontSize: 12 }}>none</p>}

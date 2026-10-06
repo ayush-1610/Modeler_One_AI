@@ -664,6 +664,17 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — external values blinded until the MAP is signed (D-15, ICH M15 §4.1)
+- Per project (`GET/PUT /projects/{id}/blinding`, MIDD lead, with a reason, on the audit chain); by default on when the
+  human-confirmed model risk is high (the plan's, else the brief's acceptance tier). While on and no MAP is signed, the
+  values of external studies (placed in S5 / S6, or entered for external validation) are withheld from the evidence
+  page, dataset artifacts and their history, and the study catalog (`modeler_project.blinding`, applied in
+  `project_api.redact`); metadata and times stay. A curator reveals one dataset for a check with a reason
+  (`POST /datasets/{id}:reveal`, an audit event). The MAP signature lifts it.
+- UI: blinded datasets say so on the evidence page with "Reveal for this check"; the plan page shows the state and the
+  switch (`blinding.spec.ts`).
+- Known limit: source documents (papers, the client's raw files) are not blinded; blinding covers what the platform shows.
+
 ### Added — MAP deviations after the signature (D-14, ICH M15 §4.2)
 - Once the MAP is signed, a change on the canvas (placement, fit, structure, acknowledgement, A5 decision, rebase on
   new inputs; not the layout) is no longer refused: it is recorded on the plan as a deviation (kind, target, what

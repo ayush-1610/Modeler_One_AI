@@ -15,7 +15,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from modeler_api.brief_api import agents_status
-from modeler_api.project_api import Reader, StoreDep, Writer, version_view, workspace_for
+from modeler_api.project_api import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
@@ -57,6 +57,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
     matrix_version, matrix = _matrix(ws)
     evidence = items(ws)
     observed = datasets(ws)
+    hidden = blinded_studies(ws)
     rows = coverage(matrix, evidence, observed)
     register = ws.latest(ArtifactKind.EVIDENCE, REGISTER_LITERATURE)
     from modeler_agents.run_store import FileRunStore
@@ -67,7 +68,9 @@ def _view(ws: Workspace) -> dict[str, Any]:
     return {
         "data_plan": {"version": matrix_version.version, "status": ws.status(matrix_version).value},
         "evidence": [_evidence_view(e) for e in evidence],
-        "datasets": [d.to_content() for d in observed],
+        # D-15: external datasets' values are withheld until the MAP is signed (metadata kept for the split)
+        "datasets": [redact(ws, ArtifactKind.DATASET, d.to_content(), hidden) for d in observed],
+        "blinding": {"blinded": sorted(hidden)},
         "coverage": [r.__dict__ | {"accepted": list(r.accepted), "proposed": list(r.proposed)} for r in rows],
         "blocking": [r.req_id for r in blocking(rows)],
         "access_requests": [{"id": v.id, **v.content} for v in ws.list(ArtifactKind.ACCESS_REQUEST)],

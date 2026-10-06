@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from modeler_api.config import get_settings
-from modeler_api.project_api import Reader, StoreDep, Writer, version_view, workspace_for
+from modeler_api.project_api import Reader, StoreDep, Writer, redact, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, Workspace
 from modeler_project.inputs import MAIN, accept_inputs, assemble, choices, current_cpf, set_choice
@@ -47,7 +47,8 @@ def _view(ws: Workspace) -> dict[str, Any]:
     return {
         "cpf": version_view(ws, cpf_version, with_content=False) | {"assembly": cpf_version.content["assembly"]} if cpf_version else None,
         "records": records,
-        "catalog": version_view(ws, catalog) if catalog else None,
+        "catalog": (version_view(ws, catalog) | {"content": redact(ws, ArtifactKind.STUDY_CATALOG, catalog.content)})
+                   if catalog else None,
         "readiness": version_view(ws, ready) if ready else None,
         "choices": choices(ws).model_dump(),
         "published": published.content if (published := ws.latest(ArtifactKind.CPF, "published")) else None,

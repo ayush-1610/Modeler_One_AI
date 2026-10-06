@@ -65,6 +65,13 @@ changed, reason, by, the signed MAP version it departs from) and does nothing to
 While a deviation is pending the canvas shows it and offers no "Run". Signing again with nothing changed is refused.
 P6 starts with the existing `POST /projects/{id}/campaigns` using the staged inputs (the page's "Run the campaign").
 
+**Blinding (D-15, ICH M15 §4.1).** Per project: the MIDD lead's choice with its reason (`PUT /projects/{id}/blinding`,
+on the audit chain), else on by default when the human-confirmed model risk is high. While it is on and no MAP is
+signed, the values of every external study (placed in S5 / S6, or entered for external validation) are left out of the
+evidence page, the dataset artifacts and their history, and the study catalog; metadata and sampling times stay, since
+the split is decided on them. A curator who must check one (digitization, acceptance) reveals it with a reason
+(`POST /datasets/{id}:reveal`, audited). The signature lifts it. The plan page shows the state and the switch.
+
 ## 4. The live validator (`plan.validate`)
 
 Errors block the signature; warnings block until acknowledged with a reason (then they are MAP limitations).
@@ -106,10 +113,10 @@ Errors block the signature; warnings block until acknowledged with a reason (the
 | React Flow + dagre | plain React, absolutely positioned nodes, SVG edges, native HTML5 drag and drop | the DAG's shape is fixed by MS-01 (seven stage nodes); native DnD is what the owner's spec asked for; no new dependency |
 | new data after the plan appears *unassigned* | placed by the default and marked **new** | every study then has a role the MAP can use; the mark keeps it visible for the person |
 | drop on an edge | the edge's target stage | an edge carries the CPF, not data; a drop on the arrow into a stage is read as "into that stage" |
-| blinding external values until signed (D-15) | the plan API never sends observed values; other pages still show them | full blinding needs per-page enforcement (next) |
+| blinding external values until signed (D-15) | built in the API: every view that carries observed values withholds them for external studies; a curator reveals one dataset for a check, audited | source documents (the papers, the client's files) stay readable: blinding covers what the platform shows |
 
 ## 7. Known gaps
 
 * A5 has run only with a scripted model in tests; a live run needs `MODELER_LLM_PROVIDER` on the server.
 * SJ (joint refinement) and the feedback cycles (Lane B, T-51 → T-55) add stages to D3 when they land.
-* Project-wide blinding (D-15).
+* Blinding (D-15) does not reach the source documents themselves (a published paper, the client's raw file).

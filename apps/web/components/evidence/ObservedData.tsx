@@ -18,6 +18,7 @@ type Dataset = {
   digitization: { page: number; resolution: Record<string, number>; overlay_approved_by: string | null } | null;
   purpose: string; provider: string; flags: string[]; state: string; proposed_by: string; decided_by: string | null;
   decision_reason: string;
+  blinded?: boolean;   // D-15: an external study's values, withheld until the MAP is signed
 };
 type View = {
   datasets: Dataset[];
@@ -30,13 +31,17 @@ const ORIGIN_CHIP: Record<string, string> = {
   CLIENT: "low", LITERATURE: "low", FIGURE_DIGITIZED: "medium", OSP_LIBRARY: "low", SYNTHETIC: "high", ILLUSTRATIVE: "high",
 };
 
-function DatasetCard({ d, onDecide, onOverlay }: {
+function DatasetCard({ d: listed, onDecide, onOverlay, onReveal }: {
   d: Dataset;
   onDecide: (d: Dataset, state: string, reason: string) => Promise<string | null>;
   onOverlay: (d: Dataset) => Promise<string | null>;
+  onReveal: (d: Dataset, reason: string) => Promise<Dataset | string>;
 }) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<Dataset | null>(null);
+  const [revealReason, setRevealReason] = useState("");
+  const d = revealed ?? listed;
   const s = d.study;
   return (
     <div className={`evidence ${d.state.toLowerCase()}`} data-testid={`dataset-${d.id}`}>
@@ -53,13 +58,27 @@ function DatasetCard({ d, onDecide, onOverlay }: {
         {String(s.route).replace("_", " ")} · {String(s.dose_mg)} mg · {String(s.formulation ?? "")} · {String(s.food_state ?? "fasted")} · n {String(s.n)}
         {" · "}{d.source.title || "source"}{d.source.locator ? ` · ${d.source.locator}` : ""}{d.source.page ? ` p.${d.source.page}` : ""}
       </p>
-      {d.series.map((series) => (
+      {d.blinded && (
+        <div className="banner warn" data-testid={`blinded-${d.id}`} style={{ margin: "6px 0" }}>
+          External study: its values are blinded until the MAP is signed (D-15, ICH M15 §4.1). The metadata above is
+          what the split uses. To check this dataset now, give the reason; the access is recorded in the audit trail.
+          <div className="row" style={{ marginTop: 6 }}>
+            <input style={{ flex: 1, minWidth: 180 }} placeholder="why it must be seen now (required)" value={revealReason}
+                   onChange={(e) => setRevealReason(e.target.value)} />
+            <button className="btn" disabled={!revealReason.trim()} onClick={async () => {
+              const out = await onReveal(listed, revealReason);
+              if (typeof out === "string") setError(out); else { setRevealed(out); setError(null); }
+            }}>Reveal for this check</button>
+          </div>
+        </div>
+      )}
+      {!d.blinded && d.series.map((series) => (
         <div key={series.name} className="series">
           <span className="muted">{series.name} ({series.statistic.replace("_", " ")}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
           {series.times.map((t, i) => `${+t.toPrecision(4)}: ${series.values[i] === null ? "<LLOQ" : +(series.values[i] as number).toPrecision(4)}`).join(" · ")}
         </div>
       ))}
-      {d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${r.parameter} ${r.value} ${r.unit}`).join(" · ")}</div>}
+      {!d.blinded && d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${r.parameter} ${r.value} ${r.unit}`).join(" · ")}</div>}
       {d.digitization && (
         <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
           digitized from p.{d.digitization.page}; resolution ±{(d.digitization.resolution.x / 2).toPrecision(2)} {d.time_unit},
@@ -146,7 +165,11 @@ export function ObservedData({ projectId }: { projectId: string }) {
         {view.datasets.length === 0 ? <p className="muted" style={{ margin: 0 }}>No observed data yet.</p> : view.datasets.map((d) => (
           <DatasetCard key={d.id} d={d}
                        onDecide={(ds, state, reason) => act(() => apiSend(`/api/v1/projects/${projectId}/datasets/${ds.id}:decide`, "POST", { state, reason }))}
-                       onOverlay={(ds) => act(() => apiSend(`/api/v1/projects/${projectId}/datasets/${ds.id}:overlay`, "POST", {}))} />
+                       onOverlay={(ds) => act(() => apiSend(`/api/v1/projects/${projectId}/datasets/${ds.id}:overlay`, "POST", {}))}
+                       onReveal={async (ds, reason) => {
+                         const env = await apiSend<Dataset>(`/api/v1/projects/${projectId}/datasets/${ds.id}:reveal`, "POST", { reason });
+                         return env.data ?? env.errors?.[0]?.message ?? "not revealed";
+                       }} />
         ))}
       </Card>
     </>

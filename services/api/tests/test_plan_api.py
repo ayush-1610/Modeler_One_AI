@@ -60,6 +60,7 @@ def setup(tmp_path, monkeypatch):
     settings = SimpleNamespace(read_root=str(read_root), execution_backend="local")
     monkeypatch.setattr(cfg, "get_settings", lambda: settings)
     monkeypatch.setattr("modeler_api.plan_api.get_settings", lambda: settings)
+    monkeypatch.setattr("modeler_api.project_api.get_settings", lambda: settings)
     monkeypatch.delenv("MODELER_LLM_PROVIDER", raising=False)
     ROLES["value"] = ["modeler-curator", "modeler-reviewer"]
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier()
@@ -182,3 +183,46 @@ def test_approve_and_sign_generates_the_map_signs_it_and_stages_the_campaign(set
     v2 = json.loads(Path(unquote(urlparse(data["map"]["campaign"]["map_uri"]).path)).read_text())
     assert v2["status"] == "SIGNED" and any("Deviation from MAP v1 (role, po-10)" in r for r in v2["split_rationale"])
     assert c.post("/api/v1/projects/p1/plan:sign", headers=H, json={}).status_code == 409    # nothing new to sign
+
+
+@pytest.mark.req("T-50")
+def test_external_values_are_blinded_until_the_map_is_signed(setup):
+    """D-15: with blinding on, an external study's values are left out of every view (its metadata stays) until the
+    MAP is signed; a curator reveals one dataset for a check with a reason on the audit chain."""
+    c, _ws, _root = setup
+    state = c.get("/api/v1/projects/p1/blinding", headers=H).json()["data"]
+    assert state["on"] is False and "default" in state["source"]                 # medium risk: off by default
+    ROLES["value"] = ["modeler-curator"]
+    assert c.put("/api/v1/projects/p1/blinding", headers=H, json={"on": True, "reason": "r"}).status_code == 403
+    ROLES["value"] = ["modeler-curator", "modeler-reviewer"]
+    on = c.put("/api/v1/projects/p1/blinding", headers=H, json={"on": True, "reason": "ICH M15 §4.1 for this project"})
+    assert on.status_code == 200 and on.json()["data"]["on"] is True
+    c.get("/api/v1/projects/p1/plan", headers=H)                                  # the plan places the external studies
+    blinded = c.get("/api/v1/projects/p1/blinding", headers=H).json()["data"]["blinded"]
+    assert blinded and "iv-250" not in blinded
+    sid = blinded[0]
+
+    evidence = c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]
+    hidden = next(d for d in evidence["datasets"] if d["study"]["study_id"] == sid)
+    shown = next(d for d in evidence["datasets"] if d["study"]["study_id"] == "iv-250")
+    assert hidden["blinded"] and set(hidden["series"][0]["values"]) == {None} and hidden["series"][0]["times"]
+    assert shown["series"][0]["values"][0] == 20.0 and "blinded" not in shown
+    artifact = c.get(f"/api/v1/projects/p1/artifacts/dataset/{hidden['id']}", headers=H).json()["data"]["content"]
+    assert set(artifact["series"][0]["values"]) == {None}
+    catalog = c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["catalog"]["content"]["studies"]
+    row = next(r for r in catalog if r["study_id"] == sid)
+    assert row["blinded"] and "profile" not in row
+
+    assert c.post(f"/api/v1/projects/p1/datasets/{hidden['id']}:reveal", headers=H, json={}).status_code == 422
+    revealed = c.post(f"/api/v1/projects/p1/datasets/{hidden['id']}:reveal", headers=H,
+                      json={"reason": "check the digitized points before acceptance"}).json()["data"]
+    assert revealed["series"][0]["values"][0] == 20.0
+    audit = c.get("/api/v1/projects/p1/audit", headers=H).json()["data"]["events"]
+    assert any(e["action"] == "dataset.reveal" and "digitized points" in e["reason"] for e in audit)
+    assert any(e["action"] == "blinding.set" and e["after"] is True for e in audit)
+
+    for v in [v for v in c.get("/api/v1/projects/p1/plan", headers=H).json()["data"]["violations"] if v["severity"] == "warning"]:
+        c.post(f"/api/v1/projects/p1/plan/violations/{v['id']}:acknowledge", headers=H, json={"reason": "accepted"})
+    assert c.post("/api/v1/projects/p1/plan:sign", headers=H, json={}).status_code == 200
+    after = c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]
+    assert next(d for d in after["datasets"] if d["study"]["study_id"] == sid)["series"][0]["values"][0] == 20.0
