@@ -89,3 +89,13 @@ def test_inputs_are_assembled_chosen_accepted_and_handed_to_the_campaign_path(se
     read = FileReadStore(str(read_root))
     assert read.get_cpf("t1", "p1", "Renaldrug").get("phys.logp").provenance.method == "InVitro"
     assert read.list_studies("t1", "p1")[0]["origin"] == "CLIENT"
+
+
+def test_a_process_type_can_be_chosen_before_the_first_assembly(setup):
+    c, _ws, _root = setup
+    chosen = c.put("/api/v1/projects/p1/inputs/choices", headers=H,
+                   json={"kind": "process", "key": "elim.hepatic.CYP3A4", "value": "MetabolizationSpecific_FirstOrder",
+                         "reason": "first-order specific clearance, decided before assembling"})
+    assert chosen.status_code == 200, chosen.text
+    clspec = next(r for r in chosen.json()["data"]["records"] if r["id"] == "elim.hepatic.CYP3A4.clspec")
+    assert clspec["engine_binding"]["process"] == "MetabolizationSpecific_FirstOrder:CYP3A4"

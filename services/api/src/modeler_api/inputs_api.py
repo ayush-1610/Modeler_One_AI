@@ -18,6 +18,8 @@ from modeler_api.config import get_settings
 from modeler_api.project_api import Reader, StoreDep, Writer, redact, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, Workspace
+from modeler_project.evidence import EvidenceState
+from modeler_project.evidence_register import items
 from modeler_project.inputs import MAIN, accept_inputs, assemble, choices, current_cpf, set_choice
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
 
@@ -82,9 +84,12 @@ def put_choice(project_id: str, body: ChoiceRequest, principal: Writer, store: S
     """A structure choice with its reason; the inputs are re-assembled with it."""
     ws = workspace_for(project_id, principal, store)
     if body.kind == "process" and body.value is not None:
+        # the process types that can carry the pathway's parameters: from the assembled CPF, or from the accepted
+        # evidence when nothing is assembled yet (the choice may come first)
         cpf = current_cpf(ws)
-        offered = {c.process for r in (cpf.parameters if cpf else ()) if r.id.startswith(body.key + ".")
-                   for c in binding_candidates(r.id)}
+        targets = {r.id for r in (cpf.parameters if cpf else ())}
+        targets |= {e.target for e in items(ws) if e.state is EvidenceState.ACCEPTED}
+        offered = {c.process for t in targets if t.startswith(body.key + ".") for c in binding_candidates(t)}
         if body.value not in offered:
             raise HTTPException(status_code=422, detail=f"{body.value} is not a harvested process for {body.key} "
                                                         f"({', '.join(sorted(offered))})")

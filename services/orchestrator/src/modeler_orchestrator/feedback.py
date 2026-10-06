@@ -143,7 +143,36 @@ def diagnose(map_doc: dict[str, Any], studies: list[dict[str, Any]], *, influenc
         {"id": "abort", "label": "Stop the campaign", "requiresSignature": True},
     ]
     not_achievable = [c["learn"]["reason"] for c in classes.values() if not c["learn"]["possible"]]
-    return {"failing": failing, "classes": classes, "options": options, "notAchievable": not_achievable}
+    for f in failing:
+        f["ms01"] = ms01_path(f, classes[f["class"]])
+    return {"failing": failing, "classes": classes, "options": options, "notAchievable": not_achievable,
+            "recommendation": recommendation(failing)}
+
+
+def ms01_path(failing: dict[str, Any], klass: dict[str, Any]) -> dict[str, Any]:
+    """MS-01 §6.6 for one failing study: 1. it differs from the training set in a documented way → limitation;
+    2. else another external study of its class is left → learn (once per class); 3. else → not achievable."""
+    if failing["differences"]:
+        return {"path": 1, "action": "accept_best",
+                "why": f"it differs from the training studies ({'; '.join(failing['differences'])}): a limitation of the "
+                       "context of use, not a model defect to fit away"}
+    learn = klass["learn"]
+    if learn["possible"] and not learn.get("needs_deviation"):
+        return {"path": 2, "action": "learn", "why": f"no documented difference, and {learn['reason']}"}
+    return {"path": 3, "action": "accept_best", "why": learn["reason"]}
+
+
+def recommendation(failing: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """What MS-01 §6.6 suggests for the whole failure: learn the studies its tree sends to path 2, else a limitation.
+    A suggestion shown with the diagnosis; the decision and its signature are the person's."""
+    if not failing:
+        return None
+    learn = [f["study_id"] for f in failing if f["ms01"]["action"] == "learn"]
+    if learn:
+        return {"action": "learn", "studies": learn,
+                "why": "; ".join(f"{f['study_id']}: {f['ms01']['why']}" for f in failing if f["study_id"] in learn)}
+    return {"action": "accept_best", "studies": [f["study_id"] for f in failing],
+            "why": "; ".join(f"{f['study_id']} (path {f['ms01']['path']}): {f['ms01']['why']}" for f in failing)}
 
 
 def check_learn(learn: list[str], diagnosis: dict[str, Any], *, beyond_cap: str = "") -> list[str]:

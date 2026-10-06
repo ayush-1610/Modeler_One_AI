@@ -236,3 +236,28 @@ def test_learn_refits_the_affected_stage_only(tmp_path, monkeypatch):
     new_req, _uri, _sha, queue = local_runner._start_cycle(writer, req, diagnosis, "learn", {}, cpf_uri="file:///c",
                                                            cpf_sha="c", signature_id="s", printed_name="p", note="")
     assert queue == ["S2", "SJ", "S4", "S5", "S6", "S7"] and new_req.cycle == 2 and new_req.map_uri == "file:///m2.json"
+
+
+@pytest.mark.req("T-55")
+def test_the_diagnosis_follows_ms01_6_6_and_suggests_but_does_not_decide():
+    """MS-01 §6.6: a documented difference → limitation (path 1); else another external study of the class → learn
+    (path 2); else → not achievable (path 3). The suggestion is shown; the person decides and signs."""
+    train = [{"study_id": f"po-{d}", "stage": "S2", "route": "oral", "food_state": "fasted", "formulation": "solution",
+              "dose_mg": d} for d in (5, 50)]
+    ext = [{"study_id": sid, "stage": "S5", "route": "oral", "food_state": food, "formulation": "solution", "dose_mg": dose}
+           for sid, food, dose in (("po-20", "fasted", 20), ("po-25", "fasted", 25), ("fed-1", "fed", 10))]
+    map_doc = {"scenarios": [*train, *ext],
+               "studies": [{"study_id": "po-20", "study_class": "PO-SOL-FASTED"},
+                           {"study_id": "po-25", "study_class": "PO-SOL-FASTED"},
+                           {"study_id": "fed-1", "study_class": "PO-FED"}]}
+    fail = {"auc_in_limits": False, "cmax_in_limits": True, "predicted_auc": 300.0, "observed_auc": 100.0}
+    ok = {"auc_in_limits": True, "cmax_in_limits": True}
+    out = diagnose(map_doc, [{"study_id": "po-20", **fail}, {"study_id": "po-25", **ok}, {"study_id": "fed-1", **fail}],
+                   influence=None, history=[])
+    paths = {f["study_id"]: f["ms01"]["path"] for f in out["failing"]}
+    assert paths == {"po-20": 2, "fed-1": 1}                                       # fed: no fed training → limitation
+    assert out["recommendation"]["action"] == "learn" and out["recommendation"]["studies"] == ["po-20"]
+    alone = diagnose({**map_doc, "scenarios": [*train, ext[0]], "studies": map_doc["studies"][:1]},
+                     [{"study_id": "po-20", **fail}], influence=None, history=[])
+    assert alone["failing"][0]["ms01"]["path"] == 3 and alone["recommendation"]["action"] == "accept_best"
+    assert "not achievable" in alone["recommendation"]["why"]

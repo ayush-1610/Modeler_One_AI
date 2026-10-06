@@ -664,6 +664,15 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Added — the S5 diagnosis shows MS-01 §6.6's own decision tree; a P4 process type can be chosen first
+- `feedback.diagnose` places each failing external study on MS-01 §6.6 (1: it differs from the training studies in a
+  documented way → limitation; 2: else another external study of its class is left and the class may learn → learn;
+  3: else not achievable → limitation) and states the resulting suggestion. It is MS-01 v1.0's existing tree applied
+  by code, not a new rule; the decision card and the monitor show it beside the options, and the person still decides
+  and signs.
+- `PUT /inputs/choices` (process) offers the harvested process types of the accepted evidence when no CPF is assembled
+  yet; before, a choice made before the first assembly was refused as "not a harvested process".
+
 ### Added — external values blinded until the MAP is signed (D-15, ICH M15 §4.1)
 - Per project (`GET/PUT /projects/{id}/blinding`, MIDD lead, with a reason, on the audit chain); by default on when the
   human-confirmed model risk is high (the plan's, else the brief's acceptance tier). While on and no MAP is signed, the

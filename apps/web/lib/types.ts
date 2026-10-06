@@ -142,7 +142,9 @@ export type FeedbackDiagnosis = {
     study_id: string; class: string; group?: string | null; failed: string[]; ratio: Record<string, number>;
     direction: string; learn_stage: string; differences: string[];
     influences: { parameter: string; auc: number | null; cmax: number | null }[];
+    ms01?: { path: 1 | 2 | 3; action: string; why: string };   // MS-01 §6.6 for this study
   }[];
+  recommendation?: { action: string; studies: string[]; why: string } | null;  // a suggestion; the person decides
   classes: Record<string, { failing: string[]; unspent: string[]; cycles: number;
     learn: { possible: boolean; reason: string; needs_deviation?: boolean } }>;
   notAchievable: string[];

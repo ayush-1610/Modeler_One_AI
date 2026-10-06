@@ -18,10 +18,13 @@ const diagnosis = {
   cycle: 1,
   failing: [{ study_id: "fed-1", class: "PO-FED", group: "fed", failed: ["AUC", "Cmax"], ratio: { AUC: 2.6, Cmax: 2.6 },
               direction: "over-predicted", learn_stage: "S3", differences: ["fed, and no fed study trains the model"],
-              influences: [{ parameter: "phys.solubility.ref", auc: null, cmax: null }] }],
+              influences: [{ parameter: "phys.solubility.ref", auc: null, cmax: null }],
+              ms01: { path: 1, action: "accept_best", why: "it differs from the training studies (fed, and no fed study trains the model)" } }],
   classes: { "PO-FED": { failing: ["fed-1"], unspent: [], cycles: 0,
                          learn: { possible: false, reason: "external validation of PO-FED not achievable: no other external PO-FED study is left to confirm a learned model" } } },
   notAchievable: ["external validation of PO-FED not achievable: no other external PO-FED study is left to confirm a learned model"],
+  recommendation: { action: "accept_best", studies: ["fed-1"],
+                    why: "fed-1 (path 1): it differs from the training studies (fed, and no fed study trains the model)" },
   notes: [],
 };
 
@@ -62,6 +65,7 @@ test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", 
   await page.goto("/review");
   const card = page.locator(".card", { hasText: `campaign ${ID}, stage S5` });
   await expect(card.getByTestId("feedback-diagnosis")).toContainText("over-predicted");
+  await expect(card.getByTestId("ms01-suggestion")).toContainText("record a limitation");
   await expect(card.getByTestId("decision-select").locator("option[value=learn]")).toBeDisabled();
   await expect(card).toContainText("not achievable");
   await card.screenshot({ path: test.info().outputPath("feedback-decision.png") });
