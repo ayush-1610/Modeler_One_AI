@@ -664,6 +664,29 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Fixed — P3 could not be closed with dissolution and BE data in the client's own spreadsheets (found on a real project)
+- Found on the owner's first real project (an ER tablet, VBE + food effect): twelve client workbooks uploaded, none in
+  the client-data template, and the P3 gate had no way forward. Three defects:
+  - **Mapped dissolution never counted.** The reconciliation read dissolution only from the template's rows; records
+    from a confirmed mapping recipe built profiles but left "Release model of the product" and "RLD and Test
+    dissolution in the same media" MISSING.
+  - **"RLD and Test dissolution" could never be delivered**, even from the template: being a dataset item it was
+    matched as a PK study. It now needs a TEST and an RLD / REFERENCE profile in the same medium and pH (PARTIAL,
+    with the reason, when only one role arrived).
+  - **A study's purpose in the study facts broke the dataset**: it was copied into the MS-01 study record, which
+    refuses unknown fields, so a BE study mapped "for external validation" matched no data-plan item. The purpose now
+    goes on the dataset only.
+- A mapping recipe can name a dissolution profile's product, role (TEST, RLD, REFERENCE, SOLUTION, OTHER; others are
+  flagged), strength and medium volume; profiles from mapped sheets carry them, so f2 pairs and the release-model item
+  work as for the template. Product names compare as the data plan does (case and punctuation aside); a profile named
+  for another product is shown as such instead of a bare "missing". A blank constant in a recipe is "not stated"
+  (it used to fail as "could not convert ''"); a word where a number belongs is named with its sheet.
+- Client data page: the mapper offers a dissolution recipe (chosen from the sheet's triage, or by hand) and a
+  "the study is for" choice (model building / external validation / application verification) for PK sheets.
+- Impact: no model value changes; datasets mapped before this change keep the purpose they were stored with. Tests:
+  `test_client_data.py` (mapped profiles, test-vs-reference, product mismatch), `test_intake.py`, `test_data_mapping.py`,
+  `test_client_api.py` (purpose), e2e `client-data.spec.ts` (dissolution sheet mapped in the browser).
+
 ### Changed — the agents use the in-house model (LiteLLM → Ollama qwen3-coder) with web search; Gemini and Groq removed (D-16)
 - Owner's decision (2026-10-06): `modeler_agents.llm` now has one provider, `litellm` — the company's LiteLLM proxy in
   front of Ollama `qwen3-coder:30b`, model alias `qwen-coder`. Configuration only from the environment:

@@ -113,11 +113,13 @@ def test_any_other_workbook_is_triaged_classified_and_mapped_by_a_confirmed_reci
                      json={"proposal": proposal, "study": {"n": 2, "design": "SD"}}).json()["data"]
     assert preview["concentrations"] == 6 and preview["studies"] == ["ABC-1"] and preview["ready"], preview
     done = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H,
-                  json={"proposal": proposal, "study": {"n": 2, "design": "SD"}, "confirm": True})
+                  json={"proposal": proposal, "study": {"n": 2, "design": "SD", "purpose": "external_validation"}, "confirm": True})
     assert done.status_code == 200, done.text
     ids = done.json()["data"]["datasets"]
     ds = next(d for d in c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["datasets"] if d["id"] == ids[0])
     assert ds["origin"] == "CLIENT" and [s["name"] for s in ds["series"]] == ["001", "002"] and ds["study"]["dose_mg"] == 25
+    # the purpose the person chose goes on the dataset; the study record stays a valid MS-01 record
+    assert ds["purpose"] == "external_validation" and "purpose" not in ds["study"]
     assert ds["quote"].startswith("[Sheet1 row 3]")
 
 

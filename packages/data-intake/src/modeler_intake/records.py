@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 from modeler_intake.recipe import Statistic
 
+DISSOLUTION_ROLES = ("TEST", "RLD", "REFERENCE", "SOLUTION", "OTHER")   # the client-data template's product roles
+
 
 class SourceRef(BaseModel):
     file_sha256: str
@@ -39,6 +41,10 @@ class ConcentrationObservation(BaseModel):
 class DissolutionObservation(BaseModel):
     batch: str
     medium: str
+    product: str = ""
+    role: str = ""                      # one of DISSOLUTION_ROLES; empty when the recipe does not name it
+    strength_mg: float | None = None
+    volume_ml: float | None = None
     ph: float | None = None
     apparatus: str | None = None
     rpm: float | None = None

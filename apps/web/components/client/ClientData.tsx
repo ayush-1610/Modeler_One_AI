@@ -40,8 +40,19 @@ const STATUS_CHIP: Record<string, string> = { DELIVERED: "low", PARTIAL: "medium
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-function recipeSkeleton(sheet: string) {
-  return JSON.stringify({ tables: [{
+type RecordKind = "concentration_time" | "dissolution";
+
+/** A recipe to fill in. Blank constants are ones the sheet does not state; each evidence entry must quote its cell. */
+function recipeSkeleton(sheet: string, kind: RecordKind = "concentration_time") {
+  const table = kind === "dissolution" ? {
+    record_type: "dissolution", sheet, header_rows: 1, first_data_row: 2,
+    columns: [{ column: "A", role: "time" }, ...["B", "C", "D", "E", "F", "G"].map((column, i) => ({ column, role: "value", series_label: `V${i + 1}` }))],
+    time_unit: "min", value_unit: "%", statistic: "individual",
+    constants: [{ key: "product", value: "" }, { key: "role", value: "TEST" }, { key: "strength_mg", value: "" },
+                { key: "batch", value: "" }, { key: "medium", value: "" }, { key: "ph", value: "" },
+                { key: "apparatus", value: "" }, { key: "rpm", value: "" }, { key: "volume_ml", value: "" }],
+    evidence: [{ cell: `${sheet}!A1`, quote: "", supports: "time unit" }],
+  } : {
     record_type: "concentration_time", sheet, header_rows: 1, first_data_row: 2,
     columns: [{ column: "A", role: "subject_id" }, { column: "B", role: "time" }, { column: "C", role: "value" }],
     time_unit: "h", value_unit: "ng/ml", statistic: "individual",
@@ -49,8 +60,16 @@ function recipeSkeleton(sheet: string) {
                 { key: "dose", value: "" }, { key: "dose_unit", value: "mg" }, { key: "route", value: "oral" },
                 { key: "formulation", value: "ir_tablet" }, { key: "food_state", value: "fasted" }],
     evidence: [{ cell: `${sheet}!C1`, quote: "", supports: "value unit" }],
-  }], questions_for_reviewer: [] }, null, 2);
+  };
+  return JSON.stringify({ tables: [table], questions_for_reviewer: [] }, null, 2);
 }
+
+/** What a client study is for (MS-01 §3.3): building data train the model, validation data only judge it. */
+const PURPOSES = [
+  ["model_building", "model building"],
+  ["external_validation", "external validation (e.g. the BE studies)"],
+  ["application_verification", "application verification"],
+] as const;
 
 function SheetRow({ t, onClassify }: { t: Triage; onClassify: (category: string, reason: string) => Promise<string | null> }) {
   const [category, setCategory] = useState(t.category);
@@ -79,18 +98,27 @@ function SheetRow({ t, onClassify }: { t: Triage; onClassify: (category: string,
 
 function Mapper({ projectId, file, onDone }: { projectId: string; file: ClientFile; onDone: () => Promise<void> }) {
   const sheets = file.triage.map((t) => t.sheet);
+  const kindOf = (s: string): RecordKind => file.triage.find((t) => t.sheet === s)?.category === "DISSOLUTION" ? "dissolution" : "concentration_time";
   const [sheet, setSheet] = useState(sheets[0] ?? "");
-  const [recipe, setRecipe] = useState(recipeSkeleton(sheets[0] ?? "Sheet1"));
+  const [kind, setKind] = useState<RecordKind>(kindOf(sheets[0] ?? ""));
+  const [recipe, setRecipe] = useState(recipeSkeleton(sheets[0] ?? "Sheet1", kindOf(sheets[0] ?? "")));
   const [study, setStudy] = useState('{"n": 12, "design": "SD", "population_type": "healthy"}');
+  const [purpose, setPurpose] = useState<string>("model_building");
   const [result, setResult] = useState<{ ready: boolean; issues: IssueRow[]; questions: string[]; concentrations: number;
-                                          studies: string[] } | null>(null);
+                                          dissolution: number; studies: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  function pick(nextSheet: string, nextKind: RecordKind) {
+    setSheet(nextSheet);
+    setKind(nextKind);
+    setRecipe(recipeSkeleton(nextSheet, nextKind));
+    setResult(null);
+  }
   async function run(confirm: boolean) {
     let proposal: unknown;
-    let facts: unknown;
+    let facts: Record<string, unknown>;
     try { proposal = JSON.parse(recipe); facts = JSON.parse(study); } catch { setError("The recipe or the study facts are not valid JSON."); return; }
     const env = await apiSend<NonNullable<typeof result>>(`/api/v1/projects/${projectId}/client-data/${file.id}:map`, "POST",
-                                                         { proposal, study: facts, confirm });
+                                                         { proposal, study: kind === "dissolution" ? {} : { ...facts, purpose }, confirm });
     if (env.errors?.length || !env.data) { setError(env.errors?.[0]?.message ?? "not applied"); return; }
     setError(null);
     setResult(env.data);
@@ -103,15 +131,33 @@ function Mapper({ projectId, file, onDone }: { projectId: string; file: ClientFi
         Code applies it exactly and shows every problem; nothing is kept until you confirm a recipe with none.
       </p>
       <div className="row" style={{ gap: 6 }}>
-        <select value={sheet} onChange={(e) => { setSheet(e.target.value); setRecipe(recipeSkeleton(e.target.value)); }}>
+        <select value={sheet} onChange={(e) => pick(e.target.value, kindOf(e.target.value))} aria-label="sheet">
           {sheets.map((s) => <option key={s}>{s}</option>)}
         </select>
+        <select value={kind} onChange={(e) => pick(sheet, e.target.value as RecordKind)} aria-label="what the sheet holds">
+          <option value="concentration_time">concentration–time</option>
+          <option value="dissolution">dissolution</option>
+        </select>
       </div>
+      {kind === "dissolution" && (
+        <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
+          Name the product as the brief does and its role (TEST, RLD or REFERENCE): the release-model item and the
+          test-vs-reference comparison (f2) count only profiles with both. One value column per vessel.
+        </p>
+      )}
       <textarea value={recipe} onChange={(e) => setRecipe(e.target.value)} rows={14} style={{ width: "100%", fontFamily: "var(--font-mono), monospace" }}
                 aria-label="mapping recipe" />
-      <label className="muted" style={{ fontSize: 12 }}>Study facts the sheet does not state (n, design, population …)</label>
-      <textarea value={study} onChange={(e) => setStudy(e.target.value)} rows={2} style={{ width: "100%", fontFamily: "var(--font-mono), monospace" }}
-                aria-label="study facts" />
+      {kind === "concentration_time" && <>
+        <div className="row" style={{ gap: 6 }}>
+          <label className="muted" style={{ fontSize: 12 }} htmlFor={`purpose-${file.id}`}>The study is for</label>
+          <select id={`purpose-${file.id}`} value={purpose} onChange={(e) => setPurpose(e.target.value)} aria-label="study purpose">
+            {PURPOSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+        <label className="muted" style={{ fontSize: 12 }}>Study facts the sheet does not state (n, design, population …)</label>
+        <textarea value={study} onChange={(e) => setStudy(e.target.value)} rows={2} style={{ width: "100%", fontFamily: "var(--font-mono), monospace" }}
+                  aria-label="study facts" />
+      </>}
       <div className="row" style={{ gap: 6 }}>
         <button className="btn" onClick={() => run(false)}>Preview</button>
         <button className="btn primary" disabled={!result?.ready} onClick={() => run(true)}>Confirm and read</button>
@@ -119,7 +165,8 @@ function Mapper({ projectId, file, onDone }: { projectId: string; file: ClientFi
       {error && <div className="banner err">{error}</div>}
       {result && (
         <div className="muted" style={{ fontSize: 13 }}>
-          {result.concentrations} values for {result.studies.join(", ") || "no study"}{result.ready ? " · ready to confirm" : ""}
+          {kind === "dissolution" ? `${result.dissolution} dissolution values` : `${result.concentrations} values for ${result.studies.join(", ") || "no study"}`}
+          {result.ready ? " · ready to confirm" : ""}
           {result.issues.length > 0 && <ul className="flags">{result.issues.map((i, k) => <li key={k}><code>{i.location}</code> {i.message}</li>)}</ul>}
           {result.questions.length > 0 && <ul className="flags">{result.questions.map((q) => <li key={q}>{q}</li>)}</ul>}
         </div>

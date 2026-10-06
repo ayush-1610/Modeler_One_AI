@@ -5,7 +5,7 @@ from __future__ import annotations
 import unicodedata
 from collections import defaultdict
 
-from modeler_intake.records import ConcentrationObservation, DissolutionObservation
+from modeler_intake.records import DISSOLUTION_ROLES, ConcentrationObservation, DissolutionObservation
 from pbpk_domain.issues import Issue
 
 # Canonical spellings follow OSP unit names; aliases cover common spreadsheet spellings. Mass and molar are
@@ -78,6 +78,8 @@ def validate_dissolution(records: list[DissolutionObservation], max_percent: flo
         where = record.source.cells.get("value", "?")
         if not record.batch or not record.medium:
             issues.append(Issue("MISSING_CONSTANT", where, "batch and medium are required for dissolution data"))
+        if record.role and record.role not in DISSOLUTION_ROLES:
+            issues.append(Issue("UNKNOWN_ROLE", where, f"role {record.role!r} is not one of {', '.join(DISSOLUTION_ROLES)}"))
         if not 0 <= record.percent_dissolved <= max_percent:
             issues.append(Issue("DISSOLUTION_OUT_OF_RANGE", where, f"{record.percent_dissolved:g}% is outside 0-{max_percent:g}%"))
         if record.ph is not None and not 0 <= record.ph <= 14:

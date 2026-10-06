@@ -84,6 +84,18 @@ def test_unsupported_evidence_and_open_questions_block_confirmation(tmp_path):
     assert not review.ready_for_confirmation and review.questions == ["What is the LLOQ?"]
 
 
+def test_blank_constants_are_not_stated_and_a_word_for_a_number_is_named(tmp_path):
+    workbook = messy_workbook(tmp_path)
+    constants = [ConstantProposal(key="study_id", value="XYZ-101"), ConstantProposal(key="analyte", value="Example-A"),
+                 ConstantProposal(key="matrix", value="plasma"), ConstantProposal(key="dose", value=" "),
+                 ConstantProposal(key="route", value="")]
+    review = review_proposal(workbook, proposal(constants=constants), "xyz-101")
+    assert review.ready_for_confirmation and {"dose", "route"}.isdisjoint(review.recipe.tables[0].constants)
+    review = review_proposal(workbook, proposal(constants=[*constants, ConstantProposal(key="strength_mg", value="fifty")]), "x")
+    assert [i.code for i in review.issues] == ["INVALID_RECIPE"]
+    assert "PK_SAD: constant strength_mg must be a number, not 'fifty'" in review.issues[0].message
+
+
 def test_propose_mapping_sends_the_sheet_preview_and_uses_structured_output(tmp_path):
     calls = []
 

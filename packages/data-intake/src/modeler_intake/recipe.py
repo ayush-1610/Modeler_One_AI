@@ -43,7 +43,7 @@ class TableMapping(BaseModel):
     constants: dict[str, str | float] = Field(
         default_factory=dict,
         description="Values that apply to every row: study_id, analyte, matrix, dose, dose_unit, route, formulation, "
-        "food_state, n, batch, medium, ph, apparatus, rpm",
+        "food_state, n, batch, medium, ph, apparatus, rpm, product, role, strength_mg, volume_ml",
     )
 
     @field_validator("columns")

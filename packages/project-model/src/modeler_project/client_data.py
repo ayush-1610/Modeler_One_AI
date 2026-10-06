@@ -33,7 +33,7 @@ from modeler_project.brief import ProjectBrief
 from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, new_dataset_id
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, new_id
-from modeler_project.requirements import RequirementItem, RequirementMatrix, client_items
+from modeler_project.requirements import RequirementItem, RequirementMatrix, _slug, client_items
 from modeler_project.workspace import Workspace
 from pbpk_domain.issues import Issue
 
@@ -369,7 +369,9 @@ def datasets_from_observations(observations: list[Any], *, study: dict[str, Any]
                                  error_kind="SD" if all(x is not None for x in sds) else "none",
                                  n=next((o.n for o in group if o.n is not None), None)))
         first = records[0]
-        record = {**study, "study_id": study_id, "n_timepoints": max(len(s.times) for s in series),
+        # what the study is for is the dataset's, not the study record's (MS-01 §3.3 classes read the record)
+        record = {**{k: v for k, v in study.items() if k != "purpose"}, "study_id": study_id,
+                  "n_timepoints": max(len(s.times) for s in series),
                   "statistic": "individual" if first.statistic == "individual" else "mean_sd" if series[0].error else "mean"}
         for key, value in (("dose_mg", first.dose), ("route", first.route), ("formulation", first.formulation),
                            ("food_state", first.food_state), ("lloq", first.lloq)):
@@ -439,14 +441,32 @@ class Reconciliation:
                 "blocking": [r.req_id for r in self.blocking()]}
 
 
-def _dissolution_keys(subs: list[dict[str, Any]], product: str | None) -> set[tuple[str, str]]:
+def _dissolution_rows(subs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every delivered dissolution row: the client-data template's rows and the records of confirmed mapping recipes."""
+    return [v for sub in subs for v in [*(row["values"] for row in sub.get("dissolution", [])), *sub.get("dissolution_records", [])]]
+
+
+def _dissolution_keys(rows: list[dict[str, Any]], product: str | None) -> set[tuple[str, str, str]]:
+    """(role, medium, pH) of the rows for `product` (any product when None); names compare as the data plan's slugs."""
     keys = set()
-    for sub in subs:
-        for row in sub.get("dissolution", []):
-            v = row["values"]
-            if product is None or str(v.get("product", "")).strip().lower() == product.strip().lower():
-                keys.add((str(v.get("medium", "")), str(v.get("ph", ""))))
+    for v in rows:
+        name = str(v.get("product") or "").strip()
+        if product is None or (name and _slug(name) == _slug(product)):
+            ph = v.get("ph")
+            keys.add((str(v.get("role") or "").strip().upper(), str(v.get("medium") or ""), "" if ph is None else f"{float(ph):g}"))
     return keys
+
+
+def _test_vs_reference(keys: set[tuple[str, str, str]]) -> tuple[tuple[str, ...], str]:
+    """REQ-vbe.rld_dissolution: media in which a TEST and an RLD / REFERENCE profile were both delivered."""
+    def media(roles: tuple[str, ...]) -> set[tuple[str, str]]:
+        return {(m, p) for r, m, p in keys if r in roles}
+    both = media(("TEST",)) & media(("RLD", "REFERENCE"))
+    if both:
+        return tuple(sorted(f"{m} pH {p}" if p else m for m, p in both)), ""
+    roles = sorted({r or "no role" for r, _m, _p in keys})
+    return (), (f"profiles delivered ({', '.join(roles)}) but no TEST and RLD / REFERENCE pair in the same medium; name each "
+                "profile's product and role in the mapping recipe" if keys else "")
 
 
 def reconcile(ws: Workspace, matrix: RequirementMatrix) -> Reconciliation:
@@ -461,9 +481,14 @@ def reconcile(ws: Workspace, matrix: RequirementMatrix) -> Reconciliation:
     used_ev: set[str] = set()
     used_diss = False
     result = Reconciliation()
+    diss_rows = _dissolution_rows(subs)
     for item in client_items(matrix):
-        detail, delivered = "", ()
-        if item.kind == "dataset":
+        detail, delivered, partial = "", (), False
+        if item.data_category == "dissolution" and item.target == "dissolution":
+            delivered, detail = _test_vs_reference(_dissolution_keys(diss_rows, item.product))
+            used_diss = used_diss or bool(delivered)
+            partial = bool(detail)
+        elif item.kind == "dataset":
             if item.target == "urine":
                 delivered = tuple(f"{s['file']}: {len(s.get('urine_feces', []))} urine/feces rows" for s in subs if s.get("urine_feces"))
             else:
@@ -471,22 +496,27 @@ def reconcile(ws: Workspace, matrix: RequirementMatrix) -> Reconciliation:
                 used_ds.update(d.id for d in mine)
                 delivered = tuple(d.id for d in mine)
         elif item.kind == "formulation" or item.data_category == "dissolution":
-            keys = _dissolution_keys(subs, item.product)
-            used_diss = used_diss or bool(keys)
+            media = {(m, p) for _r, m, p in _dissolution_keys(diss_rows, item.product)}
+            used_diss = used_diss or bool(media)
             # a release model proposed from a client profile (form.<name>.*) serves this item
             used_ev.update(e.id for e in client_ev if e.target.startswith("form."))
-            delivered = tuple(sorted(f"{m} pH {p}" if p else m for m, p in keys))
+            delivered = tuple(sorted(f"{m} pH {p}" if p else m for m, p in media))
             promised = _PROMISED_COUNT.search(item.provider_statement or "")
             count = (_NUMBER_WORDS.get(promised.group(1).lower()) or int(promised.group(1))) if promised else 0
-            if keys and len(keys) < count:
-                detail = f"{len(keys)} of {count} promised media ({item.provider_statement!r})"
+            if media and len(media) < count:
+                detail, partial = f"{len(media)} of {count} promised media ({item.provider_statement!r})", True
+            elif not media and item.product and diss_rows:
+                named = sorted({str(v.get("product") or "") for v in diss_rows} - {""})
+                detail = (f"dissolution delivered for {', '.join(repr(n) for n in named)}, not for {item.product!r}: name the "
+                          "product as the brief does" if named else "dissolution delivered without a product name: name the "
+                          "product in the mapping recipe")
         else:
             mine_ev = [e for e in client_ev if _matches(item, e)]
             used_ev.update(e.id for e in mine_ev)
             delivered = tuple(e.id for e in mine_ev)
         if item.status in ("NOT_AVAILABLE", "WAIVED"):
             status = item.status
-        elif detail:
+        elif partial:
             status = "PARTIAL"
         elif delivered:
             status = "DELIVERED"
@@ -503,7 +533,7 @@ def reconcile(ws: Workspace, matrix: RequirementMatrix) -> Reconciliation:
     for e in client_ev:
         if e.id not in used_ev:
             result.unpromised.append(f"{e.target} = {e.value} {e.unit or ''} ({e.id}): delivered, not promised".replace("  ", " "))
-    if not used_diss and any(s.get("dissolution") for s in subs):
+    if not used_diss and diss_rows:
         result.unpromised.append("dissolution profiles: delivered, not promised by the data plan")
     return result
 

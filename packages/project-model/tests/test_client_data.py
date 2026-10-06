@@ -125,3 +125,74 @@ def test_reconciliation_names_what_was_promised_delivered_partial_or_missing(tmp
     matrix_ref = ws.commit(ArtifactKind.REQUIREMENTS, "main", matrix.to_content(), actor="u", reason="skipped").ref
     close_register(ws, matrix_ref, matrix, by="u", printed_name="Dr U")
     assert ws.phases()["P3"] == "APPROVED"
+
+
+def _plain_dissolution_workbook() -> bytes:
+    """A client's own layout (not the template): one sheet per product, a header row, time and six vessels."""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.remove(wb.active)
+    for sheet, offset in (("Test", 0.0), ("Brand", 2.0)):
+        ws = wb.create_sheet(sheet)
+        ws.append(["Time (min)", *(f"V{i}" for i in range(1, 7))])
+        for t, v in ((15, 40.0), (30, 70.0), (60, 92.0), (120, 99.0)):
+            ws.append([t, *(v + offset + d for d in (-1.0, -0.5, 0.0, 0.0, 0.5, 1.0))])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _map_dissolution(ws, sub: dict, data: bytes, sheet: str, **constants) -> None:
+    from modeler_intake.apply import apply_recipe
+    from modeler_intake.grid import read_workbook_bytes
+    from modeler_intake.recipe import ColumnMapping, MappingRecipe, TableMapping
+    from modeler_intake.validate import validate_dissolution
+    from modeler_project.client_data import record_mapping
+
+    recipe = MappingRecipe(recipe_id=f"{sub['id']}-{sheet}", tables=[TableMapping(
+        record_type="dissolution", sheet=sheet, header_rows=1, first_data_row=2, time_unit="min", value_unit="%",
+        columns=[ColumnMapping(column="A", role="time"),
+                 *(ColumnMapping(column=c, role="value", series_label=f"V{i}") for i, c in enumerate("BCDEFG", start=1))],
+        constants={"batch": "B1", "medium": "phosphate", "ph": 6.8, "apparatus": "USP 2 paddle", "rpm": 50, **constants})])
+    result = apply_recipe(read_workbook_bytes(data, "dissolution.xlsx"), recipe)
+    assert result.issues == [] and validate_dissolution(result.dissolution) == []
+    record_mapping(ws, sub["id"], recipe=recipe.model_dump(mode="json"), dataset_ids=[],
+                   dissolution=[o.model_dump(mode="json") for o in result.dissolution], by="u")
+
+
+def test_mapped_dissolution_sheets_count_for_the_release_model_and_the_test_vs_reference_item(tmp_path):
+    from modeler_project.dissolution_register import comparisons, profiles
+
+    ws, library, brief, matrix, _ref = _project(tmp_path)
+    data = _plain_dissolution_workbook()
+    sub = ingest(ws, library, data, "dissolution.xlsx", by="u", matrix=matrix, brief=brief)
+    rows = {r.req_id: r for r in reconcile(ws, matrix).rows}
+    assert rows["REQ-vbe.rld_dissolution"].status == "MISSING" and rows["REQ-form.release@test-10-mg-tablet"].status == "MISSING"
+
+    # the Test sheet, named the way the brief names the product (case and spacing aside): the release item is served,
+    # the test-vs-reference item is partial until a reference profile in the same medium arrives
+    _map_dissolution(ws, sub, data, "Test", product="test 10 MG tablet", role="test", strength_mg=10)
+    rows = {r.req_id: r for r in reconcile(ws, matrix).rows}
+    assert rows["REQ-form.release@test-10-mg-tablet"].delivered == ("phosphate pH 6.8",)
+    vbe = rows["REQ-vbe.rld_dissolution"]
+    assert vbe.status == "PARTIAL" and "no TEST and RLD / REFERENCE pair" in vbe.detail
+    found = {p["key"]["role"]: p for p in profiles(ws)}
+    assert found["TEST"]["key"]["product"] == "test 10 MG tablet" and found["TEST"]["key"]["strength_mg"] == 10
+
+    _map_dissolution(ws, sub, data, "Brand", product="Brand 10 mg", role="RLD")
+    rows = {r.req_id: r for r in reconcile(ws, matrix).rows}
+    assert rows["REQ-vbe.rld_dissolution"].status == "DELIVERED"
+    assert rows["REQ-vbe.rld_dissolution"].delivered == ("phosphate pH 6.8",)
+    pair = comparisons(ws)["comparisons"]
+    assert len(pair) == 1 and pair[0]["condition"] == "phosphate pH 6.8"
+    assert not any(u.startswith("dissolution profiles") for u in reconcile(ws, matrix).unpromised)
+
+
+def test_dissolution_for_a_product_the_brief_does_not_name_says_so(tmp_path):
+    ws, library, brief, matrix, _ref = _project(tmp_path)
+    data = _plain_dissolution_workbook()
+    sub = ingest(ws, library, data, "dissolution.xlsx", by="u", matrix=matrix, brief=brief)
+    _map_dissolution(ws, sub, data, "Test", product="ER 50 mg", role="TEST")
+    release = {r.req_id: r for r in reconcile(ws, matrix).rows}["REQ-form.release@test-10-mg-tablet"]
+    assert release.status == "MISSING" and "'ER 50 mg', not for 'Test 10 mg tablet'" in release.detail

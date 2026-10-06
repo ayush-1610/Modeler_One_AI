@@ -51,6 +51,25 @@ test("client files are read cell by cell, sorted, and reconciled with the data p
   await testProfile.getByRole("button", { name: "Propose as release model" }).click();
   await expect(page.getByText(/Problems|Error/)).toHaveCount(0);
 
+  // a dissolution sheet in the client's own layout: the mapper offers the dissolution recipe, with product and role
+  await raw.getByRole("button", { name: "Map a sheet" }).click();
+  const mapper = raw.locator("[data-testid^='mapper-']");
+  await mapper.getByLabel("sheet", { exact: true }).selectOption("Diss pH 6.8");
+  await expect(mapper.getByLabel("what the sheet holds")).toHaveValue("dissolution");
+  await expect(mapper.getByLabel("study purpose")).toHaveCount(0);
+  await mapper.getByLabel("mapping recipe").fill(JSON.stringify({ tables: [{
+    record_type: "dissolution", sheet: "Diss pH 6.8", header_rows: 1, first_data_row: 2,
+    columns: [{ column: "A", role: "time" }, { column: "B", role: "value", series_label: "V1" }, { column: "C", role: "value", series_label: "V2" }],
+    time_unit: "min", value_unit: "%",
+    constants: [{ key: "product", value: "Raw 10 mg" }, { key: "role", value: "OTHER" }, { key: "batch", value: "R1" },
+                { key: "medium", value: "phosphate" }, { key: "ph", value: "6.8" }, { key: "strength_mg", value: "" }],
+    evidence: [{ cell: "Diss pH 6.8!A1", quote: "min", supports: "time unit" }],
+  }] }));
+  await mapper.getByRole("button", { name: "Preview" }).click();
+  await expect(mapper).toContainText("4 dissolution values · ready to confirm");
+  await mapper.getByRole("button", { name: "Confirm and read" }).click();
+  await expect(page.locator("tr[data-testid^='profile-']", { hasText: "Raw 10 mg · OTHER · phosphate pH 6.8" })).toBeVisible();
+
   // the client's study arrived without the plan promising it; the client dataset is on the observed-data tab too
   await expect(page.getByText(/CL-01 .*delivered, not promised/)).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });

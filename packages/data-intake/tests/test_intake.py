@@ -114,6 +114,19 @@ def test_same_layout_is_recognised_by_fingerprint(tmp_path):
     assert a.header_fingerprint("PK_SAD", 4) == b.header_fingerprint("PK_SAD", 4)
 
 
+def test_dissolution_records_carry_the_product_and_role_the_recipe_names(tmp_path):
+    grid = read_workbook(messy_clinical_workbook(tmp_path / "client.xlsx"), "c" * 64)
+    table = RECIPE.tables[1]
+    named = RECIPE.model_copy(update={"tables": [table.model_copy(update={"constants": {
+        **table.constants, "product": "Test 50 mg ER", "role": "test", "strength_mg": 50.0, "volume_ml": 900.0}})]})
+    records = apply_recipe(grid, named).dissolution
+    assert {(r.product, r.role, r.strength_mg, r.volume_ml) for r in records} == {("Test 50 mg ER", "TEST", 50.0, 900.0)}
+    assert validate_dissolution(records) == []
+    wrong = named.model_copy(update={"tables": [named.tables[0].model_copy(update={"constants": {
+        **named.tables[0].constants, "role": "brand"}})]})
+    assert {i.code for i in validate_dissolution(apply_recipe(grid, wrong).dissolution)} == {"UNKNOWN_ROLE"}
+
+
 def test_validation_catches_real_problems(tmp_path):
     grid = read_workbook(messy_clinical_workbook(tmp_path / "client.xlsx"), "c" * 64)
     no_lloq = RECIPE.model_copy(update={"tables": [RECIPE.tables[0].model_copy(update={"lloq": None, "value_unit": "ng per mL"})]})

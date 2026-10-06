@@ -153,10 +153,15 @@ def apply_recipe(workbook: WorkbookGrid, recipe: MappingRecipe) -> ApplyResult:
                         result.issues.append(Issue("MISSING_DISSOLUTION_VALUE", value_cell.ref, "dissolution cells cannot be below LLOQ"))
                         continue
                     ph, rpm = _const(table, "ph"), _const(table, "rpm")
+                    strength, volume = _const(table, "strength_mg"), _const(table, "volume_ml")
                     result.dissolution.append(
                         DissolutionObservation(
                             batch=str(_const(table, "batch") or ""),
                             medium=str(_const(table, "medium") or ""),
+                            product=str(_const(table, "product") or ""),
+                            role=str(_const(table, "role") or "").strip().upper(),
+                            strength_mg=float(strength) if strength is not None else None,
+                            volume_ml=float(volume) if volume is not None else None,
                             ph=float(ph) if ph is not None else None,
                             apparatus=_const(table, "apparatus"),
                             rpm=float(rpm) if rpm is not None else None,

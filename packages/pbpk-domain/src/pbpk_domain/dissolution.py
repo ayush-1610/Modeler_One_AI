@@ -131,9 +131,10 @@ def profiles_from_records(records: list[dict[str, Any]]) -> tuple[list[Profile],
     rows: dict[tuple, dict[str, Any]] = {}
     vessel_index: dict[tuple, dict[str, int]] = {}
     for r in records:
-        # a recipe names the batch and the test conditions, not the product or its role: a person assigns those
-        values = {"product": "", "role": "", "batch": r.get("batch", ""), "apparatus": r.get("apparatus") or "",
-                  "rpm": r.get("rpm"), "medium": r.get("medium", ""), "ph": r.get("ph")}
+        # the recipe's constants name the product, its role and the test conditions (blank when the sheet does not)
+        values = {"product": r.get("product") or "", "role": (r.get("role") or "").upper(), "strength_mg": r.get("strength_mg"),
+                  "batch": r.get("batch", ""), "apparatus": r.get("apparatus") or "", "rpm": r.get("rpm"),
+                  "medium": r.get("medium", ""), "ph": r.get("ph"), "volume_ml": r.get("volume_ml")}
         key = _key(values)
         index = vessel_index.setdefault(key.condition() + (key.batch,), {})
         slot = index.setdefault(str(r.get("vessel")), len(index) + 1)

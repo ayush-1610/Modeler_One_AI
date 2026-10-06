@@ -32,15 +32,15 @@ from pbpk_domain.issues import Issue
 
 ConstantKey = Literal[
     "study_id", "analyte", "matrix", "dose", "dose_unit", "route", "formulation", "food_state", "n",
-    "batch", "medium", "ph", "apparatus", "rpm",
+    "batch", "medium", "ph", "apparatus", "rpm", "product", "role", "strength_mg", "volume_ml",
 ]
-NUMERIC_CONSTANTS = {"dose", "n", "ph", "rpm"}
+NUMERIC_CONSTANTS = {"dose", "n", "ph", "rpm", "strength_mg", "volume_ml"}
 
 SYSTEM_PROMPT = """You read laboratory and clinical spreadsheets for a PBPK modeling platform and describe, as a mapping recipe, where the concentration-time or dissolution data are and how to read them.
 
 The sheets are shown with 1-based row numbers and column letters. A deterministic program will apply your recipe exactly as written, and a scientist will review the result before it is used, so describe the file as it is.
 
-- Use only information present in the file for units, LLOQ, dose, study identifier, analyte, matrix, batch, medium, pH and apparatus. For each of these, add an evidence entry with the cell reference and the exact text from that cell.
+- Use only information present in the file for units, LLOQ, dose, study identifier, analyte, matrix, batch, medium, pH, apparatus, and the dissolution product and its role (TEST, RLD, REFERENCE). For each of these, add an evidence entry with the cell reference and the exact text from that cell.
 - If something needed is not in the file (for example the LLOQ, the dose, or the number of subjects behind mean values), leave it empty and add a question for the reviewer. Do not infer it.
 - Wide layouts, with one column per subject or vessel: one value column per subject or vessel, with series_label set to its identifier from the header.
 - Long layouts: map the subject or group column with role subject_id or group.
@@ -104,9 +104,14 @@ class MappingReview:
 def to_recipe(proposal: RecipeProposal, recipe_id: str, description: str = "") -> MappingRecipe:
     tables = []
     for table in proposal.tables:
-        constants: dict[str, str | float] = {
-            c.key: float(c.value) if c.key in NUMERIC_CONSTANTS else c.value for c in table.constants
-        }
+        constants: dict[str, str | float] = {}
+        for c in table.constants:
+            if not c.value.strip():
+                continue  # a blank constant is one the sheet does not state
+            try:
+                constants[c.key] = float(c.value) if c.key in NUMERIC_CONSTANTS else c.value
+            except ValueError as exc:
+                raise ValueError(f"{table.sheet}: constant {c.key} must be a number, not {c.value!r}") from exc
         tables.append(
             TableMapping(
                 record_type=table.record_type,
