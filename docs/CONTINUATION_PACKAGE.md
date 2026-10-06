@@ -14,7 +14,7 @@ regulator-reproducible packages under ICH M15 and 21 CFR Part 11. The scientific
 refinement → S4 internal validation → S5 external validation (with feedback cycles) → S6 prediction → S7 report &
 package** (MS-01 v1.2; SJ and the feedback cycles are UNVERIFIED pending SME sign-off).
 
-**What it is today:** a git repository (`main`), uv workspace, **753 Python tests (725 pass, 13 skip without Docker; in a cloud container 15 fail for want of the Temporal test server download and a root-run vault check), ruff
+**What it is today:** a git repository (`main`), uv workspace, **758 Python tests (730 pass, 13 skip without Docker; in a cloud container 15 fail for want of the Temporal test server download and a root-run vault check), ruff
 clean**. It runs as a *single-node* tool: the web app (Next.js, :3000) proxies `/api/*` to the FastAPI service (:8000);
 campaigns execute in-process (`LocalExecutor`, `MODELER_EXECUTION_BACKEND=local`) with file-backed stores; simulations
 run on **real PK-Sim on the Linux server**. The distributed path (Temporal, Postgres with RLS, Keycloak, MinIO) is
@@ -31,7 +31,7 @@ builds from it; running that campaign on the server's PK-Sim is next. Active pla
 `docs/plans/2026-09-24-s0-s7-real-pbpk.md`.
 
 **Active plans (2026-10-05):** `docs/plans/2026-09-25-project-startup-pipeline.md` is **approved** (owner, v0.2,
-decision record in its §21). Built and verified in software (stub engine, scripted executor, API tests, 11 Playwright
+decision record in its §21). Built and verified in software (stub engine, scripted executor, API tests, 12 Playwright
 flows): Lane A P0–P5 (T-40 → T-50: proposal intake and brief, requirements and data plan, literature evidence with the
 real-data rule, client data intake and reconciliation, dissolution, PK-Sim input pages / CPF v1, the P5 plan canvas
 with its signed MAP) and Lane B T-51 → T-55 (model sets, memoized runs, no-regression gate, SJ, change ledger and
@@ -262,7 +262,7 @@ exclusion decision (D5). This cloud session cannot reach the server (LAN only, n
 | Object store | `file://` — used. MinIO presigned I/O — not built |
 | Engine | Real PK-Sim on the server, and on the Mac through Docker (`deploy/dev/docker_engine.sh`, image from `services/engine-worker/Dockerfile`; set `MODELER_ENGINE_COMMAND="bash <repo>/deploy/dev/docker_engine.sh"`). `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
 | Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog, installed 2026-09-24) / Tailscale (installed userspace, awaiting the owner's login). Redeploy from the Mac: `bash deploy/dev/deploy_to_server.sh` |
-| Web | Dark design system, project wizard (starting points from `GET /templates`: the published Dapagliflozin model with real data, or the labelled illustrative quick check), data intake, campaign monitor with fold-error gauge and engine label (red banner for a software-fixture run), review inbox (feedback decisions with their diagnosis), start-up pipeline pages (brief, requirements, evidence, client data, inputs, plan canvas), monitor with development history, influence map and feedback timeline. No sample-data fallback: pages state the real problem. Playwright flows in `apps/web/e2e` (11, pass on the stub engine; the PK-Sim run of the same flows is pending) |
+| Web | Dark design system, project wizard (starting points from `GET /templates`: the published Dapagliflozin model with real data, or the labelled illustrative quick check), data intake, campaign monitor with fold-error gauge and engine label (red banner for a software-fixture run), review inbox (feedback decisions with their diagnosis), start-up pipeline pages (brief, requirements, evidence, client data, inputs, plan canvas), monitor with development history, influence map and feedback timeline. No sample-data fallback: pages state the real problem. Playwright flows in `apps/web/e2e` (12, pass on the stub engine; the PK-Sim run of the same flows is pending) |
 
 ### 4.3 Task status (specs in §2)
 
