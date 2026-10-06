@@ -215,14 +215,16 @@ def test_a_sheet_is_shown_with_a_suggested_form_and_read_from_the_form(setup):
     assert any("'NS'" in n for n in sheet["notes"])
 
     # "NS" is not a number: the preview names the cell, and nothing is kept
+    assert form["mean_row"] == 5
+    form["mean_n"] = 2                        # the Mean row under the subjects is read as the study's mean profile
     study = {"n": 2, "design": "SD", "crossover": True, "purpose": "external_validation"}
     preview = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"form": form, "study": study}).json()["data"]
     assert not preview["ready"] and [i["location"] for i in preview["issues"]] == ["Reference!H4"]
     form["missing_tokens"] = ["NS"]
     preview = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"form": form, "study": study}).json()["data"]
-    assert preview["ready"] and preview["concentrations"] == 11 and preview["recipe"]["tables"][0]["time_row"] == 2
+    assert preview["ready"] and preview["concentrations"] == 11 + 4 and preview["recipe"]["tables"][0]["time_row"] == 2
     sample = preview["sample"]
-    assert sample["series"] == ["001 / I", "002 / II"] and sample["times"] == [0, 1, 2, 4, 8, 24] and sample["below_lloq"] == 2
+    assert sample["series"] == ["001 / I", "002 / II", "Mean"] and sample["times"] == [0, 1, 2, 4, 8, 24] and sample["below_lloq"] == 2
     assert sample["rows"][1] == {"series": "001 / I", "time": 1.0, "value": 40.5, "blq": False, "cell": "Reference!D3"}
     done = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H,
                   json={"form": form, "study": study, "confirm": True}).json()["data"]
@@ -241,6 +243,7 @@ def test_reading_a_sheet_again_replaces_the_earlier_reading(setup):
     form = c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Reference", headers=H).json()["data"]["form"]
     assert form["constants"]["study_id"] == "230-23-REF" and form["constants"]["food_state"] == "fasted"
     form["missing_tokens"] = ["NS"]
+    form["mean_n"] = 2
     study = {"n": 2, "design": "SD", "purpose": "model_building"}
     first = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H,
                    json={"form": form, "study": study, "confirm": True}).json()["data"]["datasets"]

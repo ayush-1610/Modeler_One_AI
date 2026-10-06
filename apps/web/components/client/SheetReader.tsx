@@ -213,7 +213,8 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
       facts.purpose = study.purpose;
       if (c.route === "iv_infusion") facts.infusion_time_min = Number(study.infusion_time_min);
     }
-    return { form: { ...form!, constants, below_lloq_tokens: list(blq), missing_tokens: list(missing) }, study: facts, confirm,
+    const meanN = pk && (form!.mean_column || form!.mean_row) && Number(study.n) > 0 ? Number(study.n) : null;
+    return { form: { ...form!, constants, below_lloq_tokens: list(blq), missing_tokens: list(missing), mean_n: meanN }, study: facts, confirm,
              replace: replace && view!.read_before.length > 0 };
   }
 
@@ -245,7 +246,8 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
     const l = last.form;
     setForm({ ...form!, kind: l.kind, layout: l.layout, time_column: l.time_column, subject_column: l.subject_column,
               group_column: l.group_column, value_columns: l.value_columns, sd_column: l.sd_column, n_column: l.n_column,
-              time_unit: l.time_unit, value_unit: l.value_unit, statistic: l.statistic, lloq: l.lloq, decimal_comma: l.decimal_comma });
+              time_unit: l.time_unit, value_unit: l.value_unit, statistic: l.statistic, lloq: l.lloq, decimal_comma: l.decimal_comma,
+              mean_column: l.mean_column, mean_statistic: l.mean_statistic, mean_sd_column: l.mean_sd_column });
     setBlq(l.below_lloq_tokens.join(", "));
     setMissing(l.missing_tokens.join(", "));
     setStudy((st) => ({ ...st, design: last.study.design, crossover: last.study.crossover, population_type: last.study.population_type }));
@@ -362,6 +364,24 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
                       <ColumnSelect label="N column" value={form.n_column} onChange={(v) => set({ n_column: v })} columns={columns} header={header} none="none" />
                     </Field>
                   </>}
+                  {form.statistic === "individual" && (form.layout === "times_down" ? (
+                    <Field label="Mean profile column" hint="the sheet's own mean, read next to the subjects (the campaign judges it)">
+                      <ColumnSelect label="mean column" value={form.mean_column} onChange={(v) => set({ mean_column: v })} columns={columns} header={header} none="none" />
+                    </Field>
+                  ) : (
+                    <Field label="Mean profile row" hint="the sheet's own Mean row under the subjects (the campaign judges it)">
+                      <input type="number" min={1} value={form.mean_row ?? ""} placeholder="none" aria-label="mean row"
+                             onChange={(e) => set({ mean_row: e.target.value ? Number(e.target.value) : null })} />
+                    </Field>
+                  ))}
+                  {(form.mean_column || form.mean_row) && form.statistic === "individual" && (
+                    <Field label="That mean is">
+                      <select value={form.mean_statistic} onChange={(e) => set({ mean_statistic: e.target.value as SheetForm["mean_statistic"] })} aria-label="mean statistic">
+                        <option value="arithmetic_mean">arithmetic mean</option><option value="geometric_mean">geometric mean</option>
+                        <option value="median">median</option>
+                      </select>
+                    </Field>
+                  )}
                   <Field label="Cells that mean below LLOQ" hint="comma-separated, e.g. BLQ, <LLOQ">
                     <input value={blq} onChange={(e) => { setBlq(e.target.value); setResult(null); }} aria-label="below LLOQ texts" />
                   </Field>

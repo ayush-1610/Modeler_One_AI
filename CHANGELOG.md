@@ -687,6 +687,11 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   assembly keeps a sentence under a numeric parameter out of the CPF. The A2 prompt now states these rules.
 - **To-do and doctor:** datasets sharing a study id and oral studies without a food state are listed; the doctor
   prints the review flags per parameter.
+- **The sheet's own mean profile is read next to the subjects.** The campaign judges a study on a mean profile; a
+  dataset of individual subjects only is kept for the population evaluation, so the project's BE and Nichols data,
+  read as subjects, gave P4 nothing to judge on. A CRO sheet's Mean column (times down, with its SD) or Mean row
+  (times across) is now read as one more series of the same study ("Mean", with the study's N); the subjects stay.
+  The person can change or clear it in the form.
 - Impact: no model value changes by itself; the owner's project needs its sheets re-read (replacing the earlier
   readings) and its evidence settled. Tests: `test_sheet_form.py` (the project's real file names, the CRO wide
   layout), `test_inputs_todo.py` (misfilings, % bound, quoted number, fe), `test_client_api.py` (replace), e2e.

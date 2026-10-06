@@ -104,6 +104,13 @@ class SheetForm(BaseModel):
     constants: dict[str, str] = Field(default_factory=dict)
     evidence: list[Evidence] = Field(default_factory=list)
     study: dict[str, str] = Field(default_factory=dict)      # study facts the file states (e.g. the infusion time)
+    # the sheet's own mean profile next to the subjects (a Mean column, or a Mean row under them): read as one more
+    # series of the same study, which the campaign judges; the subjects stay for the population evaluation
+    mean_column: str | None = None
+    mean_row: int | None = Field(default=None, ge=1)
+    mean_statistic: Statistic = "arithmetic_mean"
+    mean_sd_column: str | None = None
+    mean_n: int | None = Field(default=None, gt=0)
 
 
 def _norm(text: str) -> str:
@@ -162,6 +169,18 @@ def _last_data_row(grid: SheetGrid, first: int) -> tuple[int, str]:
 
 
 _HEADER_WORD = re.compile(r"subj|volunteer|patient|pre-?\s?dos|\btime\b|vessel|period|sequence|treatment", re.IGNORECASE)
+
+
+def _mean_row(grid: SheetGrid, start: int) -> tuple[int, Statistic] | None:
+    """The Mean (or Geo mean) row among the summary rows under the subjects."""
+    for row in range(start, min(start + 8, grid.max_row + 1)):
+        filled = [v for c in range(1, grid.max_column + 1) if (v := grid.cell(row, c).value) not in (None, "")]
+        label = as_text(filled[0]) if filled else ""
+        if re.match(r"^(arith\w*\.?\s*)?mean\b|^average\b", label, re.IGNORECASE):
+            return row, "arithmetic_mean"
+        if re.match(r"^geo\w*\.?\s*mean\b", label, re.IGNORECASE):
+            return row, "geometric_mean"
+    return None
 
 
 def _first_data_row(grid: SheetGrid) -> int | None:
@@ -231,6 +250,12 @@ def suggest(grid: SheetGrid, *, category: str = "", filename: str = "", drug: st
                      f"{'vessel' if kind == 'dissolution' else 'subject'}, rows {first}–{last}.")
         if any(as_text(grid.cell(header, c).value).lower() in PRE_DOSE for c in across):
             notes.append("A pre-dose column is read as time 0.")
+        if kind == "concentration_time" and summary:
+            mean = _mean_row(grid, last + 1)
+            if mean:
+                form.mean_row, form.mean_statistic = mean
+                notes.append(f"Row {form.mean_row} ({as_text(grid.cell(form.mean_row, columns[0]).value)}) is read as the "
+                             "mean profile, next to the subjects.")
     else:
         time = next((c for c in columns if _TIME_HEADER.search(head[c])), None) or next(
             (c for c in columns if all(_is_number(grid.cell(r, c).value) for r in range(first, last + 1))), None)
@@ -256,7 +281,16 @@ def suggest(grid: SheetGrid, *, category: str = "", filename: str = "", drug: st
             values = [c for c in candidates if c not in summaries]
             if values and summaries:
                 notes.append(f"Columns {', '.join(letter(c) for c in summaries)} ({', '.join(head[c] for c in summaries)}) "
-                             "summarise the subjects: not read.")
+                             "summarise the subjects: not read as subjects.")
+                arithmetic = [c for c in summaries if re.search(r"\bmean\b|\bavg\b|\baverage\b", head[c], re.IGNORECASE)
+                              and not re.search(r"geo", head[c], re.IGNORECASE)]
+                geo = [c for c in summaries if re.search(r"geo", head[c], re.IGNORECASE)]
+                if arithmetic or geo:
+                    form.mean_column = letter((arithmetic or geo)[0])
+                    form.mean_statistic = "arithmetic_mean" if arithmetic else "geometric_mean"
+                    form.mean_sd_column = letter(sd) if sd and arithmetic else None
+                    notes.append(f"Column {form.mean_column} ({head[(arithmetic or geo)[0]]}) is read as the mean profile, "
+                                 "next to the subjects.")
             elif not values:
                 # published means: one mean column, with its SD and N when they are given
                 geo = [c for c in summaries if re.search(r"geo", head[c], re.IGNORECASE)]
@@ -454,7 +488,22 @@ def to_proposal(form: SheetForm, grid: SheetGrid) -> dict[str, Any]:
     }
     if form.layout == "times_across":
         table["time_row"] = form.header_row
-    return {"tables": [table], "questions_for_reviewer": []}
+    tables = [table]
+    if form.kind == "concentration_time" and (form.mean_column or form.mean_row):
+        constants = [*table["constants"], *([{"key": "n", "value": str(form.mean_n)}] if form.mean_n else [])]
+        mean = {**table, "statistic": form.mean_statistic, "constants": constants, "evidence": []}
+        if form.layout == "times_down" and form.mean_column and form.time_column:
+            label = as_text(grid.cell(form.header_row, form.mean_column).value) if form.header_row else ""
+            mean["columns"] = [{"column": form.time_column, "role": "time"},
+                               {"column": form.mean_column, "role": "value", "series_label": label or "Mean"},
+                               *([{"column": form.mean_sd_column, "role": "sd"}] if form.mean_sd_column else [])]
+            tables.append(mean)
+        elif form.layout == "times_across" and form.mean_row and form.subject_column:
+            mean["first_data_row"] = mean["last_data_row"] = form.mean_row
+            mean["columns"] = [{"column": form.subject_column, "role": "subject_id"},
+                               *({"column": c, "role": "value"} for c in form.value_columns)]
+            tables.append(mean)
+    return {"tables": tables, "questions_for_reviewer": []}
 
 
 def _still_true(evidence: Evidence, form: SheetForm) -> bool:

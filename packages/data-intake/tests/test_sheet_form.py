@@ -77,13 +77,17 @@ def test_a_be_study_with_times_across_the_top_is_suggested_and_read():
     assert triage_sheet(grid.sheets["Sheet1"]).category is SheetCategory.PK_INDIVIDUAL
 
     # the person marks NS as "no sample"; the recipe reads every subject, quoting the cells that state units and dose
-    form = form.model_copy(update={"missing_tokens": ["NS"]})
+    assert form.mean_row == 8 and form.mean_statistic == "arithmetic_mean" and any("mean profile" in n for n in notes)
+    form = form.model_copy(update={"missing_tokens": ["NS"], "mean_n": 3})
     proposal = to_proposal(form, grid.sheets["Sheet1"])
     assert proposal["tables"][0]["time_row"] == 4 and _quotes_hold(grid, proposal)
     assert {e["supports"] for e in proposal["tables"][0]["evidence"]} >= {"value unit ng/mL", "time unit h", "LLOQ 1", "dose 50"}
     result = apply_recipe(grid, _recipe(proposal))
     assert result.issues == [] and validate_concentrations(result.concentrations) == []
-    assert {r.series for r in result.concentrations} == {"001 / I", "002 / II", "003 / I"} and len(result.concentrations) == 29
+    # the subjects, and the sheet's own Mean row as one more series (the profile the campaign judges)
+    assert {r.series for r in result.concentrations} == {"001 / I", "002 / II", "003 / I", "Mean"}
+    means = [r for r in result.concentrations if r.series == "Mean"]
+    assert len(result.concentrations) == 29 + 8 and {r.statistic for r in means} == {"arithmetic_mean"} and means[0].n == 3
 
     # a unit the person changes drops the quote that supported the old one
     changed = to_proposal(form.model_copy(update={"value_unit": "µg/l"}), grid.sheets["Sheet1"])
@@ -177,4 +181,9 @@ def test_file_names_with_underscores_give_each_arm_and_route_its_own_study(filen
         assert form.study == {"infusion_time_min": "60"} and form.constants["dose"] == "50"
     # the subjects are read, as individuals; the CRO's summary columns are left out and said so
     assert form.value_columns == ["B", "C", "D", "E", "F", "G"] and form.statistic == "individual"
-    assert any("summarise the subjects: not read" in n for n in notes)
+    assert any("summarise the subjects" in n for n in notes)
+    # the CRO's Mean column is the study's mean profile (with its SD), read next to the subjects
+    assert (form.mean_column, form.mean_statistic, form.mean_sd_column) == ("H", "arithmetic_mean", "I")
+    proposal = to_proposal(form.model_copy(update={"mean_n": 6, "lloq": 0.5}), grid.sheets[sheet])
+    result = apply_recipe(grid, _recipe(proposal))
+    assert {r.series for r in result.concentrations if r.statistic == "arithmetic_mean"} == {"Mean"}

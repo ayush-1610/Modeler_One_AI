@@ -55,6 +55,11 @@ export type SheetForm = {
   constants: Record<string, string>;
   evidence: { cell: string; quote: string; supports: string; field: string; value: string }[];
   study: Record<string, string>;
+  mean_column: string | null;
+  mean_row: number | null;
+  mean_statistic: "arithmetic_mean" | "geometric_mean" | "median";
+  mean_sd_column: string | null;
+  mean_n: number | null;
 };
 
 export type SheetView = {

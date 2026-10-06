@@ -61,7 +61,7 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await expect(reader.getByTestId("read-result")).toContainText("Not a number");      // the NS cell, named with its cell
   await reader.getByLabel("no sample texts", { exact: true }).fill("NS");
   await reader.getByRole("button", { name: "Check what will be read" }).click();
-  await expect(reader.getByTestId("read-result")).toContainText("65 values · 6 series · 11 times");
+  await expect(reader.getByTestId("read-result")).toContainText("75 values · 7 series · 11 times");
   await expect(reader.getByTestId("read-result")).toContainText("ready to save");
   await shot(page, "2-reader-be");
   await reader.getByRole("button", { name: "Save these data" }).click();
