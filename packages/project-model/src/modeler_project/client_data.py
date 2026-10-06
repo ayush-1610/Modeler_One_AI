@@ -390,19 +390,23 @@ def datasets_from_observations(observations: list[Any], *, study: dict[str, Any]
 
 
 def record_mapping(ws: Workspace, sid: str, *, recipe: dict[str, Any], dataset_ids: list[str],
-                   dissolution: list[dict[str, Any]], by: str) -> dict[str, Any]:
-    """Keep the confirmed recipe (re-used for the same layout) and what it produced on the client file's record."""
+                   dissolution: list[dict[str, Any]], by: str, replaces: tuple[str, ...] = ()) -> dict[str, Any]:
+    """Keep the confirmed recipe (re-used for the same layout) and what it produced on the client file's record.
+    `replaces`: earlier recipes of the same sheet this reading replaces (marked so, their dissolution records dropped;
+    their datasets are rejected by the caller, with the reason)."""
     version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
     if version is None:
         raise ClientDataError(f"no client file {sid}")
     content = dict(version.content)
-    content["mappings"] = [*content.get("mappings", []), {"recipe": recipe, "datasets": dataset_ids,
-                                                          "dissolution_records": len(dissolution)}]
+    new_id = recipe.get("recipe_id")
+    mappings = [{**m, "replaced_by": new_id} if m["recipe"].get("recipe_id") in replaces else m for m in content.get("mappings", [])]
+    content["mappings"] = [*mappings, {"recipe": recipe, "datasets": dataset_ids, "dissolution_records": len(dissolution)}]
     content["datasets"] = [*content.get("datasets", []), *dataset_ids]
-    content["dissolution_records"] = [*content.get("dissolution_records", []), *dissolution]
+    kept = [r for r in content.get("dissolution_records", []) if (r.get("source") or {}).get("recipe_id") not in replaces]
+    content["dissolution_records"] = [*kept, *dissolution]
     ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,
               reason=f"mapping recipe {recipe.get('recipe_id')} confirmed: {len(dataset_ids)} datasets")
-    if dissolution:
+    if dissolution or replaces:
         from modeler_project.dissolution_register import rebuild
 
         rebuild(ws, by=by)

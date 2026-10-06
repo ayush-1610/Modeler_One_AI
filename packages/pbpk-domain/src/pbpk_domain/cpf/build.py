@@ -358,6 +358,9 @@ def _with_individual_parameters(subjects: Sequence[SubjectSpec], cpf: CPF) -> tu
 # CPF id prefixes that must reach the engine as a process; anything here that the builder does not place
 # changes the model's behaviour (e.g. a missing clearance), so it is reported rather than dropped quietly.
 _PROCESS_FAMILIES = ("elim.", "transp.")
+# clinical fractions kept in the CPF to constrain the fitted elimination, not PK-Sim parameters (fraction excreted
+# unchanged in urine, fraction metabolised per pathway): never placed, never counted as a pathway
+REFERENCE_ELIMINATION = ("elim.fe_urine", "elim.fm.")
 
 
 def _origin(record: ParameterRecord) -> ValueOrigin | None:
@@ -595,7 +598,7 @@ def _compound_from_cpf(cpf: CPF) -> tuple[CompoundSpec, list[str], list[str]]:
     unbound = [
         record.id
         for record in cpf.parameters
-        if record.id.startswith(_PROCESS_FAMILIES)
+        if record.id.startswith(_PROCESS_FAMILIES) and not record.id.startswith(REFERENCE_ELIMINATION)
         and record.status is not ParameterStatus.MISSING
         and record.value is not None
         and record.id not in placed

@@ -62,8 +62,11 @@ def check_completeness(cpf: CPF) -> CompletenessReport:
         missing.append("pKa values, or a documented statement that the compound is neutral (phys.pka.* or phys.pka.neutral)")
         missing_ids.append("phys.pka")
 
-    # At least one elimination pathway (any elim.* with provenance, e.g. an enzyme clearance or total CL).
-    if not _any_with_prefix(cpf, "elim"):
+    # At least one elimination pathway (any elim.* with provenance, e.g. an enzyme clearance or total CL). The clinical
+    # fractions (fe in urine, fm per pathway) describe elimination but are not a pathway the model has.
+    pathways = [p for p in cpf.with_prefix("elim") if not p.id.startswith(("elim.fe_urine", "elim.fm."))
+                and p.status is not ParameterStatus.MISSING and p.value is not None and p.provenance is not None]
+    if not pathways:
         missing.append("at least one elimination pathway (elim.* or elim.hepatic.total_cl)")
         missing_ids.append("elim")
 

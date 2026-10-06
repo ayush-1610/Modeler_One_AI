@@ -8,13 +8,14 @@ the data plan and from each accepted item's version: a later change to any of th
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from modeler_project.artifacts import ArtifactKind
-from modeler_project.evidence import EvidenceItem, EvidenceState, assess, flag_conflicts, new_id
+from modeler_project.evidence import EvidenceItem, EvidenceState, assess, flag_conflicts, new_id, numeric_target
 from modeler_project.requirements import RequirementItem, RequirementMatrix, literature_items
 from modeler_project.workspace import Workspace
 
@@ -85,14 +86,25 @@ def choose(ws: Workspace, evidence_id: str, *, reason: str, by: str) -> list[str
     return [o.id for o in others]
 
 
+_NUMBER = re.compile(r"[-+]?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?")
+
+
+def _stated(value: float, quote: str) -> bool:
+    """Whether `value` is one of the numbers written in the quote (a correction never introduces a number)."""
+    numbers = [float(n.replace(",", ".")) for n in _NUMBER.findall(quote)]
+    return any(abs(n - value) <= 1e-9 * max(1.0, abs(value)) for n in numbers)
+
+
 def correct(ws: Workspace, evidence_id: str, *, reason: str, by: str, target: str | None = None,
-            conditions: dict[str, str] | None = None) -> EvidenceItem:
+            conditions: dict[str, str] | None = None, value: float | None = None, unit: str | None = None) -> EvidenceItem:
     """A person corrects what a value is for: the parameter it fills (a template or placeholder target, a name the
     model does not use) or the conditions it was measured under (a pKa's acid / base). Nothing changes in place: the
     item is rejected, pointing at its correction, and a corrected copy with the same source and quote takes its place.
     A copy with new conditions only keeps the acceptance. A copy filed under another parameter is only proposed: its
     value is converted for the new parameter and must be accepted again, because a new name can change what the number
-    means (30 % "plasma protein binding" is bound, not unbound: as bind.fu it would read 0.30 instead of 0.70)."""
+    means (30 % "plasma protein binding" is bound, not unbound: as bind.fu it would read 0.30 instead of 0.70).
+    A sentence filed as a value ("Km = 290 µM (NODV) and …") becomes a number only by naming one the quote states
+    (`value`, with its `unit`)."""
     from modeler_project.inputs import target_problem
 
     if not reason.strip():
@@ -108,15 +120,23 @@ def correct(ws: Workspace, evidence_id: str, *, reason: str, by: str, target: st
     if problem:
         raise EvidenceError(problem)
     merged = {**item.conditions, **{k: v for k, v in (conditions or {}).items() if v.strip()}}
-    if new_target == item.target and merged == item.conditions:
-        raise EvidenceError("nothing changes: give a new target or new conditions")
+    new_value, new_unit = item.value, item.unit
+    if value is not None:
+        if not _stated(float(value), item.quote):
+            raise EvidenceError(f"{value:g} is not a number the quote states ({item.quote[:160]!r})")
+        new_value, new_unit = float(value), (unit if unit is not None else item.unit)
+    if isinstance(new_value, str) and numeric_target(new_target):
+        raise EvidenceError(f"{new_value[:80]!r} is a description, not a value: give the number the quote states, or reject it")
+    if new_target == item.target and merged == item.conditions and new_value == item.value and new_unit == item.unit:
+        raise EvidenceError("nothing changes: give a new target, new conditions or the number the quote states")
     copy = item.model_copy(update={
-        "id": new_id(), "target": new_target, "conditions": merged, "value_pksim": None, "unit_pksim": None, "conversion": "",
+        "id": new_id(), "target": new_target, "conditions": merged, "value": new_value, "unit": new_unit,
+        "value_pksim": None, "unit_pksim": None, "conversion": "",
         "flags": tuple(f for f in item.flags if f.startswith("unconfirmed")), "state": EvidenceState.PROPOSED,
         "decided_by": None, "decided_at": None, "decision_reason": "",
         "note": f"corrected from {evidence_id} by {by}: {reason}" + (f" · {item.note}" if item.note else "")})
     corrected = propose(ws, copy, actor=by)
-    if item.state is EvidenceState.ACCEPTED and new_target == item.target:
+    if item.state is EvidenceState.ACCEPTED and new_target == item.target and new_value == item.value:
         numeric = isinstance(corrected.value, int | float)
         if not numeric or corrected.value_pksim is not None:
             corrected = decide(ws, corrected.id, state=EvidenceState.ACCEPTED, reason=f"corrected from {evidence_id}: {reason}", by=by)

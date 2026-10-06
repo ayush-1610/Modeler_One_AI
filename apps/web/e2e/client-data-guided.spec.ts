@@ -72,8 +72,13 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   const testArm = page.getByTestId("client-file-230-23 Fasting Test.xlsx");
   await testArm.getByRole("button", { name: "Read this sheet" }).click();
   const reader2 = page.getByTestId("reader-Sheet1");
-  await reader2.getByRole("button", { name: "Same settings as the last sheet" }).click();
+  await reader2.getByRole("button", { name: "Same layout as the last sheet" }).click();
   await expect(reader2.getByLabel("study id", { exact: true })).toHaveValue("230-23-TEST");
+  await expect(reader2.getByLabel("no sample texts", { exact: true })).toHaveValue("NS");      // the layout carries over …
+  await expect(reader2.getByText(/Still to fill in: .*number of subjects/)).toBeVisible();      // … the study does not
+  await reader2.getByLabel("formulation", { exact: true }).selectOption("mr");
+  await reader2.getByLabel("subjects", { exact: true }).fill("6");
+  await reader2.getByLabel("study purpose", { exact: true }).selectOption("external_validation");
   await reader2.getByRole("button", { name: "Check what will be read" }).click();
   await expect(reader2.getByTestId("read-result")).toContainText("ready to save");
   await reader2.getByRole("button", { name: "Save these data" }).click();
@@ -100,11 +105,12 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   const iv = page.getByTestId("reader-Fig 1");
   await expect(iv.getByLabel("route", { exact: true })).toHaveValue("iv_infusion");
   await iv.getByLabel("subjects", { exact: true }).fill("14");
-  await iv.locator("label", { hasText: "Infusion time (min)" }).locator("input").fill("300");
+  await expect(iv.locator("label", { hasText: "Infusion time (min)" }).locator("input")).toHaveValue("300");   // "5 h infusion"
+  await iv.getByLabel("study purpose", { exact: true }).selectOption("model_building");
   await iv.getByRole("button", { name: "Check what will be read" }).click();
   await expect(iv.getByTestId("read-result")).toContainText("ready to save");
   await iv.getByRole("button", { name: "Save these data" }).click();
-  await expect(page.getByText(/Nichols2012 saved/)).toBeVisible();
+  await expect(page.getByText(/Nichols2012-IV saved/)).toBeVisible();
 
   // what the client cannot send: decided with a reason, not left hanging
   await expect(page.getByTestId("recon-REQ-vbe.be_study")).toContainText("delivered");

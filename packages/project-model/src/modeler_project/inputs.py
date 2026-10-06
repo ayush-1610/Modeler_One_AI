@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
 from modeler_project.brief import ProjectBrief
 from modeler_project.datasets import ObservedDataset
-from modeler_project.evidence import EvidenceItem, EvidenceState, SourceType
+from modeler_project.evidence import EvidenceItem, EvidenceState, SourceType, numeric_target, review_flags
 from modeler_project.workspace import Workspace
 from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
@@ -57,8 +57,10 @@ MODEL_IDS = frozenset({
     "phys.pka.neutral", "alt.select",
 })
 MODEL_PREFIXES = ("phys.pka.acid.", "phys.pka.base.", "phys.halogens.", "cmpd.", "form.", "expr.", "indiv.", "sim.", "sim[")
-# kept in the CPF for checks and the report, not set in PK-Sim (PK-Sim computes the blood-to-plasma ratio itself)
-REFERENCE_IDS = frozenset({"dist.bp_ratio"})
+# kept in the CPF for checks and the report, not set in PK-Sim (PK-Sim computes the blood-to-plasma ratio itself; the
+# fraction excreted unchanged in urine and the fraction metabolised per pathway constrain the elimination fitted in S1)
+REFERENCE_IDS = frozenset({"dist.bp_ratio", "elim.fe_urine"})
+REFERENCE_PREFIXES = ("elim.fm.",)
 # what the S0 targets and the data plan's placeholders mean, for the person correcting a value's target
 PLACEHOLDERS = {
     "elim": "an elimination pathway: give the concrete one (elim.renal.gfr_fraction, elim.hepatic.<enzyme>.clspec, …)",
@@ -72,7 +74,7 @@ def placement(cpf_id: str) -> str | None:
     base = cpf_id.partition("@")[0]
     if base in MODEL_IDS or base.startswith(MODEL_PREFIXES):
         return "model"
-    if base in REFERENCE_IDS:
+    if base in REFERENCE_IDS or base.startswith(REFERENCE_PREFIXES):
         return "reference"
     if is_process_id(base):
         return "process" if binding_candidates(base) else None
@@ -187,6 +189,11 @@ def _cpf_id(item: EvidenceItem, pka_index: dict[str, int], problems: list[str], 
         index = pka_index[kinds[0]]
         pka_index[kinds[0]] += 1
         return f"phys.pka.{kinds[0]}.{index}"
+    if isinstance(item.value, str) and numeric_target(target):
+        _issue(issues, problems, "correct", target, [item.id],
+               f"{item.id}: {item.value[:80]!r} is a description, not a value for {target}: give the number it states (and "
+               "the parameter), or reject it (kept out of the CPF)")
+        return None
     if not is_process_id(target) and placement(target) is None:
         what = PLACEHOLDERS.get(target)
         _issue(issues, problems, "correct", target, [item.id],
@@ -219,7 +226,7 @@ def assemble_cpf(ws: Workspace, compound: str, picked: InputChoices) -> tuple[CP
         unit = item.unit_pksim if isinstance(item.value, int | float) else None
         unit = unit or _BUILDER_UNIT.get(cpf_id)
         binding = None
-        if is_process_id(cpf_id):
+        if is_process_id(cpf_id) and placement(cpf_id) == "process":
             candidates = binding_candidates(cpf_id)
             prefix = cpf_id.rpartition(".")[0]
             chosen = [c for c in candidates if len(candidates) == 1 or picked.process.get(prefix) == c.process]
@@ -428,9 +435,9 @@ def current_cpf(ws: Workspace) -> CPF | None:
 
 # the concrete targets an elimination placeholder can become (harvested process table; <enzyme> from the expression
 # library), offered to the person correcting it
-PATHWAY_TARGETS = ("elim.renal.gfr_fraction", "elim.renal.total.plasma_clearance", "elim.hepatic.total.plasma_clearance",
-                   "elim.hepatic.<enzyme>.clspec", "elim.hepatic.<enzyme>.cl_intrinsic", "elim.hepatic.<enzyme>.km",
-                   "elim.hepatic.<enzyme>.vmax")
+PATHWAY_TARGETS = ("elim.fe_urine", "elim.fm.<enzyme>", "elim.renal.gfr_fraction", "elim.renal.total.plasma_clearance",
+                   "elim.hepatic.total.plasma_clearance", "elim.hepatic.<enzyme>.clspec", "elim.hepatic.<enzyme>.cl_intrinsic",
+                   "elim.hepatic.<enzyme>.km", "elim.hepatic.<enzyme>.vmax")
 _MW_IN_RECORD = re.compile(r'"MolecularWeight"\s*:\s*"?(\d+(?:\.\d+)?)"?')
 
 
@@ -438,7 +445,8 @@ def evidence_view(item: EvidenceItem) -> dict[str, Any]:
     """An evidence item as the to-do list shows it: the value in both units, where it comes from, how it was graded."""
     s = item.source
     return {"id": item.id, "target": item.target, "value": item.value, "unit": item.unit, "value_pksim": item.value_pksim,
-            "unit_pksim": item.unit_pksim, "state": item.state.value, "confidence": item.confidence, "flags": list(item.flags),
+            "unit_pksim": item.unit_pksim, "state": item.state.value, "confidence": item.confidence,
+            "flags": list(dict.fromkeys([*item.flags, *review_flags(item)])),
             "provider": item.provider, "source_type": item.source_type.value, "conditions": item.conditions,
             "source": {"title": s.title, "authors": s.authors, "year": s.year, "doi": s.doi, "page": s.page,
                        "locator": s.locator},
@@ -496,6 +504,20 @@ def propose_identity_mw(ws: Workspace, *, by: str) -> EvidenceItem:
     return propose(ws, item, actor=by, value_in_quote=True)
 
 
+def dataset_warnings(observed: list[ObservedDataset]) -> list[str]:
+    """What is wrong with the datasets' study records before they are judged on (seen on a real project: two arms
+    under one study id, an IV study recorded as oral, oral studies with no food state)."""
+    out = []
+    by_study: dict[str, list[str]] = defaultdict(list)
+    for d in observed:
+        by_study[str(d.study.get("study_id"))].append(d.id)
+    out += [f"{sid}: {len(ids)} datasets share this study id ({', '.join(ids)}); give each arm its own id, or reject the "
+            "duplicates" for sid, ids in by_study.items() if len(ids) > 1]
+    out += [f"{d.study.get('study_id')}: oral study without a food state (fasted or fed)" for d in observed
+            if d.study.get("route") == "oral" and not d.study.get("food_state")]
+    return out
+
+
 def todo(ws: Workspace) -> list[dict[str, Any]]:
     """What stands between the inputs and readiness, each with what settles it. Computed when read, from the latest
     assembly and readiness, the evidence register and the datasets; nothing here decides anything."""
@@ -530,8 +552,11 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
         out.append(entry)
     observed = [d for d in datasets(ws) if d.state is not EvidenceState.REJECTED]
     checks = {c["check"]: c for c in ready.content["checks"]}
-    if not checks.get("observed data to judge on", {"ok": True})["ok"]:
-        out.append({"kind": "datasets", "target": "observed data", "message": "no accepted dataset with a mean profile to judge on",
+    warnings = dataset_warnings(observed)
+    if not checks.get("observed data to judge on", {"ok": True})["ok"] or warnings:
+        out.append({"kind": "datasets", "target": "observed data", "warnings": warnings,
+                    "message": "no accepted dataset with a mean profile to judge on" if not checks.get(
+                        "observed data to judge on", {"ok": True})["ok"] else "; ".join(warnings),
                     "items": [{"id": d.id, "study_id": d.study.get("study_id"), "purpose": d.purpose, "origin": d.origin.value,
                                "provider": d.provider, "state": d.state.value, "kind": d.kind,
                                "statistics": sorted({s.statistic for s in d.series}), "series": len(d.series)}

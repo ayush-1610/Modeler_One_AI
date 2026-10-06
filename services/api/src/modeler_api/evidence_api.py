@@ -23,7 +23,7 @@ from modeler_project.brief import ProjectBrief
 from modeler_project.dataset_register import approve_overlay, datasets, decide_dataset, digitized_dataset, propose_dataset
 from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, new_dataset_id
 from modeler_project.documents import DocumentLibrary
-from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, new_id
+from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, new_id, review_flags
 from modeler_project.evidence_register import (
     REGISTER_LITERATURE,
     EvidenceError,
@@ -52,7 +52,8 @@ def _matrix(ws: Workspace) -> tuple[Any, RequirementMatrix]:
 
 
 def _evidence_view(item: EvidenceItem) -> dict[str, Any]:
-    return item.model_dump(mode="json")
+    # the review flags are recomputed on read, so items stored before a check existed show it too
+    return {**item.model_dump(mode="json"), "flags": list(dict.fromkeys([*item.flags, *review_flags(item)]))}
 
 
 def _view(ws: Workspace) -> dict[str, Any]:
@@ -244,6 +245,8 @@ def choose_evidence(project_id: str, evidence_id: str, body: ChooseRequest, prin
 class CorrectionRequest(BaseModel):
     target: str | None = None
     conditions: dict[str, str] = Field(default_factory=dict)
+    value: float | None = None          # a number the quote states, for a value filed as a sentence
+    unit: str | None = None
     reason: str = Field(min_length=1)
 
 
@@ -255,7 +258,7 @@ def correct_evidence(project_id: str, evidence_id: str, body: CorrectionRequest,
     ws = workspace_for(project_id, principal, store)
     try:
         corrected = correct(ws, evidence_id, reason=body.reason, by=principal.user_id, target=body.target,
-                            conditions=body.conditions)
+                            conditions=body.conditions, value=body.value, unit=body.unit)
     except EvidenceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return envelope({"corrected": _evidence_view(corrected), **_view(ws)})

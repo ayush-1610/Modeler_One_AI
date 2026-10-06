@@ -80,7 +80,9 @@ button opens when every **required** plan item is delivered or decided.
      f2 comparison count only such profiles.
    - "Check what will be read" shows the subjects, times, the first values with their cells, and every problem in
      words (e.g. a cell that says `NS`: add it under "cells that mean no sample"). "Save these data" keeps it.
-   - "Same settings as the last sheet" copies the layout to the next file of the same kind.
+   - "Same layout as the last sheet" copies columns, units, LLOQ and cell texts to the next file; the rows and the
+     study (id, dose, route, formulation, food, subjects, purpose) stay this sheet's own.
+   - Read a sheet again to correct it: the new reading replaces the earlier one (its datasets are rejected).
 3. **Settle what the client cannot send** ("What stops approval"): with a reason, either **Not from the client** (the
    gap is recorded) or **Get it from the literature instead** (P2 takes it over). The literature cross-check counts only
    once a literature value is accepted. These decisions change the data plan: approve its new version on the Brief
@@ -98,7 +100,11 @@ settles it; every decision asks for a reason and the inputs are assembled again 
   `elim.hepatic.{enzyme}.km/vmax`, or a name the model does not use (e.g. "plasma protein binding") never reaches PK-Sim.
   Choose the real parameter (and the enzyme) and **Correct**, or **Reject**. A value filed under another parameter is
   proposed again with its converted value: check the number still means the same (30 % *bound* is fu 0.70, not 0.30).
-- **pKa: acidic or basic?** Choose and save.
+- **pKa: acidic or basic?** Choose and save (a database page usually labels them "strongest acidic / basic").
+- **Fractions, not parameters:** the fraction excreted unchanged in urine goes under `elim.fe_urine` and a fraction
+  metabolised by one enzyme under `elim.fm.<enzyme>`; they constrain the elimination fitted in S1 but are not a
+  pathway. PK-Sim's GFR fraction is a multiplier on filtration, not fe. A protein-binding percentage is entered with
+  the unit "% bound" (fu = 1 − bound is computed).
 - **Missing for S0.** Accept a proposal shown there, propose the molecular weight from the brief's PubChem record
   (check it is the free base), or **Ask the literature agent for what is missing**.
 - **Observed data.** Accept the datasets read on the Client data page. Studies with individual subjects only are kept

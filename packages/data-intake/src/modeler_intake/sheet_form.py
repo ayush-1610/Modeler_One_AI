@@ -54,7 +54,7 @@ _VOLUME = re.compile(r"(\d{3,4})\s*ml\b", re.IGNORECASE)
 _BATCH = re.compile(r"\b(?:batch|lot)\s*(?:no\.?|number|#|:)?\s*[:#]?\s*([A-Za-z0-9](?:[A-Za-z0-9/_-]|\.(?=[A-Za-z0-9]))+)",
                     re.IGNORECASE)
 _APPARATUS = re.compile(r"usp\s*(?:apparatus\s*)?(?:type\s*)?(i{1,3}|iv|[1-4])\b|\bpaddle\b|\bbasket\b", re.IGNORECASE)
-_MEDIUM = re.compile(r"(0\.1\s*n\s*hcl|hcl|acetate|phosphate|citrate|fassif|fessif|fassgf|sgf|sif|water|buffer)", re.IGNORECASE)
+_MEDIUM = re.compile(r"(0\.1\s*n\s*hcl|hcl|acetate|phosphate|citrate|fassif|fessif|fassgf|sgf|sif|water|buffer|\bPB\b)", re.IGNORECASE)
 _STUDY_ID = re.compile(r"\b([A-Z]{0,4}\d{2,4}(?:[-/]\d{2,4})+)\b", re.IGNORECASE)
 _TEST = re.compile(r"\btest\b", re.IGNORECASE)
 _REFERENCE = re.compile(r"\breference\b|\bref\b|\brld\b|\binnovator\b|\bbrand\b", re.IGNORECASE)
@@ -62,6 +62,13 @@ _FED = re.compile(r"\bfed\b", re.IGNORECASE)
 _FASTED = re.compile(r"\bfast(?:ed|ing)?\b", re.IGNORECASE)
 _IV = re.compile(r"\biv\b|intravenous|infusion", re.IGNORECASE)
 _MR = re.compile(r"\b(er|xr|sr|cr|pr|mr|extended|prolonged|sustained|controlled|modified)\b", re.IGNORECASE)
+_INFUSION = re.compile(r"(\d+(?:\.\d+)?)\s*(h|hr|hours?|min|minutes?)\s*infusion", re.IGNORECASE)
+
+
+def _plain_names(*parts: str) -> str:
+    """File and sheet names as words: underscores and dots (not decimal points) are separators, so word-bounded
+    patterns see "230-23 Fasting Reference" in "230-23_Fasting_Reference.Data.xlsx"."""
+    return re.sub(r"_+|(?<!\d)\.|\.(?!\d)", " ", " ".join(parts))
 
 
 class Evidence(BaseModel):
@@ -96,6 +103,7 @@ class SheetForm(BaseModel):
     missing_tokens: list[str] = Field(default_factory=list)
     constants: dict[str, str] = Field(default_factory=dict)
     evidence: list[Evidence] = Field(default_factory=list)
+    study: dict[str, str] = Field(default_factory=dict)      # study facts the file states (e.g. the infusion time)
 
 
 def _norm(text: str) -> str:
@@ -192,7 +200,7 @@ def suggest(grid: SheetGrid, *, category: str = "", filename: str = "", drug: st
             products: list[dict[str, str]] | None = None) -> tuple[SheetForm, list[str]]:
     """A first filling of the form, and what was found (or not) in words. Never a reading: a person checks it."""
     notes: list[str] = []
-    names = f"{filename} {grid.name}"
+    names = _plain_names(filename, grid.name)
     first = _first_data_row(grid)
     if first is None:
         return SheetForm(sheet=grid.name), [("No block of numbers found in the first rows: this sheet may not hold data "
@@ -241,15 +249,25 @@ def suggest(grid: SheetGrid, *, category: str = "", filename: str = "", drug: st
                 notes.append("No vessel columns found: the mean is read as one profile (f2 needs the 12 vessels).")
         else:
             named = [c for c in rest if _CONC_HEADER.search(head[c])]
-            values = named or [c for c in rest if all(_is_number(grid.cell(r, c).value) or grid.cell(r, c).value in (None, "")
-                                                       for r in range(first, last + 1))]
-            if not subject and len(values) == 1 and re.search(r"\bmean\b|\bavg\b|\baverage\b", head[values[0]], re.IGNORECASE):
-                form.statistic = "arithmetic_mean"
-            if re.search(r"geo", " ".join(head[c] for c in values), re.IGNORECASE):
-                form.statistic = "geometric_mean"
-            if form.statistic != "individual":
-                form.sd_column = letter(sd) if sd else None
-                form.n_column = letter(n) if n else None
+            candidates = named or [c for c in rest if all(_is_number(grid.cell(r, c).value) or grid.cell(r, c).value in (None, "")
+                                                          for r in range(first, last + 1))]
+            # subjects first; Mean / Geo mean / SD / CV columns next to them summarise them and are not subjects
+            summaries = [c for c in candidates if _SUMMARY.search(head[c]) or _N.match(head[c])]
+            values = [c for c in candidates if c not in summaries]
+            if values and summaries:
+                notes.append(f"Columns {', '.join(letter(c) for c in summaries)} ({', '.join(head[c] for c in summaries)}) "
+                             "summarise the subjects: not read.")
+            elif not values:
+                # published means: one mean column, with its SD and N when they are given
+                geo = [c for c in summaries if re.search(r"geo", head[c], re.IGNORECASE)]
+                mean = [c for c in summaries if re.search(r"\bmean\b|\bavg\b|\baverage\b", head[c], re.IGNORECASE)]
+                median = [c for c in summaries if re.search(r"\bmedian\b", head[c], re.IGNORECASE)]
+                chosen = (geo or mean or median)[:1]
+                values = chosen
+                if chosen:
+                    form.statistic = "geometric_mean" if geo else "arithmetic_mean" if mean else "median"
+                    form.sd_column = letter(sd) if sd else None
+                    form.n_column = letter(n) if n else None
         form.value_columns = [letter(c) for c in values]
         if form.time_column:
             notes.append(f"Time in column {form.time_column}, values in {', '.join(form.value_columns) or 'no column yet'}, "
@@ -380,8 +398,10 @@ def _constants(form: SheetForm, grid: SheetGrid, header_region: range, names: st
     study = _STUDY_ID.search(names) or _STUDY_ID.search(title)
     stem = re.match(r"[A-Za-z0-9]+", names.strip())
     base = study.group(1) if study else stem.group(0) if stem else ""
+    iv = bool(_IV.search(words))
     if base:
-        c["study_id"] = base + (f"-{role}" if role else "")
+        # each arm and each route its own study (two arms or routes under one id would be read as one study)
+        c["study_id"] = base + ("-IV" if iv and not study else "") + (f"-{role}" if role else "")
         notes.append(f"Study id {c['study_id']!r} is made from the file name: give each arm its own id.")
     c["analyte"] = drug or "parent"
     matrix = re.search(r"\b(plasma|serum|whole blood|blood|urine)\b", title, re.IGNORECASE)
@@ -390,9 +410,14 @@ def _constants(form: SheetForm, grid: SheetGrid, header_region: range, names: st
     if dose:
         c["dose"] = dose
         c["dose_unit"] = "mg"
-    c["route"] = "iv_infusion" if _IV.search(words) else "oral"
+    c["route"] = "iv_infusion" if iv else "oral"
     if c["route"] == "iv_infusion":
         c["formulation"] = "solution"
+        infusion = _INFUSION.search(words)
+        if infusion:
+            minutes = float(infusion.group(1)) * (1 if infusion.group(2).lower().startswith("min") else 60)
+            form.study["infusion_time_min"] = f"{minutes:g}"
+            notes.append(f"Infusion time {minutes:g} min is taken from {infusion.group(0)!r}: check it.")
     elif _MR.search(words):
         c["formulation"] = "mr"
     if _FED.search(words):

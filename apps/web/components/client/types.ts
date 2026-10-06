@@ -4,7 +4,7 @@ export type Triage = { sheet: string; category: string; evidence_cell: string; e
 export type IssueRow = { code: string; location: string; message: string };
 export type KeptRow = { row: number; values: Record<string, unknown>; cells: Record<string, string> };
 export type Mapping = { recipe: { recipe_id: string; tables?: { sheet: string; record_type: string }[] }; datasets: string[];
-                        dissolution_records?: number };
+                        dissolution_records?: number; replaced_by?: string };
 export type ClientFile = {
   id: string; file: string; sha256: string; kind: string; template: boolean; triage: Triage[]; datasets: string[];
   evidence: string[]; dissolution: KeptRow[]; products: KeptRow[]; urine_feces: KeptRow[]; issues: IssueRow[];
@@ -54,6 +54,7 @@ export type SheetForm = {
   missing_tokens: string[];
   constants: Record<string, string>;
   evidence: { cell: string; quote: string; supports: string; field: string; value: string }[];
+  study: Record<string, string>;
 };
 
 export type SheetView = {
@@ -81,7 +82,7 @@ export const CATEGORY_LABEL: Record<string, string> = {
 /** Sheets read by a confirmed recipe, with the datasets each reading made. */
 export function readSheets(file: ClientFile): Map<string, number> {
   const out = new Map<string, number>();
-  for (const m of file.mappings ?? []) {
+  for (const m of (file.mappings ?? []).filter((x) => !x.replaced_by)) {
     for (const t of m.recipe.tables ?? []) {
       out.set(t.sheet, (out.get(t.sheet) ?? 0) + Math.max(m.datasets.length, m.dissolution_records ? 1 : 0));
     }
