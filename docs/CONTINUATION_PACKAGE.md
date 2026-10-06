@@ -282,7 +282,7 @@ exclusion decision (D5). This cloud session cannot reach the server (LAN only, n
 | T-19, T-21, T-22, T-29 | Not started |
 | T-30 | Human (SME / QA sign-off) — pending |
 | T-31 | Not started — next phase after S0 → S7 |
-| Start-up pipeline T-40 → T-50 | Done in software (plan `2026-09-25-project-startup-pipeline.md`); A1–A5 agents run with scripted models in tests, live provider runs pending; D-14 deviations and D-15 blinding built |
+| Start-up pipeline T-40 → T-50 | Done in software (plan `2026-09-25-project-startup-pipeline.md`); A1–A5 agents run with scripted models in tests; A1 ran live on the owner's Gemini key on 2026-10-06 (gemini-flash-lite-latest: COMPLETED, 45 fields accepted with verbatim quotes, 6 rejected by code; the key is on the free tier, 20 requests/day per model; Groq is blocked from the cloud container, untested here); D-14 deviations and D-15 blinding built |
 | Non-linear backend T-51 → T-55 | Done in software; Temporal parity (SJ, feedback cycles) and A6 feedback proposals not built; PK-Sim acceptances pending |
 | T-56 | Kit built and checked in software (`deploy/proof/run_t56.py`, README there): P0 → P5 from a mock proposal with the published model's cited values and datasets, the owner's acceptances, the MAP signed in the UI, then start / watch / trace. **Next: run it on the server's PK-Sim** and keep `trace.md` with the package |
 

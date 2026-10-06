@@ -664,6 +664,14 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Docs — agents verified live on Gemini; the free-tier limit noted
+- A1 (proposal intake) ran live on the owner's Gemini key (2026-10-06, in the cloud container, keys only in the
+  environment of the run, nothing stored): `gemini-flash-lite-latest` completed with 45 brief fields accepted, each with
+  a verbatim quote, 6 rejected by the code checks, and open questions for the missing items. The key is on the free
+  tier: 20 requests a day per model; `gemini-flash-latest` (an alias of `gemini-3.8-flash`) had spent its quota, so its
+  runs end `LLM_UNAVAILABLE` (HTTP 429). `deploy/server/_env.sh` now says so and names the model override. Groq could
+  not be reached from the container (proxy 403); it is untested here.
+
 ### Added — the S5 diagnosis shows MS-01 §6.6's own decision tree; a P4 process type can be chosen first
 - `feedback.diagnose` places each failing external study on MS-01 §6.6 (1: it differs from the training studies in a
   documented way → limitation; 2: else another external study of its class is left and the class may learn → learn;

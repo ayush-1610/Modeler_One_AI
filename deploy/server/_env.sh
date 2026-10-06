@@ -32,6 +32,9 @@ export MODELER_API_BASE="http://127.0.0.1:$API_PORT"
 #   export MODELER_LLM_PROVIDER=gemini          # or groq; unset or "disabled" = agents off, manual paths only
 #   export GEMINI_API_KEY=...                   # or GROQ_API_KEY=...
 #   export MODELER_LLM_MODEL=gemini-flash-latest  # optional override
+# A Gemini key on the free tier allows 20 requests a day per model (2026-10-06), and one agent run can use 15+; when a
+# model's quota is spent its runs end LLM_UNAVAILABLE (HTTP 429). Use a key with billing for real projects, or set
+# MODELER_LLM_MODEL to another model with quota left (e.g. gemini-3.5-flash, gemini-flash-lite-latest).
 SECRETS_FILE="${MODELER_SECRETS_FILE:-$HOME/.modeler-secrets.env}"
 [ -f "$SECRETS_FILE" ] && . "$SECRETS_FILE"
 
