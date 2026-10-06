@@ -37,7 +37,8 @@ test("client files are read cell by cell, sorted, and reconciled with the data p
   const raw = page.getByTestId("client-file-client-raw.xlsx");
   await expect(raw.getByTestId("sheet-Diss pH 6.8")).toContainText("dissolution");
   const notes = raw.getByTestId("sheet-Notes");
-  await expect(notes).toContainText("other");
+  await expect(notes).toContainText("not sorted");
+  await notes.getByRole("button", { name: "change" }).click();
   await notes.getByLabel("category of Notes").selectOption("PRODUCT_INFO");
   await notes.getByPlaceholder("why").fill("shipping note with the batch numbers");
   await notes.getByRole("button", { name: "Set" }).click();
@@ -51,23 +52,18 @@ test("client files are read cell by cell, sorted, and reconciled with the data p
   await testProfile.getByRole("button", { name: "Propose as release model" }).click();
   await expect(page.getByText(/Problems|Error/)).toHaveCount(0);
 
-  // a dissolution sheet in the client's own layout: the mapper offers the dissolution recipe, with product and role
-  await raw.getByRole("button", { name: "Map a sheet" }).click();
-  const mapper = raw.locator("[data-testid^='mapper-']");
-  await mapper.getByLabel("sheet", { exact: true }).selectOption("Diss pH 6.8");
-  await expect(mapper.getByLabel("what the sheet holds")).toHaveValue("dissolution");
-  await expect(mapper.getByLabel("study purpose")).toHaveCount(0);
-  await mapper.getByLabel("mapping recipe").fill(JSON.stringify({ tables: [{
-    record_type: "dissolution", sheet: "Diss pH 6.8", header_rows: 1, first_data_row: 2,
-    columns: [{ column: "A", role: "time" }, { column: "B", role: "value", series_label: "V1" }, { column: "C", role: "value", series_label: "V2" }],
-    time_unit: "min", value_unit: "%",
-    constants: [{ key: "product", value: "Raw 10 mg" }, { key: "role", value: "OTHER" }, { key: "batch", value: "R1" },
-                { key: "medium", value: "phosphate" }, { key: "ph", value: "6.8" }, { key: "strength_mg", value: "" }],
-    evidence: [{ cell: "Diss pH 6.8!A1", quote: "min", supports: "time unit" }],
-  }] }));
-  await mapper.getByRole("button", { name: "Preview" }).click();
-  await expect(mapper).toContainText("4 dissolution values · ready to confirm");
-  await mapper.getByRole("button", { name: "Confirm and read" }).click();
+  // a dissolution sheet in the client's own layout: the guided reader finds the time and vessel columns
+  await raw.getByTestId("sheet-Diss pH 6.8").getByRole("button", { name: "Read this sheet" }).click();
+  const reader = page.getByTestId("reader-Diss pH 6.8");
+  await expect(reader.getByLabel("pH", { exact: true })).toHaveValue("6.8");
+  await reader.getByLabel("product", { exact: true }).fill("Raw 10 mg");
+  await reader.getByLabel("role", { exact: true }).selectOption("OTHER");
+  await reader.getByLabel("batch", { exact: true }).fill("R1");
+  await reader.getByLabel("medium", { exact: true }).fill("phosphate");
+  await reader.getByLabel("last value column", { exact: true }).selectOption("C");
+  await reader.getByRole("button", { name: "Check what will be read" }).click();
+  await expect(reader.getByTestId("read-result")).toContainText("4 values · 2 vessels · 2 times — ready to save");
+  await reader.getByRole("button", { name: "Save these data" }).click();
   await expect(page.locator("tr[data-testid^='profile-']", { hasText: "Raw 10 mg · OTHER · phosphate pH 6.8" })).toBeVisible();
 
   // the client's study arrived without the plan promising it; the client dataset is on the observed-data tab too

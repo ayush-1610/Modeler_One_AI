@@ -196,3 +196,21 @@ def test_dissolution_for_a_product_the_brief_does_not_name_says_so(tmp_path):
     _map_dissolution(ws, sub, data, "Test", product="ER 50 mg", role="TEST")
     release = {r.req_id: r for r in reconcile(ws, matrix).rows}["REQ-form.release@test-10-mg-tablet"]
     assert release.status == "MISSING" and "'ER 50 mg', not for 'Test 10 mg tablet'" in release.detail
+
+
+def test_an_item_the_client_cannot_send_is_taken_from_the_literature_and_no_longer_holds_p3(tmp_path):
+    ws, library, brief, matrix, matrix_ref = _project(tmp_path)
+    ingest(ws, library, _workbook(), "client.xlsx", by="u", matrix=matrix, brief=brief)
+    blocking = reconcile(ws, matrix).blocking()
+    first = blocking[0]
+    assert first.kind and first.target                     # the page says how each item would be delivered
+    # a cross-check alone does not close it: it counts once a literature value is accepted, and the refusal says so
+    matrix = derive(brief, (RequirementOverride(req_id=first.req_id, cross_check=True, reason="ask the literature", by="u"),),
+                    previous=matrix)
+    with pytest.raises(ClientDataError, match="counts once a literature value is accepted"):
+        close_register(ws, matrix_ref, matrix, by="u")
+    # taking it from the literature instead moves it to P2: P3 no longer waits for it
+    matrix = derive(brief, (RequirementOverride(req_id=first.req_id, provider="LITERATURE", reason="client has none", by="u"),),
+                    previous=matrix)
+    assert first.req_id not in [r.req_id for r in reconcile(ws, matrix).blocking()]
+    assert matrix.get(first.req_id).provider == "LITERATURE"

@@ -664,6 +664,41 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Changed — the Client data page reads any client spreadsheet with a guided form; P3 says what stops it (owner, real project)
+- Owner's report (2026-10-06), second round on the same ER-tablet project: Approve stayed disabled although every item
+  had been "marked", and reading a sheet meant writing a JSON recipe. Reproduced on a replica (same applications,
+  workbooks laid out the way CROs send them). Causes:
+  - **"Cross-check in literature" never unblocked an item** until a literature value had been found *and* accepted,
+    while the refusal told the person to switch it on. The page now offers **Get it from the literature instead**
+    (the item's provider becomes LITERATURE: P2 takes it over, P3 no longer waits) next to **Not from the client**;
+    a cross-check that is still waiting says so, and the refusal names it.
+  - **BE data with the sampling times across the top** (one row per subject, Pre-dose first, Mean / SD rows under the
+    subjects, BLQ / NS cells) could not be read at all: a recipe needed one time column. Recipes take `time_row`
+    (times from a header row; a unit written in a header must be the table's, no conversion guessed; a pre-dose sample
+    is nominal time 0) and `missing_tokens` (cells that mean no sample, skipped; declared by the person, shown in the
+    recipe). Series of one subject with several rows are labelled subject / period.
+  - "Intra- and inter-subject variability" is expected from the client by the VBE template but nothing a client file
+    holds can deliver it; the page says where it usually comes from (the BE statistical report) and lets the person
+    decide.
+- **Guided sheet reader** (`modeler_intake.sheet_form`, `GET /projects/{id}/client-data/{sid}/sheets/{sheet}`): the
+  sheet is shown next to a form filled in from the sheet itself (header and data rows, layout, subject / period /
+  value / SD / N columns, statistic; units, LLOQ, dose, pH, rpm, volume, batch, apparatus, medium quoted from their
+  cells as recipe evidence, a quote dropped when the person changes what it supports; study id, food state, route and
+  release type from the file name, said so). "Check what will be read" shows the series, times, first values with
+  their cells and the problems in words, grouped; "Save" keeps the recipe (JSON visible on request, still the record).
+  `:map` accepts the form or a recipe. External values are hidden in the check while blinding is on (D-15).
+- Page layout: five progress steps (data plan, files, sheets read, plan items, approval) with the approve button at
+  the top; "What stops approval" lists each blocking item with how to deliver it and the decisions; every sheet shows
+  whether it was read; optional items no longer show as red "missing". Sheet triage calls a sheet that names its
+  subjects individual data even when Mean / SD rows follow.
+- Impact: no model value changes; nothing is read without a person's check and save. Tests: `test_sheet_form.py`
+  (CRO BE layout, dissolution vessels, published means, a non-data sheet), `test_intake.py` (times across),
+  `test_client_data.py` (literature instead, cross-check refusal), `test_client_api.py` (sheet view, form mapping),
+  e2e `client-data-guided.spec.ts` (five files read, two items decided, P3 approved) and `client-data.spec.ts`.
+- Known gap: legacy `.xls` files are not read (convert to `.xlsx`; reading them needs a new dependency, not added
+  without the owner's approval). A sheet read twice adds new datasets; the old ones are rejected on the Literature
+  page.
+
 ### Fixed — P3 could not be closed with dissolution and BE data in the client's own spreadsheets (found on a real project)
 - Found on the owner's first real project (an ER tablet, VBE + food effect): twelve client workbooks uploaded, none in
   the client-data template, and the P3 gate had no way forward. Three defects:

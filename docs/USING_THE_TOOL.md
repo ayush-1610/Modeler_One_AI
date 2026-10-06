@@ -61,3 +61,28 @@ campaign runs S0 → S7 on PK-Sim.
 `bash deploy/reference/run_all.sh roundtrip -j 8` on the server (or the GitHub Actions workflow "Reference models
 (PK-Sim)", which runs on every push) rebuilds every published simulation from the imported CPF and compares both on
 PK-Sim: identical inputs must give identical curves (1e-6 of the peak). Results: `reports/reference/<stamp>/summary.md`.
+
+## 6. Client data (P3): reading the client's spreadsheets
+
+The Client data page shows five steps at the top: data plan, files, sheets read, plan items, approval. The approve
+button opens when every **required** plan item is delivered or decided.
+
+1. **Upload** every file (drop zone). Workbooks are split into sheets; PDF, Word and Markdown are kept as citable
+   documents. The client-data template (download button) is read automatically, cell by cell.
+2. **Read each data sheet** ("Read this sheet"). The sheet appears next to a form filled in from what the sheet
+   states: header row, data rows (Mean / SD rows under the subjects are left out), times down a column or across the
+   top, subject / period / value columns, units, LLOQ and dose quoted from their cells. "Found in the sheet" says what
+   was taken from the file name instead (study id, food state) and what is missing.
+   - Fill what the sheet does not say: number of subjects, formulation, the study's purpose (BE, fed and
+     other-formulation studies: **external validation**), the infusion time for IV data.
+   - Give each BE arm its own study id (e.g. `230-23-TEST`, `230-23-REF`).
+   - Dissolution: name the product exactly as the brief does and its role (TEST / RLD); the release-model item and the
+     f2 comparison count only such profiles.
+   - "Check what will be read" shows the subjects, times, the first values with their cells, and every problem in
+     words (e.g. a cell that says `NS`: add it under "cells that mean no sample"). "Save these data" keeps it.
+   - "Same settings as the last sheet" copies the layout to the next file of the same kind.
+3. **Settle what the client cannot send** ("What stops approval"): with a reason, either **Not from the client** (the
+   gap is recorded) or **Get it from the literature instead** (P2 takes it over). The literature cross-check counts only
+   once a literature value is accepted. These decisions change the data plan: approve its new version on the Brief
+   page.
+4. **Approve the client data.** Then accept the new datasets and release-model values on the Literature page.

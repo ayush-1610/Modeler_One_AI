@@ -423,6 +423,9 @@ class Reconciled:
     detail: str = ""
     cross_check: bool = False
     literature_accepted: tuple[str, ...] = ()
+    kind: str = ""                 # dataset | parameter | formulation: what would deliver it
+    target: str = ""
+    product: str | None = None
 
 
 @dataclass
@@ -526,7 +529,8 @@ def reconcile(ws: Workspace, matrix: RequirementMatrix) -> Reconciliation:
                            and _matches(item, e)) if item.cross_check else ()
         result.rows.append(Reconciled(req_id=item.req_id, label=item.label, criticality=item.criticality,
                                       applies=item.applies, status=status, delivered=delivered, detail=detail,
-                                      cross_check=item.cross_check, literature_accepted=literature))
+                                      cross_check=item.cross_check, literature_accepted=literature, kind=item.kind,
+                                      target=item.target, product=item.product))
     for d in client_ds:
         if d.id not in used_ds:
             result.unpromised.append(f"dataset {d.study.get('study_id')} ({d.id}): delivered, not promised by the data plan")
@@ -544,8 +548,11 @@ def close_register(ws: Workspace, matrix_ref, matrix: RequirementMatrix, *, by: 
     recon = reconcile(ws, matrix)
     gaps = recon.blocking()
     if gaps:
-        raise ClientDataError("required client items still missing (skip them as not available, or switch on the literature "
-                              "cross-check): " + ", ".join(r.req_id for r in gaps))
+        waiting = [r.req_id for r in gaps if r.cross_check]
+        raise ClientDataError(
+            "required client items still missing: " + ", ".join(r.req_id for r in gaps) + ". Deliver each, mark it not "
+            "available from the client, or get it from the literature instead"
+            + (f" ({', '.join(waiting)}: the literature cross-check counts once a literature value is accepted)" if waiting else ""))
     files = [v for v in ws.list(ArtifactKind.CLIENT_SUBMISSION) if v.id != REGISTER]
     content = {"files": [v.ref.model_dump(mode="json") for v in files], "reconciliation": recon.to_content()}
     version = ws.commit(ArtifactKind.CLIENT_SUBMISSION, REGISTER, content, derived_from=[matrix_ref, *[v.ref for v in files]],

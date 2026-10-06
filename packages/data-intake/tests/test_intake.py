@@ -155,3 +155,42 @@ def test_recipe_requires_one_time_and_a_value_column():
         )
     confirmed = RECIPE.model_copy(update={"confirmed_by": "user:alice", "confirmed_at": datetime.now(UTC)})
     assert confirmed.confirmed and not RECIPE.confirmed
+
+
+def be_study_workbook(path: Path) -> Path:
+    """A CRO layout: a title, the sampling times across the header row (pre-dose first), one row per subject."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Reference"
+    ws["A1"] = "Study 230-23: plasma desvenlafaxine (ng/mL), Reference, fasting"
+    ws.append([])
+    ws.append(["Subject No.", "Period", "Pre-dose", 1, 2, "4.00 h", 8, 24])
+    ws.append(["001", "I", "BLQ", 40.5, 80.2, 95.0, 60.1, 12.3])
+    ws.append(["002", "II", 0, 35.0, 70.4, 88.8, 55.5, "BLQ"])
+    ws.append([])
+    ws.append(["BLQ: below 1.0 ng/mL"])
+    wb.save(path)
+    return path
+
+
+def test_times_across_the_top_are_read_one_row_per_subject(tmp_path):
+    grid = read_workbook(be_study_workbook(tmp_path / "be.xlsx"), "e" * 64)
+    table = TableMapping(
+        record_type="concentration_time", sheet="Reference", header_rows=3, first_data_row=4, time_row=3,
+        columns=[ColumnMapping(column="A", role="subject_id"), ColumnMapping(column="B", role="group"),
+                 *(ColumnMapping(column=c, role="value") for c in "CDEFGH")],
+        time_unit="h", value_unit="ng/mL", lloq=1.0,
+        constants={"study_id": "230-23-REF", "analyte": "desvenlafaxine", "matrix": "plasma", "dose": 50, "route": "oral"})
+    result = apply_recipe(grid, MappingRecipe(recipe_id="be", tables=[table]))
+    assert result.issues == [] and validate_concentrations(result.concentrations) == []
+    first = [r for r in result.concentrations if r.series == "001 / I"]
+    assert [r.time for r in first] == [0, 1, 2, 4, 8, 24] and first[0].below_lloq and first[3].value == 95.0
+    assert first[3].source.cells == {"time": "Reference!F3", "value": "Reference!F4"}
+    assert {r.series for r in result.concentrations} == {"001 / I", "002 / II"}
+
+    # a header time in another unit is named, not converted
+    minutes = table.model_copy(update={"time_unit": "min"})
+    issues = apply_recipe(grid, MappingRecipe(recipe_id="be", tables=[minutes])).issues
+    assert [(i.code, i.location) for i in issues] == [("UNPARSEABLE_TIME", "Reference!F3")]
+    with pytest.raises(ValueError, match="map no time column"):
+        TableMapping(**{**table.model_dump(), "columns": [{"column": "A", "role": "time"}, {"column": "C", "role": "value"}]})

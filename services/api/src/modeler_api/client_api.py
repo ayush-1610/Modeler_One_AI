@@ -21,6 +21,7 @@ from modeler_api.responses import envelope
 from modeler_intake.client_template import TEMPLATE_ID, build_template
 from modeler_intake.documents import DocumentError
 from modeler_intake.grid import WorkbookGrid, read_workbook_bytes
+from modeler_intake.sheet_form import SheetForm, preview_rows, suggest, to_proposal
 from modeler_intake.triage import SheetCategory, SheetTriage
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
@@ -192,13 +193,59 @@ def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) 
     return envelope({"status": "RUNNING"})
 
 
-class MappingBody(BaseModel):
-    """A mapping recipe for one or more sheets (the data-mapping agent's proposal shape, or written by a person), the
-    study facts the sheet does not state, and whether to keep the result (False: preview only)."""
+@router.get("/projects/{project_id}/client-data/{sid}/sheets/{sheet}")
+def read_sheet(project_id: str, sid: str, sheet: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """One sheet as text, with a first filling of the reading form found in it (units, dose and LLOQ quoted from their
+    cells; what the sheet does not say left for the person) and the notes that say what was found and what was not."""
+    ws = workspace_for(project_id, principal, store)
+    content, workbook = _workbook(ws, sid)
+    if sheet not in workbook.sheets:
+        raise HTTPException(status_code=404, detail=f"no sheet {sheet!r} in this file")
+    grid = workbook.sheets[sheet]
+    brief = _brief(ws)
+    products = [{"name": str(p.get("name") or ""), "role": str(p.get("role") or "")} for p in _brief_products(brief)]
+    category = next((t["category"] for t in content.get("triage", []) if t["sheet"] == sheet), "")
+    form, notes = suggest(grid, category=category, filename=content["file"], drug=brief.drug_name if brief else "",
+                          products=products)
+    read = [m for m in content.get("mappings", []) if any(t.get("sheet") == sheet for t in m["recipe"].get("tables", []))]
+    return envelope({"sheet": sheet, "rows": preview_rows(grid), "max_row": grid.max_row, "max_column": grid.max_column,
+                     "category": category, "form": form.model_dump(mode="json"), "notes": notes, "products": products,
+                     "read_before": [{"recipe_id": m["recipe"].get("recipe_id"), "datasets": m.get("datasets", [])}
+                                     for m in read]})
 
-    proposal: dict[str, Any]
+
+def _brief_products(brief: ProjectBrief | None) -> list[dict[str, Any]]:
+    if brief is None:
+        return []
+    return [{k: brief.value(f"products[{i}].{k}") for k in item} for i, item in enumerate(brief.groups.get("products", ()))]
+
+
+class MappingBody(BaseModel):
+    """How to read a sheet: the page's form (`form`) or a mapping recipe (`proposal`, the data-mapping agent's shape or
+    written by a person); the study facts the sheet does not state; and whether to keep the result (False: preview)."""
+
+    proposal: dict[str, Any] | None = None
+    form: SheetForm | None = None
     study: dict[str, Any] = Field(default_factory=dict)
     confirm: bool = False
+
+
+def _sample(review, *, hide_values: bool) -> dict[str, Any]:
+    """What the recipe read, in a person's terms: the series, the times, the first values with their cells."""
+    if review.dissolution:
+        records = review.dissolution
+        rows = [{"series": r.vessel, "time": r.time, "value": None if hide_values else r.percent_dissolved,
+                 "cell": r.source.cells.get("value", "")} for r in records[:12]]
+        return {"series": sorted({r.vessel for r in records}), "times": sorted({r.time for r in records}),
+                "time_unit": records[0].time_unit, "unit": "%", "rows": rows, "below_lloq": 0}
+    records = review.concentrations
+    if not records:
+        return {"series": [], "times": [], "rows": [], "below_lloq": 0}
+    rows = [{"series": r.series, "time": r.time, "value": None if hide_values else r.value, "blq": r.below_lloq,
+             "cell": r.source.cells.get("value", "")} for r in records[:12]]
+    return {"series": sorted({r.series for r in records}), "times": sorted({r.time for r in records}),
+            "time_unit": records[0].time_unit, "unit": records[0].unit, "rows": rows,
+            "below_lloq": sum(r.below_lloq for r in records)}
 
 
 @router.post("/projects/{project_id}/client-data/{sid}:map")
@@ -206,11 +253,20 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
     """Apply a mapping recipe deterministically. Preview shows the records, problems and open questions; confirming a
     recipe with none of them creates the datasets (origin CLIENT) and keeps the recipe on the file's record."""
     from modeler_agents.data_mapping import RecipeProposal, review_proposal
+    from modeler_api.project_api import blinding_view
+    from modeler_project.blinding import EXTERNAL_PURPOSES
 
     ws = workspace_for(project_id, principal, store)
     content, workbook = _workbook(ws, sid)
+    if (body.form is None) == (body.proposal is None):
+        raise HTTPException(status_code=422, detail="send the reading form or a recipe (one of them)")
+    raw = body.proposal
+    if body.form is not None:
+        if body.form.sheet not in workbook.sheets:
+            raise HTTPException(status_code=404, detail=f"no sheet {body.form.sheet!r} in this file")
+        raw = to_proposal(body.form, workbook.sheets[body.form.sheet])
     try:
-        proposal = RecipeProposal.model_validate(body.proposal)
+        proposal = RecipeProposal.model_validate(raw)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=f"recipe: {exc}") from exc
     review = review_proposal(workbook, proposal, recipe_id=f"{sid}-r{len(content.get('mappings', [])) + 1}")
@@ -218,8 +274,11 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
         "ready": review.ready_for_confirmation,
         "issues": [{"code": i.code, "location": i.location, "message": i.message} for i in review.issues],
         "questions": review.questions, "concentrations": len(review.concentrations), "dissolution": len(review.dissolution),
-        "studies": sorted({o.study_id for o in review.concentrations}),
+        "studies": sorted({o.study_id for o in review.concentrations}), "recipe": raw,
     }
+    blinding = blinding_view(ws)
+    hidden = bool(blinding["on"] and not blinding["map_signed"] and body.study.get("purpose") in EXTERNAL_PURPOSES)
+    preview["sample"] = {**_sample(review, hide_values=hidden), "values_hidden": hidden}
     if not body.confirm:
         return envelope(preview)
     if not review.ready_for_confirmation or review.recipe is None:

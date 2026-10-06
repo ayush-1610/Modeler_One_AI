@@ -187,3 +187,48 @@ def test_dissolution_profiles_are_shown_and_a_fit_is_proposed_as_a_release_model
     assert {"form.Tab10.type", "form.Tab10.weibull.t50", "form.Tab10.weibull.shape", "form.Tab10.weibull.lag"} <= targets
     bad = c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H, json={"formulation": "Tab 1.0"})
     assert bad.status_code == 422 and "no dots" in bad.json()["detail"]
+
+
+def _be_workbook() -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Reference"
+    ws.append(["Study 230-23: plasma desvenlafaxine (ng/mL), 50 mg, fasting"])
+    ws.append(["Subject No.", "Period", "Pre-dose", "1.00", "2.00", "4.00 h", "8.00", "24.00"])
+    ws.append(["001", "I", "BLQ", 40.5, 80.2, 95.0, 60.1, 12.3])
+    ws.append(["002", "II", "BLQ", 35.0, 70.4, 88.8, 55.5, "NS"])
+    ws.append(["Mean", None, None, 37.8, 75.3, 91.9, 57.8, None])
+    ws.append([])
+    ws.append(["BLQ: below 1.0 ng/mL"])
+    return _save(wb)
+
+
+def test_a_sheet_is_shown_with_a_suggested_form_and_read_from_the_form(setup):
+    c, _ws = setup
+    sub = c.post("/api/v1/projects/p1/client-data", headers=H,
+                 files=[("files", ("230-23 Fasting Reference.xlsx", _be_workbook(), XLSX))]).json()["data"]["files"][0]
+    sheet = c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Reference", headers=H).json()["data"]
+    assert sheet["rows"][1][:3] == ["Subject No.", "Period", "Pre-dose"] and sheet["read_before"] == []
+    form = sheet["form"]
+    assert form["layout"] == "times_across" and form["subject_column"] == "A" and form["last_data_row"] == 4
+    assert form["constants"]["study_id"] == "230-23-REF" and form["lloq"] == 1.0
+    assert any("'NS'" in n for n in sheet["notes"])
+
+    # "NS" is not a number: the preview names the cell, and nothing is kept
+    study = {"n": 2, "design": "SD", "crossover": True, "purpose": "external_validation"}
+    preview = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"form": form, "study": study}).json()["data"]
+    assert not preview["ready"] and [i["location"] for i in preview["issues"]] == ["Reference!H4"]
+    form["missing_tokens"] = ["NS"]
+    preview = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"form": form, "study": study}).json()["data"]
+    assert preview["ready"] and preview["concentrations"] == 11 and preview["recipe"]["tables"][0]["time_row"] == 2
+    sample = preview["sample"]
+    assert sample["series"] == ["001 / I", "002 / II"] and sample["times"] == [0, 1, 2, 4, 8, 24] and sample["below_lloq"] == 2
+    assert sample["rows"][1] == {"series": "001 / I", "time": 1.0, "value": 40.5, "blq": False, "cell": "Reference!D3"}
+    done = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H,
+                  json={"form": form, "study": study, "confirm": True}).json()["data"]
+    ds = next(d for d in c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["datasets"] if d["id"] == done["datasets"][0])
+    assert ds["purpose"] == "external_validation" and ds["study"]["study_id"] == "230-23-REF" and ds["study"]["lloq"] == 1.0
+    again = c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Reference", headers=H).json()["data"]
+    assert again["read_before"][0]["datasets"] == done["datasets"]
+    refused = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"study": study})
+    assert refused.status_code == 422

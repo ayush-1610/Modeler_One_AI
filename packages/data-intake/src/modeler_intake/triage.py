@@ -102,6 +102,9 @@ def triage_sheet(grid: SheetGrid) -> SheetTriage:
         for category in (SheetCategory.PK_INDIVIDUAL, SheetCategory.PK_SUMMARY):
             if category in scores:
                 scores[category] += 2
+    # a sheet that names its subjects holds individual data; its Mean / SD rows only summarise them (CRO layouts)
+    if SheetCategory.PK_INDIVIDUAL in scores:
+        scores.pop(SheetCategory.PK_SUMMARY, None)
     if not scores:
         return SheetTriage(grid.name, SheetCategory.OTHER, note="no header word decides it")
     ranked = sorted(scores.items(), key=lambda kv: -kv[1])

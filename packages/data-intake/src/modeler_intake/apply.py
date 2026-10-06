@@ -13,6 +13,11 @@ from modeler_intake.records import ConcentrationObservation, DissolutionObservat
 from pbpk_domain.issues import Issue
 
 _LESS_THAN = re.compile(r"^<\s*([0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)$")
+# a sampling time written in a header cell: "0.5", "0.50 h", "2 hrs", "30 min"; a pre-dose sample is nominal time 0
+_HEADER_TIME = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|min|mins|minute|minutes)?\.?\s*$", re.IGNORECASE)
+PRE_DOSE = {"pre-dose", "predose", "pre dose", "pre-dosing", "pre"}
+_TIME_WORDS = {"h": "h", "hr": "h", "hrs": "h", "hour": "h", "hours": "h", "min": "min", "mins": "min", "minute": "min",
+               "minutes": "min"}
 
 
 @dataclass(frozen=True)
@@ -71,6 +76,70 @@ def _const(table: TableMapping, key: str) -> str | float | None:
     return table.constants.get(key)
 
 
+def header_time(raw: object, time_unit: str) -> float | None:
+    """The sampling time a header cell states, in `time_unit`; None when the cell is empty. A unit written in the cell
+    must be the table's (no conversion is guessed)."""
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if isinstance(raw, bool):
+        raise UnparseableValueError(f"{raw!r} is not a time")
+    if isinstance(raw, int | float):
+        return float(raw)
+    text = as_text(raw)
+    if text.strip().lower() in PRE_DOSE:
+        return 0.0
+    match = _HEADER_TIME.match(text)
+    if match is None:
+        raise UnparseableValueError(f"{text!r} is not a sampling time")
+    unit = _TIME_WORDS.get((match.group(2) or "").lower())
+    table_unit = _TIME_WORDS.get(time_unit.strip().lower(), time_unit.strip().lower())
+    if unit is not None and unit != table_unit:
+        raise UnparseableValueError(f"{text!r} is in {unit}, the table's times are in {time_unit}")
+    return float(match.group(1))
+
+
+def _times_down(grid: SheetGrid, table: TableMapping, by_role: dict[str, list], issues: list[Issue]):
+    """One row per time point: the time from the time column, one value per value column."""
+    time_col = column_index_from_string(by_role["time"][0].column)
+    for row in _rows(grid, table, time_col):
+        time_cell = grid.cell(row, time_col)
+        try:
+            time = parse_numeric(time_cell.value, below_lloq_tokens=[], decimal_comma=table.decimal_comma).value
+        except UnparseableValueError as exc:
+            issues.append(Issue("UNPARSEABLE_TIME", time_cell.ref, str(exc)))
+            continue
+        if time is None:
+            continue
+        labels = {role: as_text(grid.cell(row, by_role[role][0].column).value) for role in ("subject_id", "group") if role in by_role}
+        for value_mapping in by_role["value"]:
+            series = value_mapping.series_label or labels.get("subject_id") or labels.get("group") or "all"
+            yield row, series, time_cell, time, grid.cell(row, value_mapping.column)
+
+
+def _times_across(grid: SheetGrid, table: TableMapping, by_role: dict[str, list], issues: list[Issue]):
+    """Times across the top: one row per subject (or vessel), its label from the subject / group columns, the time of
+    each value column from the time row."""
+    assert table.time_row is not None
+    times = {}
+    for value_mapping in by_role["value"]:
+        cell = grid.cell(table.time_row, value_mapping.column)
+        try:
+            time = header_time(cell.value, table.time_unit)
+        except UnparseableValueError as exc:
+            issues.append(Issue("UNPARSEABLE_TIME", cell.ref, str(exc)))
+            continue
+        if time is not None:
+            times[value_mapping.column] = (cell, time)
+    first_value = column_index_from_string(by_role["value"][0].column)
+    for row in _rows(grid, table, first_value):
+        labels = [as_text(grid.cell(row, by_role[role][0].column).value) for role in ("subject_id", "group") if role in by_role]
+        series = " / ".join(x for x in labels if x) or f"row {row}"
+        for value_mapping in by_role["value"]:
+            if value_mapping.column in times:
+                time_cell, time = times[value_mapping.column]
+                yield row, series, time_cell, time, grid.cell(row, value_mapping.column)
+
+
 def apply_recipe(workbook: WorkbookGrid, recipe: MappingRecipe) -> ApplyResult:
     result = ApplyResult()
     for table in recipe.tables:
@@ -78,98 +147,83 @@ def apply_recipe(workbook: WorkbookGrid, recipe: MappingRecipe) -> ApplyResult:
         by_role: dict[str, list] = {}
         for mapping in table.columns:
             by_role.setdefault(mapping.role, []).append(mapping)
-        time_col = column_index_from_string(by_role["time"][0].column)
-
-        for row in _rows(grid, table, time_col):
-            time_cell = grid.cell(row, time_col)
+        points = _times_across if table.time_row is not None else _times_down
+        missing = {t.strip().upper() for t in table.missing_tokens}
+        for row, series, time_cell, time, value_cell in points(grid, table, by_role, result.issues):
+            if missing and as_text(value_cell.value).upper() in missing:
+                continue  # the file says there is no sample here
             try:
-                time = parse_numeric(time_cell.value, below_lloq_tokens=[], decimal_comma=table.decimal_comma).value
+                parsed = parse_numeric(
+                    value_cell.value, below_lloq_tokens=table.below_lloq_tokens, decimal_comma=table.decimal_comma
+                )
             except UnparseableValueError as exc:
-                result.issues.append(Issue("UNPARSEABLE_TIME", time_cell.ref, str(exc)))
+                result.issues.append(Issue("UNPARSEABLE_VALUE", value_cell.ref, str(exc)))
                 continue
-            if time is None:
+            if parsed.value is None and not parsed.below_lloq:
                 continue
 
-            row_labels = {
-                role: as_text(grid.cell(row, by_role[role][0].column).value)
-                for role in ("subject_id", "group")
-                if role in by_role
-            }
-            for value_mapping in by_role["value"]:
-                value_cell = grid.cell(row, value_mapping.column)
-                try:
-                    parsed = parse_numeric(
-                        value_cell.value, below_lloq_tokens=table.below_lloq_tokens, decimal_comma=table.decimal_comma
-                    )
-                except UnparseableValueError as exc:
-                    result.issues.append(Issue("UNPARSEABLE_VALUE", value_cell.ref, str(exc)))
-                    continue
-                if parsed.value is None and not parsed.below_lloq:
-                    continue
+            cells = {"time": time_cell.ref, "value": value_cell.ref}
+            source = SourceRef(file_sha256=workbook.sha256, recipe_id=recipe.recipe_id, recipe_version=recipe.version, cells=cells)
 
-                series = value_mapping.series_label or row_labels.get("subject_id") or row_labels.get("group") or "all"
-                cells = {"time": time_cell.ref, "value": value_cell.ref}
-                source = SourceRef(file_sha256=workbook.sha256, recipe_id=recipe.recipe_id, recipe_version=recipe.version, cells=cells)
-
-                if table.record_type == "concentration_time":
-                    sd = n = None
-                    if "sd" in by_role:
-                        sd_cell = grid.cell(row, by_role["sd"][0].column)
-                        sd = parse_numeric(sd_cell.value, below_lloq_tokens=[], decimal_comma=table.decimal_comma).value
-                        cells["sd"] = sd_cell.ref
-                    if "n" in by_role:
-                        n_cell = grid.cell(row, by_role["n"][0].column)
-                        n_value = parse_numeric(n_cell.value, below_lloq_tokens=[]).value
-                        n = int(n_value) if n_value is not None else None
-                        cells["n"] = n_cell.ref
-                    elif _const(table, "n") is not None:
-                        n = int(float(_const(table, "n")))
-                    dose = _const(table, "dose")
-                    result.concentrations.append(
-                        ConcentrationObservation(
-                            study_id=str(_const(table, "study_id") or ""),
-                            analyte=str(_const(table, "analyte") or ""),
-                            matrix=str(_const(table, "matrix") or ""),
-                            series=series,
-                            statistic=table.statistic,
-                            time=time,
-                            time_unit=table.time_unit,
-                            value=parsed.value,
-                            unit=table.value_unit,
-                            below_lloq=parsed.below_lloq,
-                            lloq=parsed.lloq or table.lloq,
-                            sd=sd,
-                            n=n,
-                            dose=float(dose) if dose is not None else None,
-                            dose_unit=_const(table, "dose_unit"),
-                            route=_const(table, "route"),
-                            formulation=_const(table, "formulation"),
-                            food_state=_const(table, "food_state"),
-                            source=source,
-                        )
+            if table.record_type == "concentration_time":
+                sd = n = None
+                if "sd" in by_role:
+                    sd_cell = grid.cell(row, by_role["sd"][0].column)
+                    sd = parse_numeric(sd_cell.value, below_lloq_tokens=[], decimal_comma=table.decimal_comma).value
+                    cells["sd"] = sd_cell.ref
+                if "n" in by_role:
+                    n_cell = grid.cell(row, by_role["n"][0].column)
+                    n_value = parse_numeric(n_cell.value, below_lloq_tokens=[]).value
+                    n = int(n_value) if n_value is not None else None
+                    cells["n"] = n_cell.ref
+                elif _const(table, "n") is not None:
+                    n = int(float(_const(table, "n")))
+                dose = _const(table, "dose")
+                result.concentrations.append(
+                    ConcentrationObservation(
+                        study_id=str(_const(table, "study_id") or ""),
+                        analyte=str(_const(table, "analyte") or ""),
+                        matrix=str(_const(table, "matrix") or ""),
+                        series=series,
+                        statistic=table.statistic,
+                        time=time,
+                        time_unit=table.time_unit,
+                        value=parsed.value,
+                        unit=table.value_unit,
+                        below_lloq=parsed.below_lloq,
+                        lloq=parsed.lloq or table.lloq,
+                        sd=sd,
+                        n=n,
+                        dose=float(dose) if dose is not None else None,
+                        dose_unit=_const(table, "dose_unit"),
+                        route=_const(table, "route"),
+                        formulation=_const(table, "formulation"),
+                        food_state=_const(table, "food_state"),
+                        source=source,
                     )
-                else:
-                    if parsed.value is None:
-                        result.issues.append(Issue("MISSING_DISSOLUTION_VALUE", value_cell.ref, "dissolution cells cannot be below LLOQ"))
-                        continue
-                    ph, rpm = _const(table, "ph"), _const(table, "rpm")
-                    strength, volume = _const(table, "strength_mg"), _const(table, "volume_ml")
-                    result.dissolution.append(
-                        DissolutionObservation(
-                            batch=str(_const(table, "batch") or ""),
-                            medium=str(_const(table, "medium") or ""),
-                            product=str(_const(table, "product") or ""),
-                            role=str(_const(table, "role") or "").strip().upper(),
-                            strength_mg=float(strength) if strength is not None else None,
-                            volume_ml=float(volume) if volume is not None else None,
-                            ph=float(ph) if ph is not None else None,
-                            apparatus=_const(table, "apparatus"),
-                            rpm=float(rpm) if rpm is not None else None,
-                            vessel=series,
-                            time=time,
-                            time_unit=table.time_unit,
-                            percent_dissolved=parsed.value,
-                            source=source,
-                        )
+                )
+            else:
+                if parsed.value is None:
+                    result.issues.append(Issue("MISSING_DISSOLUTION_VALUE", value_cell.ref, "dissolution cells cannot be below LLOQ"))
+                    continue
+                ph, rpm = _const(table, "ph"), _const(table, "rpm")
+                strength, volume = _const(table, "strength_mg"), _const(table, "volume_ml")
+                result.dissolution.append(
+                    DissolutionObservation(
+                        batch=str(_const(table, "batch") or ""),
+                        medium=str(_const(table, "medium") or ""),
+                        product=str(_const(table, "product") or ""),
+                        role=str(_const(table, "role") or "").strip().upper(),
+                        strength_mg=float(strength) if strength is not None else None,
+                        volume_ml=float(volume) if volume is not None else None,
+                        ph=float(ph) if ph is not None else None,
+                        apparatus=_const(table, "apparatus"),
+                        rpm=float(rpm) if rpm is not None else None,
+                        vessel=series,
+                        time=time,
+                        time_unit=table.time_unit,
+                        percent_dissolved=parsed.value,
+                        source=source,
                     )
+                )
     return result

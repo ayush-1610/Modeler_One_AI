@@ -44,6 +44,7 @@ The sheets are shown with 1-based row numbers and column letters. A deterministi
 - If something needed is not in the file (for example the LLOQ, the dose, or the number of subjects behind mean values), leave it empty and add a question for the reviewer. Do not infer it.
 - Wide layouts, with one column per subject or vessel: one value column per subject or vessel, with series_label set to its identifier from the header.
 - Long layouts: map the subject or group column with role subject_id or group.
+- Times across the top (one row per subject or vessel, one column per sampling time): set time_row to the row holding the times, map each time column as a value column, the subject column as subject_id, and no time column.
 - If the sheet reports individual values and also mean/SD columns, map only the individual values. If it reports only aggregated values, set statistic accordingly and map the SD and N columns when present.
 - The data block ends at the first empty row. If footnotes or summary rows follow without an empty row, set last_data_row.
 - Text such as BLQ or <0.5 in value cells marks values below the limit of quantification; list the tokens used in the file."""
@@ -73,11 +74,13 @@ class TableProposal(BaseModel):
     first_data_row: int
     last_data_row: int | None = None
     columns: list[ColumnProposal]
+    time_row: int | None = None
     time_unit: str
     value_unit: str
     statistic: Statistic = "individual"
     lloq: float | None = None
     below_lloq_tokens: list[str] = Field(default_factory=list)
+    missing_tokens: list[str] = Field(default_factory=list)
     decimal_comma: bool = False
     constants: list[ConstantProposal] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
@@ -120,11 +123,13 @@ def to_recipe(proposal: RecipeProposal, recipe_id: str, description: str = "") -
                 first_data_row=table.first_data_row,
                 last_data_row=table.last_data_row,
                 columns=[ColumnMapping(**c.model_dump()) for c in table.columns],
+                time_row=table.time_row,
                 time_unit=table.time_unit,
                 value_unit=table.value_unit,
                 statistic=table.statistic,
                 lloq=table.lloq,
                 below_lloq_tokens=table.below_lloq_tokens or list(DEFAULT_BELOW_LLOQ_TOKENS),
+                missing_tokens=table.missing_tokens,
                 decimal_comma=table.decimal_comma,
                 constants=constants,
             )

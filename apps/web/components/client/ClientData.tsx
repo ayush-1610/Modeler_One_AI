@@ -1,190 +1,181 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { Card } from "@/components/ui";
 import { WEB_TOKEN, apiGet, apiSend, apiUpload } from "@/lib/writes";
 
-type Triage = { sheet: string; category: string; evidence_cell: string; evidence_quote: string; by: string; note: string };
-type IssueRow = { code: string; location: string; message: string };
-type KeptRow = { row: number; values: Record<string, unknown>; cells: Record<string, string> };
-type ClientFile = {
-  id: string; file: string; sha256: string; kind: string; template: boolean; triage: Triage[]; datasets: string[];
-  evidence: string[]; dissolution: KeptRow[]; products: KeptRow[]; urine_feces: KeptRow[]; issues: IssueRow[];
-  brief_mismatches: string[]; other_sheets: string[]; mappings: { recipe: { recipe_id: string }; datasets: string[] }[];
-};
-type Reconciled = { req_id: string; label: string; criticality: string; applies: string; status: string;
-                    delivered: string[]; detail: string; cross_check: boolean; literature_accepted: string[] };
-type Fit = { t50_min: number | null; shape: number | null; lag_min: number; se_t50: number | null; se_shape: number | null;
-             rmse_percent: number | null; n_points: number; converged: boolean; note: string; engine_confirmed: boolean };
-type Profile = { id: string; label: string; key: Record<string, unknown>; times_min: number[]; mean: number[];
-                 cv: (number | null)[]; n: number; flags: string[]; release_model: "Weibull" | "Dissolved" | "Table";
-                 fit: Fit | null; files: string[] };
-type Comparison = { test: string; reference: string; condition: string; f2: number | null; similar: boolean | null;
-                    applicable: boolean; reasons: string[]; times_used: number[]; ruleset: string };
-type View = {
-  template: string;
-  dissolution: { profiles: Profile[]; comparisons: Comparison[]; problems: string[] };
-  files: ClientFile[];
-  reconciliation: { rows: Reconciled[]; unpromised: string[]; blocking: string[] };
-  register: { status: string; approvals: { printed_name: string; at: string }[] } | null;
-  agents: { enabled: boolean };
-  running: boolean;
-};
+import { SheetReader, type Study } from "./SheetReader";
+import {
+  CATEGORY_LABEL, type ClientFile, DATA_SHEETS, type Profile, type Reconciled, type SheetForm, type Triage, type View, readSheets,
+} from "./types";
 
-const CATEGORIES = ["PK_INDIVIDUAL", "PK_SUMMARY", "PK_PARAMETERS", "DISSOLUTION", "PRODUCT_INFO", "STUDIES", "DEMOGRAPHICS",
-                    "BIOANALYTICAL", "PHYSCHEM_INVITRO", "URINE_FECES", "OTHER"];
-const STATUS_CHIP: Record<string, string> = { DELIVERED: "low", PARTIAL: "medium", MISSING: "high", NOT_AVAILABLE: "neutral",
-                                              WAIVED: "neutral" };
+type Act = (fn: () => Promise<{ errors: { message: string }[] }>) => Promise<string | null>;
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const STATUS: Record<string, [string, string]> = {
+  DELIVERED: ["low", "delivered"], PARTIAL: ["medium", "partly delivered"], MISSING: ["high", "missing"],
+  NOT_AVAILABLE: ["neutral", "not from the client"], WAIVED: ["neutral", "waived"],
+};
 
-type RecordKind = "concentration_time" | "dissolution";
-
-/** A recipe to fill in. Blank constants are ones the sheet does not state; each evidence entry must quote its cell. */
-function recipeSkeleton(sheet: string, kind: RecordKind = "concentration_time") {
-  const table = kind === "dissolution" ? {
-    record_type: "dissolution", sheet, header_rows: 1, first_data_row: 2,
-    columns: [{ column: "A", role: "time" }, ...["B", "C", "D", "E", "F", "G"].map((column, i) => ({ column, role: "value", series_label: `V${i + 1}` }))],
-    time_unit: "min", value_unit: "%", statistic: "individual",
-    constants: [{ key: "product", value: "" }, { key: "role", value: "TEST" }, { key: "strength_mg", value: "" },
-                { key: "batch", value: "" }, { key: "medium", value: "" }, { key: "ph", value: "" },
-                { key: "apparatus", value: "" }, { key: "rpm", value: "" }, { key: "volume_ml", value: "" }],
-    evidence: [{ cell: `${sheet}!A1`, quote: "", supports: "time unit" }],
-  } : {
-    record_type: "concentration_time", sheet, header_rows: 1, first_data_row: 2,
-    columns: [{ column: "A", role: "subject_id" }, { column: "B", role: "time" }, { column: "C", role: "value" }],
-    time_unit: "h", value_unit: "ng/ml", statistic: "individual",
-    constants: [{ key: "study_id", value: "" }, { key: "analyte", value: "parent" }, { key: "matrix", value: "plasma" },
-                { key: "dose", value: "" }, { key: "dose_unit", value: "mg" }, { key: "route", value: "oral" },
-                { key: "formulation", value: "ir_tablet" }, { key: "food_state", value: "fasted" }],
-    evidence: [{ cell: `${sheet}!C1`, quote: "", supports: "value unit" }],
-  };
-  return JSON.stringify({ tables: [table], questions_for_reviewer: [] }, null, 2);
+/** What delivers a data-plan item, in the words of the page (requirement templates, client_data.reconcile). */
+function howTo(r: Reconciled): string {
+  if (r.kind === "formulation") {
+    return `Read the test product's dissolution sheet with the product named “${r.product ?? "as in the brief"}” (role TEST), then propose its release model under Dissolution.`;
+  }
+  if (r.kind === "dataset") {
+    if (r.target === "dissolution") return "Read a TEST and an RLD dissolution sheet measured in the same medium and pH.";
+    if (r.target === "BE study") return "Read the BE study sheets (each arm its own study id) and set “The study is for” to external validation.";
+    if (r.target === "EXTERNAL") return "Read at least one clinical study and set “The study is for” to external validation.";
+    if (r.target === "urine") return "Send urine excretion data (the template's Urine_Feces sheet).";
+    if (r.target === "lloq") return "Read a study with its LLOQ filled in.";
+    return `Read a ${r.target} study (model building).`;
+  }
+  if (r.target === "variability") {
+    return "Usually the BE study's statistical report (intra-subject CV of AUC and Cmax); upload it as a document, or take it from the literature.";
+  }
+  return "Upload the client's report and enter the value in the template's Physchem_InVitro sheet, or take it from the literature.";
 }
 
-/** What a client study is for (MS-01 §3.3): building data train the model, validation data only judge it. */
-const PURPOSES = [
-  ["model_building", "model building"],
-  ["external_validation", "external validation (e.g. the BE studies)"],
-  ["application_verification", "application verification"],
-] as const;
-
-function SheetRow({ t, onClassify }: { t: Triage; onClassify: (category: string, reason: string) => Promise<string | null> }) {
-  const [category, setCategory] = useState(t.category);
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
+/** Today's state of P3 as five steps, each with what is left. */
+function Progress({ view, projectId, sheetsTodo, sheetsDone, onApprove, note, setNote }: {
+  view: View; projectId: string; sheetsTodo: number; sheetsDone: number; onApprove: () => void; note: string;
+  setNote: (v: string) => void;
+}) {
+  const recon = view.reconciliation;
+  const required = recon.rows.filter((r) => r.criticality === "REQUIRED" && r.applies === "yes");
+  const covered = required.filter((r) => !recon.blocking.includes(r.req_id)).length;
+  const planOk = view.data_plan.status === "APPROVED";
+  const approved = view.register?.status === "APPROVED";
+  const steps: [string, string, boolean, ReactNode?][] = [
+    ["Data plan", planOk ? "approved" : `version ${view.data_plan.version} not approved`, planOk,
+     planOk ? undefined : <>your decisions below change it; <Link href={`/projects/${projectId}/brief`}>approve it on the Brief page</Link></>],
+    ["Files", plural(view.files.length, "file"), view.files.length > 0],
+    ["Sheets read", sheetsTodo + sheetsDone ? `${sheetsDone} of ${sheetsTodo + sheetsDone} data sheets` : "none to read", sheetsTodo === 0],
+    ["Plan items", `${covered} of ${required.length} required items settled`, recon.blocking.length === 0],
+    ["Approval", approved ? `approved${view.register?.approvals[0] ? ` by ${view.register.approvals[0].printed_name}` : ""}` : "not yet", approved],
+  ];
   return (
-    <tr data-testid={`sheet-${t.sheet}`}>
-      <td><code>{t.sheet}</code></td>
-      <td><span className={`chip ${t.category === "OTHER" ? "medium" : "low"}`}>{t.category.toLowerCase().replace(/_/g, " ")}</span></td>
-      <td className="muted">{t.evidence_quote ? <>“{t.evidence_quote}” <code>{t.evidence_cell}</code></> : t.note}</td>
-      <td className="muted">{t.by === "code" ? "by its headers" : t.by}</td>
-      <td>
-        <div className="row" style={{ gap: 4 }}>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label={`category of ${t.sheet}`}>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c.toLowerCase().replace(/_/g, " ")}</option>)}
-          </select>
-          <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 140 }} />
-          <button className="btn" disabled={!reason.trim() || category === t.category}
-                  onClick={async () => setError(await onClassify(category, reason))}>Set</button>
-        </div>
-        {error && <div className="banner err">{error}</div>}
-      </td>
-    </tr>
+    <section className="card p3-progress" aria-label="Client data progress">
+      <ol className="steps">
+        {steps.map(([name, state, ok, extra], i) => (
+          <li key={name} className={ok ? "done" : ""}>
+            <span className="step-n">{ok ? "✓" : i + 1}</span>
+            <span><strong>{name}</strong><span className="muted"> · {state}</span>{extra && <> · {extra}</>}</span>
+          </li>
+        ))}
+      </ol>
+      <div className="row" style={{ marginTop: 12 }}>
+        <input placeholder="approval note (optional)" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1, minWidth: 180 }} />
+        <button className="btn primary" data-testid="approve-client-data" disabled={recon.blocking.length > 0} onClick={onApprove}
+                title={recon.blocking.length ? "Settle the items listed under “What stops approval” first" : undefined}>
+          {approved ? "Approve again" : "Approve the client data"}
+        </button>
+      </div>
+      {recon.blocking.length > 0 && (
+        <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+          Approval opens when every required item is delivered, marked “not from the client”, or moved to the literature:{" "}
+          <a href="#blocking">{plural(recon.blocking.length, "item")} left</a>.
+        </p>
+      )}
+    </section>
   );
 }
 
-function Mapper({ projectId, file, onDone }: { projectId: string; file: ClientFile; onDone: () => Promise<void> }) {
-  const sheets = file.triage.map((t) => t.sheet);
-  const kindOf = (s: string): RecordKind => file.triage.find((t) => t.sheet === s)?.category === "DISSOLUTION" ? "dissolution" : "concentration_time";
-  const [sheet, setSheet] = useState(sheets[0] ?? "");
-  const [kind, setKind] = useState<RecordKind>(kindOf(sheets[0] ?? ""));
-  const [recipe, setRecipe] = useState(recipeSkeleton(sheets[0] ?? "Sheet1", kindOf(sheets[0] ?? "")));
-  const [study, setStudy] = useState('{"n": 12, "design": "SD", "population_type": "healthy"}');
-  const [purpose, setPurpose] = useState<string>("model_building");
-  const [result, setResult] = useState<{ ready: boolean; issues: IssueRow[]; questions: string[]; concentrations: number;
-                                          dissolution: number; studies: string[] } | null>(null);
+/** One data-plan item: what it needs, what arrived, and the decisions a person can take on it. */
+function PlanItem({ r, onDecide, blocking }: { r: Reconciled; onDecide: (body: Record<string, unknown>) => Promise<string | null>; blocking: boolean }) {
+  const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
-  function pick(nextSheet: string, nextKind: RecordKind) {
-    setSheet(nextSheet);
-    setKind(nextKind);
-    setRecipe(recipeSkeleton(nextSheet, nextKind));
-    setResult(null);
-  }
-  async function run(confirm: boolean) {
-    let proposal: unknown;
-    let facts: Record<string, unknown>;
-    try { proposal = JSON.parse(recipe); facts = JSON.parse(study); } catch { setError("The recipe or the study facts are not valid JSON."); return; }
-    const env = await apiSend<NonNullable<typeof result>>(`/api/v1/projects/${projectId}/client-data/${file.id}:map`, "POST",
-                                                         { proposal, study: kind === "dissolution" ? {} : { ...facts, purpose }, confirm });
-    if (env.errors?.length || !env.data) { setError(env.errors?.[0]?.message ?? "not applied"); return; }
-    setError(null);
-    setResult(env.data);
-    if (confirm) await onDone();
-  }
+  const optional = r.criticality !== "REQUIRED" || r.applies !== "yes";
+  const [chip, word] = optional && r.status === "MISSING" ? ["neutral", "not sent (optional)"]
+                                                         : STATUS[r.status] ?? ["neutral", r.status.toLowerCase()];
+  const open = r.status === "MISSING" || r.status === "PARTIAL";
+  const decide = async (body: Record<string, unknown>) => setError(await onDecide({ ...body, reason }));
   return (
-    <div className="mapper" data-testid={`mapper-${file.id}`}>
-      <p className="muted" style={{ margin: "4px 0" }}>
-        Describe where the data are (columns, units, constants) and cite the cells that state each unit, dose and study id.
-        Code applies it exactly and shows every problem; nothing is kept until you confirm a recipe with none.
-      </p>
-      <div className="row" style={{ gap: 6 }}>
-        <select value={sheet} onChange={(e) => pick(e.target.value, kindOf(e.target.value))} aria-label="sheet">
-          {sheets.map((s) => <option key={s}>{s}</option>)}
-        </select>
-        <select value={kind} onChange={(e) => pick(sheet, e.target.value as RecordKind)} aria-label="what the sheet holds">
-          <option value="concentration_time">concentration–time</option>
-          <option value="dissolution">dissolution</option>
-        </select>
-      </div>
-      {kind === "dissolution" && (
-        <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
-          Name the product as the brief does and its role (TEST, RLD or REFERENCE): the release-model item and the
-          test-vs-reference comparison (f2) count only profiles with both. One value column per vessel.
-        </p>
-      )}
-      <textarea value={recipe} onChange={(e) => setRecipe(e.target.value)} rows={14} style={{ width: "100%", fontFamily: "var(--font-mono), monospace" }}
-                aria-label="mapping recipe" />
-      {kind === "concentration_time" && <>
-        <div className="row" style={{ gap: 6 }}>
-          <label className="muted" style={{ fontSize: 12 }} htmlFor={`purpose-${file.id}`}>The study is for</label>
-          <select id={`purpose-${file.id}`} value={purpose} onChange={(e) => setPurpose(e.target.value)} aria-label="study purpose">
-            {PURPOSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
+    <div className={`plan-item${blocking ? " blocking" : ""}`} data-testid={`recon-${r.req_id}`}>
+      <div className="spread" style={{ alignItems: "flex-start" }}>
+        <div>
+          <strong>{r.label}</strong>
+          <div className="muted" style={{ fontSize: 12 }}>{r.req_id} · {r.criticality.toLowerCase()}{r.applies === "undetermined" ? " · if applicable" : ""}</div>
         </div>
-        <label className="muted" style={{ fontSize: 12 }}>Study facts the sheet does not state (n, design, population …)</label>
-        <textarea value={study} onChange={(e) => setStudy(e.target.value)} rows={2} style={{ width: "100%", fontFamily: "var(--font-mono), monospace" }}
-                  aria-label="study facts" />
-      </>}
-      <div className="row" style={{ gap: 6 }}>
-        <button className="btn" onClick={() => run(false)}>Preview</button>
-        <button className="btn primary" disabled={!result?.ready} onClick={() => run(true)}>Confirm and read</button>
+        <span className={`chip ${chip}`}>{word}</span>
       </div>
-      {error && <div className="banner err">{error}</div>}
-      {result && (
+      {r.delivered.length > 0 && <div className="muted" style={{ fontSize: 13 }}>Arrived: {r.delivered.join(", ")}</div>}
+      {r.detail && <div className="flags" style={{ paddingLeft: 0 }}>{r.detail}</div>}
+      {open && <div style={{ fontSize: 13 }}>How: {howTo(r)}</div>}
+      {r.cross_check && open && (
         <div className="muted" style={{ fontSize: 13 }}>
-          {kind === "dissolution" ? `${result.dissolution} dissolution values` : `${result.concentrations} values for ${result.studies.join(", ") || "no study"}`}
-          {result.ready ? " · ready to confirm" : ""}
-          {result.issues.length > 0 && <ul className="flags">{result.issues.map((i, k) => <li key={k}><code>{i.location}</code> {i.message}</li>)}</ul>}
-          {result.questions.length > 0 && <ul className="flags">{result.questions.map((q) => <li key={q}>{q}</li>)}</ul>}
+          Literature cross-check is on: this counts once a literature value is accepted on the Literature page
+          {r.literature_accepted.length ? " (accepted ✓)" : " (none accepted yet)"}.
         </div>
       )}
+      {open && (
+        <div className="row" style={{ gap: 6, marginTop: 6 }}>
+          <input placeholder="reason (kept in the audit trail)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 200 }}
+                 aria-label={`reason for ${r.req_id}`} />
+          <button className="btn" disabled={!reason.trim()} onClick={() => void decide({ status: "NOT_AVAILABLE" })}>Not from the client</button>
+          <button className="btn" disabled={!reason.trim()} onClick={() => void decide({ provider: "LITERATURE" })}>Get it from the literature instead</button>
+        </div>
+      )}
+      {r.status === "NOT_AVAILABLE" && (
+        <div className="row" style={{ gap: 6, marginTop: 6 }}>
+          <input placeholder="reason to reopen" value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+          <button className="btn" disabled={!reason.trim()} onClick={() => void decide({ status: "OPEN" })}>Reopen</button>
+        </div>
+      )}
+      {error && <div className="banner err">{error}</div>}
     </div>
   );
 }
 
-function FileCard({ projectId, file, agents, running, act, reload }: {
-  projectId: string; file: ClientFile; agents: boolean; running: boolean;
-  act: (fn: () => Promise<{ errors: { message: string }[] }>) => Promise<string | null>; reload: () => Promise<void>;
+/** A sheet's line: what it holds, whether it was read, and the button that reads it. */
+function SheetLine({ t, read, onRead, onClassify }: {
+  t: Triage; read: number | undefined; onRead: () => void; onClassify: (category: string, reason: string) => Promise<string | null>;
 }) {
-  const [mapping, setMapping] = useState(false);
+  const [changing, setChanging] = useState(false);
+  const [category, setCategory] = useState(t.category);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const data = DATA_SHEETS.has(t.category);
+  return (
+    <tr data-testid={`sheet-${t.sheet}`}>
+      <td><code>{t.sheet}</code></td>
+      <td>
+        <span className={`chip ${t.category === "OTHER" ? "medium" : data ? "brand" : "neutral"}`}>{CATEGORY_LABEL[t.category] ?? t.category.toLowerCase()}</span>
+        {t.evidence_quote && <div className="muted" style={{ fontSize: 12 }}>“{t.evidence_quote}” {t.evidence_cell.split("!")[1]}</div>}
+        {!changing && <button className="linkish" onClick={() => setChanging(true)}>change</button>}
+        {changing && (
+          <div className="row" style={{ gap: 4, marginTop: 4 }}>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label={`category of ${t.sheet}`}>
+              {Object.keys(CATEGORY_LABEL).map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+            </select>
+            <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 140 }} />
+            <button className="btn" disabled={!reason.trim() || category === t.category}
+                    onClick={async () => { const e = await onClassify(category, reason); setError(e); if (!e) setChanging(false); }}>Set</button>
+          </div>
+        )}
+        {error && <div className="banner err">{error}</div>}
+      </td>
+      <td>{read ? <span className="chip low">read ✓{read > 1 ? ` (${read})` : ""}</span>
+               : data ? <span className="chip medium">not read yet</span> : <span className="muted" style={{ fontSize: 12 }}>no data to read</span>}</td>
+      <td className="num"><button className={`btn${!read && data ? " primary" : ""}`} onClick={onRead}>{read ? "Read again" : "Read this sheet"}</button></td>
+    </tr>
+  );
+}
+
+function FileCard({ projectId, file, agents, running, act, reading, setReading, onSaved, last, remember }: {
+  projectId: string; file: ClientFile; agents: boolean; running: boolean; act: Act; reading: string | null;
+  setReading: (sheet: string | null) => void; onSaved: (message: string) => Promise<void>;
+  last: { form: SheetForm; study: Study } | null; remember: (s: { form: SheetForm; study: Study }) => void;
+}) {
   const [notice, setNotice] = useState<string | null>(null);
   const spreadsheet = file.triage.length > 0;
+  const read = readSheets(file);
   const undecided = file.triage.some((t) => t.category === "OTHER" && t.by === "code");
   return (
-    <div className="evidence" data-testid={`client-file-${file.file}`}>
+    <div className="file-card" data-testid={`client-file-${file.file}`}>
       <div className="spread">
         <div className="row">
           <strong>{file.file}</strong>
@@ -193,17 +184,22 @@ function FileCard({ projectId, file, agents, running, act, reload }: {
           {file.evidence.length > 0 && <span className="chip neutral">{plural(file.evidence.length, "value")}</span>}
           {file.dissolution.length > 0 && <span className="chip neutral">{plural(file.dissolution.length, "dissolution row")}</span>}
         </div>
-        <code className="muted">{file.sha256.slice(0, 12)}</code>
+        {spreadsheet && !file.template && undecided && (
+          <button className="btn" disabled={!agents || running} title={agents ? undefined : "agents are off"}
+                  onClick={async () => setNotice(await act(() => apiSend(`/api/v1/projects/${projectId}/client-data/${file.id}:triage`, "POST"))
+                    ?? "Agent A4 is sorting the unsorted sheets.")}>Sort the unsorted sheets (agent)</button>
+        )}
       </div>
-      {!spreadsheet && <p className="muted" style={{ margin: "4px 0" }}>Stored as a citable document (the literature agents and you can quote it).</p>}
-      {spreadsheet && (
+      {!spreadsheet && <p className="muted" style={{ margin: "4px 0" }}>Kept as a citable document: the literature agents and you can quote it.</p>}
+      {file.template && <p className="muted" style={{ margin: "4px 0" }}>The client-data template is read automatically, cell by cell.</p>}
+      {spreadsheet && !file.template && (
         <table style={{ marginTop: 6 }}>
-          <thead><tr><th>Sheet</th><th>Holds</th><th>Because</th><th>Decided</th><th>Change</th></tr></thead>
+          <thead><tr><th>Sheet</th><th>Holds</th><th>Read</th><th /></tr></thead>
           <tbody>
             {file.triage.map((t) => (
-              <SheetRow key={t.sheet} t={t} onClassify={(category, reason) =>
-                act(() => apiSend(`/api/v1/projects/${projectId}/client-data/${file.id}/sheets/${encodeURIComponent(t.sheet)}:classify`,
-                                  "POST", { category, reason }))} />
+              <SheetLine key={t.sheet} t={t} read={read.get(t.sheet)} onRead={() => setReading(reading === t.sheet ? null : t.sheet)}
+                         onClassify={(category, reason) => act(() => apiSend(
+                           `/api/v1/projects/${projectId}/client-data/${file.id}/sheets/${encodeURIComponent(t.sheet)}:classify`, "POST", { category, reason }))} />
             ))}
           </tbody>
         </table>
@@ -216,42 +212,12 @@ function FileCard({ projectId, file, agents, running, act, reload }: {
           Not in the brief: {file.brief_mismatches.join(" · ")}. Check with the client or update the brief.
         </div>
       )}
-      {spreadsheet && !file.template && (
-        <div className="row" style={{ marginTop: 6 }}>
-          {undecided && (
-            <button className="btn" disabled={!agents || running}
-                    onClick={async () => setNotice(await act(() => apiSend(`/api/v1/projects/${projectId}/client-data/${file.id}:triage`, "POST"))
-                      ?? "Agent A4 is sorting the undecided sheets.")}>Sort undecided sheets (agent)</button>
-          )}
-          <button className="btn" onClick={() => setMapping(!mapping)}>{mapping ? "Close the mapping" : "Map a sheet"}</button>
-        </div>
-      )}
       {notice && <div className="banner ok">{notice}</div>}
-      {mapping && <Mapper projectId={projectId} file={file} onDone={async () => { setMapping(false); await reload(); }} />}
+      {reading && (
+        <SheetReader key={reading} projectId={projectId} file={file} sheet={reading} last={last} remember={remember}
+                     onClose={() => setReading(null)} onSaved={async (m) => { setReading(null); await onSaved(m); }} />
+      )}
     </div>
-  );
-}
-
-function ReconRow({ r, onDecide }: { r: Reconciled; onDecide: (body: Record<string, unknown>) => Promise<string | null> }) {
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <tr data-testid={`recon-${r.req_id}`}>
-      <td>{r.label}<div className="muted" style={{ fontSize: 12 }}>{r.criticality.toLowerCase()}{r.applies === "undetermined" ? " · if applicable" : ""}</div></td>
-      <td><span className={`chip ${STATUS_CHIP[r.status] ?? "neutral"}`}>{r.status.toLowerCase().replace("_", " ")}</span>
-        {r.cross_check && <span className="chip neutral">cross-check{r.literature_accepted.length ? " ✓" : ""}</span>}</td>
-      <td className="muted" style={{ fontSize: 13 }}>{r.detail || r.delivered.join(", ") || "—"}</td>
-      <td>
-        {(r.status === "MISSING" || r.status === "PARTIAL") && (
-          <div className="row" style={{ gap: 4 }}>
-            <input placeholder="reason" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 150 }} />
-            <button className="btn" disabled={!reason.trim()} onClick={async () => setError(await onDecide({ status: "NOT_AVAILABLE", reason }))}>Skip</button>
-            {!r.cross_check && <button className="btn" disabled={!reason.trim()} onClick={async () => setError(await onDecide({ cross_check: true, reason }))}>Cross-check in literature</button>}
-          </div>
-        )}
-        {error && <div className="banner err">{error}</div>}
-      </td>
-    </tr>
   );
 }
 
@@ -347,13 +313,17 @@ function Dissolution({ projectId, d, act }: {
   );
 }
 
-/** P3 client data (plan §10): the files, how they were read, and the reconciliation with the data plan. */
+
+/** P3 client data (plan §10): what arrived, reading it sheet by sheet, and what the data plan still waits for. */
 export function ClientData({ projectId }: { projectId: string }) {
   const router = useRouter();
   const [view, setView] = useState<View | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [note, setNote] = useState("");
+  const [reading, setReading] = useState<{ file: string; sheet: string } | null>(null);
+  const [last, setLast] = useState<{ form: SheetForm; study: Study } | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const load = useCallback(async () => {
     const v = await apiGet<View>(`/api/v1/projects/${projectId}/client-data`);
@@ -364,22 +334,24 @@ export function ClientData({ projectId }: { projectId: string }) {
   if (problem) return <div className="banner err">{problem}</div>;
   if (!view) return <p className="muted">Loading…</p>;
 
-  const act = async (fn: () => Promise<{ errors: { message: string }[] }>) => {
+  const act: Act = async (fn) => {
     const env = await fn();
     if (env.errors?.length) return env.errors[0].message;
     await load();
     router.refresh(); // the phase rail is server-rendered
     return null;
   };
+  const say = (error: string | null, ok: string) => setMessage(error ? { ok: false, text: error } : { ok: true, text: ok });
   async function upload(files: FileList | null) {
     if (!files?.length) return;
     const form = new FormData();
     Array.from(files).forEach((f) => form.append("files", f));
-    setMessage(await act(() => apiUpload(`/api/v1/projects/${projectId}/client-data`, form)) ?? `${files.length} file(s) read.`);
+    say(await act(() => apiUpload(`/api/v1/projects/${projectId}/client-data`, form)),
+        `${plural(files.length, "file")} stored. Read each data sheet below (“Read this sheet”).`);
   }
   async function downloadTemplate() {
     const res = await fetch("/api/v1/client-data/template.xlsx", { headers: { Authorization: `Bearer ${WEB_TOKEN}` } });
-    if (!res.ok) { setMessage(`The template could not be downloaded (HTTP ${res.status}).`); return; }
+    if (!res.ok) { say(`The template could not be downloaded (HTTP ${res.status}).`, ""); return; }
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement("a");
     a.href = url;
@@ -387,59 +359,80 @@ export function ClientData({ projectId }: { projectId: string }) {
     a.click();
     URL.revokeObjectURL(url);
   }
+  const decide = (r: Reconciled) => (body: Record<string, unknown>) =>
+    act(() => apiSend(`/api/v1/projects/${projectId}/requirements/${encodeURIComponent(r.req_id)}`, "PUT", body));
+  async function approve() {
+    say(await act(() => apiSend(`/api/v1/projects/${projectId}/client-data:approve`, "POST", { note })), "Client data approved (P3).");
+  }
 
   const recon = view.reconciliation;
+  const blocking = recon.rows.filter((r) => recon.blocking.includes(r.req_id));
+  const others = recon.rows.filter((r) => !recon.blocking.includes(r.req_id));
+  let sheetsTodo = 0, sheetsDone = 0;
+  for (const f of view.files.filter((x) => !x.template)) {
+    const read = readSheets(f);
+    for (const t of f.triage) {
+      if (read.has(t.sheet)) sheetsDone += 1;
+      else if (DATA_SHEETS.has(t.category)) sheetsTodo += 1;
+    }
+  }
   return (
     <>
-      <Card title="Send files">
-        <div className="row">
-          <button className="btn" onClick={downloadTemplate} data-testid="download-template">Download the client-data template</button>
-          <label className="btn primary">
-            Upload client files
-            <input type="file" multiple hidden data-testid="client-upload" accept=".xlsx,.xlsm,.csv,.pdf,.docx,.md,.txt"
-                   onChange={(e) => void upload(e.target.files)} />
-          </label>
-        </div>
-        <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          The template ({view.template}) is read with no AI. Other workbooks, PDFs, Word files, CSV and Markdown are accepted too.
-        </p>
-        {message && <div className="banner ok" style={{ marginTop: 8 }}>{message}</div>}
+      <Progress view={view} projectId={projectId} sheetsTodo={sheetsTodo} sheetsDone={sheetsDone} onApprove={() => void approve()}
+                note={note} setNote={setNote} />
+      {message && <div className={`banner ${message.ok ? "ok" : "err"}`} style={{ marginTop: 12 }} role="status">{message.text}</div>}
+
+      {blocking.length > 0 && (
+        <Card title={`What stops approval (${blocking.length})`}>
+          <div id="blocking" className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
+            Each item below is required by the data plan and has not arrived from the client. Deliver it (read the sheet that
+            holds it), or decide, with a reason: <strong>not from the client</strong> (the model goes ahead without it and the
+            gap is recorded) or <strong>get it from the literature instead</strong> (the literature step takes it over).
+          </div>
+          {blocking.map((r) => <PlanItem key={r.req_id} r={r} onDecide={decide(r)} blocking />)}
+        </Card>
+      )}
+
+      <Card title="Add files" action={<button className="btn" onClick={() => void downloadTemplate()} data-testid="download-template">Download the client-data template</button>}>
+        <label className={`dropzone${dragging ? " over" : ""}`}
+               onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
+               onDrop={(e) => { e.preventDefault(); setDragging(false); void upload(e.dataTransfer.files); }}>
+          <input type="file" multiple hidden data-testid="client-upload" accept=".xlsx,.xlsm,.csv,.pdf,.docx,.md,.txt"
+                 onChange={(e) => void upload(e.target.files)} />
+          <strong>Drop the client&apos;s files here</strong> or click to choose
+          <span className="muted">Excel (.xlsx), CSV, PDF, Word, Markdown. Workbooks are sorted sheet by sheet; reports are kept as citable documents.</span>
+        </label>
       </Card>
+
       <Card title={`Files (${view.files.length})`}>
-        {view.files.length === 0 ? <p className="muted" style={{ margin: 0 }}>No client files yet.</p> : view.files.map((f) => (
-          <FileCard key={f.id} projectId={projectId} file={f} agents={view.agents.enabled} running={view.running} act={act} reload={load} />
-        ))}
-      </Card>
-      {view.dissolution.profiles.length > 0 && <Dissolution projectId={projectId} d={view.dissolution} act={act} />}
-      <Card title="Reconciliation with the data plan">
-        {recon.rows.length === 0 ? <p className="muted" style={{ margin: 0 }}>The data plan expects nothing from the client.</p> : (
-          <table>
-            <thead><tr><th>Expected from the client</th><th>Status</th><th>What arrived</th><th>Decision</th></tr></thead>
-            <tbody>
-              {recon.rows.map((r) => (
-                <ReconRow key={r.req_id} r={r} onDecide={(body) =>
-                  act(() => apiSend(`/api/v1/projects/${projectId}/requirements/${encodeURIComponent(r.req_id)}`, "PUT", body))} />
-              ))}
-            </tbody>
-          </table>
+        {view.files.length === 0 ? <p className="muted" style={{ margin: 0 }}>No client files yet.</p> : (
+          <>
+            <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>
+              For each sheet with data, press <strong>Read this sheet</strong>: the sheet is shown next to a form already filled in from
+              what the sheet states. Check it, press <strong>Check what will be read</strong>, then <strong>Save</strong>.
+            </p>
+            {view.files.map((f) => (
+              <FileCard key={f.id} projectId={projectId} file={f} agents={view.agents.enabled} running={view.running} act={act}
+                        reading={reading?.file === f.id ? reading.sheet : null}
+                        setReading={(sheet) => setReading(sheet ? { file: f.id, sheet } : null)}
+                        onSaved={async (m) => { await load(); router.refresh(); say(null, m); }} last={last} remember={setLast} />
+            ))}
+          </>
         )}
+      </Card>
+
+      {view.dissolution.profiles.length > 0 && <Dissolution projectId={projectId} d={view.dissolution} act={act} />}
+
+      <Card title="Everything the data plan expects from the client">
+        {recon.rows.length === 0 ? <p className="muted" style={{ margin: 0 }}>The data plan expects nothing from the client.</p>
+          : others.length === 0 ? <p className="muted" style={{ margin: 0 }}>All items are listed under “What stops approval”.</p>
+          : others.map((r) => <PlanItem key={r.req_id} r={r} onDecide={decide(r)} blocking={false} />)}
         {recon.unpromised.length > 0 && (
           <>
-            <h3 style={{ fontSize: 14, marginBottom: 4 }}>Delivered, not promised</h3>
+            <h3 style={{ fontSize: 14, margin: "14px 0 4px" }}>Delivered, not in the data plan</h3>
             <ul className="flags">{recon.unpromised.map((u) => <li key={u}>{u}</li>)}</ul>
           </>
         )}
-        <div className="row" style={{ marginTop: 10 }}>
-          <input placeholder="approval note" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1 }} />
-          <button className="btn primary" data-testid="approve-client-data" disabled={recon.blocking.length > 0}
-                  onClick={async () => setMessage(await act(() => apiSend(`/api/v1/projects/${projectId}/client-data:approve`, "POST", { note }))
-                    ?? "Client data approved (P3).")}>
-            Approve the client data
-          </button>
-        </div>
-        {recon.blocking.length > 0 && <p className="muted" style={{ fontSize: 13 }}>Still missing: {recon.blocking.join(", ")}.</p>}
-        {view.register && <p className="muted" style={{ fontSize: 13 }}>Register {view.register.status.toLowerCase()}
-          {view.register.approvals[0] ? ` by ${view.register.approvals[0].printed_name}` : ""}.</p>}
       </Card>
     </>
   );

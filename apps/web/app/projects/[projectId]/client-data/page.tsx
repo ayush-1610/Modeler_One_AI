@@ -9,11 +9,9 @@ export default async function ClientDataPage({ params }: { params: Promise<{ pro
       <h1>Client data</h1>
       <PhaseRail projectId={projectId} current="P3" />
       <p className="muted" style={{ maxWidth: "var(--measure)" }}>
-        <strong>Review layer 2b.</strong> What the client sent, read without guessing: the client-data template is read
-        cell by cell; any other workbook is sorted sheet by sheet and read once you confirm how; reports and papers are
-        kept as citable documents. Every value points back to its cell. The reconciliation shows, item by item, what the
-        data plan expects from the client and what arrived. A missing item is skipped as not available or checked against
-        the literature instead; then the phase closes with your approval.
+        <strong>Review layer 2b.</strong> Upload what the client sent, read each data sheet with the guided form (nothing is
+        guessed: every unit, dose and LLOQ points back to its cell), and settle what the data plan still expects. Approval
+        closes the phase.
       </p>
       <ClientData projectId={projectId} />
     </main>
