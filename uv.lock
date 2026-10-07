@@ -16,6 +16,7 @@ members = [
     "modeler-one",
     "modeler-orchestrator",
     "modeler-project",
+    "modeler-storage",
     "pbpk-domain",
 ]
 
@@ -1066,6 +1067,7 @@ dependencies = [
     { name = "modeler-agents" },
     { name = "modeler-contracts" },
     { name = "modeler-project" },
+    { name = "modeler-storage" },
     { name = "pbpk-domain" },
     { name = "pyarrow" },
     { name = "pydantic-settings" },
@@ -1084,6 +1086,7 @@ requires-dist = [
     { name = "modeler-agents", editable = "services/agents" },
     { name = "modeler-contracts", editable = "packages/run-contracts" },
     { name = "modeler-project", editable = "packages/project-model" },
+    { name = "modeler-storage", editable = "packages/storage" },
     { name = "pbpk-domain", editable = "packages/pbpk-domain" },
     { name = "pyarrow", specifier = ">=17" },
     { name = "pydantic-settings", specifier = ">=2.4" },
@@ -1154,6 +1157,7 @@ dependencies = [
     { name = "modeler-intake" },
     { name = "modeler-orchestrator" },
     { name = "modeler-project" },
+    { name = "modeler-storage" },
     { name = "pbpk-domain" },
 ]
 
@@ -1175,6 +1179,7 @@ requires-dist = [
     { name = "modeler-intake", editable = "packages/data-intake" },
     { name = "modeler-orchestrator", editable = "services/orchestrator" },
     { name = "modeler-project", editable = "packages/project-model" },
+    { name = "modeler-storage", editable = "packages/storage" },
     { name = "pbpk-domain", editable = "packages/pbpk-domain" },
 ]
 
@@ -1236,6 +1241,17 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6" },
     { name = "rdkit", specifier = ">=2024.9" },
 ]
+
+[[package]]
+name = "modeler-storage"
+version = "0.1.0"
+source = { editable = "packages/storage" }
+dependencies = [
+    { name = "sqlalchemy", extra = ["asyncio"] },
+]
+
+[package.metadata]
+requires-dist = [{ name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.30" }]
 
 [[package]]
 name = "nexus-rpc"

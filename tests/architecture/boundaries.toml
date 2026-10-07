@@ -10,6 +10,7 @@
 pbpk_domain = 0           # L0 science: CPF, builder, MS-01, units
 modeler_contracts = 1     # L1 typed DTOs and ports shared across processes
 modeler_intake = 2        # L2 deterministic file reading
+modeler_storage = 2       # L2 persistence: the Postgres audit trail (phase 3a), read models and repositories (3b)
 modeler_project = 3       # L3 pipeline artifacts P0-P4 and their services
 modeler_agents = 4        # L4 the LLM edge
 modeler_orchestrator = 5  # L5 campaign runner
