@@ -39,16 +39,18 @@ RUN apt-get update \
 # The r-universe serves only the newest ospsuite (12.4.5 since October 2026, which the version check refused), so
 # ospsuite 12.4.4 is installed from its release commit ("Release 12.4.4", OSPSuite-R #1995): the release ships its
 # .NET and native libraries in inst/lib, so its source installs as is. The source tree's .Rprofile starts renv, which
-# the package's configure step would run; it is removed first. The archive's sha256 is printed for the build record.
+# the package's configure step would run; it is removed first. The archive must match the sha256 of the first
+# qualified build (CI run 37609508306, 2026-10-07): a changed archive fails the build instead of installing.
 ARG OSPSUITE_VERSION=12.4.4
 ARG OSPSUITE_COMMIT=4f37d444ef1a299ba72ffc418ee82f049db89dd8
+ARG OSPSUITE_SHA256=87f9fb388b242906d59d2e4a5e6d8d5ae6c2e5932b194f39684553376c9efb05
 ARG PI_VERSION=2.2.0
 ARG RSHARP_VERSION=1.2.2
 RUN Rscript -e "options(repos = c(osp = '${OSP_LINUX_BINARIES}', getOption('repos'))); \
                 install.packages(c('jsonlite', 'digest', 'ospsuite', 'ospsuite.parameteridentification'))" \
  && curl -fsSL "https://github.com/Open-Systems-Pharmacology/OSPSuite-R/archive/${OSPSUITE_COMMIT}.tar.gz" \
       -o /tmp/ospsuite.tar.gz \
- && sha256sum /tmp/ospsuite.tar.gz \
+ && echo "${OSPSUITE_SHA256}  /tmp/ospsuite.tar.gz" | sha256sum -c - \
  && mkdir /tmp/ospsuite && tar -xzf /tmp/ospsuite.tar.gz -C /tmp/ospsuite --strip-components=1 \
  && rm -rf /tmp/ospsuite/.Rprofile /tmp/ospsuite/renv /tmp/ospsuite/renv.lock \
  && R CMD INSTALL /tmp/ospsuite && rm -rf /tmp/ospsuite /tmp/ospsuite.tar.gz \

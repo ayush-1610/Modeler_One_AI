@@ -23,10 +23,14 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   its release commit (`4f37d444…`, "Release 12.4.4", OSPSuite-R #1995), whose source ships the .NET and native
   libraries in `inst/lib`; the source tree's `.Rprofile` (renv) is removed before `R CMD INSTALL`. The other packages
   still come from the r-universe; rSharp stays on its 1.2.2 tag; the version check is unchanged.
-- **Why 12.4.4 first:** it is the qualified engine the server runs, and the version `golden/catalog.json`, every MAP's
-  `software_versions` and the harvested PK-Sim paths name. 12.4.5 changes no computational core (its notes: an rSharp
-  ≤ 1.2.3 pin and plot legend order). Both versions go through the same CI qualification gate (golden round trip,
-  fitting smoke, engine tasks, benchmark); the results are recorded here when they are in.
+- **Both versions were qualified in CI on real ospsuite** (image build, golden round trip, fitting smoke, engine tasks,
+  benchmark; PR #4 for 12.4.4, trial PR #5 for 12.4.5): both pass, and the parameter-identification smoke gives the same
+  numbers on both (objective 6.571829 in 41 evaluations; Lipophilicity −1.281569, TSspec 0.795285 1/min).
+- **Kept 12.4.4:** it is the qualified engine the server runs, and the version `golden/catalog.json`, every MAP's
+  `software_versions` and the harvested PK-Sim paths name; 12.4.5 would change all of them for no numerical difference
+  (its notes: an rSharp ≤ 1.2.3 pin and plot legend order). 12.4.5 is a verified, no-change upgrade candidate.
+- The release archive is pinned by its sha256 (`87f9fb38…9efb05`, from the first qualified build), checked before
+  installing.
 - Impact: no engine change; the qualification gate runs again.
 
 ### Infra — architecture guardrails (phase 1): layers, API contract, parameter vocabulary, locked files
