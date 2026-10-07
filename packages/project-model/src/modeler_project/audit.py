@@ -1,6 +1,6 @@
 """The single-node audit trail: hash-chained, append-only JSON lines per tenant (plan §13.4, 21 CFR 11.10(e)).
 
-Same event shape and row hash as the Postgres trail (`modeler_api.compliance.audit`):
+Same event shape and row hash as the Postgres trail (`modeler_storage.audit`):
 row_hash = SHA-256(prev_hash | canonical JSON of the event). Editing or deleting a stored line breaks every later
 link, which `verify` reports. Kept here (not imported from the API package) so the project model has no dependency on
 the API; a test in the API package pins that both produce identical hashes.

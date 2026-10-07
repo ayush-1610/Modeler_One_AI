@@ -9,10 +9,10 @@ from fastapi.testclient import TestClient
 
 from modeler_api import project_api
 from modeler_api.auth import get_verifier
-from modeler_api.compliance import audit as pg_audit
 from modeler_api.main import app
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project import audit as file_audit
+from modeler_storage import audit as pg_audit
 
 pytestmark = pytest.mark.req("T-40")
 

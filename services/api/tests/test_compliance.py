@@ -3,7 +3,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from modeler_api.compliance.audit import GENESIS_HASH, AuditEvent, ChainedEvent, chain, compute_row_hash, verify_chain
 from modeler_api.compliance.signatures import (
     SignatureAuthenticationError,
     SignatureMeaning,
@@ -11,6 +10,7 @@ from modeler_api.compliance.signatures import (
     is_signature_valid,
     sign_record,
 )
+from modeler_storage.audit import GENESIS_HASH, AuditEvent, ChainedEvent, chain, compute_row_hash, verify_chain
 
 RECORD_SHA = "a" * 64
 

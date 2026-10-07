@@ -15,6 +15,17 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the Postgres audit trail moves to the new storage package (architecture phase 3a)
+- **What:** new workspace package `modeler_storage` (L2, `packages/storage`, depends on SQLAlchemy only). The Postgres
+  audit trail `modeler_api/compliance/audit.py` moves there as `modeler_storage/audit.py`, **byte for byte**: its
+  sha256 (`956009f7…`) is the same before and after, and `test_compliance` still proves the JSONL and Postgres chains
+  hash identically. Importers updated (`modeler_api.db.repositories`, three API tests); the API declares the package.
+- **Why:** phase 3 moves the persistence the orchestrator needs out of the API package; the database repositories use
+  this audit trail, so it moves first. It is a locked file, so it moves alone in its own PR, with the owner's approval.
+- **Locked-file records:** the manifest's audit pattern follows the file (layer L6 → L2); the docstring of the locked
+  `modeler_project/audit.py` names the new path (one line); `boundaries.toml` places `modeler_storage` on L2.
+- Impact: none at run time (same code, same hashes, same tables); `uv.lock` gains the workspace package only.
+
 ### Changed — configuration is read in one place per process and injected (architecture phase 2)
 - **Why:** configuration was read in ~20 modules. API tests patched `get_settings` router by router, so a router that
   started reading a setting in a new helper broke other routers' tests; the orchestrator and engine read 15 `MODELER_*`

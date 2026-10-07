@@ -1,6 +1,6 @@
 # Architecture boundaries — layers, rules, locked files and the guardrails that enforce them
 
-**Status: phases 1–2 in force (2026-10-07).** Changes to agents, the pipeline pages and the API repeatedly broke code that
+**Status: phases 1–2 in force, phase 3a done (2026-10-07).** Changes to agents, the pipeline pages and the API repeatedly broke code that
 was not part of the change: the T-56 kit broke twice from P4 evidence checks, a study "purpose" broke the MS-01 study
 record, a merged API response showed a count as `[object Object]`, an id outside the builder's vocabulary passed S0
 while the model had no clearance, and a campaign file was read mid-write. The cause is structural: nothing enforced
@@ -16,7 +16,7 @@ Imports point down only. Two packages on one layer do not import each other.
 | L0 | `pbpk_domain` | Science: CPF, builder, MS-01 stages, units, rulesets, acceptance; later the parameter registry | import anything first-party |
 | L1 | `modeler_contracts` | Typed DTOs and ports shared across processes (runs, campaigns; later settings schema, `CampaignRunner`) | hold logic |
 | L2 | `modeler_intake` | Deterministic file reading, recipes and their vocabulary | call an LLM |
-| L2 | `modeler_storage` *(phase 3, new)* | The campaign read model and database repositories, moved out of the API | |
+| L2 | `modeler_storage` | The Postgres audit trail (phase 3a); the campaign read model and database repositories follow (3b) | import the API or the orchestrator |
 | L3 | `modeler_project` | Pipeline artifacts P0–P4 (`FileProjectStore`, audit), one service per artifact kind | know about HTTP |
 | L4 | `modeler_agents` | The LLM edge only: agents propose, code and people decide | hold deterministic rules others need |
 | L5 | `modeler_orchestrator`, `modeler_engine` | Campaign runner; engine worker | import `modeler_api` |
@@ -99,10 +99,11 @@ CHANGELOG entry.
 | L0 | core | `acceptance.py`, `campaign/map.py`, `campaign/split.py`, `diagnostics.py`, `m15.py`, `reproducibility.py` | acceptance, MAP and MS01_VERSION, data split, diagnostics, ICH M15, reproducibility gate |
 | L3 | core | `modeler_project/audit.py`, `modeler_project/store.py` | audit hash chain, artifact versions and approvals (Part 11) |
 | L5 | core | `engine-worker/r/*.R`, `engine-worker/golden/**`, `engine-worker/Dockerfile`, `.github/workflows/engine-image.yml` | the qualified engine and its golden gate |
-| L6 | core | `compliance/audit.py`, `compliance/signatures.py`, `auth.py`, `services/api/migrations/*.sql` | Postgres audit chain, e-signatures, step-up / DevVerifier, audit-table rules |
+| L2 | core | `modeler_storage/audit.py` (moved unchanged from `modeler_api/compliance/` in phase 3a, same sha256) | Postgres audit chain |
+| L6 | core | `compliance/signatures.py`, `auth.py`, `services/api/migrations/*.sql` | e-signatures, step-up / DevVerifier, audit-table rules |
 | repo | core | `CLAUDE.md`, `docs/validation/requirements.yaml`, `conftest.py`, `.github/workflows/ci.yml`, `tests/architecture/boundaries.toml` | working rules, validation evidence, CI gates, boundary exceptions |
 
-Nothing in L1, L2, L4 or L7 is locked: those are what phases 2–7 refactor. Phases 3 (moves `compliance/audit.py`),
+Apart from the moved audit trail, nothing in L1, L2, L4 or L7 is locked: those are what phases 2–7 refactor. Phases 3 (moved `compliance/audit.py` in 3a),
 4 (`build.py`, `parameter_units.py`, `pksim_paths.py`) and 5 (shrinks `boundaries.toml`) each need the owner's approval.
 
 ## 5. Coupling map — where changes ripple today (2026-10-07 survey)
@@ -126,7 +127,7 @@ Nothing in L1, L2, L4 or L7 is locked: those are what phases 2–7 refactor. Pha
 |---|---|---|
 | 1 | Guardrail tests, web and API-image CI jobs, API Dockerfile installs the locked workspace, this document | stops new violations |
 | 2 | **Done.** One reader per process (§3a), injected; tests use `api_settings` | C2 |
-| 3 | `modeler_storage` (filestore, db, Postgres audit moved unchanged); orchestrator stops importing the API; `CampaignRunner` port | C7, the api ⇄ orchestrator cycle |
+| 3 | **3a done:** `modeler_storage` with the Postgres audit trail (locked, moved unchanged, its own PR). **3b:** filestore and db move in; orchestrator stops importing the API; `CampaignRunner` port | C7, the api ⇄ orchestrator cycle |
 | 4 | Parameter registry in `pbpk_domain` (SME-governed); characterization tests first; `total_cl` fixed in its own science PR with an alias | C1 |
 | 5 | Services out of routers; `deps.py`; deterministic helpers out of the agents package | C3, C4, C9 |
 | 6 | Typed responses for P0–P4; one owner per artifact kind | C5, C6 |

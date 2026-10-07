@@ -128,10 +128,10 @@
       "reason": "the engine qualification gate"
     },
     {
-      "pattern": "services/api/src/modeler_api/compliance/audit.py",
+      "pattern": "packages/storage/src/modeler_storage/audit.py",
       "owner": "core",
-      "layer": "L6",
-      "reason": "hash-chained Postgres audit trail (21 CFR 11.10(e))"
+      "layer": "L2",
+      "reason": "hash-chained Postgres audit trail (21 CFR 11.10(e)); moved unchanged from modeler_api.compliance in phase 3a"
     },
     {
       "pattern": "services/api/src/modeler_api/compliance/signatures.py",
@@ -297,11 +297,15 @@
     },
     {
       "path": "packages/project-model/src/modeler_project/audit.py",
-      "sha256": "2a4c70920c08cf018d1dacdab3509fb56f79f70cda1fbfb5e293138b9b9451f3"
+      "sha256": "b092b9e4ce76719df179c9d5103134e73b55d2e2f1570d2779487f005c12676f"
     },
     {
       "path": "packages/project-model/src/modeler_project/store.py",
       "sha256": "c0fe65b3aaa61d318c4f77d3966e92fce234db5388f31c6b6be8fd5831cac928"
+    },
+    {
+      "path": "packages/storage/src/modeler_storage/audit.py",
+      "sha256": "956009f7fc818ddc7748d9943016b998ce5aa310791279ab009c078ee36e4516"
     },
     {
       "path": "services/api/migrations/0001_core.sql",
@@ -318,10 +322,6 @@
     {
       "path": "services/api/src/modeler_api/auth.py",
       "sha256": "c3b0b6cf1e240ad402fbb8542f8bdd80a3b1f41c72d1fa207a721216a7093c5a"
-    },
-    {
-      "path": "services/api/src/modeler_api/compliance/audit.py",
-      "sha256": "956009f7fc818ddc7748d9943016b998ce5aa310791279ab009c078ee36e4516"
     },
     {
       "path": "services/api/src/modeler_api/compliance/signatures.py",
@@ -457,7 +457,7 @@
     },
     {
       "path": "tests/architecture/boundaries.toml",
-      "sha256": "7c5bad7fbb7ee7e1dc8fd8a728c28b6fa811f66625a34eed49e7b24873fe08eb"
+      "sha256": "e3d2d58254fd61d4768f700fcc4b1a0960d3c4c9258603151390627f51b147c2"
     }
   ]
 }
