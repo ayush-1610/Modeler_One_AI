@@ -6,8 +6,8 @@
 #   docker build --platform linux/amd64 -f services/engine-worker/Dockerfile -t modeler-engine:ospsuite-12.4.4 .
 #
 # R packages come as prebuilt Ubuntu 24.04 (noble) binaries: CRAN packages from Posit Package Manager (rocker's
-# default repo) and OSP packages from the OSP r-universe Linux binary repository. Production builds pin the OSP
-# repository snapshot date and the base image by digest (see docs/ENGINEERING_PLAN.md §9).
+# default repo) and OSP packages from the OSP r-universe Linux binary repository, except ospsuite itself, which is
+# installed from its release commit (below). Production builds pin the base image by digest (docs/ENGINEERING_PLAN.md §9).
 
 ARG R_VERSION=4.6.1
 FROM rocker/r-ver:${R_VERSION}
@@ -36,11 +36,24 @@ RUN apt-get update \
 # The qualified engine (T-01, golden/catalog.json "engine"): ospsuite 12.4.4, PI 2.2.0, rSharp 1.2.2 on .NET 8. The
 # repositories serve their newest builds, so rSharp is replaced by its tagged 1.2.2 release (2.x needs .NET 10), and
 # the build fails if any version differs: an image that is not the qualified engine must never be produced.
+# The r-universe serves only the newest ospsuite (12.4.5 since October 2026, which the version check refused), so
+# ospsuite 12.4.4 is installed from its release commit ("Release 12.4.4", OSPSuite-R #1995): the release ships its
+# .NET and native libraries in inst/lib, so its source installs as is. The source tree's .Rprofile starts renv, which
+# the package's configure step would run; it is removed first. The archive must match the sha256 of the first
+# qualified build (CI run 37609508306, 2026-10-07): a changed archive fails the build instead of installing.
 ARG OSPSUITE_VERSION=12.4.4
+ARG OSPSUITE_COMMIT=4f37d444ef1a299ba72ffc418ee82f049db89dd8
+ARG OSPSUITE_SHA256=87f9fb388b242906d59d2e4a5e6d8d5ae6c2e5932b194f39684553376c9efb05
 ARG PI_VERSION=2.2.0
 ARG RSHARP_VERSION=1.2.2
 RUN Rscript -e "options(repos = c(osp = '${OSP_LINUX_BINARIES}', getOption('repos'))); \
                 install.packages(c('jsonlite', 'digest', 'ospsuite', 'ospsuite.parameteridentification'))" \
+ && curl -fsSL "https://github.com/Open-Systems-Pharmacology/OSPSuite-R/archive/${OSPSUITE_COMMIT}.tar.gz" \
+      -o /tmp/ospsuite.tar.gz \
+ && echo "${OSPSUITE_SHA256}  /tmp/ospsuite.tar.gz" | sha256sum -c - \
+ && mkdir /tmp/ospsuite && tar -xzf /tmp/ospsuite.tar.gz -C /tmp/ospsuite --strip-components=1 \
+ && rm -rf /tmp/ospsuite/.Rprofile /tmp/ospsuite/renv /tmp/ospsuite/renv.lock \
+ && R CMD INSTALL /tmp/ospsuite && rm -rf /tmp/ospsuite /tmp/ospsuite.tar.gz \
  && curl -fsSL "https://github.com/Open-Systems-Pharmacology/rSharp/archive/refs/tags/v${RSHARP_VERSION}.tar.gz" \
       -o /tmp/rSharp.tar.gz \
  && R CMD INSTALL /tmp/rSharp.tar.gz && rm -f /tmp/rSharp.tar.gz \
