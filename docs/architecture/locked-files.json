@@ -329,7 +329,7 @@
     },
     {
       "path": "services/engine-worker/Dockerfile",
-      "sha256": "ec119f0768b08d3e0c58a73e92c556f746e87ab3b5a9ec46cb6ec42929fbb2a9"
+      "sha256": "51c6a8f5f35f0520913c8cf23ccdb3b05a732b96c4914523073454066814898f"
     },
     {
       "path": "services/engine-worker/golden/catalog.json",
