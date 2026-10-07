@@ -60,6 +60,7 @@ testpaths = [
   "services/engine-worker/tests",
   "services/agents/tests",
   "services/orchestrator/tests",
+  "tests/architecture",
 ]
 
 [tool.ruff]

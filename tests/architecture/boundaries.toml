@@ -1,0 +1,312 @@
+# The layer map and today's known exceptions, read by test_import_boundaries.py (docs/ARCHITECTURE_BOUNDARIES.md).
+#
+# LOCKED FILE (docs/architecture/locked-files.json). An exception is added only with the owner's approval, in its own
+# PR with a CHANGELOG entry. When the code is fixed the exception must go: the test fails on an entry that no longer
+# matches anything, so this list can only shrink.
+
+# Import name -> layer. A package imports only itself or a lower layer; two packages on one layer do not import each
+# other. Every workspace member must be placed here.
+[layers]
+pbpk_domain = 0           # L0 science: CPF, builder, MS-01, units
+modeler_contracts = 1     # L1 typed DTOs and ports shared across processes
+modeler_intake = 2        # L2 deterministic file reading
+modeler_project = 3       # L3 pipeline artifacts P0-P4 and their services
+modeler_agents = 4        # L4 the LLM edge
+modeler_orchestrator = 5  # L5 campaign runner
+modeler_engine = 5        # L5 engine worker
+modeler_api = 6           # L6 HTTP
+
+# The one modeler_api module allowed to import each of these packages (future seams; neither exists yet).
+[seams]
+modeler_orchestrator = "modeler_api.execution"
+modeler_agents = "modeler_api.agent_jobs"
+
+# ---- known exceptions (2026-10-07). rule: layer | declared | seam | router | tests ----
+
+[[allow]]
+rule = "layer"
+importer = "modeler_orchestrator.local_runner"
+imported = "modeler_api.filestore"
+reason = "the campaign read model lives in the API package; moves to modeler_storage in phase 3"
+
+[[allow]]
+rule = "layer"
+importer = "modeler_orchestrator.campaign_store"
+imported = "modeler_api.db.repositories"
+reason = "database repositories live in the API package; move to modeler_storage in phase 3"
+
+[[allow]]
+rule = "layer"
+importer = "modeler_orchestrator.campaign_store"
+imported = "modeler_api.db.session"
+reason = "database session lives in the API package; moves to modeler_storage in phase 3"
+
+[[allow]]
+rule = "layer"
+importer = "modeler_orchestrator.local_runner"
+imported = "modeler_engine.runner"
+reason = "the local runner calls the engine runner in-process; goes behind an engine port in modeler_contracts"
+
+[[allow]]
+rule = "declared"
+importer = "modeler_api"
+imported = "modeler_intake"
+reason = "used by client_api and the doctor without a declared dependency; declared in phase 5"
+
+[[allow]]
+rule = "declared"
+importer = "modeler_api"
+imported = "modeler_orchestrator"
+reason = "lazy import (a declared one would be a package cycle); replaced by a CampaignRunner port in phase 3"
+
+[[allow]]
+rule = "declared"
+importer = "modeler_agents"
+imported = "pbpk_domain"
+reason = "reached through modeler_intake / modeler_project; declared in phase 5"
+
+[[allow]]
+rule = "declared"
+importer = "modeler_orchestrator"
+imported = "modeler_engine"
+reason = "lazy import in local_runner; goes behind an engine port with the layer exception above"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.campaign_api"
+imported = "modeler_orchestrator.local_runner"
+reason = "launches a local campaign; moves to modeler_api.execution in phase 3"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.escalations"
+imported = "modeler_orchestrator.feedback"
+reason = "decision digest for a signed escalation; moves to modeler_api.execution in phase 3"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.escalations"
+imported = "modeler_orchestrator.local_runner"
+reason = "resolves an escalation on the local runner; moves to modeler_api.execution in phase 3"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.brief_api"
+imported = "modeler_agents.llm"
+reason = "A1 extraction job; agent jobs move to modeler_api.agent_jobs in phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.brief_api"
+imported = "modeler_agents.proposal_intake"
+reason = "A1 extraction job; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.brief_api"
+imported = "modeler_agents.run_store"
+reason = "agent run records; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.client_api"
+imported = "modeler_agents.data_mapping"
+reason = "deterministic recipe review imported from the agents package; moves to modeler_intake in phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.client_api"
+imported = "modeler_agents.llm"
+reason = "A3 triage job; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.client_api"
+imported = "modeler_agents.run_store"
+reason = "agent run records; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.client_api"
+imported = "modeler_agents.sheet_triage"
+reason = "A3 triage job; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.evidence_api"
+imported = "modeler_agents.citations"
+reason = "deterministic quote check imported from the agents package; moves to modeler_project in phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.evidence_api"
+imported = "modeler_agents.evidence_agent"
+reason = "A2 research job; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.evidence_api"
+imported = "modeler_agents.llm"
+reason = "A2 research job; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.evidence_api"
+imported = "modeler_agents.observed_data_agent"
+reason = "A4 observed-data job; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.evidence_api"
+imported = "modeler_agents.run_store"
+reason = "agent run records; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.evidence_api"
+imported = "modeler_agents.sources"
+reason = "literature source lookups; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.plan_api"
+imported = "modeler_agents.llm"
+reason = "A5 planning job; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.plan_api"
+imported = "modeler_agents.planning_agent"
+reason = "A5 planning job; phase 5"
+
+[[allow]]
+rule = "seam"
+importer = "modeler_api.plan_api"
+imported = "modeler_agents.run_store"
+reason = "agent run records; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.brief_api"
+imported = "modeler_api.project_api"
+reason = "auth dependencies and workspace_for live in the project router; move to modeler_api.deps in phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.brief_api"
+imported = "modeler_api.requirements_api"
+reason = "data-plan derivation lives in a router; moves to a modeler_project service in phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.client_api"
+imported = "modeler_api.brief_api"
+reason = "agents_status lives in the brief router; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.client_api"
+imported = "modeler_api.project_api"
+reason = "auth dependencies, workspace_for, redaction; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.evidence_api"
+imported = "modeler_api.brief_api"
+reason = "agents_status lives in the brief router; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.evidence_api"
+imported = "modeler_api.project_api"
+reason = "auth dependencies, workspace_for, redaction; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.inputs_api"
+imported = "modeler_api.project_api"
+reason = "auth dependencies and workspace_for; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.inputs_api"
+imported = "modeler_api.write_api"
+reason = "the StudyUpload request model lives in the write router; typed models move out in phase 6"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.plan_api"
+imported = "modeler_api.brief_api"
+reason = "agents_status lives in the brief router; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.plan_api"
+imported = "modeler_api.project_api"
+reason = "auth dependencies, workspace_for, blinding; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.plan_api"
+imported = "modeler_api.write_api"
+reason = "private _observed_from_studies of the write router; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.read_api"
+imported = "modeler_api.project_api"
+reason = "the project store dependency and blinding; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.requirements_api"
+imported = "modeler_api.project_api"
+reason = "auth dependencies and workspace_for; phase 5"
+
+[[allow]]
+rule = "router"
+importer = "modeler_api.write_api"
+imported = "modeler_api.read_api"
+reason = "the project CPF view lives in the read router; moves to a service in phase 5"
+
+[[allow]]
+rule = "tests"
+importer = "packages/pbpk-domain/tests/test_cpf.py"
+imported = "modeler_orchestrator"
+reason = "a CPF test reaches into the orchestrator's _fittable_candidates; moves to the orchestrator tests in phase 5"
+
+[[allow]]
+rule = "tests"
+importer = "services/engine-worker/tests/test_objectstore.py"
+imported = "modeler_orchestrator"
+reason = "the S3 object store lives in the orchestrator; moves to modeler_storage in phase 3"
+
+[[allow]]
+rule = "tests"
+importer = "services/orchestrator/tests/test_feedback.py"
+imported = "modeler_api"
+reason = "integration test through the API; phase 3"
+
+[[allow]]
+rule = "tests"
+importer = "services/orchestrator/tests/test_guided_flow_integration.py"
+imported = "modeler_api"
+reason = "integration test through the API; phase 3"
+
+[[allow]]
+rule = "tests"
+importer = "services/orchestrator/tests/test_local_runner.py"
+imported = "modeler_api"
+reason = "the local runner writes the API's read model; phase 3"
+
+[[allow]]
+rule = "tests"
+importer = "services/orchestrator/tests/test_model_system_campaign.py"
+imported = "modeler_api"
+reason = "integration test through the API; phase 3"
+
+[[allow]]
+rule = "tests"
+importer = "services/orchestrator/tests/test_nonlinear.py"
+imported = "modeler_api"
+reason = "the local runner writes the API's read model; phase 3"

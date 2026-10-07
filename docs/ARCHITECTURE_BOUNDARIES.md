@@ -1,0 +1,118 @@
+# Architecture boundaries — layers, rules, locked files and the guardrails that enforce them
+
+**Status: phase 1 in force (2026-10-07).** Changes to agents, the pipeline pages and the API repeatedly broke code that
+was not part of the change: the T-56 kit broke twice from P4 evidence checks, a study "purpose" broke the MS-01 study
+record, a merged API response showed a count as `[object Object]`, an id outside the builder's vocabulary passed S0
+while the model had no clearance, and a campaign file was read mid-write. The cause is structural: nothing enforced
+which package may use which, the parameter-id vocabulary is copied into many modules, and responses are untyped. This
+document draws the boundaries; `tests/architecture/` enforces them in `make test` and CI.
+
+## 1. Layers
+
+Imports point down only. Two packages on one layer do not import each other.
+
+| Layer | Package (import name) | Holds | Must not |
+|---|---|---|---|
+| L0 | `pbpk_domain` | Science: CPF, builder, MS-01 stages, units, rulesets, acceptance; later the parameter registry | import anything first-party |
+| L1 | `modeler_contracts` | Typed DTOs and ports shared across processes (runs, campaigns; later settings schema, `CampaignRunner`) | hold logic |
+| L2 | `modeler_intake` | Deterministic file reading, recipes and their vocabulary | call an LLM |
+| L2 | `modeler_storage` *(phase 3, new)* | The campaign read model and database repositories, moved out of the API | |
+| L3 | `modeler_project` | Pipeline artifacts P0–P4 (`FileProjectStore`, audit), one service per artifact kind | know about HTTP |
+| L4 | `modeler_agents` | The LLM edge only: agents propose, code and people decide | hold deterministic rules others need |
+| L5 | `modeler_orchestrator`, `modeler_engine` | Campaign runner; engine worker | import `modeler_api` |
+| L6 | `modeler_api` | HTTP only: auth dependencies, request → service, response | hold business logic; routers import routers |
+| L7 | `apps/web` | Pages, a generated API client and typed hooks *(phase 7)* | hand-write API types |
+
+## 2. Rules
+
+| Rule | Statement | Enforced by |
+|---|---|---|
+| B1 | One parameter vocabulary: every CPF id with placement, value kind, storage unit, bounds, S0 role, PK-Sim name | phase 1: `test_parameter_vocabulary.py` keeps today's copies consistent; phase 4: the registry |
+| B2 | Typed contracts at every process edge: response models per endpoint, generated web types, artifact content models | phase 1: `test_openapi_contract.py` (any contract change is visible); phases 6–7 |
+| B3 | One writer per artifact kind; nobody else reads `version.content["…"]` | phase 6 |
+| B4 | No upward or sideways imports; the API reaches the orchestrator and the agents through one seam module each; routers do not import routers | phase 1: `test_import_boundaries.py` |
+| B5 | Configuration read in one place, injected (never patched in tests) | phase 2 |
+| B6 | Frontend seams: one API client, `useResource` / `useMutation` with rail refresh, CSS per feature, phase list from the API | phase 7 |
+| B7 | Tests use public surfaces: contract tests per boundary, e2e by `data-testid` / role, not wording | phase 1 (package tests obey the layer rule); phases 5–7 |
+
+## 3. Guardrails (phase 1) — what fails, and what to do
+
+All are plain-Python tests under `tests/architecture/`, tagged `T-25`, run by `make test` and CI. No new dependencies.
+
+| Test | Fails when | Then |
+|---|---|---|
+| `test_import_boundaries.py` | a module imports upward or sideways (lazy imports count); imports a workspace package its `pyproject.toml` does not declare; an API module other than the seam imports the orchestrator / agents; a router imports a router; a package's tests import a higher layer; an exception in `boundaries.toml` no longer occurs | move the code down a layer or behind a port. An exception needs the owner's approval (`boundaries.toml` is locked). Remove an exception the moment it is fixed |
+| `test_openapi_contract.py` | the API's OpenAPI document differs from `docs/api/openapi.json`; the message lists the added / removed / changed operations and schemas | if intended: `UPDATE_SNAPSHOTS=1 uv run pytest tests/architecture/test_openapi_contract.py` and a CHANGELOG entry saying what changed for clients |
+| `test_parameter_vocabulary.py` | an id has a storage unit but no placement; an id S0, the to-do list or the bounds table advertise is not placeable; PK-Sim compound parameters are not model inputs; the reference-elimination sets disagree | add the id to every list, or (phase 4) to the registry. Known drift is `xfail(strict=True)`: fixing it turns the test red until the mark goes |
+| `test_locked_files.py` | a locked file's bytes change, a new file appears under a locked pattern, or one disappears | only with the owner's approval, in its own PR, with a CHANGELOG entry; then `UPDATE_LOCKED=1 uv run pytest tests/architecture/test_locked_files.py` |
+
+CI also builds the web app (`web`: `npm ci`, typecheck, production build) and the API image (`api-image`: build,
+imports, `/health`), and the secret scan reads `.gitleaks.toml` (default rules; a dotted CPF id is not a secret).
+
+### Exceptions recorded on 2026-10-07 (`tests/architecture/boundaries.toml`, 48)
+
+| Rule | Count | What | Removed in |
+|---|---|---|---|
+| layer | 4 | `modeler_orchestrator.local_runner` / `campaign_store` → `modeler_api.filestore`, `modeler_api.db.*`; `local_runner` → `modeler_engine.runner` | phase 3 |
+| declared | 4 | api → intake, api → orchestrator (lazy), agents → pbpk_domain, orchestrator → engine | phases 3, 5 |
+| seam | 19 | `campaign_api`, `escalations` → orchestrator; `brief_api`, `client_api`, `evidence_api`, `plan_api` → agents (incl. deterministic `citations`, `data_mapping`) | phases 3, 5 |
+| router | 14 | every router → `project_api` (auth dependencies, `workspace_for`, redaction, blinding); → `brief_api.agents_status`; `inputs_api`, `plan_api` → `write_api`; `write_api` → `read_api`; `brief_api` → `requirements_api` | phase 5 |
+| tests | 7 | `pbpk-domain/tests/test_cpf.py` and `engine-worker/tests/test_objectstore.py` → orchestrator; 5 orchestrator integration tests → api | phases 3, 5 |
+
+### Known vocabulary drift (strict xfail, science fix in phase 4 with the owner's approval)
+- `elim.hepatic.total_cl` converts to `ml/min/kg` but nothing places it; S0's message still offers it. PK-Sim's
+  `LiverClearance` is bound to `elim.hepatic.total.plasma_clearance`, which in turn has no storage-unit conversion.
+- `elim.ehc_fraction` converts (dimensionless) but nothing places it.
+
+## 4. Locked files (approved by the owner 2026-10-07)
+
+Listed with their SHA-256 in `docs/architecture/locked-files.json`. **SME**: changes only with the owner's explicit
+approval, stays UNVERIFIED, bumps its version. **core**: changes only in its own PR with the owner's approval and a
+CHANGELOG entry.
+
+| Layer | Owner | Files | Why |
+|---|---|---|---|
+| L0 | SME | `pbpk_domain/rulesets/*.yaml` (4) | acceptance criteria, diagnostics, dissolution similarity, DDI screening |
+| L0 | SME | `pbpk_domain/requirements/*.yaml` (6) | data-plan templates: what an application must have |
+| repo | SME | `docs/PBPK_MODELING_WORKFLOW.md` | MS-01 |
+| L0 | core | `cpf/models.py`, `cpf/build.py`, `snapshot/builder.py`, `reference/osp_import.py`, `pksim_paths.py`, `parameter_units.py` | CPF schema, builder, harvested PK-Sim names, units |
+| L0 | core | `acceptance.py`, `campaign/map.py`, `campaign/split.py`, `diagnostics.py`, `m15.py`, `reproducibility.py` | acceptance, MAP and MS01_VERSION, data split, diagnostics, ICH M15, reproducibility gate |
+| L3 | core | `modeler_project/audit.py`, `modeler_project/store.py` | audit hash chain, artifact versions and approvals (Part 11) |
+| L5 | core | `engine-worker/r/*.R`, `engine-worker/golden/**`, `engine-worker/Dockerfile`, `.github/workflows/engine-image.yml` | the qualified engine and its golden gate |
+| L6 | core | `compliance/audit.py`, `compliance/signatures.py`, `auth.py`, `services/api/migrations/*.sql` | Postgres audit chain, e-signatures, step-up / DevVerifier, audit-table rules |
+| repo | core | `CLAUDE.md`, `docs/validation/requirements.yaml`, `conftest.py`, `.github/workflows/ci.yml`, `tests/architecture/boundaries.toml` | working rules, validation evidence, CI gates, boundary exceptions |
+
+Nothing in L1, L2, L4 or L7 is locked: those are what phases 2–7 refactor. Phases 3 (moves `compliance/audit.py`),
+4 (`build.py`, `parameter_units.py`, `pksim_paths.py`) and 5 (shrinks `boundaries.toml`) each need the owner's approval.
+
+## 5. Coupling map — where changes ripple today (2026-10-07 survey)
+
+| # | Coupling | Where | Phase |
+|---|---|---|---|
+| C1 | Parameter ids in 12+ places | `cpf/build.py`, `cpf/completeness.py`, `parameter_units.py`, `pksim_paths.py`, `cpf/process_bindings.py`, `modeler_project/inputs.py`, `modeler_project/evidence.py`, `plan_api.py`, `templates_api.py`, requirement YAMLs, the A2 prompt, `deploy/proof/run_t56.py` | 4 |
+| C2 | Settings and environment read in ~20 modules; tests patch `get_settings` per router | `main.py` reads settings at import; `MODELER_OBJECT_STORE_URI` defaults differ between orchestrator and API | 2 |
+| C3 | `project_api` is a hub; routers import routers | see the router exceptions above | 5 |
+| C4 | Business logic in routers | agent jobs (`run_extraction`, `run_triage_job`, `run_research_job`, `run_planning_job`), MAP signing, data-plan derivation, CPF publishing | 5 |
+| C5 | Untyped, merged responses | `envelope({**preview, **_view(ws)})` in `client_api`; `escalations` without an envelope | 6 |
+| C6 | Artifact content without an owner | CPF kind: 3 ids, 3 schemas, 2 writers; MAP written by a router, its signature read by `blinding` | 6 |
+| C7 | Two persistence models on `MODELER_READ_ROOT`; orchestrator imports the API's store | `FileProjectStore` + `modeler_api.filestore`; e2e writes `campaigns.json` | 3 |
+| C8 | Process-local job state | `_RUNNING` sets in four routers; `_LOCK` in `store.py`, `audit.py`, `run_store.py` | 8 |
+| C9 | Recipe constant keys ×4 | `recipe.py`, `apply.py`, `data_mapping.ConstantKey`, `sheet_form.py` | 5 |
+| C10 | Tests on internals and wording | `test_cpf.py` → orchestrator internals; `match=` on other packages' messages; the T-56 kit on ~20 endpoints | 5–7 |
+
+## 6. Phases (each one PR to `main`, behaviour identical, everything green)
+
+| Phase | What | Removes |
+|---|---|---|
+| 1 | Guardrail tests, web and API-image CI jobs, API Dockerfile installs the locked workspace, this document | stops new violations |
+| 2 | One settings module, injected; tests override the dependency | C2 |
+| 3 | `modeler_storage` (filestore, db, Postgres audit moved unchanged); orchestrator stops importing the API; `CampaignRunner` port | C7, the api ⇄ orchestrator cycle |
+| 4 | Parameter registry in `pbpk_domain` (SME-governed); characterization tests first; `total_cl` fixed in its own science PR with an alias | C1 |
+| 5 | Services out of routers; `deps.py`; deterministic helpers out of the agents package | C3, C4, C9 |
+| 6 | Typed responses for P0–P4; one owner per artifact kind | C5, C6 |
+| 7 | Frontend seams (`openapi-typescript`, asked first) | B6 |
+| 8 | Job state out of the process, when a second worker is planned | C8 |
+
+Never in these phases: a big-bang rewrite; renaming artifact kinds, ids or stored JSON keys without a versioned
+migration (the audit chain hashes content); a change to SME-governed content or MS-01 semantics without approval;
+reordering audit or approval writes. `deploy/proof/run_t56.py` and the e2e specs keep passing unchanged through phase 5.

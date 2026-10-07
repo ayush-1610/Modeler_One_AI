@@ -28,6 +28,18 @@ Part 11), with simulations and parameter identification finishing within an hour
 - PK-Sim snapshots run only on **Linux** (macOS: unsupported / segfaults). Engine hosts: the server, or the Mac's
   Docker Desktop with the image from `services/engine-worker/Dockerfile`.
 
+## Boundaries and locked files
+- Layers and rules: `docs/ARCHITECTURE_BOUNDARIES.md`. Imports point down only (L0 `pbpk_domain` … L6 `modeler_api`,
+  L7 web); routers do not import routers. `tests/architecture/` enforces this in `make test` and CI.
+- **Locked files** — listed and hashed in `docs/architecture/locked-files.json` (approved 2026-10-07): the rulesets,
+  requirement templates and MS-01 (SME-governed), the CPF schema and builder, harvested PK-Sim names and units,
+  acceptance / MAP / split / diagnostics / M15 / reproducibility, both audit chains, signatures, auth, migrations, the
+  engine scripts, golden files and image, CI, the boundary exceptions and this file. Change one only in its own PR
+  with the owner's approval and a CHANGELOG entry, then refresh the hashes
+  (`UPDATE_LOCKED=1 uv run pytest tests/architecture/test_locked_files.py`).
+- Never loosen a guardrail to make a change pass: a new boundary exception needs the owner's approval; an API
+  contract change updates `docs/api/openapi.json` and the CHANGELOG in the same commit.
+
 ## Branches — one integration branch
 - **`main` is the single integration branch** (GitHub `ayush-1610/Modeler_One_AI`). Start every session or worktree
   from `origin/main`, merge your work back into `main` (fast-forward or merge commit, never a force-push), and push

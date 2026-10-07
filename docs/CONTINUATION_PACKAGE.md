@@ -262,6 +262,7 @@ exclusion decision (D5). This cloud session cannot reach the server (LAN only, n
 | Object store | `file://` — used. MinIO presigned I/O — not built |
 | Engine | Real PK-Sim on the server, and on the Mac through Docker (`deploy/dev/docker_engine.sh`, image from `services/engine-worker/Dockerfile`; set `MODELER_ENGINE_COMMAND="bash <repo>/deploy/dev/docker_engine.sh"`). `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
 | Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog, installed 2026-09-24) / Tailscale (installed userspace, awaiting the owner's login). Redeploy from the Mac: `bash deploy/dev/deploy_to_server.sh` |
+| Architecture | Layers L0 `pbpk_domain` … L6 `modeler_api`, L7 web, enforced by `tests/architecture/` (imports, API contract snapshot, parameter vocabulary, locked-file hashes) — see `docs/ARCHITECTURE_BOUNDARIES.md`. Phase 1 of 8 done (2026-10-07); 48 recorded boundary exceptions to remove in phases 3–5; locked files change only with the owner's approval |
 | Web | Dark design system, project wizard (starting points from `GET /templates`: the published Dapagliflozin model with real data, or the labelled illustrative quick check), data intake, campaign monitor with fold-error gauge and engine label (red banner for a software-fixture run), review inbox (feedback decisions with their diagnosis), start-up pipeline pages (brief, requirements, evidence, client data, inputs, plan canvas), monitor with development history, influence map and feedback timeline. No sample-data fallback: pages state the real problem. Playwright flows in `apps/web/e2e` (14, pass on the stub engine; the PK-Sim run of the same flows is pending) |
 
 ### 4.3 Task status (specs in §2)
@@ -284,6 +285,7 @@ exclusion decision (D5). This cloud session cannot reach the server (LAN only, n
 | T-31 | Not started — next phase after S0 → S7 |
 | Start-up pipeline T-40 → T-50 | Done in software (plan `2026-09-25-project-startup-pipeline.md`); A1–A5 agents run with scripted models in tests; since 2026-10-06 they use the owner's in-house model (LiteLLM proxy → Ollama qwen3-coder 30B, alias `qwen-coder`) with Ollama web search as a tool — check it on the server with `python -m modeler_agents.llm_check --search` (the cloud container reaches neither); D-14 deviations and D-15 blinding built |
 | Non-linear backend T-51 → T-55 | Done in software; Temporal parity (SJ, feedback cycles) and A6 feedback proposals not built; PK-Sim acceptances pending |
+| Architecture refactor (phases 1–8) | Phase 1 done (guardrails, web and API-image CI jobs, API Dockerfile, secret-scan fix). Next: phase 2, one settings module (`docs/ARCHITECTURE_BOUNDARIES.md` §6) |
 | T-56 | Kit built and checked in software (`deploy/proof/run_t56.py`, README there): P0 → P5 from a mock proposal with the published model's cited values and datasets, the owner's acceptances, the MAP signed in the UI, then start / watch / trace. **Next: run it on the server's PK-Sim** and keep `trace.md` with the package |
 
 ### 4.4 How to run
