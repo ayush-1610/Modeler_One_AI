@@ -153,10 +153,10 @@ def campaign(model: str, mode: str, out: Path, *, system: bool = False) -> dict:
 
     from modeler_api import write_api
     from modeler_api.auth import get_verifier
-    from modeler_api.filestore import FileReadStore, FileWriteStore
     from modeler_api.main import app
     from modeler_contracts.runs import CAMPAIGN_STAGES, CampaignRequest
     from modeler_orchestrator.local_runner import run_campaign
+    from modeler_storage.filestore import FileReadStore, FileWriteStore
     from pbpk_domain.reference.refit import refit_cpf
 
     compounds: dict = {}

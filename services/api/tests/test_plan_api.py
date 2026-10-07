@@ -12,7 +12,6 @@ from fastapi.testclient import TestClient
 
 from modeler_api import project_api
 from modeler_api.auth import get_verifier
-from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.main import app
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.brief import empty_brief
@@ -22,6 +21,7 @@ from modeler_project.evidence import EvidenceItem, EvidenceState, SourceRef, Sou
 from modeler_project.evidence_register import decide, propose
 from modeler_project.inputs import accept_inputs, assemble
 from modeler_project.requirements import derive
+from modeler_storage.filestore import FileReadStore, FileWriteStore
 
 pytestmark = pytest.mark.req("T-50")
 H = {"Authorization": "Bearer t"}

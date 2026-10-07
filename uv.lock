@@ -1066,6 +1066,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "modeler-agents" },
     { name = "modeler-contracts" },
+    { name = "modeler-intake" },
+    { name = "modeler-orchestrator" },
     { name = "modeler-project" },
     { name = "modeler-storage" },
     { name = "pbpk-domain" },
@@ -1085,6 +1087,8 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "modeler-agents", editable = "services/agents" },
     { name = "modeler-contracts", editable = "packages/run-contracts" },
+    { name = "modeler-intake", editable = "packages/data-intake" },
+    { name = "modeler-orchestrator", editable = "services/orchestrator" },
     { name = "modeler-project", editable = "packages/project-model" },
     { name = "modeler-storage", editable = "packages/storage" },
     { name = "pbpk-domain", editable = "packages/pbpk-domain" },
@@ -1199,8 +1203,8 @@ source = { editable = "services/orchestrator" }
 dependencies = [
     { name = "boto3" },
     { name = "modeler-agents" },
-    { name = "modeler-api" },
     { name = "modeler-contracts" },
+    { name = "modeler-storage" },
     { name = "pbpk-domain" },
     { name = "pypandoc-binary" },
     { name = "temporalio" },
@@ -1211,8 +1215,8 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.35" },
     { name = "modeler-agents", editable = "services/agents" },
-    { name = "modeler-api", editable = "services/api" },
     { name = "modeler-contracts", editable = "packages/run-contracts" },
+    { name = "modeler-storage", editable = "packages/storage" },
     { name = "pbpk-domain", editable = "packages/pbpk-domain" },
     { name = "pypandoc-binary", specifier = ">=1.17" },
     { name = "temporalio", specifier = ">=1.7" },
@@ -1247,11 +1251,17 @@ name = "modeler-storage"
 version = "0.1.0"
 source = { editable = "packages/storage" }
 dependencies = [
+    { name = "asyncpg" },
+    { name = "pbpk-domain" },
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.30" }]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.29" },
+    { name = "pbpk-domain", editable = "packages/pbpk-domain" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.30" },
+]
 
 [[package]]
 name = "nexus-rpc"

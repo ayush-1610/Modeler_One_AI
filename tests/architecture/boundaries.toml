@@ -33,43 +33,13 @@ readers = [
   "modeler_engine.runner",      # passes chosen variables through to the engine subprocess
 ]
 
-# ---- known exceptions (2026-10-07). rule: layer | declared | seam | router | tests ----
-
-[[allow]]
-rule = "layer"
-importer = "modeler_orchestrator.local_runner"
-imported = "modeler_api.filestore"
-reason = "the campaign read model lives in the API package; moves to modeler_storage in phase 3"
-
-[[allow]]
-rule = "layer"
-importer = "modeler_orchestrator.campaign_store"
-imported = "modeler_api.db.repositories"
-reason = "database repositories live in the API package; move to modeler_storage in phase 3"
-
-[[allow]]
-rule = "layer"
-importer = "modeler_orchestrator.campaign_store"
-imported = "modeler_api.db.session"
-reason = "database session lives in the API package; moves to modeler_storage in phase 3"
+# ---- known exceptions (2026-10-07; 13 removed by phase 3b). rule: layer | declared | seam | router | tests ----
 
 [[allow]]
 rule = "layer"
 importer = "modeler_orchestrator.local_runner"
 imported = "modeler_engine.runner"
 reason = "the local runner calls the engine runner in-process; goes behind an engine port in modeler_contracts"
-
-[[allow]]
-rule = "declared"
-importer = "modeler_api"
-imported = "modeler_intake"
-reason = "used by client_api and the doctor without a declared dependency; declared in phase 5"
-
-[[allow]]
-rule = "declared"
-importer = "modeler_api"
-imported = "modeler_orchestrator"
-reason = "lazy import (a declared one would be a package cycle); replaced by a CampaignRunner port in phase 3"
 
 [[allow]]
 rule = "declared"
@@ -82,24 +52,6 @@ rule = "declared"
 importer = "modeler_orchestrator"
 imported = "modeler_engine"
 reason = "lazy import in local_runner; goes behind an engine port with the layer exception above"
-
-[[allow]]
-rule = "seam"
-importer = "modeler_api.campaign_api"
-imported = "modeler_orchestrator.local_runner"
-reason = "launches a local campaign; moves to modeler_api.execution in phase 3"
-
-[[allow]]
-rule = "seam"
-importer = "modeler_api.escalations"
-imported = "modeler_orchestrator.feedback"
-reason = "decision digest for a signed escalation; moves to modeler_api.execution in phase 3"
-
-[[allow]]
-rule = "seam"
-importer = "modeler_api.escalations"
-imported = "modeler_orchestrator.local_runner"
-reason = "resolves an escalation on the local runner; moves to modeler_api.execution in phase 3"
 
 [[allow]]
 rule = "seam"
@@ -291,34 +243,5 @@ reason = "a CPF test reaches into the orchestrator's _fittable_candidates; moves
 rule = "tests"
 importer = "services/engine-worker/tests/test_objectstore.py"
 imported = "modeler_orchestrator"
-reason = "the S3 object store lives in the orchestrator; moves to modeler_storage in phase 3"
+reason = "the S3 object store lives in the orchestrator; moves with the engine port (after phase 3)"
 
-[[allow]]
-rule = "tests"
-importer = "services/orchestrator/tests/test_feedback.py"
-imported = "modeler_api"
-reason = "integration test through the API; phase 3"
-
-[[allow]]
-rule = "tests"
-importer = "services/orchestrator/tests/test_guided_flow_integration.py"
-imported = "modeler_api"
-reason = "integration test through the API; phase 3"
-
-[[allow]]
-rule = "tests"
-importer = "services/orchestrator/tests/test_local_runner.py"
-imported = "modeler_api"
-reason = "the local runner writes the API's read model; phase 3"
-
-[[allow]]
-rule = "tests"
-importer = "services/orchestrator/tests/test_model_system_campaign.py"
-imported = "modeler_api"
-reason = "integration test through the API; phase 3"
-
-[[allow]]
-rule = "tests"
-importer = "services/orchestrator/tests/test_nonlinear.py"
-imported = "modeler_api"
-reason = "the local runner writes the API's read model; phase 3"

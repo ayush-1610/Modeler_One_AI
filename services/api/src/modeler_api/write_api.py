@@ -20,10 +20,10 @@ from pydantic import BaseModel, Field, ValidationError
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
-from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.read_api import project_cpf_view
 from modeler_api.responses import envelope
 from modeler_contracts.runs import CAMPAIGN_STAGES
+from modeler_storage.filestore import FileReadStore, FileWriteStore
 from pbpk_domain.cpf.models import CPF
 from pbpk_domain.data_origin import DataOrigin
 from pbpk_domain.m15 import Rating

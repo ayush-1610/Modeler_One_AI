@@ -34,7 +34,6 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from modeler_api.filestore import FileWriteStore, WriteStore
 from modeler_contracts.runs import (
     CampaignOutcome,
     CampaignRequest,
@@ -67,6 +66,7 @@ from modeler_orchestrator.fitting_activities import assess_round as assess_fit_r
 from modeler_orchestrator.fitting_activities import plan_jobs
 from modeler_orchestrator.history import Ledger, influence_map, study_verdict
 from modeler_orchestrator.memo import model_set
+from modeler_storage.filestore import FileWriteStore, WriteStore
 from pbpk_domain.campaign.map import FIT_STAGES
 from pbpk_domain.data_origin import real_data_summary, signature_refusal
 from pbpk_domain.fitting import BudgetTooSmallError
@@ -1117,7 +1117,7 @@ def resolve_escalation(
     caller returns immediately and the monitor fills in live. Raises LookupError/ValueError for a campaign that
     is not there or has no open escalation at that stage.
     """
-    from modeler_api.filestore import FileReadStore
+    from modeler_storage.filestore import FileReadStore
 
     if action not in ESCALATION_ACTIONS:
         raise ValueError(f"unknown escalation action {action!r}; expected one of {', '.join(ESCALATION_ACTIONS)}")

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_orchestrator.local_runner import CampaignArtifactWriter
+from modeler_storage.filestore import FileReadStore, FileWriteStore
 
 from .scripted import ScriptedExecutor, patch_planning, request
 

@@ -12,10 +12,10 @@ from urllib.parse import unquote, urlparse
 
 import pytest
 
-from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_orchestrator import local_runner
 from modeler_orchestrator.feedback import check_learn, diagnose, learn_stage
 from modeler_orchestrator.local_runner import CampaignArtifactWriter, check_feedback, resolve_escalation
+from modeler_storage.filestore import FileReadStore, FileWriteStore
 from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.split import FoodState, FormulationKind, QuestionOfInterest, Route, StudyRecord, split_studies
 from pbpk_domain.cpf import CPF, FitPolicy, ParameterRecord, ParameterStatus, Plausibility, Provenance

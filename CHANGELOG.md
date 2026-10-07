@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — storage out of the API; the API and the orchestrator no longer import each other (architecture phase 3b)
+- **Why:** the orchestrator imported the API package for its file read model and database repositories (declared as a
+  dependency), while the API lazily imported the orchestrator to start and resolve campaigns: neither could change
+  alone, and storage changes needed edits in both (coupling C7).
+- **Moved unchanged** into `modeler_storage` (L2): `filestore` (campaign/project/CPF read model), `db` (models,
+  repositories, session) and `tenancy`; only import paths changed. All importers in the repository were updated (API
+  routers and tests, orchestrator, `deploy/reference/run_reference.py`); no compatibility shims.
+- **Port:** `modeler_contracts.ports.CampaignRunner` names the five operations the API needs (start, the signature gate,
+  the feedback guardrails, the decision digest, resolve); `modeler_orchestrator.campaign_runner.LocalCampaignRunner`
+  forwards to the existing functions; the API obtains it only in `modeler_api.execution` (`runner: RunnerDep`), and
+  tests override `get_campaign_runner` instead of patching `_launch_local_campaign` (removed).
+- **Packages:** the orchestrator depends on `modeler-storage` instead of `modeler-api`; the API now declares
+  `modeler-storage`, `modeler-orchestrator` and `modeler-intake` (it already imported them). The two whole-stack tests
+  (`test_guided_flow_integration`, `test_model_system_campaign`) moved to the API's tests.
+- **Guardrails:** 13 recorded boundary exceptions are gone (48 → 35); the ratchet test confirms none is left stale.
+- Impact: no behaviour change (same code paths, same files and tables, OpenAPI snapshot unchanged).
+
 ### Changed — the Postgres audit trail moves to the new storage package (architecture phase 3a)
 - **What:** new workspace package `modeler_storage` (L2, `packages/storage`, depends on SQLAlchemy only). The Postgres
   audit trail `modeler_api/compliance/audit.py` moves there as `modeler_storage/audit.py`, **byte for byte**: its

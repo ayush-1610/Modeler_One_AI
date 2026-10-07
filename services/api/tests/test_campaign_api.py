@@ -87,7 +87,7 @@ def test_viewer_role_is_forbidden():
 # --- start campaign: execution backend ------------------------------------------------------------
 
 
-from modeler_api import campaign_api
+from modeler_api.execution import get_campaign_runner
 
 CAMPAIGN_URL = "/api/v1/projects/proj-1/campaigns"
 
@@ -98,13 +98,20 @@ def _start_body() -> dict:
             "question": "predict exposure", "model_risk": "medium"}
 
 
-def test_start_campaign_local_backend_launches_runner(monkeypatch, api_settings):
-    launched = {}
+class _RecordingRunner:
+    """A CampaignRunner (modeler_contracts.ports) that records the start instead of running a campaign."""
 
-    def fake_launch(request, *, read_root, project, question, model_risk):
-        launched.update(campaign_id=request.campaign_id, read_root=read_root, project=project)
+    def __init__(self):
+        self.started = {}
 
-    monkeypatch.setattr(campaign_api, "_launch_local_campaign", fake_launch)
+    def start(self, request, *, read_root, project, question, model_risk):
+        self.started.update(campaign_id=request.campaign_id, read_root=read_root, project=project)
+
+
+def test_start_campaign_local_backend_launches_runner(api_settings):
+    runner = _RecordingRunner()
+    app.dependency_overrides[get_campaign_runner] = lambda: runner
+    launched = runner.started
     api_settings(execution_backend="local", read_root="/tmp/read-root", temporal_address=None)
 
     r = client_with(claims()).post(CAMPAIGN_URL, json=_start_body(), headers=_auth())

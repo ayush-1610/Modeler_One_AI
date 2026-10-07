@@ -13,8 +13,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modeler_api.db.models import Campaign, CampaignRound, CampaignStage, Deviation, Escalation
 from modeler_storage.audit import append_audit_event
+from modeler_storage.db.models import Campaign, CampaignRound, CampaignStage, Deviation, Escalation
 
 
 def _utcnow() -> datetime.datetime:

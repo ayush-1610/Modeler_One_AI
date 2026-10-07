@@ -148,7 +148,7 @@ SIGN_URL = "/api/v1/campaigns/camp-1/stages/S6/escalation:resolve"
 
 def _seed_signature_gate(tmp_path, *, exploratory: bool):
     """A campaign waiting for the S4/S5 signature whose S1 pass was judged on synthetic data only."""
-    from modeler_api.filestore import FileWriteStore
+    from modeler_storage.filestore import FileWriteStore
 
     campaign = seed_campaign(tmp_path)
     campaign["status"] = "AWAITING_SIGNATURE"

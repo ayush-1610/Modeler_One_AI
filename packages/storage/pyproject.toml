@@ -5,7 +5,12 @@ description = "Persistence shared by the API and the orchestrator: the Postgres 
 requires-python = ">=3.12"
 dependencies = [
   "sqlalchemy[asyncio]>=2.0.30",
+  "asyncpg>=0.29",
+  "pbpk-domain",
 ]
+
+[tool.uv.sources]
+pbpk-domain = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

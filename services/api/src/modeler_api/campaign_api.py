@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
+from modeler_api.execution import RunnerDep
 from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
 from pbpk_domain.cpf.models import CPF
@@ -24,18 +25,6 @@ from pbpk_domain.m15 import Rating
 router = APIRouter(prefix="/api/v1", tags=["campaigns"])
 
 Author = Annotated[Principal, Depends(require_role("modeler-curator", "modeler-reviewer"))]
-
-
-def _launch_local_campaign(campaign_request: Any, *, read_root: str, project: str, question: str, model_risk: str) -> None:
-    """Run the campaign single-node on a background thread (the local execution backend).
-
-    Imported lazily because the orchestrator depends on this package (importing it at module load would be a
-    cycle). The campaign's first monitor record is written before this returns, so the id the caller hands out is
-    already readable; the runner then writes the live monitor view under ``read_root`` as it progresses.
-    """
-    from modeler_orchestrator.local_runner import start_campaign
-
-    start_campaign(campaign_request, read_root=read_root, project=project, question=question, model_risk=model_risk)
 
 
 class MapGenerateRequest(BaseModel):
@@ -82,7 +71,7 @@ class CampaignStartRequest(BaseModel):
 
 @router.post("/projects/{project_id}/campaigns", status_code=202)
 async def start_campaign(project_id: str, request: CampaignStartRequest, principal: Author,
-                         settings: SettingsDep) -> dict[str, Any]:
+                         settings: SettingsDep, runner: RunnerDep) -> dict[str, Any]:
     """Start a modeling campaign through the configured execution backend (local single-node, or Temporal)."""
     require_project(project_id, principal)
 
@@ -107,9 +96,10 @@ async def start_campaign(project_id: str, request: CampaignStartRequest, princip
         )
         return {"campaign_id": campaign_id, "status": "QUEUED", "status_url": f"/api/v1/campaigns/{campaign_id}"}
 
-    # local backend: run single-node in-process (no Temporal). Requires a read root for the monitor artifacts.
+    # local backend: run single-node in-process (no Temporal). Requires a read root for the monitor artifacts. The
+    # campaign's first monitor record is written before `start` returns, so the id handed out is already readable.
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Local execution needs a read root. Set MODELER_READ_ROOT.")
-    _launch_local_campaign(campaign_request, read_root=settings.read_root, project=project_id,
-                           question=request.question, model_risk=request.model_risk)
+    runner.start(campaign_request, read_root=settings.read_root, project=project_id,
+                 question=request.question, model_risk=request.model_risk)
     return {"campaign_id": campaign_id, "status": "QUEUED", "status_url": f"/api/v1/campaigns/{campaign_id}"}

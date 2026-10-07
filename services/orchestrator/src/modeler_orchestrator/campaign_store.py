@@ -12,10 +12,10 @@ from __future__ import annotations
 import dataclasses
 import uuid
 
-from modeler_api.db.repositories import CampaignRepository
-from modeler_api.db.session import Database
 from modeler_contracts.runs import CAMPAIGN_STAGES, CampaignRequest, ResumeState, RoundRecord
 from modeler_contracts.runtime import runtime_env
+from modeler_storage.db.repositories import CampaignRepository
+from modeler_storage.db.session import Database
 
 
 class CampaignStore:

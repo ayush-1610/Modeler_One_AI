@@ -16,9 +16,9 @@ from urllib.parse import unquote, urlparse
 
 import pytest
 
-from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_contracts.runs import CampaignRequest, EngineJob, EngineManifest, OutputFile
 from modeler_orchestrator.local_runner import CampaignArtifactWriter, LocalExecutor, run_campaign
+from modeler_storage.filestore import FileReadStore, FileWriteStore
 from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.split import (
     FoodState,

@@ -16,10 +16,10 @@ from fastapi.testclient import TestClient
 
 from modeler_api import write_api
 from modeler_api.auth import get_verifier
-from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.main import app
 from modeler_contracts.runs import CampaignRequest, EngineJob, EngineManifest, OutputFile
 from modeler_orchestrator.local_runner import run_campaign
+from modeler_storage.filestore import FileReadStore, FileWriteStore
 from pbpk_domain.cpf import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
 
 PROFILE = {"times": [30.0, 60.0, 120.0, 240.0, 480.0], "values": [40.0, 34.0, 19.0, 6.6, 0.4],
