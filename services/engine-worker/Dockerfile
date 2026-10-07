@@ -36,7 +36,8 @@ RUN apt-get update \
 # The qualified engine (T-01, golden/catalog.json "engine"): ospsuite 12.4.4, PI 2.2.0, rSharp 1.2.2 on .NET 8. The
 # repositories serve their newest builds, so rSharp is replaced by its tagged 1.2.2 release (2.x needs .NET 10), and
 # the build fails if any version differs: an image that is not the qualified engine must never be produced.
-ARG OSPSUITE_VERSION=12.4.4
+# TRIAL (do not merge): qualify ospsuite 12.4.5 as served by the r-universe.
+ARG OSPSUITE_VERSION=12.4.5
 ARG PI_VERSION=2.2.0
 ARG RSHARP_VERSION=1.2.2
 RUN Rscript -e "options(repos = c(osp = '${OSP_LINUX_BINARIES}', getOption('repos'))); \
