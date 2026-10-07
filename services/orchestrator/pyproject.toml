@@ -7,7 +7,7 @@ dependencies = [
   "temporalio>=1.7",
   "modeler-contracts",
   "pbpk-domain",
-  "modeler-api",
+  "modeler-storage",
   "modeler-agents",
   "boto3>=1.35",
   "pypandoc-binary>=1.17",
@@ -17,7 +17,7 @@ dependencies = [
 [tool.uv.sources]
 modeler-contracts = { workspace = true }
 pbpk-domain = { workspace = true }
-modeler-api = { workspace = true }
+modeler-storage = { workspace = true }
 modeler-agents = { workspace = true }
 
 [build-system]

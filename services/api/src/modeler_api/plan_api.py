@@ -77,7 +77,7 @@ def _exploratory(ws: Workspace) -> bool:
     settings = get_settings()
     if not settings.read_root:
         return False
-    from modeler_api.filestore import FileReadStore
+    from modeler_storage.filestore import FileReadStore
 
     project = FileReadStore(settings.read_root).get_project(ws.tenant_id, ws.project_id)
     return bool((project or {}).get("exploratory"))
@@ -436,8 +436,8 @@ class SignRequest(BaseModel):
 def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: StoreDep,
               settings: SettingsDep) -> dict[str, Any]:
     """Approve and sign: the MAP generated from the plan, signed (Part 11, step-up), and the campaign inputs staged."""
-    from modeler_api.filestore import FileWriteStore
     from modeler_api.write_api import _observed_from_studies
+    from modeler_storage.filestore import FileWriteStore
 
     ws = workspace_for(project_id, principal, store)
     version, plan, cpf, rows = _ensure(ws, principal.user_id)

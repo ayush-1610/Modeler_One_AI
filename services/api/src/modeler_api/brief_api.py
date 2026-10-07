@@ -24,7 +24,6 @@ from pydantic import BaseModel, Field
 
 from modeler_api.auth import Principal, require_project
 from modeler_api.config import SettingsDep
-from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.project_api import Reader, StoreDep, Writer, impact_view, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_intake.documents import DocumentError
@@ -40,6 +39,7 @@ from modeler_project.brief import (
 )
 from modeler_project.brief_ops import EditError, edit_field, locked, resolve_identity, summary
 from modeler_project.documents import DocumentLibrary
+from modeler_storage.filestore import FileReadStore, FileWriteStore
 
 router = APIRouter(prefix="/api/v1", tags=["brief"])
 

@@ -3,7 +3,7 @@
 These serve the operator UI's read models. The CPF is the system of record: a GET returns the parsed CPF
 projected for display (parameters with value/unit/provenance/status/fittable stages) plus the S0 completeness
 computed from it. Data is fetched through a ``ReadStore`` protocol so the authorization and projection are
-tested without a datastore; ``FileReadStore`` (in ``modeler_api.filestore``) reads per-tenant JSON from a
+tested without a datastore; ``FileReadStore`` (in ``modeler_storage.filestore``) reads per-tenant JSON from a
 configured root, the seam the Postgres §5 read tables will replace.
 """
 
@@ -17,10 +17,10 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
-from modeler_api.filestore import FileReadStore, ReadStore
 from modeler_api.project_api import get_project_store
 from modeler_api.responses import envelope
 from modeler_project import ProjectStore, Workspace
+from modeler_storage.filestore import FileReadStore, ReadStore
 from pbpk_domain.cpf import CPF
 from pbpk_domain.cpf.completeness import check_completeness
 

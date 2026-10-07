@@ -13,10 +13,10 @@ from fastapi.testclient import TestClient
 
 from modeler_api import write_api
 from modeler_api.auth import get_verifier
-from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.main import app
 from modeler_contracts.runs import RoundContext, RoundRunResult
 from modeler_orchestrator.campaign_activities import build_round_snapshot, evaluate_round, plan_campaign
+from modeler_storage.filestore import FileReadStore, FileWriteStore
 from pbpk_domain.campaign.map import MapDocument
 from pbpk_domain.reference.osp_import import import_osp_system
 from pbpk_domain.system import links_of

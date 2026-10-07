@@ -15,7 +15,7 @@ from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from modeler_api.db.base import Base
+from modeler_storage.db.base import Base
 
 
 class Tenant(Base):

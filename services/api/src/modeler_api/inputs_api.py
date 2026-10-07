@@ -146,8 +146,8 @@ _UPLOAD_FIELDS = ("study_id", "reference", "n", "design", "dosing_interval_h", "
 @router.post("/projects/{project_id}/inputs:publish")
 def publish(project_id: str, principal: Writer, store: StoreDep, settings: SettingsDep) -> dict[str, Any]:
     """Hand the accepted CPF v1 and the judged studies to the campaign path (the project's CPF and studies)."""
-    from modeler_api.filestore import FileWriteStore
     from modeler_api.write_api import StudyUpload
+    from modeler_storage.filestore import FileWriteStore
 
     ws = workspace_for(project_id, principal, store)
     ready = ws.latest(ArtifactKind.READINESS, MAIN)

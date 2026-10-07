@@ -5,7 +5,7 @@ row-level security) and records an audit event in the same transaction, so a cha
 commit or roll back together.
 """
 
-from modeler_api.db.base import Base
-from modeler_api.db.session import Database, tenant_session
+from modeler_storage.db.base import Base
+from modeler_storage.db.session import Database, tenant_session
 
 __all__ = ["Base", "Database", "tenant_session"]

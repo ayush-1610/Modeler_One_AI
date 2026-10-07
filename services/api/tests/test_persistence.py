@@ -24,10 +24,10 @@ except ImportError:  # pragma: no cover - environment without docker/testcontain
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from modeler_api.db.models import Campaign
-from modeler_api.db.repositories import CampaignRepository
-from modeler_api.db.session import Database
 from modeler_storage.audit import GENESIS_HASH
+from modeler_storage.db.models import Campaign
+from modeler_storage.db.repositories import CampaignRepository
+from modeler_storage.db.session import Database
 
 MIGRATIONS = Path(__file__).parents[1] / "migrations"
 

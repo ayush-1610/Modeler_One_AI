@@ -28,6 +28,7 @@ from modeler_api.compliance.signatures import (
     sign_record,
 )
 from modeler_api.config import SettingsDep
+from modeler_api.execution import RunnerDep
 from modeler_contracts.runs import DeviationRecord, EscalationDecision
 
 router = APIRouter(prefix="/api/v1", tags=["escalations"])
@@ -207,10 +208,10 @@ class FeedbackRequest(ResolveRequest):
 
 @router.post("/campaigns/{campaign_id}/feedback:decide")
 def decide_feedback(campaign_id: str, request: FeedbackRequest, principal: CurrentPrincipal,
-                    settings: SettingsDep) -> dict[str, Any]:
+                    settings: SettingsDep, runner: RunnerDep) -> dict[str, Any]:
     """The signed decision on a failed external validation (plan §12.4 FEEDBACK_PENDING): limitation (accept_best),
     learn, new evidence, or stop (abort)."""
-    return resolve_escalation_decision(campaign_id, "S5", request, principal, settings)
+    return resolve_escalation_decision(campaign_id, "S5", request, principal, settings, runner)
 
 
 def _payload(request: ResolveRequest) -> dict[str, Any] | None:
@@ -226,9 +227,10 @@ def _payload(request: ResolveRequest) -> dict[str, Any] | None:
 @router.post("/campaigns/{campaign_id}/stages/{stage}/escalation:resolve")
 def resolve_escalation_decision(
     campaign_id: str, stage: str, request: ResolveRequest, principal: CurrentPrincipal, settings: SettingsDep,
+    runner: RunnerDep,
 ) -> dict[str, Any]:
     """Resume, accept or abort an escalated stage of a single-node campaign, with a Part 11 signature."""
-    from modeler_api.filestore import FileReadStore
+    from modeler_storage.filestore import FileReadStore
 
     if settings.execution_backend != "local":
         raise HTTPException(status_code=409,
@@ -243,23 +245,16 @@ def resolve_escalation_decision(
     if project_id:
         require_project(project_id, principal)
 
-    from modeler_orchestrator.feedback import decision_digest
-    from modeler_orchestrator.local_runner import (  # lazy: orchestrator depends on this package
-        check_feedback,
-        gate_refusal,
-        resolve_escalation,
-    )
-
     # Nothing judged on data that is not real is signed outside an exploratory project (plan §9.4, D-19); refused
     # before the signature is taken, so no signature exists for a decision that was not applied.
-    if request.action == "approve" and (refusal := gate_refusal(campaign, FileReadStore(settings.read_root).get_project(
+    if request.action == "approve" and (refusal := runner.gate_refusal(campaign, FileReadStore(settings.read_root).get_project(
             principal.tenant_id, project_id or ""))):
         raise HTTPException(status_code=409, detail=refusal)
     # A feedback decision's guardrails (plan §12.3 N4: spent studies, the cycle cap, the evidence's unit and source)
     # are checked before the signature too.
     payload = _payload(request)
     try:
-        check_feedback(campaign, stage, request.action, payload)
+        runner.check_feedback(campaign, stage, request.action, payload)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -270,13 +265,13 @@ def resolve_escalation_decision(
         signer=Signer(user_id=principal.user_id, printed_name=principal.printed_name),
         meaning=DECISION_MEANING, record_type="escalation", record_id=f"{campaign_id}-{stage}",
         # the signature binds the decision and, for a feedback cycle, its content (studies learned, evidence given)
-        record_sha256=decision_digest(campaign_id, stage, request.action, payload) if payload is not None
+        record_sha256=runner.decision_digest(campaign_id, stage, request.action, payload) if payload is not None
         else hashlib.sha256(f"{campaign_id}:{stage}:{request.action}".encode()).hexdigest(),
         acr=principal.acr or "",
     )
 
     try:
-        result = resolve_escalation(
+        result = runner.resolve(
             read_root=settings.read_root, tenant_id=principal.tenant_id,
             campaign_id=campaign_id, stage=stage, action=request.action, payload=payload,
             signature_id=signature.signature_id, printed_name=principal.printed_name, note=request.note,

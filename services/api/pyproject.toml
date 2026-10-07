@@ -18,6 +18,8 @@ dependencies = [
   "modeler-project",
   "modeler-agents",
   "modeler-storage",
+  "modeler-orchestrator",
+  "modeler-intake",
   "python-multipart>=0.0.9",
 ]
 
@@ -27,6 +29,8 @@ modeler-contracts = { workspace = true }
 modeler-project = { workspace = true }
 modeler-agents = { workspace = true }
 modeler-storage = { workspace = true }
+modeler-orchestrator = { workspace = true }
+modeler-intake = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

@@ -1,6 +1,6 @@
 # Architecture boundaries — layers, rules, locked files and the guardrails that enforce them
 
-**Status: phases 1–2 in force, phase 3a done (2026-10-07).** Changes to agents, the pipeline pages and the API repeatedly broke code that
+**Status: phases 1–3 in force (2026-10-07).** Changes to agents, the pipeline pages and the API repeatedly broke code that
 was not part of the change: the T-56 kit broke twice from P4 evidence checks, a study "purpose" broke the MS-01 study
 record, a merged API response showed a count as `[object Object]`, an id outside the builder's vocabulary passed S0
 while the model had no clearance, and a campaign file was read mid-write. The cause is structural: nothing enforced
@@ -16,7 +16,7 @@ Imports point down only. Two packages on one layer do not import each other.
 | L0 | `pbpk_domain` | Science: CPF, builder, MS-01 stages, units, rulesets, acceptance; later the parameter registry | import anything first-party |
 | L1 | `modeler_contracts` | Typed DTOs and ports shared across processes (runs, campaigns; later settings schema, `CampaignRunner`) | hold logic |
 | L2 | `modeler_intake` | Deterministic file reading, recipes and their vocabulary | call an LLM |
-| L2 | `modeler_storage` | The Postgres audit trail (phase 3a); the campaign read model and database repositories follow (3b) | import the API or the orchestrator |
+| L2 | `modeler_storage` | The Postgres audit trail (3a), the file-backed campaign read model and the database repositories (3b) | import the API or the orchestrator |
 | L3 | `modeler_project` | Pipeline artifacts P0–P4 (`FileProjectStore`, audit), one service per artifact kind | know about HTTP |
 | L4 | `modeler_agents` | The LLM edge only: agents propose, code and people decide | hold deterministic rules others need |
 | L5 | `modeler_orchestrator`, `modeler_engine` | Campaign runner; engine worker | import `modeler_api` |
@@ -51,15 +51,15 @@ All are plain-Python tests under `tests/architecture/`, tagged `T-25`, run by `m
 CI also builds the web app (`web`: `npm ci`, typecheck, production build) and the API image (`api-image`: build,
 imports, `/health`), and the secret scan reads `.gitleaks.toml` (default rules; a dotted CPF id is not a secret).
 
-### Exceptions recorded on 2026-10-07 (`tests/architecture/boundaries.toml`, 48)
+### Exceptions recorded on 2026-10-07 (`tests/architecture/boundaries.toml`: 48, now 35 after phase 3)
 
 | Rule | Count | What | Removed in |
 |---|---|---|---|
-| layer | 4 | `modeler_orchestrator.local_runner` / `campaign_store` → `modeler_api.filestore`, `modeler_api.db.*`; `local_runner` → `modeler_engine.runner` | phase 3 |
-| declared | 4 | api → intake, api → orchestrator (lazy), agents → pbpk_domain, orchestrator → engine | phases 3, 5 |
-| seam | 19 | `campaign_api`, `escalations` → orchestrator; `brief_api`, `client_api`, `evidence_api`, `plan_api` → agents (incl. deterministic `citations`, `data_mapping`) | phases 3, 5 |
+| layer | 1 | `local_runner` → `modeler_engine.runner` (the 3 orchestrator → API imports went in phase 3) | engine port, later |
+| declared | 2 | agents → pbpk_domain, orchestrator → engine (api → intake and api → orchestrator are declared since phase 3) | phase 5, engine port |
+| seam | 16 | `brief_api`, `client_api`, `evidence_api`, `plan_api` → agents (incl. deterministic `citations`, `data_mapping`); the API reaches the orchestrator only through `modeler_api.execution` since phase 3 | phase 5 |
 | router | 14 | every router → `project_api` (auth dependencies, `workspace_for`, redaction, blinding); → `brief_api.agents_status`; `inputs_api`, `plan_api` → `write_api`; `write_api` → `read_api`; `brief_api` → `requirements_api` | phase 5 |
-| tests | 7 | `pbpk-domain/tests/test_cpf.py` and `engine-worker/tests/test_objectstore.py` → orchestrator; 5 orchestrator integration tests → api | phases 3, 5 |
+| tests | 2 | `pbpk-domain/tests/test_cpf.py` and `engine-worker/tests/test_objectstore.py` → orchestrator (the 5 orchestrator tests → API went in phase 3: 3 now read `modeler_storage`, 2 whole-stack tests moved to the API's tests) | phase 5, engine port |
 
 ### Known vocabulary drift (strict xfail, science fix in phase 4 with the owner's approval)
 - `elim.hepatic.total_cl` converts to `ml/min/kg` but nothing places it; S0's message still offers it. PK-Sim's
@@ -127,7 +127,7 @@ Apart from the moved audit trail, nothing in L1, L2, L4 or L7 is locked: those a
 |---|---|---|
 | 1 | Guardrail tests, web and API-image CI jobs, API Dockerfile installs the locked workspace, this document | stops new violations |
 | 2 | **Done.** One reader per process (§3a), injected; tests use `api_settings` | C2 |
-| 3 | **3a done:** `modeler_storage` with the Postgres audit trail (locked, moved unchanged, its own PR). **3b:** filestore and db move in; orchestrator stops importing the API; `CampaignRunner` port | C7, the api ⇄ orchestrator cycle |
+| 3 | **Done.** 3a: `modeler_storage` with the Postgres audit trail (locked, moved unchanged, its own PR). 3b: the read model, repositories and tenancy move in; the orchestrator no longer imports the API; the API starts and steers campaigns through `CampaignRunner` (`modeler_contracts.ports`) obtained in `modeler_api.execution` | C7, the api ⇄ orchestrator cycle |
 | 4 | Parameter registry in `pbpk_domain` (SME-governed); characterization tests first; `total_cl` fixed in its own science PR with an alias | C1 |
 | 5 | Services out of routers; `deps.py`; deterministic helpers out of the agents package | C3, C4, C9 |
 | 6 | Typed responses for P0–P4; one owner per artifact kind | C5, C6 |

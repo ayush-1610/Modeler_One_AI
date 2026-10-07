@@ -161,7 +161,7 @@ def _project_record(ws: Workspace) -> dict[str, Any] | None:
     settings = get_settings()
     if not settings.read_root:
         return None
-    from modeler_api.filestore import FileReadStore
+    from modeler_storage.filestore import FileReadStore
 
     return FileReadStore(settings.read_root).get_project(ws.tenant_id, ws.project_id)
 
@@ -224,7 +224,7 @@ class BlindingRequest(BaseModel):
 @router.put("/projects/{project_id}/blinding")
 def set_blinding(project_id: str, body: BlindingRequest, principal: MiddLead, store: StoreDep) -> dict[str, Any]:
     """The MIDD lead's choice for this project (D-15), with its reason, on the audit chain."""
-    from modeler_api.filestore import FileWriteStore
+    from modeler_storage.filestore import FileWriteStore
 
     ws = workspace_for(project_id, principal, store)
     project = _project_record(ws)
