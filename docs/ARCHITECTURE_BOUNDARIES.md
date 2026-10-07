@@ -1,6 +1,6 @@
 # Architecture boundaries — layers, rules, locked files and the guardrails that enforce them
 
-**Status: phase 1 in force (2026-10-07).** Changes to agents, the pipeline pages and the API repeatedly broke code that
+**Status: phases 1–2 in force (2026-10-07).** Changes to agents, the pipeline pages and the API repeatedly broke code that
 was not part of the change: the T-56 kit broke twice from P4 evidence checks, a study "purpose" broke the MS-01 study
 record, a merged API response showed a count as `[object Object]`, an id outside the builder's vocabulary passed S0
 while the model had no clearance, and a campaign file was read mid-write. The cause is structural: nothing enforced
@@ -31,7 +31,7 @@ Imports point down only. Two packages on one layer do not import each other.
 | B2 | Typed contracts at every process edge: response models per endpoint, generated web types, artifact content models | phase 1: `test_openapi_contract.py` (any contract change is visible); phases 6–7 |
 | B3 | One writer per artifact kind; nobody else reads `version.content["…"]` | phase 6 |
 | B4 | No upward or sideways imports; the API reaches the orchestrator and the agents through one seam module each; routers do not import routers | phase 1: `test_import_boundaries.py` |
-| B5 | Configuration read in one place, injected (never patched in tests) | phase 2 |
+| B5 | Configuration read in one place, injected (never patched in tests) | phase 2: `test_config_reads.py` (§3a) |
 | B6 | Frontend seams: one API client, `useResource` / `useMutation` with rail refresh, CSS per feature, phase list from the API | phase 7 |
 | B7 | Tests use public surfaces: contract tests per boundary, e2e by `data-testid` / role, not wording | phase 1 (package tests obey the layer rule); phases 5–7 |
 
@@ -45,6 +45,8 @@ All are plain-Python tests under `tests/architecture/`, tagged `T-25`, run by `m
 | `test_openapi_contract.py` | the API's OpenAPI document differs from `docs/api/openapi.json`; the message lists the added / removed / changed operations and schemas | if intended: `UPDATE_SNAPSHOTS=1 uv run pytest tests/architecture/test_openapi_contract.py` and a CHANGELOG entry saying what changed for clients |
 | `test_parameter_vocabulary.py` | an id has a storage unit but no placement; an id S0, the to-do list or the bounds table advertise is not placeable; PK-Sim compound parameters are not model inputs; the reference-elimination sets disagree | add the id to every list, or (phase 4) to the registry. Known drift is `xfail(strict=True)`: fixing it turns the test red until the mark goes |
 | `test_locked_files.py` | a locked file's bytes change, a new file appears under a locked pattern, or one disappears | only with the owner's approval, in its own PR, with a CHANGELOG entry; then `UPDATE_LOCKED=1 uv run pytest tests/architecture/test_locked_files.py` |
+
+| `test_config_reads.py` | a module outside `[config]` in `boundaries.toml` reads `os.environ` / `os.getenv` or defines a `BaseSettings`; a test patches `get_settings` | read through `modeler_api.config.Settings` (`SettingsDep`) or `modeler_contracts.runtime.runtime_env()`; in API tests use the `api_settings` fixture. A new reader needs the owner's approval |
 
 CI also builds the web app (`web`: `npm ci`, typecheck, production build) and the API image (`api-image`: build,
 imports, `/health`), and the secret scan reads `.gitleaks.toml` (default rules; a dotted CPF id is not a secret).
@@ -63,6 +65,24 @@ imports, `/health`), and the secret scan reads `.gitleaks.toml` (default rules; 
 - `elim.hepatic.total_cl` converts to `ml/min/kg` but nothing places it; S0's message still offers it. PK-Sim's
   `LiverClearance` is bound to `elim.hepatic.total.plasma_clearance`, which in turn has no storage-unit conversion.
 - `elim.ehc_fraction` converts (dimensionless) but nothing places it.
+
+### 3a. Configuration (phase 2)
+
+| Process | Reads the environment | Code gets it by |
+|---|---|---|
+| API | `modeler_api.config.Settings` (pydantic-settings, `MODELER_*`, once per process) | `settings: SettingsDep` in routers and dependency providers; `get_settings()` in the few helpers below a view (blinding's project record, `plan_api._exploratory`) until phase 5 makes blinding a service; `main.py` reads it once at import for CORS |
+| Orchestrator, engine worker | `modeler_contracts.runtime.runtime_env()` (stdlib, read on each call) | `runtime_env().get("image_digest", "local")`: each call site keeps its own default |
+| Agents | `modeler_agents.llm`, `web_search` (callers may pass their own mapping) | unchanged |
+| Engine subprocess | `modeler_engine.runner` passes chosen variables through | unchanged |
+
+Tests: `services/api/tests/conftest.py` gives `api_settings(read_root=..., ...)` (through `config.use_settings`, seen by
+injected and direct reads alike) and re-reads `MODELER_*` before each test (`config.reload_settings`).
+
+**Known gap — one variable, several defaults** (unchanged on purpose; choosing one is the owner's decision):
+`MODELER_OBJECT_STORE_URI` (orchestrator `file:///tmp/modeler-object-store`, API `s3://modeler-dev`);
+`MODELER_IMAGE_DIGEST` (local runner `local`, engine worker `unknown`, package bundle empty, API MAP `sha256:` + 64 zeros);
+`MODELER_ENGINE_COMMAND` (local runner `Rscript run_job.R`, engine worker `Rscript /engine/run_job.R`);
+`MODELER_ENGINE_ID` (`local` / `unknown`).
 
 ## 4. Locked files (approved by the owner 2026-10-07)
 
@@ -105,7 +125,7 @@ Nothing in L1, L2, L4 or L7 is locked: those are what phases 2–7 refactor. Pha
 | Phase | What | Removes |
 |---|---|---|
 | 1 | Guardrail tests, web and API-image CI jobs, API Dockerfile installs the locked workspace, this document | stops new violations |
-| 2 | One settings module, injected; tests override the dependency | C2 |
+| 2 | **Done.** One reader per process (§3a), injected; tests use `api_settings` | C2 |
 | 3 | `modeler_storage` (filestore, db, Postgres audit moved unchanged); orchestrator stops importing the API; `CampaignRunner` port | C7, the api ⇄ orchestrator cycle |
 | 4 | Parameter registry in `pbpk_domain` (SME-governed); characterization tests first; `total_cl` fixed in its own science PR with an alias | C1 |
 | 5 | Services out of routers; `deps.py`; deterministic helpers out of the agents package | C3, C4, C9 |

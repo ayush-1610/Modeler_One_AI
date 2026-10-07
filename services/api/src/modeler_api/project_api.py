@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from modeler_api.auth import Principal, require_project, require_role
-from modeler_api.config import get_settings
+from modeler_api.config import SettingsDep, get_settings
 from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, ArtifactRef, ArtifactVersion, FileProjectStore, ProjectStore, Workspace
 from modeler_project import blinding as blind
@@ -30,8 +30,7 @@ Writer = Annotated[Principal, Depends(require_role(*WRITE_ROLES))]
 MiddLead = Annotated[Principal, Depends(require_role("modeler-reviewer"))]
 
 
-def get_project_store() -> ProjectStore:
-    settings = get_settings()
+def get_project_store(settings: SettingsDep) -> ProjectStore:
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Project storage is not configured. Set MODELER_READ_ROOT.")
     return FileProjectStore(settings.read_root)

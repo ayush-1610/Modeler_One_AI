@@ -14,7 +14,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from modeler_api.config import get_settings
+from modeler_api.config import SettingsDep
 from modeler_api.project_api import Reader, StoreDep, Writer, redact, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, Workspace
@@ -144,7 +144,7 @@ _UPLOAD_FIELDS = ("study_id", "reference", "n", "design", "dosing_interval_h", "
 
 
 @router.post("/projects/{project_id}/inputs:publish")
-def publish(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+def publish(project_id: str, principal: Writer, store: StoreDep, settings: SettingsDep) -> dict[str, Any]:
     """Hand the accepted CPF v1 and the judged studies to the campaign path (the project's CPF and studies)."""
     from modeler_api.filestore import FileWriteStore
     from modeler_api.write_api import StudyUpload
@@ -153,7 +153,6 @@ def publish(project_id: str, principal: Writer, store: StoreDep) -> dict[str, An
     ready = ws.latest(ArtifactKind.READINESS, MAIN)
     if ready is None or ws.status(ready).value != "APPROVED":
         raise HTTPException(status_code=409, detail="accept the inputs (P4) before handing them to the plan")
-    settings = get_settings()
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Write models are not configured. Set MODELER_READ_ROOT.")
     cpf = current_cpf(ws)

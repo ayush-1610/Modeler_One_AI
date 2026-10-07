@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -47,6 +46,7 @@ from modeler_contracts.runs import (
     StagePlan,
     StageRequest,
 )
+from modeler_contracts.runtime import runtime_env
 from modeler_orchestrator.campaign_store import CampaignStore
 from pbpk_domain.atomic_io import atomic_write_bytes
 
@@ -292,7 +292,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
         round_id=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}", tenant_id=ctx.tenant_id,
         base_spec_uri=spec_path.as_uri(), base_spec_sha256=hashlib.sha256(payload).hexdigest(),
         parameters=bounds, simulations_per_evaluation=len(simulations), evaluations_per_start=FIT_EVALUATIONS_PER_START,
-        seconds_per_simulation=FIT_SECONDS_PER_SIM, cores=int(os.environ.get("MODELER_ENGINE_CORES", "48")),
+        seconds_per_simulation=FIT_SECONDS_PER_SIM, cores=int(runtime_env().get("engine_cores", "48")),
         budget_seconds=int(max(60.0, ctx.deadline_seconds)) if ctx.deadline_seconds else 3600, seed=ctx.seed, model_inputs=[],
     )
 
@@ -378,7 +378,7 @@ def prepare_round_job(ctx: RoundContext, build: RoundBuild) -> EngineJob:
     bundle (`profiles.json`) plus the raw OSP CSVs under the job's outputs prefix. On a fit round it also
     exports one pkml per simulation (`export_pkml`) — the per-simulation model the parameter identification
     fits — which `collect_pkml_inputs` turns into the fit's model inputs."""
-    root = os.environ.get("MODELER_OBJECT_STORE_URI", "file:///tmp/modeler-object-store").rstrip("/")
+    root = runtime_env().object_store_root()
     round_dir = f"r{ctx.round_index}" + (f"-{ctx.phase}" if ctx.phase else "")
     return EngineJob(
         job_id=_round_stem(ctx),
@@ -414,7 +414,7 @@ def prepare_vpc_jobs(ctx: RoundContext, manifest: EngineManifest) -> list[Engine
     pkml = {Path(o.name).name: o for o in manifest.outputs if o.name.endswith(".pkml")}
     cpf_text = _load_local_text(ctx.cpf_uri)
     compound = json.loads(cpf_text)["compound"] if cpf_text else ""
-    root = os.environ.get("MODELER_OBJECT_STORE_URI", "file:///tmp/modeler-object-store").rstrip("/")
+    root = runtime_env().object_store_root()
     jobs = []
     for scenario in scenarios_for_stage(map_doc.scenarios, ctx.stage):
         model = pkml.get(exported_pkml_name(scenario.study_id))

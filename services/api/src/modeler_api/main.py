@@ -19,7 +19,7 @@ from modeler_api.auth import Principal, require_role
 from modeler_api.brief_api import router as brief_router
 from modeler_api.campaign_api import router as campaign_router
 from modeler_api.client_api import router as client_router
-from modeler_api.config import get_settings
+from modeler_api.config import SettingsDep, get_settings
 from modeler_api.escalations import router as escalations_router
 from modeler_api.evidence_api import router as evidence_router
 from modeler_api.inputs_api import router as inputs_router
@@ -47,7 +47,8 @@ from pbpk_domain.snapshot.builder import (
 app = FastAPI(title="Modeler One API", version="0.1.0")
 
 # The web app calls the API directly from the browser for client-side writes (a separate origin), so CORS is
-# part of the single-node stack. Explicit origins in production; any localhost origin under dev auth.
+# part of the single-node stack. Explicit origins in production; any localhost origin under dev auth. Read once, when
+# uvicorn imports `modeler_api.main:app` (the one read outside a request; it goes through the same seam).
 _cors = get_settings()
 _origins = [o.strip() for o in _cors.cors_origins.split(",") if o.strip()]
 if _origins:
@@ -151,10 +152,10 @@ class RunSubmission(BaseModel):
 async def submit_run(
     submission: RunSubmission,
     principal: Annotated[Principal, Depends(require_role("modeler-curator", "modeler-reviewer"))],
+    settings: SettingsDep,
 ):
     if submission.task not in RUN_TASKS:
         raise HTTPException(status_code=422, detail=f"task must be one of {', '.join(RUN_TASKS)}")
-    settings = get_settings()
     if not settings.temporal_address:
         raise HTTPException(status_code=503, detail="Run orchestration is not configured. Set MODELER_TEMPORAL_ADDRESS.")
 

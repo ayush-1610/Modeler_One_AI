@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -31,13 +30,10 @@ class FakeVerifier:
 
 
 @pytest.fixture
-def setup(tmp_path, monkeypatch):
-    import modeler_api.config as cfg
-
+def setup(tmp_path, api_settings):
     store = FileProjectStore(tmp_path / "projects")
     read_root = tmp_path / "read-root"
-    monkeypatch.setattr(cfg, "get_settings", lambda: SimpleNamespace(read_root=str(read_root), execution_backend="local"))
-    monkeypatch.setattr("modeler_api.inputs_api.get_settings", lambda: SimpleNamespace(read_root=str(read_root)))
+    api_settings(read_root=str(read_root), execution_backend="local")
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier()
     app.dependency_overrides[project_api.get_project_store] = lambda: store
     FileWriteStore(str(read_root)).put_project("t1", {"id": "p1", "name": "P1", "compounds": ["Renaldrug"], "pipeline": True})

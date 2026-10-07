@@ -17,11 +17,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from modeler_contracts.runs import EngineInput, EngineJob, EngineManifest, RoundContext
+from modeler_contracts.runtime import runtime_env
 from modeler_orchestrator.campaign_activities import PLASMA_OUTPUT_PATH, exported_pkml_name
 from pbpk_domain.atomic_io import atomic_write_bytes, atomic_write_text
 
@@ -43,7 +43,7 @@ def _read_json(uri: str) -> dict | None:
 
 
 def _root() -> str:
-    return os.environ.get("MODELER_OBJECT_STORE_URI", "file:///tmp/modeler-object-store").rstrip("/")
+    return runtime_env().object_store_root()
 
 
 def campaign_dir(tenant_id: str, campaign_id: str) -> Path:

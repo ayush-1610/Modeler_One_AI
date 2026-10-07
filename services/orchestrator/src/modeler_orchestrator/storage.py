@@ -8,13 +8,14 @@ are namespaced per tenant so a presigned URL can only ever reach one tenant's pr
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
 import boto3
 from botocore.client import Config
+
+from modeler_contracts.runtime import runtime_env
 
 DEFAULT_EXPIRY_SECONDS = 7200  # two hours
 
@@ -29,12 +30,13 @@ class S3Settings:
 
     @classmethod
     def from_env(cls) -> S3Settings:
+        env = runtime_env()
         return cls(
-            endpoint_url=os.environ["MODELER_S3_ENDPOINT"],
-            access_key=os.environ["MODELER_S3_ACCESS_KEY"],
-            secret_key=os.environ["MODELER_S3_SECRET_KEY"],
-            bucket=os.environ.get("MODELER_S3_BUCKET", "modeler"),
-            region=os.environ.get("MODELER_S3_REGION", "us-east-1"),
+            endpoint_url=env.require("s3_endpoint"),
+            access_key=env.require("s3_access_key"),
+            secret_key=env.require("s3_secret_key"),
+            bucket=env.get("s3_bucket", "modeler"),
+            region=env.get("s3_region", "us-east-1"),
         )
 
 

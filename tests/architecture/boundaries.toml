@@ -21,6 +21,17 @@ modeler_api = 6           # L6 HTTP
 modeler_orchestrator = "modeler_api.execution"
 modeler_agents = "modeler_api.agent_jobs"
 
+# The only modules that read the process environment (os.environ, os.getenv, a pydantic BaseSettings): rule B5.
+# Everything else receives its configuration from them.
+[config]
+readers = [
+  "modeler_api.config",         # the API's Settings (pydantic-settings), injected as SettingsDep
+  "modeler_contracts.runtime",  # the orchestrator's and engine worker's MODELER_* variables
+  "modeler_agents.llm",         # provider settings; callers may pass their own mapping instead
+  "modeler_agents.web_search",  # search settings; same
+  "modeler_engine.runner",      # passes chosen variables through to the engine subprocess
+]
+
 # ---- known exceptions (2026-10-07). rule: layer | declared | seam | router | tests ----
 
 [[allow]]

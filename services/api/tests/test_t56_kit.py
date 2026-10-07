@@ -37,19 +37,19 @@ class FakeVerifier:
 
 @pytest.fixture
 def api(tmp_path, monkeypatch):
-    from modeler_api.config import get_settings
+    from modeler_api.config import reload_settings
 
     store = FileProjectStore(tmp_path / "projects")
     monkeypatch.setenv("MODELER_READ_ROOT", str(tmp_path / "read-root"))
     monkeypatch.setenv("MODELER_EXECUTION_BACKEND", "local")
     monkeypatch.delenv("MODELER_LLM_PROVIDER", raising=False)
-    get_settings.cache_clear()
+    reload_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier()
     app.dependency_overrides[project_api.get_project_store] = lambda: store
     client = TestClient(app, headers={"Authorization": "Bearer t"})
     yield _kit(), client
     app.dependency_overrides.clear()
-    get_settings.cache_clear()
+    reload_settings()
 
 
 def test_the_kit_takes_dapagliflozin_from_the_mock_proposal_to_a_traced_campaign(api, monkeypatch):

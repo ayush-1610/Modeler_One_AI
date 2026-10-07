@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — configuration is read in one place per process and injected (architecture phase 2)
+- **Why:** configuration was read in ~20 modules. API tests patched `get_settings` router by router, so a router that
+  started reading a setting in a new helper broke other routers' tests; the orchestrator and engine read 15 `MODELER_*`
+  variables straight from `os.environ` in 10 modules.
+- **API:** `modeler_api.config` is the only reader (`Settings`; new fields `image_digest`, `logs`, replacing the direct
+  reads in `write_api` and the doctor). Routers and dependency providers receive it as `settings: SettingsDep`; the
+  helpers below a view that still call `get_settings()` (blinding's project record, `plan_api._exploratory`) see the
+  same object, until phase 5 makes blinding a service. `use_settings` / `reload_settings` replace patching in tests:
+  `services/api/tests/conftest.py` gives an `api_settings(...)` fixture and re-reads `MODELER_*` before each test.
+- **Orchestrator and engine worker:** `modeler_contracts.runtime.runtime_env()` reads every `MODELER_*` they use, on
+  each call; every call site keeps its default exactly (`get(name, default)`, `require(name)` → `KeyError` as before).
+- **Guardrail:** `tests/architecture/test_config_reads.py` fails when a module outside `[config]` in `boundaries.toml`
+  reads the environment or a test patches `get_settings`. `boundaries.toml` (locked) gains the `[config]` list,
+  approved with the phase 2 plan; its hash is refreshed.
+- **Deviation from the plan, recorded:** threading settings through every `_view` (about 35 call sites) is left to
+  phase 5, and `main.py` keeps one import-time read for CORS (uvicorn imports `modeler_api.main:app`); a `create_app`
+  factory needs `main`'s own endpoints moved into a router first (phase 5).
+- **Known gap — one variable, several defaults** (unchanged; the owner decides): `MODELER_OBJECT_STORE_URI`
+  (orchestrator `file:///tmp/modeler-object-store`, API `s3://modeler-dev`), `MODELER_IMAGE_DIGEST` (`local`,
+  `unknown`, empty, `sha256:` + zeros), `MODELER_ENGINE_COMMAND` (`Rscript run_job.R`, `Rscript /engine/run_job.R`),
+  `MODELER_ENGINE_ID` (`local`, `unknown`).
+- Impact: no behaviour change (same variables, same defaults; the OpenAPI snapshot is unchanged). 819 tests pass.
+
 ### Fixed — the engine image builds again on the qualified ospsuite 12.4.4
 - **What broke:** the OSP r-universe serves only its newest build. Since ospsuite 12.4.5 replaced 12.4.4 there, the
   engine Dockerfile's version check stopped every build ("engine versions differ from the qualified set"), on `main`

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from types import SimpleNamespace
 from urllib.parse import unquote, urlparse
 
 import pytest
@@ -52,15 +51,10 @@ def _dataset(ws, sid, route, dose, food="fasted", **extra):
 
 
 @pytest.fixture
-def setup(tmp_path, monkeypatch):
-    import modeler_api.config as cfg
-
+def setup(tmp_path, monkeypatch, api_settings):
     store = FileProjectStore(tmp_path / "projects")
     read_root = tmp_path / "read-root"
-    settings = SimpleNamespace(read_root=str(read_root), execution_backend="local")
-    monkeypatch.setattr(cfg, "get_settings", lambda: settings)
-    monkeypatch.setattr("modeler_api.plan_api.get_settings", lambda: settings)
-    monkeypatch.setattr("modeler_api.project_api.get_settings", lambda: settings)
+    api_settings(read_root=str(read_root), execution_backend="local")
     monkeypatch.delenv("MODELER_LLM_PROVIDER", raising=False)
     ROLES["value"] = ["modeler-curator", "modeler-reviewer"]
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier()

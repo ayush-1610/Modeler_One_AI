@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from modeler_api.auth import Principal, require_project, require_role
-from modeler_api.config import get_settings
+from modeler_api.config import SettingsDep
 from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
 from pbpk_domain.cpf.models import CPF
@@ -81,10 +81,10 @@ class CampaignStartRequest(BaseModel):
 
 
 @router.post("/projects/{project_id}/campaigns", status_code=202)
-async def start_campaign(project_id: str, request: CampaignStartRequest, principal: Author) -> dict[str, Any]:
+async def start_campaign(project_id: str, request: CampaignStartRequest, principal: Author,
+                         settings: SettingsDep) -> dict[str, Any]:
     """Start a modeling campaign through the configured execution backend (local single-node, or Temporal)."""
     require_project(project_id, principal)
-    settings = get_settings()
 
     from modeler_contracts.runs import CAMPAIGN_STAGES, CampaignRequest
 

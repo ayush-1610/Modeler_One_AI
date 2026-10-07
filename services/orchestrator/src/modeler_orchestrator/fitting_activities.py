@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 from urllib.parse import urlparse
 
 from temporalio import activity
@@ -17,6 +16,7 @@ from modeler_contracts.runs import (
     FitRoundRequest,
     FitStartOutcome,
 )
+from modeler_contracts.runtime import runtime_env
 from pbpk_domain.fitting import FitParameter, StartResult, assess_fit, plan_multistart, sample_start_values
 
 
@@ -34,7 +34,7 @@ def plan_jobs(request: FitRoundRequest) -> list[EngineJob]:
         cores=request.cores,
     )
     starts = sample_start_values(_fit_parameters(request), plan.n_starts, request.seed)
-    root = os.environ.get("MODELER_OBJECT_STORE_URI", "file:///tmp/modeler-object-store").rstrip("/")
+    root = runtime_env().object_store_root()
     return [
         EngineJob(
             job_id=f"{request.round_id}-s{index:03d}",

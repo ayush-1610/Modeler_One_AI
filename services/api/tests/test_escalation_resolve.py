@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import time
-from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -65,15 +64,14 @@ def _auth():
     return {"Authorization": "Bearer tok"}
 
 
-def _patch_settings(monkeypatch, tmp_path, backend="local"):
-    import modeler_api.config as cfg
-    monkeypatch.setattr(cfg, "get_settings",
-                        lambda: SimpleNamespace(execution_backend=backend, read_root=str(tmp_path)))
+@pytest.fixture
+def local_settings(tmp_path, api_settings):
+    return lambda backend="local": api_settings(execution_backend=backend, read_root=str(tmp_path))
 
 
-def test_abort_is_applied_and_signed(tmp_path, monkeypatch):
+def test_abort_is_applied_and_signed(tmp_path, monkeypatch, local_settings):
     seed_campaign(tmp_path)
-    _patch_settings(monkeypatch, tmp_path)
+    local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
 
     r = TestClient(app).post(URL, json={"action": "abort", "note": "not recoverable"}, headers=_auth())
@@ -89,9 +87,9 @@ def test_abort_is_applied_and_signed(tmp_path, monkeypatch):
     assert json.loads((tmp_path / "t1" / "escalations.json").read_text())["escalations"] == []
 
 
-def test_without_step_up_nothing_is_applied(tmp_path, monkeypatch):
+def test_without_step_up_nothing_is_applied(tmp_path, monkeypatch, local_settings):
     seed_campaign(tmp_path)
-    _patch_settings(monkeypatch, tmp_path)
+    local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims(acr="loa1"))
 
     r = TestClient(app).post(URL, json={"action": "abort"}, headers=_auth())
@@ -102,43 +100,43 @@ def test_without_step_up_nothing_is_applied(tmp_path, monkeypatch):
     assert json.loads((tmp_path / "t1" / "escalations.json").read_text())["escalations"]
 
 
-def test_stale_step_up_is_rejected(tmp_path, monkeypatch):
+def test_stale_step_up_is_rejected(tmp_path, monkeypatch, local_settings):
     seed_campaign(tmp_path)
-    _patch_settings(monkeypatch, tmp_path)
+    local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims(auth_time=int(time.time()) - 3600))
     r = TestClient(app).post(URL, json={"action": "abort"}, headers=_auth())
     assert r.status_code == 403
 
 
-def test_non_member_of_the_campaign_project_is_403(tmp_path, monkeypatch):
+def test_non_member_of_the_campaign_project_is_403(tmp_path, monkeypatch, local_settings):
     seed_campaign(tmp_path)
-    _patch_settings(monkeypatch, tmp_path)
+    local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims(projects=("other",)))
     r = TestClient(app).post(URL, json={"action": "abort"}, headers=_auth())
     assert r.status_code == 403
 
 
-def test_campaign_without_an_open_escalation_is_422(tmp_path, monkeypatch):
+def test_campaign_without_an_open_escalation_is_422(tmp_path, monkeypatch, local_settings):
     seed_campaign(tmp_path, with_escalation=False)
-    _patch_settings(monkeypatch, tmp_path)
+    local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
     r = TestClient(app).post(URL, json={"action": "retry"}, headers=_auth())
     assert r.status_code == 422
     assert "no open escalation" in r.text
 
 
-def test_unknown_campaign_is_404(tmp_path, monkeypatch):
+def test_unknown_campaign_is_404(tmp_path, monkeypatch, local_settings):
     seed_campaign(tmp_path)
-    _patch_settings(monkeypatch, tmp_path)
+    local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
     r = TestClient(app).post("/api/v1/campaigns/ghost/stages/S1/escalation:resolve",
                              json={"action": "abort"}, headers=_auth())
     assert r.status_code == 404
 
 
-def test_temporal_backend_points_at_the_other_endpoint(tmp_path, monkeypatch):
+def test_temporal_backend_points_at_the_other_endpoint(tmp_path, monkeypatch, local_settings):
     seed_campaign(tmp_path)
-    _patch_settings(monkeypatch, tmp_path, backend="temporal")
+    local_settings("temporal")
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
     r = TestClient(app).post(URL, json={"action": "abort"}, headers=_auth())
     assert r.status_code == 409
@@ -164,9 +162,9 @@ def _seed_signature_gate(tmp_path, *, exploratory: bool):
 
 
 @pytest.mark.req("T-46")
-def test_the_evaluation_of_test_data_is_refused_before_a_signature_is_taken(tmp_path, monkeypatch):
+def test_the_evaluation_of_test_data_is_refused_before_a_signature_is_taken(tmp_path, monkeypatch, local_settings):
     _seed_signature_gate(tmp_path, exploratory=False)
-    _patch_settings(monkeypatch, tmp_path)
+    local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
     r = TestClient(app).post(SIGN_URL, json={"action": "approve"}, headers=_auth())
     assert r.status_code == 409 and "not real" in r.text and "S1: TEST ONLY" in r.text
@@ -194,9 +192,9 @@ def _seed_feedback(tmp_path, *, learnable: bool):
 
 
 @pytest.mark.req("T-55")
-def test_a_learn_the_guardrails_forbid_is_refused_before_a_signature_is_taken(tmp_path, monkeypatch):
+def test_a_learn_the_guardrails_forbid_is_refused_before_a_signature_is_taken(tmp_path, monkeypatch, local_settings):
     _seed_feedback(tmp_path, learnable=False)
-    _patch_settings(monkeypatch, tmp_path)
+    local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
     r = TestClient(app).post(FEEDBACK_URL, json={"action": "learn", "note": "try"}, headers=_auth())
     assert r.status_code == 409 and "not achievable" in r.text
@@ -208,12 +206,12 @@ def test_a_learn_the_guardrails_forbid_is_refused_before_a_signature_is_taken(tm
 
 
 @pytest.mark.req("T-55")
-def test_a_feedback_signature_binds_the_decisions_content(tmp_path, monkeypatch):
+def test_a_feedback_signature_binds_the_decisions_content(tmp_path, monkeypatch, local_settings):
     import modeler_orchestrator.local_runner as runner
     from modeler_orchestrator.feedback import decision_digest
 
     _seed_feedback(tmp_path, learnable=True)
-    _patch_settings(monkeypatch, tmp_path)
+    local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
     applied = {}
     monkeypatch.setattr(runner, "resolve_escalation", lambda **kw: applied.update(kw) or {"status": "RUNNING"})
