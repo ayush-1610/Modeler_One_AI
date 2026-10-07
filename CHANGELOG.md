@@ -15,6 +15,38 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Infra — architecture guardrails (phase 1): layers, API contract, parameter vocabulary, locked files
+- **Why:** changes to agents and pipeline pages kept breaking unrelated code (the T-56 kit twice from P4 evidence
+  checks, the MS-01 study record from a study "purpose", a count shown as `[object Object]`, an id outside the
+  builder's vocabulary passing S0). Nothing enforced which package may use which. `docs/ARCHITECTURE_BOUNDARIES.md`
+  draws the layers L0–L7, the rules, the coupling map and phases 2–8; `tests/architecture/` enforces them.
+- **Added** `test_import_boundaries.py`: imports point down only (lazy imports count), every workspace import is a
+  declared dependency, the API reaches the orchestrator / agents through one seam module each, routers do not import
+  routers, package tests obey the layers. Today's 48 exceptions are listed with reasons in
+  `tests/architecture/boundaries.toml`; a new violation fails, and so does an exception that no longer occurs.
+- **Added** `test_openapi_contract.py`: the API's OpenAPI document must equal `docs/api/openapi.json` (87 paths,
+  113 schemas); an intended contract change rewrites it (`UPDATE_SNAPSHOTS=1`) with a CHANGELOG entry.
+- **Added** `test_parameter_vocabulary.py`: the CPF id lists in `parameter_units`, `pksim_paths`, `cpf.build`,
+  `cpf.completeness`, `modeler_project.inputs` and `modeler_project.evidence` stay consistent until the phase 4
+  registry. **Known gap** recorded as strict xfail: `elim.hepatic.total_cl` and `elim.ehc_fraction` convert to a
+  storage unit but nothing places them, and S0's message still offers `elim.hepatic.total_cl` (science fix in phase 4,
+  with the owner's approval; no behaviour changed here).
+- **Added** locked files (approved by the owner): `docs/architecture/locked-files.json` lists 30 patterns (69 files:
+  SME-governed rulesets, requirement templates, MS-01; core CPF schema and builder, harvested names and units,
+  acceptance / MAP / split / diagnostics / M15 / reproducibility, both audit chains, signatures, auth, migrations,
+  engine scripts / golden / image, CI, `CLAUDE.md`, the boundary exceptions) with their SHA-256;
+  `test_locked_files.py` fails on any change. `CLAUDE.md` gains a "Boundaries and locked files" section.
+- **Added** CI jobs `web` (`npm ci`, typecheck, production build — the web app was never built in CI) and
+  `api-image` (build, import check, `/health`).
+- **Fixed** `services/api/Dockerfile` installed 3 of the packages the API imports, so the image could not start; it
+  now installs the locked workspace like the server (`uv sync --frozen --no-dev --all-packages`, uv pinned to CI's
+  0.5.11). Checked in a scratch copy: every package installs, `modeler_api.main` imports, `/health` answers.
+- **Fixed** the CI secret scan, red on `main` since the 2026-10-07 merge: gitleaks read `key="elim.hepatic.CYP3A4"` in two
+  tests as an API key. `.gitleaks.toml` keeps the default rules and allows a finding only when the "secret" is a
+  dotted CPF id.
+- Impact: no application behaviour changed. New boundary violations, contract changes and locked-file edits now
+  fail `make test` and CI instead of surfacing in an unrelated feature.
+
 ### Infra — every branch merged into `main`; `main` is the one integration branch
 - 2026-10-07: GitHub `main` (62bceff, 24 Sep) was 85 commits behind the work, which lived on `main-1czavz` and
   `claude/amazing-newton-2phig7`, with the atomic-write fix on `claude/vbe-template`. All were merged (no conflicts;
@@ -1581,3 +1613,4 @@ record it here so a reader knows which context produced which work.
 | 2026-09-25 | per commit trailer (new session) | Plan for the project start-up pipeline (P0–P6) and the non-linear backend (draft, awaiting approval) |
 | 2026-10-05 (cloud session) | Claude Opus 5.5 | Built the approved start-up pipeline P0–P5 (T-40 → T-50) and the non-linear backend T-51 → T-55 (MS-01 v1.1 SJ, v1.2 feedback cycles, both UNVERIFIED); verified in software only — no PK-Sim in this container, T-56 is the server's |
 | 2026-10-06 (worktree `claude/vbe-template`) | Claude Opus 5.5 | Atomic writes for every file the API reads during a campaign; first campaign record written before the id is returned (T-56 kit test flake); T-31 VBE template |
+| 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |

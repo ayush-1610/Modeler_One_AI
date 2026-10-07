@@ -1,0 +1,13 @@
+# gitleaks configuration (CI "Secret scan"): the default rules, plus one narrow allowlist.
+#
+# The generic-api-key rule reads `key="elim.hepatic.CYP3A4"` in tests as a credential. A dotted CPF parameter id is
+# never a secret, so a finding whose secret is exactly such an id is allowed; anything else still fails the scan.
+title = "Modeler One"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "CPF parameter ids (e.g. elim.hepatic.CYP3A4) are identifiers, not secrets"
+regexTarget = "secret"
+regexes = ['''^(elim|transp|bind|phys|perm|dist|form|expr|ddi|indiv|sim|cmpd|alt)\.[A-Za-z0-9_.@-]+$''']

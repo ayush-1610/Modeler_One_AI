@@ -1,0 +1,463 @@
+{
+  "about": "Locked files (approved by the owner 2026-10-07). SME: changes only with the owner's explicit approval, stay UNVERIFIED and bump the version. core: changes only in its own PR with the owner's approval and a CHANGELOG entry. Checked by tests/architecture/test_locked_files.py; see docs/ARCHITECTURE_BOUNDARIES.md.",
+  "patterns": [
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/rulesets/*.yaml",
+      "owner": "SME",
+      "layer": "L0",
+      "reason": "acceptance criteria, diagnostics, dissolution similarity and DDI screening rulesets (CLAUDE.md)"
+    },
+    {
+      "pattern": "docs/PBPK_MODELING_WORKFLOW.md",
+      "owner": "SME",
+      "layer": "repo",
+      "reason": "MS-01, the modeling standard the pipeline implements (CLAUDE.md)"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/requirements/*.yaml",
+      "owner": "SME",
+      "layer": "L0",
+      "reason": "data-plan templates: which data a regulatory application must have"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/cpf/models.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "the CPF schema, the system of record"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/cpf/build.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "CPF to simulation: what the builder sets in PK-Sim"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/snapshot/builder.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "the PK-Sim snapshot builder"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/reference/osp_import.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "the process table harvested from PK-Sim (never invent PK-Sim names)"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/pksim_paths.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "PK-Sim parameter names and paths harvested from the engine"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/parameter_units.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "storage units of CPF values (MS-01 section 2.2)"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/acceptance.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "applies the acceptance criteria"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/campaign/map.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "the Modeling Analysis Plan (MAP) and MS01_VERSION"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/campaign/split.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "the deterministic MS-01 data split frozen in the MAP"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/diagnostics.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "MS-01 section 5 diagnostics"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/m15.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "the ICH M15 assessment table and its completeness rules"
+    },
+    {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/reproducibility.py",
+      "owner": "core",
+      "layer": "L0",
+      "reason": "the reproducibility gate and submission bundle"
+    },
+    {
+      "pattern": "packages/project-model/src/modeler_project/audit.py",
+      "owner": "core",
+      "layer": "L3",
+      "reason": "hash-chained JSONL audit trail (21 CFR 11.10(e)); must hash like the Postgres trail"
+    },
+    {
+      "pattern": "packages/project-model/src/modeler_project/store.py",
+      "owner": "core",
+      "layer": "L3",
+      "reason": "artifact versions and approvals (Part 11 records)"
+    },
+    {
+      "pattern": "services/engine-worker/r/*.R",
+      "owner": "core",
+      "layer": "L5",
+      "reason": "the engine scripts that run PK-Sim and parameter identification"
+    },
+    {
+      "pattern": "services/engine-worker/golden/**/*",
+      "owner": "core",
+      "layer": "L5",
+      "reason": "OSP reference snapshots and golden tests: the engine qualification evidence"
+    },
+    {
+      "pattern": "services/engine-worker/Dockerfile",
+      "owner": "core",
+      "layer": "L5",
+      "reason": "the qualified engine image (ospsuite, PI, rSharp, .NET pins)"
+    },
+    {
+      "pattern": ".github/workflows/engine-image.yml",
+      "owner": "core",
+      "layer": "L5",
+      "reason": "the engine qualification gate"
+    },
+    {
+      "pattern": "services/api/src/modeler_api/compliance/audit.py",
+      "owner": "core",
+      "layer": "L6",
+      "reason": "hash-chained Postgres audit trail (21 CFR 11.10(e))"
+    },
+    {
+      "pattern": "services/api/src/modeler_api/compliance/signatures.py",
+      "owner": "core",
+      "layer": "L6",
+      "reason": "electronic signatures (21 CFR 11.50, 11.70, 11.200)"
+    },
+    {
+      "pattern": "services/api/src/modeler_api/auth.py",
+      "owner": "core",
+      "layer": "L6",
+      "reason": "token verification, step-up for signatures, DevVerifier (dev only)"
+    },
+    {
+      "pattern": "services/api/migrations/*.sql",
+      "owner": "core",
+      "layer": "L6",
+      "reason": "database schema, including the append-only audit table rules"
+    },
+    {
+      "pattern": "CLAUDE.md",
+      "owner": "core",
+      "layer": "repo",
+      "reason": "the working rules"
+    },
+    {
+      "pattern": "docs/validation/requirements.yaml",
+      "owner": "core",
+      "layer": "repo",
+      "reason": "URS/FS of the validation pack"
+    },
+    {
+      "pattern": "conftest.py",
+      "owner": "core",
+      "layer": "repo",
+      "reason": "the requirement trace-matrix plugin (validation evidence)"
+    },
+    {
+      "pattern": ".github/workflows/ci.yml",
+      "owner": "core",
+      "layer": "repo",
+      "reason": "the CI gates"
+    },
+    {
+      "pattern": "tests/architecture/boundaries.toml",
+      "owner": "core",
+      "layer": "repo",
+      "reason": "layer map and import-boundary exceptions: a new exception needs approval"
+    }
+  ],
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "1e3a91ecd61c00802585c3b7e73fd7c06f687e9bb754242b2df305581e0c783c"
+    },
+    {
+      "path": ".github/workflows/engine-image.yml",
+      "sha256": "0e635469874a039d9e5a2a3616ed71a21e1076a185bc5d5a00c115ee511edf1e"
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "5aca2fb2d674e234b8142663b05c0ecb6a50ef06efed83f919150dd3ffd42a93"
+    },
+    {
+      "path": "conftest.py",
+      "sha256": "b069c4884213af9e3ea7b714d7299167fff47fe7cb0f2532596b185c06b9e3aa"
+    },
+    {
+      "path": "docs/PBPK_MODELING_WORKFLOW.md",
+      "sha256": "1b382d2c11b5dccf2138ee41bed3298f63183d601c9fdb4ea421469355fe1e2c"
+    },
+    {
+      "path": "docs/validation/requirements.yaml",
+      "sha256": "03944c6314eda26de5db05aabef930a0695d7542be2421d9db363972e0bd75fa"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/acceptance.py",
+      "sha256": "bd5d0477750d229e9d9e5663202cc46f5dba5e2f882ad43f2089de24ae01597f"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/campaign/map.py",
+      "sha256": "805cd3958e73b2a59f645ee90c01d95151843fd75fb9fab2fb10a8230d5bb64f"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/campaign/split.py",
+      "sha256": "cb3b910b4646b4faecb252e7aab27f6fef2b8b5c2b1b4eb4350ba0b83d10161b"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/cpf/build.py",
+      "sha256": "682c8cae261bd09c4e2f8d1df409869b79a43364fde73b17e0c201f6f57de016"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/cpf/models.py",
+      "sha256": "c603728d62c805f49c015ed684e9b11762112a51c9b9a4c6dcb196486824955b"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/diagnostics.py",
+      "sha256": "4b7b381399b9520951c77c7d1996a542b06199a7bb9ba8979d0269b6fe3b7705"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/m15.py",
+      "sha256": "ef1783f1f77b03f2b680a2400a3d7feae6aea24885c1cd5527f81fa727f65e59"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/parameter_units.py",
+      "sha256": "e1a52095018be7033a89da12dbee65d9b40a775f38429006f46832873613923a"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/pksim_paths.py",
+      "sha256": "fd1d99f22e5f69209d73f3efc83a2e0da17c9585db6c9a3ea0a33ac404a4d2c7"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/reference/osp_import.py",
+      "sha256": "436853b9e2a6e384c95d57c1cfb351918c3fa3aa69df8b835750c61524ff59a2"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/reproducibility.py",
+      "sha256": "cb4aae0e25d00558022e1ebe6007ccb25203374fafd8d9cb11676ed1b9b4a205"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/requirements/app_ddi.yaml",
+      "sha256": "a8afa8701635878ce0ee1246c8e2ac8f47575c5d6e45a9c590c38d19173311ca"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/requirements/app_fih.yaml",
+      "sha256": "1a5d3bd7693bef819ada67865597fdb2bd37cd1a99ac4a266c9be3b80eb9b86f"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/requirements/app_food_effect.yaml",
+      "sha256": "78ce883e31f11a95e5c72225806f37e2a055691e155a4c4d9cd4e17160523086"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/requirements/app_special_populations.yaml",
+      "sha256": "bc562ed804e8ecec67e618383d07b9b9ef7f235e01d251e50cb841d3fc48227a"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/requirements/app_vbe.yaml",
+      "sha256": "620abc595d451722b2c966fb8fa99bf8ff66c81a766aa336fccbe27fde262cf4"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/requirements/core_small_molecule.yaml",
+      "sha256": "7d2aabfba813f113bb4f1a709455da535df5892d0ee3199612c5b458ea066918"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/rulesets/ddi_static_screening.yaml",
+      "sha256": "d4efc83a1a5cf51926fb55190135dcba195bd368f7e03c8c41ce182ec13b70a1"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/rulesets/diag_rules.yaml",
+      "sha256": "64828276589e87c1ba56a334b3e7d929f2a6aabd78fcb3629dde6297943ed14e"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/rulesets/dissolution_similarity.yaml",
+      "sha256": "be9bceea10f8a57ec3bb9ed7c6aa91a00d7f0d2581a445fc7fe4e84d875c8779"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/rulesets/pbpk_acceptance_criteria.yaml",
+      "sha256": "ba6d53c7ec43ceafa22524c73de66d1d62591e5b989ea8a54ebaf475dbef3979"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/snapshot/builder.py",
+      "sha256": "7faace98f477916b1095f4e7cc53825bef1ed27c15c8ef65c599721dbc8a0a2f"
+    },
+    {
+      "path": "packages/project-model/src/modeler_project/audit.py",
+      "sha256": "2a4c70920c08cf018d1dacdab3509fb56f79f70cda1fbfb5e293138b9b9451f3"
+    },
+    {
+      "path": "packages/project-model/src/modeler_project/store.py",
+      "sha256": "c0fe65b3aaa61d318c4f77d3966e92fce234db5388f31c6b6be8fd5831cac928"
+    },
+    {
+      "path": "services/api/migrations/0001_core.sql",
+      "sha256": "59de42f7fe6ff4aaf95c5d59bdb913b61401ff8f4c5859f291ad1e67a83e49ee"
+    },
+    {
+      "path": "services/api/migrations/0002_campaigns.sql",
+      "sha256": "950dc8cac180844e38a980ca05d4223efc53b2eae00520a538f53d6a36395ebf"
+    },
+    {
+      "path": "services/api/migrations/0003_agents.sql",
+      "sha256": "5e6bfcc35ebf2c4b62905f27398e4d464e0cf2dd4f62ff12318f787e6778ff6c"
+    },
+    {
+      "path": "services/api/src/modeler_api/auth.py",
+      "sha256": "c3b0b6cf1e240ad402fbb8542f8bdd80a3b1f41c72d1fa207a721216a7093c5a"
+    },
+    {
+      "path": "services/api/src/modeler_api/compliance/audit.py",
+      "sha256": "956009f7fc818ddc7748d9943016b998ce5aa310791279ab009c078ee36e4516"
+    },
+    {
+      "path": "services/api/src/modeler_api/compliance/signatures.py",
+      "sha256": "e73cf11fc032c33e2e3ec1d3096b8baec2bc7f721c2e334e115118c51a1d5acb"
+    },
+    {
+      "path": "services/engine-worker/Dockerfile",
+      "sha256": "ec119f0768b08d3e0c58a73e92c556f746e87ab3b5a9ec46cb6ec42929fbb2a9"
+    },
+    {
+      "path": "services/engine-worker/golden/catalog.json",
+      "sha256": "d27ddbb784f84950ee954056dbb4ef0c9cdb6e6a00c4b0b721beef338e78f560"
+    },
+    {
+      "path": "services/engine-worker/golden/example_snapshot.json",
+      "sha256": "a5c21e6931b42921586265697e636d18142d2d8811d34cbac8cfc822383c9c0d"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Alfentanil-Model.json",
+      "sha256": "783a1fcd05eb89614ec33cb580886383bb7e8cd8f532fea851a9ab41326d0ceb"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Alprazolam-Model.json",
+      "sha256": "da8460baaaf2ecf058d1a328b4c6bb9b2ea77311fe1b03414361aef228de60c0"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Clarithromycin-Model.json",
+      "sha256": "e7d05299df1291573d2bfe4a5141d65880605069de3618405924fac42fc0745e"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Dabigatran-Model.json",
+      "sha256": "0e94333332e326e748a05421b8898e569c713399748c057300f75cd791eae89d"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Dapagliflozin-Model.json",
+      "sha256": "3ceed52cde39ccedad43f05aa07e9d1e39178260fe6385e8fe2a4971da78ae70"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Digoxin-Model.json",
+      "sha256": "86c9cc70124cf03676699d65b2684030c8bf00ea8a7f4440c2d0899ebb1ac476"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Itraconazole-Model.json",
+      "sha256": "f37f81b4d900c6715d6399323a971a2a253e29c28a978374ab68509adc5d1b91"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Ketoconazole-Model.json",
+      "sha256": "7afa47d86b4c5a3406ccf9a2aa31a72ab0291a9494324038f4a7458f775be958"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Metformin-Model.json",
+      "sha256": "ebdb73cf8dfe76c10e83d8da4f9916077cfb5310ba7c6798aad182ed462c076b"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Midazolam-Model.json",
+      "sha256": "9d6c3a281176e9c52dcc3faa278cced2c251b2b7d28869fc1184fe956fd1b5f3"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Omeprazole-Model.json",
+      "sha256": "332ca47f3e1f82038149cfb8309d1f8dfe50de4dad981815d98b915b99037af5"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Raltegravir-Model.json",
+      "sha256": "bc844820351583505b40357f1aa3caa3b1876102cdb21ff6268c980772ba1173"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Rifampicin-Model.json",
+      "sha256": "aa4516d170623073498bb661c3d231592b13bdeeb16d4d9bbe66af77e2fcd7d2"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/SOURCES.md",
+      "sha256": "18955a8c2a555bd76b8606c1dd4e905ae50afa3972867514d373d200b0de6347"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Verapamil-Model.json",
+      "sha256": "2ad076caadc73e987fe712cb16049f07181f8ed5f18399290ed810889b243b39"
+    },
+    {
+      "path": "services/engine-worker/golden/fixtures/Voriconazole-Model.json",
+      "sha256": "5134f28c5c3e2ea7dbd18bf37b0e735713ba36059a33f5c461f1c12ebd01ac48"
+    },
+    {
+      "path": "services/engine-worker/golden/golden_roundtrip.R",
+      "sha256": "4f80198dbaa7999bfb581857b4b6c2fbcac8b6b9a94b9105336d4540ef661b64"
+    },
+    {
+      "path": "services/engine-worker/golden/golden_tasks.R",
+      "sha256": "2850e3538ff1666edd467d4ca789dc975777d47364cdb1243de9532bb20b34bf"
+    },
+    {
+      "path": "services/engine-worker/golden/make_example_snapshot.py",
+      "sha256": "28ba6e5d915eea84a1b018f3889ddd816f67ec0f0c922d9463abcdb4ca193805"
+    },
+    {
+      "path": "services/engine-worker/golden/make_process_coverage_snapshot.py",
+      "sha256": "1ea34d6e76c078340cca28501e1b35eb3b158a2d59aee0b41093607f10c52f34"
+    },
+    {
+      "path": "services/engine-worker/golden/pi_smoke.R",
+      "sha256": "d5b2fcb6ef615910c507a208f9fb8bfcf720ff8e98637144297fdd07a1a49bf1"
+    },
+    {
+      "path": "services/engine-worker/golden/process_coverage_snapshot.json",
+      "sha256": "490766981cd20d39df7cb8ab49bd03d470db20b41a4f1c289a8349f0abd9c65d"
+    },
+    {
+      "path": "services/engine-worker/golden/reference_compare.R",
+      "sha256": "fdc894a44f50790d8d2ceed0e53c259bd82bf95bd7d869798a93f6c7e6f8b466"
+    },
+    {
+      "path": "services/engine-worker/golden/results_sample/pk_analyses.csv",
+      "sha256": "f361ea5348a20e0eb8bb2c11002bb4190d1c4ad852357b790a4b2d0b66da59c9"
+    },
+    {
+      "path": "services/engine-worker/golden/results_sample/results.csv",
+      "sha256": "71221cadcd60e2a2c4e18166388b57f061e542c48317d23a0033dbeea3b2a0dc"
+    },
+    {
+      "path": "services/engine-worker/r/benchmark.R",
+      "sha256": "26b7ea5051b45a6a17c75eed288e13d3fefe4d866395fcfa05520de19a818e8c"
+    },
+    {
+      "path": "services/engine-worker/r/harvest_catalog.R",
+      "sha256": "8d9ed9f275352e75e188146f87e43cbf8331fb691392bf437798fd983bb199a3"
+    },
+    {
+      "path": "services/engine-worker/r/run_job.R",
+      "sha256": "0d26806cfdca4a8591aa99e928d56981f3decd137ef8236163c405fc280d7676"
+    },
+    {
+      "path": "services/engine-worker/r/run_pi.R",
+      "sha256": "0af960fe3021072f938d5e4a2850a7c97f9c79f316e563a2e9d3a3d187cc5c56"
+    },
+    {
+      "path": "tests/architecture/boundaries.toml",
+      "sha256": "859841ca630951ef8e6b0e027c239059d8ef07cb543e0b4ec93b8db30ebd7a56"
+    }
+  ]
+}
