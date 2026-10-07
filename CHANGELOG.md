@@ -15,6 +15,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the engine image builds again on the qualified ospsuite 12.4.4
+- **What broke:** the OSP r-universe serves only its newest build. Since ospsuite 12.4.5 replaced 12.4.4 there, the
+  engine Dockerfile's version check stopped every build ("engine versions differ from the qualified set"), on `main`
+  and on every PR touching the engine.
+- **Change** (locked file `services/engine-worker/Dockerfile`, approved by the owner): ospsuite 12.4.4 is installed from
+  its release commit (`4f37d444…`, "Release 12.4.4", OSPSuite-R #1995), whose source ships the .NET and native
+  libraries in `inst/lib`; the source tree's `.Rprofile` (renv) is removed before `R CMD INSTALL`. The other packages
+  still come from the r-universe; rSharp stays on its 1.2.2 tag; the version check is unchanged.
+- **Both versions were qualified in CI on real ospsuite** (image build, golden round trip, fitting smoke, engine tasks,
+  benchmark; PR #4 for 12.4.4, trial PR #5 for 12.4.5): both pass, and the parameter-identification smoke gives the same
+  numbers on both (objective 6.571829 in 41 evaluations; Lipophilicity −1.281569, TSspec 0.795285 1/min).
+- **Kept 12.4.4:** it is the qualified engine the server runs, and the version `golden/catalog.json`, every MAP's
+  `software_versions` and the harvested PK-Sim paths name; 12.4.5 would change all of them for no numerical difference
+  (its notes: an rSharp ≤ 1.2.3 pin and plot legend order). 12.4.5 is a verified, no-change upgrade candidate.
+- The release archive is pinned by its sha256 (`87f9fb38…9efb05`, from the first qualified build), checked before
+  installing.
+- Impact: no engine change; the qualification gate runs again.
+
 ### Infra — architecture guardrails (phase 1): layers, API contract, parameter vocabulary, locked files
 - **Why:** changes to agents and pipeline pages kept breaking unrelated code (the T-56 kit twice from P4 evidence
   checks, the MS-01 study record from a study "purpose", a count shown as `[object Object]`, an id outside the
