@@ -28,6 +28,14 @@ Part 11), with simulations and parameter identification finishing within an hour
 - PK-Sim snapshots run only on **Linux** (macOS: unsupported / segfaults). Engine hosts: the server, or the Mac's
   Docker Desktop with the image from `services/engine-worker/Dockerfile`.
 
+## Branches — one integration branch
+- **`main` is the single integration branch** (GitHub `ayush-1610/Modeler_One_AI`). Start every session or worktree
+  from `origin/main`, merge your work back into `main` (fast-forward or merge commit, never a force-push), and push
+  `main`. Long-lived side branches drift: on 2026-10-07 `main` was 85 commits behind the work and had to be merged.
+- **Deploy only from `main`** (`bash deploy/dev/deploy_to_server.sh` from a checkout of `main`), so the server runs
+  what GitHub `main` holds.
+- A worktree's base must be `origin/main`, not the stale default; check `git log -1 origin/main` before branching.
+
 ## Engineering conventions
 - `make test` (pytest), `make lint` (ruff, line 130, Python 3.12), `npm --prefix apps/web run typecheck` and `build`.
   Keep all of them green before committing.

@@ -15,6 +15,13 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Infra — every branch merged into `main`; `main` is the one integration branch
+- 2026-10-07: GitHub `main` (62bceff, 24 Sep) was 85 commits behind the work, which lived on `main-1czavz` and
+  `claude/amazing-newton-2phig7`, with the atomic-write fix on `claude/vbe-template`. All were merged (no conflicts;
+  786 tests pass) and `main` fast-forwarded to the result; the server is deployed from it. `main-1czavz` and
+  `claude/vbe-template` are deleted; `claude/amazing-newton-2phig7` stays until its session finishes, then merges in.
+- `CLAUDE.md` now says: branch from `origin/main`, merge back into `main`, deploy only from `main`.
+
 ### Fixed — a campaign's JSON is never read half written, and a started campaign is readable at once
 - **Atomic writes** (`pbpk_domain.atomic_io`: temporary file in the same directory, `fsync`, `os.replace`). The
   single-node runner rewrites `campaigns.json` from its own thread while the API serves it; a plain `write_text`
