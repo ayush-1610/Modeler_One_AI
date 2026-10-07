@@ -31,14 +31,14 @@ def client(tmp_path, monkeypatch):
     store = FileProjectStore(tmp_path)
     monkeypatch.setenv("MODELER_READ_ROOT", str(tmp_path))
     monkeypatch.delenv("MODELER_LLM_PROVIDER", raising=False)
-    from modeler_api.config import get_settings
+    from modeler_api.config import reload_settings
 
-    get_settings.cache_clear()
+    reload_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier()
     app.dependency_overrides[project_api.get_project_store] = lambda: store
     yield TestClient(app), store
     app.dependency_overrides.clear()
-    get_settings.cache_clear()
+    reload_settings()
 
 
 def _initiate(c) -> str:

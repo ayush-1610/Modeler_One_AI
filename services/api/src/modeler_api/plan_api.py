@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from modeler_api.auth import Principal, ensure_step_up, require_role
 from modeler_api.brief_api import agents_status
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
-from modeler_api.config import get_settings
+from modeler_api.config import SettingsDep, get_settings
 from modeler_api.project_api import Reader, StoreDep, Writer, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, ProjectStore, Workspace
@@ -433,7 +433,8 @@ class SignRequest(BaseModel):
 
 
 @router.post("/projects/{project_id}/plan:sign")
-def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: StoreDep) -> dict[str, Any]:
+def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: StoreDep,
+              settings: SettingsDep) -> dict[str, Any]:
     """Approve and sign: the MAP generated from the plan, signed (Part 11, step-up), and the campaign inputs staged."""
     from modeler_api.filestore import FileWriteStore
     from modeler_api.write_api import _observed_from_studies
@@ -460,7 +461,6 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
                                      "status": MapStatus.DRAFT, "signature": None,
                                      "split_rationale": (*doc.split_rationale, *lines),
                                      "split_limitations": (*doc.split_limitations, *lines)})
-    settings = get_settings()
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Campaign inputs need a read root. Set MODELER_READ_ROOT.")
     ensure_step_up(principal)  # the signature comes from the token's recent step-up, never a password

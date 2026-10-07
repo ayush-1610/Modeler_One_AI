@@ -14,12 +14,12 @@ file and study names do appear, so share the report only with people who may see
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from modeler_api.config import get_settings
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
 from modeler_project.evidence import EvidenceState
@@ -28,7 +28,7 @@ _ERROR = re.compile(r"Traceback|ERROR|Exception|\b5\d\d\b")
 
 
 def _store() -> FileProjectStore:
-    root = os.environ.get("MODELER_READ_ROOT")
+    root = get_settings().read_root
     if not root:
         raise SystemExit("MODELER_READ_ROOT is not set: run `source deploy/server/_env.sh` first")
     return FileProjectStore(root)
@@ -179,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     if len(tenants) != 1:
         print(f"project {args.project!r}: {'not found' if not tenants else 'in several tenants, give --tenant'}", file=sys.stderr)
         return 1
-    logs = Path(os.environ.get("MODELER_LOGS", Path.home() / "modeler-logs"))
+    logs = Path(get_settings().logs or Path.home() / "modeler-logs")
     text = report(Workspace(store, tenants[0], args.project), logs=logs)
     print(text)
     if logs.is_dir():

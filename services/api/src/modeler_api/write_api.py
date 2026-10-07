@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import uuid
 from typing import Annotated, Any
@@ -20,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
 from modeler_api.auth import Principal, require_project, require_role
-from modeler_api.config import get_settings
+from modeler_api.config import SettingsDep
 from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.read_api import project_cpf_view
 from modeler_api.responses import envelope
@@ -33,11 +32,7 @@ router = APIRouter(prefix="/api/v1", tags=["write"])
 
 Author = Annotated[Principal, Depends(require_role("modeler-curator", "modeler-reviewer"))]
 
-_ENGINE_DIGEST = os.environ.get("MODELER_IMAGE_DIGEST", "sha256:" + "0" * 64)
-
-
-def _stores() -> tuple[FileReadStore, FileWriteStore]:
-    settings = get_settings()
+def _stores(settings: SettingsDep) -> tuple[FileReadStore, FileWriteStore]:
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Write models are not configured. Set MODELER_READ_ROOT.")
     return FileReadStore(settings.read_root), FileWriteStore(settings.read_root)
@@ -240,7 +235,7 @@ def _observed_from_studies(rows: list[dict[str, Any]], mol_weight: float | None)
 
 @router.post("/projects/{project_id}/questions/{question_id}/campaign:prepare")
 def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, principal: Author,
-                     stores: StoresDep) -> dict[str, Any]:
+                     stores: StoresDep, settings: SettingsDep) -> dict[str, Any]:
     """Stage the CPF, generate + persist the MAP, and derive observed PK, returning the runner's inputs."""
     read, write = stores
     require_project(project_id, principal)
@@ -302,7 +297,7 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
         compound=body.compound, cpf=cpf, studies=studies, split=split_studies(studies, question),
         objective=body.objective, context_of_use=body.context_of_use,
         food_effect_in_question=body.food_effect_in_question, model_risk=risk,
-        engine_image_digest=_ENGINE_DIGEST, software_versions={"ospsuite": "12.4.4"},
+        engine_image_digest=settings.image_digest, software_versions={"ospsuite": "12.4.4"},
         sampling_end_h=sampling_end_h, system=system,
     )
 

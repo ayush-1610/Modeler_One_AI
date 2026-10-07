@@ -16,7 +16,7 @@ from urllib.parse import unquote, urlparse
 from fastapi import APIRouter, Depends, HTTPException
 
 from modeler_api.auth import Principal, require_project, require_role
-from modeler_api.config import get_settings
+from modeler_api.config import SettingsDep
 from modeler_api.filestore import FileReadStore, ReadStore
 from modeler_api.project_api import get_project_store
 from modeler_api.responses import envelope
@@ -62,8 +62,7 @@ def project_cpf_view(cpf: CPF) -> dict[str, Any]:
     }
 
 
-def get_read_store() -> ReadStore:
-    settings = get_settings()
+def get_read_store(settings: SettingsDep) -> ReadStore:
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Read models are not configured. Set MODELER_READ_ROOT.")
     return FileReadStore(settings.read_root)
@@ -128,9 +127,9 @@ _ARTIFACTS = {
 }
 
 
-def get_artifact_root() -> Path | None:
+def get_artifact_root(settings: SettingsDep) -> Path | None:
     """The object store's local root (file://), under which every campaign artifact must lie."""
-    uri = get_settings().object_store_uri
+    uri = settings.object_store_uri
     parsed = urlparse(uri)
     return Path(unquote(parsed.path)).resolve() if parsed.scheme == "file" else None
 

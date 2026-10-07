@@ -12,15 +12,14 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from modeler_api.auth import CurrentPrincipal
-from modeler_api.config import get_settings
+from modeler_api.config import SettingsDep
 from modeler_api.results.query import concentration_series, output_paths, query_results
 
 router = APIRouter(prefix="/api/v1", tags=["results"])
 
 
-def get_results_dir() -> Path | None:
+def get_results_dir(settings: SettingsDep) -> Path | None:
     """Local base directory of ingested results when the store is a file:// root, else None."""
-    settings = get_settings()
     uri = settings.results_root or settings.object_store_uri
     prefix = "file://"
     return Path(uri[len(prefix):]) if uri.startswith(prefix) else None

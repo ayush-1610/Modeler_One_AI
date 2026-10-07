@@ -16,7 +16,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from modeler_api.auth import Principal, require_role
-from modeler_api.config import get_settings
+from modeler_api.config import Settings, SettingsDep
 from modeler_api.responses import envelope
 
 router = APIRouter(prefix="/api/v1", tags=["templates"])
@@ -92,8 +92,8 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
 }
 
 
-def _reference_dir() -> Path:
-    configured = get_settings().reference_models_dir
+def _reference_dir(settings: Settings) -> Path:
+    configured = settings.reference_models_dir
     return Path(configured) if configured else _DEFAULT_REFERENCE_DIR
 
 
@@ -124,14 +124,14 @@ _BLANK_PARAMETERS = (("phys.mw", "g/mol", None), ("phys.logp", "Log Units", None
                        "data_source": "Literature"}))
 
 
-def _content(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
+def _content(template_id: str, spec: dict[str, Any], settings: Settings) -> dict[str, Any]:
     if spec.get("blank"):
         cpf = {"compound": spec["compound"], "parameters": [
             {"id": pid, "value": None, "unit": unit, "status": "MISSING", **({"engine_binding": eb} if eb else {})}
             for pid, unit, eb in _BLANK_PARAMETERS]}
         return {"cpf": cpf, "studies": [], "skipped": [], "notes": [], "source": "your own data"}
     if "snapshot" in spec:
-        path = _reference_dir() / spec["snapshot"]
+        path = _reference_dir(settings) / spec["snapshot"]
         if not path.is_file():
             raise HTTPException(status_code=503, detail=f"reference model {spec['snapshot']} is not installed at {path.parent}")
         try:
@@ -156,9 +156,9 @@ def list_templates(principal: PrincipalDep):
 
 
 @router.get("/templates/{template_id}")
-def get_template(template_id: str, principal: PrincipalDep):
+def get_template(template_id: str, principal: PrincipalDep, settings: SettingsDep):
     """One starting point in full: the CPF, the studies in the upload shape, and what was left out and why."""
     spec = _TEMPLATES.get(template_id)
     if spec is None:
         raise HTTPException(status_code=404, detail=f"template {template_id} not found")
-    return envelope(_summary(template_id, spec) | _content(template_id, spec))
+    return envelope(_summary(template_id, spec) | _content(template_id, spec, settings))

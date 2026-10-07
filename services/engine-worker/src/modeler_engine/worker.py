@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import shlex
 from concurrent.futures import ThreadPoolExecutor
 
@@ -13,6 +12,7 @@ from temporalio.exceptions import ApplicationError
 from temporalio.worker import Worker
 
 from modeler_contracts.runs import EngineJob, EngineManifest
+from modeler_contracts.runtime import runtime_env
 from modeler_engine.runner import (
     EngineFailedError,
     EngineRunner,
@@ -23,11 +23,12 @@ from modeler_engine.runner import (
 
 
 def _runner() -> EngineRunner:
+    env = runtime_env()
     return EngineRunner(
-        command=shlex.split(os.environ.get("MODELER_ENGINE_COMMAND", "Rscript /engine/run_job.R")),
+        command=shlex.split(env.get("engine_command", "Rscript /engine/run_job.R")),
         store=LocalObjectStore(),  # replace with the S3 store in deployed profiles
-        engine_id=os.environ.get("MODELER_ENGINE_ID", "unknown"),
-        image_digest=os.environ.get("MODELER_IMAGE_DIGEST", "unknown"),
+        engine_id=env.get("engine_id", "unknown"),
+        image_digest=env.get("image_digest", "unknown"),
         on_heartbeat=lambda fraction: activity.heartbeat(fraction),
     )
 
@@ -47,11 +48,10 @@ def run_engine_job(job: EngineJob) -> EngineManifest:
 
 
 async def main() -> None:
-    client = await Client.connect(
-        os.environ["MODELER_TEMPORAL_ADDRESS"], namespace=os.environ.get("MODELER_TEMPORAL_NAMESPACE", "default")
-    )
-    concurrency = int(os.environ.get("MODELER_ENGINE_CONCURRENCY", "1"))
-    task_queue = f"engine-{os.environ.get('MODELER_RESOURCE_CLASS', 's')}"
+    env = runtime_env()
+    client = await Client.connect(env.require("temporal_address"), namespace=env.get("temporal_namespace", "default"))
+    concurrency = int(env.get("engine_concurrency", "1"))
+    task_queue = f"engine-{env.get('resource_class', 's')}"
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
         worker = Worker(
             client,

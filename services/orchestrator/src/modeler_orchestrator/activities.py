@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import os
-
 from temporalio import activity
 
 from modeler_contracts.runs import EngineInput, EngineJob, EngineManifest, ReviewRequest, RunRequest
+from modeler_contracts.runtime import runtime_env
 
 
 @activity.defn(name="prepare_engine_job")
 def prepare_engine_job(request: RunRequest) -> EngineJob:
-    root = os.environ.get("MODELER_OBJECT_STORE_URI", "file:///tmp/modeler-object-store").rstrip("/")
+    root = runtime_env().object_store_root()
     return EngineJob(
         job_id=request.run_id,
         tenant_id=request.tenant_id,

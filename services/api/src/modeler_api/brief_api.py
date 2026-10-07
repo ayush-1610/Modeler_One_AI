@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from modeler_api.auth import Principal, require_project
-from modeler_api.config import get_settings
+from modeler_api.config import SettingsDep
 from modeler_api.filestore import FileReadStore, FileWriteStore
 from modeler_api.project_api import Reader, StoreDep, Writer, impact_view, version_view, workspace_for
 from modeler_api.responses import envelope
@@ -52,8 +52,7 @@ def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or f"project-{uuid.uuid4().hex[:8]}"
 
 
-def _file_stores() -> tuple[FileReadStore, FileWriteStore]:
-    settings = get_settings()
+def _file_stores(settings: SettingsDep) -> tuple[FileReadStore, FileWriteStore]:
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Storage is not configured. Set MODELER_READ_ROOT.")
     return FileReadStore(settings.read_root), FileWriteStore(settings.read_root)

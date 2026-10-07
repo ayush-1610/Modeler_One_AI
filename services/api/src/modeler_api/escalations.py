@@ -27,6 +27,7 @@ from modeler_api.compliance.signatures import (
     sign_after_step_up,
     sign_record,
 )
+from modeler_api.config import SettingsDep
 from modeler_contracts.runs import DeviationRecord, EscalationDecision
 
 router = APIRouter(prefix="/api/v1", tags=["escalations"])
@@ -78,10 +79,7 @@ def get_verifier() -> StepUpVerifier:
     raise HTTPException(status_code=503, detail="Signature verification is not configured (Keycloak step-up).")
 
 
-async def get_signaler() -> Signaler:
-    from modeler_api.config import get_settings
-
-    settings = get_settings()
+async def get_signaler(settings: SettingsDep) -> Signaler:
     if not settings.temporal_address:
         raise HTTPException(status_code=503, detail="Workflow signalling is not configured. Set MODELER_TEMPORAL_ADDRESS.")
     from temporalio.client import Client
@@ -208,10 +206,11 @@ class FeedbackRequest(ResolveRequest):
 
 
 @router.post("/campaigns/{campaign_id}/feedback:decide")
-def decide_feedback(campaign_id: str, request: FeedbackRequest, principal: CurrentPrincipal) -> dict[str, Any]:
+def decide_feedback(campaign_id: str, request: FeedbackRequest, principal: CurrentPrincipal,
+                    settings: SettingsDep) -> dict[str, Any]:
     """The signed decision on a failed external validation (plan §12.4 FEEDBACK_PENDING): limitation (accept_best),
     learn, new evidence, or stop (abort)."""
-    return resolve_escalation_decision(campaign_id, "S5", request, principal)
+    return resolve_escalation_decision(campaign_id, "S5", request, principal, settings)
 
 
 def _payload(request: ResolveRequest) -> dict[str, Any] | None:
@@ -226,13 +225,11 @@ def _payload(request: ResolveRequest) -> dict[str, Any] | None:
 
 @router.post("/campaigns/{campaign_id}/stages/{stage}/escalation:resolve")
 def resolve_escalation_decision(
-    campaign_id: str, stage: str, request: ResolveRequest, principal: CurrentPrincipal,
+    campaign_id: str, stage: str, request: ResolveRequest, principal: CurrentPrincipal, settings: SettingsDep,
 ) -> dict[str, Any]:
     """Resume, accept or abort an escalated stage of a single-node campaign, with a Part 11 signature."""
-    from modeler_api.config import get_settings
     from modeler_api.filestore import FileReadStore
 
-    settings = get_settings()
     if settings.execution_backend != "local":
         raise HTTPException(status_code=409,
                             detail="This deployment runs campaigns on Temporal; use escalation:decide instead.")

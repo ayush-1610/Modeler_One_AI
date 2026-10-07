@@ -10,12 +10,12 @@ unit tests and local runs work without Postgres.
 from __future__ import annotations
 
 import dataclasses
-import os
 import uuid
 
 from modeler_api.db.repositories import CampaignRepository
 from modeler_api.db.session import Database
 from modeler_contracts.runs import CAMPAIGN_STAGES, CampaignRequest, ResumeState, RoundRecord
+from modeler_contracts.runtime import runtime_env
 
 
 class CampaignStore:
@@ -24,7 +24,7 @@ class CampaignStore:
 
     @classmethod
     def from_env(cls) -> CampaignStore | None:
-        url = os.environ.get("MODELER_DATABASE_URL")
+        url = runtime_env().database_url
         return cls(url) if url else None
 
     async def dispose(self) -> None:

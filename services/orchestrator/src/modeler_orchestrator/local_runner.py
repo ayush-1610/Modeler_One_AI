@@ -49,6 +49,7 @@ from modeler_contracts.runs import (
     StageRequest,
     fit_signals,
 )
+from modeler_contracts.runtime import runtime_env
 from modeler_orchestrator.campaign_activities import (
     build_round_snapshot,
     choose_action,
@@ -116,11 +117,12 @@ def default_engine() -> EngineRun:
     """
     from modeler_engine.runner import EngineRunner, LocalObjectStore
 
+    env = runtime_env()
     runner = EngineRunner(
-        command=shlex.split(os.environ.get("MODELER_ENGINE_COMMAND", "Rscript run_job.R")),
+        command=shlex.split(env.get("engine_command", "Rscript run_job.R")),
         store=LocalObjectStore(),
-        engine_id=os.environ.get("MODELER_ENGINE_ID", "local"),
-        image_digest=os.environ.get("MODELER_IMAGE_DIGEST", "local"),
+        engine_id=env.get("engine_id", "local"),
+        image_digest=env.get("image_digest", "local"),
     )
     return runner.run
 
@@ -136,7 +138,7 @@ def engine_identity(engine: EngineRun | None = None) -> dict:
     Shown on every campaign so a run on the stub can never be read as a PBPK result."""
     if engine is not None:
         return {"kind": "injected", "command": getattr(engine, "__name__", type(engine).__name__)}
-    command = os.environ.get("MODELER_ENGINE_COMMAND", "Rscript run_job.R")
+    command = runtime_env().get("engine_command", "Rscript run_job.R")
     words = [os.path.basename(w) for w in shlex.split(command)]
     if any(w in _FIXTURE_ENGINES for w in words):
         kind = "software-fixture"
@@ -150,7 +152,7 @@ def engine_identity(engine: EngineRun | None = None) -> dict:
 def fit_workers(fit_request, n_jobs: int) -> int:
     """How many fit starts run at once: the planner's parallelism (cores ÷ simulations per start), never more than
     this machine's CPUs, overridable with MODELER_FIT_WORKERS (e.g. to spare memory on a laptop's Docker engine)."""
-    override = os.environ.get("MODELER_FIT_WORKERS")
+    override = runtime_env().fit_workers
     if override:
         return max(1, min(int(override), n_jobs))
     per_start = max(1, int(getattr(fit_request, "simulations_per_evaluation", 1) or 1))
@@ -738,7 +740,7 @@ class LocalExecutor:
         record = finish_package(
             request.tenant_id, request.campaign_id, files=files, numeric=numeric, map_uri=request.map_uri,
             cpf_uri=cpf_uri, evidence=evidence, prediction=(evidence.get("S6") or {}).get("prediction"),
-            reproduction=reproduction, engine_image_digest=os.environ.get("MODELER_IMAGE_DIGEST", ""),
+            reproduction=reproduction, engine_image_digest=runtime_env().get("image_digest", ""),
             projects=projects, project_notes=project_notes,
             history=self.writer.ledger.to_content() if self.writer else None,
         )
@@ -974,7 +976,7 @@ class LocalExecutor:
     def _run_jobs(self, jobs: list, *, workers: int | None = None) -> list:
         """Run independent engine jobs (fit starts, VPC populations) at once; each is its own engine subprocess."""
         workers = workers if workers is not None else max(1, min(len(jobs), os.cpu_count() or 1,
-                                                                 int(os.environ.get("MODELER_FIT_WORKERS", "64"))))
+                                                                 int(runtime_env().get("fit_workers", "64"))))
         if workers <= 1 or len(jobs) <= 1:
             return [self.engine(job) for job in jobs]
         from concurrent.futures import ThreadPoolExecutor
@@ -986,7 +988,7 @@ class LocalExecutor:
 def engine_key(engine: EngineRun | None = None) -> str:
     """The engine a model set and a memoized run are bound to: its identity and image digest."""
     ident = engine_identity(engine)
-    return f"{ident['kind']}:{ident['command']}@{os.environ.get('MODELER_IMAGE_DIGEST', 'local')}"
+    return f"{ident['kind']}:{ident['command']}@{runtime_env().get('image_digest', 'local')}"
 
 
 def _executor_engine(engine: EngineRun | None, *, read_root: str, tenant_id: str, memo: bool | None) -> EngineRun:
@@ -995,7 +997,7 @@ def _executor_engine(engine: EngineRun | None, *, read_root: str, tenant_id: str
     from modeler_orchestrator.memo import MemoEngine
 
     base = engine or default_engine()
-    if memo if memo is not None else (engine is None or os.environ.get("MODELER_MEMO") == "1"):
+    if memo if memo is not None else (engine is None or runtime_env().memo == "1"):
         return MemoEngine(base, root=Path(read_root) / tenant_id / "memo", engine_key=engine_key(engine))
     return base
 
@@ -1251,7 +1253,7 @@ def main(argv: list[str] | None = None) -> int:
         print("usage: python -m modeler_orchestrator.local_runner <spec.json>", file=sys.stderr)
         return 2
     spec = json.loads(Path(args[0]).read_text(encoding="utf-8"))
-    read_root = spec.get("read_root") or os.environ.get("MODELER_READ_ROOT")
+    read_root = spec.get("read_root") or runtime_env().read_root
     if not read_root:
         print("read_root not set (spec.read_root or MODELER_READ_ROOT)", file=sys.stderr)
         return 2

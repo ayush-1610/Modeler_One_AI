@@ -89,12 +89,13 @@ def test_the_illustrative_template_binds_its_clearance(client):
 
 def test_every_published_single_compound_template_loads():
     """Each OSP library template the wizard lists imports: its CPF and at least one study."""
+    from modeler_api.config import get_settings
     from modeler_api.templates_api import _TEMPLATES, _content
 
     published = [tid for tid, spec in _TEMPLATES.items() if spec.get("real_data")]
     assert len(published) >= 12
     for tid in published:
-        content = _content(tid, _TEMPLATES[tid])
+        content = _content(tid, _TEMPLATES[tid], get_settings())
         assert content["cpf"]["compound"] == _TEMPLATES[tid]["compound"] and content["studies"], tid
 
 
