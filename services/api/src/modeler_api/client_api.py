@@ -36,10 +36,11 @@ from modeler_project.client_data import (
     set_triage,
     submissions,
 )
-from modeler_project.dataset_register import propose_dataset
+from modeler_project.dataset_register import decide_dataset, propose_dataset
 from modeler_project.datasets import DatasetError
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
+from modeler_project.evidence import EvidenceState
 from modeler_project.requirements import RequirementMatrix
 
 router = APIRouter(prefix="/api/v1", tags=["client-data"])
@@ -207,7 +208,8 @@ def read_sheet(project_id: str, sid: str, sheet: str, principal: Reader, store: 
     category = next((t["category"] for t in content.get("triage", []) if t["sheet"] == sheet), "")
     form, notes = suggest(grid, category=category, filename=content["file"], drug=brief.drug_name if brief else "",
                           products=products)
-    read = [m for m in content.get("mappings", []) if any(t.get("sheet") == sheet for t in m["recipe"].get("tables", []))]
+    read = [m for m in content.get("mappings", []) if not m.get("replaced_by")
+            and any(t.get("sheet") == sheet for t in m["recipe"].get("tables", []))]
     return envelope({"sheet": sheet, "rows": preview_rows(grid), "max_row": grid.max_row, "max_column": grid.max_column,
                      "category": category, "form": form.model_dump(mode="json"), "notes": notes, "products": products,
                      "read_before": [{"recipe_id": m["recipe"].get("recipe_id"), "datasets": m.get("datasets", [])}
@@ -228,6 +230,7 @@ class MappingBody(BaseModel):
     form: SheetForm | None = None
     study: dict[str, Any] = Field(default_factory=dict)
     confirm: bool = False
+    replace: bool = False      # this reading replaces the earlier readings of the same sheet (their datasets rejected)
 
 
 def _sample(review, *, hide_values: bool) -> dict[str, Any]:
@@ -290,8 +293,17 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
         ids = [propose_dataset(ws, d, actor=principal.user_id).id for d in built]
     except (ClientDataError, DatasetError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    sheets = {t.sheet for t in review.recipe.tables}
+    earlier = [m for m in content.get("mappings", []) if body.replace and not m.get("replaced_by")
+               and any(t.get("sheet") in sheets for t in m["recipe"].get("tables", []))]
     record_mapping(ws, sid, recipe=review.recipe.model_dump(mode="json"), dataset_ids=ids,
-                   dissolution=[o.model_dump(mode="json") for o in review.dissolution], by=principal.user_id)
+                   dissolution=[o.model_dump(mode="json") for o in review.dissolution], by=principal.user_id,
+                   replaces=tuple(m["recipe"]["recipe_id"] for m in earlier))
+    for old_id in (d for m in earlier for d in m.get("datasets", [])):
+        version = ws.latest(ArtifactKind.DATASET, old_id)
+        if version is not None and version.content.get("state") != "REJECTED":
+            decide_dataset(ws, old_id, state=EvidenceState.REJECTED, by=principal.user_id,
+                           reason=f"replaced: {', '.join(sorted(sheets))} read again (recipe {review.recipe.recipe_id})")
     return envelope({**preview, "datasets": ids, **_view(ws)})
 
 

@@ -105,9 +105,43 @@ def new_id() -> str:
     return f"ev-{uuid.uuid4().hex[:10]}"
 
 
-# Physical validity only (not SME plausibility): a value outside these cannot be right whatever the source.
+# Physical validity only (not SME plausibility): a value outside these cannot be right whatever the source. An
+# intestinal permeability of 1 cm/min (≈ 170 µm/s) is far beyond any measured human value.
 _PHYSICAL = {"bind.fu": (0.0, 1.0), "phys.mw": (10.0, 1e6), "phys.logp": (-10.0, 15.0), "dist.bp_ratio": (0.0, 20.0),
-             "elim.renal.gfr_fraction": (0.0, 10.0)}
+             "elim.renal.gfr_fraction": (0.0, 10.0), "perm.intestinal": (0.0, 1.0), "elim.fe_urine": (0.0, 1.0)}
+_BINDING_WORDS = re.compile(r"\bbound\b|\bbinding\b", re.IGNORECASE)
+_UNBOUND_WORDS = re.compile(r"unbound|\bfree\b|\bfu\b", re.IGNORECASE)
+_URINE_WORDS = re.compile(r"urin|excreted|unchanged", re.IGNORECASE)
+
+
+def numeric_target(target: str) -> bool:
+    """A parameter whose value is a number: one with a storage unit, a process parameter, or an elimination
+    placeholder. Words and documents (a binding partner, a method, an expression profile, a release type) are not."""
+    from pbpk_domain.cpf.process_bindings import is_process_id
+    from pbpk_domain.parameter_units import target_family
+
+    if target.startswith("form.") and target.endswith(".type"):
+        return False
+    return target == "elim" or target_family(target) is not False or is_process_id(target)
+
+
+def review_flags(item: EvidenceItem) -> list[str]:
+    """What a reviewer should check about where a value was filed (flags, never a rejection). Each comes from a
+    mistake seen on a real project: a protein-binding percentage read as the unbound fraction, the fraction excreted
+    unchanged in urine read as PK-Sim's GFR fraction, a sentence filed as a value, a DrugBank number taken as measured."""
+    flags = []
+    quote, unit = item.quote or "", (item.unit or "").replace(" ", "").lower()
+    if (item.target == "bind.fu" and _BINDING_WORDS.search(quote) and not _UNBOUND_WORDS.search(quote)
+            and "bound" not in unit):
+        flags.append("check: the quote states protein binding (the bound share); fu = 1 − bound: give the unit '% bound'")
+    if item.target == "elim.renal.gfr_fraction" and _URINE_WORDS.search(quote):
+        flags.append("check: a fraction excreted unchanged in urine (fe) is not PK-Sim's GFR fraction; file it as elim.fe_urine")
+    if isinstance(item.value, str) and numeric_target(item.target):
+        flags.append("statement: a description, not a value for this parameter")
+    where = f"{item.source.title} {item.source.url or ''} {item.source.locator or ''}".lower()
+    if "drugbank" in where:
+        flags.append("source: DrugBank (check the licence, D-09, and whether the value is predicted rather than measured)")
+    return flags
 
 
 _STOP = {"or", "and", "of", "the", "per", "vs", "a", "an"}
@@ -143,6 +177,7 @@ def assess(item: EvidenceItem, *, required_conditions: tuple[str, ...] = (), val
     species = item.conditions.get("species", "").strip().lower()
     if species and species not in ("human", "humans", "man", "healthy volunteers"):
         flags.append(f"species_mismatch: {species}")
+    flags.extend(review_flags(item))
     bounds = _PHYSICAL.get(item.target)
     if bounds and value_pksim is not None and not bounds[0] < value_pksim <= bounds[1]:
         flags.append(f"outside_physical_range {bounds[0]:g}–{bounds[1]:g}")

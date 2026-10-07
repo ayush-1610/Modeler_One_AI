@@ -683,6 +683,40 @@ Found by driving the wizard end to end in a browser (new Playwright flows, below
   split reads them. A renal-impairment or patient study was therefore classified as healthy and could train the
   healthy-volunteer model (MS-01 §3.2 forbids it). The upload now keeps both, so such a study is classified SPECIAL.
 
+### Fixed — what the project doctor found on the real project: the sheet reader's guesses and the literature agent's filings
+- From the owner's doctor report (2026-10-06, ER tablet, 12 client files, 51 evidence items):
+- **Sheet reader (my defects, 4740c8c):** file names with underscores ("230-23_Fasting_Reference.Data…") defeated
+  the word-bounded patterns, so every arm got a bare study id ("230", "093"; both 230-23 arms under one id), no
+  fed / fasted and no Test / Reference; "Same settings as the last sheet" copied dose, route and formulation, which
+  turned the Nichols 2012 IV 50 mg infusion into "oral 100 mg ER"; and a CRO sheet's Mean / SD / CV / Geo Mean columns
+  were read as subjects, the whole dataset labelled geometric means. Now: names are read as words (decimal points
+  kept); IV studies get their own id (`…-IV`) and the infusion time stated in the name is offered; summary columns
+  are left out and named; a mean statistic only for a lone mean column; "Same layout as the last sheet" copies the
+  layout only (columns, units, LLOQ, cell texts), never the rows or the study; what the study is for and the food
+  state of an oral study must be chosen (they defaulted silently before). Reading a sheet again can **replace** the
+  earlier reading (its datasets rejected with that reason, its dissolution records dropped).
+- **Evidence the agent misfiled:** fu 0.3 from "plasma protein binding is low (30 %)" (the bound share), the
+  fraction excreted unchanged in urine (0.45) as PK-Sim's GFR fraction, pathway sentences as values, DrugBank
+  predictions as measured, permeabilities of 6–7.5 cm/min. Added: code converts "% bound" to fu (1 − bound) and
+  "% unbound"; review flags, recomputed on read so stored items show them too (binding quoted for fu, urine quoted
+  for the GFR fraction, a statement filed as a value, DrugBank as source); a physical bound on intestinal
+  permeability (≤ 1 cm/min) and fe; reference ids `elim.fe_urine` and `elim.fm.<enzyme>` (kept in the CPF to constrain
+  the fitted elimination, never placed, never counted as the S0 elimination pathway); a correction can turn a
+  sentence into a number only when the quote states that number ("Km = 290 µM" → elim.hepatic.CYP3A4.km 290 µmol/l);
+  assembly keeps a sentence under a numeric parameter out of the CPF. The A2 prompt now states these rules.
+- **To-do and doctor:** datasets sharing a study id and oral studies without a food state are listed; the doctor
+  prints the review flags per parameter.
+- **The sheet's own mean profile is read next to the subjects.** The campaign judges a study on a mean profile; a
+  dataset of individual subjects only is kept for the population evaluation, so the project's BE and Nichols data,
+  read as subjects, gave P4 nothing to judge on. A CRO sheet's Mean column (times down, with its SD) or Mean row
+  (times across) is now read as one more series of the same study ("Mean", with the study's N); the subjects stay.
+  The person can change or clear it in the form.
+- Impact: no model value changes by itself; the owner's project needs its sheets re-read (replacing the earlier
+  readings) and its evidence settled. Tests: `test_sheet_form.py` (the project's real file names, the CRO wide
+  layout), `test_inputs_todo.py` (misfilings, % bound, quoted number, fe), `test_client_api.py` (replace), e2e.
+- Known gap: `services/api/tests/test_t56_kit.py` fails about 1 run in 6, also before this change (a campaign file
+  read while the local runner writes it); suggested as a separate fix.
+
 ### Fixed — P4 put names the model does not use into the CPF; the Model inputs page now settles each open item (owner, real project)
 - Owner's report (2026-10-06): P1–P3 approved, P4 "not ready" with a readiness list and no way to act on it. From the
   screenshots: six accepted fu values, five for `elim`, five for the GFR fraction, permeability and solubility; two

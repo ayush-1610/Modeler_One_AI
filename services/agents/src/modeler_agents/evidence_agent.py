@@ -33,6 +33,10 @@ Rules:
 - Use the requirement ids and targets listed by list_requirements. For a parameter of a specific enzyme or transporter use the concrete target (e.g. elim.hepatic.UGT1A9.clspec for a UGT1A9 intrinsic clearance; record the in vitro value with its unit, the IVIVE is done later by a person).
 - Report values and units exactly as the source states them; do not convert, do not average. When sources disagree, propose each value separately.
 - Record the conditions that give the value its meaning (species, matrix, method, concentration, pH, temperature, system, fu,inc, cell line, direction) in `conditions` as an object.
+- Propose numbers, never sentences: "metabolised by UGT and CYP3A4" is not a value. A sentence that states a number ("Km = 290 µM") is proposed as that number with its unit, under the concrete parameter.
+- Protein binding: give the number with the unit the source states it in: "% bound" when the source states binding ("30 % bound to plasma proteins"), "% unbound" or a fraction when it states the unbound fraction. Code computes fu.
+- The fraction of a dose excreted unchanged in urine is elim.fe_urine (requirement REQ-elim.pathway), not PK-Sim's GFR fraction (elim.renal.gfr_fraction, a multiplier on filtration). The fraction metabolised by one pathway is elim.fm.<enzyme> (REQ-elim.fm).
+- Databases such as DrugBank often list predicted values (e.g. ChemAxon pKa, ALOGPS logP and solubility): if the page says predicted, use source_type PREDICTED and conditions {"method": "predicted (<tool>)"}; for a pKa say which is acidic and which basic, as the page labels them.
 - When a relevant paper is not open access, call request_full_text and continue with other sources.
 - If web_search is available, use it to find primary sources (papers, regulatory reviews, labels) that Europe PMC does not
   reach. Each result page is stored; read it with read_page and quote from it. Never cite a value from a search result

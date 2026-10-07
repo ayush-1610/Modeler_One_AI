@@ -215,14 +215,16 @@ def test_a_sheet_is_shown_with_a_suggested_form_and_read_from_the_form(setup):
     assert any("'NS'" in n for n in sheet["notes"])
 
     # "NS" is not a number: the preview names the cell, and nothing is kept
+    assert form["mean_row"] == 5
+    form["mean_n"] = 2                        # the Mean row under the subjects is read as the study's mean profile
     study = {"n": 2, "design": "SD", "crossover": True, "purpose": "external_validation"}
     preview = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"form": form, "study": study}).json()["data"]
     assert not preview["ready"] and [i["location"] for i in preview["issues"]] == ["Reference!H4"]
     form["missing_tokens"] = ["NS"]
     preview = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"form": form, "study": study}).json()["data"]
-    assert preview["ready"] and preview["concentrations"] == 11 and preview["recipe"]["tables"][0]["time_row"] == 2
+    assert preview["ready"] and preview["concentrations"] == 11 + 4 and preview["recipe"]["tables"][0]["time_row"] == 2
     sample = preview["sample"]
-    assert sample["series"] == ["001 / I", "002 / II"] and sample["times"] == [0, 1, 2, 4, 8, 24] and sample["below_lloq"] == 2
+    assert sample["series"] == ["001 / I", "002 / II", "Mean"] and sample["times"] == [0, 1, 2, 4, 8, 24] and sample["below_lloq"] == 2
     assert sample["rows"][1] == {"series": "001 / I", "time": 1.0, "value": 40.5, "blq": False, "cell": "Reference!D3"}
     done = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H,
                   json={"form": form, "study": study, "confirm": True}).json()["data"]
@@ -232,3 +234,25 @@ def test_a_sheet_is_shown_with_a_suggested_form_and_read_from_the_form(setup):
     assert again["read_before"][0]["datasets"] == done["datasets"]
     refused = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"study": study})
     assert refused.status_code == 422
+
+
+def test_reading_a_sheet_again_replaces_the_earlier_reading(setup):
+    c, _ws = setup
+    sub = c.post("/api/v1/projects/p1/client-data", headers=H,
+                 files=[("files", ("230-23_Fasting_Reference.xlsx", _be_workbook(), XLSX))]).json()["data"]["files"][0]
+    form = c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Reference", headers=H).json()["data"]["form"]
+    assert form["constants"]["study_id"] == "230-23-REF" and form["constants"]["food_state"] == "fasted"
+    form["missing_tokens"] = ["NS"]
+    form["mean_n"] = 2
+    study = {"n": 2, "design": "SD", "purpose": "model_building"}
+    first = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H,
+                   json={"form": form, "study": study, "confirm": True}).json()["data"]["datasets"]
+    # the purpose was wrong: read again, replacing the first reading
+    second = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H,
+                    json={"form": form, "study": {**study, "purpose": "external_validation"}, "confirm": True, "replace": True})
+    assert second.status_code == 200, second.text
+    datasets = {d["id"]: d for d in c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["datasets"]}
+    assert datasets[first[0]]["state"] == "REJECTED" and "read again" in datasets[first[0]]["decision_reason"]
+    assert datasets[second.json()["data"]["datasets"][0]]["purpose"] == "external_validation"
+    view = c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Reference", headers=H).json()["data"]
+    assert [r["datasets"] for r in view["read_before"]] == [second.json()["data"]["datasets"]]

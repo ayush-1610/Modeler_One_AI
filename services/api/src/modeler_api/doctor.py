@@ -53,8 +53,9 @@ def report(ws: Workspace, *, logs: Path | None = None) -> str:
     """The project's state in Markdown (no observed values, no secrets)."""
     from modeler_project.client_data import reconcile, submissions
     from modeler_project.dataset_register import datasets
+    from modeler_project.evidence import review_flags
     from modeler_project.evidence_register import items
-    from modeler_project.inputs import placement, todo
+    from modeler_project.inputs import dataset_warnings, placement, todo
     from modeler_project.requirements import RequirementMatrix
 
     out: list[str] = []
@@ -109,6 +110,8 @@ def report(ws: Workspace, *, logs: Path | None = None) -> str:
         shown = ", ".join(f"{e.value}{' ' + e.unit if e.unit else ''} [{e.id}, grade {e.confidence}, {e.source.title[:40] or e.source_type.value.lower()}]"
                           for e in values[:6])
         w(f"- `{target}`: {shown}{note}")
+        for check in sorted({f for e in values for f in review_flags(e)}):
+            w(f"  - {check}")
     w("")
 
     w("## Datasets (metadata only)\n")
@@ -119,6 +122,8 @@ def report(ws: Workspace, *, logs: Path | None = None) -> str:
           f"{d.study.get('formulation')} {d.study.get('food_state')} · n {d.study.get('n')}")
     if not datasets(ws):
         w("- none")
+    for warning in dataset_warnings([d for d in datasets(ws) if d.state is not EvidenceState.REJECTED]):
+        w(f"- ⚠ {warning}")
     w("")
 
     w("## P4 model inputs\n")

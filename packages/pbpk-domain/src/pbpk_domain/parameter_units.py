@@ -30,6 +30,9 @@ def _k(unit: str | None) -> str:
 
 
 _UNITLESS = {"", "-", "none", "unitless", "dimensionless", "logunits", "log units", "loguints", "fraction", "ratio"}
+# protein binding stated as the bound share ("30 % bound"), and the unbound share stated in percent (keys without spaces)
+_BOUND = {"%bound", "percentbound", "%proteinbound", "%protein-bound", "bound%", "fractionbound"}
+_UNBOUND = {"%unbound", "percentunbound", "%free", "unbound%"}
 # target unit, then alias -> factor to the target unit
 _FAMILIES: dict[str, tuple[str, dict[str, float]]] = {
     "g/mol": ("g/mol", {"g/mol": 1.0, "da": 1.0, "kda": 1000.0, "gmol-1": 1.0, "g·mol-1": 1.0}),
@@ -47,6 +50,7 @@ _TARGETS: tuple[tuple[str, str | None], ...] = (
     ("phys.mw", "g/mol"), ("phys.logp", None), ("phys.pka", None), ("bind.fu", "fraction"), ("dist.bp_ratio", None),
     ("phys.solubility.ref", "mg/ml"), ("perm.intestinal", "cm/min"), ("perm.cellular", "cm/min"),
     ("elim.renal.gfr_fraction", None), ("elim.hepatic.total_cl", "ml/min/kg"), ("elim.ehc_fraction", None),
+    ("elim.fe_urine", "fraction"), ("elim.fm", "fraction"),
     ("form.", "min"),
 )
 
@@ -77,6 +81,14 @@ def to_storage_unit(target: str, value: float, unit: str | None) -> Converted:
             return Converted(float(value), None, "dimensionless, unchanged")
         raise ConversionError(f"{target} is dimensionless; the stated unit {unit!r} is unexpected")
     if family == "fraction":
+        if key in _BOUND and target == "bind.fu":
+            # a source stating protein binding gives the bound share; PK-Sim takes the unbound fraction
+            bound = float(value) / (100.0 if key.startswith(("%", "percent")) else 1.0)
+            if not 0 <= bound < 1:
+                raise ConversionError(f"a bound share must be in [0, 1); {value} {unit} is not")
+            return Converted(1.0 - bound, None, f"{value} {unit} → fu = 1 − {bound:g} = {1.0 - bound:g}")
+        if key in _UNBOUND:
+            return Converted(float(value) / 100.0, None, f"{value} {unit} → fraction {float(value) / 100.0:g}")
         if key in ("%", "percent", "per cent"):
             return Converted(float(value) / 100.0, None, f"{value} % → fraction {float(value) / 100.0:g}")
         if key in _UNITLESS:

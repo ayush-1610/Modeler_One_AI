@@ -18,6 +18,7 @@ export type TodoItem = {
   target: string; message: string; items: (Ev | DatasetRow)[]; evidence?: string[];
   suggestions?: { targets: string[]; molecules: string[] };
   identity?: { value: number; unit: string; quote: string; cid: string; name: string } | null;
+  warnings?: string[];
 };
 type Run = (fn: () => Promise<{ errors: { message: string }[] }>, ok: string) => Promise<string | null>;
 
@@ -32,6 +33,7 @@ const LABEL: Record<string, string> = {
   "phys.solubility.ref": "Reference solubility", "phys.pka": "pKa", elim: "An elimination pathway",
   "perm.intestinal": "Intestinal permeability", "elim.renal.gfr_fraction": "GFR fraction (renal filtration)",
   "elim.biliary.cl": "Biliary clearance", "dist.bp_ratio": "Blood-to-plasma ratio",
+  "elim.fe_urine": "Fraction excreted unchanged in urine (fe)", "elim.fm.<enzyme>": "Fraction metabolised by an enzyme (fm)",
 };
 
 const fmt = (v: number | string | null) => (v === null ? "—" : typeof v === "number" ? +v.toPrecision(4) : v);
@@ -96,6 +98,9 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
   const [molecule, setMolecule] = useState("");
   const [kind, setKind] = useState("");
   const [reason, setReason] = useState("");
+  const [number, setNumber] = useState("");
+  const [unit, setUnit] = useState("");
+  const statement = typeof e.value === "string";
   const concrete = target.replace("<enzyme>", molecule || "<enzyme>");
   const needsMolecule = target.includes("<enzyme>");
   const pka = t.kind === "pka";
@@ -121,13 +126,20 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
                 {(t.suggestions?.molecules ?? []).map((m) => <option key={m}>{m}</option>)}
               </select>
             )}
+            {statement && <>
+              <input type="number" step="any" placeholder="number in the quote" value={number} onChange={(x) => setNumber(x.target.value)}
+                     style={{ width: 150 }} aria-label={`number for ${e.id}`} />
+              <input placeholder="unit" value={unit} onChange={(x) => setUnit(x.target.value)} style={{ width: 80 }} aria-label={`unit for ${e.id}`} />
+            </>}
           </>
         )}
         <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} style={{ flex: 1, minWidth: 160 }}
                aria-label={`reason for ${e.id}`} />
-        <button className="btn primary" disabled={!reason.trim() || (pka ? !kind : !target || (needsMolecule && !molecule))}
+        <button className="btn primary" disabled={!reason.trim() || (pka ? !kind : !target || (needsMolecule && !molecule) || (statement && !number))}
+                title={statement ? "a sentence becomes a value only as a number its quote states" : undefined}
                 onClick={() => void run(() => apiSend(`/api/v1/projects/${projectId}/evidence/${e.id}:correct`, "POST",
-                                                      pka ? { conditions: { type: kind }, reason } : { target: concrete, reason }),
+                                                      pka ? { conditions: { type: kind }, reason }
+                                                          : { target: concrete, reason, ...(statement ? { value: Number(number), unit: unit || null } : {}) }),
                                         pka ? `pKa ${fmt(e.value)} recorded as ${kind === "acid" ? "acidic" : "basic"}.`
                                             : `Filed as ${concrete}: check its value below and accept it.`)}>
           {pka ? "Save" : "Correct"}
@@ -170,6 +182,11 @@ function Datasets({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
   const meanless = rows.filter((d) => d.state !== "REJECTED" && !d.statistics.some((s) => s !== "individual"));
   return (
     <>
+      {(t.warnings ?? []).length > 0 && (
+        <ul className="flags" aria-label="dataset problems">
+          {t.warnings!.map((w) => <li key={w}>{w}. Re-read the sheet on the <Link href={`/projects/${projectId}/client-data`}>Client data page</Link> (the new reading replaces the old one).</li>)}
+        </ul>
+      )}
       {rows.length === 0 ? <p className="muted" style={{ margin: 0 }}>No datasets yet: read the client&apos;s sheets on the Client data page, or add published data on the Literature page.</p> : (
         <table className="todo-table">
           <thead><tr><th>Study</th><th>For</th><th>Data</th><th>State</th></tr></thead>

@@ -112,3 +112,49 @@ def test_a_correction_to_a_name_the_model_does_not_use_is_refused(ws):
     # converted value shown for the person to accept or reject
     copy = correct(ws, item.id, target="bind.fu", reason="it is the binding", by="u")
     assert copy.state is EvidenceState.PROPOSED and copy.value_pksim == pytest.approx(0.30)
+
+
+def _propose(ws, target, value, unit=None, quote="", title="Clinical pharmacology review"):
+    return propose(ws, EvidenceItem(id=new_id(), target=target, value=value, unit=unit, source_type=SourceType.REGULATORY_REVIEW,
+                                    source=SourceRef(title=title), quote=quote or f"{target} {value}"), actor="u")
+
+
+def test_the_misfilings_seen_on_the_real_project_are_flagged_for_the_reviewer(ws):
+    """The doctor report of 2026-10-06: fu 0.3 from "binding is low (30%)", fe 0.45 as the GFR fraction, sentences
+    as values, DrugBank predictions, a permeability of 6.2 cm/min."""
+    fu = _propose(ws, "bind.fu", 0.3, None, "The plasma protein binding of desvenlafaxine is low (30%)")
+    gfr = _propose(ws, "elim.renal.gfr_fraction", 0.45, None, "approximately 45% is excreted unchanged in urine")
+    words = _propose(ws, "elim", "Conjugation (UGT) and oxidative metabolism (CYP3A4)")
+    pka = _propose(ws, "phys.pka", 10.11, None, "pKa (Strongest Acidic) 10.11", title="web-go-drugbank-com-salts-DBSALT000045.md")
+    perm = _propose(ws, "perm.intestinal", 6.2, "cm/min")
+    assert any(f.startswith("check: the quote states protein binding") for f in fu.flags)
+    assert any("not PK-Sim's GFR fraction" in f for f in gfr.flags)
+    assert any(f.startswith("statement:") for f in words.flags) and any(f.startswith("source: DrugBank") for f in pka.flags)
+    assert any(f.startswith("outside_physical_range") for f in perm.flags)
+    # stated as the bound share, code computes fu
+    bound = _propose(ws, "bind.fu", 30, "% bound", "The plasma protein binding of desvenlafaxine is low (30%)")
+    assert bound.value_pksim == pytest.approx(0.70) and "fu = 1 − 0.3" in bound.conversion
+    assert not any(f.startswith("check: the quote states protein binding") for f in bound.flags)
+
+
+def test_a_sentence_becomes_a_value_only_as_a_number_its_quote_states(ws):
+    km = _accept(ws, "elim.hepatic.{enzyme}.km/vmax", "Km = 290 µM (NODV) and Km = 350 µM (benzyl hydroxy desvenlafaxine)")
+    km = decide(ws, km.id, state=EvidenceState.ACCEPTED, reason="read", by="u") if km.state is not EvidenceState.ACCEPTED else km
+    with pytest.raises(EvidenceError, match="description, not a value"):
+        correct(ws, km.id, target="elim.hepatic.CYP3A4.km", reason="CYP3A4 forms NODV", by="u")
+    with pytest.raises(EvidenceError, match="not a number the quote states"):
+        correct(ws, km.id, target="elim.hepatic.CYP3A4.km", value=300, unit="µmol/l", reason="x", by="u")
+    copy = correct(ws, km.id, target="elim.hepatic.CYP3A4.km", value=290, unit="µmol/l", reason="CYP3A4 forms NODV", by="u")
+    assert copy.state is EvidenceState.PROPOSED and copy.value_pksim == 290 and copy.quote == km.quote
+
+
+def test_fe_in_urine_is_kept_as_a_reference_and_is_not_an_elimination_pathway(ws):
+    gfr = _accept(ws, "elim.renal.gfr_fraction", 0.45)
+    fe = correct(ws, gfr.id, target="elim.fe_urine", reason="fraction excreted unchanged, not the GFR multiplier", by="u")
+    decide(ws, fe.id, state=EvidenceState.ACCEPTED, reason="label, 45 % unchanged in urine", by="u")
+    assemble(ws, by="u")
+    cpf = current_cpf(ws)
+    assert cpf.get("elim.fe_urine").value == pytest.approx(0.45) and cpf.get("elim.fe_urine").engine_binding is None
+    left = {(t["kind"], t["target"]) for t in todo(ws)}
+    assert ("missing", "elim") in left                      # fe describes elimination; the model still needs a pathway
+    assert not any(k[0] == "correct" for k in left)

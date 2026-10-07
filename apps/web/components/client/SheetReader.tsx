@@ -138,7 +138,8 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
   const [view, setView] = useState<SheetView | null>(null);
   const [form, setForm] = useState<SheetForm | null>(null);
   const [study, setStudy] = useState<Study>({ n: "", design: "SD", crossover: false, population_type: "healthy",
-                                               infusion_time_min: "", purpose: "model_building" });
+                                               infusion_time_min: "", purpose: "" });
+  const [replace, setReplace] = useState(true);
   const [blq, setBlq] = useState("");
   const [missing, setMissing] = useState("");
   const [result, setResult] = useState<ReadPreview | null>(null);
@@ -155,6 +156,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
       setForm(env.data.form);
       setBlq(env.data.form.below_lloq_tokens.join(", "));
       setMissing(env.data.form.missing_tokens.join(", "));
+      if (env.data.form.study?.infusion_time_min) setStudy((st) => ({ ...st, infusion_time_min: env.data!.form.study.infusion_time_min }));
     });
     return () => { alive = false; };
   }, [projectId, file.id, sheet]);
@@ -187,6 +189,8 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
     if (!(Number(c.dose) > 0)) needs.push("dose");
     if (!(Number(study.n) > 0)) needs.push("number of subjects");
     if (c.route === "oral" && !c.formulation) needs.push("formulation");
+    if (c.route === "oral" && !c.food_state) needs.push("food (fasted or fed)");
+    if (!study.purpose) needs.push("what the study is for");
     if (c.route === "iv_infusion" && !(Number(study.infusion_time_min) > 0)) needs.push("infusion time");
   } else {
     if (!c.product?.trim()) needs.push("product");
@@ -209,7 +213,9 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
       facts.purpose = study.purpose;
       if (c.route === "iv_infusion") facts.infusion_time_min = Number(study.infusion_time_min);
     }
-    return { form: { ...form!, constants, below_lloq_tokens: list(blq), missing_tokens: list(missing) }, study: facts, confirm };
+    const meanN = pk && (form!.mean_column || form!.mean_row) && Number(study.n) > 0 ? Number(study.n) : null;
+    return { form: { ...form!, constants, below_lloq_tokens: list(blq), missing_tokens: list(missing), mean_n: meanN }, study: facts, confirm,
+             replace: replace && view!.read_before.length > 0 };
   }
 
   async function check() {
@@ -234,14 +240,17 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
 
   function useLast() {
     if (!last) return;
-    // the same layout, the details that differ between sheets left to the person
-    const keep = last.form.kind === "dissolution" ? { ...last.form.constants, batch: "", ph: "", medium: "" }
-                                                  : { ...last.form.constants, study_id: form!.constants.study_id ?? "" };
-    // this sheet's own quotes stay; the reader drops any that no longer match what the form says
-    setForm({ ...last.form, sheet, evidence: form!.evidence, constants: keep });
-    setBlq(last.form.below_lloq_tokens.join(", "));
-    setMissing(last.form.missing_tokens.join(", "));
-    setStudy(last.study);
+    // the layout only: columns, units, LLOQ and the cell texts. This sheet keeps its own rows and its own study (id,
+    // dose, route, formulation, food, subjects, purpose): copied across studies they once turned an IV study into an
+    // oral one.
+    const l = last.form;
+    setForm({ ...form!, kind: l.kind, layout: l.layout, time_column: l.time_column, subject_column: l.subject_column,
+              group_column: l.group_column, value_columns: l.value_columns, sd_column: l.sd_column, n_column: l.n_column,
+              time_unit: l.time_unit, value_unit: l.value_unit, statistic: l.statistic, lloq: l.lloq, decimal_comma: l.decimal_comma,
+              mean_column: l.mean_column, mean_statistic: l.mean_statistic, mean_sd_column: l.mean_sd_column });
+    setBlq(l.below_lloq_tokens.join(", "));
+    setMissing(l.missing_tokens.join(", "));
+    setStudy((st) => ({ ...st, design: last.study.design, crossover: last.study.crossover, population_type: last.study.population_type }));
     setResult(null);
   }
 
@@ -251,14 +260,18 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
       <div className="spread">
         <h3 style={{ margin: 0, fontSize: 15, color: "var(--ink)" }}>Read “{sheet}” <span className="muted">· {file.file}</span></h3>
         <div className="row">
-          {last && <button className="btn" onClick={useLast}>Same settings as the last sheet</button>}
+          {last && <button className="btn" onClick={useLast} title="columns, units, LLOQ and cell texts; not the rows or the study">
+            Same layout as the last sheet</button>}
           <button className="btn" onClick={onClose}>Close</button>
         </div>
       </div>
       {view.read_before.length > 0 && (
         <div className="banner warn">
-          This sheet was read before ({view.read_before.reduce((n, r) => n + r.datasets.length, 0)} dataset(s)). Reading it again
-          adds new data; reject the old datasets on the Literature page if you are replacing them.
+          This sheet was read before ({view.read_before.reduce((n, r) => n + r.datasets.length, 0)} dataset(s)).{" "}
+          <label style={{ fontWeight: 500 }}>
+            <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} aria-label="replace the earlier reading" />{" "}
+            This reading replaces it (the earlier datasets are rejected with that reason)
+          </label>
         </div>
       )}
       {view.notes.length > 0 && (
@@ -351,6 +364,24 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
                       <ColumnSelect label="N column" value={form.n_column} onChange={(v) => set({ n_column: v })} columns={columns} header={header} none="none" />
                     </Field>
                   </>}
+                  {form.statistic === "individual" && (form.layout === "times_down" ? (
+                    <Field label="Mean profile column" hint="the sheet's own mean, read next to the subjects (the campaign judges it)">
+                      <ColumnSelect label="mean column" value={form.mean_column} onChange={(v) => set({ mean_column: v })} columns={columns} header={header} none="none" />
+                    </Field>
+                  ) : (
+                    <Field label="Mean profile row" hint="the sheet's own Mean row under the subjects (the campaign judges it)">
+                      <input type="number" min={1} value={form.mean_row ?? ""} placeholder="none" aria-label="mean row"
+                             onChange={(e) => set({ mean_row: e.target.value ? Number(e.target.value) : null })} />
+                    </Field>
+                  ))}
+                  {(form.mean_column || form.mean_row) && form.statistic === "individual" && (
+                    <Field label="That mean is">
+                      <select value={form.mean_statistic} onChange={(e) => set({ mean_statistic: e.target.value as SheetForm["mean_statistic"] })} aria-label="mean statistic">
+                        <option value="arithmetic_mean">arithmetic mean</option><option value="geometric_mean">geometric mean</option>
+                        <option value="median">median</option>
+                      </select>
+                    </Field>
+                  )}
                   <Field label="Cells that mean below LLOQ" hint="comma-separated, e.g. BLQ, <LLOQ">
                     <input value={blq} onChange={(e) => { setBlq(e.target.value); setResult(null); }} aria-label="below LLOQ texts" />
                   </Field>
@@ -389,8 +420,8 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
                   </select>
                 </Field>
                 <Field label="Food">
-                  <select value={c.food_state ?? "fasted"} onChange={(e) => setConst("food_state", e.target.value)} aria-label="food">
-                    <option value="fasted">fasted</option><option value="fed">fed</option>
+                  <select value={c.food_state ?? ""} onChange={(e) => setConst("food_state", e.target.value)} aria-label="food">
+                    <option value="">choose…</option><option value="fasted">fasted</option><option value="fed">fed</option>
                   </select>
                 </Field>
                 {c.route === "iv_infusion" && (
@@ -410,6 +441,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
                 <Field label="Crossover"><input type="checkbox" checked={study.crossover} onChange={(e) => setStudyField({ crossover: e.target.checked })} /></Field>
                 <Field label="The study is for" wide hint={PURPOSES.find(([v]) => v === study.purpose)?.[2]}>
                   <select value={study.purpose} onChange={(e) => setStudyField({ purpose: e.target.value })} aria-label="study purpose">
+                    <option value="">choose…</option>
                     {PURPOSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </Field>

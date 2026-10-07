@@ -77,13 +77,17 @@ def test_a_be_study_with_times_across_the_top_is_suggested_and_read():
     assert triage_sheet(grid.sheets["Sheet1"]).category is SheetCategory.PK_INDIVIDUAL
 
     # the person marks NS as "no sample"; the recipe reads every subject, quoting the cells that state units and dose
-    form = form.model_copy(update={"missing_tokens": ["NS"]})
+    assert form.mean_row == 8 and form.mean_statistic == "arithmetic_mean" and any("mean profile" in n for n in notes)
+    form = form.model_copy(update={"missing_tokens": ["NS"], "mean_n": 3})
     proposal = to_proposal(form, grid.sheets["Sheet1"])
     assert proposal["tables"][0]["time_row"] == 4 and _quotes_hold(grid, proposal)
     assert {e["supports"] for e in proposal["tables"][0]["evidence"]} >= {"value unit ng/mL", "time unit h", "LLOQ 1", "dose 50"}
     result = apply_recipe(grid, _recipe(proposal))
     assert result.issues == [] and validate_concentrations(result.concentrations) == []
-    assert {r.series for r in result.concentrations} == {"001 / I", "002 / II", "003 / I"} and len(result.concentrations) == 29
+    # the subjects, and the sheet's own Mean row as one more series (the profile the campaign judges)
+    assert {r.series for r in result.concentrations} == {"001 / I", "002 / II", "003 / I", "Mean"}
+    means = [r for r in result.concentrations if r.series == "Mean"]
+    assert len(result.concentrations) == 29 + 8 and {r.statistic for r in means} == {"arithmetic_mean"} and means[0].n == 3
 
     # a unit the person changes drops the quote that supported the old one
     changed = to_proposal(form.model_copy(update={"value_unit": "µg/l"}), grid.sheets["Sheet1"])
@@ -132,7 +136,8 @@ def test_published_mean_data_get_their_statistic_sd_and_n_and_the_route_from_the
     assert form.layout == "times_down" and (form.time_column, form.value_columns, form.sd_column, form.n_column) == ("A", ["B"], "C", "D")
     assert form.statistic == "arithmetic_mean" and form.value_unit == "ng/mL"
     assert form.constants["route"] == "iv_infusion" and form.constants["formulation"] == "solution"
-    assert form.constants["study_id"] == "Nichols2012" and form.constants["dose"] == "50"
+    assert form.constants["study_id"] == "Nichols2012-IV" and form.constants["dose"] == "50"
+    assert form.study == {"infusion_time_min": "300"}
     assert any("dose '50' is taken from the file name" in n for n in notes)
     result = apply_recipe(grid, _recipe(to_proposal(form, grid.sheets["Fig 1"])))
     assert result.issues == [] and [r.n for r in result.concentrations] == [14] * 5
@@ -147,3 +152,38 @@ def test_a_sheet_without_numbers_says_so_and_the_preview_is_the_sheet_as_text():
     form, notes = suggest(grid.sheets["Notes"])
     assert form == SheetForm(sheet="Notes") and "may not hold data" in notes[0]
     assert preview_rows(grid.sheets["Notes"]) == [["Shipped with the courier on 1 September"]]
+
+
+def _cro_wide(wb, title="Sheet1"):
+    """Times down, one column per subject, then the CRO's summary columns (Mean, SD, CV %, Geo Mean)."""
+    ws = wb.active
+    ws.title = title
+    ws.append(["Time (hr)", *(f"{i:02d}" for i in range(1, 7)), "Mean", "SD", "CV%", "Geo Mean"])
+    for t, base in ((0, None), (1, 30.0), (2, 70.0), (4, 90.0), (8, 55.0), (24, 12.0)):
+        subjects = ["BLQ"] * 6 if base is None else [base + d for d in (-3, -2, -1, 1, 2, 3)]
+        ws.append([t, *subjects, base, 2.0 if base else None, 4.0 if base else None, base])
+
+
+@pytest.mark.parametrize(("filename", "study_id", "food", "route"), [
+    ("230-23_Fasting_Reference.Data.Desvenlafaxine.xlsx", "230-23-REF", "fasted", "oral"),
+    ("231-23_Fed_Test.Data.Desvenlafaxine.xlsx", "231-23-TEST", "fed", "oral"),
+    ("093-26_Fasting_Reference-P.xlsx", "093-26-REF", "fasted", "oral"),
+    ("Nichols2012_Oral_Desvenlafaxine_100 mg.Sheet1.Desvenlafaxine.xlsx", "Nichols2012", None, "oral"),
+    ("Nichols2012_IV_Desvenlafaxine_50 mg_1h Infusion.Sheet1.Desvenlafaxine.xlsx", "Nichols2012-IV", None, "iv_infusion"),
+])
+def test_file_names_with_underscores_give_each_arm_and_route_its_own_study(filename, study_id, food, route):
+    sheet = filename[:27]            # Excel keeps 31 characters of a sheet name; the CRO's export names it after the file
+    grid = _grid(lambda wb: _cro_wide(wb, sheet), filename)
+    form, notes = suggest(grid.sheets[sheet], filename=filename, drug="desvenlafaxine")
+    assert form.constants["study_id"] == study_id and form.constants.get("food_state") == food
+    assert form.constants["route"] == route
+    if route == "iv_infusion":
+        assert form.study == {"infusion_time_min": "60"} and form.constants["dose"] == "50"
+    # the subjects are read, as individuals; the CRO's summary columns are left out and said so
+    assert form.value_columns == ["B", "C", "D", "E", "F", "G"] and form.statistic == "individual"
+    assert any("summarise the subjects" in n for n in notes)
+    # the CRO's Mean column is the study's mean profile (with its SD), read next to the subjects
+    assert (form.mean_column, form.mean_statistic, form.mean_sd_column) == ("H", "arithmetic_mean", "I")
+    proposal = to_proposal(form.model_copy(update={"mean_n": 6, "lloq": 0.5}), grid.sheets[sheet])
+    result = apply_recipe(grid, _recipe(proposal))
+    assert {r.series for r in result.concentrations if r.statistic == "arithmetic_mean"} == {"Mean"}
