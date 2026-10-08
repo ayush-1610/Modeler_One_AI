@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — P4, project and escalation answers are typed; C5 closed (architecture phase 6d; API contract)
+- **What:**
+  - `modeler_api.views.inputs`, `views.project` and `views.escalations` hold the response models. They are declared
+    by the 6 routes of `inputs_api`, the 9 of `project_api` (phases, artifacts, history, impact, audit, blinding,
+    reveal) and the 5 escalation routes.
+  - The escalation routes keep answering without the envelope, as the owner chose; they use
+    `responses.answers_without_envelope`.
+  - Every route of the guarded routers is now typed, so `[response] untyped` is empty. It stays in `boundaries.toml`,
+    so a new route cannot answer untyped.
+- **Why:** coupling C5 and rule B2, closed by this change.
+- **Impact (an API contract change for clients):**
+  - The OpenAPI snapshot gains the 2xx schemas of these 20 operations, plus 27 schemas. Nothing else changed.
+  - The answers are unchanged; the conftest guard compares each one with the handler's return value.
+  - The typing found a test fake of the campaign runner's `resolve` that answered only `{"status": …}`. The real
+    `local_runner.resolve_escalation` always sends `campaign_id`, `stage` and `action`, so the fake now answers as the
+    runner does.
+  - A new test reaches `inputs:propose-identity`.
+  - `boundaries.toml` (locked): `[response] untyped` goes from 20 to 0, and its hash is refreshed.
+
 ### Changed — P2/P3 answers are typed (architecture phase 6c; API contract)
 - **What:**
   - `modeler_api.views.evidence` and `modeler_api.views.client_data` hold the response models. The 12 routes of

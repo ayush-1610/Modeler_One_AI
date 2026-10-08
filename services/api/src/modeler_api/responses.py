@@ -1,7 +1,8 @@
 """The standard API response envelope, shared by every router (kept separate to avoid import cycles).
 
 `envelope()` builds the body; `Envelope[T]` describes it for a typed route (phase 6, rule B2), and `answers(T)` gives a
-route's decorator both: `@router.get(path, **answers(BriefPage))`.
+route's decorator both: `@router.get(path, **answers(BriefPage))`. The escalation routes answer without the envelope
+(kept as they are, the owner's choice of 2026-10-08): `answers_without_envelope(T)`.
 """
 
 from __future__ import annotations
@@ -53,3 +54,8 @@ def answers(model: Any) -> dict[str, Any]:
     """A route's decorator arguments for an answer built with `envelope(...)`: the typed envelope, and only the keys
     the handler set (an optional key the handler left out stays out, so typing never changes an answer)."""
     return {"response_model": Envelope[model], "response_model_exclude_unset": True}
+
+
+def answers_without_envelope(model: Any) -> dict[str, Any]:
+    """As `answers`, for a route whose answer is the object itself, with no envelope."""
+    return {"response_model": model, "response_model_exclude_unset": True}

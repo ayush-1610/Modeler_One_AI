@@ -1,6 +1,6 @@
 # Phase 6: typed responses for P0–P4, one owner per artifact kind
 
-Status: **6a–6c done.** 6d–6f next, each one PR to `main`.
+Status: **6a–6d done** (every P0–P4 and escalation answer is typed). 6e–6f next, each one PR to `main`.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B3, couplings C5 and C6, §6 phase 6.
 - The exceptions in `tests/architecture/boundaries.toml` (`[response]`, `[owners]`, `[owner_exceptions]`), which only
@@ -67,7 +67,19 @@ Sources:
 
   The original scope was: **P2 `evidence_api` and P3 `client_api`.** The merged map response is one model, built by inheritance from the
   preview, `datasets` and the page view.
-- **6d — P4 `inputs_api`, `project_api` and the escalation routes.** The escalation routes are typed as they are, with
+- **6d — done:**
+  - P4: the 6 routes of `inputs_api`;
+  - the 9 routes of `project_api`;
+  - the 5 escalation routes, which have no envelope (`answers_without_envelope`).
+
+  The models are in `views/inputs.py`, `views/project.py` and `views/escalations.py`. `[response] untyped` is empty;
+  it stays, so a new route cannot answer untyped. Along the way:
+  - The typing found a test fake of the runner's `resolve` that answered only `{"status": …}`. The real runner always
+    sends `campaign_id`, `stage` and `action`, so the fake now answers as the runner does.
+  - A new test reaches `inputs:propose-identity`.
+  - The OpenAPI snapshot: 20 operations gain their 2xx schema, and 27 schemas are added. Nothing else changed.
+
+  The original scope was: **P4 `inputs_api`, `project_api` and the escalation routes.** The escalation routes are typed as they are, with
   no envelope. `[response] untyped` ends empty.
 - **6e — one writer per artifact kind:**
   - **brief:** `modeler_project.brief_ops.save_brief(...)` takes over `brief_api`'s commits.

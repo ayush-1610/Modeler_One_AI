@@ -123,3 +123,24 @@ def test_open_items_are_listed_and_settled_from_the_page(setup):
     assert not [t for t in view["todo"] if t["kind"] in ("conflict", "correct")]
     missing = c.post("/api/v1/projects/p1/inputs:propose-identity", headers=H)
     assert missing.status_code == 409 and "PubChem record" in missing.json()["detail"]
+
+
+def test_the_molecular_weight_is_proposed_from_the_briefs_pubchem_record(setup):
+    # phase 6d: no test reached inputs:propose-identity's answer (the conftest guard checks each answer)
+    from modeler_project.brief import Citation, FieldStatus, ProjectBrief
+    from modeler_project.brief_ops import agent_set
+    from modeler_project.documents import DocumentLibrary
+
+    c, ws, _ = setup
+    record = DocumentLibrary(ws).add_text('{"CID": 123, "MolecularWeight": "225.2"}', "pubchem-renaldrug.txt",
+                                          role="retrieved_record", by="system")
+    latest = ws.latest(ArtifactKind.BRIEF, "main")
+    brief = agent_set(ProjectBrief.from_content(latest.content), "drug.pubchem_cid", value=123, unit=None,
+                      citations=(Citation(doc_sha256=record.content["sha256"], page=1, quote='"CID": 123'),),
+                      status=FieldStatus.RETRIEVED, confidence="A", by="system")
+    ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), derived_from=latest.derived_from, actor="system",
+              reason="identity resolved")
+    proposed = c.post("/api/v1/projects/p1/inputs:propose-identity", headers=H)
+    assert proposed.status_code == 201, proposed.text
+    data = proposed.json()["data"]
+    assert data["evidence"] and data["todo"] is not None

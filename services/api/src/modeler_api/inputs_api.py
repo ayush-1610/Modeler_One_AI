@@ -16,7 +16,8 @@ from pydantic import BaseModel, Field
 
 from modeler_api.config import SettingsDep
 from modeler_api.deps import Reader, StoreDep, Writer, redact, version_view, workspace_for
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
+from modeler_api.views.inputs import IdentityProposal, InputsPage
 from modeler_project import ArtifactKind, Workspace
 from modeler_project.evidence import EvidenceState
 from modeler_project.evidence_register import items
@@ -69,12 +70,12 @@ def _view(ws: Workspace) -> dict[str, Any]:
     }
 
 
-@router.get("/projects/{project_id}/inputs")
+@router.get("/projects/{project_id}/inputs", **answers(InputsPage))
 def get_inputs(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     return envelope(_view(workspace_for(project_id, principal, store)))
 
 
-@router.post("/projects/{project_id}/inputs:assemble")
+@router.post("/projects/{project_id}/inputs:assemble", **answers(InputsPage))
 def assemble_inputs(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     try:
@@ -84,7 +85,7 @@ def assemble_inputs(project_id: str, principal: Writer, store: StoreDep) -> dict
     return envelope(_view(ws))
 
 
-@router.post("/projects/{project_id}/inputs:propose-identity", status_code=201)
+@router.post("/projects/{project_id}/inputs:propose-identity", status_code=201, **answers(IdentityProposal))
 def propose_identity(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Propose the molecular weight from the brief's PubChem record (accepted like any other evidence)."""
     ws = workspace_for(project_id, principal, store)
@@ -102,7 +103,7 @@ class ChoiceRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.put("/projects/{project_id}/inputs/choices")
+@router.put("/projects/{project_id}/inputs/choices", **answers(InputsPage))
 def put_choice(project_id: str, body: ChoiceRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """A structure choice with its reason; the inputs are re-assembled with it."""
     ws = workspace_for(project_id, principal, store)
@@ -128,7 +129,7 @@ class AcceptRequest(BaseModel):
     note: str = ""
 
 
-@router.post("/projects/{project_id}/inputs:accept")
+@router.post("/projects/{project_id}/inputs:accept", **answers(InputsPage))
 def accept(project_id: str, body: AcceptRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     try:
@@ -143,7 +144,7 @@ _UPLOAD_FIELDS = ("study_id", "reference", "n", "design", "dosing_interval_h", "
                   "special_population", "co_medication", "n_timepoints", "lloq", "profile", "origin")
 
 
-@router.post("/projects/{project_id}/inputs:publish")
+@router.post("/projects/{project_id}/inputs:publish", **answers(InputsPage))
 def publish(project_id: str, principal: Writer, store: StoreDep, settings: SettingsDep) -> dict[str, Any]:
     """Hand the accepted CPF v1 and the judged studies to the campaign path (the project's CPF and studies)."""
     from modeler_api.studies import StudyUpload

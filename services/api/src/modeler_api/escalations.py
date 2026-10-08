@@ -29,6 +29,8 @@ from modeler_api.compliance.signatures import (
 )
 from modeler_api.config import SettingsDep
 from modeler_api.execution import RunnerDep
+from modeler_api.responses import answers_without_envelope
+from modeler_api.views.escalations import DecisionOptions, DeviationRecorded, EscalationDecided, EscalationResolved
 from modeler_contracts.runs import DeviationRecord, EscalationDecision
 
 router = APIRouter(prefix="/api/v1", tags=["escalations"])
@@ -127,12 +129,12 @@ def _sign(req: SignedDecisionRequest | DeviationRequest, *, record_type: str, re
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@router.get("/escalations/decision-options")
+@router.get("/escalations/decision-options", **answers_without_envelope(DecisionOptions))
 def escalation_decision_options() -> dict[str, Any]:
     return {"options": decision_options()}
 
 
-@router.post("/campaigns/{campaign_id}/stages/{stage}/escalation:decide")
+@router.post("/campaigns/{campaign_id}/stages/{stage}/escalation:decide", **answers_without_envelope(EscalationDecided))
 async def decide_escalation(
     campaign_id: str,
     stage: str,
@@ -154,7 +156,7 @@ async def decide_escalation(
     }
 
 
-@router.post("/campaigns/{campaign_id}/deviations", status_code=201)
+@router.post("/campaigns/{campaign_id}/deviations", status_code=201, **answers_without_envelope(DeviationRecorded))
 async def record_deviation(
     campaign_id: str,
     request: DeviationRequest,
@@ -206,7 +208,7 @@ class FeedbackRequest(ResolveRequest):
     action: Literal["accept_best", "learn", "new_evidence", "abort"]
 
 
-@router.post("/campaigns/{campaign_id}/feedback:decide")
+@router.post("/campaigns/{campaign_id}/feedback:decide", **answers_without_envelope(EscalationResolved))
 def decide_feedback(campaign_id: str, request: FeedbackRequest, principal: CurrentPrincipal,
                     settings: SettingsDep, runner: RunnerDep) -> dict[str, Any]:
     """The signed decision on a failed external validation (plan §12.4 FEEDBACK_PENDING): limitation (accept_best),
@@ -224,7 +226,7 @@ def _payload(request: ResolveRequest) -> dict[str, Any] | None:
     return None
 
 
-@router.post("/campaigns/{campaign_id}/stages/{stage}/escalation:resolve")
+@router.post("/campaigns/{campaign_id}/stages/{stage}/escalation:resolve", **answers_without_envelope(EscalationResolved))
 def resolve_escalation_decision(
     campaign_id: str, stage: str, request: ResolveRequest, principal: CurrentPrincipal, settings: SettingsDep,
     runner: RunnerDep,
