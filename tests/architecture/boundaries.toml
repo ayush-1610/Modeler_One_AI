@@ -59,3 +59,133 @@ importer = "services/engine-worker/tests/test_objectstore.py"
 imported = "modeler_orchestrator"
 reason = "the S3 object store lives in the orchestrator; moves with the engine port (after phase 3)"
 
+
+
+# ---- phase 6 (2026-10-08, approved by the owner): response models (B2) and artifact owners (B3) ----
+
+# Routes of these routers that still answer with an untyped dict (test_response_models.py). Phase 6 types them (6b-6d),
+# keeping today's shapes; a typed or removed route must leave the list. File downloads are not counted.
+[response]
+routers = [
+  "modeler_api.project_api",
+  "modeler_api.brief_api",
+  "modeler_api.requirements_api",
+  "modeler_api.evidence_api",
+  "modeler_api.client_api",
+  "modeler_api.inputs_api",
+  "modeler_api.escalations",
+]
+untyped = [
+  # project_api
+  "GET /api/v1/projects/{project_id}/phases",
+  "GET /api/v1/projects/{project_id}/artifacts",
+  "GET /api/v1/projects/{project_id}/artifacts/{kind}/{artifact_id}",
+  "GET /api/v1/projects/{project_id}/artifacts/{kind}/{artifact_id}/history",
+  "POST /api/v1/projects/{project_id}/impact",
+  "GET /api/v1/projects/{project_id}/audit",
+  "GET /api/v1/projects/{project_id}/blinding",
+  "PUT /api/v1/projects/{project_id}/blinding",
+  "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
+  # brief_api
+  "POST /api/v1/projects:initiate",
+  "POST /api/v1/projects/{project_id}/documents",
+  "GET /api/v1/projects/{project_id}/documents",
+  "GET /api/v1/projects/{project_id}/documents/{sha256}/pages/{page}",
+  "GET /api/v1/projects/{project_id}/brief",
+  "POST /api/v1/projects/{project_id}/brief:extract",
+  "PUT /api/v1/projects/{project_id}/brief",
+  "POST /api/v1/projects/{project_id}/brief/items:remove",
+  "POST /api/v1/projects/{project_id}/brief/questions/{question_id}",
+  "POST /api/v1/projects/{project_id}/brief:approve",
+  "GET /api/v1/projects/{project_id}/agent-runs/{run_id}",
+  # requirements_api
+  "POST /api/v1/projects/{project_id}/requirements:derive",
+  "GET /api/v1/projects/{project_id}/requirements",
+  "PUT /api/v1/projects/{project_id}/requirements/{req_id}",
+  "POST /api/v1/projects/{project_id}/requirements:approve",
+  # evidence_api
+  "GET /api/v1/projects/{project_id}/evidence",
+  "POST /api/v1/projects/{project_id}/evidence:research",
+  "POST /api/v1/projects/{project_id}/evidence",
+  "POST /api/v1/projects/{project_id}/evidence/{evidence_id}:decide",
+  "POST /api/v1/projects/{project_id}/evidence/{evidence_id}:choose",
+  "POST /api/v1/projects/{project_id}/evidence/{evidence_id}:correct",
+  "POST /api/v1/projects/{project_id}/evidence:approve",
+  "POST /api/v1/projects/{project_id}/access-requests/{request_id}:fulfil",
+  "POST /api/v1/projects/{project_id}/datasets",
+  "POST /api/v1/projects/{project_id}/datasets:digitize",
+  "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
+  "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:decide",
+  # client_api
+  "GET /api/v1/projects/{project_id}/client-data",
+  "POST /api/v1/projects/{project_id}/client-data",
+  "POST /api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}:classify",
+  "POST /api/v1/projects/{project_id}/client-data/{sid}:triage",
+  "GET /api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}",
+  "POST /api/v1/projects/{project_id}/client-data/{sid}:map",
+  "POST /api/v1/projects/{project_id}/dissolution/{profile_id}:propose",
+  "POST /api/v1/projects/{project_id}/client-data:approve",
+  # inputs_api
+  "GET /api/v1/projects/{project_id}/inputs",
+  "POST /api/v1/projects/{project_id}/inputs:assemble",
+  "POST /api/v1/projects/{project_id}/inputs:propose-identity",
+  "PUT /api/v1/projects/{project_id}/inputs/choices",
+  "POST /api/v1/projects/{project_id}/inputs:accept",
+  "POST /api/v1/projects/{project_id}/inputs:publish",
+  # escalations
+  "GET /api/v1/escalations/decision-options",
+  "POST /api/v1/campaigns/{campaign_id}/stages/{stage}/escalation:decide",
+  "POST /api/v1/campaigns/{campaign_id}/deviations",
+  "POST /api/v1/campaigns/{campaign_id}/feedback:decide",
+  "POST /api/v1/campaigns/{campaign_id}/stages/{stage}/escalation:resolve",
+]
+
+# The one module that writes each artifact kind and reads its stored content raw (test_artifact_owners.py). Everyone
+# else asks the owner. brief_ops and map_artifact take over the writes in phase 6e (map_artifact is created then).
+[owners]
+document = "modeler_project.documents"
+brief = "modeler_project.brief_ops"
+requirements = "modeler_project.data_plan"
+feasibility = "modeler_project.data_plan"
+evidence = "modeler_project.evidence_register"
+access_request = "modeler_project.evidence_register"
+dataset = "modeler_project.dataset_register"
+client_submission = "modeler_project.client_data"
+dissolution = "modeler_project.dissolution_register"
+cpf = "modeler_project.inputs"
+study_catalog = "modeler_project.inputs"
+readiness = "modeler_project.inputs"
+model_plan = "modeler_project.plan"
+map = "modeler_project.map_artifact"
+campaign = ""  # nobody: P6 campaigns live in the runner's own store and are linked by reference
+
+# Today's exceptions to [owners] (2026-10-08). Writers go in phase 6e, raw reads in 6e-6f; both lists only shrink.
+[[owner_exceptions.writer]]
+module = "modeler_api.brief_api"
+kind = "brief"
+reason = "the brief's edits, agent merge and approval-time writes; move to modeler_project.brief_ops in phase 6e"
+
+[[owner_exceptions.writer]]
+module = "modeler_api.inputs_api"
+kind = "cpf"
+reason = "the CPF/published hand-off record; moves to modeler_project.inputs in phase 6e"
+
+[[owner_exceptions.writer]]
+module = "modeler_api.plan_api"
+kind = "map"
+reason = "the signed MAP; moves to modeler_project.map_artifact in phase 6e"
+
+# Raw stored-content reads outside the owner modules, per module (exact counts; lower one when reads go, drop it at 0).
+[owner_exceptions.reads]
+"modeler_agents.evidence_agent" = 7       # document metadata (sha256, name, pages, note)
+"modeler_agents.observed_data_agent" = 2  # document metadata
+"modeler_agents.proposal_intake" = 7      # document metadata
+"modeler_api.brief_api" = 5               # document metadata
+"modeler_api.client_api" = 4              # client submission (file, sha256), dataset state
+"modeler_api.deps" = 1                    # model plan structure (blinding view)
+"modeler_api.doctor" = 3                  # CPF and readiness
+"modeler_api.evidence_api" = 2            # access requests, document sha256
+"modeler_api.inputs_api" = 2              # CPF assembly, study catalog
+"modeler_api.plan_api" = 10               # MAP (map, sha256, campaign, signature), study catalog, dissolution
+"modeler_api.project_api" = 1             # dataset study
+"modeler_project.blinding" = 4            # MAP signature, model plan placements, dataset purpose and study
