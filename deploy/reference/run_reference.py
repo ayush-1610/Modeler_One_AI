@@ -79,7 +79,7 @@ def evaluate(model: str, out: Path) -> dict:
     the imported CPF, then AUC and Cmax fold errors per study (sampled at the observed times), GMFE per role."""
     import hashlib
 
-    from modeler_api.write_api import _observed_from_studies
+    from modeler_api.studies import observed_from_studies
     from modeler_contracts.runs import EngineInput, EngineJob
     from modeler_orchestrator.local_runner import default_engine
     from pbpk_domain.campaign.evaluate import ObservedPK, SimulatedProfile, assess_round
@@ -107,7 +107,7 @@ def evaluate(model: str, out: Path) -> dict:
     profiles = json.loads(profiles_path.read_text(encoding="utf-8"))["profiles"]
     mw = imported.cpf.require("phys.mw").numeric_value
     rows = [s for s in imported.studies if s["study_id"] in assignment]
-    observed_doc = _observed_from_studies(rows, mw)
+    observed_doc = observed_from_studies(rows, mw)
     simulated, observed = [], {}
     for sid, prof in profiles.items():
         role = "fitting" if assignment.get(sid) == "INTERNAL" else "validation"

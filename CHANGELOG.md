@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — services out of the routers (architecture phase 5d; phase 5 done)
+- **What:**
+  - Data-plan derivation moved from `requirements_api` (a router) to the project service
+    `modeler_project.data_plan.derive_data_plan`. With no brief it raises `NoBriefError`, which the router turns into
+    the same 404 ("no brief to derive the data plan from").
+  - The study upload request models (`ObservedProfile`, `StudyUpload`, `StudiesUpload`) and the observed PK per
+    profile moved from `write_api` to `modeler_api.studies`. The private `write_api._observed_from_studies` is now the
+    public `studies.observed_from_studies`, and `deploy/reference/run_reference.py` imports it from there.
+  - The project CPF view moved from `read_api` to `modeler_api.cpf_view`, and `read_api` re-exports it.
+  - A new project-model test covers the service: the missing brief, overrides kept across re-derivations, and both
+    artifacts derived from the brief.
+- **Why:** couplings C3 and C4 (routers imported other routers for business logic). Plan:
+  `docs/plans/2026-10-08-phase-5-services.md`.
+- **Impact:**
+  - No behaviour change: the same routes, models, artifacts and messages. The OpenAPI snapshot is unchanged, and
+    `deploy/proof/run_t56.py` is unchanged.
+  - `tests/architecture/boundaries.toml` (locked) drops the last 4 router exceptions (8 → 4), and its hash is
+    refreshed. None of the router or seam kind remain.
+  - Phase 5 is done: exceptions went 35 → 4. What remains is the orchestrator's engine import (an engine port) and 2
+    package tests.
+
 ### Changed — deterministic helpers out of the agents package; one list of recipe constant keys (architecture phase 5c)
 - **What:**
   - The quote check moved from `modeler_agents.citations` to `modeler_intake.citations`, unchanged.

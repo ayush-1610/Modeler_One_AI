@@ -16,30 +16,18 @@ from pydantic import BaseModel, Field
 from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, ArtifactStatus, Workspace
-from modeler_project.brief import ProjectBrief
-from modeler_project.feasibility import check
-from modeler_project.requirements import Provider, RequirementMatrix, RequirementOverride, derive
+from modeler_project.data_plan import NoBriefError, derive_data_plan
+from modeler_project.requirements import Provider, RequirementMatrix, RequirementOverride
 
 router = APIRouter(prefix="/api/v1", tags=["requirements"])
 MAIN = "main"
 
 
-def derive_data_plan(ws: Workspace, *, actor: str, reason: str, extra: RequirementOverride | None = None) -> None:
-    """(Re-)derive the requirement matrix and the feasibility report from the latest brief."""
-    brief_version = ws.latest(ArtifactKind.BRIEF, MAIN)
-    if brief_version is None:
-        raise HTTPException(status_code=404, detail="no brief to derive the data plan from")
-    brief = ProjectBrief.from_content(brief_version.content)
-    previous_version = ws.latest(ArtifactKind.REQUIREMENTS, MAIN)
-    previous = RequirementMatrix.from_content(previous_version.content) if previous_version else None
-    overrides = list(previous.overrides) if previous else []
-    if extra is not None:
-        overrides = [o for o in overrides if o.req_id != extra.req_id] + [extra]
-    matrix = derive(brief, tuple(overrides), previous=previous)
-    ws.commit(ArtifactKind.REQUIREMENTS, MAIN, matrix.to_content(), derived_from=[brief_version.ref], actor=actor,
-              reason=reason)
-    ws.commit(ArtifactKind.FEASIBILITY, MAIN, check(brief).to_content(), derived_from=[brief_version.ref], actor=actor,
-              reason=reason)
+def _derive(ws: Workspace, **kwargs) -> None:
+    try:
+        derive_data_plan(ws, **kwargs)
+    except NoBriefError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 def _view(ws: Workspace) -> dict[str, Any]:
@@ -68,7 +56,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
 @router.post("/projects/{project_id}/requirements:derive")
 def derive_requirements(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
-    derive_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
+    _derive(ws, actor=principal.user_id, reason="derived from the brief")
     return envelope(_view(ws))
 
 
@@ -98,7 +86,7 @@ def override_requirement(project_id: str, req_id: str, body: OverrideRequest, pr
     override = RequirementOverride(req_id=req_id, provider=body.provider, purpose=body.purpose,
                                    cross_check=body.cross_check, status=body.status, reason=body.reason,
                                    by=principal.user_id)
-    derive_data_plan(ws, actor=principal.user_id, reason=f"{req_id}: {body.reason}", extra=override)
+    _derive(ws, actor=principal.user_id, reason=f"{req_id}: {body.reason}", extra=override)
     return envelope(_view(ws))
 
 

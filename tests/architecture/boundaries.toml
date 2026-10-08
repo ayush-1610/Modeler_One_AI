@@ -33,7 +33,7 @@ readers = [
   "modeler_engine.runner",      # passes chosen variables through to the engine subprocess
 ]
 
-# ---- known exceptions (2026-10-07; removed: 13 by phase 3b, 10 by 5a, 14 by 5b, 3 by 5c). rule: layer | declared | seam | router | tests ----
+# ---- known exceptions (2026-10-07; removed: 13 by phase 3b, 10 by 5a, 14 by 5b, 3 by 5c, 4 by 5d). rule: layer | declared | seam | router | tests ----
 
 [[allow]]
 rule = "layer"
@@ -46,30 +46,6 @@ rule = "declared"
 importer = "modeler_orchestrator"
 imported = "modeler_engine"
 reason = "lazy import in local_runner; goes behind an engine port with the layer exception above"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.brief_api"
-imported = "modeler_api.requirements_api"
-reason = "data-plan derivation lives in a router; moves to a modeler_project service in phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.inputs_api"
-imported = "modeler_api.write_api"
-reason = "the StudyUpload request model lives in the write router; typed models move out in phase 6"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.plan_api"
-imported = "modeler_api.write_api"
-reason = "private _observed_from_studies of the write router; phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.write_api"
-imported = "modeler_api.read_api"
-reason = "the project CPF view lives in the read router; moves to a service in phase 5"
 
 [[allow]]
 rule = "tests"
