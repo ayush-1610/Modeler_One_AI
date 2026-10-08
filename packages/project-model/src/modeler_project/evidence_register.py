@@ -224,6 +224,11 @@ def close_register(ws: Workspace, matrix_ref, matrix: RequirementMatrix, *, by: 
     ws.approve(version.ref, by=by, printed_name=printed_name, meaning="Reviewed", note=note)
 
 
+def access_requests(ws: Workspace) -> list[dict[str, Any]]:
+    """Every paper requested (title, authors, DOI, what it is needed for, its status), each with its id."""
+    return [{"id": v.id, **v.content} for v in ws.list(ArtifactKind.ACCESS_REQUEST)]
+
+
 def request_access(ws: Workspace, *, title: str, authors: str, doi: str | None, journal: str | None, year: int | None,
                    needed_for: str, by: str) -> tuple[str, bool]:
     """File a request for a paper the tools cannot read legally (deduplicated by DOI or title)."""

@@ -18,7 +18,7 @@ from modeler_agents.llm import ChatModel, Tool, run_tool_loop
 from modeler_agents.sources import EuropePMC, SourceError
 from modeler_agents.web_search import search_tool
 from modeler_intake.citations import quote_appears_in, value_stated_in_quote
-from modeler_project.documents import DocumentLibrary
+from modeler_project.documents import DocumentLibrary, document_record
 from modeler_project.evidence import EvidenceItem, Extraction, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import propose, request_access
 from modeler_project.requirements import RequirementItem
@@ -98,10 +98,11 @@ def propose_value(ctx: ResearchContext, *, req_id: str, target: str, value: Any,
     except (ValueError, IndexError):
         number = None
     doc = ctx.library.by_sha(doc_sha256)
-    meta = (doc.content.get("note") or "") if doc else ""
+    record = document_record(doc) if doc else None
+    meta = record.note if record else ""
     paper = ctx.papers.get(meta.split("paper:", 1)[1].split()[0]) if "paper:" in meta else None
     source = SourceRef(doc_sha256=doc_sha256, page=int(page), locator=locator,
-                       title=getattr(paper, "title", "") or (doc.content["name"] if doc else ""),
+                       title=getattr(paper, "title", "") or (record.name if record else ""),
                        authors=getattr(paper, "authors", ""), year=getattr(paper, "year", None),
                        doi=getattr(paper, "doi", None), pmid=getattr(paper, "pmid", None))
     item = EvidenceItem(id=new_id(), req_id=req_id, target=target, value=number if number is not None else str(value),
@@ -145,7 +146,7 @@ def reading_tools(ctx: ResearchContext, *, kinds: tuple[str, ...] = ("parameter"
         text = f"{paper.title}\n{paper.authors}. {paper.journal} {paper.year}. doi {paper.doi}\n\n{paper.abstract}"
         doc = ctx.library.add_text(text, f"abstract-{paper_id}.md", role="paper", by=ctx.actor,
                                    note=f"paper:{paper_id} abstract from Europe PMC")
-        return f"doc_sha256 {doc.content['sha256']} page 1\n{text}"
+        return f"doc_sha256 {document_record(doc).sha256} page 1\n{text}"
 
     def read_full_text(paper_id: str) -> str:
         paper = ctx.papers.get(paper_id)
@@ -159,8 +160,9 @@ def reading_tools(ctx: ResearchContext, *, kinds: tuple[str, ...] = ("parameter"
             return f"ERROR: {exc}"
         doc = ctx.library.add_text(text, f"fulltext-{paper.pmcid}.md", role="paper", by=ctx.actor,
                                    note=f"paper:{paper_id} open-access full text from Europe PMC")
-        first = ctx.library.page_text(doc.content["sha256"], 1) or ""
-        return f"doc_sha256 {doc.content['sha256']} pages {doc.content['n_pages']}\n--- page 1 ---\n{first}"
+        record = document_record(doc)
+        first = ctx.library.page_text(record.sha256, 1) or ""
+        return f"doc_sha256 {record.sha256} pages {record.n_pages}\n--- page 1 ---\n{first}"
 
     def read_page(doc_sha256: str, page: int) -> str:
         text = ctx.library.page_text(doc_sha256, int(page))
@@ -186,7 +188,7 @@ def reading_tools(ctx: ResearchContext, *, kinds: tuple[str, ...] = ("parameter"
         text = f"{result['title']}\n{result['url']}\n\n{result['content']}"
         name = "web-" + "".join(ch if ch.isalnum() else "-" for ch in result["url"].split("//", 1)[-1])[:80] + ".md"
         doc = ctx.library.add_text(text, name, role="retrieved_record", by=ctx.actor, note=f"web:{result['url']} (web search)")
-        return doc.content["sha256"]
+        return document_record(doc).sha256
 
     s = {"type": "string"}
     web = search_tool(store_page)

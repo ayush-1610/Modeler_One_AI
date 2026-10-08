@@ -28,8 +28,9 @@ from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_f
 from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
+from modeler_project.dissolution_register import profiles as dissolution_profiles
 from modeler_project.inputs import MAIN as INPUTS_MAIN
-from modeler_project.inputs import current_cpf
+from modeler_project.inputs import catalog_rows, current_cpf
 from modeler_project.map_artifact import MapArtifact, MapSignature, latest_map, record_signed_map, signed_map
 from modeler_project.plan import (
     Deviation,
@@ -67,7 +68,7 @@ def _inputs(ws: Workspace) -> tuple[CPF, list[dict[str, Any]], list[Any]]:
         raise HTTPException(status_code=409, detail="accept the model inputs (P4) before planning")
     cpf = current_cpf(ws)
     catalog = ws.latest(ArtifactKind.STUDY_CATALOG, INPUTS_MAIN)
-    rows = list(catalog.content["studies"]) if catalog else []
+    rows = catalog_rows(ws)
     if cpf is None or not rows:
         raise HTTPException(status_code=409, detail="the inputs have no CPF or no study")
     return cpf, rows, [ws.latest(ArtifactKind.CPF, INPUTS_MAIN).ref, catalog.ref, ready.ref]
@@ -140,8 +141,7 @@ def _d2(cpf: CPF, plan: ModelPlan, ws: Workspace) -> dict[str, Any]:
         lanes.append({"name": name, "release": kind, "parameters": params, "studies": [
             {"study_id": s.study_id, "food_state": s.food_state, "role": plan.placements[s.study_id].role}
             for s in plan.studies if s.route == "oral" and s.formulation not in ("solution", "suspension")]})
-    profiles = [{"id": v.id, "label": v.content["label"], "release_model": v.content["release_model"]}
-                for v in ws.list(ArtifactKind.DISSOLUTION) if v.id != "comparisons"]
+    profiles = [{"id": p["id"], "label": p["label"], "release_model": p["release_model"]} for p in dissolution_profiles(ws)]
     return {"absorption": absorption, "lanes": lanes, "dissolution": profiles,
             "food_effect_in_question": plan.structure.food_effect_in_question,
             "measured_fed_solubility": plan.structure.measured_fed_solubility}

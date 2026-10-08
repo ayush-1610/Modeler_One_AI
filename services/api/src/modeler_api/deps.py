@@ -79,9 +79,11 @@ def project_record(ws: Workspace) -> dict[str, Any] | None:
 
 def model_risk(ws: Workspace) -> str | None:
     """The human-confirmed model risk: the plan's (P5) once it exists, else the brief's acceptance tier."""
-    plan = ws.latest(ArtifactKind.MODEL_PLAN, "main")
+    from modeler_project.plan import current
+
+    _version, plan = current(ws)
     if plan is not None:
-        return (plan.content.get("structure") or {}).get("model_risk")
+        return plan.structure.model_risk
     brief = ws.latest(ArtifactKind.BRIEF, "main")
     if brief is None:
         return None

@@ -55,7 +55,7 @@ def report(ws: Workspace, *, logs: Path | None = None) -> str:
     from modeler_project.dataset_register import datasets
     from modeler_project.evidence import review_flags
     from modeler_project.evidence_register import items
-    from modeler_project.inputs import dataset_warnings, placement, todo
+    from modeler_project.inputs import current_cpf, dataset_warnings, placement, readiness_report, todo
     from modeler_project.requirements import RequirementMatrix
 
     out: list[str] = []
@@ -128,15 +128,15 @@ def report(ws: Workspace, *, logs: Path | None = None) -> str:
 
     w("## P4 model inputs\n")
     cpf = ws.latest(ArtifactKind.CPF, "main")
-    ready = ws.latest(ArtifactKind.READINESS, "main")
+    ready, report = ws.latest(ArtifactKind.READINESS, "main"), readiness_report(ws)
     if cpf is None:
         w("- not assembled")
     else:
-        records = cpf.content["cpf"]["parameters"]
-        w(f"- CPF v{cpf.version}: {len(records)} parameters: " + ", ".join(r["id"] for r in records))
+        records = current_cpf(ws).parameters
+        w(f"- CPF v{cpf.version}: {len(records)} parameters: " + ", ".join(r.id for r in records))
     if ready is not None:
-        w(f"- readiness v{ready.version}: {'ready' if ready.content['ready'] else 'NOT ready'}")
-        for c in ready.content["checks"]:
+        w(f"- readiness v{ready.version}: {'ready' if report['ready'] else 'NOT ready'}")
+        for c in report["checks"]:
             w(f"  - [{'ok' if c['ok'] else 'open'}] {c['check']}" + "".join(f"\n    - {d}" for d in c["detail"]))
         w("- to do: " + ("; ".join(f"{t['kind']} {t['target']}" for t in todo(ws)) or "nothing"))
     w("")

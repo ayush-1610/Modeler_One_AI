@@ -12,7 +12,9 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict
 
 from modeler_intake.documents import extract_document
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
@@ -36,6 +38,31 @@ def document_id(sha256: str) -> str:
     return f"doc-{sha256[:12]}"
 
 
+class DocumentRecord(BaseModel):
+    """DOCUMENT content: a stored file's metadata, the hash of its bytes and the hash of its page texts. This module is
+    the kind's owner (phase 6, rule B3): readers take a document's name, pages or hash from here, not the stored JSON."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    kind: str
+    media_type: str
+    size_bytes: int
+    sha256: str
+    pages_sha256: str
+    n_pages: int
+    role: str
+    warnings: tuple[str, ...]
+    note: str
+
+    def to_content(self) -> dict[str, Any]:
+        return self.model_dump(mode="json")
+
+
+def document_record(version: ArtifactVersion) -> DocumentRecord:
+    return DocumentRecord.model_validate(version.content)
+
+
 class DocumentLibrary:
     def __init__(self, ws: Workspace):
         self.ws = ws
@@ -51,12 +78,10 @@ class DocumentLibrary:
         store.put_blob(self.ws.tenant_id, self.ws.project_id, data)
         pages_json = json.dumps([p.text for p in doc.pages], ensure_ascii=False).encode("utf-8")
         pages_sha = store.put_blob(self.ws.tenant_id, self.ws.project_id, pages_json)
-        content = {
-            "name": doc.name, "kind": doc.kind, "media_type": doc.media_type, "size_bytes": doc.size_bytes,
-            "sha256": doc.sha256, "pages_sha256": pages_sha, "n_pages": len(doc.pages), "role": role,
-            "warnings": list(doc.warnings), "note": note,
-        }
-        return self.ws.commit(ArtifactKind.DOCUMENT, document_id(doc.sha256), content, actor=by,
+        record = DocumentRecord(name=doc.name, kind=doc.kind, media_type=doc.media_type, size_bytes=doc.size_bytes,
+                                sha256=doc.sha256, pages_sha256=pages_sha, n_pages=len(doc.pages), role=role,
+                                warnings=tuple(doc.warnings), note=note)
+        return self.ws.commit(ArtifactKind.DOCUMENT, document_id(doc.sha256), record.to_content(), actor=by,
                               reason=f"uploaded {doc.name} ({role})")
 
     def add_text(self, text: str, name: str, *, role: DocumentRole, by: str, note: str = "") -> ArtifactVersion:
@@ -74,7 +99,7 @@ class DocumentLibrary:
             version = self.by_sha(sha256)
             if version is None:
                 return []
-            path = self.ws.store.blob_path(self.ws.tenant_id, self.ws.project_id, version.content["pages_sha256"])
+            path = self.ws.store.blob_path(self.ws.tenant_id, self.ws.project_id, document_record(version).pages_sha256)
             self._pages[sha256] = json.loads(path.read_text(encoding="utf-8")) if path else []
         return self._pages[sha256]
 
@@ -91,7 +116,8 @@ class DocumentLibrary:
             return []
         scored: list[tuple[int, int, str, int, str, str]] = []
         for version in self.documents():
-            sha = version.content["sha256"]
+            record = document_record(version)
+            sha = record.sha256
             for number, text in enumerate(self.pages(sha), start=1):
                 lowered = text.lower()
                 present = [w for w in words if w in lowered]
@@ -100,7 +126,7 @@ class DocumentLibrary:
                 count = sum(lowered.count(w) for w in present)
                 first = min(lowered.find(w) for w in present)
                 snippet = text[max(0, first - 120): first + 240].replace("\n", " ")
-                scored.append((-len(present), -count, sha, number, version.content["name"], snippet))
+                scored.append((-len(present), -count, sha, number, record.name, snippet))
         scored.sort()
         return [DocumentHit(doc_sha256=sha, title=name, page=page, snippet=snippet)
                 for _, _, sha, page, name, snippet in scored[:max_results]]

@@ -131,3 +131,9 @@ def test_library_stores_documents_once_and_searches_pages(tmp_path):
     assert hits[0].page == 2 and "three media" in hits[0].snippet
     assert library.page_text(first.content["sha256"], 2).startswith("The client")
     assert ProjectBrief.from_content(empty_brief("X", by="u").to_content()).drug_name == "X"
+    # phase 6f: DOCUMENT content is written and read through DocumentRecord; the stored keys are unchanged
+    from modeler_project.documents import document_record
+
+    assert set(first.content) == {"name", "kind", "media_type", "size_bytes", "sha256", "pages_sha256", "n_pages", "role",
+                                  "warnings", "note"}
+    assert document_record(first).to_content() == first.content and document_record(first).n_pages == 2

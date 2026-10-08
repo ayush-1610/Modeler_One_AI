@@ -58,6 +58,12 @@ def submissions(ws: Workspace) -> list[dict[str, Any]]:
     return [v.content | {"id": v.id} for v in ws.list(ArtifactKind.CLIENT_SUBMISSION) if v.id != REGISTER]
 
 
+def submission(ws: Workspace, sid: str) -> dict[str, Any] | None:
+    """One client file's record (its file name and hash, triage, mappings, what was read), or None."""
+    version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
+    return version.content if version is not None else None
+
+
 # --- reading one file -------------------------------------------------------------------------------------------
 
 
