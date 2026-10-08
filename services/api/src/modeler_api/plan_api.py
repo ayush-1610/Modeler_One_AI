@@ -20,7 +20,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from modeler_api.agent_jobs import agents_status
+from modeler_api import agent_jobs
 from modeler_api.auth import Principal, ensure_step_up, require_role
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep, get_settings
@@ -173,7 +173,7 @@ def _view(ws: Workspace, version, plan: ModelPlan, cpf: CPF, rows: list[dict[str
         "signed": bool(map_version and map_version.content.get("signature")),
         "deviations": [d.model_dump(mode="json") for d in plan.deviations],
         "deviations_pending": len(plan.pending_deviations()),
-        "agents": agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
+        "agents": agent_jobs.agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
     }
 
 
@@ -363,23 +363,14 @@ def rebase_plan(project_id: str, principal: Writer, store: StoreDep) -> dict[str
 
 def run_planning_job(store: ProjectStore, tenant_id: str, project_id: str, *, model, max_turns: int = 20,
                      exploratory: bool = False) -> dict[str, Any]:
-    from modeler_agents.planning_agent import PlanningContext, run_planning
-    from modeler_agents.run_store import FileRunStore
-
     ws = Workspace(store, tenant_id, project_id)
     _version, plan, cpf, rows = _ensure(ws, "system")
-    runs = FileRunStore(store.root, project_id=project_id)  # type: ignore[attr-defined]
-    run_id = runs.start_run(tenant_id=tenant_id, agent="A5-planning", provider=model.provider, model=model.model,
-                            campaign_id=None, budget={"max_turns": max_turns})
-    seq = [0]
-
-    def log_step(step: dict[str, Any]) -> None:
-        seq[0] += 1
-        runs.record_step(run_id=run_id, seq=seq[0], kind=step.get("type", "step"), content=step, usage=step.get("usage", {}))
-
-    ctx = PlanningContext(plan=plan, cpf=cpf, rows=rows, actor=f"agent:{run_id}", exploratory=exploratory)
+    run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
+                              agent="A5-planning", model=model, max_turns=max_turns)
     brief = _brief(ws)
-    outcome = run_planning(model, ctx, drug=brief.drug_name if brief else cpf.compound, max_turns=max_turns, log_step=log_step)
+    ctx, outcome = agent_jobs.planning(model, plan=plan, cpf=cpf, rows=rows, actor=run.actor, exploratory=exploratory,
+                                       drug=brief.drug_name if brief else cpf.compound, max_turns=max_turns,
+                                       log_step=run.log_step)
     # the plan may have changed while the agent worked: apply its rationales and proposals to the latest version
     _v, latest = current(ws)
     merged = latest.model_copy(update={
@@ -390,23 +381,15 @@ def run_planning_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
     save(ws, merged, by=ctx.actor, reason=f"A5 draft: {ctx.explained} rationales, {len(ctx.proposed)} proposals")
     summary = {"explained": ctx.explained, "proposed": ctx.proposed, "refused": ctx.refused, "summary": outcome.final_text[:2000],
                "error": outcome.error}
-    runs.finish_run(run_id=run_id, status=outcome.status, input_tokens=outcome.usage["input_tokens"],
-                    output_tokens=outcome.usage["output_tokens"], cost_usd=0.0, summary=summary)
-    return {"run_id": run_id, "status": outcome.status, **summary}
+    run.finish(outcome, summary)
+    return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 
 @router.post("/projects/{project_id}/plan:draft", status_code=202)
 def start_draft(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    from modeler_agents.llm import LLMConfigError, chat_model_from_env
-
     ws = workspace_for(project_id, principal, store)
     _ensure(ws, principal.user_id)
-    try:
-        model = chat_model_from_env()
-    except LLMConfigError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    if model is None:
-        raise HTTPException(status_code=409, detail="agents are off: the MS-01 default stands; explain changes yourself")
+    model = agent_jobs.require_chat_model("agents are off: the MS-01 default stands; explain changes yourself")
     key = (principal.tenant_id, project_id)
     with _LOCK:
         if key in _RUNNING:

@@ -15,7 +15,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from modeler_api.agent_jobs import agents_status
+from modeler_api import agent_jobs
 from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_intake.client_template import TEMPLATE_ID, build_template
@@ -72,7 +72,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "reconciliation": recon.to_content(),
         "dissolution": {"profiles": profiles(ws), **comparisons(ws)},
         "register": version_view(ws, register, with_content=False) if register else None,
-        "agents": agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
+        "agents": agent_jobs.agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
     }
 
 
@@ -137,46 +137,28 @@ def classify(project_id: str, sid: str, sheet: str, body: Classification, princi
 
 def run_triage_job(store: ProjectStore, tenant_id: str, project_id: str, sid: str, *, model, max_turns: int = 6) -> dict[str, Any]:
     """A4 on the sheets code left OTHER; each accepted classification carries a header quote checked by code."""
-    from modeler_agents.run_store import FileRunStore
-    from modeler_agents.sheet_triage import TriageContext, run_triage
-
     ws = Workspace(store, tenant_id, project_id)
     content, workbook = _workbook(ws, sid)
     undecided = [t["sheet"] for t in content["triage"] if t["category"] == SheetCategory.OTHER.value and t["by"] == "code"]
     if not undecided:
         return {"status": "COMPLETED", "classified": 0, "rejected": 0}
-    runs = FileRunStore(store.root, project_id=project_id)  # type: ignore[attr-defined]
-    run_id = runs.start_run(tenant_id=tenant_id, agent="A4-sheet-triage", provider=model.provider, model=model.model,
-                            campaign_id=None, budget={"max_turns": max_turns})
-    seq = [0]
-
-    def log_step(step: dict[str, Any]) -> None:
-        seq[0] += 1
-        runs.record_step(run_id=run_id, seq=seq[0], kind=step.get("type", "step"), content=step, usage=step.get("usage", {}))
-
-    ctx = TriageContext(workbook=workbook, sheets=undecided, actor=f"agent:{run_id}")
-    outcome = run_triage(model, ctx, max_turns=max_turns, log_step=log_step)
+    run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
+                              agent="A4-sheet-triage", model=model, max_turns=max_turns)
+    ctx, outcome = agent_jobs.sheet_triage(model, workbook=workbook, sheets=undecided, actor=run.actor, max_turns=max_turns,
+                                           log_step=run.log_step)
     for triaged in ctx.accepted:
         set_triage(ws, sid, triaged, by=ctx.actor, reason=triaged.note or "A4, header quoted")
     summary = {"classified": len(ctx.accepted), "rejected": len(ctx.rejected), "summary": outcome.final_text[:2000],
                "error": outcome.error}
-    runs.finish_run(run_id=run_id, status=outcome.status, input_tokens=outcome.usage["input_tokens"],
-                    output_tokens=outcome.usage["output_tokens"], cost_usd=0.0, summary=summary)
-    return {"run_id": run_id, "status": outcome.status, **summary}
+    run.finish(outcome, summary)
+    return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 
 @router.post("/projects/{project_id}/client-data/{sid}:triage", status_code=202)
 def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    from modeler_agents.llm import LLMConfigError, chat_model_from_env
-
     ws = workspace_for(project_id, principal, store)
     _workbook(ws, sid)
-    try:
-        model = chat_model_from_env()
-    except LLMConfigError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    if model is None:
-        raise HTTPException(status_code=409, detail="agents are off: say what each sheet holds by hand")
+    model = agent_jobs.require_chat_model("agents are off: say what each sheet holds by hand")
     key = (principal.tenant_id, project_id)
     with _LOCK:
         if key in _RUNNING:
