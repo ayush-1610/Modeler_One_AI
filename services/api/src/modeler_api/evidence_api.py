@@ -24,11 +24,12 @@ from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
 from modeler_project.dataset_register import approve_overlay, datasets, decide_dataset, digitized_dataset, propose_dataset
 from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, new_dataset_id
-from modeler_project.documents import DocumentLibrary
+from modeler_project.documents import DocumentLibrary, document_record
 from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, new_id, review_flags
 from modeler_project.evidence_register import (
     REGISTER_LITERATURE,
     EvidenceError,
+    access_requests,
     blocking,
     choose,
     close_register,
@@ -75,7 +76,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "blinding": {"blinded": sorted(hidden)},
         "coverage": [r.__dict__ | {"accepted": list(r.accepted), "proposed": list(r.proposed)} for r in rows],
         "blocking": [r.req_id for r in blocking(rows)],
-        "access_requests": [{"id": v.id, **v.content} for v in ws.list(ArtifactKind.ACCESS_REQUEST)],
+        "access_requests": access_requests(ws),
         "register": version_view(ws, register, with_content=False) if register else None,
         "agents": agent_jobs.agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "model", "started_at", "finished_at", "summary")}
@@ -266,7 +267,7 @@ async def fulfil_request(project_id: str, request_id: str, principal: Writer, st
     try:
         doc = DocumentLibrary(ws).add(await file.read(), file.filename or "paper.pdf", role="paper", by=principal.user_id,
                                       note=note or f"supplied for {request_id}")
-        fulfil_access(ws, request_id, doc_sha256=doc.content["sha256"], by=principal.user_id)
+        fulfil_access(ws, request_id, doc_sha256=document_record(doc).sha256, by=principal.user_id)
     except (DocumentError, EvidenceError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return envelope(_view(ws))

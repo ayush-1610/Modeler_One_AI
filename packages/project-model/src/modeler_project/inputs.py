@@ -428,6 +428,24 @@ def current_cpf(ws: Workspace) -> CPF | None:
     return CPF.model_validate(version.content["cpf"]) if version else None
 
 
+def cpf_assembly(ws: Workspace) -> dict[str, Any] | None:
+    """The latest assembly report: which evidence made each value, and the open issues."""
+    version = ws.latest(ArtifactKind.CPF, MAIN)
+    return version.content["assembly"] if version else None
+
+
+def catalog_rows(ws: Workspace) -> list[dict[str, Any]]:
+    """The study catalog's rows (a StudyRecord each, with its profile and whether it is evaluable); [] before P4."""
+    version = ws.latest(ArtifactKind.STUDY_CATALOG, MAIN)
+    return list(version.content["studies"]) if version else []
+
+
+def readiness_report(ws: Workspace) -> dict[str, Any] | None:
+    """The latest readiness report: whether the inputs are ready, and each check with its detail."""
+    version = ws.latest(ArtifactKind.READINESS, MAIN)
+    return version.content if version else None
+
+
 class Publication(BaseModel):
     """CPF/published: the accepted CPF and readiness versions handed to the campaign path, and the studies sent."""
 

@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — only the owner modules read stored artifact content; C6 closed, phase 6 done (architecture phase 6f)
+- **What:**
+  - `modeler_project.documents` gains a `DocumentRecord` content model, which also writes, and `document_record()`.
+    Document metadata (name, pages, hash, role, note) is read through it by `brief_api`, `evidence_api` and the
+    agents `evidence_agent`, `observed_data_agent` and `proposal_intake`.
+  - New owner accessors:
+    - `client_data.submission`;
+    - `dataset_register.dataset`;
+    - `evidence_register.access_requests`;
+    - `inputs.cpf_assembly`, `catalog_rows` and `readiness_report`.
+  - `client_api`, `doctor`, `inputs_api`, `plan_api` and `project_api` use them, and so do `deps.model_risk` (through
+    `plan.current`) and `blinding.external_studies` (through the plan and `dataset_register.datasets`).
+- **Why:** coupling C6 and rule B3. A stored key was read in a dozen modules outside its owner, so changing it broke
+  pages and agents nobody had touched.
+- **Impact:**
+  - No behaviour change: the API answers are unchanged (the conftest guard), the OpenAPI snapshot is unchanged, and
+    the stored content is unchanged. A test shows a document's stored keys are the ones written before and read back
+    through `DocumentRecord`.
+  - `boundaries.toml` (locked): raw content reads go from 40 to 0, so `[owner_exceptions]` is empty, and the hash is
+    refreshed. A new raw read or a write by a non-owner now fails CI without an approved entry.
+  - Phase 6 is done: C5 and C6 are closed. Next is phase 7 (frontend seams); its `openapi-typescript` dependency is to
+    be approved first.
+
 ### Changed — one writer per artifact kind; the MAP gets an owner module (architecture phase 6e)
 - **What:**
   - **brief:** `modeler_project.brief_ops.save_brief` now writes it, taking over the five `ws.commit` calls in

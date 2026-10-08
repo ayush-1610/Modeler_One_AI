@@ -19,6 +19,7 @@ from modeler_agents.llm import ChatModel, Tool, run_tool_loop
 from modeler_intake.citations import quote_appears_in, value_stated_in_quote
 from modeler_project.dataset_register import propose_dataset
 from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, new_dataset_id
+from modeler_project.documents import document_record
 from modeler_project.evidence import SourceRef
 from modeler_project.evidence_register import request_access
 
@@ -42,10 +43,11 @@ def _parse_obj(value: Any) -> Any:
 
 def _source(ctx: ResearchContext, doc_sha256: str, page: int, locator: str) -> SourceRef:
     doc = ctx.library.by_sha(doc_sha256)
-    note = (doc.content.get("note") or "") if doc else ""
+    record = document_record(doc) if doc else None
+    note = record.note if record else ""
     paper = ctx.papers.get(note.split("paper:", 1)[1].split()[0]) if "paper:" in note else None
     return SourceRef(doc_sha256=doc_sha256, page=page, locator=locator,
-                     title=getattr(paper, "title", "") or (doc.content["name"] if doc else ""),
+                     title=getattr(paper, "title", "") or (record.name if record else ""),
                      authors=getattr(paper, "authors", ""), year=getattr(paper, "year", None),
                      doi=getattr(paper, "doi", None), pmid=getattr(paper, "pmid", None))
 

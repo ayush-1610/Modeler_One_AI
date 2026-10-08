@@ -48,7 +48,7 @@ from modeler_project.brief import (
     validate_brief,
 )
 from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, resolve_identity, save_brief, summary
-from modeler_project.documents import DocumentLibrary
+from modeler_project.documents import DocumentLibrary, document_record
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 
 router = APIRouter(prefix="/api/v1", tags=["brief"])
@@ -80,10 +80,10 @@ def _document_refs(ws: Workspace):
 
 
 def _document_view(version) -> dict[str, Any]:
-    c = version.content
-    return {"id": version.id, "sha256": c["sha256"], "name": c["name"], "kind": c["kind"], "role": c["role"],
-            "n_pages": c["n_pages"], "size_bytes": c["size_bytes"], "warnings": c.get("warnings", []),
-            "uploaded_at": version.created_at.isoformat(), "uploaded_by": version.created_by}
+    c = document_record(version)
+    return {"id": version.id, "sha256": c.sha256, "name": c.name, "kind": c.kind, "role": c.role, "n_pages": c.n_pages,
+            "size_bytes": c.size_bytes, "warnings": list(c.warnings), "uploaded_at": version.created_at.isoformat(),
+            "uploaded_by": version.created_by}
 
 
 # --- extraction (identity + agent A1), in the background ------------------------------------------------------
@@ -118,8 +118,8 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
         raise RuntimeError("no brief to extract into")
 
     def store_record(record) -> str:
-        return library.add_text(record.text, f"pubchem-{_slug(record.query)}.txt", role="retrieved_record",
-                                by="system").content["sha256"]
+        return document_record(library.add_text(record.text, f"pubchem-{_slug(record.query)}.txt",
+                                                role="retrieved_record", by="system")).sha256
 
     brief, notes = resolve_identity(start, store_record=store_record, by="system", fetch=fetch_identity or fetch_pubchem)
     accepted_paths = [p for p in ("drug.pubchem_cid", "drug.smiles", "drug.inchikey", "drug.mw_free_base")
@@ -245,8 +245,8 @@ def document_page(project_id: str, sha256: str, page: int, principal: Reader, st
     text = library.page_text(sha256, page)
     if version is None or text is None:
         raise HTTPException(status_code=404, detail="no such document page")
-    return envelope({"sha256": sha256, "name": version.content["name"], "page": page, "n_pages": version.content["n_pages"],
-                     "text": text})
+    record = document_record(version)
+    return envelope({"sha256": sha256, "name": record.name, "page": page, "n_pages": record.n_pages, "text": text})
 
 
 @router.get("/projects/{project_id}/documents/{sha256}/raw")
@@ -256,7 +256,8 @@ def document_raw(project_id: str, sha256: str, principal: Reader, store: StoreDe
     path = store.blob_path(principal.tenant_id, project_id, sha256) if version else None
     if path is None:
         raise HTTPException(status_code=404, detail="no such document")
-    return FileResponse(path, media_type=version.content["media_type"], filename=version.content["name"])
+    record = document_record(version)
+    return FileResponse(path, media_type=record.media_type, filename=record.name)
 
 
 # --- the brief -----------------------------------------------------------------------------------------------

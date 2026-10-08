@@ -29,6 +29,7 @@ from modeler_project.brief import (
     parse_path,
 )
 from modeler_project.brief_ops import HUMAN_ONLY, EditError, agent_set, locked, summary
+from modeler_project.documents import document_record
 
 
 class DocumentSource(Protocol):
@@ -129,16 +130,13 @@ def propose_field(ctx: IntakeContext, *, path: str, value: Any, quote: str, doc_
 
 
 def _doc_name(library: DocumentSource, sha: str) -> str:
-    for version in library.documents():
-        if version.content.get("sha256") == sha:
-            return str(version.content.get("name", ""))
-    return ""
+    return next((r.name for r in map(document_record, library.documents()) if r.sha256 == sha), "")
 
 
 def build_tools(ctx: IntakeContext) -> list[Tool]:
     def list_documents() -> str:
-        rows = [f"{v.content['sha256']} | {v.content['name']} | role {v.content.get('role')} | {v.content['n_pages']} pages"
-                for v in ctx.library.documents() if v.content.get("role") != "retrieved_record"]
+        rows = [f"{r.sha256} | {r.name} | role {r.role} | {r.n_pages} pages"
+                for r in map(document_record, ctx.library.documents()) if r.role != "retrieved_record"]
         return "\n".join(rows) or "no documents"
 
     def read_page(doc_sha256: str, page: int) -> str:

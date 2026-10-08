@@ -43,9 +43,10 @@ from modeler_project.client_data import (
     reconcile,
     record_mapping,
     set_triage,
+    submission,
     submissions,
 )
-from modeler_project.dataset_register import decide_dataset, propose_dataset
+from modeler_project.dataset_register import dataset, decide_dataset, propose_dataset
 from modeler_project.datasets import DatasetError
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
@@ -115,16 +116,16 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
 
 
 def _workbook(ws: Workspace, sid: str) -> tuple[dict[str, Any], WorkbookGrid]:
-    version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
-    if version is None:
+    content = submission(ws, sid)
+    if content is None:
         raise HTTPException(status_code=404, detail=f"no client file {sid}")
-    path = ws.store.blob_path(ws.tenant_id, ws.project_id, version.content["sha256"])
+    path = ws.store.blob_path(ws.tenant_id, ws.project_id, content["sha256"])
     if path is None:
         raise HTTPException(status_code=404, detail="the file's bytes are not in the store")
     try:
-        return version.content, read_workbook_bytes(path.read_bytes(), version.content["file"])
+        return content, read_workbook_bytes(path.read_bytes(), content["file"])
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=f"{version.content['file']} is not a workbook: {exc}") from exc
+        raise HTTPException(status_code=422, detail=f"{content['file']} is not a workbook: {exc}") from exc
 
 
 class Classification(BaseModel):
@@ -291,8 +292,8 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
                    dissolution=[o.model_dump(mode="json") for o in review.dissolution], by=principal.user_id,
                    replaces=tuple(m["recipe"]["recipe_id"] for m in earlier))
     for old_id in (d for m in earlier for d in m.get("datasets", [])):
-        version = ws.latest(ArtifactKind.DATASET, old_id)
-        if version is not None and version.content.get("state") != "REJECTED":
+        old = dataset(ws, old_id)
+        if old is not None and old.state is not EvidenceState.REJECTED:
             decide_dataset(ws, old_id, state=EvidenceState.REJECTED, by=principal.user_id,
                            reason=f"replaced: {', '.join(sorted(sheets))} read again (recipe {review.recipe.recipe_id})")
     return envelope({**preview, "datasets": ids, **_view(ws)})

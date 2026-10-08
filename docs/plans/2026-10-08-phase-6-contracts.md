@@ -1,6 +1,6 @@
 # Phase 6: typed responses for P0–P4, one owner per artifact kind
 
-Status: **6a–6e done** (every P0–P4 and escalation answer is typed; every artifact kind has one writer). 6f next.
+Status: **done** (6a–6f). Every P0–P4 and escalation answer is typed, every artifact kind has one writer, and only the owner modules read stored content.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B3, couplings C5 and C6, §6 phase 6.
 - The exceptions in `tests/architecture/boundaries.toml` (`[response]`, `[owners]`, `[owner_exceptions]`), which only
@@ -103,7 +103,19 @@ Sources:
     `doctor`, and it takes over `plan_api`'s commit. MAP generation (`pbpk_domain.campaign.map`, locked) is untouched.
   - **Stored JSON stays byte-identical,** because the audit chain hashes content. Each content model is tested
     `to_content(from_content(c)) == c` on content produced by today's code.
-- **6f — raw reads go through the owners,** module by module, largest first:
+- **6f — done.** All 40 remaining raw reads go through the owners, in one PR:
+  - **documents:** `modeler_project.documents` gains a `DocumentRecord` content model, which also writes, and
+    `document_record()`. `brief_api`, `evidence_api` and the three agents read document metadata through it.
+  - New owner accessors:
+    - `client_data.submission`;
+    - `dataset_register.dataset`;
+    - `evidence_register.access_requests`;
+    - `inputs.cpf_assembly`, `catalog_rows` and `readiness_report`.
+  - `deps.model_risk` and `blinding.external_studies` read through `plan.current` and `dataset_register.datasets`.
+  - `doctor`, `plan_api`, `inputs_api` and `project_api` use the accessors.
+  - `[owner_exceptions]` is empty. A stored document reads back unchanged through `DocumentRecord` (test).
+
+  The original scope was: **raw reads go through the owners,** module by module, largest first:
   - `plan_api` 10;
   - `evidence_agent` and `proposal_intake` 7 each, through the document library's metadata;
   - `brief_api` 5, and `client_api` and `blinding` 4 each;

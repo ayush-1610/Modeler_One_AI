@@ -30,6 +30,11 @@ def datasets(ws: Workspace) -> list[ObservedDataset]:
     return [ObservedDataset.from_content(v.content) for v in ws.list(ArtifactKind.DATASET)]
 
 
+def dataset(ws: Workspace, dataset_id: str) -> ObservedDataset | None:
+    version = ws.latest(ArtifactKind.DATASET, dataset_id)
+    return ObservedDataset.from_content(version.content) if version is not None else None
+
+
 def propose_dataset(ws: Workspace, dataset: ObservedDataset, *, actor: str, mol_weight: float | None = None) -> ObservedDataset:
     checked = check_dataset(dataset, mol_weight=mol_weight).model_copy(
         update={"state": EvidenceState.PROPOSED, "proposed_by": actor})

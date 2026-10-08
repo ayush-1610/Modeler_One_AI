@@ -25,7 +25,9 @@ from modeler_project.inputs import (
     MAIN,
     accept_inputs,
     assemble,
+    catalog_rows,
     choices,
+    cpf_assembly,
     current_cpf,
     placement,
     propose_identity_mw,
@@ -61,7 +63,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
             row["candidates"] = [c.process for c in binding_candidates(record.id)]
         records.append(row)
     return {
-        "cpf": version_view(ws, cpf_version, with_content=False) | {"assembly": cpf_version.content["assembly"]} if cpf_version else None,
+        "cpf": version_view(ws, cpf_version, with_content=False) | {"assembly": cpf_assembly(ws)} if cpf_version else None,
         "records": records,
         "catalog": (version_view(ws, catalog) | {"content": redact(ws, ArtifactKind.STUDY_CATALOG, catalog.content)})
                    if catalog else None,
@@ -159,7 +161,7 @@ def publish(project_id: str, principal: Writer, store: StoreDep, settings: Setti
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Write models are not configured. Set MODELER_READ_ROOT.")
     cpf = current_cpf(ws)
-    rows = ws.latest(ArtifactKind.STUDY_CATALOG, MAIN).content["studies"]
+    rows = catalog_rows(ws)
     studies = [StudyUpload.model_validate({k: r[k] for k in _UPLOAD_FIELDS if k in r and r[k] is not None}).model_dump()
                for r in rows if r.get("evaluable")]
     write = FileWriteStore(settings.read_root)

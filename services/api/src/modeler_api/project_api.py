@@ -37,6 +37,7 @@ from modeler_api.views.common import ImpactView, StoredContent, VersionView
 from modeler_api.views.project import Artifacts, AuditTrail, BlindingView, History, Phases
 from modeler_project import ArtifactKind, ArtifactRef
 from modeler_project import blinding as blind
+from modeler_project.datasets import ObservedDataset
 from modeler_project.workspace import PHASE_LABELS
 
 router = APIRouter(prefix="/api/v1", tags=["project-pipeline"])
@@ -164,7 +165,7 @@ def reveal_dataset(project_id: str, dataset_id: str, body: RevealRequest, princi
     version = ws.latest(ArtifactKind.DATASET, dataset_id)
     if version is None:
         raise HTTPException(status_code=404, detail=f"no dataset {dataset_id}")
-    sid = str((version.content.get("study") or {}).get("study_id"))
+    sid = str(ObservedDataset.from_content(version.content).study.get("study_id"))
     if sid in blinded_studies(ws):
         store.audit(ws.tenant_id).append(actor=principal.user_id, action="dataset.reveal", resource_type="dataset",
                                          resource_id=f"{project_id}/{dataset_id}@v{version.version}",

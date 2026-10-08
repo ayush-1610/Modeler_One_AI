@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from modeler_project.artifacts import ArtifactKind
 from modeler_project.workspace import Workspace
 
 EXTERNAL_ROLES = ("S5", "S6")
@@ -39,13 +38,16 @@ def map_signed(ws: Workspace) -> bool:
 
 def external_studies(ws: Workspace) -> set[str]:
     """Study ids judged externally: the plan's S5 / S6 placements, and datasets entered for external validation."""
+    from modeler_project.dataset_register import datasets
+    from modeler_project.plan import current
+
     out: set[str] = set()
-    plan = ws.latest(ArtifactKind.MODEL_PLAN, "main")
+    _version, plan = current(ws)
     if plan is not None:
-        out |= {sid for sid, p in plan.content.get("placements", {}).items() if p.get("role") in EXTERNAL_ROLES}
-    for version in ws.list(ArtifactKind.DATASET):
-        if version.content.get("purpose") in EXTERNAL_PURPOSES:
-            out.add(str((version.content.get("study") or {}).get("study_id")))
+        out |= {sid for sid, p in plan.placements.items() if p.role in EXTERNAL_ROLES}
+    for dataset in datasets(ws):
+        if dataset.purpose in EXTERNAL_PURPOSES:
+            out.add(str(dataset.study.get("study_id")))
     return out
 
 
