@@ -1,0 +1,58 @@
+/* P5 model plan (L3): Overall Data panel, D3 canvas, D1/D2 flows, validator, diff, drop dialog. */
+.content:has(> main.wide) { max-width: 1520px; }
+.plan-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .plan-layout { grid-template-columns: 1fr; } .overall-data { position: static; max-height: none; } }
+.overall-data { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; padding: 12px; border: 1px solid var(--line);
+                border-radius: var(--radius); background: var(--surface); }
+.overall-data h2 { font-size: 16px; margin: 0 0 4px; }
+.overall-data h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); margin: 14px 0 6px; }
+.overall-study { margin-bottom: 6px; }
+.param-list { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+.param-list li { padding: 2px 0; overflow-wrap: anywhere; }
+.plan-main { min-width: 0; }
+.study-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px; font-size: 12px;
+              border: 1px solid var(--line); background: var(--raised); cursor: grab; max-width: 100%; }
+.study-chip .sq { color: var(--sim); }
+.study-chip .sid { font-weight: 600; }
+.study-chip .origin { color: var(--pass); font-size: 11px; }
+.study-chip .origin.test { color: var(--fail); }
+.study-chip.err { border-color: var(--fail); box-shadow: 0 0 0 1px var(--fail) inset; }
+.study-chip.warn { border-color: var(--warn); }
+.study-chip.ghost { cursor: default; opacity: 0.8; }
+.study-chip .lock { font-size: 11px; }
+.dag-scroll { overflow-x: auto; }
+.dag { position: relative; }
+.dag-layer { position: absolute; border: 1px dashed var(--line); border-radius: 10px; }
+.dag-layer.over { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 6%, transparent); }
+.dag-layer-label { position: absolute; left: 10px; top: -10px; font-size: 11px; color: var(--ink-faint); background: var(--surface); padding: 0 6px; }
+.dag-edges { position: absolute; inset: 0; pointer-events: none; }
+.dag-edge { stroke: var(--ink-faint); stroke-width: 1.6; fill: none; }
+.dag-arrowhead { fill: var(--ink-faint); }
+.edge-handle { position: absolute; width: 22px; height: 22px; border-radius: 50%; border: 2px dashed var(--ink-faint);
+               background: var(--surface); z-index: 2; }
+.edge-handle.over { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 25%, var(--surface)); }
+.dag-node { position: absolute; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 8px 10px;
+            z-index: 1; display: flex; flex-direction: column; gap: 6px; }
+.dag-node.over { border-color: var(--sim); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sim) 40%, transparent); }
+.dag-node.derived { border-style: dashed; }
+.dag-node-head { display: flex; flex-direction: column; cursor: move; font-size: 13px; }
+.dag-node-head .muted { font-size: 11px; }
+.dag-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.dag-fits { font-size: 11px; display: flex; flex-wrap: wrap; gap: 4px; }
+.flow { display: flex; gap: 10px; align-items: flex-start; overflow-x: auto; padding-bottom: 6px; }
+.flow-col { min-width: 170px; display: flex; flex-direction: column; gap: 6px; }
+.flow-col.wide { min-width: 280px; flex: 1; }
+.flow-col h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); }
+.flow-arrow { align-self: center; color: var(--ink-faint); font-size: 20px; }
+.param-node { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 13px; background: var(--raised); }
+.param-node.fitted { border-color: var(--sim); }
+.pathway { border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.fit-form { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.btn.tiny { padding: 3px 8px; font-size: 12px; }
+.violations { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.violations li { display: flex; flex-direction: column; gap: 2px; }
+.flags.warn li { color: var(--warn); }
+.diff-from { text-decoration: line-through; color: var(--ink-faint); }
+.diff-to { color: var(--sim); font-weight: 600; }
+.dialog-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; width: min(560px, 100%); }

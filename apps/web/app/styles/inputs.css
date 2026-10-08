@@ -1,0 +1,9 @@
+/* P4 model inputs: what stops readiness. */
+.todo { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.todo-item { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius-sm); padding: 10px 12px;
+  display: grid; gap: 6px; }
+.todo-item + .todo-item { margin-top: 10px; }
+.todo-row { border-top: 1px solid var(--line-soft); padding-top: 8px; }
+.todo-table td, .todo-table th { padding: 6px 8px; }
+.todo-table tr { cursor: pointer; }
+.todo-table tr.picked { background: color-mix(in srgb, var(--sim) 10%, transparent); }
