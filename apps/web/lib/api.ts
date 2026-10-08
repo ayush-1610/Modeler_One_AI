@@ -6,6 +6,11 @@ import type { components } from "./api-types";
  *  an open object. */
 export type Schema<Name extends keyof components["schemas"]> = components["schemas"][Name];
 
+/** A generated answer with some of its open-object fields (stored content the API sends untyped) typed by the page.
+ *  Only fields the answer has can be narrowed, so a field the API drops or renames fails the typecheck:
+ *  `Narrow<Schema<"BriefPage">, { brief: Brief }>`. */
+export type Narrow<S, N extends { [K in keyof N]: K extends keyof S ? unknown : never }> = Omit<S, keyof N> & N;
+
 export type ApiError = { code: string; location?: string; message: string };
 
 export type Envelope<T> = {

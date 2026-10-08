@@ -27,8 +27,7 @@
             "$ref": "#/components/schemas/Ref"
           },
           "status": {
-            "title": "Status",
-            "type": "string"
+            "$ref": "#/components/schemas/ArtifactStatus"
           }
         },
         "required": [
@@ -209,6 +208,16 @@
           "campaign"
         ],
         "title": "ArtifactKind",
+        "type": "string"
+      },
+      "ArtifactStatus": {
+        "enum": [
+          "DRAFT",
+          "APPROVED",
+          "SUPERSEDED",
+          "STALE"
+        ],
+        "title": "ArtifactStatus",
         "type": "string"
       },
       "Artifacts": {
@@ -1002,6 +1011,11 @@
             "title": "Before"
           },
           "kind": {
+            "enum": [
+              "added",
+              "removed",
+              "changed"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -1724,8 +1738,7 @@
             "type": "array"
           },
           "status": {
-            "title": "Status",
-            "type": "string"
+            "$ref": "#/components/schemas/ArtifactStatus"
           },
           "version": {
             "title": "Version",
@@ -2243,7 +2256,9 @@
             "type": "array"
           },
           "problems": {
-            "items": {},
+            "items": {
+              "type": "string"
+            },
             "title": "Problems",
             "type": "array"
           },
@@ -4262,6 +4277,15 @@
             "type": "string"
           },
           "phase": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "P3",
+              "P4",
+              "P5",
+              "P6"
+            ],
             "title": "Phase",
             "type": "string"
           },
@@ -4274,8 +4298,7 @@
             "type": "string"
           },
           "status": {
-            "title": "Status",
-            "type": "string"
+            "$ref": "#/components/schemas/ArtifactStatus"
           },
           "version": {
             "title": "Version",
@@ -5990,7 +6013,7 @@
         "title": "PathValue",
         "type": "object"
       },
-      "PhaseStatus": {
+      "PhaseRow": {
         "additionalProperties": false,
         "properties": {
           "label": {
@@ -5998,12 +6021,20 @@
             "type": "string"
           },
           "phase": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "P3",
+              "P4",
+              "P5",
+              "P6"
+            ],
             "title": "Phase",
             "type": "string"
           },
           "status": {
-            "title": "Status",
-            "type": "string"
+            "$ref": "#/components/schemas/PhaseStatus"
           }
         },
         "required": [
@@ -6011,15 +6042,25 @@
           "label",
           "status"
         ],
-        "title": "PhaseStatus",
+        "title": "PhaseRow",
         "type": "object"
+      },
+      "PhaseStatus": {
+        "enum": [
+          "NOT_STARTED",
+          "IN_REVIEW",
+          "APPROVED",
+          "STALE"
+        ],
+        "title": "PhaseStatus",
+        "type": "string"
       },
       "Phases": {
         "additionalProperties": false,
         "properties": {
           "phases": {
             "items": {
-              "$ref": "#/components/schemas/PhaseStatus"
+              "$ref": "#/components/schemas/PhaseRow"
             },
             "title": "Phases",
             "type": "array"
@@ -7021,18 +7062,11 @@
       },
       "RunSummary": {
         "additionalProperties": false,
-        "description": "One agent run as a page lists it (the run record's own keys; any may be missing from an old record).",
+        "description": "One agent run as a page lists it: the run record's own keys (`run_store.start_run` writes all of them; the run\nis unfinished while `finished_at` is null). Not every page lists the provider.",
         "properties": {
           "agent": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Agent"
+            "title": "Agent",
+            "type": "string"
           },
           "finished_at": {
             "anyOf": [
@@ -7046,15 +7080,8 @@
             "title": "Finished At"
           },
           "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
+            "title": "Model",
+            "type": "string"
           },
           "provider": {
             "anyOf": [
@@ -7068,49 +7095,21 @@
             "title": "Provider"
           },
           "run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run Id"
+            "title": "Run Id",
+            "type": "string"
           },
           "started_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
+            "title": "Started At",
+            "type": "string"
           },
           "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
+            "title": "Status",
+            "type": "string"
           },
           "summary": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Summary"
+            "additionalProperties": true,
+            "title": "Summary",
+            "type": "object"
           }
         },
         "required": [
@@ -9170,8 +9169,7 @@
             "type": "array"
           },
           "status": {
-            "title": "Status",
-            "type": "string"
+            "$ref": "#/components/schemas/ArtifactStatus"
           },
           "version": {
             "title": "Version",

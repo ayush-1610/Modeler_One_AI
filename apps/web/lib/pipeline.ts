@@ -1,71 +1,19 @@
 // The project start-up pipeline (P0–P6): phase statuses, versioned artifacts, their history and the audit trail.
 // Server-side reads return `Live<T>` (data or the problem that prevented it), like every other read in the app.
 
-import { serverRead, type Live } from "@/lib/api";
+import { serverRead, type Live, type Narrow, type Schema } from "@/lib/api";
 
-export type PhaseId = "P0" | "P1" | "P2" | "P3" | "P4" | "P5" | "P6";
-export type PhaseStatus = "NOT_STARTED" | "IN_REVIEW" | "APPROVED" | "STALE";
-export type ArtifactStatus = "DRAFT" | "APPROVED" | "SUPERSEDED" | "STALE";
-
-export type ArtifactRef = { kind: string; id: string; version: number };
-
-export type Approval = {
-  ref: ArtifactRef;
-  record_sha256: string;
-  meaning: string;
-  by: string;
-  printed_name: string;
-  at: string;
-  signature_id: string | null;
-  note: string;
-};
-
-export type ArtifactView<C = Record<string, unknown>> = {
-  kind: string;
-  id: string;
-  version: number;
-  sha256: string;
-  status: ArtifactStatus;
-  stale_reasons: string[];
-  created_at: string;
-  created_by: string;
-  reason: string;
-  derived_from: ArtifactRef[];
-  approvals: Approval[];
-  content?: C;
-};
-
-export type Change = { path: string; before: unknown; after: unknown; kind: "added" | "removed" | "changed" };
-
-export type HistoryRow = {
-  version: number;
-  sha256: string;
-  status: ArtifactStatus;
-  created_at: string;
-  created_by: string;
-  reason: string;
-  phase: PhaseId;
-  approvals: Approval[];
-  changes: Change[];
-};
-
-export type Phases = {
-  phases: { phase: PhaseId; label: string; status: PhaseStatus }[];
-  stale: { ref: ArtifactRef; reasons: string[] }[];
-};
-
-export type AuditEventView = {
-  seq: number;
-  occurred_at: string;
-  actor: string;
-  action: string;
-  resource_type: string;
-  resource_id: string;
-  before: unknown;
-  after: unknown;
-  reason: string | null;
-  row_hash: string;
-};
+// The answers are the API's generated response models (lib/api-types.ts); an artifact's stored content is the caller's.
+export type PhaseId = Schema<"PhaseRow">["phase"];
+export type PhaseStatus = Schema<"PhaseStatus">;
+export type ArtifactStatus = Schema<"ArtifactStatus">;
+export type ArtifactRef = Schema<"Ref">;
+export type Approval = Schema<"ApprovalView">;
+export type ArtifactView<C = Record<string, unknown>> = Narrow<Schema<"VersionView">, { content?: C }>;
+export type Change = Schema<"ChangeView">;
+export type HistoryRow = Schema<"HistoryRow">;
+export type Phases = Schema<"Phases">;
+export type AuditEventView = Schema<"AuditEventView">;
 
 /** Where each phase is reviewed. */
 export const PHASE_ROUTES: Record<PhaseId, (projectId: string) => string> = {
@@ -98,6 +46,6 @@ export async function getHistory(projectId: string, kind: string, id: string): P
   return { ...live, data: live.data ? live.data.versions : null };
 }
 
-export async function getAudit(projectId: string): Promise<Live<{ chain_verifies: boolean; events: AuditEventView[] }>> {
+export async function getAudit(projectId: string): Promise<Live<Schema<"AuditTrail">>> {
   return serverRead(`/api/v1/projects/${projectId}/audit`);
 }

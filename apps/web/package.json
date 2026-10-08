@@ -6,9 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "openapi-typescript ../../docs/api/openapi.json -o lib/api-types.ts --check && tsc --noEmit",
+    "typecheck": "openapi-typescript ../../docs/api/openapi.json -o lib/api-types.ts --default-non-nullable false --check && tsc --noEmit",
     "e2e": "playwright test",
-    "api-types": "openapi-typescript ../../docs/api/openapi.json -o lib/api-types.ts"
+    "api-types": "openapi-typescript ../../docs/api/openapi.json -o lib/api-types.ts --default-non-nullable false"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",

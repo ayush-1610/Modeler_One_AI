@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Digitizer } from "@/components/evidence/Digitizer";
 import { Card } from "@/components/ui";
+import type { Narrow, Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
 import { apiGet, apiSend } from "@/lib/writes";
 
@@ -20,12 +21,8 @@ type Dataset = {
   decision_reason: string;
   blinded?: boolean;   // D-15: an external study's values, withheld until the MAP is signed
 };
-type View = {
-  datasets: Dataset[];
-  coverage: { req_id: string; label: string; target: string; status: string; criticality: string; applies: string }[];
-  agents: { enabled: boolean };
-  running: boolean;
-};
+// the part of GET /projects/{id}/evidence (EvidencePage) this panel reads; the stored datasets are typed above
+type View = Narrow<Pick<Schema<"EvidencePage">, "coverage" | "agents" | "running" | "datasets">, { datasets: Dataset[] }>;
 
 const ORIGIN_CHIP: Record<string, string> = {
   CLIENT: "low", LITERATURE: "low", FIGURE_DIGITIZED: "medium", OSP_LIBRARY: "low", SYNTHETIC: "high", ILLUSTRATIVE: "high",

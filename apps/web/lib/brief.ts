@@ -1,7 +1,7 @@
 // The Project Brief (plan §6): field records with status, citations and confidence; the schema it is rendered from.
 // The page's answers are the API's generated response models; the brief itself is stored content, typed here.
 
-import type { Schema } from "./api";
+import type { Narrow, Schema } from "./api";
 
 export type FieldStatus =
   | "ENTERED" | "EXTRACTED" | "RETRIEVED" | "COMPUTED" | "EDITED" | "CONFIRMED" | "MISSING" | "NOT_APPLICABLE";
@@ -52,10 +52,10 @@ export type Brief = {
 export type BriefIssue = { code: string; path: string; message: string };
 
 // `GET /projects/{id}/brief` (BriefPage); the brief and its catalog's field kinds are narrowed to the stored schema
-export type BriefView = Omit<Schema<"BriefPage">, "brief" | "catalog"> & {
+export type BriefView = Narrow<Schema<"BriefPage">, {
   brief: Brief;
-  catalog: Omit<Schema<"BriefCatalog">, "fields" | "groups"> & { fields: FieldDef[]; groups: GroupDef[] };
-};
+  catalog: Narrow<Schema<"BriefCatalog">, { fields: FieldDef[]; groups: GroupDef[] }>;
+}>;
 
 export type DocumentView = Schema<"DocumentView">;
 

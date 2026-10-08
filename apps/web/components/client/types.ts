@@ -1,4 +1,7 @@
-// P3 client data: the shapes the client-data endpoints return (services/api/src/modeler_api/client_api.py).
+// P3 client data. The answers are the API's generated response models (lib/api-types.ts); what they carry as open
+// objects (a stored client file, a dissolution profile, the reading form) is typed here.
+
+import type { Narrow, Schema } from "@/lib/api";
 
 export type Triage = { sheet: string; category: string; evidence_cell: string; evidence_quote: string; by: string; note: string };
 export type IssueRow = { code: string; location: string; message: string };
@@ -10,9 +13,7 @@ export type ClientFile = {
   evidence: string[]; dissolution: KeptRow[]; products: KeptRow[]; urine_feces: KeptRow[]; issues: IssueRow[];
   brief_mismatches: string[]; other_sheets: string[]; mappings?: Mapping[];
 };
-export type Reconciled = { req_id: string; label: string; criticality: string; applies: string; status: string;
-                           delivered: string[]; detail: string; cross_check: boolean; literature_accepted: string[];
-                           kind: string; target: string; product: string | null };
+export type Reconciled = Schema<"ReconciledRow">;
 export type Fit = { t50_min: number | null; shape: number | null; lag_min: number; se_t50: number | null; se_shape: number | null;
                     rmse_percent: number | null; n_points: number; converged: boolean; note: string; engine_confirmed: boolean };
 export type Profile = { id: string; label: string; key: Record<string, unknown>; times_min: number[]; mean: number[];
@@ -20,16 +21,11 @@ export type Profile = { id: string; label: string; key: Record<string, unknown>;
                         fit: Fit | null; files: string[] };
 export type Comparison = { test: string; reference: string; condition: string; f2: number | null; similar: boolean | null;
                            applicable: boolean; reasons: string[]; times_used: number[]; ruleset: string };
-export type View = {
-  template: string;
-  data_plan: { version: number; status: string };
-  dissolution: { profiles: Profile[]; comparisons: Comparison[]; problems: string[] };
+// GET /projects/{id}/client-data (ClientDataPage), with the stored files and profiles typed
+export type View = Narrow<Schema<"ClientDataPage">, {
   files: ClientFile[];
-  reconciliation: { rows: Reconciled[]; unpromised: string[]; blocking: string[] };
-  register: { status: string; approvals: { printed_name: string; at: string }[] } | null;
-  agents: { enabled: boolean };
-  running: boolean;
-};
+  dissolution: Narrow<Schema<"Dissolution">, { profiles: Profile[]; comparisons: Comparison[] }>;
+}>;
 
 /** The reading form of one sheet (modeler_intake.sheet_form.SheetForm). */
 export type SheetForm = {
@@ -62,18 +58,11 @@ export type SheetForm = {
   mean_n: number | null;
 };
 
-export type SheetView = {
-  sheet: string; rows: string[][]; max_row: number; max_column: number; category: string; form: SheetForm; notes: string[];
-  products: { name: string; role: string }[]; read_before: { recipe_id: string; datasets: string[] }[];
-};
+// GET .../sheets/{sheet} (SheetView), with the reading form typed
+export type SheetView = Narrow<Schema<"SheetView">, { form: SheetForm }>;
 
-export type ReadPreview = {
-  ready: boolean; issues: IssueRow[]; questions: string[]; concentrations: number; dissolution: number; studies: string[];
-  recipe: unknown;
-  sample: { series: string[]; times: number[]; time_unit?: string; unit?: string; below_lloq: number; values_hidden: boolean;
-            rows: { series: string; time: number; value: number | null; blq?: boolean; cell: string }[] };
-  datasets?: string[];
-};
+// POST .../{sid}:map: a preview (MapPreview), or a confirmed reading that also names the datasets it proposed
+export type ReadPreview = Schema<"MapPreview"> & { datasets?: string[] };
 
 /** Sheet kinds a reading turns into data (the others are kept as they are). */
 export const DATA_SHEETS = new Set(["PK_INDIVIDUAL", "PK_SUMMARY", "DISSOLUTION", "URINE_FECES"]);

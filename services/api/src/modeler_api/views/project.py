@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from modeler_api.views.common import ApprovalView, ChangeView, Ref, VersionView, View
+from modeler_api.views.common import ApprovalView, ChangeView, PhaseId, Ref, VersionView, View
+from modeler_project.artifacts import ArtifactStatus
+from modeler_project.workspace import PhaseStatus
 
 
-class PhaseStatus(View):
-    phase: str
+class PhaseRow(View):
+    phase: PhaseId
     label: str
-    status: str
+    status: PhaseStatus
 
 
 class StaleArtifact(View):
@@ -19,7 +21,7 @@ class StaleArtifact(View):
 
 
 class Phases(View):
-    phases: list[PhaseStatus]
+    phases: list[PhaseRow]
     stale: list[StaleArtifact]
 
 
@@ -33,9 +35,9 @@ class HistoryRow(View):
     sha256: str
     created_by: str
     reason: str
-    phase: str
+    phase: PhaseId
     version: int
-    status: str
+    status: ArtifactStatus
     created_at: str
     approvals: list[ApprovalView]
     changes: list[ChangeView]
