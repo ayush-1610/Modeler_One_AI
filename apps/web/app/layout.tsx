@@ -1,16 +1,23 @@
 import type { ReactNode } from "react";
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import localFont from "next/font/local";
 
 import "./globals.css";
 import { Nav } from "@/components/Nav";
 
 // Plex was drawn for technical work: unambiguous figures, a real voice, and a mono companion for the
 // identifiers in this product (parameter ids, engine paths, campaign ids) that are read character by character.
-const sans = IBM_Plex_Sans({
-  subsets: ["latin"], weight: ["400", "500", "600"], display: "swap", variable: "--font-sans",
+// Self-hosted (app/fonts, SIL Open Font License 1.1 in app/fonts/OFL.txt): the build and the app make no third-party
+// request, and every build uses the same files.
+const sans = localFont({
+  src: [{ path: "./fonts/IBMPlexSans-latin-var.woff2", weight: "400 600", style: "normal" }],
+  display: "swap", variable: "--font-sans",
 });
-const mono = IBM_Plex_Mono({
-  subsets: ["latin"], weight: ["400", "500"], display: "swap", variable: "--font-mono",
+const mono = localFont({
+  src: [
+    { path: "./fonts/IBMPlexMono-latin-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/IBMPlexMono-latin-500.woff2", weight: "500", style: "normal" },
+  ],
+  display: "swap", variable: "--font-mono",
 });
 
 export const metadata = {
