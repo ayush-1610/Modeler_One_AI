@@ -15,6 +15,42 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — one default per MODELER_* variable; a production deployment must set them
+- **Decided by the owner on 2026-10-08.** Closes the "one variable, several defaults" known gap. Everything lives in
+  `modeler_contracts.runtime`.
+- **Development defaults:**
+  - **Object store:** `LOCAL_OBJECT_STORE` in the API and the orchestrator alike. Before, the API defaulted to
+    `s3://modeler-dev`, so the two disagreed.
+  - **Engine command:** the local runner's default is now the stub engine, labelled a software fixture on every page.
+    Before, it was `Rscript run_job.R`.
+  - **Engine id:** the engine names itself: `ospsuite-12.4.4` for PK-Sim (from the qualified catalog, kept equal by a
+    test) and `software-fixture:stub_engine` / `:analytical_engine` for the fixtures. Before, it was `local` /
+    `unknown`. No record of a fixture run names PK-Sim.
+  - **Digest:** the all-zero placeholder. Before, it was `local`, `unknown` or empty depending on the module.
+- **Production (`MODELER_DEPLOYMENT=production`):** the API (lifespan), the local runner CLI and both Temporal
+  workers refuse to start unless the object store, the engine command and a real digest are set.
+  - Accepted digests are `sha256:<hex>` (a container image) and `catalog:sha256:<hex>`.
+  - The placeholder and malformed values are refused.
+  - An unknown `MODELER_DEPLOYMENT` value is refused.
+- **The server (`deploy/server/_env.sh`)** is now a production deployment.
+  - It records `MODELER_IMAGE_DIGEST=catalog:sha256:<digest of golden/catalog.json>`, the same hash the engine
+    registration records as `catalog_sha256` (today `4ae49f74…`). This server runs PK-Sim from its own installation,
+    not the published image, so recording the image's digest would name an engine the run never used.
+  - Before, it recorded the all-zero placeholder.
+- **Impact:**
+  - Development runs that relied on the implicit `Rscript run_job.R` now run the stub: set `MODELER_ENGINE_COMMAND` to
+    use PK-Sim (the server and the Mac docker flow already do).
+  - Memoized engine runs are keyed by the digest, so the server re-runs once after the change instead of reusing
+    entries recorded under the placeholder.
+  - The server still runs with `MODELER_DEV_AUTH=1` (single node, no Keycloak). Production does not refuse dev auth
+    yet; that needs its own decision.
+- **Tests:**
+  - `packages/run-contracts/tests/test_runtime_defaults.py`: defaults, production refusals, engine ids;
+  - `tests/architecture/test_engine_identity.py`: the qualified engine id equals the catalog's, the API and
+    orchestrator share one object-store default, and the server's computed digest equals the registration's;
+  - `services/api/tests/test_production_start.py`: the API does not start in production without its settings;
+  - the orchestrator's development and production engine defaults.
+
 ### Science — total hepatic clearance is placed, the EHC fraction says why it is not (registry 1.1, phase 4e)
 - **Decided by the owner on 2026-10-08.** The parameter registry
   (`pbpk_domain/parameters/registry.yaml`, SME content) goes from 1.0 to 1.1 and stays UNVERIFIED pending SME

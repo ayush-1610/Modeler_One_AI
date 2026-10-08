@@ -19,12 +19,19 @@ export LC_ALL=en_US.UTF-8
 export LD_LIBRARY_PATH="$R_LIBS_USER/ospsuite/lib:$HOME/miniforge3/lib:${LD_LIBRARY_PATH:-}"
 
 # --- application: single-node local execution against the real engine ---
+# Production: the API and the runners refuse to start unless the object store, the engine command and a real engine
+# digest are set here (modeler_contracts.runtime). No development default applies on this server.
+export MODELER_DEPLOYMENT=production
 export MODELER_DEV_AUTH=1
 export MODELER_EXECUTION_BACKEND=local
 export MODELER_READ_ROOT="$DATA/read-root"
 export MODELER_OBJECT_STORE_URI="file://$DATA/objstore"
 export MODELER_ENGINE_COMMAND="Rscript $REPO/services/engine-worker/r/run_job.R"
-export MODELER_IMAGE_DIGEST="sha256:0000000000000000000000000000000000000000000000000000000000000000"
+# The engine's identity. This server runs PK-Sim from its own installation (~/modeler-engine), not the published image,
+# so it records the digest of the catalog harvested from that installation (golden/catalog.json; the canonical JSON
+# hash the engine registration records as catalog_sha256), never the image's digest or the all-zero placeholder.
+MODELER_ENGINE_CATALOG="$REPO/services/engine-worker/golden/catalog.json"
+export MODELER_IMAGE_DIGEST="catalog:sha256:$(python3 -c 'import hashlib, json, sys; print(hashlib.sha256(json.dumps(json.load(open(sys.argv[1], encoding="utf-8")), sort_keys=True, separators=(",", ":")).encode()).hexdigest())' "$MODELER_ENGINE_CATALOG")"
 export MODELER_API_BASE="http://127.0.0.1:$API_PORT"
 
 # --- agents (decision D-16): the in-house model behind LiteLLM, and Ollama's web search. Keys live OUTSIDE the

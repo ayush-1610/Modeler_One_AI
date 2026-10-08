@@ -26,3 +26,20 @@ def test_an_injected_engine_is_never_claimed_as_pksim():
         return job
 
     assert engine_identity(echo) == {"kind": "injected", "command": "echo"}
+
+
+def test_development_runs_the_stub_engine_when_no_command_is_set(monkeypatch):
+    # one default per variable (2026-10-08): development falls back to the stub, labelled a software fixture
+    monkeypatch.delenv("MODELER_ENGINE_COMMAND", raising=False)
+    monkeypatch.delenv("MODELER_DEPLOYMENT", raising=False)
+    assert engine_identity()["kind"] == "software-fixture"
+
+
+def test_production_has_no_default_engine(monkeypatch):
+    from modeler_contracts.runtime import ConfigurationError
+
+    monkeypatch.delenv("MODELER_ENGINE_COMMAND", raising=False)
+    monkeypatch.setenv("MODELER_DEPLOYMENT", "production")
+    with pytest.raises(ConfigurationError, match="MODELER_ENGINE_COMMAND"):
+        engine_identity()
+

@@ -48,7 +48,7 @@ from modeler_contracts.runs import (
     StageRequest,
     fit_signals,
 )
-from modeler_contracts.runtime import runtime_env
+from modeler_contracts.runtime import engine_kind, runtime_env
 from modeler_orchestrator.campaign_activities import (
     build_round_snapshot,
     choose_action,
@@ -118,18 +118,21 @@ def default_engine() -> EngineRun:
     from modeler_engine.runner import EngineRunner, LocalObjectStore
 
     env = runtime_env()
+    command = env.resolved_engine_command(development_engine())
     runner = EngineRunner(
-        command=shlex.split(env.get("engine_command", "Rscript run_job.R")),
+        command=shlex.split(command),
         store=LocalObjectStore(),
-        engine_id=env.get("engine_id", "local"),
-        image_digest=env.get("image_digest", "local"),
+        engine_id=env.resolved_engine_id(command),
+        image_digest=env.resolved_image_digest(),
     )
     return runner.run
 
 
-# Engine commands that are software fixtures, not PK-Sim (CLAUDE.md: their numbers are never simulation results).
-_FIXTURE_ENGINES = ("stub_engine.py", "analytical_engine.py")
-_PKSIM_ENGINES = ("run_job.R", "docker_engine.sh")
+def development_engine() -> str:
+    """The engine a development checkout runs when MODELER_ENGINE_COMMAND is unset: its stub engine, a software fixture
+    every page labels as such (production has no default: modeler_contracts.runtime)."""
+    stub = Path(__file__).resolve().parents[4] / "deploy" / "dev" / "stub_engine.py"
+    return shlex.join([sys.executable, str(stub)])
 
 
 def engine_identity(engine: EngineRun | None = None) -> dict:
@@ -138,15 +141,9 @@ def engine_identity(engine: EngineRun | None = None) -> dict:
     Shown on every campaign so a run on the stub can never be read as a PBPK result."""
     if engine is not None:
         return {"kind": "injected", "command": getattr(engine, "__name__", type(engine).__name__)}
-    command = runtime_env().get("engine_command", "Rscript run_job.R")
+    command = runtime_env().resolved_engine_command(development_engine())
     words = [os.path.basename(w) for w in shlex.split(command)]
-    if any(w in _FIXTURE_ENGINES for w in words):
-        kind = "software-fixture"
-    elif any(w in _PKSIM_ENGINES for w in words):
-        kind = "pksim"
-    else:
-        kind = "unknown"
-    return {"kind": kind, "command": " ".join(words)}
+    return {"kind": engine_kind(command), "command": " ".join(words)}
 
 
 def fit_workers(fit_request, n_jobs: int) -> int:
@@ -740,7 +737,7 @@ class LocalExecutor:
         record = finish_package(
             request.tenant_id, request.campaign_id, files=files, numeric=numeric, map_uri=request.map_uri,
             cpf_uri=cpf_uri, evidence=evidence, prediction=(evidence.get("S6") or {}).get("prediction"),
-            reproduction=reproduction, engine_image_digest=runtime_env().get("image_digest", ""),
+            reproduction=reproduction, engine_image_digest=runtime_env().resolved_image_digest(),
             projects=projects, project_notes=project_notes,
             history=self.writer.ledger.to_content() if self.writer else None,
         )
@@ -988,7 +985,7 @@ class LocalExecutor:
 def engine_key(engine: EngineRun | None = None) -> str:
     """The engine a model set and a memoized run are bound to: its identity and image digest."""
     ident = engine_identity(engine)
-    return f"{ident['kind']}:{ident['command']}@{runtime_env().get('image_digest', 'local')}"
+    return f"{ident['kind']}:{ident['command']}@{runtime_env().resolved_image_digest()}"
 
 
 def _executor_engine(engine: EngineRun | None, *, read_root: str, tenant_id: str, memo: bool | None) -> EngineRun:
@@ -1252,6 +1249,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args:
         print("usage: python -m modeler_orchestrator.local_runner <spec.json>", file=sys.stderr)
         return 2
+    runtime_env().check_production()
     spec = json.loads(Path(args[0]).read_text(encoding="utf-8"))
     read_root = spec.get("read_root") or runtime_env().read_root
     if not read_root:

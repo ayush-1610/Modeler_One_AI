@@ -8,6 +8,8 @@ must be replaced before any non-local deployment.
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -33,6 +35,7 @@ from modeler_api.signatures_api import router as signatures_router
 from modeler_api.templates_api import router as templates_router
 from modeler_api.write_api import router as write_router
 from modeler_contracts.runs import RUN_TASKS, RunRequest
+from modeler_contracts.runtime import runtime_env
 from pbpk_domain.m15 import AssessmentTable, Stage, allowed_model_risk, validate_table
 from pbpk_domain.snapshot.builder import (
     CompoundSpec,
@@ -44,7 +47,16 @@ from pbpk_domain.snapshot.builder import (
     SubjectSpec,
 )
 
-app = FastAPI(title="Modeler One API", version="0.1.0")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # A production deployment (MODELER_DEPLOYMENT=production) refuses to start without its engine settings: no default
+    # engine, no placeholder digest, an explicit object store (modeler_contracts.runtime).
+    runtime_env().check_production()
+    yield
+
+
+app = FastAPI(title="Modeler One API", version="0.1.0", lifespan=_lifespan)
 
 # The web app calls the API directly from the browser for client-side writes (a separate origin), so CORS is
 # part of the single-node stack. Explicit origins in production; any localhost origin under dev auth. Read once, when

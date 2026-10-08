@@ -80,11 +80,17 @@ imports, `/health`), and the secret scan reads `.gitleaks.toml` (default rules; 
 Tests: `services/api/tests/conftest.py` gives `api_settings(read_root=..., ...)` (through `config.use_settings`, seen by
 injected and direct reads alike) and re-reads `MODELER_*` before each test (`config.reload_settings`).
 
-**Known gap — one variable, several defaults** (unchanged on purpose; choosing one is the owner's decision):
-`MODELER_OBJECT_STORE_URI` (orchestrator `file:///tmp/modeler-object-store`, API `s3://modeler-dev`);
-`MODELER_IMAGE_DIGEST` (local runner `local`, engine worker `unknown`, package bundle empty, API MAP `sha256:` + 64 zeros);
-`MODELER_ENGINE_COMMAND` (local runner `Rscript run_job.R`, engine worker `Rscript /engine/run_job.R`);
-`MODELER_ENGINE_ID` (`local` / `unknown`).
+**One default per variable** (the owner's decision, 2026-10-08; `modeler_contracts.runtime`): development defaults,
+and a production deployment (`MODELER_DEPLOYMENT=production`, set by `deploy/server/_env.sh`) that refuses to start
+unless it sets them (`RuntimeSettings.check_production`, called by the API's lifespan and each runner's entry point).
+- `MODELER_OBJECT_STORE_URI`: `LOCAL_OBJECT_STORE` for the API and the orchestrator alike; production sets it.
+- `MODELER_ENGINE_COMMAND`: none in production. In development the local runner runs the stub engine, which every page
+  labels a software fixture; the engine worker runs the image's `Rscript /engine/run_job.R`.
+- `MODELER_ENGINE_ID`: the engine names itself. It is `ospsuite-12.4.4` for PK-Sim (the qualified catalog; a test
+  keeps them equal) and `software-fixture:<name>` for a fixture.
+- `MODELER_IMAGE_DIGEST`: production refuses the all-zero placeholder, which is for tests and development only. A
+  container records its image digest (`sha256:<hex>`). The server, which runs PK-Sim from its own installation, records
+  its harvested catalog's digest (`catalog:sha256:<hex>`).
 
 ## 4. Locked files (approved by the owner 2026-10-07)
 
