@@ -1,4 +1,7 @@
 // The Project Brief (plan §6): field records with status, citations and confidence; the schema it is rendered from.
+// The page's answers are the API's generated response models; the brief itself is stored content, typed here.
+
+import type { Schema } from "./api";
 
 export type FieldStatus =
   | "ENTERED" | "EXTRACTED" | "RETRIEVED" | "COMPUTED" | "EDITED" | "CONFIRMED" | "MISSING" | "NOT_APPLICABLE";
@@ -48,39 +51,15 @@ export type Brief = {
 
 export type BriefIssue = { code: string; path: string; message: string };
 
-export type BriefView = {
-  artifact: { version: number; status: string; sha256: string; reason: string; created_by: string; created_at: string;
-              stale_reasons: string[]; approvals: { by: string; printed_name: string; meaning: string; at: string }[] };
+// `GET /projects/{id}/brief` (BriefPage); the brief and its catalog's field kinds are narrowed to the stored schema
+export type BriefView = Omit<Schema<"BriefPage">, "brief" | "catalog"> & {
   brief: Brief;
-  issues: BriefIssue[];
-  blocking: number;
-  summary: { by_status: Record<string, number>; groups: Record<string, number>; open_questions: number };
-  catalog: { schema: string; sections: Record<string, string>; fields: FieldDef[]; groups: GroupDef[] };
-  agents: { enabled: boolean; provider?: string; model?: string; problem?: string };
-  extraction_running: boolean;
-  runs: { run_id: string; agent: string; status: string; provider: string; model: string; started_at: string;
-          finished_at: string | null; summary: Record<string, unknown> }[];
+  catalog: Omit<Schema<"BriefCatalog">, "fields" | "groups"> & { fields: FieldDef[]; groups: GroupDef[] };
 };
 
-export type DocumentView = {
-  id: string;
-  sha256: string;
-  name: string;
-  kind: string;
-  role: string;
-  n_pages: number;
-  size_bytes: number;
-  warnings: string[];
-  uploaded_at: string;
-  uploaded_by: string;
-};
+export type DocumentView = Schema<"DocumentView">;
 
-export type Impact = {
-  unchanged: boolean;
-  changes: { path: string; before: unknown; after: unknown; kind: string }[];
-  affected: { ref: { kind: string; id: string; version: number }; status: string; effect: string; needs_signature: boolean }[];
-  notes: string[];
-};
+export type Impact = Schema<"ImpactView">;
 
 export const EMPTY_RECORD: FieldRecord = {
   value: null, unit: null, status: "MISSING", citations: [], confidence: null, note: "", by: null, at: null,

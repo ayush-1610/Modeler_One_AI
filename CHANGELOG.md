@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the web app's API types are generated from the contract (architecture phase 7a; new dev dependency)
+- **What:**
+  - `openapi-typescript` is a new dev dependency of `apps/web`, pinned to exactly `7.13.0` (approved by the owner,
+    2026-10-08). It generates code only and adds nothing to the app bundle.
+  - `npm run api-types` writes `apps/web/lib/api-types.ts` from `docs/api/openapi.json`, and the file is committed.
+  - `npm run typecheck` (the CI web job) first checks the file against the snapshot and fails while it is out of date.
+    The OpenAPI contract test's message now says to regenerate both.
+  - `Schema<"Name">` in `lib/api.ts` names a generated response model.
+  - The brief page's answer types (`BriefView`, `DocumentView`, `Impact`) are now generated. The stored brief content
+    stays hand-typed.
+- **Why:** rule B2. The web app hand-wrote every answer's shape, and nothing checked those types against what the API
+  sends. Plan: `docs/plans/2026-10-08-phase-7-frontend.md`.
+- **Impact:**
+  - The generated types surfaced one gap. The contract allows an agent run's `status` and `summary` to be null, and the
+    brief page read them unguarded. The page is now null-safe.
+  - No API change, and the OpenAPI snapshot is unchanged.
+  - `npm audit` reports four findings in packages that were already in the lock file: `next` (moderate), and `postcss`,
+    `sharp` and `source-map-js` (high). None comes from `openapi-typescript`. They are left for a separate change.
+
 ### Changed — only the owner modules read stored artifact content; C6 closed, phase 6 done (architecture phase 6f)
 - **What:**
   - `modeler_project.documents` gains a `DocumentRecord` content model, which also writes, and `document_record()`.
