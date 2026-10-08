@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Infra — the parameter vocabulary is recorded before the registry replaces it (architecture phase 4a)
+- **What:** `tests/architecture/test_parameter_characterization.py` records the snapshot
+  `docs/architecture/parameter-vocabulary.json`, which holds two things:
+  - **24 tables:** storage units, unit aliases, PK-Sim compound names, process prefixes, reference elimination,
+    alternatives, model and reference ids, placeholders, pathway targets, in-vivo/in-vitro prefixes, physical bounds,
+    the MAP's fit candidates, and the blank template's parameters;
+  - **101 ids, with what each vocabulary function answers:** placement, target problem, storage family and conversion,
+    numeric, process id, binding candidates, compound path, bounds, ValueOrigin method, and the S0 requirement satisfied.
+
+  The ids come from the tables, the harvested process table, the requirement templates, the MAP, MS-01 §2.2, and edge
+  probes.
+- **Why:** phase 4 derives these tables from one registry (plan `docs/plans/2026-10-08-parameter-registry.md`). Every
+  refactor step must leave the answers unchanged. Only the science PR changes them, with the owner's approval, and
+  its snapshot diff is the review.
+- **Already visible in the snapshot:**
+  - `elim.hepatic.total_cl` satisfies S0's elimination requirement but has no placement.
+  - `elim.ehc_fraction` converts but has no placement.
+  - `value_origin_method` files total hepatic plasma clearance as `InVitro`, while MS-01 gives its source as clinical.
+
+  All three are for the science PR (4e).
+- Impact: none on behaviour (tests and docs only). No locked or SME-governed file changes.
+
 ### Fixed — the qualified engine image is published from `main` (it never had been)
 - **What broke:** on every `main` push the Engine image workflow qualified the image (golden round trip, fitting smoke,
   engine tasks, benchmark all pass) and then failed at "Push image by digest" in under a second. The image name is
@@ -31,6 +53,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - Impact: the next `main` push touching the engine publishes the qualified image by digest, with SBOM, keyless cosign
   signature and registration record as workflow evidence. Nothing references the GHCR name yet (deploy and dev scripts
   use the local `modeler-engine:ospsuite-12.4.4` tag).
+- **Confirmed on `main`** (`542e78d`, Engine image run 37741579858): qualification, push, SBOM, cosign and the
+  registration record all passed. Published as `ghcr.io/ayush-1610/modeler_one_ai/modeler-engine@sha256:9f5e14e6…8998a12`
+  (full digest in `docs/CONTINUATION_PACKAGE.md` §4.3, T-12).
 
 ### Changed — storage out of the API; the API and the orchestrator no longer import each other (architecture phase 3b)
 - **Why:** the orchestrator imported the API package for its file read model and database repositories (declared as a

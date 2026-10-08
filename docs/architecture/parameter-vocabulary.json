@@ -1,0 +1,2323 @@
+{
+ "ids": {
+  "alt.select": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'alt.select'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for alt.select; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "be_limits": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'be_limits'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "be_limits is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for be_limits; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "bind.fu": {
+   "binding_candidates": [],
+   "compound_path": "Drug|Fraction unbound (plasma, reference value)",
+   "numeric": true,
+   "physical_bounds": [
+    0.0,
+    1.0
+   ],
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [
+    "bind.fu"
+   ],
+   "storage_family": "fraction",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "fraction, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "bind.partner": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'bind.partner'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for bind.partner; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "bind.specific.CYP3A4.kd": {
+   "binding_candidates": [
+    [
+     "SpecificBinding",
+     "Kd",
+     "nmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'bind.specific.CYP3A4.kd'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for bind.specific.CYP3A4.kd; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "bind.specific.CYP3A4.koff": {
+   "binding_candidates": [
+    [
+     "SpecificBinding",
+     "koff",
+     "1/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'bind.specific.CYP3A4.koff'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for bind.specific.CYP3A4.koff; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "bind.specific.GABRG2.koff": {
+   "binding_candidates": [
+    [
+     "SpecificBinding",
+     "koff",
+     "1/min",
+     "GABRG2"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'bind.specific.GABRG2.koff'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for bind.specific.GABRG2.koff; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "cmpd.x": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'cmpd.x'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for cmpd.x; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "ddi.perp": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "ddi.perp is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.ec50": {
+   "binding_candidates": [
+    [
+     "Induction",
+     "EC50",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.ec50'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.ec50; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.ec50_u": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.ec50_u'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "ddi.perp.CYP3A4.ec50_u: no harvested PK-Sim process carries this parameter",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.ec50_u; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.emax": {
+   "binding_candidates": [
+    [
+     "Induction",
+     "Emax",
+     null,
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.emax'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.emax; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.ki": {
+   "binding_candidates": [
+    [
+     "CompetitiveInhibition",
+     "Ki",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.ki'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.ki; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.ki_c": {
+   "binding_candidates": [
+    [
+     "MixedInhibition",
+     "Ki_c",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.ki_c'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.ki_c; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.ki_irreversible": {
+   "binding_candidates": [
+    [
+     "IrreversibleInhibition",
+     "Ki",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.ki_irreversible'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.ki_irreversible; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.ki_noncompetitive": {
+   "binding_candidates": [
+    [
+     "NoncompetitiveInhibition",
+     "Ki",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.ki_noncompetitive'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.ki_noncompetitive; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.ki_u": {
+   "binding_candidates": [
+    [
+     "MixedInhibition",
+     "Ki_u",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.ki_u'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.ki_u; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.kinact": {
+   "binding_candidates": [
+    [
+     "IrreversibleInhibition",
+     "kinact",
+     "1/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.kinact'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.kinact; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "ddi.perp.CYP3A4.kinact_half": {
+   "binding_candidates": [
+    [
+     "IrreversibleInhibition",
+     "K_kinact_half",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'ddi.perp.CYP3A4.kinact_half'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for ddi.perp.CYP3A4.kinact_half; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "dist.bp_ratio": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'dist.bp_ratio'",
+   "numeric": true,
+   "physical_bounds": [
+    0.0,
+    20.0
+   ],
+   "placement": "reference",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "dist.partition_method": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'dist.partition_method'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for dist.partition_method; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "dist.permeability_method": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'dist.permeability_method'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for dist.permeability_method; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": "'elim' means an elimination pathway: give the concrete one (elim.renal.gfr_fraction, elim.hepatic.<enzyme>.clspec, …)",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "elim.biliary.cl": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.biliary.cl'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": "elim.biliary.cl: no harvested PK-Sim process carries this parameter",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.biliary.cl; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "elim.ehc_fraction": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.ehc_fraction'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": null,
+   "target_problem": "elim.ehc_fraction: no harvested PK-Sim process carries this parameter",
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVivo"
+  },
+  "elim.fe_urine": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.fe_urine'",
+   "numeric": true,
+   "physical_bounds": [
+    0.0,
+    1.0
+   ],
+   "placement": "reference",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "fraction",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "fraction, unchanged"
+   ],
+   "value_origin_method": "Unknown"
+  },
+  "elim.fm": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.fm'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "fraction",
+   "target_problem": "elim.fm: no harvested PK-Sim process carries this parameter",
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "fraction, unchanged"
+   ],
+   "value_origin_method": "InVivo"
+  },
+  "elim.fm.CYP3A4": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.fm.CYP3A4'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "reference",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "fraction",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "fraction, unchanged"
+   ],
+   "value_origin_method": "InVivo"
+  },
+  "elim.fm.x": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.fm.x'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "reference",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "fraction",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "fraction, unchanged"
+   ],
+   "value_origin_method": "InVivo"
+  },
+  "elim.hepatic.<enzyme>.clspec": {
+   "binding_candidates": [
+    [
+     "rCYP450_FirstOrder",
+     "CLspec/[Enzyme]",
+     "l/µmol/min",
+     "<enzyme>"
+    ],
+    [
+     "MetabolizationSpecific_FirstOrder",
+     "CLspec/[Enzyme]",
+     "l/µmol/min",
+     "<enzyme>"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.<enzyme>.clspec'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": "elim.hepatic.<enzyme>.clspec is a template: give the concrete parameter",
+   "to_storage_unit(1, no unit)": "ConversionError: CLint → CLspec is an IVIVE scaling (system, protein, fu,inc), not a unit change",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.cl_intrinsic": {
+   "binding_candidates": [
+    [
+     "MetabolizationIntrinsic_FirstOrder",
+     "Intrinsic clearance",
+     "l/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.cl_intrinsic'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.CYP3A4.cl_intrinsic; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.cl_recombinant": {
+   "binding_candidates": [
+    [
+     "rCYP450_FirstOrder",
+     "In vitro CL/recombinant enzyme",
+     "µl/min/pmol rec. enzyme",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.cl_recombinant'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.CYP3A4.cl_recombinant; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.clspec": {
+   "binding_candidates": [
+    [
+     "rCYP450_FirstOrder",
+     "CLspec/[Enzyme]",
+     "l/µmol/min",
+     "CYP3A4"
+    ],
+    [
+     "MetabolizationSpecific_FirstOrder",
+     "CLspec/[Enzyme]",
+     "l/µmol/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.clspec'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: CLint → CLspec is an IVIVE scaling (system, protein, fu,inc), not a unit change",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.enzyme_conc": {
+   "binding_candidates": [
+    [
+     "MetabolizationSpecific_MM",
+     "Enzyme concentration",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.enzyme_conc'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.CYP3A4.enzyme_conc; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.kcat": {
+   "binding_candidates": [
+    [
+     "rCYP450_MM",
+     "kcat",
+     "1/min",
+     "CYP3A4"
+    ],
+    [
+     "MetabolizationSpecific_MM",
+     "kcat",
+     "1/min",
+     "CYP3A4"
+    ],
+    [
+     "MetabolizationLiverMicrosomes_MM",
+     "kcat",
+     "1/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.kcat'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.CYP3A4.kcat; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.km": {
+   "binding_candidates": [
+    [
+     "rCYP450_MM",
+     "Km",
+     "µmol/l",
+     "CYP3A4"
+    ],
+    [
+     "MetabolizationSpecific_MM",
+     "Km",
+     "µmol/l",
+     "CYP3A4"
+    ],
+    [
+     "MetabolizationLiverMicrosomes_MM",
+     "Km",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.km'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "µmol/l",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to µmol/l for elim.hepatic.CYP3A4.km",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.microsomal_content": {
+   "binding_candidates": [
+    [
+     "MetabolizationLiverMicrosomes_MM",
+     "Content of CYP proteins in liver microsomes",
+     "pmol/mg mic. protein",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.microsomal_content'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.CYP3A4.microsomal_content; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.specific_clearance": {
+   "binding_candidates": [
+    [
+     "MetabolizationIntrinsic_FirstOrder",
+     "Specific clearance",
+     "1/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.specific_clearance'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.CYP3A4.specific_clearance; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.vmax": {
+   "binding_candidates": [
+    [
+     "MetabolizationSpecific_MM",
+     "Vmax",
+     "µmol/l/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.vmax'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.CYP3A4.vmax; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.vmax_microsomes": {
+   "binding_candidates": [
+    [
+     "MetabolizationLiverMicrosomes_MM",
+     "In vitro Vmax for liver microsomes",
+     "pmol/min/mg mic. protein",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.vmax_microsomes'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.CYP3A4.vmax_microsomes; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4.vmax_recombinant": {
+   "binding_candidates": [
+    [
+     "rCYP450_MM",
+     "In vitro Vmax/recombinant enzyme",
+     "pmol/min/pmol rec. enzyme",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4.vmax_recombinant'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.CYP3A4.vmax_recombinant; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.CYP3A4@alt.clspec": {
+   "binding_candidates": [
+    [
+     "rCYP450_FirstOrder",
+     "CLspec/[Enzyme]",
+     "l/µmol/min",
+     "CYP3A4"
+    ],
+    [
+     "MetabolizationSpecific_FirstOrder",
+     "CLspec/[Enzyme]",
+     "l/µmol/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.CYP3A4@alt.clspec'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": "elim.hepatic.CYP3A4@alt.clspec: no harvested PK-Sim process carries this parameter",
+   "to_storage_unit(1, no unit)": "ConversionError: CLint → CLspec is an IVIVE scaling (system, protein, fu,inc), not a unit change",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.total.bp_experiment": {
+   "binding_candidates": [
+    [
+     "LiverClearance",
+     "Blood/Plasma concentration ratio",
+     null,
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.total.bp_experiment'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.bp_experiment; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.total.fu_experiment": {
+   "binding_candidates": [
+    [
+     "LiverClearance",
+     "Fraction unbound (experiment)",
+     null,
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.total.fu_experiment'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.fu_experiment; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.total.logp_experiment": {
+   "binding_candidates": [
+    [
+     "LiverClearance",
+     "Lipophilicity (experiment)",
+     "Log Units",
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.total.logp_experiment'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.logp_experiment; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.total.plasma_clearance": {
+   "binding_candidates": [
+    [
+     "LiverClearance",
+     "Plasma clearance",
+     "ml/min/kg",
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.total.plasma_clearance'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.plasma_clearance; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.total.specific_clearance": {
+   "binding_candidates": [
+    [
+     "LiverClearance",
+     "Specific clearance",
+     "1/min",
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.total.specific_clearance'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.specific_clearance; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.total_cl": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.total_cl'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "ml/min/kg",
+   "target_problem": "elim.hepatic.total_cl: no harvested PK-Sim process carries this parameter",
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to ml/min/kg for elim.hepatic.total_cl",
+   "value_origin_method": "InVitro"
+  },
+  "elim.hepatic.{enzyme}.clspec": {
+   "binding_candidates": [
+    [
+     "rCYP450_FirstOrder",
+     "CLspec/[Enzyme]",
+     "l/µmol/min",
+     "{enzyme}"
+    ],
+    [
+     "MetabolizationSpecific_FirstOrder",
+     "CLspec/[Enzyme]",
+     "l/µmol/min",
+     "{enzyme}"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.{enzyme}.clspec'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": "elim.hepatic.{enzyme}.clspec is a template: give the concrete parameter",
+   "to_storage_unit(1, no unit)": "ConversionError: CLint → CLspec is an IVIVE scaling (system, protein, fu,inc), not a unit change",
+   "value_origin_method": "InVitro"
+  },
+  "elim.renal.gfr_fraction": {
+   "binding_candidates": [
+    [
+     "GlomerularFiltration",
+     "GFR fraction",
+     null,
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.renal.gfr_fraction'",
+   "numeric": true,
+   "physical_bounds": [
+    0.0,
+    10.0
+   ],
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVivo"
+  },
+  "elim.renal.total.body_weight": {
+   "binding_candidates": [
+    [
+     "KidneyClearance",
+     "Body weight",
+     "kg",
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.renal.total.body_weight'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.renal.total.body_weight; enter the PK-Sim value by hand",
+   "value_origin_method": "InVivo"
+  },
+  "elim.renal.total.fu_experiment": {
+   "binding_candidates": [
+    [
+     "KidneyClearance",
+     "Fraction unbound (experiment)",
+     null,
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.renal.total.fu_experiment'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.renal.total.fu_experiment; enter the PK-Sim value by hand",
+   "value_origin_method": "InVivo"
+  },
+  "elim.renal.total.kidney_blood_flow": {
+   "binding_candidates": [
+    [
+     "KidneyClearance",
+     "Blood flow rate (kidney)",
+     "l/min",
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.renal.total.kidney_blood_flow'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.renal.total.kidney_blood_flow; enter the PK-Sim value by hand",
+   "value_origin_method": "InVivo"
+  },
+  "elim.renal.total.plasma_clearance": {
+   "binding_candidates": [
+    [
+     "KidneyClearance",
+     "Plasma clearance",
+     "ml/min/kg",
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.renal.total.plasma_clearance'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.renal.total.plasma_clearance; enter the PK-Sim value by hand",
+   "value_origin_method": "InVivo"
+  },
+  "elim.renal.total.specific_clearance": {
+   "binding_candidates": [
+    [
+     "KidneyClearance",
+     "Specific clearance",
+     "1/min",
+     null
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.renal.total.specific_clearance'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.renal.total.specific_clearance; enter the PK-Sim value by hand",
+   "value_origin_method": "InVivo"
+  },
+  "elim.renal.ts_clspec": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.renal.ts_clspec'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": "elim.renal.ts_clspec: no harvested PK-Sim process carries this parameter",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.renal.ts_clspec; enter the PK-Sim value by hand",
+   "value_origin_method": "InVivo"
+  },
+  "elim.species": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.species'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": true,
+   "s0_satisfies": [
+    "elim"
+   ],
+   "storage_family": "not converted",
+   "target_problem": "elim.species: no harvested PK-Sim process carries this parameter",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.species; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "expr.x": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'expr.x'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for expr.x; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "food.fed_solubility_factor": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'food.fed_solubility_factor'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "food.fed_solubility_factor is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for food.fed_solubility_factor; enter the PK-Sim value by hand",
+   "value_origin_method": "InVivo"
+  },
+  "form.tablet.particle.d50": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.particle.d50'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "min",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to min for form.tablet.particle.d50",
+   "value_origin_method": "InVitro"
+  },
+  "form.tablet.shape": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.shape'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "form.tablet.type": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.type'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "min",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to min for form.tablet.type",
+   "value_origin_method": "InVitro"
+  },
+  "form.tablet.weibull.lag": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.weibull.lag'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "min",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to min for form.tablet.weibull.lag",
+   "value_origin_method": "InVitro"
+  },
+  "form.tablet.weibull.shape": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.weibull.shape'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "form.tablet.weibull.t50": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.weibull.t50'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "min",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to min for form.tablet.weibull.t50",
+   "value_origin_method": "InVitro"
+  },
+  "form.x": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.x'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "min",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to min for form.x",
+   "value_origin_method": "InVitro"
+  },
+  "id.inchikey": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'id.inchikey'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "id.inchikey is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for id.inchikey; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "id.name": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'id.name'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "id.name is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for id.name; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "id.smiles": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'id.smiles'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "id.smiles is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for id.smiles; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "indiv.x": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'indiv.x'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for indiv.x; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "pd.emax": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'pd.emax'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "pd.emax is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for pd.emax; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "perm.cellular": {
+   "binding_candidates": [],
+   "compound_path": "Drug|Permeability",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "cm/min",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to cm/min for perm.cellular",
+   "value_origin_method": "InVitro"
+  },
+  "perm.intestinal": {
+   "binding_candidates": [],
+   "compound_path": "Drug|Specific intestinal permeability (transcellular)",
+   "numeric": true,
+   "physical_bounds": [
+    0.0,
+    1.0
+   ],
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "cm/min",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to cm/min for perm.intestinal",
+   "value_origin_method": "InVitro"
+  },
+  "perm.intestinal@fed": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'perm.intestinal@fed'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for perm.intestinal@fed; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "phys.halogens": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.halogens'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "phys.halogens is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for phys.halogens; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "phys.halogens.Cl": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.halogens.Cl'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for phys.halogens.Cl; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "phys.halogens.x": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.halogens.x'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for phys.halogens.x; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "phys.logp": {
+   "binding_candidates": [],
+   "compound_path": "Drug|Lipophilicity",
+   "numeric": true,
+   "physical_bounds": [
+    -10.0,
+    15.0
+   ],
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [
+    "phys.logp"
+   ],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "phys.mw": {
+   "binding_candidates": [],
+   "compound_path": "Drug|Molecular weight",
+   "numeric": true,
+   "physical_bounds": [
+    10.0,
+    1000000.0
+   ],
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [
+    "phys.mw"
+   ],
+   "storage_family": "g/mol",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to g/mol for phys.mw",
+   "value_origin_method": "InVitro"
+  },
+  "phys.pka": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.pka'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [
+    "phys.pka"
+   ],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "phys.pka.acid.1": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.pka.acid.1'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [
+    "phys.pka"
+   ],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "phys.pka.base.1": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.pka.base.1'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [
+    "phys.pka"
+   ],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "phys.pka.neutral": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.pka.neutral'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [
+    "phys.pka"
+   ],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "phys.solubility.ref": {
+   "binding_candidates": [],
+   "compound_path": "Drug|Solubility at reference pH",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [
+    "phys.solubility.ref"
+   ],
+   "storage_family": "mg/ml",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to mg/ml for phys.solubility.ref",
+   "value_origin_method": "InVitro"
+  },
+  "phys.solubility.ref@fed": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.solubility.ref@fed'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for phys.solubility.ref@fed; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "phys.solubility.ref_ph": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.solubility.ref_ph'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for phys.solubility.ref_ph; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "phys.solubility.table": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'phys.solubility.table'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [
+    "phys.solubility.ref"
+   ],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for phys.solubility.table; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "sim.x": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'sim.x'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for sim.x; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "sim[oral].x": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'sim[oral].x'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for sim[oral].x; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "transp.CYP3A4.hill": {
+   "binding_candidates": [
+    [
+     "ActiveTransportSpecific_Hill",
+     "Hill coefficient",
+     null,
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.CYP3A4.hill'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for transp.CYP3A4.hill; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "transp.CYP3A4.kcat": {
+   "binding_candidates": [
+    [
+     "ActiveTransport_InVitro_VesicularAssay_MM",
+     "kcat",
+     "1/min",
+     "CYP3A4"
+    ],
+    [
+     "ActiveTransportSpecific_MM",
+     "kcat",
+     "1/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.CYP3A4.kcat'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for transp.CYP3A4.kcat; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "transp.CYP3A4.km": {
+   "binding_candidates": [
+    [
+     "ActiveTransportSpecific_Hill",
+     "Km",
+     "µmol/l",
+     "CYP3A4"
+    ],
+    [
+     "ActiveTransport_InVitro_VesicularAssay_MM",
+     "Km",
+     "µmol/l",
+     "CYP3A4"
+    ],
+    [
+     "ActiveTransportSpecific_MM",
+     "Km",
+     "µmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.CYP3A4.km'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for transp.CYP3A4.km; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "transp.CYP3A4.transporter_conc": {
+   "binding_candidates": [
+    [
+     "ActiveTransportSpecific_Hill",
+     "Transporter concentration",
+     "µmol/l",
+     "CYP3A4"
+    ],
+    [
+     "ActiveTransportSpecific_MM",
+     "Transporter concentration",
+     "nmol/l",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.CYP3A4.transporter_conc'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for transp.CYP3A4.transporter_conc; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "transp.CYP3A4.vmax": {
+   "binding_candidates": [
+    [
+     "ActiveTransportSpecific_Hill",
+     "Vmax",
+     "µmol/l/min",
+     "CYP3A4"
+    ],
+    [
+     "ActiveTransportSpecific_MM",
+     "Vmax",
+     "µmol/l/min",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.CYP3A4.vmax'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for transp.CYP3A4.vmax; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "transp.CYP3A4.vmax_vesicular": {
+   "binding_candidates": [
+    [
+     "ActiveTransport_InVitro_VesicularAssay_MM",
+     "In vitro Vmax/transporter",
+     "pmol/min/pmol transporter",
+     "CYP3A4"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.CYP3A4.vmax_vesicular'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for transp.CYP3A4.vmax_vesicular; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "transp.OCT1.clspec": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.OCT1.clspec'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "transp.OCT1.clspec: no harvested PK-Sim process carries this parameter",
+   "to_storage_unit(1, no unit)": "ConversionError: CLint → CLspec is an IVIVE scaling (system, protein, fu,inc), not a unit change",
+   "value_origin_method": "InVitro"
+  },
+  "transp.OCT1.kcat": {
+   "binding_candidates": [
+    [
+     "ActiveTransport_InVitro_VesicularAssay_MM",
+     "kcat",
+     "1/min",
+     "OCT1"
+    ],
+    [
+     "ActiveTransportSpecific_MM",
+     "kcat",
+     "1/min",
+     "OCT1"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.OCT1.kcat'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for transp.OCT1.kcat; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "transp.OCT1.km": {
+   "binding_candidates": [
+    [
+     "ActiveTransportSpecific_Hill",
+     "Km",
+     "µmol/l",
+     "OCT1"
+    ],
+    [
+     "ActiveTransport_InVitro_VesicularAssay_MM",
+     "Km",
+     "µmol/l",
+     "OCT1"
+    ],
+    [
+     "ActiveTransportSpecific_MM",
+     "Km",
+     "µmol/l",
+     "OCT1"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.OCT1.km'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for transp.OCT1.km; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "transp.OCT1.vmax": {
+   "binding_candidates": [
+    [
+     "ActiveTransportSpecific_Hill",
+     "Vmax",
+     "µmol/l/min",
+     "OCT1"
+    ],
+    [
+     "ActiveTransportSpecific_MM",
+     "Vmax",
+     "µmol/l/min",
+     "OCT1"
+    ]
+   ],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'transp.OCT1.vmax'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "process",
+   "process_id": true,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for transp.OCT1.vmax; enter the PK-Sim value by hand",
+   "value_origin_method": "InVitro"
+  },
+  "unknown.parameter": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'unknown.parameter'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "unknown.parameter is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for unknown.parameter; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  },
+  "variability": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'variability'",
+   "numeric": false,
+   "physical_bounds": null,
+   "placement": null,
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "not converted",
+   "target_problem": "variability is not a parameter the model uses",
+   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for variability; enter the PK-Sim value by hand",
+   "value_origin_method": "Unknown"
+  }
+ },
+ "s0_on_an_empty_cpf": {
+  "missing": [
+   "molecular weight (phys.mw)",
+   "lipophilicity (logP/logD) (phys.logp)",
+   "fraction unbound in plasma (bind.fu)",
+   "reference aqueous solubility (phys.solubility.ref)",
+   "pKa values, or a documented statement that the compound is neutral (phys.pka.* or phys.pka.neutral)",
+   "at least one elimination pathway (elim.* or elim.hepatic.total_cl)"
+  ],
+  "missing_ids": [
+   "phys.mw",
+   "phys.logp",
+   "bind.fu",
+   "phys.solubility.ref",
+   "phys.pka",
+   "elim"
+  ]
+ },
+ "tables": {
+  "build.ALTERNATIVE_GROUP_OF_ID": {
+   "perm.intestinal": "COMPOUND_INTESTINAL_PERMEABILITY",
+   "phys.solubility.ref": "COMPOUND_SOLUBILITY",
+   "phys.solubility.ref_ph": "COMPOUND_SOLUBILITY"
+  },
+  "build.REFERENCE_ELIMINATION": [
+   "elim.fe_urine",
+   "elim.fm."
+  ],
+  "build._PROCESS_FAMILIES": [
+   "elim.",
+   "transp."
+  ],
+  "evidence._PHYSICAL": {
+   "bind.fu": [
+    0.0,
+    1.0
+   ],
+   "dist.bp_ratio": [
+    0.0,
+    20.0
+   ],
+   "elim.fe_urine": [
+    0.0,
+    1.0
+   ],
+   "elim.renal.gfr_fraction": [
+    0.0,
+    10.0
+   ],
+   "perm.intestinal": [
+    0.0,
+    1.0
+   ],
+   "phys.logp": [
+    -10.0,
+    15.0
+   ],
+   "phys.mw": [
+    10.0,
+    1000000.0
+   ]
+  },
+  "inputs.MODEL_IDS": [
+   "alt.select",
+   "bind.fu",
+   "bind.partner",
+   "dist.partition_method",
+   "dist.permeability_method",
+   "perm.cellular",
+   "perm.intestinal",
+   "phys.logp",
+   "phys.mw",
+   "phys.pka.neutral",
+   "phys.solubility.ref",
+   "phys.solubility.ref_ph",
+   "phys.solubility.table"
+  ],
+  "inputs.MODEL_PREFIXES": [
+   "cmpd.",
+   "expr.",
+   "form.",
+   "indiv.",
+   "phys.halogens.",
+   "phys.pka.acid.",
+   "phys.pka.base.",
+   "sim.",
+   "sim["
+  ],
+  "inputs.PATHWAY_TARGETS": [
+   "elim.fe_urine",
+   "elim.fm.<enzyme>",
+   "elim.renal.gfr_fraction",
+   "elim.renal.total.plasma_clearance",
+   "elim.hepatic.total.plasma_clearance",
+   "elim.hepatic.<enzyme>.clspec",
+   "elim.hepatic.<enzyme>.cl_intrinsic",
+   "elim.hepatic.<enzyme>.km",
+   "elim.hepatic.<enzyme>.vmax"
+  ],
+  "inputs.PLACEHOLDERS": {
+   "elim": "an elimination pathway: give the concrete one (elim.renal.gfr_fraction, elim.hepatic.<enzyme>.clspec, …)",
+   "phys.pka": "a pKa: say whether it is acidic or basic"
+  },
+  "inputs.REFERENCE_IDS": [
+   "dist.bp_ratio",
+   "elim.fe_urine"
+  ],
+  "inputs.REFERENCE_PREFIXES": [
+   "elim.fm."
+  ],
+  "inputs._BUILDER_UNIT": {
+   "phys.logp": "Log Units"
+  },
+  "inputs._IN_VITRO": [
+   "bind.",
+   "ddi.",
+   "dist.",
+   "elim.hepatic",
+   "form.",
+   "perm.",
+   "phys.",
+   "transp."
+  ],
+  "inputs._IN_VIVO": [
+   "elim.ehc",
+   "elim.fm",
+   "elim.renal",
+   "food."
+  ],
+  "map.STAGE_PLAN": {
+   "S0": {
+    "branches": [],
+    "fit_candidates": []
+   },
+   "S1": {
+    "branches": [
+     "dist.partition_method",
+     "dist.permeability_method"
+    ],
+    "fit_candidates": [
+     "elim.hepatic.{enzyme}.clspec",
+     "elim.hepatic.{enzyme}.kcat",
+     "transp.{name}.kcat",
+     "phys.logp",
+     "elim.renal.gfr_fraction",
+     "elim.renal.ts_clspec",
+     "perm.cellular",
+     "bind.fu"
+    ]
+   },
+   "S2": {
+    "branches": [],
+    "fit_candidates": [
+     "perm.intestinal",
+     "phys.solubility.ref",
+     "elim.ehc_fraction",
+     "elim.hepatic.{enzyme}.km",
+     "elim.hepatic.{enzyme}.vmax",
+     "elim.hepatic.{enzyme}.clspec",
+     "elim.hepatic.{enzyme}.kcat",
+     "transp.{name}.kcat"
+    ]
+   },
+   "S3": {
+    "branches": [],
+    "fit_candidates": [
+     "form.{name}.weibull.t50",
+     "form.{name}.weibull.shape",
+     "food.fed_solubility_factor"
+    ]
+   },
+   "S4": {
+    "branches": [],
+    "fit_candidates": []
+   },
+   "S5": {
+    "branches": [],
+    "fit_candidates": []
+   },
+   "S6": {
+    "branches": [],
+    "fit_candidates": []
+   },
+   "S7": {
+    "branches": [],
+    "fit_candidates": []
+   },
+   "SJ": {
+    "branches": [],
+    "fit_candidates": [
+     "fitted in S1–S3"
+    ]
+   }
+  },
+  "parameter_units._BOUND": [
+   "%bound",
+   "%protein-bound",
+   "%proteinbound",
+   "bound%",
+   "fractionbound",
+   "percentbound"
+  ],
+  "parameter_units._FAMILIES": {
+   "cm/min": [
+    "cm/min",
+    {
+     "10^-6cm/s": 6e-05,
+     "1e-6cm/s": 6e-05,
+     "cm/h": 0.016666666666666666,
+     "cm/min": 1.0,
+     "cm/s": 60.0,
+     "cm/sec": 60.0,
+     "m/s": 6000.0,
+     "nm/s": 6e-06,
+     "um/s": 0.006,
+     "µm/s": 0.006
+    }
+   ],
+   "g/mol": [
+    "g/mol",
+    {
+     "da": 1.0,
+     "g/mol": 1.0,
+     "gmol-1": 1.0,
+     "g·mol-1": 1.0,
+     "kda": 1000.0
+    }
+   ],
+   "mg/ml": [
+    "mg/ml",
+    {
+     "g/l": 1.0,
+     "g/ml": 1000.0,
+     "mcg/ml": 0.001,
+     "mg/100ml": 0.01,
+     "mg/l": 0.001,
+     "mg/ml": 1.0,
+     "ng/ml": 1e-06,
+     "ug/l": 1e-06,
+     "ug/ml": 0.001,
+     "µg/l": 1e-06,
+     "µg/ml": 0.001
+    }
+   ],
+   "min": [
+    "min",
+    {
+     "h": 60.0,
+     "hours": 60.0,
+     "hr": 60.0,
+     "min": 1.0,
+     "minutes": 1.0,
+     "s": 0.016666666666666666,
+     "sec": 0.016666666666666666
+    }
+   ],
+   "ml/min/kg": [
+    "ml/min/kg",
+    {
+     "l/h/kg": 16.666666666666668,
+     "l/min/kg": 1000.0,
+     "ml/h/kg": 0.016666666666666666,
+     "ml/min/kg": 1.0
+    }
+   ],
+   "µmol/l": [
+    "µmol/l",
+    {
+     "mm": 1000.0,
+     "mmol/l": 1000.0,
+     "nm": 0.001,
+     "nmol/l": 0.001,
+     "um": 1.0,
+     "umol/l": 1.0,
+     "µm": 1.0,
+     "µmol/l": 1.0
+    }
+   ]
+  },
+  "parameter_units._TARGETS": [
+   [
+    "phys.mw",
+    "g/mol"
+   ],
+   [
+    "phys.logp",
+    null
+   ],
+   [
+    "phys.pka",
+    null
+   ],
+   [
+    "bind.fu",
+    "fraction"
+   ],
+   [
+    "dist.bp_ratio",
+    null
+   ],
+   [
+    "phys.solubility.ref",
+    "mg/ml"
+   ],
+   [
+    "perm.intestinal",
+    "cm/min"
+   ],
+   [
+    "perm.cellular",
+    "cm/min"
+   ],
+   [
+    "elim.renal.gfr_fraction",
+    null
+   ],
+   [
+    "elim.hepatic.total_cl",
+    "ml/min/kg"
+   ],
+   [
+    "elim.ehc_fraction",
+    null
+   ],
+   [
+    "elim.fe_urine",
+    "fraction"
+   ],
+   [
+    "elim.fm",
+    "fraction"
+   ],
+   [
+    "form.",
+    "min"
+   ]
+  ],
+  "parameter_units._UNBOUND": [
+   "%free",
+   "%unbound",
+   "percentunbound",
+   "unbound%"
+  ],
+  "parameter_units._UNITLESS": [
+   "",
+   "-",
+   "dimensionless",
+   "fraction",
+   "log units",
+   "loguints",
+   "logunits",
+   "none",
+   "ratio",
+   "unitless"
+  ],
+  "pksim_paths._COMPOUND_PARAM": {
+   "bind.fu": "Fraction unbound (plasma, reference value)",
+   "perm.cellular": "Permeability",
+   "perm.intestinal": "Specific intestinal permeability (transcellular)",
+   "phys.logp": "Lipophilicity",
+   "phys.mw": "Molecular weight",
+   "phys.solubility.ref": "Solubility at reference pH"
+  },
+  "pksim_paths._MOLECULE_PROCESSES": [
+   "MetabolizationIntrinsic_FirstOrder",
+   "MetabolizationLiverMicrosomes_MM",
+   "MetabolizationSpecific_FirstOrder",
+   "MetabolizationSpecific_MM",
+   "SpecificBinding",
+   "rCYP450_MM"
+  ],
+  "pksim_paths._NESTED_PROCESSES": [
+   "ActiveTransportSpecific_MM",
+   "CompetitiveInhibition",
+   "Induction"
+  ],
+  "process_bindings._FIXED_PREFIX": {
+   "elim.hepatic.total": "LiverClearance",
+   "elim.renal": "GlomerularFiltration",
+   "elim.renal.total": "KidneyClearance"
+  },
+  "templates_api._BLANK_PARAMETERS": [
+   [
+    "phys.mw",
+    "g/mol",
+    null
+   ],
+   [
+    "phys.logp",
+    "Log Units",
+    null
+   ],
+   [
+    "phys.pka.neutral",
+    null,
+    null
+   ],
+   [
+    "bind.fu",
+    null,
+    null
+   ],
+   [
+    "phys.solubility.ref",
+    "mg/ml",
+    null
+   ],
+   [
+    "elim.hepatic.total.plasma_clearance",
+    "ml/min/kg",
+    {
+     "building_block": "Compound",
+     "data_source": "Literature",
+     "parameter": "Plasma clearance",
+     "process": "LiverClearance"
+    }
+   ]
+  ]
+ }
+}
