@@ -15,6 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — phase 6 guardrails: response models and artifact owners (architecture phase 6a)
+- **What:** two shrink-only ratchets, with no code change.
+  - `tests/architecture/test_response_models.py` covers every route of the P0–P4 routers and the escalation routes.
+    Each route needs a pydantic response model, or must be listed under `[response] untyped` in `boundaries.toml`.
+    Today that list holds 55 routes; the 2 file downloads are not counted.
+  - `tests/architecture/test_artifact_owners.py`: `[owners]` names one module per artifact kind. Only that module
+    commits the kind, and only owner modules read stored content raw. Today's exceptions are recorded:
+    - 3 writers: `brief_api` (brief), `inputs_api` (cpf), `plan_api` (map);
+    - 48 raw reads in 12 modules, as exact counts.
+  - A new plan doc, `docs/plans/2026-10-08-phase-6-contracts.md`, covers 6a–6f.
+- **Why:** rules B2 and B3, couplings C5 (untyped answers) and C6 (artifact content without an owner). The owner
+  approved both ratchets on 2026-10-08, and chose to keep today's response shapes, typing them as they are.
+- **Impact:**
+  - No behaviour change.
+  - `tests/architecture/boundaries.toml` (locked) gains the `[response]`, `[owners]` and `[owner_exceptions]`
+    sections, and its hash is refreshed.
+  - From now on, a new untyped route, a write by a non-owner, or a new raw content read fails CI, and so does a fixed
+    exception that stays listed.
+  - The `ARCHITECTURE_BOUNDARIES.md` guardrail table gains both tests; it also had a stray blank line that split it.
+
 ### Changed — services out of the routers (architecture phase 5d; phase 5 done)
 - **What:**
   - Data-plan derivation moved from `requirements_api` (a router) to the project service
