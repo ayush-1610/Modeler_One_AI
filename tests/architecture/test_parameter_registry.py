@@ -8,6 +8,7 @@ registry is the same vocabulary.
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -18,7 +19,8 @@ from pbpk_domain import parameters
 
 pytestmark = pytest.mark.req("T-25")
 
-SNAPSHOT = Path(__file__).resolve().parents[2] / "docs" / "architecture" / "parameter-vocabulary.json"
+ROOT = Path(__file__).resolve().parents[2]
+SNAPSHOT = ROOT / "docs" / "architecture" / "parameter-vocabulary.json"
 RECORDED = json.loads(SNAPSHOT.read_text(encoding="utf-8"))["ids"]
 _METHOD = {"in_vivo": "InVivo", "in_vitro": "InVitro", None: "Unknown"}
 
@@ -55,3 +57,30 @@ def test_registry_answers_what_was_recorded(cpf_id):
         assert recorded["compound_path"] == f"Drug|{name}"
     else:
         assert recorded["compound_path"].startswith("ParameterPathError")
+
+
+# phase 4c: these tables are read from the registry; a literal here would be a second copy again (C1)
+SWITCHED = {
+    "packages/project-model/src/modeler_project/inputs.py": {
+        "MODEL_IDS", "MODEL_PREFIXES", "REFERENCE_IDS", "REFERENCE_PREFIXES", "_BUILDER_UNIT", "_IN_VIVO", "_IN_VITRO"},
+    "packages/project-model/src/modeler_project/evidence.py": {"_PHYSICAL"},
+}
+
+
+@pytest.mark.parametrize("path", sorted(SWITCHED))
+def test_switched_tables_are_read_from_the_registry(path):
+    tree = ast.parse((ROOT / path).read_text(encoding="utf-8"))
+    found = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            found[node.targets[0].id] = node.value
+    for name in SWITCHED[path]:
+        value = found.get(name)
+        assert isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute) and \
+            isinstance(value.func.value, ast.Name) and value.func.value.id == "parameters", f"{path}: {name}"
+
+
+def test_blank_template_meets_every_s0_requirement():
+    from modeler_api.templates_api import _BLANK_PARAMETERS
+
+    assert parameters.unmet_s0({pid for pid, _, _ in _BLANK_PARAMETERS}) == ()

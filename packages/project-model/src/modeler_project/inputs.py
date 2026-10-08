@@ -28,6 +28,7 @@ from modeler_project.brief import ProjectBrief
 from modeler_project.datasets import ObservedDataset
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceType, numeric_target, review_flags
 from modeler_project.workspace import Workspace
+from pbpk_domain import parameters
 from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
 from pbpk_domain.data_origin import REAL_ORIGINS
@@ -44,23 +45,19 @@ VALUE_ORIGIN_SOURCE = {
     SourceType.PROPOSAL: "Other", SourceType.PREDICTED: "Other", SourceType.ASSUMPTION: "Other",
 }
 # The unit PK-Sim's builder takes where the storage conversion leaves a dimensionless value without one
-# (snapshot.builder: lipophilicity is checked against "Log Units").
-_BUILDER_UNIT = {"phys.logp": "Log Units"}
-_IN_VIVO = ("elim.renal", "elim.fm", "elim.ehc", "food.")
+# (snapshot.builder: lipophilicity is checked against "Log Units"). From the parameter registry, like the tables below.
+_BUILDER_UNIT = parameters.builder_units()
+_IN_VIVO = parameters.origin_prefixes("in_vivo")
 
 # CPF ids the model takes: the compound fields and families `pbpk_domain.cpf.build` reads (process parameters are
 # checked against the harvested process table instead). An id outside these is never placed in PK-Sim, so it is kept
 # out of the CPF and named: a value under an unknown name once satisfied S0 while the model had no clearance.
-MODEL_IDS = frozenset({
-    "phys.mw", "phys.logp", "bind.fu", "phys.solubility.ref", "phys.solubility.ref_ph", "phys.solubility.table",
-    "perm.intestinal", "perm.cellular", "bind.partner", "dist.partition_method", "dist.permeability_method",
-    "phys.pka.neutral", "alt.select",
-})
-MODEL_PREFIXES = ("phys.pka.acid.", "phys.pka.base.", "phys.halogens.", "cmpd.", "form.", "expr.", "indiv.", "sim.", "sim[")
+MODEL_IDS = parameters.model_ids()
+MODEL_PREFIXES = parameters.model_prefixes()
 # kept in the CPF for checks and the report, not set in PK-Sim (PK-Sim computes the blood-to-plasma ratio itself; the
 # fraction excreted unchanged in urine and the fraction metabolised per pathway constrain the elimination fitted in S1)
-REFERENCE_IDS = frozenset({"dist.bp_ratio", "elim.fe_urine"})
-REFERENCE_PREFIXES = ("elim.fm.",)
+REFERENCE_IDS = parameters.reference_ids()
+REFERENCE_PREFIXES = parameters.reference_prefixes()
 # what the S0 targets and the data plan's placeholders mean, for the person correcting a value's target
 PLACEHOLDERS = {
     "elim": "an elimination pathway: give the concrete one (elim.renal.gfr_fraction, elim.hepatic.<enzyme>.clspec, …)",
@@ -70,15 +67,8 @@ PLACEHOLDERS = {
 
 def placement(cpf_id: str) -> str | None:
     """"model" (PK-Sim takes it), "process" (a process parameter the harvested table places), "reference" (kept for
-    checks, not set in PK-Sim), or None: not a parameter the model uses."""
-    base = cpf_id.partition("@")[0]
-    if base in MODEL_IDS or base.startswith(MODEL_PREFIXES):
-        return "model"
-    if base in REFERENCE_IDS or base.startswith(REFERENCE_PREFIXES):
-        return "reference"
-    if is_process_id(base):
-        return "process" if binding_candidates(base) else None
-    return None
+    checks, not set in PK-Sim), or None: not a parameter the model uses (`pbpk_domain.parameters.placement`)."""
+    return parameters.placement(cpf_id)
 
 
 def target_problem(target: str) -> str | None:
@@ -94,7 +84,7 @@ def target_problem(target: str) -> str | None:
             return f"{target}: no harvested PK-Sim process carries this parameter"
         return f"{target} is not a parameter the model uses"
     return None
-_IN_VITRO = ("phys.", "bind.", "perm.", "dist.", "elim.hepatic", "transp.", "form.", "ddi.")
+_IN_VITRO = parameters.origin_prefixes("in_vitro")
 
 
 def value_origin_method(item: EvidenceItem) -> str:

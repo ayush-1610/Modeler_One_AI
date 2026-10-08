@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pbpk_domain import parameters
 from pbpk_domain.cpf.models import EngineBinding
 from pbpk_domain.reference.osp_import import PROCESS_FAMILY, PROCESS_PARAMETERS
 
@@ -54,4 +55,5 @@ def binding_candidates(cpf_id: str) -> list[BindingCandidate]:
 
 
 def is_process_id(cpf_id: str) -> bool:
-    return cpf_id.startswith(("elim.", "transp.", "bind.specific.", "ddi.perp."))
+    """An id of a process family (the parameter registry's `placement: process` families)."""
+    return cpf_id.startswith(parameters.process_prefixes())
