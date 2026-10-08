@@ -15,6 +15,46 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Science — total hepatic clearance is placed, the EHC fraction says why it is not (registry 1.1, phase 4e)
+- **Decided by the owner on 2026-10-08.** The parameter registry
+  (`pbpk_domain/parameters/registry.yaml`, SME content) goes from 1.0 to 1.1 and stays UNVERIFIED pending SME
+  sign-off.
+- **(a) `elim.hepatic.total_cl` is an alias of `elim.hepatic.total.plasma_clearance`:**
+  - **Why:** a value under `total_cl` satisfied S0's elimination requirement while nothing placed it, so a model could
+    start with no clearance.
+  - **Now:** a value under `total_cl` is filed under the id PK-Sim's `LiverClearance` "Plasma clearance" is bound
+    to, which is harvested and in ml/min/kg. The canonical id converts to ml/min/kg as well, and S0's message names
+    it.
+  - MS-01 §2.2's `total_cl` row is unchanged and stays valid through the alias.
+- **(b) `elim.ehc_fraction` is refused with its reason:**
+  - **Why:** MS-01 places it on the Individual (`Organism|Liver|EHC continuous fraction`), and that path is not
+    harvested yet.
+  - **Before:** the value went into the CPF unbound, and the reason given was the misleading "no harvested PK-Sim
+    process".
+  - **Now:** it is kept out of the CPF with the real reason, in P4's to-do list and in target corrections.
+  - The data plan still asks for it. Harvesting the path from a real exported simulation on the server is the follow-up.
+- **(c) A total hepatic clearance is recorded `InVivo`:** `elim.hepatic.total.*` and the alias get the ValueOrigin
+  method InVivo, because MS-01 gives the source as clinical. Enzyme CLspec, Km and Vmax stay InVitro.
+- **Code:**
+  - `pbpk_domain.parameters` gains `alias_of` / `refused` (validated), `canonical()` and `refusal()`;
+  - `placement` and `process_bindings.binding_candidates` resolve aliases;
+  - `modeler_project.inputs` files an alias under its canonical id and reports a refusal.
+- **Tests:**
+  - evidence under `total_cl` lands in the CPF as `elim.hepatic.total.plasma_clearance`, 0.3 l/h/kg → 5 ml/min/kg,
+    bound to `LiverClearance`, InVivo;
+  - an `ehc_fraction` value is refused with its reason;
+  - a CPF whose only pathway is total plasma clearance passes S0, and the software builder places `LiverClearance`
+    with nothing unplaceable;
+  - the vocabulary test's `total_cl` xfail is removed; the `ehc_fraction` xfail stays, with the new reason.
+- **Characterization snapshot (`docs/architecture/parameter-vocabulary.json`), reviewed diff:**
+  - `total_cl`: placement and binding;
+  - `total.plasma_clearance`: storage unit;
+  - `elim.hepatic.total.*`: InVivo;
+  - `ehc_fraction`: refusal text;
+  - the S0 message, and the two new table entries.
+- **Impact:** a compound described by its total hepatic clearance now gets that clearance in the model. A result
+  counts only on real PK-Sim: building such a CPF on the server's PK-Sim is the follow-up.
+
 ### Changed — the locked consumers read the parameter registry (architecture phase 4d)
 - **What** (locked files, approved by the owner 2026-10-08):
   - `pbpk_domain.parameter_units`: `_TARGETS = parameters.storage_targets()`, and `target_family` delegates to

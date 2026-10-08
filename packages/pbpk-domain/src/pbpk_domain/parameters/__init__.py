@@ -39,6 +39,8 @@ class ParameterRule(BaseModel):
     builder_unit: str | None = None
     physical_bounds: tuple[float, float] | None = None
     origin: Literal["in_vivo", "in_vitro"] | None = None
+    alias_of: str | None = None
+    refused: str | None = None
     drift: str | None = None
 
     @property
@@ -60,6 +62,10 @@ class ParameterRule(BaseModel):
             problems.append("a PK-Sim compound name or builder unit belongs to one model id")
         if self.physical_bounds and (self.is_family or not self.physical_bounds[0] < self.physical_bounds[1]):
             problems.append("physical bounds are [low, high] of one id")
+        if (self.alias_of or self.refused) and (self.is_family or self.placement or self.suffix):
+            problems.append("an alias or a refusal is one id, placed (or not) by what it stands for")
+        if self.alias_of and self.refused:
+            problems.append("an id is an alias or refused, not both")
         if problems:
             raise ValueError(f"{self.key}{self.suffix or ''}: " + "; ".join(problems))
         return self
@@ -101,6 +107,10 @@ class ParameterRegistry(BaseModel):
             if (rule.key, rule.suffix) in seen:
                 raise ValueError(f"{rule.key}{rule.suffix or ''} is listed twice")
             seen.add((rule.key, rule.suffix))
+        indirect = {r.key for r in self.parameters if r.alias_of or r.refused}
+        for rule in self.parameters:
+            if rule.alias_of in indirect:
+                raise ValueError(f"{rule.key} is an alias of {rule.alias_of}, which is itself an alias or refused")
         return self
 
 
@@ -144,6 +154,26 @@ def not_converted_reason(cpf_id: str) -> str | None:
                  and cpf_id.startswith(r.key) and cpf_id.endswith(r.suffix)), None)
 
 
+# --- aliases and refusals ------------------------------------------------------------------------------------------
+
+
+def _exact(cpf_id: str) -> ParameterRule | None:
+    return next((r for r in _rules() if r.key == cpf_id and r.suffix is None), None)
+
+
+def canonical(cpf_id: str) -> str:
+    """The id a value is filed under: an alias resolves to the id it stands for (an `@<alternative>` stays on)."""
+    base, at, alternative = cpf_id.partition("@")
+    rule = _exact(base)
+    return f"{rule.alias_of}{at}{alternative}" if rule and rule.alias_of else cpf_id
+
+
+def refusal(cpf_id: str) -> str | None:
+    """Why a value under this id is not taken (kept out of the CPF), or None."""
+    rule = _exact(cpf_id.partition("@")[0])
+    return rule.refused if rule else None
+
+
 # --- placement (modeler_project.inputs, cpf.build, cpf.process_bindings) -------------------------------------------
 
 
@@ -184,10 +214,12 @@ def reference_elimination() -> tuple[str, ...]:
 
 def placement(cpf_id: str) -> str | None:
     """"model", "process" (a process parameter the harvested table places), "reference", or None: not a parameter the
-    model uses. An alternative (`<id>@<name>`) is placed as its id."""
+    model uses, or refused. An alternative (`<id>@<name>`) is placed as its id, an alias as the id it stands for."""
     from pbpk_domain.cpf.process_bindings import binding_candidates
 
-    base = cpf_id.partition("@")[0]
+    if refusal(cpf_id):
+        return None
+    base = canonical(cpf_id).partition("@")[0]
     if base in model_ids() or base.startswith(model_prefixes()):
         return "model"
     if base in reference_ids() or base.startswith(reference_prefixes()):

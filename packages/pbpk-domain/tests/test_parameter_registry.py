@@ -40,7 +40,7 @@ def _record(cpf_id: str) -> ParameterRecord:
 
 def test_registry_is_governed_content():
     reg = parameters.registry()
-    assert reg.id == "parameter-registry" and reg.version == "1.0" and reg.status == "UNVERIFIED"
+    assert reg.id == "parameter-registry" and reg.version == "1.1" and reg.status == "UNVERIFIED"
 
 
 def test_storage_units_are_parameter_units_tables():
@@ -104,3 +104,55 @@ def test_a_key_is_listed_once():
     reg["parameters"] = [*reg["parameters"], reg["parameters"][0]]
     with pytest.raises(ValidationError, match="listed twice"):
         parameters.ParameterRegistry.model_validate(reg)
+
+
+def test_an_alias_resolves_to_what_it_stands_for():
+    # registry 1.1 (phase 4e): elim.hepatic.total_cl stands for the id PK-Sim's LiverClearance is bound to
+    assert parameters.canonical("elim.hepatic.total_cl") == "elim.hepatic.total.plasma_clearance"
+    assert parameters.canonical("elim.hepatic.total_cl@fed") == "elim.hepatic.total.plasma_clearance@fed"
+    assert parameters.canonical("bind.fu") == "bind.fu"
+    assert parameters.placement("elim.hepatic.total_cl") == parameters.placement("elim.hepatic.total.plasma_clearance") \
+        == "process"
+    assert parameters.storage_family("elim.hepatic.total.plasma_clearance") == "ml/min/kg"
+    assert parameters.origin("elim.hepatic.total.plasma_clearance") == "in_vivo"
+    assert parameters.origin("elim.hepatic.CYP3A4.clspec") == "in_vitro"
+
+
+def test_a_refused_id_is_never_placed():
+    assert parameters.refusal("elim.ehc_fraction") and "not harvested" in parameters.refusal("elim.ehc_fraction")
+    assert parameters.placement("elim.ehc_fraction") is None
+    assert parameters.refusal("bind.fu") is None
+
+
+def test_total_plasma_clearance_alone_is_an_elimination_pathway_the_builder_places():
+    from pbpk_domain.cpf.build import _compound_from_cpf, unplaceable_parameters
+    from pbpk_domain.cpf.models import EngineBinding
+
+    candidate = process_bindings.binding_candidates("elim.hepatic.total_cl")[0]
+    clearance = _record("elim.hepatic.total.plasma_clearance").model_copy(
+        update={"unit": candidate.unit, "engine_binding": candidate.binding("Literature")})
+    compound_values = tuple(_record(i).model_copy(update={"value": v, "unit": u}) for i, v, u in (
+        ("phys.mw", 300.0, "g/mol"), ("phys.logp", 2.0, "Log Units"), ("bind.fu", 0.3, None),
+        ("phys.solubility.ref", 1.0, "mg/ml"), ("phys.pka.neutral", 1.0, None)))
+    cpf = CPF(compound="Drug", parameters=(*compound_values, clearance))
+    assert parameters.unmet_s0({p.id for p in cpf.parameters}) == ()
+    assert unplaceable_parameters(cpf) == ()
+    compound, used, _ = _compound_from_cpf(cpf)
+    assert "elim.hepatic.total.plasma_clearance" in used
+    assert [p.internal_name for p in compound.processes] == ["LiverClearance"]
+    assert isinstance(clearance.engine_binding, EngineBinding) and clearance.unit == "ml/min/kg"
+
+
+@pytest.mark.parametrize("rule, problem", [
+    ({"key": "x.y", "alias_of": "a.b", "placement": "model"}, "alias or a refusal"),
+    ({"key": "x.y", "alias_of": "a.b", "refused": "no"}, "not both"),
+])
+def test_inconsistent_aliases_are_refused(rule, problem):
+    with pytest.raises(ValidationError, match=problem):
+        parameters.ParameterRule.model_validate(rule)
+
+
+def test_every_alias_stands_for_a_placed_id():
+    for rule in parameters.registry().parameters:
+        if rule.alias_of:
+            assert parameters.placement(rule.alias_of) is not None, rule.key

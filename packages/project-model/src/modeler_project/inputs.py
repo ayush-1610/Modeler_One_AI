@@ -79,6 +79,8 @@ def target_problem(target: str) -> str | None:
         return None
     if target in PLACEHOLDERS:
         return f"{target!r} means {PLACEHOLDERS[target]}"
+    if reason := parameters.refusal(target):
+        return f"{target}: {reason}"
     if placement(target) is None:
         if is_process_id(target):
             return f"{target}: no harvested PK-Sim process carries this parameter"
@@ -184,6 +186,10 @@ def _cpf_id(item: EvidenceItem, pka_index: dict[str, int], problems: list[str], 
                f"{item.id}: {item.value[:80]!r} is a description, not a value for {target}: give the number it states (and "
                "the parameter), or reject it (kept out of the CPF)")
         return None
+    if reason := parameters.refusal(target):
+        _issue(issues, problems, "correct", target, [item.id], f"{item.id}: {target}: {reason} (kept out of the CPF)")
+        return None
+    target = parameters.canonical(target)   # an alias is filed under the id it stands for (registry `alias_of`)
     if not is_process_id(target) and placement(target) is None:
         what = PLACEHOLDERS.get(target)
         _issue(issues, problems, "correct", target, [item.id],

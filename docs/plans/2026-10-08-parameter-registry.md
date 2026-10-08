@@ -1,7 +1,7 @@
 # Phase 4: one parameter registry in `pbpk_domain` (coupling C1)
 
-Status: **4a, 4b, 4c, 4d done** (registry v1.0, UNVERIFIED; every table of CPF ids is read from it); **4e next**, the
-science PR, with the owner's sign-off.
+Status: **done.** 4a–4d: every table of CPF ids is read from the registry. 4e (the science PR, the owner's decisions of
+2026-10-08): registry 1.1, still UNVERIFIED pending SME sign-off.
 Sources: `docs/ARCHITECTURE_BOUNDARIES.md` (B1, C1, §6 phase 4), MS-01 §2.2 (`docs/PBPK_MODELING_WORKFLOW.md`).
 
 ## Why
@@ -79,6 +79,12 @@ The registry adds no new science:
   guard covers all switched tables. The original scope was:
   **4d — locked consumers** (own PR, owner approval, hashes refreshed): `parameter_units._TARGETS`,
   `pksim_paths._COMPOUND_PARAM`, `build.REFERENCE_ELIMINATION` / `_PROCESS_FAMILIES`. The snapshot stays unchanged.
+- **4e — done** (registry 1.1, the owner's decisions of 2026-10-08):
+  - (a) the alias, chosen;
+  - (b) refusal with its reason, chosen. Harvesting the Individual path is a server task;
+  - (c) InVivo for `elim.hepatic.total.*`, chosen.
+
+  The snapshot diff shows exactly these changes. The original scope was:
 - **4e — the science PR** (owner sign-off; CHANGELOG science entry; the snapshot diff is the review):
   - **`elim.hepatic.total_cl`**: becomes an alias of `elim.hepatic.total.plasma_clearance` (the id MS-01 §2.2 names,
     placed where the OSP models bind it). The S0 message names the placeable id.

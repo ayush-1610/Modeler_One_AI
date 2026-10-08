@@ -22,13 +22,23 @@
 #   builder_unit     the unit the snapshot builder checks when the stored value carries none
 #   physical_bounds  [low, high]: a value outside is flagged for review (never refused)
 #   origin           in_vivo | in_vitro: PK-Sim ValueOrigin.Method of a value from a publication or database
+#   alias_of         another id this one stands for: a value filed under it is filed under that id (placement, binding)
+#   refused          why a value under this id is not taken: kept out of the CPF with this reason
 #   drift            a known inconsistency, kept as is so the vocabulary does not change; fixed by the science PR named
 #
 # 1.0 (2026-10-08, approved by the project owner, UNVERIFIED pending SME sign-off): the code tables of 2026-10-08,
 #     moved here unchanged (docs/plans/2026-10-08-parameter-registry.md, phase 4b). Nothing added, nothing corrected:
 #     docs/architecture/parameter-vocabulary.json records what they answered and must stay unchanged.
+# 1.1 (2026-10-08, the owner's decisions, UNVERIFIED pending SME sign-off; phase 4e):
+#     - elim.hepatic.total_cl is an alias of elim.hepatic.total.plasma_clearance, the id PK-Sim's LiverClearance
+#       "Plasma clearance" (harvested, ml/min/kg) is bound to. Before, a value under total_cl satisfied S0 while nothing
+#       placed it, so the model could have no clearance. The canonical id now converts to ml/min/kg as well, and the S0
+#       message names it. MS-01 §2.2's row for total_cl stays valid through the alias.
+#     - elim.ehc_fraction is refused with its reason (the Individual path is not harvested) instead of the misleading
+#       "no harvested PK-Sim process"; a value under it is kept out of the CPF.
+#     - a total hepatic clearance (elim.hepatic.total.*, the alias included) is obtained in vivo (MS-01: clinical).
 id: parameter-registry
-version: "1.0"
+version: "1.1"
 status: UNVERIFIED
 
 parameters:
@@ -56,16 +66,13 @@ parameters:
   - {key: cmpd., placement: model}
   # --- elimination -----------------------------------------------------------------------------------------------
   - {key: elim.renal.gfr_fraction, storage: dimensionless, physical_bounds: [0.0, 10.0]}
-  - key: elim.hepatic.total_cl
-    storage: ml/min/kg
-    drift: >-
-      converts and satisfies S0's elimination requirement, but nothing places it; PK-Sim's LiverClearance is bound to
-      elim.hepatic.total.plasma_clearance (phase 4e, the science PR)
+  - {key: elim.hepatic.total_cl, storage: ml/min/kg, alias_of: elim.hepatic.total.plasma_clearance}
+  - {key: elim.hepatic.total.plasma_clearance, storage: ml/min/kg}
   - key: elim.ehc_fraction
     storage: dimensionless
-    drift: >-
-      converts, but nothing places it; MS-01 places it on the Individual (Organism|Liver|EHC continuous fraction), a
-      path not yet harvested (phase 4e)
+    refused: >-
+      MS-01 places it on the Individual (Organism|Liver|EHC continuous fraction), a path not harvested from PK-Sim yet;
+      it cannot be set until it is
   - {key: elim.fe_urine, placement: reference, storage: fraction, physical_bounds: [0.0, 1.0]}
   - {key: elim.fm, storage: fraction, origin: in_vivo}
   - {key: elim.fm., placement: reference}
@@ -73,6 +80,7 @@ parameters:
      reason: "CLint → CLspec is an IVIVE scaling (system, protein, fu,inc), not a unit change"}
   - {key: elim.hepatic., suffix: .km, storage: µmol/l}
   - {key: elim.renal, origin: in_vivo}
+  - {key: elim.hepatic.total, origin: in_vivo}
   - {key: elim.ehc, origin: in_vivo}
   - {key: elim.hepatic, origin: in_vitro}
   # --- process families: ids placed only where the harvested process table has the parameter --------------------
@@ -110,6 +118,6 @@ s0:
     any_with_prefix: phys.pka
     or_present: [phys.pka.neutral]
   - requirement: elim
-    message: at least one elimination pathway (elim.* or elim.hepatic.total_cl)
+    message: at least one elimination pathway (elim.* or elim.hepatic.total.plasma_clearance)
     any_with_prefix: elim
     excluding: [elim.fe_urine, elim.fm.]
