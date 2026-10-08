@@ -15,6 +15,30 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — P0/P1 answers are typed: `Envelope[T]` and `modeler_api.views` (architecture phase 6b; API contract)
+- **What:**
+  - `modeler_api.responses` gains `Envelope[T]`, `Meta` and `ErrorItem`. `answers(Model)` gives a route its
+    `response_model=Envelope[Model]` and `response_model_exclude_unset=True`.
+  - New `modeler_api.views` holds the response models:
+    - `common`: version, approval, impact, agents status, run summary, document;
+    - `brief`: project start, documents, document page, the brief page with its catalog, an extraction start, a
+      previewed edit, an agent run;
+    - `requirements`: the data plan page.
+  - The 11 JSON routes of `brief_api` and the 4 of `requirements_api` declare them. The raw document download stays
+    untyped, because it answers with a file.
+- **Why:** coupling C5 and rule B2. A renamed or dropped key in a page passed every check and failed in the browser.
+  The owner chose to type today's shapes as they are (2026-10-08).
+- **Impact (an API contract change for clients):**
+  - The OpenAPI snapshot gains the 2xx response schemas of these 15 operations, plus 33 schemas. No request,
+    parameter or existing schema changed.
+  - The answers themselves are unchanged. A new guard in `services/api/tests/conftest.py` compares every typed answer
+    in the API tests with the handler's own return value: a dropped, added or coerced value fails the test.
+  - A new test reaches the 4 brief routes no test had called: document upload, `brief:extract`, `items:remove` and
+    `questions/{id}`.
+  - Models use `extra="forbid"`, so a handler that returns an undeclared key now answers 500 instead of passing it
+    through untyped. The tests catch this before a release.
+  - `boundaries.toml` (locked): `[response] untyped` goes from 55 to 40, and its hash is refreshed.
+
 ### Added — phase 6 guardrails: response models and artifact owners (architecture phase 6a)
 - **What:** two shrink-only ratchets, with no code change.
   - `tests/architecture/test_response_models.py` covers every route of the P0–P4 routers and the escalation routes.
