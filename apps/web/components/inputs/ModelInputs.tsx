@@ -4,9 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { Card } from "@/components/ui";
-import type { Narrow, Schema } from "@/lib/api";
+import { get, narrow, send, type Narrow, type Schema } from "@/lib/api";
 import type { ArtifactView } from "@/lib/pipeline";
-import { apiGet, apiSend } from "@/lib/writes";
 
 import { InputsTodo, type TodoItem } from "./InputsTodo";
 
@@ -57,8 +56,8 @@ export function ModelInputs({ projectId }: { projectId: string }) {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
-    const v = await apiGet<View>(`/api/v1/projects/${projectId}/inputs`);
-    if (v.data) { setView(v.data); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
+    const v = await get("/api/v1/projects/{project_id}/inputs", { project_id: projectId });
+    if (v.data) { setView(narrow<View>(v.data)); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
   }, [projectId]);
   useEffect(() => { void load(); }, [load]);
 
@@ -77,10 +76,10 @@ export function ModelInputs({ projectId }: { projectId: string }) {
   const run = async (fn: () => Promise<{ errors: { message: string }[] }>, ok: string) => {
     const env = await fn();
     if (env.errors?.length) { setMessage({ ok: false, text: env.errors[0].message }); return env.errors[0].message; }
-    return act(() => apiSend(`/api/v1/projects/${projectId}/inputs:assemble`, "POST"), ok || undefined);
+    return act(() => send("post", "/api/v1/projects/{project_id}/inputs:assemble", { project_id: projectId }), ok || undefined);
   };
-  const choose = (kind: string, key: string) => (value: string, reason: string) =>
-    act(() => apiSend(`/api/v1/projects/${projectId}/inputs/choices`, "PUT", { kind, key, value, reason }));
+  const choose = (kind: Schema<"ChoiceRequest">["kind"], key: string) => (value: string, reason: string) =>
+    act(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId }, { kind, key, value, reason }));
   const readiness = view.readiness?.content;
   const formulations = view.records.filter((r) => /^form\.[^.]+\.type$/.test(r.id)).map((r) => r.id.split(".")[1]);
   const studies = view.catalog?.content?.studies ?? [];
@@ -89,16 +88,16 @@ export function ModelInputs({ projectId }: { projectId: string }) {
     <>
       <Card title="CPF v1 and readiness">
         <div className="row">
-          <button className="btn primary" data-testid="assemble" onClick={() => act(() => apiSend(`/api/v1/projects/${projectId}/inputs:assemble`, "POST"),
+          <button className="btn primary" data-testid="assemble" onClick={() => act(() => send("post", "/api/v1/projects/{project_id}/inputs:assemble", { project_id: projectId }),
                                                                             "Assembled from the accepted evidence and datasets.")}>
             Assemble from the accepted evidence
           </button>
           <button className="btn" data-testid="accept-inputs" disabled={!readiness?.ready || view.readiness?.status === "APPROVED"}
-                  onClick={() => act(() => apiSend(`/api/v1/projects/${projectId}/inputs:accept`, "POST", {}), "Inputs accepted (P4).")}>
+                  onClick={() => act(() => send("post", "/api/v1/projects/{project_id}/inputs:accept", { project_id: projectId }), "Inputs accepted (P4).")}>
             Accept the inputs
           </button>
           <button className="btn" data-testid="publish-inputs" disabled={view.readiness?.status !== "APPROVED"}
-                  onClick={() => act(() => apiSend(`/api/v1/projects/${projectId}/inputs:publish`, "POST"), "Handed to the model plan (P5).")}>
+                  onClick={() => act(() => send("post", "/api/v1/projects/{project_id}/inputs:publish", { project_id: projectId }), "Handed to the model plan (P5).")}>
             Hand to the model plan
           </button>
         </div>

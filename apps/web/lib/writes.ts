@@ -1,55 +1,7 @@
-// Client-side write helpers for the guided create-project flow. Each POSTs/PUTs with a bearer token; under
-// single-node dev auth any bearer is accepted, so NEXT_PUBLIC_DEMO_TOKEN ?? "dev" is enough.
+// Client-side write helpers for the guided create-project flow, the campaign start and the escalations. They call the
+// API through the one client in lib/api.ts; these routes are not typed in the contract yet, so the answers are typed here.
 
-import type { Envelope, Schema } from "@/lib/api";
-
-// Browser writes go to this same origin ("/api/..."); next.config proxies them to the backend, so there is
-// one URL and no CORS. The dev bearer is accepted by dev auth; in production the user's OIDC token is used.
-export const WEB_TOKEN = process.env.NEXT_PUBLIC_DEMO_TOKEN ?? "dev";
-
-/** Turn any non-success answer into a readable message: the API's own `detail` when it sent one, else the HTTP
- *  status, with a hint when the web server's proxy could not reach the API at all. */
-async function failure(res: Response): Promise<string> {
-  const text = await res.text().catch(() => "");
-  try {
-    const body = JSON.parse(text) as { detail?: unknown; errors?: { message: string }[] };
-    if (body.errors?.length) return body.errors[0].message;
-    if (typeof body.detail === "string") return body.detail;
-    if (Array.isArray(body.detail)) {
-      // FastAPI validation errors: [{loc: [...], msg}] -> "studies.0.dose_mg: field required"
-      return body.detail
-        .map((d: { loc?: unknown[]; msg?: string }) => `${(d.loc ?? []).slice(1).join(".")}: ${d.msg ?? "invalid"}`)
-        .join("; ");
-    }
-  } catch {
-    // not JSON: the proxy's own error page
-  }
-  if (res.status >= 500) {
-    return `The API did not answer (HTTP ${res.status}). Is the backend running, and does the web server's ` +
-      "MODELER_API_BASE point at it?";
-  }
-  return `HTTP ${res.status} ${res.statusText}`.trim();
-}
-
-function errorEnvelope<T>(message: string): Envelope<T> {
-  return { data: null, meta: { request_id: "", timestamp: "", api_version: "" }, errors: [{ code: "HTTP", message }] };
-}
-
-async function authed<T>(path: string, method: "GET" | "POST" | "PUT", body?: unknown): Promise<Envelope<T>> {
-  let res: Response;
-  try {
-    res = await fetch(path, {
-      method,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${WEB_TOKEN}` },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      cache: "no-store",
-    });
-  } catch {
-    return errorEnvelope("The web server could not be reached. Check your connection to it.");
-  }
-  if (!res.ok) return errorEnvelope(await failure(res));
-  return (await res.json()) as Envelope<T>;
-}
+import { apiGet, apiSend, rawPost, type Schema } from "@/lib/api";
 
 export type CreatedProject = { id: string; name: string; compounds: string[]; questions: { id: string }[] };
 export type PrepareResult = {
@@ -69,15 +21,15 @@ export type PrepareResult = {
 
 export function createProject(body: { name: string; compound: string; question?: string; risk?: string; model_risk?: string;
                                       exploratory?: boolean }) {
-  return authed<CreatedProject>("/api/v1/projects", "POST", body);
+  return apiSend<CreatedProject>("/api/v1/projects", "POST", body);
 }
 
 export function putCpf(projectId: string, compound: string, cpf: unknown) {
-  return authed<unknown>(`/api/v1/projects/${projectId}/compounds/${compound}/cpf`, "PUT", cpf);
+  return apiSend<unknown>(`/api/v1/projects/${projectId}/compounds/${compound}/cpf`, "PUT", cpf);
 }
 
 export function uploadStudies(projectId: string, studies: unknown[]) {
-  return authed<{ stored: number }>(`/api/v1/projects/${projectId}/studies`, "POST", { studies });
+  return apiSend<{ stored: number }>(`/api/v1/projects/${projectId}/studies`, "POST", { studies });
 }
 
 export function prepareCampaign(
@@ -85,24 +37,7 @@ export function prepareCampaign(
   questionId: string,
   body: { compound: string; stages?: string[]; model_risk?: string },
 ) {
-  return authed<PrepareResult>(`/api/v1/projects/${projectId}/questions/${questionId}/campaign:prepare`, "POST", body);
-}
-
-// The signatures and campaign-start endpoints return a raw object (not the envelope), so read them directly.
-async function rawPost<T>(path: string, body: unknown): Promise<{ ok: boolean; body: T; error?: string }> {
-  let res: Response;
-  try {
-    res = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${WEB_TOKEN}` },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
-  } catch {
-    return { ok: false, body: {} as T, error: "The web server could not be reached. Check your connection to it." };
-  }
-  if (!res.ok) return { ok: false, body: {} as T, error: await failure(res) };
-  return { ok: true, body: (await res.json()) as T };
+  return apiSend<PrepareResult>(`/api/v1/projects/${projectId}/questions/${questionId}/campaign:prepare`, "POST", body);
 }
 
 /** Sign the MAP (Part 11). Returns whether the signature was accepted (loa2 step-up satisfied), and why not. */
@@ -192,31 +127,9 @@ export type TemplateContent = TemplateSummary & {
 };
 
 export function listTemplates() {
-  return authed<{ templates: TemplateSummary[] }>("/api/v1/templates", "GET");
+  return apiGet<{ templates: TemplateSummary[] }>("/api/v1/templates");
 }
 
 export function getTemplate(id: string) {
-  return authed<TemplateContent>(`/api/v1/templates/${id}`, "GET");
-}
-
-// --- generic client calls for the start-up pipeline pages (P0–P6) ---------------------------------------------
-
-export function apiGet<T>(path: string) {
-  return authed<T>(path, "GET");
-}
-
-export function apiSend<T>(path: string, method: "POST" | "PUT", body?: unknown) {
-  return authed<T>(path, method, body ?? {});
-}
-
-/** Multipart upload (files and form fields); the browser sets the multipart boundary itself. */
-export async function apiUpload<T>(path: string, form: FormData): Promise<Envelope<T>> {
-  let res: Response;
-  try {
-    res = await fetch(path, { method: "POST", headers: { Authorization: `Bearer ${WEB_TOKEN}` }, body: form, cache: "no-store" });
-  } catch {
-    return errorEnvelope("The web server could not be reached. Check your connection to it.");
-  }
-  if (!res.ok) return errorEnvelope(await failure(res));
-  return (await res.json()) as Envelope<T>;
+  return apiGet<TemplateContent>(`/api/v1/templates/${id}`);
 }

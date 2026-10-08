@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { Card } from "@/components/ui";
-import { WEB_TOKEN, apiGet, apiSend, apiUpload } from "@/lib/writes";
+import { apiFile, get, narrow, send, upload as uploadTo, type Schema } from "@/lib/api";
 
 import { SheetReader, type Study } from "./SheetReader";
 import {
@@ -85,14 +85,17 @@ function Progress({ view, projectId, sheetsTodo, sheetsDone, onApprove, note, se
 }
 
 /** One data-plan item: what it needs, what arrived, and the decisions a person can take on it. */
-function PlanItem({ r, onDecide, blocking }: { r: Reconciled; onDecide: (body: Record<string, unknown>) => Promise<string | null>; blocking: boolean }) {
+type Override = Omit<Schema<"OverrideRequest">, "reason">;
+type Category = Schema<"Classification">["category"];
+
+function PlanItem({ r, onDecide, blocking }: { r: Reconciled; onDecide: (body: Schema<"OverrideRequest">) => Promise<string | null>; blocking: boolean }) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const optional = r.criticality !== "REQUIRED" || r.applies !== "yes";
   const [chip, word] = optional && r.status === "MISSING" ? ["neutral", "not sent (optional)"]
                                                          : STATUS[r.status] ?? ["neutral", r.status.toLowerCase()];
   const open = r.status === "MISSING" || r.status === "PARTIAL";
-  const decide = async (body: Record<string, unknown>) => setError(await onDecide({ ...body, reason }));
+  const decide = async (body: Override) => setError(await onDecide({ ...body, reason }));
   return (
     <div className={`plan-item${blocking ? " blocking" : ""}`} data-testid={`recon-${r.req_id}`}>
       <div className="spread" style={{ alignItems: "flex-start" }}>
@@ -132,10 +135,10 @@ function PlanItem({ r, onDecide, blocking }: { r: Reconciled; onDecide: (body: R
 
 /** A sheet's line: what it holds, whether it was read, and the button that reads it. */
 function SheetLine({ t, read, onRead, onClassify }: {
-  t: Triage; read: number | undefined; onRead: () => void; onClassify: (category: string, reason: string) => Promise<string | null>;
+  t: Triage; read: number | undefined; onRead: () => void; onClassify: (category: Category, reason: string) => Promise<string | null>;
 }) {
   const [changing, setChanging] = useState(false);
-  const [category, setCategory] = useState(t.category);
+  const [category, setCategory] = useState(t.category as Category);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const data = DATA_SHEETS.has(t.category);
@@ -148,7 +151,7 @@ function SheetLine({ t, read, onRead, onClassify }: {
         {!changing && <button className="linkish" onClick={() => setChanging(true)}>change</button>}
         {changing && (
           <div className="row" style={{ gap: 4, marginTop: 4 }}>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label={`category of ${t.sheet}`}>
+            <select value={category} onChange={(e) => setCategory(e.target.value as Category)} aria-label={`category of ${t.sheet}`}>
               {Object.keys(CATEGORY_LABEL).map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
             </select>
             <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 140 }} />
@@ -186,7 +189,7 @@ function FileCard({ projectId, file, agents, running, act, reading, setReading, 
         </div>
         {spreadsheet && !file.template && undecided && (
           <button className="btn" disabled={!agents || running} title={agents ? undefined : "agents are off"}
-                  onClick={async () => setNotice(await act(() => apiSend(`/api/v1/projects/${projectId}/client-data/${file.id}:triage`, "POST"))
+                  onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:triage", { project_id: projectId, sid: file.id }))
                     ?? "Agent A4 is sorting the unsorted sheets.")}>Sort the unsorted sheets (agent)</button>
         )}
       </div>
@@ -198,8 +201,9 @@ function FileCard({ projectId, file, agents, running, act, reading, setReading, 
           <tbody>
             {file.triage.map((t) => (
               <SheetLine key={t.sheet} t={t} read={read.get(t.sheet)} onRead={() => setReading(reading === t.sheet ? null : t.sheet)}
-                         onClassify={(category, reason) => act(() => apiSend(
-                           `/api/v1/projects/${projectId}/client-data/${file.id}/sheets/${encodeURIComponent(t.sheet)}:classify`, "POST", { category, reason }))} />
+                         onClassify={(category, reason) => act(() => send(
+                           "post", "/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}:classify",
+                           { project_id: projectId, sid: file.id, sheet: t.sheet }, { category, reason }))} />
             ))}
           </tbody>
         </table>
@@ -287,7 +291,7 @@ function Dissolution({ projectId, d, act }: {
         <tbody>
           {d.profiles.map((p) => (
             <ProfileRow key={p.id} p={p} onPropose={(formulation) =>
-              act(() => apiSend(`/api/v1/projects/${projectId}/dissolution/${p.id}:propose`, "POST", { formulation }))} />
+              act(() => send("post", "/api/v1/projects/{project_id}/dissolution/{profile_id}:propose", { project_id: projectId, profile_id: p.id }, { formulation }))} />
           ))}
         </tbody>
       </table>
@@ -326,8 +330,8 @@ export function ClientData({ projectId }: { projectId: string }) {
   const [dragging, setDragging] = useState(false);
 
   const load = useCallback(async () => {
-    const v = await apiGet<View>(`/api/v1/projects/${projectId}/client-data`);
-    if (v.data) { setView(v.data); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
+    const v = await get("/api/v1/projects/{project_id}/client-data", { project_id: projectId });
+    if (v.data) { setView(narrow<View>(v.data)); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
   }, [projectId]);
   useEffect(() => { void load(); }, [load]);
 
@@ -346,23 +350,24 @@ export function ClientData({ projectId }: { projectId: string }) {
     if (!files?.length) return;
     const form = new FormData();
     Array.from(files).forEach((f) => form.append("files", f));
-    say(await act(() => apiUpload(`/api/v1/projects/${projectId}/client-data`, form)),
+    say(await act(() => uploadTo("/api/v1/projects/{project_id}/client-data", { project_id: projectId }, form)),
         `${plural(files.length, "file")} stored. Read each data sheet below (“Read this sheet”).`);
   }
   async function downloadTemplate() {
-    const res = await fetch("/api/v1/client-data/template.xlsx", { headers: { Authorization: `Bearer ${WEB_TOKEN}` } });
-    if (!res.ok) { say(`The template could not be downloaded (HTTP ${res.status}).`, ""); return; }
-    const url = URL.createObjectURL(await res.blob());
+    const { file, problem } = await apiFile("/api/v1/client-data/template.xlsx");
+    if (!file) { say(`The template could not be downloaded: ${problem}`, ""); return; }
+    const url = URL.createObjectURL(file);
     const a = document.createElement("a");
     a.href = url;
     a.download = `${view?.template ?? "ModelerOne_ClientData"}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   }
-  const decide = (r: Reconciled) => (body: Record<string, unknown>) =>
-    act(() => apiSend(`/api/v1/projects/${projectId}/requirements/${encodeURIComponent(r.req_id)}`, "PUT", body));
+  const decide = (r: Reconciled) => (body: Schema<"OverrideRequest">) =>
+    act(() => send("put", "/api/v1/projects/{project_id}/requirements/{req_id}", { project_id: projectId, req_id: r.req_id }, body));
   async function approve() {
-    say(await act(() => apiSend(`/api/v1/projects/${projectId}/client-data:approve`, "POST", { note })), "Client data approved (P3).");
+    say(await act(() => send("post", "/api/v1/projects/{project_id}/client-data:approve", { project_id: projectId }, { note })),
+        "Client data approved (P3).");
   }
 
   const recon = view.reconciliation;

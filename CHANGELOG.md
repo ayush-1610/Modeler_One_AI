@@ -15,6 +15,36 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the web app calls the API through one client, typed by route (architecture phase 7c)
+- **What:**
+  - **One client:** `lib/api.ts` is the only module that fetches. The transport that `lib/writes.ts` duplicated
+    (`authed`, `failure`, `rawPost`, `apiGet` / `apiSend` / `apiUpload`) moved into it, and `lib/writes.ts` keeps only
+    its domain calls. The browser bearer is `BROWSER_TOKEN` (was `WEB_TOKEN` in `lib/writes.ts`).
+  - **Typed by route:** a call names its route as the contract does, `get("/api/v1/projects/{project_id}/brief",
+    { project_id })`. The path parameters, the body and the answer type follow from the generated `paths`; `send`
+    (POST / PUT), `upload` (multipart) and `serverGet` (server components) work the same way. Each parameter is
+    URL-encoded.
+  - **Pages moved onto it:** the brief, data plan, document viewer, client-data, sheet reader, evidence, observed data,
+    digitizer, inputs and start pages, and `lib/pipeline.ts`. Request bodies are now checked against the request
+    models (`OverrideRequest`, `ManualEvidence`, `DigitizeBody`, `ChoiceRequest`, `Decision` …), and the closed value
+    sets a page sends come from the contract (providers, source types, decision states, choice kinds).
+  - **Downloads:** `apiFile` replaces the three raw `fetch` calls (the package files, the client-data template, a
+    stored figure).
+  - **Still untyped:** routes the contract does not type yet (P5 plan, campaigns, CPF, projects, templates, the read
+    API) keep `apiGet` / `apiSend` / `serverRead` with a hand-written answer type.
+  - **Removed dead code** from `lib/api.ts`: `apiPost`, `apiPostAuth`, `createSignature`, `decideEscalation` (its body
+    no longer matched the API), `SignaturePayload` and `QuestionStatus`. None had a caller.
+  - **New guard** `tests/architecture/test_web_client.py`: no `fetch` outside `lib/api.ts`, and no call of an untyped
+    helper on a route whose answer the contract types.
+- **Why:** rule B6, one API client; plan `docs/plans/2026-10-08-phase-7-frontend.md` step 7c. Two transports had
+  drifted (one without the bearer or error handling), and a page could call a route that does not exist or send a body
+  the API rejects, which only the browser found.
+- **Impact:**
+  - No API change; the OpenAPI snapshot is unchanged.
+  - A failed download now shows the API's own reason (or the HTTP status), like every other call. The digitizer now
+    reports a failed figure fetch, where it tried to draw the error answer as an image.
+  - `ArtifactView.content` may be null, as the contract states; the pages already read it with `?.`.
+
 ### Changed — the pages read every typed answer as its generated type (architecture phase 7b; API contract)
 - **What:**
   - **Pages on generated types:** `lib/pipeline.ts`, the client-data, evidence, inputs and start pages, and the

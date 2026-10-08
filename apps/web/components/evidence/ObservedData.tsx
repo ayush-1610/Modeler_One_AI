@@ -4,9 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Digitizer } from "@/components/evidence/Digitizer";
 import { Card } from "@/components/ui";
-import type { Narrow, Schema } from "@/lib/api";
+import { get, narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
-import { apiGet, apiSend } from "@/lib/writes";
 
 type Series = { name: string; statistic: string; times: number[]; values: (number | null)[]; error: number[] | null;
                 error_kind: string; n: number | null };
@@ -30,7 +29,7 @@ const ORIGIN_CHIP: Record<string, string> = {
 
 function DatasetCard({ d: listed, onDecide, onOverlay, onReveal }: {
   d: Dataset;
-  onDecide: (d: Dataset, state: string, reason: string) => Promise<string | null>;
+  onDecide: (d: Dataset, state: Schema<"Decision">["state"], reason: string) => Promise<string | null>;
   onOverlay: (d: Dataset) => Promise<string | null>;
   onReveal: (d: Dataset, reason: string) => Promise<Dataset | string>;
 }) {
@@ -107,10 +106,10 @@ export function ObservedData({ projectId }: { projectId: string }) {
 
   const load = useCallback(async () => {
     const [v, d] = await Promise.all([
-      apiGet<View>(`/api/v1/projects/${projectId}/evidence`),
-      apiGet<{ documents: DocumentView[] }>(`/api/v1/projects/${projectId}/documents`),
+      get("/api/v1/projects/{project_id}/evidence", { project_id: projectId }),
+      get("/api/v1/projects/{project_id}/documents", { project_id: projectId }),
     ]);
-    if (v.data) { setView(v.data); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
+    if (v.data) { setView(narrow<View>(v.data)); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
     if (d.data) setDocs(d.data.documents);
   }, [projectId]);
   useEffect(() => { void load(); }, [load]);
@@ -118,7 +117,7 @@ export function ObservedData({ projectId }: { projectId: string }) {
   if (problem) return <div className="banner err">{problem}</div>;
   if (!view) return <p className="muted">Loading…</p>;
 
-  const act = async (fn: () => Promise<{ errors: { message: string }[] }>) => {
+  const act = async <T,>(fn: () => Promise<Envelope<T>>) => {
     const env = await fn();
     if (env.errors?.length) return env.errors[0].message;
     await load();
@@ -143,7 +142,7 @@ export function ObservedData({ projectId }: { projectId: string }) {
         </table>
         <div className="row" style={{ marginTop: 10 }}>
           <button className="btn" disabled={!view.agents.enabled || view.running}
-                  onClick={async () => setNotice(await act(() => apiSend(`/api/v1/projects/${projectId}/evidence:research?agent=A3`, "POST", {}))
+                  onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }, undefined, { agent: "A3" }))
                     ?? "The observed-data agent is searching; datasets appear as it records them.")}>
             Find observed data (agent)
           </button>
@@ -161,11 +160,14 @@ export function ObservedData({ projectId }: { projectId: string }) {
       <Card title={`Datasets (${view.datasets.length})`}>
         {view.datasets.length === 0 ? <p className="muted" style={{ margin: 0 }}>No observed data yet.</p> : view.datasets.map((d) => (
           <DatasetCard key={d.id} d={d}
-                       onDecide={(ds, state, reason) => act(() => apiSend(`/api/v1/projects/${projectId}/datasets/${ds.id}:decide`, "POST", { state, reason }))}
-                       onOverlay={(ds) => act(() => apiSend(`/api/v1/projects/${projectId}/datasets/${ds.id}:overlay`, "POST", {}))}
+                       onDecide={(ds, state, reason) => act(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:decide",
+                                                                        { project_id: projectId, dataset_id: ds.id }, { state, reason }))}
+                       onOverlay={(ds) => act(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:overlay", { project_id: projectId, dataset_id: ds.id }))}
                        onReveal={async (ds, reason) => {
-                         const env = await apiSend<Dataset>(`/api/v1/projects/${projectId}/datasets/${ds.id}:reveal`, "POST", { reason });
-                         return env.data ?? env.errors?.[0]?.message ?? "not revealed";
+                         const env = await send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
+                                                { project_id: projectId, dataset_id: ds.id }, { reason });
+                         // the stored dataset, typed by this page (the API sends it as an open object)
+                         return (env.data as Dataset | null) ?? env.errors?.[0]?.message ?? "not revealed";
                        }} />
         ))}
       </Card>

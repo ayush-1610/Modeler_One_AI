@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
-import { apiGet, apiSend } from "@/lib/writes";
+import { get, narrow, send } from "@/lib/api";
 
 import type { ClientFile, ReadPreview, SheetForm, SheetView } from "./types";
 
@@ -149,14 +149,15 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
 
   useEffect(() => {
     let alive = true;
-    void apiGet<SheetView>(`/api/v1/projects/${projectId}/client-data/${file.id}/sheets/${encodeURIComponent(sheet)}`).then((env) => {
+    void get("/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}", { project_id: projectId, sid: file.id, sheet }).then((env) => {
       if (!alive) return;
       if (!env.data) { setError(env.errors?.[0]?.message ?? "The sheet could not be read."); return; }
-      setView(env.data);
-      setForm(env.data.form);
-      setBlq(env.data.form.below_lloq_tokens.join(", "));
-      setMissing(env.data.form.missing_tokens.join(", "));
-      if (env.data.form.study?.infusion_time_min) setStudy((st) => ({ ...st, infusion_time_min: env.data!.form.study.infusion_time_min }));
+      const v = narrow<SheetView>(env.data);
+      setView(v);
+      setForm(v.form);
+      setBlq(v.form.below_lloq_tokens.join(", "));
+      setMissing(v.form.missing_tokens.join(", "));
+      if (v.form.study?.infusion_time_min) setStudy((st) => ({ ...st, infusion_time_min: v.form.study.infusion_time_min }));
     });
     return () => { alive = false; };
   }, [projectId, file.id, sheet]);
@@ -220,21 +221,22 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
 
   async function check() {
     setBusy(true);
-    const env = await apiSend<ReadPreview>(`/api/v1/projects/${projectId}/client-data/${file.id}:map`, "POST", body(false));
+    const env = await send("post", "/api/v1/projects/{project_id}/client-data/{sid}:map", { project_id: projectId, sid: file.id }, body(false));
     setBusy(false);
     if (!env.data) { setError(env.errors?.[0]?.message ?? "The sheet could not be checked."); setResult(null); return; }
     setError(null);
-    setResult(env.data);
+    setResult(narrow<ReadPreview>(env.data));
   }
 
   async function save() {
     setBusy(true);
-    const env = await apiSend<ReadPreview>(`/api/v1/projects/${projectId}/client-data/${file.id}:map`, "POST", body(true));
+    const env = await send("post", "/api/v1/projects/{project_id}/client-data/{sid}:map", { project_id: projectId, sid: file.id }, body(true));
     setBusy(false);
     if (!env.data) { setError(env.errors?.[0]?.message ?? "Not saved."); return; }
+    const saved = narrow<ReadPreview>(env.data);
     remember({ form: { ...form!, below_lloq_tokens: list(blq), missing_tokens: list(missing) }, study });
     // the saved response carries the page's view (whose "dissolution" is the profiles), so the count is the check's
-    const made = pk ? `${env.data.datasets?.length ?? 0} dataset(s) for ${env.data.studies.join(", ")}` : `${result?.dissolution ?? 0} dissolution values`;
+    const made = pk ? `${saved.datasets?.length ?? 0} dataset(s) for ${saved.studies.join(", ")}` : `${result?.dissolution ?? 0} dissolution values`;
     await onSaved(`${sheet}: ${made} saved. Accept them on the Literature page when you have checked them.`);
   }
 
