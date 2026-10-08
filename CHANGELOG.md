@@ -15,6 +15,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the locked consumers read the parameter registry (architecture phase 4d)
+- **What** (locked files, approved by the owner 2026-10-08):
+  - `pbpk_domain.parameter_units`: `_TARGETS = parameters.storage_targets()`, and `target_family` delegates to
+    `parameters.storage_family`, which includes the suffix rules for CLspec, Km and Weibull shape;
+  - `pbpk_domain.pksim_paths`: `_COMPOUND_PARAM = parameters.compound_parameters()`, with the same harvested names;
+  - `pbpk_domain.cpf.build`: `_PROCESS_FAMILIES` and `REFERENCE_ELIMINATION` come from the registry.
+- **Kept in `parameter_units`:** the unit-alias tables, and the CLspec `ConversionError` message. That message covers
+  every `.clspec` id without a storage unit (e.g. `transp.<t>.clspec`), not just the registry's `elim.hepatic` rule,
+  so moving it would have changed what those ids answer.
+- **Impact:**
+  - No hand-kept copy of a CPF id table is left in code (C1). The AST guard in
+    `tests/architecture/test_parameter_registry.py` now covers these three tables as well.
+  - No behaviour change: the characterization snapshot is unchanged.
+  - Only the three files' hashes moved in `docs/architecture/locked-files.json`.
+
 ### Changed — the unlocked consumers read the parameter registry (architecture phase 4c)
 - **What:** these consumers now read `pbpk_domain.parameters` instead of keeping their own copies:
   - **`modeler_project.inputs`:** model and reference ids and prefixes, the builder unit, the ValueOrigin in-vivo /

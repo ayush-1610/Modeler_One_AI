@@ -26,17 +26,12 @@ A process type with no harvested shape raises, so it is never fitted at an inven
 
 from __future__ import annotations
 
+from pbpk_domain import parameters
 from pbpk_domain.cpf.models import ParameterRecord
 
-# Compound-level physicochemistry, keyed by CPF parameter id -> the PK-Sim compound parameter name (harvested).
-_COMPOUND_PARAM: dict[str, str] = {
-    "phys.mw": "Molecular weight",
-    "phys.logp": "Lipophilicity",
-    "bind.fu": "Fraction unbound (plasma, reference value)",
-    "phys.solubility.ref": "Solubility at reference pH",
-    "perm.intestinal": "Specific intestinal permeability (transcellular)",
-    "perm.cellular": "Permeability",
-}
+# Compound-level physicochemistry, keyed by CPF parameter id -> the PK-Sim compound parameter name (harvested; kept in
+# the parameter registry as `pksim_compound`).
+_COMPOUND_PARAM: dict[str, str] = parameters.compound_parameters()
 
 # {compound}-{molecule}-{data_source}|<name>: the reaction container (harvested per type, see the module docstring).
 _MOLECULE_PROCESSES = frozenset({

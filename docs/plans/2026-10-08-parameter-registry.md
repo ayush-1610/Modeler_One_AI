@@ -1,7 +1,7 @@
 # Phase 4: one parameter registry in `pbpk_domain` (coupling C1)
 
-Status: **4a done (characterization); 4b done (registry v1.0, approved by the owner 2026-10-08, UNVERIFIED); 4c done
-(unlocked consumers read it); 4d and 4e next**, each with the owner's approval (locked files, science).
+Status: **4a, 4b, 4c, 4d done** (registry v1.0, UNVERIFIED; every table of CPF ids is read from it); **4e next**, the
+science PR, with the owner's sign-off.
 Sources: `docs/ARCHITECTURE_BOUNDARIES.md` (B1, C1, §6 phase 4), MS-01 §2.2 (`docs/PBPK_MODELING_WORKFLOW.md`).
 
 ## Why
@@ -73,7 +73,11 @@ The registry adds no new science:
   requirement. `plan_api`'s binding group is page layout and stays as it is. The original scope was: `inputs`, `evidence`, `completeness`,
   `process_bindings.is_process_id`, `templates_api`, `plan_api`. The snapshot stays unchanged. The phase 1 vocabulary
   test becomes a registry test.
-- **4d — locked consumers** (own PR, owner approval, hashes refreshed): `parameter_units._TARGETS`,
+- **4d — done** (approved by the owner 2026-10-08): `parameter_units._TARGETS` / `target_family`,
+  `pksim_paths._COMPOUND_PARAM`, and `cpf.build._PROCESS_FAMILIES` / `REFERENCE_ELIMINATION` read the registry. The
+  CLspec message stays in `parameter_units`, because it covers every `.clspec` id with no storage unit. The AST
+  guard covers all switched tables. The original scope was:
+  **4d — locked consumers** (own PR, owner approval, hashes refreshed): `parameter_units._TARGETS`,
   `pksim_paths._COMPOUND_PARAM`, `build.REFERENCE_ELIMINATION` / `_PROCESS_FAMILIES`. The snapshot stays unchanged.
 - **4e — the science PR** (owner sign-off; CHANGELOG science entry; the snapshot diff is the review):
   - **`elim.hepatic.total_cl`**: becomes an alias of `elim.hepatic.total.plasma_clearance` (the id MS-01 §2.2 names,

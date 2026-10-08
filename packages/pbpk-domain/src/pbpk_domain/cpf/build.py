@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict
 
+from pbpk_domain import parameters
 from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus
 from pbpk_domain.snapshot.builder import (
     HARVESTED_PROCESSES,
@@ -357,10 +358,10 @@ def _with_individual_parameters(subjects: Sequence[SubjectSpec], cpf: CPF) -> tu
 
 # CPF id prefixes that must reach the engine as a process; anything here that the builder does not place
 # changes the model's behaviour (e.g. a missing clearance), so it is reported rather than dropped quietly.
-_PROCESS_FAMILIES = ("elim.", "transp.")
+_PROCESS_FAMILIES = parameters.builder_process_prefixes()
 # clinical fractions kept in the CPF to constrain the fitted elimination, not PK-Sim parameters (fraction excreted
 # unchanged in urine, fraction metabolised per pathway): never placed, never counted as a pathway
-REFERENCE_ELIMINATION = ("elim.fe_urine", "elim.fm.")
+REFERENCE_ELIMINATION = parameters.reference_elimination()
 
 
 def _origin(record: ParameterRecord) -> ValueOrigin | None:

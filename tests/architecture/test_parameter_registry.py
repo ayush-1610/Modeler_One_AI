@@ -2,8 +2,8 @@
 characterization recorded, what today's code answers (docs/plans/2026-10-08-parameter-registry.md). The pbpk_domain
 tables are checked in packages/pbpk-domain/tests/test_parameter_registry.py.
 
-When phase 4c/4d point the consumers at the registry, these equalities hold by construction; until then they prove the
-registry is the same vocabulary.
+Since phases 4c/4d point the consumers at the registry, the equalities hold by construction; they stay as cheap guards,
+and the characterization snapshot (test_parameter_characterization.py) is what proves the vocabulary did not change.
 """
 
 from __future__ import annotations
@@ -59,11 +59,15 @@ def test_registry_answers_what_was_recorded(cpf_id):
         assert recorded["compound_path"].startswith("ParameterPathError")
 
 
-# phase 4c: these tables are read from the registry; a literal here would be a second copy again (C1)
+# phases 4c (unlocked) and 4d (locked): these tables are read from the registry; a literal here would be a second copy
+# again (C1)
 SWITCHED = {
     "packages/project-model/src/modeler_project/inputs.py": {
         "MODEL_IDS", "MODEL_PREFIXES", "REFERENCE_IDS", "REFERENCE_PREFIXES", "_BUILDER_UNIT", "_IN_VIVO", "_IN_VITRO"},
     "packages/project-model/src/modeler_project/evidence.py": {"_PHYSICAL"},
+    "packages/pbpk-domain/src/pbpk_domain/parameter_units.py": {"_TARGETS"},
+    "packages/pbpk-domain/src/pbpk_domain/pksim_paths.py": {"_COMPOUND_PARAM"},
+    "packages/pbpk-domain/src/pbpk_domain/cpf/build.py": {"_PROCESS_FAMILIES", "REFERENCE_ELIMINATION"},
 }
 
 
@@ -74,6 +78,8 @@ def test_switched_tables_are_read_from_the_registry(path):
     for node in tree.body:
         if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
             found[node.targets[0].id] = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            found[node.target.id] = node.value
     for name in SWITCHED[path]:
         value = found.get(name)
         assert isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute) and \
