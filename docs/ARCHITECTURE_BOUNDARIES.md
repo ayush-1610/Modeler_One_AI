@@ -52,14 +52,14 @@ All are plain-Python tests under `tests/architecture/`, tagged `T-25`, run by `m
 CI also builds the web app (`web`: `npm ci`, typecheck, production build) and the API image (`api-image`: build,
 imports, `/health`), and the secret scan reads `.gitleaks.toml` (default rules; a dotted CPF id is not a secret).
 
-### Exceptions recorded on 2026-10-07 (`tests/architecture/boundaries.toml`: 48, now 35 after phase 3)
+### Exceptions recorded on 2026-10-07 (`tests/architecture/boundaries.toml`: 48, 35 after phase 3, now 25 after phase 5a)
 
 | Rule | Count | What | Removed in |
 |---|---|---|---|
 | layer | 1 | `local_runner` → `modeler_engine.runner` (the 3 orchestrator → API imports went in phase 3) | engine port, later |
 | declared | 2 | agents → pbpk_domain, orchestrator → engine (api → intake and api → orchestrator are declared since phase 3) | phase 5, engine port |
 | seam | 16 | `brief_api`, `client_api`, `evidence_api`, `plan_api` → agents (incl. deterministic `citations`, `data_mapping`); the API reaches the orchestrator only through `modeler_api.execution` since phase 3 | phase 5 |
-| router | 14 | every router → `project_api` (auth dependencies, `workspace_for`, redaction, blinding); → `brief_api.agents_status`; `inputs_api`, `plan_api` → `write_api`; `write_api` → `read_api`; `brief_api` → `requirements_api` | phase 5 |
+| router | 4 | `brief_api` → `requirements_api` (data-plan derivation); `inputs_api`, `plan_api` → `write_api` (the `StudyUpload` model, `_observed_from_studies`); `write_api` → `read_api` (the project CPF view). The 10 imports of `project_api` and `brief_api.agents_status` went in phase 5a: shared dependencies are in `modeler_api.deps`, `agents_status` in the agents seam `modeler_api.agent_jobs` | phase 5d, 6 |
 | tests | 2 | `pbpk-domain/tests/test_cpf.py` and `engine-worker/tests/test_objectstore.py` → orchestrator (the 5 orchestrator tests → API went in phase 3: 3 now read `modeler_storage`, 2 whole-stack tests moved to the API's tests) | phase 5, engine port |
 
 ### Known vocabulary drift (strict xfail)
@@ -138,7 +138,7 @@ Apart from the moved audit trail, nothing in L1, L2, L4 or L7 is locked: those a
 | 2 | **Done.** One reader per process (§3a), injected; tests use `api_settings` | C2 |
 | 3 | **Done.** 3a: `modeler_storage` with the Postgres audit trail (locked, moved unchanged, its own PR). 3b: the read model, repositories and tenancy move in; the orchestrator no longer imports the API; the API starts and steers campaigns through `CampaignRunner` (`modeler_contracts.ports`) obtained in `modeler_api.execution` | C7, the api ⇄ orchestrator cycle |
 | 4 | Parameter registry in `pbpk_domain` (SME-governed); characterization tests first; `total_cl` fixed in its own science PR with an alias. Plan: `docs/plans/2026-10-08-parameter-registry.md`; **4a done** (characterization snapshot), **4b done** (the registry, locked, derives every table), **4c done** (`inputs`, `evidence`, `completeness`, `process_bindings` read it), **4d done** (the locked `parameter_units`, `pksim_paths`, `cpf.build` read it; no hand-kept copy left), **4e done** (registry 1.1: `total_cl` alias, `ehc_fraction` refused with its reason, total clearance InVivo). **Phase 4 done** | C1 |
-| 5 | Services out of routers; `deps.py`; deterministic helpers out of the agents package | C3, C4, C9 |
+| 5 | Services out of routers; `deps.py`; deterministic helpers out of the agents package. Plan: `docs/plans/2026-10-08-phase-5-services.md`; **5a done** (`modeler_api.deps`, the `agent_jobs` seam; router exceptions 14 → 4) | C3, C4, C9 |
 | 6 | Typed responses for P0–P4; one owner per artifact kind | C5, C6 |
 | 7 | Frontend seams (`openapi-typescript`, asked first) | B6 |
 | 8 | Job state out of the process, when a second worker is planned | C8 |

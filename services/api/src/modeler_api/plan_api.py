@@ -20,11 +20,11 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from modeler_api.agent_jobs import agents_status
 from modeler_api.auth import Principal, ensure_step_up, require_role
-from modeler_api.brief_api import agents_status
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep, get_settings
-from modeler_api.project_api import Reader, StoreDep, Writer, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief

@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from modeler_api.config import SettingsDep
-from modeler_api.project_api import Reader, StoreDep, Writer, redact, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, redact, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_project import ArtifactKind, Workspace
 from modeler_project.evidence import EvidenceState

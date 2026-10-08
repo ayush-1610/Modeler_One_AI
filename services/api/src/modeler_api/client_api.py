@@ -15,8 +15,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from modeler_api.brief_api import agents_status
-from modeler_api.project_api import Reader, StoreDep, Writer, version_view, workspace_for
+from modeler_api.agent_jobs import agents_status
+from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_intake.client_template import TEMPLATE_ID, build_template
 from modeler_intake.documents import DocumentError
@@ -256,7 +256,7 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
     """Apply a mapping recipe deterministically. Preview shows the records, problems and open questions; confirming a
     recipe with none of them creates the datasets (origin CLIENT) and keeps the recipe on the file's record."""
     from modeler_agents.data_mapping import RecipeProposal, review_proposal
-    from modeler_api.project_api import blinding_view
+    from modeler_api.deps import blinding_view
     from modeler_project.blinding import EXTERNAL_PURPOSES
 
     ws = workspace_for(project_id, principal, store)

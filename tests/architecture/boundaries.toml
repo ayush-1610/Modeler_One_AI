@@ -33,7 +33,7 @@ readers = [
   "modeler_engine.runner",      # passes chosen variables through to the engine subprocess
 ]
 
-# ---- known exceptions (2026-10-07; 13 removed by phase 3b). rule: layer | declared | seam | router | tests ----
+# ---- known exceptions (2026-10-07; 13 removed by phase 3b, 10 by phase 5a). rule: layer | declared | seam | router | tests ----
 
 [[allow]]
 rule = "layer"
@@ -152,44 +152,8 @@ reason = "agent run records; phase 5"
 [[allow]]
 rule = "router"
 importer = "modeler_api.brief_api"
-imported = "modeler_api.project_api"
-reason = "auth dependencies and workspace_for live in the project router; move to modeler_api.deps in phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.brief_api"
 imported = "modeler_api.requirements_api"
 reason = "data-plan derivation lives in a router; moves to a modeler_project service in phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.client_api"
-imported = "modeler_api.brief_api"
-reason = "agents_status lives in the brief router; phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.client_api"
-imported = "modeler_api.project_api"
-reason = "auth dependencies, workspace_for, redaction; phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.evidence_api"
-imported = "modeler_api.brief_api"
-reason = "agents_status lives in the brief router; phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.evidence_api"
-imported = "modeler_api.project_api"
-reason = "auth dependencies, workspace_for, redaction; phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.inputs_api"
-imported = "modeler_api.project_api"
-reason = "auth dependencies and workspace_for; phase 5"
 
 [[allow]]
 rule = "router"
@@ -200,32 +164,8 @@ reason = "the StudyUpload request model lives in the write router; typed models 
 [[allow]]
 rule = "router"
 importer = "modeler_api.plan_api"
-imported = "modeler_api.brief_api"
-reason = "agents_status lives in the brief router; phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.plan_api"
-imported = "modeler_api.project_api"
-reason = "auth dependencies, workspace_for, blinding; phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.plan_api"
 imported = "modeler_api.write_api"
 reason = "private _observed_from_studies of the write router; phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.read_api"
-imported = "modeler_api.project_api"
-reason = "the project store dependency and blinding; phase 5"
-
-[[allow]]
-rule = "router"
-importer = "modeler_api.requirements_api"
-imported = "modeler_api.project_api"
-reason = "auth dependencies and workspace_for; phase 5"
 
 [[allow]]
 rule = "router"
