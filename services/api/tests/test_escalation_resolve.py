@@ -214,7 +214,10 @@ def test_a_feedback_signature_binds_the_decisions_content(tmp_path, monkeypatch,
     local_settings()
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
     applied = {}
-    monkeypatch.setattr(runner, "resolve_escalation", lambda **kw: applied.update(kw) or {"status": "RUNNING"})
+    # answers as local_runner.resolve_escalation does when a campaign continues (the typed answer requires its keys)
+    monkeypatch.setattr(runner, "resolve_escalation", lambda **kw: applied.update(kw) or {
+        "campaign_id": kw["campaign_id"], "stage": kw["stage"], "action": kw["action"], "status": "RUNNING",
+        "remaining_stages": []})
     signed = {}
     import modeler_api.escalations as esc
 

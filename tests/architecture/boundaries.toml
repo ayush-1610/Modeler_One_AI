@@ -63,8 +63,8 @@ reason = "the S3 object store lives in the orchestrator; moves with the engine p
 
 # ---- phase 6 (2026-10-08, approved by the owner): response models (B2) and artifact owners (B3) ----
 
-# Routes of these routers that still answer with an untyped dict (test_response_models.py). Phase 6 types them (6b-6d),
-# keeping today's shapes; a typed or removed route must leave the list. File downloads are not counted.
+# Routes of these routers that still answer with an untyped dict (test_response_models.py). Phase 6 typed them all
+# (6b-6d), keeping the shapes; the empty list keeps a new route from answering untyped. File downloads are not counted.
 [response]
 routers = [
   "modeler_api.project_api",
@@ -75,31 +75,7 @@ routers = [
   "modeler_api.inputs_api",
   "modeler_api.escalations",
 ]
-untyped = [
-  # project_api
-  "GET /api/v1/projects/{project_id}/phases",
-  "GET /api/v1/projects/{project_id}/artifacts",
-  "GET /api/v1/projects/{project_id}/artifacts/{kind}/{artifact_id}",
-  "GET /api/v1/projects/{project_id}/artifacts/{kind}/{artifact_id}/history",
-  "POST /api/v1/projects/{project_id}/impact",
-  "GET /api/v1/projects/{project_id}/audit",
-  "GET /api/v1/projects/{project_id}/blinding",
-  "PUT /api/v1/projects/{project_id}/blinding",
-  "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
-  # inputs_api
-  "GET /api/v1/projects/{project_id}/inputs",
-  "POST /api/v1/projects/{project_id}/inputs:assemble",
-  "POST /api/v1/projects/{project_id}/inputs:propose-identity",
-  "PUT /api/v1/projects/{project_id}/inputs/choices",
-  "POST /api/v1/projects/{project_id}/inputs:accept",
-  "POST /api/v1/projects/{project_id}/inputs:publish",
-  # escalations
-  "GET /api/v1/escalations/decision-options",
-  "POST /api/v1/campaigns/{campaign_id}/stages/{stage}/escalation:decide",
-  "POST /api/v1/campaigns/{campaign_id}/deviations",
-  "POST /api/v1/campaigns/{campaign_id}/feedback:decide",
-  "POST /api/v1/campaigns/{campaign_id}/stages/{stage}/escalation:resolve",
-]
+untyped = []
 
 # The one module that writes each artifact kind and reads its stored content raw (test_artifact_owners.py). Everyone
 # else asks the owner. brief_ops and map_artifact take over the writes in phase 6e (map_artifact is created then).

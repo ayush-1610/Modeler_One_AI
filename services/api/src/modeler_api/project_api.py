@@ -32,7 +32,9 @@ from modeler_api.deps import (  # noqa: F401 - re-exported: tests override proje
     version_view,
     workspace_for,
 )
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
+from modeler_api.views.common import ImpactView, StoredContent, VersionView
+from modeler_api.views.project import Artifacts, AuditTrail, BlindingView, History, Phases
 from modeler_project import ArtifactKind, ArtifactRef
 from modeler_project import blinding as blind
 from modeler_project.workspace import PHASE_LABELS
@@ -41,7 +43,7 @@ router = APIRouter(prefix="/api/v1", tags=["project-pipeline"])
 
 
 
-@router.get("/projects/{project_id}/phases")
+@router.get("/projects/{project_id}/phases", **answers(Phases))
 def get_phases(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     phases = ws.phases()
@@ -51,14 +53,14 @@ def get_phases(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
     })
 
 
-@router.get("/projects/{project_id}/artifacts")
+@router.get("/projects/{project_id}/artifacts", **answers(Artifacts))
 def list_artifacts(project_id: str, principal: Reader, store: StoreDep, kind: str | None = None) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     versions = ws.list(parse_kind(kind) if kind else None)
     return envelope({"artifacts": [version_view(ws, v, with_content=False) for v in versions]})
 
 
-@router.get("/projects/{project_id}/artifacts/{kind}/{artifact_id}")
+@router.get("/projects/{project_id}/artifacts/{kind}/{artifact_id}", **answers(VersionView))
 def get_artifact(project_id: str, kind: str, artifact_id: str, principal: Reader, store: StoreDep,
                  version: int | None = None) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
@@ -71,7 +73,7 @@ def get_artifact(project_id: str, kind: str, artifact_id: str, principal: Reader
     return envelope(view)
 
 
-@router.get("/projects/{project_id}/artifacts/{kind}/{artifact_id}/history")
+@router.get("/projects/{project_id}/artifacts/{kind}/{artifact_id}/history", **answers(History))
 def get_history(project_id: str, kind: str, artifact_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     k = parse_kind(kind)
@@ -95,14 +97,14 @@ class ImpactRequest(BaseModel):
     content: dict[str, Any]
 
 
-@router.post("/projects/{project_id}/impact")
+@router.post("/projects/{project_id}/impact", **answers(ImpactView))
 def preview_impact(project_id: str, body: ImpactRequest, principal: Reader, store: StoreDep) -> dict[str, Any]:
     """What saving `content` as the next version of `kind/id` would change and make stale. Saves nothing."""
     ws = workspace_for(project_id, principal, store)
     return envelope(impact_view(ws.impact(body.kind, body.id, body.content)))
 
 
-@router.get("/projects/{project_id}/audit")
+@router.get("/projects/{project_id}/audit", **answers(AuditTrail))
 def get_audit(project_id: str, principal: Reader, store: StoreDep, limit: int = 200) -> dict[str, Any]:
     """This project's audit events (newest first) and whether the tenant's chain verifies."""
     ws = workspace_for(project_id, principal, store)
@@ -122,7 +124,7 @@ def get_audit(project_id: str, principal: Reader, store: StoreDep, limit: int = 
 # --- blinding (D-15): the views live in modeler_api.deps ------------------------------------------------------------
 
 
-@router.get("/projects/{project_id}/blinding")
+@router.get("/projects/{project_id}/blinding", **answers(BlindingView))
 def get_blinding(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     return envelope(blinding_view(workspace_for(project_id, principal, store)))
 
@@ -132,7 +134,7 @@ class BlindingRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.put("/projects/{project_id}/blinding")
+@router.put("/projects/{project_id}/blinding", **answers(BlindingView))
 def set_blinding(project_id: str, body: BlindingRequest, principal: MiddLead, store: StoreDep) -> dict[str, Any]:
     """The MIDD lead's choice for this project (D-15), with its reason, on the audit chain."""
     from modeler_storage.filestore import FileWriteStore
@@ -154,7 +156,7 @@ class RevealRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.post("/projects/{project_id}/datasets/{dataset_id}:reveal")
+@router.post("/projects/{project_id}/datasets/{dataset_id}:reveal", **answers(StoredContent))
 def reveal_dataset(project_id: str, dataset_id: str, body: RevealRequest, principal: Writer,
                    store: StoreDep) -> dict[str, Any]:
     """A blinded dataset's values for one check (digitization, acceptance), with the reason on the audit chain."""

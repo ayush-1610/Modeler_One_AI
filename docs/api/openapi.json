@@ -211,6 +211,23 @@
         "title": "ArtifactKind",
         "type": "string"
       },
+      "Artifacts": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/VersionView"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "artifacts"
+        ],
+        "title": "Artifacts",
+        "type": "object"
+      },
       "AssessmentTable": {
         "description": "One table per question of interest (M15 Appendix 1, footnote 1).",
         "properties": {
@@ -260,6 +277,104 @@
         "title": "AssessmentTable",
         "type": "object"
       },
+      "AuditEventView": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "after": {
+            "title": "After"
+          },
+          "before": {
+            "title": "Before"
+          },
+          "occurred_at": {
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_type": {
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "row_hash": {
+            "title": "Row Hash",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "occurred_at",
+          "actor",
+          "action",
+          "resource_type",
+          "resource_id",
+          "before",
+          "after",
+          "reason",
+          "row_hash"
+        ],
+        "title": "AuditEventView",
+        "type": "object"
+      },
+      "AuditTrail": {
+        "additionalProperties": false,
+        "properties": {
+          "chain_verifies": {
+            "title": "Chain Verifies",
+            "type": "boolean"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEventView"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "first_broken_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Broken Index"
+          }
+        },
+        "required": [
+          "chain_verifies",
+          "first_broken_index",
+          "events"
+        ],
+        "title": "AuditTrail",
+        "type": "object"
+      },
       "Blinded": {
         "additionalProperties": false,
         "properties": {
@@ -294,6 +409,74 @@
           "reason"
         ],
         "title": "BlindingRequest",
+        "type": "object"
+      },
+      "BlindingView": {
+        "additionalProperties": false,
+        "description": "`deps.blinding_view`: the project's setting (its own choice, or the default for its model risk) and its effect.",
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "blinded": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blinded",
+            "type": "array"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "external": {
+            "items": {
+              "type": "string"
+            },
+            "title": "External",
+            "type": "array"
+          },
+          "map_signed": {
+            "title": "Map Signed",
+            "type": "boolean"
+          },
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "on",
+          "source",
+          "reason",
+          "map_signed",
+          "blinded",
+          "external"
+        ],
+        "title": "BlindingView",
         "type": "object"
       },
       "Body_fulfil_request_api_v1_projects__project_id__access_requests__request_id__fulfil_post": {
@@ -1474,6 +1657,98 @@
         "title": "CoverageRow",
         "type": "object"
       },
+      "CpfVersion": {
+        "additionalProperties": false,
+        "description": "The assembled CPF's version, and the assembly report (what came from which evidence).",
+        "properties": {
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalView"
+            },
+            "title": "Approvals",
+            "type": "array"
+          },
+          "assembly": {
+            "additionalProperties": true,
+            "title": "Assembly",
+            "type": "object"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "derived_from": {
+            "items": {
+              "$ref": "#/components/schemas/Ref"
+            },
+            "title": "Derived From",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "stale_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stale Reasons",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "version",
+          "sha256",
+          "status",
+          "stale_reasons",
+          "created_at",
+          "created_by",
+          "reason",
+          "derived_from",
+          "approvals",
+          "assembly"
+        ],
+        "title": "CpfVersion",
+        "type": "object"
+      },
       "DataOrigin": {
         "enum": [
           "CLIENT",
@@ -1639,6 +1914,47 @@
         "title": "Decision",
         "type": "object"
       },
+      "DecisionOption": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "required_signature": {
+            "title": "Required Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "description",
+          "required_signature"
+        ],
+        "title": "DecisionOption",
+        "type": "object"
+      },
+      "DecisionOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionOption"
+            },
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": [
+          "options"
+        ],
+        "title": "DecisionOptions",
+        "type": "object"
+      },
       "DecisionRequest": {
         "properties": {
           "accept": {
@@ -1727,6 +2043,29 @@
           }
         },
         "title": "Demographics",
+        "type": "object"
+      },
+      "DeviationRecorded": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/SignatureView"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "stage",
+          "signature"
+        ],
+        "title": "DeviationRecorded",
         "type": "object"
       },
       "DeviationRequest": {
@@ -2261,6 +2600,81 @@
         "title": "Envelope[AgentRunDetail]",
         "type": "object"
       },
+      "Envelope_Artifacts_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Artifacts"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Artifacts]",
+        "type": "object"
+      },
+      "Envelope_AuditTrail_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuditTrail"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[AuditTrail]",
+        "type": "object"
+      },
+      "Envelope_BlindingView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BlindingView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[BlindingView]",
+        "type": "object"
+      },
       "Envelope_BriefPage_": {
         "additionalProperties": false,
         "properties": {
@@ -2486,6 +2900,131 @@
         "title": "Envelope[ExtractionStart]",
         "type": "object"
       },
+      "Envelope_History_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/History"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[History]",
+        "type": "object"
+      },
+      "Envelope_IdentityProposal_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IdentityProposal"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[IdentityProposal]",
+        "type": "object"
+      },
+      "Envelope_ImpactView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ImpactView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ImpactView]",
+        "type": "object"
+      },
+      "Envelope_InputsPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InputsPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[InputsPage]",
+        "type": "object"
+      },
+      "Envelope_Phases_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Phases"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Phases]",
+        "type": "object"
+      },
       "Envelope_ProjectStarted_": {
         "additionalProperties": false,
         "properties": {
@@ -2702,6 +3241,31 @@
         "title": "Envelope[Union[MapReading, MapPreview]]",
         "type": "object"
       },
+      "Envelope_VersionView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/VersionView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[VersionView]",
+        "type": "object"
+      },
       "Envelope_dict_str__Any__": {
         "additionalProperties": false,
         "properties": {
@@ -2757,6 +3321,87 @@
           "message"
         ],
         "title": "ErrorItem",
+        "type": "object"
+      },
+      "EscalationDecided": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "campaign_id": {
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/SignatureView"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "stage",
+          "action",
+          "signature"
+        ],
+        "title": "EscalationDecided",
+        "type": "object"
+      },
+      "EscalationResolved": {
+        "additionalProperties": false,
+        "description": "A signed decision applied to a single-node campaign: the stage's new status (and the stages still to run).",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "campaign_id": {
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "remaining_stages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Stages"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/SignatureView"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "stage",
+          "action",
+          "status",
+          "note",
+          "signature"
+        ],
+        "title": "EscalationResolved",
         "type": "object"
       },
       "Evidence": {
@@ -3573,6 +4218,169 @@
         "title": "HarvestedProcess",
         "type": "object"
       },
+      "History": {
+        "additionalProperties": false,
+        "properties": {
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryRow"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "versions"
+        ],
+        "title": "History",
+        "type": "object"
+      },
+      "HistoryRow": {
+        "additionalProperties": false,
+        "description": "One version of an artifact, and the field changes from the previous one (blinded values left out).",
+        "properties": {
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalView"
+            },
+            "title": "Approvals",
+            "type": "array"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeView"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "phase": {
+            "title": "Phase",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sha256",
+          "created_by",
+          "reason",
+          "phase",
+          "version",
+          "status",
+          "created_at",
+          "approvals",
+          "changes"
+        ],
+        "title": "HistoryRow",
+        "type": "object"
+      },
+      "IdentityProposal": {
+        "additionalProperties": false,
+        "description": "The structure proposed as evidence (its id), and the page.",
+        "properties": {
+          "catalog": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "choices": {
+            "additionalProperties": true,
+            "title": "Choices",
+            "type": "object"
+          },
+          "cpf": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CpfVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "string"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "readiness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "records": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "todo": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Todo",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cpf",
+          "records",
+          "catalog",
+          "readiness",
+          "choices",
+          "published",
+          "todo",
+          "evidence"
+        ],
+        "title": "IdentityProposal",
+        "type": "object"
+      },
       "ImpactRequest": {
         "properties": {
           "content": {
@@ -3681,6 +4489,85 @@
           "emax"
         ],
         "title": "Induction",
+        "type": "object"
+      },
+      "InputsPage": {
+        "additionalProperties": false,
+        "properties": {
+          "catalog": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "choices": {
+            "additionalProperties": true,
+            "title": "Choices",
+            "type": "object"
+          },
+          "cpf": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CpfVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "published": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "readiness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "records": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "todo": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Todo",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cpf",
+          "records",
+          "catalog",
+          "readiness",
+          "choices",
+          "published",
+          "todo"
+        ],
+        "title": "InputsPage",
         "type": "object"
       },
       "IntravenousBolusProtocolSpec": {
@@ -5101,6 +5988,55 @@
           "value"
         ],
         "title": "PathValue",
+        "type": "object"
+      },
+      "PhaseStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "phase": {
+            "title": "Phase",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phase",
+          "label",
+          "status"
+        ],
+        "title": "PhaseStatus",
+        "type": "object"
+      },
+      "Phases": {
+        "additionalProperties": false,
+        "properties": {
+          "phases": {
+            "items": {
+              "$ref": "#/components/schemas/PhaseStatus"
+            },
+            "title": "Phases",
+            "type": "array"
+          },
+          "stale": {
+            "items": {
+              "$ref": "#/components/schemas/StaleArtifact"
+            },
+            "title": "Stale",
+            "type": "array"
+          }
+        },
+        "required": [
+          "phases",
+          "stale"
+        ],
+        "title": "Phases",
         "type": "object"
       },
       "PkaSpec": {
@@ -6807,6 +7743,25 @@
         "title": "SignatureRequest",
         "type": "object"
       },
+      "SignatureView": {
+        "additionalProperties": false,
+        "properties": {
+          "manifestation": {
+            "title": "Manifestation",
+            "type": "string"
+          },
+          "signature_id": {
+            "title": "Signature Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature_id",
+          "manifestation"
+        ],
+        "title": "SignatureView",
+        "type": "object"
+      },
       "SignedDecisionRequest": {
         "properties": {
           "action": {
@@ -7184,6 +8139,27 @@
         ],
         "title": "Stage",
         "type": "string"
+      },
+      "StaleArtifact": {
+        "additionalProperties": false,
+        "properties": {
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/Ref"
+          }
+        },
+        "required": [
+          "ref",
+          "reasons"
+        ],
+        "title": "StaleArtifact",
+        "type": "object"
       },
       "Statistic": {
         "enum": [
@@ -8430,9 +9406,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Record Deviation Api V1 Campaigns  Campaign Id  Deviations Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DeviationRecorded"
                 }
               }
             },
@@ -8501,9 +9475,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Decide Feedback Api V1 Campaigns  Campaign Id  Feedback Decide Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/EscalationResolved"
                 }
               }
             },
@@ -8697,9 +9669,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Decide Escalation Api V1 Campaigns  Campaign Id  Stages  Stage  Escalation Decide Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/EscalationDecided"
                 }
               }
             },
@@ -8777,9 +9747,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Resolve Escalation Decision Api V1 Campaigns  Campaign Id  Stages  Stage  Escalation Resolve Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/EscalationResolved"
                 }
               }
             },
@@ -8906,9 +9874,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Escalation Decision Options Api V1 Escalations Decision Options Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DecisionOptions"
                 }
               }
             },
@@ -9352,9 +10318,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Artifacts Api V1 Projects  Project Id  Artifacts Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_Artifacts_"
                 }
               }
             },
@@ -9446,9 +10410,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Artifact Api V1 Projects  Project Id  Artifacts  Kind   Artifact Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_VersionView_"
                 }
               }
             },
@@ -9524,9 +10486,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get History Api V1 Projects  Project Id  Artifacts  Kind   Artifact Id  History Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_History_"
                 }
               }
             },
@@ -9595,9 +10555,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Audit Api V1 Projects  Project Id  Audit Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_AuditTrail_"
                 }
               }
             },
@@ -9655,9 +10613,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Blinding Api V1 Projects  Project Id  Blinding Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_BlindingView_"
                 }
               }
             },
@@ -9724,9 +10680,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Set Blinding Api V1 Projects  Project Id  Blinding Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_BlindingView_"
                 }
               }
             },
@@ -11140,9 +12094,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Reveal Dataset Api V1 Projects  Project Id  Datasets  Dataset Id  Reveal Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
                 }
               }
             },
@@ -12122,9 +13074,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Preview Impact Api V1 Projects  Project Id  Impact Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ImpactView_"
                 }
               }
             },
@@ -12182,9 +13132,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Inputs Api V1 Projects  Project Id  Inputs Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_InputsPage_"
                 }
               }
             },
@@ -12253,9 +13201,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Choice Api V1 Projects  Project Id  Inputs Choices Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_InputsPage_"
                 }
               }
             },
@@ -12323,9 +13269,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Accept Api V1 Projects  Project Id  Inputs Accept Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_InputsPage_"
                 }
               }
             },
@@ -12383,9 +13327,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Assemble Inputs Api V1 Projects  Project Id  Inputs Assemble Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_InputsPage_"
                 }
               }
             },
@@ -12444,9 +13386,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Propose Identity Api V1 Projects  Project Id  Inputs Propose Identity Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_IdentityProposal_"
                 }
               }
             },
@@ -12505,9 +13445,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Publish Api V1 Projects  Project Id  Inputs Publish Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_InputsPage_"
                 }
               }
             },
@@ -12565,9 +13503,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Phases Api V1 Projects  Project Id  Phases Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_Phases_"
                 }
               }
             },
