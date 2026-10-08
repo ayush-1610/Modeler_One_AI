@@ -14,8 +14,8 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from modeler_api.brief_api import agents_status
-from modeler_api.project_api import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
+from modeler_api.agent_jobs import agents_status
+from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace

@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — routers share `modeler_api.deps`, not each other (architecture phase 5a)
+- **What:**
+  - New `modeler_api.deps`, a module that defines no route. It holds what every phase router imported from
+    `project_api` (a router): roles, the project store dependency, `workspace_for`, `parse_kind`, `version_view`,
+    `impact_view`, and the blinding views (`blinded_studies`, `redact`, `hidden_paths`, `blinding_view`,
+    `project_record`, `model_risk`).
+  - `agents_status` moved from `brief_api` to `modeler_api.agent_jobs`, the declared seam to the agents package.
+  - The routers now import from these two modules. `project_api` re-exports `get_project_store`, so
+    `app.dependency_overrides[project_api.get_project_store]` still works.
+- **Why:** coupling C3 (`project_api` was a hub; routers imported routers). Plan:
+  `docs/plans/2026-10-08-phase-5-services.md`.
+- **Impact:**
+  - No behaviour change: same routes and models (the OpenAPI snapshot is unchanged).
+  - `tests/architecture/boundaries.toml` (locked) drops the 10 exceptions that no longer occur (router 14 → 4; 35 → 25
+    overall), and its hash is refreshed.
+  - `make test` shows only the 15 known environment failures.
+
 ### Changed — one default per MODELER_* variable; a production deployment must set them
 - **Decided by the owner on 2026-10-08.** Closes the "one variable, several defaults" known gap. Everything lives in
   `modeler_contracts.runtime`.

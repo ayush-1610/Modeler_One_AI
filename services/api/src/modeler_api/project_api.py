@@ -9,60 +9,36 @@ an edit would make stale before it is saved (plan §13.2), and the project's aud
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from modeler_api.auth import Principal, require_project, require_role
-from modeler_api.config import SettingsDep, get_settings
+from modeler_api.config import get_settings
+from modeler_api.deps import (  # noqa: F401 - re-exported: tests override project_api.get_project_store
+    MiddLead,
+    Reader,
+    StoreDep,
+    Writer,
+    blinded_studies,
+    blinding_view,
+    get_project_store,
+    hidden_paths,
+    impact_view,
+    model_risk,
+    parse_kind,
+    project_record,
+    redact,
+    version_view,
+    workspace_for,
+)
 from modeler_api.responses import envelope
-from modeler_project import ArtifactKind, ArtifactRef, ArtifactVersion, FileProjectStore, ProjectStore, Workspace
+from modeler_project import ArtifactKind, ArtifactRef
 from modeler_project import blinding as blind
 from modeler_project.workspace import PHASE_LABELS
 
 router = APIRouter(prefix="/api/v1", tags=["project-pipeline"])
 
-READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer")
-WRITE_ROLES = ("modeler-curator", "modeler-reviewer")
-Reader = Annotated[Principal, Depends(require_role(*READ_ROLES))]
-Writer = Annotated[Principal, Depends(require_role(*WRITE_ROLES))]
-MiddLead = Annotated[Principal, Depends(require_role("modeler-reviewer"))]
-
-
-def get_project_store(settings: SettingsDep) -> ProjectStore:
-    if not settings.read_root:
-        raise HTTPException(status_code=503, detail="Project storage is not configured. Set MODELER_READ_ROOT.")
-    return FileProjectStore(settings.read_root)
-
-
-StoreDep = Annotated[ProjectStore, Depends(get_project_store)]
-
-
-def workspace_for(project_id: str, principal: Principal, store: ProjectStore) -> Workspace:
-    require_project(project_id, principal)
-    return Workspace(store, principal.tenant_id, project_id)
-
-
-def parse_kind(kind: str) -> ArtifactKind:
-    try:
-        return ArtifactKind(kind)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=f"unknown artifact kind {kind!r}") from exc
-
-
-def version_view(ws: Workspace, version: ArtifactVersion, *, with_content: bool = True) -> dict[str, Any]:
-    """An artifact version as the web app reads it: identity, status, provenance of the version, approvals."""
-    view: dict[str, Any] = {
-        "kind": version.kind.value, "id": version.id, "version": version.version, "sha256": version.sha256,
-        "status": ws.status(version).value, "stale_reasons": ws.stale_reasons(version),
-        "created_at": version.created_at.isoformat(), "created_by": version.created_by, "reason": version.reason,
-        "derived_from": [r.model_dump(mode="json") for r in version.derived_from],
-        "approvals": [a.model_dump(mode="json") for a in ws.approvals_of(version.ref)],
-    }
-    if with_content:
-        view["content"] = version.content
-    return view
 
 
 @router.get("/projects/{project_id}/phases")
@@ -102,7 +78,7 @@ def get_history(project_id: str, kind: str, artifact_id: str, principal: Reader,
     rows = ws.history(k, artifact_id)
     if not rows:
         raise HTTPException(status_code=404, detail=f"no {kind}/{artifact_id}")
-    hidden = _hidden_paths(ws, k, ws.latest(k, artifact_id).content)
+    hidden = hidden_paths(ws, k, ws.latest(k, artifact_id).content)
     return envelope({"versions": [
         {**{k: v for k, v in row.items() if k not in ("ref", "approvals", "changes", "status", "created_at")},
          "version": row["ref"].version, "status": row["status"].value, "created_at": row["created_at"].isoformat(),
@@ -117,17 +93,6 @@ class ImpactRequest(BaseModel):
     kind: ArtifactKind
     id: str = Field(min_length=1)
     content: dict[str, Any]
-
-
-def impact_view(report) -> dict[str, Any]:
-    return {
-        "target": report.target.model_dump(mode="json") if report.target else None,
-        "unchanged": report.unchanged,
-        "changes": [{"path": c.path, "before": c.before, "after": c.after, "kind": c.kind} for c in report.changes],
-        "affected": [{"ref": i.ref.model_dump(mode="json"), "status": i.status.value, "effect": i.effect,
-                      "needs_signature": i.needs_signature} for i in report.affected],
-        "notes": list(report.notes),
-    }
 
 
 @router.post("/projects/{project_id}/impact")
@@ -154,61 +119,7 @@ def get_audit(project_id: str, principal: Reader, store: StoreDep, limit: int = 
     })
 
 
-# --- blinding (D-15) ------------------------------------------------------------------------------------------------
-
-
-def _project_record(ws: Workspace) -> dict[str, Any] | None:
-    settings = get_settings()
-    if not settings.read_root:
-        return None
-    from modeler_storage.filestore import FileReadStore
-
-    return FileReadStore(settings.read_root).get_project(ws.tenant_id, ws.project_id)
-
-
-def _model_risk(ws: Workspace) -> str | None:
-    """The human-confirmed model risk: the plan's (P5) once it exists, else the brief's acceptance tier."""
-    plan = ws.latest(ArtifactKind.MODEL_PLAN, "main")
-    if plan is not None:
-        return (plan.content.get("structure") or {}).get("model_risk")
-    brief = ws.latest(ArtifactKind.BRIEF, "main")
-    if brief is None:
-        return None
-    from modeler_project.brief import ProjectBrief
-
-    return ProjectBrief.from_content(brief.content).value("acceptance.tier")
-
-
-def blinded_studies(ws: Workspace) -> set[str]:
-    return blind.blinded_studies(ws, _project_record(ws), _model_risk(ws))
-
-
-def redact(ws: Workspace, kind: ArtifactKind, content: dict[str, Any], hidden: set[str] | None = None) -> dict[str, Any]:
-    """An artifact's content as the viewer may see it: blinded external values left out (D-15)."""
-    if kind not in (ArtifactKind.DATASET, ArtifactKind.STUDY_CATALOG):
-        return content
-    hidden = blinded_studies(ws) if hidden is None else hidden
-    if not hidden:
-        return content
-    if kind is ArtifactKind.DATASET:
-        return blind.redact_dataset(content) if str((content.get("study") or {}).get("study_id")) in hidden else content
-    return {**content, "studies": [blind.redact_row(r) if str(r.get("study_id")) in hidden else r
-                                   for r in content.get("studies", [])]}
-
-
-def _hidden_paths(ws: Workspace, kind: ArtifactKind, content: dict[str, Any]) -> tuple[str, ...]:
-    """History paths that would show blinded values (a dataset's series and reported PK, a catalog's studies)."""
-    if kind is ArtifactKind.DATASET and str((content.get("study") or {}).get("study_id")) in blinded_studies(ws):
-        return ("series", "reported")
-    if kind is ArtifactKind.STUDY_CATALOG and blinded_studies(ws):
-        return ("studies",)
-    return ()
-
-
-def blinding_view(ws: Workspace) -> dict[str, Any]:
-    state = blind.setting(_project_record(ws), _model_risk(ws))
-    return {**state, "map_signed": blind.map_signed(ws), "blinded": sorted(blinded_studies(ws)),
-            "external": sorted(blind.external_studies(ws))}
+# --- blinding (D-15): the views live in modeler_api.deps ------------------------------------------------------------
 
 
 @router.get("/projects/{project_id}/blinding")
@@ -227,10 +138,10 @@ def set_blinding(project_id: str, body: BlindingRequest, principal: MiddLead, st
     from modeler_storage.filestore import FileWriteStore
 
     ws = workspace_for(project_id, principal, store)
-    project = _project_record(ws)
+    project = project_record(ws)
     if project is None:
         raise HTTPException(status_code=404, detail="the project record is not in the read store")
-    before = blind.setting(project, _model_risk(ws))
+    before = blind.setting(project, model_risk(ws))
     choice = {"on": body.on, "reason": body.reason, "by": principal.user_id, "at": datetime.now(UTC).isoformat()}
     FileWriteStore(get_settings().read_root).put_project(ws.tenant_id, {**project, "blinding": choice})
     store.audit(ws.tenant_id).append(actor=principal.user_id, action="blinding.set", resource_type="project",

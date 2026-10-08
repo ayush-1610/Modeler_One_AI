@@ -22,9 +22,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from modeler_api.agent_jobs import agents_status
 from modeler_api.auth import Principal, require_project
 from modeler_api.config import SettingsDep
-from modeler_api.project_api import Reader, StoreDep, Writer, impact_view, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, impact_view, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
@@ -59,19 +60,6 @@ def _file_stores(settings: SettingsDep) -> tuple[FileReadStore, FileWriteStore]:
 
 
 ProjectsDep = Annotated[tuple[FileReadStore, FileWriteStore], Depends(_file_stores)]
-
-
-def agents_status() -> dict[str, Any]:
-    """Whether an LLM provider is configured, without exposing any key."""
-    from modeler_agents.llm import LLMConfigError, chat_model_from_env
-
-    try:
-        model = chat_model_from_env()
-    except LLMConfigError as exc:
-        return {"enabled": False, "problem": str(exc)}
-    if model is None:
-        return {"enabled": False, "problem": "agents are off (MODELER_LLM_PROVIDER not set): fill the brief by hand"}
-    return {"enabled": True, "provider": model.provider, "model": model.model}
 
 
 def _brief(ws: Workspace) -> ProjectBrief | None:
