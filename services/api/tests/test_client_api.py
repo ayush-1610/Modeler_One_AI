@@ -256,3 +256,26 @@ def test_reading_a_sheet_again_replaces_the_earlier_reading(setup):
     assert datasets[second.json()["data"]["datasets"][0]]["purpose"] == "external_validation"
     view = c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Reference", headers=H).json()["data"]
     assert [r["datasets"] for r in view["read_before"]] == [second.json()["data"]["datasets"]]
+
+
+def test_a_triage_start_answers_through_its_typed_model(setup, monkeypatch):
+    # phase 6c: no test reached the started answer of :triage (the conftest guard checks each answer)
+    from modeler_api import agent_jobs, client_api
+
+    c, _ws = setup
+    sub = c.post("/api/v1/projects/p1/client-data", headers=H,
+                 files=[("files", ("raw.xlsx", _raw_workbook(), XLSX))]).json()["data"]["files"][0]
+
+    class Configured:
+        provider, model = "test", "scripted"
+
+    jobs = []
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(client_api, "run_triage_job", lambda *args, **kwargs: jobs.append(args))
+    started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:triage", headers=H)
+    assert started.status_code == 202 and started.json()["data"] == {"status": "RUNNING"}
+    for _ in range(200):
+        if ("t1", "p1") not in client_api._RUNNING:
+            break
+        time.sleep(0.01)
+    assert jobs and jobs[0][3] == sub["id"]

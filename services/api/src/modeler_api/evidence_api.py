@@ -16,7 +16,9 @@ from pydantic import BaseModel, Field
 
 from modeler_api import agent_jobs
 from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
+from modeler_api.views.common import StoredContent
+from modeler_api.views.evidence import EvidenceChoice, EvidenceCorrection, EvidencePage, ResearchStart
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
@@ -81,7 +83,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
     }
 
 
-@router.get("/projects/{project_id}/evidence")
+@router.get("/projects/{project_id}/evidence", **answers(EvidencePage))
 def get_evidence(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     return envelope(_view(workspace_for(project_id, principal, store)))
 
@@ -105,7 +107,7 @@ def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
     return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 
-@router.post("/projects/{project_id}/evidence:research", status_code=202)
+@router.post("/projects/{project_id}/evidence:research", status_code=202, **answers(ResearchStart))
 def start_research(project_id: str, principal: Writer, store: StoreDep, agent: Literal["A2", "A3"] = "A2") -> dict[str, Any]:
     """Run A2 (values) or, with ``?agent=A3``, the observed-data agent, in the background."""
     ws = workspace_for(project_id, principal, store)
@@ -148,7 +150,7 @@ class ManualEvidence(BaseModel):
     note: str = ""
 
 
-@router.post("/projects/{project_id}/evidence", status_code=201)
+@router.post("/projects/{project_id}/evidence", status_code=201, **answers(StoredContent))
 def add_evidence(project_id: str, body: ManualEvidence, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """The manual path: a person enters a value with its source. A quote from a stored document is checked verbatim."""
     from modeler_intake.citations import quote_appears_in, value_stated_in_quote
@@ -192,7 +194,7 @@ class Decision(BaseModel):
     unit_pksim: str | None = None
 
 
-@router.post("/projects/{project_id}/evidence/{evidence_id}:decide")
+@router.post("/projects/{project_id}/evidence/{evidence_id}:decide", **answers(EvidencePage))
 def decide_evidence(project_id: str, evidence_id: str, body: Decision, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     try:
@@ -207,7 +209,7 @@ class ChooseRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.post("/projects/{project_id}/evidence/{evidence_id}:choose")
+@router.post("/projects/{project_id}/evidence/{evidence_id}:choose", **answers(EvidenceChoice))
 def choose_evidence(project_id: str, evidence_id: str, body: ChooseRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Keep this value for its parameter: the other accepted values of the same target are rejected with the reason."""
     ws = workspace_for(project_id, principal, store)
@@ -226,7 +228,7 @@ class CorrectionRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.post("/projects/{project_id}/evidence/{evidence_id}:correct")
+@router.post("/projects/{project_id}/evidence/{evidence_id}:correct", **answers(EvidenceCorrection))
 def correct_evidence(project_id: str, evidence_id: str, body: CorrectionRequest, principal: Writer,
                      store: StoreDep) -> dict[str, Any]:
     """Correct the parameter a value is for, or its conditions: a corrected copy replaces it (the original is kept,
@@ -244,7 +246,7 @@ class CloseRequest(BaseModel):
     note: str = ""
 
 
-@router.post("/projects/{project_id}/evidence:approve")
+@router.post("/projects/{project_id}/evidence:approve", **answers(EvidencePage))
 def approve_evidence(project_id: str, body: CloseRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     matrix_version, matrix = _matrix(ws)
@@ -256,7 +258,7 @@ def approve_evidence(project_id: str, body: CloseRequest, principal: Writer, sto
     return envelope(_view(ws))
 
 
-@router.post("/projects/{project_id}/access-requests/{request_id}:fulfil")
+@router.post("/projects/{project_id}/access-requests/{request_id}:fulfil", **answers(EvidencePage))
 async def fulfil_request(project_id: str, request_id: str, principal: Writer, store: StoreDep,
                          file: Annotated[UploadFile, File()], note: Annotated[str, Form()] = "") -> dict[str, Any]:
     """A person supplies the paper the agent asked for; it is stored as a citable document."""
@@ -297,7 +299,7 @@ def _mol_weight(ws: Workspace) -> float | None:
     return float(value) if value else None
 
 
-@router.post("/projects/{project_id}/datasets", status_code=201)
+@router.post("/projects/{project_id}/datasets", status_code=201, **answers(StoredContent))
 def add_dataset(project_id: str, body: DatasetBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """The manual path for observed data (typed from a table or a report). Its origin says what it is: synthetic or
     illustrative data are accepted for software checks but can never pass a gate (plan §9.4)."""
@@ -333,7 +335,7 @@ class DigitizeBody(BaseModel):
     doi: str | None = None
 
 
-@router.post("/projects/{project_id}/datasets:digitize", status_code=201)
+@router.post("/projects/{project_id}/datasets:digitize", status_code=201, **answers(StoredContent))
 def digitize_dataset(project_id: str, body: DigitizeBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """A figure digitized by a person: the server maps the picked pixels with the calibration (no client arithmetic)."""
     from pbpk_domain.digitize import CalibrationError
@@ -354,7 +356,7 @@ def digitize_dataset(project_id: str, body: DigitizeBody, principal: Writer, sto
     return envelope(stored.to_content())
 
 
-@router.post("/projects/{project_id}/datasets/{dataset_id}:overlay")
+@router.post("/projects/{project_id}/datasets/{dataset_id}:overlay", **answers(StoredContent))
 def approve_dataset_overlay(project_id: str, dataset_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     try:
@@ -364,7 +366,7 @@ def approve_dataset_overlay(project_id: str, dataset_id: str, principal: Writer,
     return envelope(updated.to_content())
 
 
-@router.post("/projects/{project_id}/datasets/{dataset_id}:decide")
+@router.post("/projects/{project_id}/datasets/{dataset_id}:decide", **answers(EvidencePage))
 def decide_on_dataset(project_id: str, dataset_id: str, body: Decision, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     try:

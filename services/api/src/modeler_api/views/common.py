@@ -106,3 +106,16 @@ class DocumentView(View):
     warnings: list[str]
     uploaded_at: str
     uploaded_by: str
+
+
+class DataPlanStatus(View):
+    """The data plan version a phase page is computed from, and its status."""
+
+    version: int
+    status: str
+
+
+# A stored artifact's content as the handler returns it (an evidence item, a dataset, a client file): its owner module
+# gives the kind a content model in phase 6e; until then the answer is typed down to this.
+StoredContent = dict[str, Any]
+

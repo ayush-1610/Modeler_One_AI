@@ -17,7 +17,16 @@ from pydantic import BaseModel, Field
 
 from modeler_api import agent_jobs
 from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
+from modeler_api.views.client_data import (
+    ClientDataPage,
+    ClientUpload,
+    MapPreview,
+    MapReading,
+    ReleaseProposal,
+    SheetView,
+    TriageStart,
+)
 from modeler_intake.client_template import TEMPLATE_ID, build_template
 from modeler_intake.documents import DocumentError
 from modeler_intake.grid import WorkbookGrid, read_workbook_bytes
@@ -83,12 +92,12 @@ def download_template(principal: Reader) -> Response:
                     headers={"Content-Disposition": f'attachment; filename="{TEMPLATE_ID}.xlsx"'})
 
 
-@router.get("/projects/{project_id}/client-data")
+@router.get("/projects/{project_id}/client-data", **answers(ClientDataPage))
 def get_client_data(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     return envelope(_view(workspace_for(project_id, principal, store)))
 
 
-@router.post("/projects/{project_id}/client-data", status_code=201)
+@router.post("/projects/{project_id}/client-data", status_code=201, **answers(ClientUpload))
 async def upload_client_files(project_id: str, principal: Writer, store: StoreDep,
                               files: Annotated[list[UploadFile], File()]) -> dict[str, Any]:
     """Store each file; read a filled template at once; triage any other workbook."""
@@ -123,7 +132,7 @@ class Classification(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.post("/projects/{project_id}/client-data/{sid}/sheets/{sheet}:classify")
+@router.post("/projects/{project_id}/client-data/{sid}/sheets/{sheet}:classify", **answers(ClientDataPage))
 def classify(project_id: str, sid: str, sheet: str, body: Classification, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """A person says what a sheet holds (overrides code and A4)."""
     ws = workspace_for(project_id, principal, store)
@@ -154,7 +163,7 @@ def run_triage_job(store: ProjectStore, tenant_id: str, project_id: str, sid: st
     return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 
-@router.post("/projects/{project_id}/client-data/{sid}:triage", status_code=202)
+@router.post("/projects/{project_id}/client-data/{sid}:triage", status_code=202, **answers(TriageStart))
 def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     _workbook(ws, sid)
@@ -176,7 +185,7 @@ def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) 
     return envelope({"status": "RUNNING"})
 
 
-@router.get("/projects/{project_id}/client-data/{sid}/sheets/{sheet}")
+@router.get("/projects/{project_id}/client-data/{sid}/sheets/{sheet}", **answers(SheetView))
 def read_sheet(project_id: str, sid: str, sheet: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     """One sheet as text, with a first filling of the reading form found in it (units, dose and LLOQ quoted from their
     cells; what the sheet does not say left for the person) and the notes that say what was found and what was not."""
@@ -233,7 +242,7 @@ def _sample(review, *, hide_values: bool) -> dict[str, Any]:
             "below_lloq": sum(r.below_lloq for r in records)}
 
 
-@router.post("/projects/{project_id}/client-data/{sid}:map")
+@router.post("/projects/{project_id}/client-data/{sid}:map", **answers(MapReading | MapPreview))
 def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Apply a mapping recipe deterministically. Preview shows the records, problems and open questions; confirming a
     recipe with none of them creates the datasets (origin CLIENT) and keeps the recipe on the file's record."""
@@ -293,7 +302,7 @@ class ReleaseModelRequest(BaseModel):
     formulation: str = Field(min_length=1)
 
 
-@router.post("/projects/{project_id}/dissolution/{profile_id}:propose", status_code=201)
+@router.post("/projects/{project_id}/dissolution/{profile_id}:propose", status_code=201, **answers(ReleaseProposal))
 def propose_release(project_id: str, profile_id: str, body: ReleaseModelRequest, principal: Writer,
                     store: StoreDep) -> dict[str, Any]:
     """Propose a profile's fit as a formulation's release model: evidence to accept or reject on the Parameters tab
@@ -310,7 +319,7 @@ class CloseRequest(BaseModel):
     note: str = ""
 
 
-@router.post("/projects/{project_id}/client-data:approve")
+@router.post("/projects/{project_id}/client-data:approve", **answers(ClientDataPage))
 def approve_client_data(project_id: str, body: CloseRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Close P3: snapshot the files and the reconciliation, with a named approval."""
     ws = workspace_for(project_id, principal, store)
