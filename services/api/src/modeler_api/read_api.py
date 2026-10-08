@@ -17,12 +17,11 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
+from modeler_api.cpf_view import project_cpf_view
 from modeler_api.deps import get_project_store
 from modeler_api.responses import envelope
 from modeler_project import ProjectStore, Workspace
 from modeler_storage.filestore import FileReadStore, ReadStore
-from pbpk_domain.cpf import CPF
-from pbpk_domain.cpf.completeness import check_completeness
 
 # re-exported so existing imports (`from modeler_api.read_api import FileReadStore`) keep working
 __all__ = ["FileReadStore", "ReadStore", "get_read_store", "project_cpf_view", "router"]
@@ -31,36 +30,6 @@ router = APIRouter(prefix="/api/v1", tags=["read"])
 
 # any authenticated member of the tenant may read; writes have their own stricter roles
 _READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer")
-
-# The S0 completeness rule checks six requirement groups; completeness is the fraction satisfied.
-_COMPLETENESS_TOTAL = 6
-
-
-def project_cpf_view(cpf: CPF) -> dict[str, Any]:
-    """Project a CPF for the compound screen: parameter rows plus the S0 completeness fraction."""
-    report = check_completeness(cpf)
-    completeness = round((_COMPLETENESS_TOTAL - len(report.missing_ids)) / _COMPLETENESS_TOTAL, 3)
-    parameters = [
-        {
-            "id": p.id,
-            "value": None if p.value is None else str(p.value),
-            "unit": p.unit,
-            "status": p.status.value.lower(),
-            "source": (p.provenance.source_type if p.provenance else "unknown"),
-            "reference": (p.provenance.reference if p.provenance and p.provenance.reference else ""),
-            "fittableStages": list(p.fit_policy.stage) if p.fit_policy else [],
-        }
-        for p in cpf.parameters
-    ]
-    return {
-        "compound": cpf.compound,
-        "version": cpf.version,
-        "completeness": completeness,
-        "ready": report.ready,
-        "missing": list(report.missing),
-        "parameters": parameters,
-    }
-
 
 def get_read_store(settings: SettingsDep) -> ReadStore:
     if not settings.read_root:

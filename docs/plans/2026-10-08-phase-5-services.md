@@ -1,6 +1,6 @@
 # Phase 5: services out of routers, `modeler_api.deps`, deterministic helpers out of the agents package
 
-Status: **5a–5c done.** 5d next, one PR to `main`, behaviour identical.
+Status: **done** (5a–5d, one PR each, behaviour identical). Boundary exceptions 35 → 4; none of the router or seam kind left.
 Sources: `docs/ARCHITECTURE_BOUNDARIES.md` (rules B3/B4, couplings C3, C4, C9, §6 phase 5); exceptions in
 `tests/architecture/boundaries.toml`, which only shrinks.
 
@@ -49,13 +49,16 @@ layer.
   Seam exceptions went from 2 to 0, and 11 → 8 overall. The tests moved with the code: `test_citations.py` and
   `test_recipe_review.py` in `data-intake`. The agents' `test_data_mapping.py` checks only what the agent does: it
   sends the sheets, asks for the proposal's schema, and passes the proposal to the review unchanged.
-- **5d — services out of routers:**
-  - data-plan derivation (`requirements_api`) moves to a `modeler_project` service;
-  - `_observed_from_studies` (`write_api`) moves to a service;
-  - the project CPF view (`read_api`) moves to a service;
-  - the `StudyUpload` request model gets its own module. Phase 6 types the responses.
+- **5d — done.** Services left the routers:
+  - Data-plan derivation is now `modeler_project.data_plan.derive_data_plan`. With no brief it raises `NoBriefError`,
+    which `requirements_api` turns into the same 404. `brief_api` calls the service on approval.
+  - The study upload models (`ObservedProfile`, `StudyUpload`, `StudiesUpload`) and the observed PK per profile
+    (`observed_from_studies`, formerly the private `write_api._observed_from_studies`) are now in `modeler_api.studies`.
+    They are read by `write_api`, `inputs_api` (`inputs:publish`) and `plan_api` (`plan:sign`).
+    `deploy/reference/run_reference.py` imports it from there; `run_t56.py` is unchanged.
+  - The project CPF view is now `modeler_api.cpf_view.project_cpf_view`. `read_api` still re-exports it.
 
-  This removes the last 4 router exceptions.
+  Phase 6 types the responses. This removed the last 4 router exceptions; the OpenAPI snapshot is unchanged.
 
 ## Verification (every PR)
 - The boundary ratchet runs with the removed exceptions gone, and no stale entry remains.

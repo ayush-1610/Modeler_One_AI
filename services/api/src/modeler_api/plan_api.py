@@ -419,7 +419,7 @@ class SignRequest(BaseModel):
 def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: StoreDep,
               settings: SettingsDep) -> dict[str, Any]:
     """Approve and sign: the MAP generated from the plan, signed (Part 11, step-up), and the campaign inputs staged."""
-    from modeler_api.write_api import _observed_from_studies
+    from modeler_api.studies import observed_from_studies
     from modeler_storage.filestore import FileWriteStore
 
     ws = workspace_for(project_id, principal, store)
@@ -467,7 +467,7 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
     cpf_bytes = run_cpf.model_dump_json().encode("utf-8")
     map_bytes = signed.model_dump_json().encode("utf-8")
     mw = cpf.get("phys.mw")
-    observed = _observed_from_studies([r for r in rows if r.get("profile")], mw.numeric_value if mw else None)
+    observed = observed_from_studies([r for r in rows if r.get("profile")], mw.numeric_value if mw else None)
     cpf_path = write.materialize(principal.tenant_id, f"{prep}/cpf.json", cpf_bytes)
     map_path = write.materialize(principal.tenant_id, f"{prep}/map.json", map_bytes)
     observed_path = write.materialize(principal.tenant_id, f"{prep}/observed.json",

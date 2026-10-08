@@ -393,7 +393,7 @@ def approve_brief(project_id: str, body: Approval, principal: Writer, store: Sto
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     # The data plan follows from the approved brief (plan §5.2 P1): derived at once, reviewed on the next tab.
-    from modeler_api.requirements_api import derive_data_plan
+    from modeler_project.data_plan import derive_data_plan
 
     derive_data_plan(ws, actor="system", reason="derived from the approved brief")
     return envelope(_brief_view(ws))

@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import pytest
 
+from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.brief import Citation, FieldStatus, empty_brief
 from modeler_project.brief_ops import agent_set, edit_field
+from modeler_project.data_plan import NoBriefError, derive_data_plan
 from modeler_project.feasibility import check
-from modeler_project.requirements import RequirementOverride, client_items, derive, evaluate_when, literature_items
+from modeler_project.requirements import (
+    RequirementMatrix,
+    RequirementOverride,
+    client_items,
+    derive,
+    evaluate_when,
+    literature_items,
+)
 
 CITE = (Citation(doc_sha256="a" * 64, page=1, quote="quoted from the proposal"),)
 
@@ -94,3 +103,21 @@ def test_feasibility_reports_what_the_builder_cannot_produce_yet():
     assert len(report.blocking) == 3
     empty = check(empty_brief("X", by="u"))
     assert {line.status for line in empty.lines} == {"UNDETERMINED"}
+
+
+@pytest.mark.req("T-42")
+def test_the_data_plan_service_derives_from_the_latest_brief_and_keeps_overrides(tmp_path):
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    with pytest.raises(NoBriefError, match="no brief to derive the data plan from"):
+        derive_data_plan(ws, actor="u", reason="derived")
+    brief = ws.commit(ArtifactKind.BRIEF, "main", _vbe_brief().to_content(), actor="u", reason="drafted")
+    override = RequirementOverride(req_id="REQ-phys.logp", provider="CLIENT", reason="client measured it", by="u")
+    derive_data_plan(ws, actor="u", reason="derived")
+    derive_data_plan(ws, actor="u", reason="REQ-phys.logp: client measured it", extra=override)
+    derive_data_plan(ws, actor="u", reason="re-derived")
+    matrix_version = ws.latest(ArtifactKind.REQUIREMENTS, "main")
+    matrix = RequirementMatrix.from_content(matrix_version.content)
+    assert matrix.overrides == (override,) and matrix.get("REQ-phys.logp").provider == "CLIENT"
+    feasibility = ws.latest(ArtifactKind.FEASIBILITY, "main")
+    assert feasibility.content == check(_vbe_brief()).to_content()
+    assert matrix_version.derived_from == (brief.ref,) and feasibility.derived_from == (brief.ref,)
