@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — one writer per artifact kind; the MAP gets an owner module (architecture phase 6e)
+- **What:**
+  - **brief:** `modeler_project.brief_ops.save_brief` now writes it, taking over the five `ws.commit` calls in
+    `brief_api` (project start, A1 extraction, edit, item removal, a question answered). Provenance is kept as before.
+  - **cpf/published:** the hand-off record to the campaign path is written by `modeler_project.inputs.record_publication`
+    and read by `publication`, through a `Publication` content model. `inputs_api.publish` calls it.
+  - **map:** a new owner module, `modeler_project.map_artifact`, holds the `MapArtifact` / `MapSignature` content model
+    and the functions `latest_map`, `signed_map` and `record_signed_map`.
+    - `plan:sign` records the signed MAP through it.
+    - The plan page's MAP block, `_signed_map` and `blinding.map_signed` read through it, instead of from the raw
+      stored JSON.
+    - MAP generation (`pbpk_domain.campaign.map`, locked) is untouched.
+- **Why:** coupling C6 and rule B3. Before, a router wrote the MAP and blinding read its signature from raw JSON, so a
+  change to one stored key could break a page nobody had touched.
+- **Impact:**
+  - No behaviour change: same answers (the conftest guard), and the same stored content.
+  - New round-trip tests show that the MAP versions written by `plan:sign` and the hand-off record keep the keys the
+    routers wrote, and read back byte for byte; the audit chain hashes content.
+  - `test_map_artifact.py` covers the owner, including that an unsigned MAP gains no null keys.
+  - `boundaries.toml` (locked): the three writer exceptions are gone. Raw content reads go from 48 to 40 (`plan_api`
+    10 → 3, `blinding` 4 → 3), and the hash is refreshed.
+
 ### Changed — P4, project and escalation answers are typed; C5 closed (architecture phase 6d; API contract)
 - **What:**
   - `modeler_api.views.inputs`, `views.project` and `views.escalations` hold the response models. They are declared

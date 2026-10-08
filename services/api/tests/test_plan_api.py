@@ -177,6 +177,15 @@ def test_approve_and_sign_generates_the_map_signs_it_and_stages_the_campaign(set
     v2 = json.loads(Path(unquote(urlparse(data["map"]["campaign"]["map_uri"]).path)).read_text())
     assert v2["status"] == "SIGNED" and any("Deviation from MAP v1 (role, po-10)" in r for r in v2["split_rationale"])
     assert c.post("/api/v1/projects/p1/plan:sign", headers=H, json={}).status_code == 409    # nothing new to sign
+    # phase 6e: MAP/main is written and read through modeler_project.map_artifact; its stored content keeps the keys the
+    # router wrote before and reads back byte for byte (the audit chain hashes content)
+    from modeler_project.map_artifact import MapArtifact
+
+    versions = ws.versions(ArtifactKind.MAP, "main")
+    assert [v.version for v in versions] == [1, 2]
+    for stored in versions:
+        assert set(stored.content) == {"map", "map_sha256", "signature", "campaign"}
+        assert MapArtifact.from_content(stored.content).to_content() == stored.content
 
 
 @pytest.mark.req("T-50")

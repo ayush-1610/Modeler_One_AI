@@ -82,6 +82,12 @@ def test_inputs_are_assembled_chosen_accepted_and_handed_to_the_campaign_path(se
     assert c.post("/api/v1/projects/p1/inputs:accept", headers=H, json={"note": "inputs complete"}).status_code == 200
     published = c.post("/api/v1/projects/p1/inputs:publish", headers=H).json()["data"]["published"]
     assert published["studies"] == ["cl-iv"]
+    # phase 6e: CPF/published is written by modeler_project.inputs, with the keys the router wrote before
+    from modeler_project.inputs import Publication
+
+    stored = _ws.latest(ArtifactKind.CPF, "published").content
+    assert set(stored) == {"compound", "studies", "cpf", "readiness"} and stored["cpf"]["kind"] == "cpf"
+    assert Publication.model_validate(stored).to_content() == stored
     read = FileReadStore(str(read_root))
     assert read.get_cpf("t1", "p1", "Renaldrug").get("phys.logp").provenance.method == "InVitro"
     assert read.list_studies("t1", "p1")[0]["origin"] == "CLIENT"

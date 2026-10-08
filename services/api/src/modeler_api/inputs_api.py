@@ -29,6 +29,8 @@ from modeler_project.inputs import (
     current_cpf,
     placement,
     propose_identity_mw,
+    publication,
+    record_publication,
     set_choice,
     todo,
 )
@@ -65,7 +67,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
                    if catalog else None,
         "readiness": version_view(ws, ready) if ready else None,
         "choices": choices(ws).model_dump(),
-        "published": published.content if (published := ws.latest(ArtifactKind.CPF, "published")) else None,
+        "published": published.to_content() if (published := publication(ws)) else None,
         "todo": todo(ws),
     }
 
@@ -163,9 +165,5 @@ def publish(project_id: str, principal: Writer, store: StoreDep, settings: Setti
     write = FileWriteStore(settings.read_root)
     write.put_cpf(principal.tenant_id, project_id, cpf.compound, cpf)
     write.put_studies(principal.tenant_id, project_id, studies)
-    cpf_ref = ws.latest(ArtifactKind.CPF, MAIN).ref
-    record = {"compound": cpf.compound, "studies": [s["study_id"] for s in studies], "cpf": cpf_ref.model_dump(mode="json"),
-              "readiness": ready.ref.model_dump(mode="json")}
-    ws.commit(ArtifactKind.CPF, "published", record, derived_from=[cpf_ref, ready.ref], actor=principal.user_id,
-              reason=f"handed to the campaign path: {len(studies)} studies")
+    record_publication(ws, studies=[s["study_id"] for s in studies], by=principal.user_id)
     return envelope(_view(ws))

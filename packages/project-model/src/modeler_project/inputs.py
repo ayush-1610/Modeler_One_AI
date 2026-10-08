@@ -23,7 +23,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from modeler_project.artifacts import ArtifactKind, ArtifactVersion
+from modeler_project.artifacts import ArtifactKind, ArtifactRef, ArtifactVersion
 from modeler_project.brief import ProjectBrief
 from modeler_project.datasets import ObservedDataset
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceType, numeric_target, review_flags
@@ -35,6 +35,7 @@ from pbpk_domain.data_origin import REAL_ORIGINS
 
 MAIN = "main"
 CHOICES = "choices"
+PUBLISHED = "published"
 SOLID = ("ir_tablet", "ir_capsule", "mr", "suspension")
 
 # Evidence source -> PK-Sim ValueOrigin.Source (harvested: snapshot.models.VALUE_ORIGIN_SOURCES). The evidence's own
@@ -425,6 +426,36 @@ def accept_inputs(ws: Workspace, *, by: str, printed_name: str = "", note: str =
 def current_cpf(ws: Workspace) -> CPF | None:
     version = ws.latest(ArtifactKind.CPF, MAIN)
     return CPF.model_validate(version.content["cpf"]) if version else None
+
+
+class Publication(BaseModel):
+    """CPF/published: the accepted CPF and readiness versions handed to the campaign path, and the studies sent."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    compound: str
+    studies: list[str]
+    cpf: ArtifactRef
+    readiness: ArtifactRef
+
+    def to_content(self) -> dict[str, Any]:
+        return self.model_dump(mode="json")
+
+
+def record_publication(ws: Workspace, *, studies: list[str], by: str) -> ArtifactVersion:
+    """Record the hand-off of the accepted inputs (the CPF and the judged studies) to the campaign path."""
+    cpf_version, ready = ws.latest(ArtifactKind.CPF, MAIN), ws.latest(ArtifactKind.READINESS, MAIN)
+    if cpf_version is None or ready is None:
+        raise ValueError("assemble and accept the inputs first")
+    record = Publication(compound=CPF.model_validate(cpf_version.content["cpf"]).compound, studies=studies,
+                         cpf=cpf_version.ref, readiness=ready.ref)
+    return ws.commit(ArtifactKind.CPF, PUBLISHED, record.to_content(), derived_from=[cpf_version.ref, ready.ref], actor=by,
+                     reason=f"handed to the campaign path: {len(studies)} studies")
+
+
+def publication(ws: Workspace) -> Publication | None:
+    version = ws.latest(ArtifactKind.CPF, PUBLISHED)
+    return Publication.model_validate(version.content) if version else None
 
 
 # --- what is left to do (the page's to-do list) ----------------------------------------------------------------
