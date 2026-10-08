@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 
 import type { DocumentView } from "@/lib/brief";
-import { apiGet } from "@/lib/writes";
+import { get, type Schema } from "@/lib/api";
 
-type Page = { sha256: string; name: string; page: number; n_pages: number; text: string };
+type Page = Schema<"DocumentPage">;
 
 /** Highlight `quote` inside `text`, tolerating whitespace differences (the citation check normalizes whitespace). */
 function highlight(text: string, quote: string | null) {
@@ -43,7 +43,7 @@ export function DocumentViewer({
   useEffect(() => {
     if (!sha) return;
     let cancelled = false;
-    apiGet<Page>(`/api/v1/projects/${projectId}/documents/${sha}/pages/${pageNo}`).then((env) => {
+    get("/api/v1/projects/{project_id}/documents/{sha256}/pages/{page}", { project_id: projectId, sha256: sha, page: String(pageNo) }).then((env) => {
       if (cancelled) return;
       if (env.errors?.length || !env.data) setProblem(env.errors?.[0]?.message ?? "page not found");
       else { setProblem(null); setPage(env.data); }

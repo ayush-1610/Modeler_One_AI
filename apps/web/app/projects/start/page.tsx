@@ -5,10 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Card } from "@/components/ui";
-import type { Schema } from "@/lib/api";
-import { apiUpload } from "@/lib/writes";
-
-type Initiated = Schema<"ProjectStarted">;
+import { upload } from "@/lib/api";
 
 const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.csv,.tsv,.xlsx,.xlsm";
 
@@ -37,7 +34,7 @@ export default function StartProjectPage() {
     if (name.trim()) form.set("name", name.trim());
     if (context.trim()) form.set("context", context.trim());
     files.forEach((f) => form.append("files", f));
-    const env = await apiUpload<Initiated>("/api/v1/projects:initiate", form);
+    const env = await upload("/api/v1/projects:initiate", {}, form);
     setBusy(false);
     if (env.errors?.length || !env.data) {
       setError(env.errors?.[0]?.message ?? "The project could not be started.");

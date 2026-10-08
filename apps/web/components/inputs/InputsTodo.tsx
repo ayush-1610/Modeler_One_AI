@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { apiSend } from "@/lib/writes";
+import { send } from "@/lib/api";
 
 export type Ev = {
   id: string; target: string; value: number | string | null; unit: string | null; value_pksim: number | null;
@@ -84,7 +84,7 @@ function Conflict({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
         <input placeholder="why this value (kept in the audit trail)" value={reason} onChange={(e) => setReason(e.target.value)}
                style={{ flex: 1, minWidth: 220 }} aria-label={`reason for ${t.target}`} />
         <button className="btn primary" disabled={!keep || !reason.trim()}
-                onClick={() => void run(() => apiSend(`/api/v1/projects/${projectId}/evidence/${keep}:choose`, "POST", { reason }),
+                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:choose", { project_id: projectId, evidence_id: keep }, { reason }),
                                         `${t.target}: one value kept, the others rejected with your reason.`)}>
           Keep the selected value, reject the others
         </button>
@@ -137,7 +137,8 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
                aria-label={`reason for ${e.id}`} />
         <button className="btn primary" disabled={!reason.trim() || (pka ? !kind : !target || (needsMolecule && !molecule) || (statement && !number))}
                 title={statement ? "a sentence becomes a value only as a number its quote states" : undefined}
-                onClick={() => void run(() => apiSend(`/api/v1/projects/${projectId}/evidence/${e.id}:correct`, "POST",
+                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:correct",
+                                                      { project_id: projectId, evidence_id: e.id },
                                                       pka ? { conditions: { type: kind }, reason }
                                                           : { target: concrete, reason, ...(statement ? { value: Number(number), unit: unit || null } : {}) }),
                                         pka ? `pKa ${fmt(e.value)} recorded as ${kind === "acid" ? "acidic" : "basic"}.`
@@ -145,7 +146,7 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
           {pka ? "Save" : "Correct"}
         </button>
         <button className="btn" disabled={!reason.trim()}
-                onClick={() => void run(() => apiSend(`/api/v1/projects/${projectId}/evidence/${e.id}:decide`, "POST", { state: "REJECTED", reason }),
+                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
                                         `${e.id} rejected.`)}>Reject</button>
       </div>
     </div>
@@ -165,10 +166,10 @@ function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: Run }) {
                aria-label={`reason for ${e.id}`} />
         <button className="btn primary" disabled={!reason.trim() || (typeof e.value === "number" && e.value_pksim === null)}
                 title={typeof e.value === "number" && e.value_pksim === null ? "no automatic conversion: accept it on the Literature page with its PK-Sim value" : undefined}
-                onClick={() => void run(() => apiSend(`/api/v1/projects/${projectId}/evidence/${e.id}:decide`, "POST", { state: "ACCEPTED", reason }),
+                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "ACCEPTED", reason }),
                                         `${e.target} = ${fmt(e.value_pksim ?? e.value)} accepted.`)}>Accept</button>
         <button className="btn" disabled={!reason.trim()}
-                onClick={() => void run(() => apiSend(`/api/v1/projects/${projectId}/evidence/${e.id}:decide`, "POST", { state: "REJECTED", reason }),
+                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
                                         `${e.id} rejected.`)}>Reject</button>
       </div>
     </div>
@@ -213,7 +214,7 @@ function Datasets({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
                  style={{ flex: 1, minWidth: 220 }} aria-label="reason for the datasets" />
           <button className="btn primary" disabled={!reason.trim()} onClick={async () => {
             for (const d of proposed) {
-              const err = await run(() => apiSend(`/api/v1/projects/${projectId}/datasets/${d.id}:decide`, "POST", { state: "ACCEPTED", reason }), "");
+              const err = await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:decide", { project_id: projectId, dataset_id: d.id }, { state: "ACCEPTED", reason }), "");
               if (err) return;
             }
           }}>Accept the {proposed.length} proposed dataset{proposed.length === 1 ? "" : "s"}</button>
@@ -232,7 +233,7 @@ export function InputsTodo({ projectId, todo, run }: { projectId: string; todo: 
     <section className="card todo" aria-label="What stops readiness" data-testid="inputs-todo">
       <div className="spread">
         <h2 style={{ margin: 0 }}>What stops readiness ({todo.length})</h2>
-        <button className="btn" onClick={async () => setResearching(await run(() => apiSend(`/api/v1/projects/${projectId}/evidence:research`, "POST"),
+        <button className="btn" onClick={async () => setResearching(await run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }),
                                                                               "The literature agent (A2) is searching; its proposals appear here and on the Literature page.") ?? "started")}>
           Ask the literature agent for what is missing
         </button>
@@ -261,7 +262,7 @@ export function InputsTodo({ projectId, todo, run }: { projectId: string; todo: 
                 <div className="row" style={{ gap: 6, margin: "4px 0" }}>
                   <span style={{ fontSize: 13 }}>The brief&apos;s PubChem record ({t.identity.name}, CID {t.identity.cid}) says
                     <strong> {t.identity.value} g/mol</strong>. Check it is the free base, not the salt.</span>
-                  <button className="btn" onClick={() => void run(() => apiSend(`/api/v1/projects/${projectId}/inputs:propose-identity`, "POST"),
+                  <button className="btn" onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/inputs:propose-identity", { project_id: projectId }),
                                                                     "Molecular weight proposed from PubChem: accept it below.")}>Propose it</button>
                 </div>
               )}

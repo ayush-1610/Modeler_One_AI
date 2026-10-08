@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { WEB_TOKEN } from "@/lib/writes";
+import { apiFile } from "@/lib/api";
 
 const LABELS: Record<string, string> = {
   "package.zip": "Submission package (.zip, with the PK-Sim project files)",
@@ -23,26 +23,18 @@ export function PackageDownloads({ campaignId, artifacts }: { campaignId: string
   async function download(artifact: string) {
     setBusy(artifact);
     setError(null);
-    try {
-      const res = await fetch(`/api/v1/campaigns/${campaignId}/package/${artifact}`, {
-        headers: { Authorization: `Bearer ${WEB_TOKEN}` },
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.detail ?? `Could not download ${artifact} (${res.status}).`);
-        return;
-      }
-      const url = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${campaignId}-${artifact}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setError("Could not reach the API to download the file.");
-    } finally {
-      setBusy(null);
+    const { file, problem } = await apiFile(`/api/v1/campaigns/${encodeURIComponent(campaignId)}/package/${encodeURIComponent(artifact)}`);
+    setBusy(null);
+    if (!file) {
+      setError(`Could not download ${artifact}: ${problem}`);
+      return;
     }
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${campaignId}-${artifact}`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (

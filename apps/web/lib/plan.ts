@@ -1,8 +1,7 @@
 // P5 · model plan (plan §11, review layer L3): the types of the plan API and the calls the canvas makes.
 // The ModelPlan JSON is the record; the canvas only renders it and sends changes, each with a reason.
 
-import type { Envelope } from "@/lib/api";
-import { apiGet, apiSend } from "@/lib/writes";
+import { apiGet, apiSend, get, send, type Envelope, type Schema } from "@/lib/api";
 
 export type Role = "S1" | "S2" | "S3" | "S5" | "S6" | "SUPPORTIVE";
 export const ROLES: Role[] = ["S1", "S2", "S3", "S5", "S6", "SUPPORTIVE"];
@@ -90,14 +89,13 @@ export const planApi = {
   rebase: (projectId: string) => apiSend<PlanView>(`${base(projectId)}:rebase`, "POST"),
   draft: (projectId: string) => apiSend<{ status: string }>(`${base(projectId)}:draft`, "POST"),
   sign: (projectId: string, note: string) => apiSend<PlanView>(`${base(projectId)}:sign`, "POST", { note }),
-  blinding: (projectId: string) => apiGet<Blinding>(`/api/v1/projects/${projectId}/blinding`),
+  blinding: (projectId: string) => get("/api/v1/projects/{project_id}/blinding", { project_id: projectId }),
   setBlinding: (projectId: string, on: boolean, reason: string) =>
-    apiSend<Blinding>(`/api/v1/projects/${projectId}/blinding`, "PUT", { on, reason }),
+    send("put", "/api/v1/projects/{project_id}/blinding", { project_id: projectId }, { on, reason }),
 };
 
 // D-15: external datasets' values withheld until the MAP is signed (per project; default on for high model risk).
-export type Blinding = { on: boolean; source: string; reason?: string; by?: string; map_signed: boolean;
-                         blinded: string[]; external: string[] };
+export type Blinding = Schema<"BlindingView">;
 
 export type PlanEnvelope = Envelope<PlanView>;
 

@@ -4,9 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
 import { Card } from "@/components/ui";
-import type { Narrow, Schema } from "@/lib/api";
+import { get, narrow, send, upload, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
-import { apiGet, apiSend, apiUpload } from "@/lib/writes";
 
 type Evidence = {
   id: string;
@@ -45,12 +44,14 @@ const STATUS_CHIP: Record<string, string> = {
   ACCEPTED: "low", PROPOSED: "medium", CONFLICTING: "high", NOT_FOUND: "high", NOT_AVAILABLE: "neutral", WAIVED: "neutral",
 };
 const GRADE_CHIP: Record<string, string> = { A: "low", B: "brand", C: "medium", D: "high" };
-const SOURCE_TYPES = ["REGULATORY_REVIEW", "PUBLICATION", "CLIENT_REPORT", "DATABASE", "OSP_LIBRARY", "PREDICTED", "ASSUMPTION"];
+type SourceType = Schema<"SourceType">;
+const SOURCE_TYPES: SourceType[] = ["REGULATORY_REVIEW", "PUBLICATION", "CLIENT_REPORT", "DATABASE", "OSP_LIBRARY", "PREDICTED",
+                                    "ASSUMPTION"];
 
 function EvidenceCard({ e, onOpen, onDecide }: {
   e: Evidence;
   onOpen: (e: Evidence) => void;
-  onDecide: (e: Evidence, state: "ACCEPTED" | "REJECTED" | "PROPOSED", reason: string, valuePksim?: number) => Promise<string | null>;
+  onDecide: (e: Evidence, state: Schema<"Decision">["state"], reason: string, valuePksim?: number) => Promise<string | null>;
 }) {
   const [reason, setReason] = useState("");
   const [pksim, setPksim] = useState("");
@@ -96,10 +97,10 @@ function EvidenceCard({ e, onOpen, onDecide }: {
   );
 }
 
-function ManualForm({ row, onAdd }: { row: Coverage; onAdd: (body: Record<string, unknown>) => Promise<string | null> }) {
+function ManualForm({ row, onAdd }: { row: Coverage; onAdd: (body: Schema<"ManualEvidence">) => Promise<string | null> }) {
   const [value, setValue] = useState("");
   const [unit, setUnit] = useState("");
-  const [sourceType, setSourceType] = useState("PUBLICATION");
+  const [sourceType, setSourceType] = useState<SourceType>("PUBLICATION");
   const [doi, setDoi] = useState("");
   const [title, setTitle] = useState("");
   const [conditions, setConditions] = useState("");
@@ -112,7 +113,7 @@ function ManualForm({ row, onAdd }: { row: Coverage; onAdd: (body: Record<string
         <input placeholder="target (CPF id)" value={concrete} onChange={(e) => setConcrete(e.target.value)} style={{ width: 210 }} />
         <input placeholder="value" value={value} onChange={(e) => setValue(e.target.value)} style={{ width: 110 }} />
         <input placeholder="unit as stated" value={unit} onChange={(e) => setUnit(e.target.value)} style={{ width: 110 }} />
-        <select value={sourceType} onChange={(e) => setSourceType(e.target.value)}>
+        <select value={sourceType} onChange={(e) => setSourceType(e.target.value as SourceType)}>
           {SOURCE_TYPES.map((s) => <option key={s} value={s}>{s.toLowerCase().replace(/_/g, " ")}</option>)}
         </select>
       </div>
@@ -149,10 +150,10 @@ export function EvidenceReview({ projectId }: { projectId: string }) {
 
   const load = useCallback(async () => {
     const [v, d] = await Promise.all([
-      apiGet<EvidenceViewData>(`/api/v1/projects/${projectId}/evidence`),
-      apiGet<{ documents: DocumentView[] }>(`/api/v1/projects/${projectId}/documents`),
+      get("/api/v1/projects/{project_id}/evidence", { project_id: projectId }),
+      get("/api/v1/projects/{project_id}/documents", { project_id: projectId }),
     ]);
-    if (v.data) { setView(v.data); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "The evidence could not be read.");
+    if (v.data) { setView(narrow<EvidenceViewData>(v.data)); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "The evidence could not be read.");
     if (d.data) setDocs(d.data.documents);
   }, [projectId]);
   useEffect(() => { void load(); }, [load]);
@@ -169,7 +170,7 @@ export function EvidenceReview({ projectId }: { projectId: string }) {
   if (problem) return <div className="banner err">{problem}</div>;
   if (!view) return <p className="muted">Loading the evidence…</p>;
 
-  async function act<T>(fn: () => Promise<{ data: T | null; errors: { message: string }[] }>): Promise<string | null> {
+  async function act<T>(fn: () => Promise<Envelope<T>>): Promise<string | null> {
     setBusy(true);
     const env = await fn();
     setBusy(false);
@@ -177,15 +178,15 @@ export function EvidenceReview({ projectId }: { projectId: string }) {
     await load();
     return null;
   }
-  const decide = (e: Evidence, state: string, reason: string, value?: number) =>
-    act(() => apiSend(`/api/v1/projects/${projectId}/evidence/${e.id}:decide`, "POST",
+  const decide = (e: Evidence, state: Schema<"Decision">["state"], reason: string, value?: number) =>
+    act(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id },
       { state, reason, ...(value !== undefined ? { value_pksim: value, unit_pksim: null } : {}) }));
-  const add = (body: Record<string, unknown>) => act(() => apiSend(`/api/v1/projects/${projectId}/evidence`, "POST", body));
+  const add = (body: Schema<"ManualEvidence">) => act(() => send("post", "/api/v1/projects/{project_id}/evidence", { project_id: projectId }, body));
   const open = (e: Evidence) => e.source.doc_sha256 && setFocus({ sha256: e.source.doc_sha256, page: e.source.page ?? 1, quote: e.quote });
   const notAvailable = async (row: Coverage) => {
     const reason = window.prompt(`Why is "${row.label}" not available? (this changes the data plan, which is re-approved)`);
     if (!reason) return;
-    setNotice(await act(() => apiSend(`/api/v1/projects/${projectId}/requirements/${encodeURIComponent(row.req_id)}`, "PUT",
+    setNotice(await act(() => send("put", "/api/v1/projects/{project_id}/requirements/{req_id}", { project_id: projectId, req_id: row.req_id },
       { status: "NOT_AVAILABLE", reason })));
   };
 
@@ -207,12 +208,12 @@ export function EvidenceReview({ projectId }: { projectId: string }) {
               {view.agents.enabled ? `agent: ${view.agents.provider} · ${view.agents.model}` : "agents off"}
             </span>
             <button className="btn" disabled={busy || view.running || !view.agents.enabled}
-                    onClick={async () => setNotice(await act(() => apiSend(`/api/v1/projects/${projectId}/evidence:research`, "POST", {}))
+                    onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }))
                       ?? "The literature agent is searching; proposals appear as it records them.")}>
               {view.running ? "Searching…" : "Run literature search"}
             </button>
             <button className="btn primary" disabled={busy || view.blocking.length > 0 || approved}
-                    onClick={async () => setNotice(await act(() => apiSend(`/api/v1/projects/${projectId}/evidence:approve`, "POST", { note: "" })) ?? "Literature evidence approved.")}>
+                    onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/evidence:approve", { project_id: projectId }, { note: "" })) ?? "Literature evidence approved.")}>
               {approved ? "Approved" : `Approve literature evidence${view.blocking.length ? ` (${view.blocking.length} open)` : ""}`}
             </button>
           </div>
@@ -269,7 +270,7 @@ export function EvidenceReview({ projectId }: { projectId: string }) {
                             if (!file) return;
                             const form = new FormData();
                             form.set("file", file);
-                            setNotice(await act(() => apiUpload(`/api/v1/projects/${projectId}/access-requests/${r.id}:fulfil`, form)) ?? "Paper stored; the agent can cite it now.");
+                            setNotice(await act(() => upload("/api/v1/projects/{project_id}/access-requests/{request_id}:fulfil", { project_id: projectId, request_id: r.id }, form)) ?? "Paper stored; the agent can cite it now.");
                           }} />
                         )}
                       </td>

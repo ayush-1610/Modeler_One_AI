@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui";
-import { apiGet, apiSend } from "@/lib/writes";
+import { get, narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 
 type Item = {
   req_id: string;
@@ -35,15 +35,15 @@ type Item = {
 
 type FeasibilityLine = { feature: string; needed_because: string; status: string; route: string };
 
-type PlanView = {
-  artifact: { version: number; status: string; reason: string; stale_reasons: string[] };
+// GET /projects/{id}/requirements (RequirementsPage); the stored matrix and feasibility report are typed here
+type PlanView = Narrow<Schema<"RequirementsPage">, {
   matrix: { templates: string[]; items: Item[]; overrides: { req_id: string; reason: string; by: string }[]; notes: string[] };
-  counts: { applicable: number; by_provider: Record<string, number>; undetermined: number; to_harvest: number };
   feasibility: { lines: FeasibilityLine[]; blocking?: number; undetermined?: number; status: string | null };
-  brief_status: string | null;
-};
+}>;
 
-const PROVIDERS = ["CLIENT", "LITERATURE", "SPONSOR_TO_MEASURE", "PREDICT", "STRUCTURE", "LIBRARY", "STUDY", "PROPOSAL", "NOT_NEEDED"];
+type Provider = NonNullable<Schema<"OverrideRequest">["provider"]>;
+const PROVIDERS: Provider[] = ["CLIENT", "LITERATURE", "SPONSOR_TO_MEASURE", "PREDICT", "STRUCTURE", "LIBRARY", "STUDY", "PROPOSAL",
+                               "NOT_NEEDED"];
 const FEAS_CHIP: Record<string, string> = {
   SUPPORTED: "low", LIMITED: "medium", NEEDS_HARVEST: "high", NOT_SUPPORTED: "high", UNDETERMINED: "neutral",
 };
@@ -57,8 +57,8 @@ export function DataPlan({ projectId, view: tab }: { projectId: string; view: "p
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const env = await apiGet<PlanView>(`/api/v1/projects/${projectId}/requirements`);
-    if (env.data) { setData(env.data); setMissing(false); setProblem(null); }
+    const env = await get("/api/v1/projects/{project_id}/requirements", { project_id: projectId });
+    if (env.data) { setData(narrow<PlanView>(env.data)); setMissing(false); setProblem(null); }
     else if (env.errors?.[0]?.message?.includes("no data plan")) setMissing(true);
     else setProblem(env.errors?.[0]?.message ?? "The data plan could not be read.");
   }, [projectId]);
@@ -71,18 +71,19 @@ export function DataPlan({ projectId, view: tab }: { projectId: string; view: "p
     return out;
   }, [data, showAll]);
 
-  async function run(path: string, method: "POST" | "PUT", body: unknown) {
+  async function run(call: () => Promise<Envelope<Schema<"RequirementsPage">>>) {
     setBusy(true);
-    const env = await apiSend<PlanView>(path, method, body);
+    const env = await call();
     setBusy(false);
-    if (env.data) { setData(env.data); setMissing(false); setProblem(null); }
+    if (env.data) { setData(narrow<PlanView>(env.data)); setMissing(false); setProblem(null); }
     else setProblem(env.errors?.[0]?.message ?? "not saved");
   }
 
-  async function override(item: Item, change: { provider?: string; cross_check?: boolean }) {
+  async function override(item: Item, change: { provider?: Provider; cross_check?: boolean }) {
     const reason = window.prompt(`Why change ${item.label}?`);
     if (!reason) return;
-    await run(`/api/v1/projects/${projectId}/requirements/${encodeURIComponent(item.req_id)}`, "PUT", { ...change, reason });
+    await run(() => send("put", "/api/v1/projects/{project_id}/requirements/{req_id}", { project_id: projectId, req_id: item.req_id },
+                         { ...change, reason }));
   }
 
   if (problem) return <div className="banner err">{problem}</div>;
@@ -91,7 +92,7 @@ export function DataPlan({ projectId, view: tab }: { projectId: string; view: "p
       <Card title="Data plan">
         <p className="muted">The data plan is derived from the brief: every PK-Sim input and observed dataset the project
           needs, with who provides it. It is derived automatically when the brief is approved, or now as a draft.</p>
-        <button className="btn primary" disabled={busy} onClick={() => run(`/api/v1/projects/${projectId}/requirements:derive`, "POST", {})}>
+        <button className="btn primary" disabled={busy} onClick={() => run(() => send("post", "/api/v1/projects/{project_id}/requirements:derive", { project_id: projectId }))}>
           Derive from the brief
         </button>
       </Card>
@@ -137,10 +138,10 @@ export function DataPlan({ projectId, view: tab }: { projectId: string; view: "p
             <label className="row" style={{ gap: 6, fontSize: 13 }}>
               <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> show not applicable
             </label>
-            <button className="btn" disabled={busy} onClick={() => run(`/api/v1/projects/${projectId}/requirements:derive`, "POST", {})}>Re-derive</button>
+            <button className="btn" disabled={busy} onClick={() => run(() => send("post", "/api/v1/projects/{project_id}/requirements:derive", { project_id: projectId }))}>Re-derive</button>
             <button className="btn primary" disabled={busy || approved || data.brief_status !== "APPROVED" || data.artifact.stale_reasons.length > 0}
                     title={data.brief_status !== "APPROVED" ? "approve the brief first" : ""}
-                    onClick={() => run(`/api/v1/projects/${projectId}/requirements:approve`, "POST", { note: "" })}>
+                    onClick={() => run(() => send("post", "/api/v1/projects/{project_id}/requirements:approve", { project_id: projectId }, { note: "" }))}>
               {approved ? "Approved" : "Approve data plan"}
             </button>
           </div>
@@ -177,7 +178,7 @@ export function DataPlan({ projectId, view: tab }: { projectId: string; view: "p
                         {i.applies === "no" && <div className="muted" style={{ fontSize: 12 }}>not applicable</div>}
                       </td>
                       <td>
-                        <select value={i.provider} disabled={busy} onChange={(e) => override(i, { provider: e.target.value })}>
+                        <select value={i.provider} disabled={busy} onChange={(e) => override(i, { provider: e.target.value as Provider })}>
                           {PROVIDERS.map((p) => <option key={p} value={p}>{p.toLowerCase().replace(/_/g, " ")}</option>)}
                         </select>
                         <div className="muted" style={{ fontSize: 12 }} title={i.provider_statement}>

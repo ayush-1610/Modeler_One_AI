@@ -8,7 +8,7 @@ import {
   display, EMPTY_RECORD, STATUS_CHIP,
   type BriefView, type Citation, type DocumentView, type FieldDef, type FieldRecord, type Impact,
 } from "@/lib/brief";
-import { apiGet, apiSend } from "@/lib/writes";
+import { get, narrow, send, type Schema } from "@/lib/api";
 
 type Focus = { sha256: string; page: number; quote: string | null } | null;
 type EditStatus = "EDITED" | "CONFIRMED" | "NOT_APPLICABLE" | "MISSING";
@@ -160,12 +160,12 @@ export function BriefReview({ projectId }: { projectId: string }) {
 
   const load = useCallback(async () => {
     const [b, d] = await Promise.all([
-      apiGet<BriefView>(`/api/v1/projects/${projectId}/brief`),
-      apiGet<{ documents: DocumentView[] }>(`/api/v1/projects/${projectId}/documents`),
+      get("/api/v1/projects/{project_id}/brief", { project_id: projectId }),
+      get("/api/v1/projects/{project_id}/documents", { project_id: projectId }),
     ]);
     if (b.errors?.length || !b.data) { setProblem(b.errors?.[0]?.message ?? "The brief could not be read."); return; }
     setProblem(null);
-    setView(b.data);
+    setView(narrow<BriefView>(b.data));
     if (d.data) setDocuments(d.data.documents);
   }, [projectId]);
 
@@ -189,24 +189,24 @@ export function BriefReview({ projectId }: { projectId: string }) {
   const open = (c: Citation) => setFocus({ sha256: c.doc_sha256, page: c.page, quote: c.quote });
 
   async function save(change: Change): Promise<string | null> {
-    const env = await apiSend<BriefView>(`/api/v1/projects/${projectId}/brief`, "PUT",
+    const env = await send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId },
       { changes: [change], reason: change.note || `confirmed ${change.path}` });
     if (env.errors?.length || !env.data) return env.errors?.[0]?.message ?? "not saved";
-    setView(env.data);
+    setView(narrow<BriefView>(env.data as Schema<"BriefPage">));
     setEditing(null);
     return null;
   }
 
   async function preview(change: Change): Promise<Impact | string> {
-    const env = await apiSend<{ impact: Impact }>(`/api/v1/projects/${projectId}/brief`, "PUT",
+    const env = await send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId },
       { changes: [change], reason: change.note || "preview", preview: true });
-    return env.errors?.length || !env.data ? (env.errors?.[0]?.message ?? "no preview") : env.data.impact;
+    return env.errors?.length || !env.data ? (env.errors?.[0]?.message ?? "no preview")
+      : (env.data as Schema<"BriefImpact">).impact;
   }
 
   async function extract() {
     setBusy(true);
-    const env = await apiSend<{ agents: boolean; problem: string | null }>(
-      `/api/v1/projects/${projectId}/brief:extract`, "POST", {});
+    const env = await send("post", "/api/v1/projects/{project_id}/brief:extract", { project_id: projectId }, {});
     setBusy(false);
     setNotice(env.errors?.length ? env.errors[0].message
       : env.data?.agents ? "The intake agent is reading the documents; the brief refreshes as it finishes."
@@ -216,23 +216,24 @@ export function BriefReview({ projectId }: { projectId: string }) {
 
   async function approve() {
     setBusy(true);
-    const env = await apiSend<BriefView>(`/api/v1/projects/${projectId}/brief:approve`, "POST", { note: "" });
+    const env = await send("post", "/api/v1/projects/{project_id}/brief:approve", { project_id: projectId }, { note: "" });
     setBusy(false);
     if (env.errors?.length || !env.data) setNotice(env.errors?.[0]?.message ?? "not approved");
-    else { setView(env.data); setNotice("Brief approved."); }
+    else { setView(narrow<BriefView>(env.data)); setNotice("Brief approved."); }
   }
 
   async function answer(questionId: string, text: string, status: "answered" | "accepted_as_limitation") {
-    const env = await apiSend<BriefView>(`/api/v1/projects/${projectId}/brief/questions/${questionId}`, "POST",
-      { answer: text, status });
-    if (env.data) setView(env.data); else setNotice(env.errors?.[0]?.message ?? "not saved");
+    const env = await send("post", "/api/v1/projects/{project_id}/brief/questions/{question_id}",
+      { project_id: projectId, question_id: questionId }, { answer: text, status });
+    if (env.data) setView(narrow<BriefView>(env.data)); else setNotice(env.errors?.[0]?.message ?? "not saved");
   }
 
   async function removeItem(group: string, index: number) {
     const reason = window.prompt(`Why remove ${group} ${index + 1}?`);
     if (!reason) return;
-    const env = await apiSend<BriefView>(`/api/v1/projects/${projectId}/brief/items:remove`, "POST", { group, index, reason });
-    if (env.data) setView(env.data); else setNotice(env.errors?.[0]?.message ?? "not removed");
+    const env = await send("post", "/api/v1/projects/{project_id}/brief/items:remove", { project_id: projectId },
+      { group, index, reason });
+    if (env.data) setView(narrow<BriefView>(env.data)); else setNotice(env.errors?.[0]?.message ?? "not removed");
   }
 
   const approved = view.artifact.status === "APPROVED";

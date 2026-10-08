@@ -1,7 +1,7 @@
 // The project start-up pipeline (P0–P6): phase statuses, versioned artifacts, their history and the audit trail.
 // Server-side reads return `Live<T>` (data or the problem that prevented it), like every other read in the app.
 
-import { serverRead, type Live, type Narrow, type Schema } from "@/lib/api";
+import { narrow, serverGet, type Live, type Narrow, type Schema } from "@/lib/api";
 
 // The answers are the API's generated response models (lib/api-types.ts); an artifact's stored content is the caller's.
 export type PhaseId = Schema<"PhaseRow">["phase"];
@@ -9,7 +9,7 @@ export type PhaseStatus = Schema<"PhaseStatus">;
 export type ArtifactStatus = Schema<"ArtifactStatus">;
 export type ArtifactRef = Schema<"Ref">;
 export type Approval = Schema<"ApprovalView">;
-export type ArtifactView<C = Record<string, unknown>> = Narrow<Schema<"VersionView">, { content?: C }>;
+export type ArtifactView<C = Record<string, unknown>> = Narrow<Schema<"VersionView">, { content?: C | null }>;
 export type Change = Schema<"ChangeView">;
 export type HistoryRow = Schema<"HistoryRow">;
 export type Phases = Schema<"Phases">;
@@ -27,25 +27,25 @@ export const PHASE_ROUTES: Record<PhaseId, (projectId: string) => string> = {
 };
 
 export function getPhases(projectId: string): Promise<Live<Phases>> {
-  return serverRead<Phases>(`/api/v1/projects/${projectId}/phases`);
+  return serverGet("/api/v1/projects/{project_id}/phases", { project_id: projectId });
 }
 
 export async function getArtifacts(projectId: string, kind?: string): Promise<Live<ArtifactView[]>> {
-  const query = kind ? `?kind=${encodeURIComponent(kind)}` : "";
-  const live = await serverRead<{ artifacts: ArtifactView[] }>(`/api/v1/projects/${projectId}/artifacts${query}`);
+  const live = await serverGet("/api/v1/projects/{project_id}/artifacts", { project_id: projectId }, { kind });
   return { ...live, data: live.data ? live.data.artifacts : null };
 }
 
-export function getArtifact<C>(projectId: string, kind: string, id: string): Promise<Live<ArtifactView<C>>> {
-  return serverRead<ArtifactView<C>>(`/api/v1/projects/${projectId}/artifacts/${kind}/${encodeURIComponent(id)}`);
+export async function getArtifact<C>(projectId: string, kind: string, id: string): Promise<Live<ArtifactView<C>>> {
+  const live = await serverGet("/api/v1/projects/{project_id}/artifacts/{kind}/{artifact_id}", { project_id: projectId, kind, artifact_id: id });
+  return { ...live, data: live.data ? narrow<ArtifactView<C>>(live.data) : null };
 }
 
 export async function getHistory(projectId: string, kind: string, id: string): Promise<Live<HistoryRow[]>> {
-  const live = await serverRead<{ versions: HistoryRow[] }>(
-    `/api/v1/projects/${projectId}/artifacts/${kind}/${encodeURIComponent(id)}/history`);
+  const live = await serverGet("/api/v1/projects/{project_id}/artifacts/{kind}/{artifact_id}/history",
+                               { project_id: projectId, kind, artifact_id: id });
   return { ...live, data: live.data ? live.data.versions : null };
 }
 
-export async function getAudit(projectId: string): Promise<Live<Schema<"AuditTrail">>> {
-  return serverRead(`/api/v1/projects/${projectId}/audit`);
+export function getAudit(projectId: string): Promise<Live<Schema<"AuditTrail">>> {
+  return serverGet("/api/v1/projects/{project_id}/audit", { project_id: projectId });
 }

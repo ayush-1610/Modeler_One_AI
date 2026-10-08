@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DocumentView } from "@/lib/brief";
-import { WEB_TOKEN, apiSend } from "@/lib/writes";
+import { BROWSER_TOKEN, apiFile, send, type Schema } from "@/lib/api";
 
 type Mode = "x1" | "x2" | "y1" | "y2" | "points";
 type Axis = { p1: number | null; v1: string; p2: number | null; v2: string; log: boolean };
@@ -44,7 +44,7 @@ export function Digitizer({ projectId, documents, onSaved }: {
       if (doc.kind === "pdf") {
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-        const pdf = await pdfjs.getDocument({ url, httpHeaders: { Authorization: `Bearer ${WEB_TOKEN}` } }).promise;
+        const pdf = await pdfjs.getDocument({ url, httpHeaders: { Authorization: `Bearer ${BROWSER_TOKEN}` } }).promise;
         const p = await pdf.getPage(Math.min(page, pdf.numPages));
         const viewport = p.getViewport({ scale: 2 });
         canvas.current.width = viewport.width;
@@ -52,8 +52,9 @@ export function Digitizer({ projectId, documents, onSaved }: {
         await p.render({ canvasContext: ctx, viewport }).promise;
         setSize({ w: viewport.width, h: viewport.height });
       } else {
-        const blob = await (await fetch(url, { headers: { Authorization: `Bearer ${WEB_TOKEN}` } })).blob();
-        const img = await createImageBitmap(blob);
+        const { file, problem } = await apiFile(url);
+        if (!file) throw new Error(problem ?? "not readable");
+        const img = await createImageBitmap(file);
         canvas.current.width = img.width;
         canvas.current.height = img.height;
         ctx.drawImage(img, 0, 0);
@@ -83,7 +84,7 @@ export function Digitizer({ projectId, documents, onSaved }: {
 
   async function save() {
     const n = Number(study.n);
-    const body = {
+    const body: Schema<"DigitizeBody"> = {
       study: { study_id: study.study_id, reference: study.reference, n, route: study.route, dose_mg: Number(study.dose_mg),
                formulation: study.formulation, food_state: study.food_state, statistic: study.statistic,
                ...(study.infusion_time_min ? { infusion_time_min: Number(study.infusion_time_min) } : {}) },
@@ -94,9 +95,9 @@ export function Digitizer({ projectId, documents, onSaved }: {
       },
       pixels: Object.fromEntries(Object.entries(points).filter(([, p]) => p.length > 0)),
     };
-    const env = await apiSend<{ id: string }>(`/api/v1/projects/${projectId}/datasets:digitize`, "POST", body);
+    const env = await send("post", "/api/v1/projects/{project_id}/datasets:digitize", { project_id: projectId }, body);
     if (env.errors?.length || !env.data) setError(env.errors?.[0]?.message ?? "not saved");
-    else onSaved(env.data.id);
+    else onSaved((env.data as { id: string }).id);   // the stored dataset (an open object); only its id is read here
   }
 
   if (!figures.length) return <p className="muted">Upload the paper (PDF) or a figure image first.</p>;
