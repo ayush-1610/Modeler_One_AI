@@ -53,6 +53,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - Impact: the next `main` push touching the engine publishes the qualified image by digest, with SBOM, keyless cosign
   signature and registration record as workflow evidence. Nothing references the GHCR name yet (deploy and dev scripts
   use the local `modeler-engine:ospsuite-12.4.4` tag).
+- **Confirmed on `main`** (`542e78d`, Engine image run 37741579858): qualification, push, SBOM, cosign and the
+  registration record all passed. Published as `ghcr.io/ayush-1610/modeler_one_ai/modeler-engine@sha256:9f5e14e6…8998a12`
+  (full digest in `docs/CONTINUATION_PACKAGE.md` §4.3, T-12).
 
 ### Changed — storage out of the API; the API and the orchestrator no longer import each other (architecture phase 3b)
 - **Why:** the orchestrator imported the API package for its file read model and database repositories (declared as a
