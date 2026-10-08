@@ -96,22 +96,8 @@ model_plan = "modeler_project.plan"
 map = "modeler_project.map_artifact"
 campaign = ""  # nobody: P6 campaigns live in the runner's own store and are linked by reference
 
-# Today's exceptions to [owners] (2026-10-08). Writers go in phase 6e, raw reads in 6e-6f; both lists only shrink.
-[[owner_exceptions.writer]]
-module = "modeler_api.brief_api"
-kind = "brief"
-reason = "the brief's edits, agent merge and approval-time writes; move to modeler_project.brief_ops in phase 6e"
-
-[[owner_exceptions.writer]]
-module = "modeler_api.inputs_api"
-kind = "cpf"
-reason = "the CPF/published hand-off record; moves to modeler_project.inputs in phase 6e"
-
-[[owner_exceptions.writer]]
-module = "modeler_api.plan_api"
-kind = "map"
-reason = "the signed MAP; moves to modeler_project.map_artifact in phase 6e"
-
+# Today's exceptions to [owners] (2026-10-08). The three non-owner writers (brief_api, inputs_api, plan_api) went in
+# phase 6e; the raw reads go in 6e-6f. The list only shrinks.
 # Raw stored-content reads outside the owner modules, per module (exact counts; lower one when reads go, drop it at 0).
 [owner_exceptions.reads]
 "modeler_agents.evidence_agent" = 7       # document metadata (sha256, name, pages, note)
@@ -123,6 +109,6 @@ reason = "the signed MAP; moves to modeler_project.map_artifact in phase 6e"
 "modeler_api.doctor" = 3                  # CPF and readiness
 "modeler_api.evidence_api" = 2            # access requests, document sha256
 "modeler_api.inputs_api" = 2              # CPF assembly, study catalog
-"modeler_api.plan_api" = 10               # MAP (map, sha256, campaign, signature), study catalog, dissolution
+"modeler_api.plan_api" = 3                # study catalog, dissolution profiles (the MAP is read through map_artifact)
 "modeler_api.project_api" = 1             # dataset study
-"modeler_project.blinding" = 4            # MAP signature, model plan placements, dataset purpose and study
+"modeler_project.blinding" = 3            # model plan placements, dataset purpose and study

@@ -1,6 +1,6 @@
 # Phase 6: typed responses for P0–P4, one owner per artifact kind
 
-Status: **6a–6d done** (every P0–P4 and escalation answer is typed). 6e–6f next, each one PR to `main`.
+Status: **6a–6e done** (every P0–P4 and escalation answer is typed; every artifact kind has one writer). 6f next.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B3, couplings C5 and C6, §6 phase 6.
 - The exceptions in `tests/architecture/boundaries.toml` (`[response]`, `[owners]`, `[owner_exceptions]`), which only
@@ -81,7 +81,20 @@ Sources:
 
   The original scope was: **P4 `inputs_api`, `project_api` and the escalation routes.** The escalation routes are typed as they are, with
   no envelope. `[response] untyped` ends empty.
-- **6e — one writer per artifact kind:**
+- **6e — done.** Every kind is written by its owner only:
+  - **brief:** `brief_ops.save_brief` takes over `brief_api`'s five commits. Each keeps the current provenance unless
+    the documents are named anew, as before.
+  - **cpf/published:** `inputs.record_publication`, with a `Publication` content model. `inputs.publication` serves
+    the page.
+  - **map:** the new `modeler_project.map_artifact` holds `MapArtifact`, `MapSignature`, `latest_map`, `signed_map`
+    and `record_signed_map`. `plan_api` (sign, `_signed_map`, the page's MAP block) and `blinding.map_signed` read
+    through it.
+  - Round-trip tests: the MAP versions written by `plan:sign` and the hand-off record keep the keys the routers wrote
+    before, and read back unchanged. An unsigned MAP gains no null keys.
+  - The writer exceptions are gone (3 → 0). Raw reads: `plan_api` 10 → 3, `blinding` 4 → 3; 48 → 40 overall.
+
+  The CPF `main` content model is left to 6f: `inputs` already owns it, and the readers outside go through accessors
+  there. The original scope was:
   - **brief:** `modeler_project.brief_ops.save_brief(...)` takes over `brief_api`'s commits.
   - **cpf:** `modeler_project.inputs` owns all three ids, with content models for `main` (`{cpf, assembly}`), `choices`
     (`InputChoices`) and `published`. The hand-off record moves out of `inputs_api.publish`.

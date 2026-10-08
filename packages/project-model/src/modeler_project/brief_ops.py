@@ -1,4 +1,5 @@
-"""Operations on the brief shared by the API, the agent and the tests: who may change a field, identity resolution.
+"""Operations on the brief shared by the API, the agent and the tests: who may change a field, identity resolution,
+and storing the brief (BRIEF/main): this module is the kind's one writer (phase 6e, rule B3).
 
 Human decisions are never overwritten by an agent pass: a field a person entered, edited, confirmed or marked not
 applicable is *locked* (the same convention as `userLocked` on the planning canvas). An agent may fill or refresh
@@ -8,10 +9,11 @@ only fields that are missing or that an agent or a database filled before.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from typing import Any
 
+from modeler_project.artifacts import ArtifactKind, ArtifactRef, ArtifactVersion
 from modeler_project.brief import (
     Citation,
     FieldRecord,
@@ -23,6 +25,9 @@ from modeler_project.brief import (
     set_record,
 )
 from modeler_project.identity import IdentityError, PubChemRecord, fetch_pubchem, from_smiles, mw_agrees
+from modeler_project.workspace import Workspace
+
+BRIEF_ID = "main"
 
 HUMAN_STATUSES = frozenset({FieldStatus.ENTERED, FieldStatus.EDITED, FieldStatus.CONFIRMED, FieldStatus.NOT_APPLICABLE})
 # Fields only a person may set (ICH M15 ratings are human-only; the tier is confirmed by a person).
@@ -162,3 +167,12 @@ def summary(brief: ProjectBrief) -> dict[str, Any]:
     return {"by_status": counts, "groups": {g: len(items) for g, items in brief.groups.items()},
             "open_questions": sum(q.status == "open" for q in brief.questions)}
 
+
+def save_brief(ws: Workspace, brief: ProjectBrief, *, actor: str, reason: str,
+               derived_from: Iterable[ArtifactRef] | None = None) -> ArtifactVersion:
+    """Store `brief` as the brief's next version. It keeps the current version's provenance (the documents it was read
+    from) unless `derived_from` names it anew."""
+    if derived_from is None:
+        latest = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
+        derived_from = latest.derived_from if latest else ()
+    return ws.commit(ArtifactKind.BRIEF, BRIEF_ID, brief.to_content(), derived_from=derived_from, actor=actor, reason=reason)

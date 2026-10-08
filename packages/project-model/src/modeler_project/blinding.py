@@ -32,8 +32,9 @@ def setting(project: dict[str, Any] | None, model_risk: str | None) -> dict[str,
 
 
 def map_signed(ws: Workspace) -> bool:
-    version = ws.latest(ArtifactKind.MAP, "main")
-    return bool(version and version.content.get("signature"))
+    from modeler_project.map_artifact import signed_map
+
+    return signed_map(ws) is not None
 
 
 def external_studies(ws: Workspace) -> set[str]:

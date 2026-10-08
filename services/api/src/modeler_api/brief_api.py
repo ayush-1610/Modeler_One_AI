@@ -47,13 +47,12 @@ from modeler_project.brief import (
     remove_item,
     validate_brief,
 )
-from modeler_project.brief_ops import EditError, edit_field, locked, resolve_identity, summary
+from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, resolve_identity, save_brief, summary
 from modeler_project.documents import DocumentLibrary
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 
 router = APIRouter(prefix="/api/v1", tags=["brief"])
 
-BRIEF_ID = "main"
 _RUNNING: set[tuple[str, str]] = set()
 _RUNNING_LOCK = threading.Lock()
 
@@ -143,8 +142,7 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
     merged = _merge_agent_result(latest, brief, accepted_paths)
     reason = (f"extracted by A1 ({result.get('accepted', 0)} fields accepted, {result.get('rejected', 0)} rejected)"
               if model is not None else "drug identity resolved")
-    version = ws.commit(ArtifactKind.BRIEF, BRIEF_ID, merged.to_content(), derived_from=_document_refs(ws), actor=actor,
-                        reason=reason)
+    version = save_brief(ws, merged, actor=actor, reason=reason, derived_from=_document_refs(ws))
     result["brief_version"] = version.version
     return result
 
@@ -206,8 +204,8 @@ async def initiate_project(
     write.put_project(principal.tenant_id, {"id": project_id, "name": title, "compounds": [drug_name.strip()],
                                             "openQuestions": 0, "risk": "medium", "questions": [], "pipeline": True})
     brief = empty_brief(drug_name, by=principal.user_id)
-    version = ws.commit(ArtifactKind.BRIEF, BRIEF_ID, brief.to_content(), derived_from=[d.ref for d in documents],
-                        actor=principal.user_id, reason="project started")
+    version = save_brief(ws, brief, actor=principal.user_id, reason="project started",
+                         derived_from=[d.ref for d in documents])
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     return envelope({"project_id": project_id, "name": title, "documents": [_document_view(d) for d in documents],
                      "brief_version": version.version, "extraction": extraction})
@@ -332,9 +330,7 @@ def edit_brief(project_id: str, body: BriefEdit, principal: Writer, store: Store
     updated = _apply_changes(current, body.changes, principal.user_id)
     if body.preview:
         return envelope({"impact": impact_view(ws.impact(ArtifactKind.BRIEF, BRIEF_ID, updated.to_content()))})
-    latest = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
-    ws.commit(ArtifactKind.BRIEF, BRIEF_ID, updated.to_content(), derived_from=latest.derived_from,
-              actor=principal.user_id, reason=body.reason)
+    save_brief(ws, updated, actor=principal.user_id, reason=body.reason)
     return envelope(_brief_view(ws))
 
 
@@ -352,9 +348,7 @@ def remove_brief_item(project_id: str, body: ItemRemoval, principal: Writer, sto
         updated = remove_item(current, body.group, body.index)
     except BriefPathError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    latest = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
-    ws.commit(ArtifactKind.BRIEF, BRIEF_ID, updated.to_content(), derived_from=latest.derived_from,
-              actor=principal.user_id, reason=body.reason)
+    save_brief(ws, updated, actor=principal.user_id, reason=body.reason)
     return envelope(_brief_view(ws))
 
 
@@ -375,9 +369,7 @@ def answer_question(project_id: str, question_id: str, body: QuestionAnswer, pri
     questions = tuple(q.model_copy(update={"answer": body.answer.strip(), "status": body.status})
                       if q.id == question_id else q for q in current.questions)
     updated = current.model_copy(update={"questions": questions})
-    latest = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
-    ws.commit(ArtifactKind.BRIEF, BRIEF_ID, updated.to_content(), derived_from=latest.derived_from,
-              actor=principal.user_id, reason=f"question {question_id} {body.status.replace('_', ' ')}")
+    save_brief(ws, updated, actor=principal.user_id, reason=f"question {question_id} {body.status.replace('_', ' ')}")
     return envelope(_brief_view(ws))
 
 

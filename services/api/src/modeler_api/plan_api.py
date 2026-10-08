@@ -30,8 +30,8 @@ from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
 from modeler_project.inputs import MAIN as INPUTS_MAIN
 from modeler_project.inputs import current_cpf
+from modeler_project.map_artifact import MapArtifact, MapSignature, latest_map, record_signed_map, signed_map
 from modeler_project.plan import (
-    MAIN,
     Deviation,
     ModelPlan,
     PlanError,
@@ -149,7 +149,7 @@ def _d2(cpf: CPF, plan: ModelPlan, ws: Workspace) -> dict[str, Any]:
 
 def _view(ws: Workspace, version, plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]]) -> dict[str, Any]:
     violations = validate(plan, cpf, rows, exploratory=_exploratory(ws))
-    map_version = ws.latest(ArtifactKind.MAP, MAIN)
+    latest = latest_map(ws)
     return {
         "plan": plan.to_content(),
         "artifact": version_view(ws, version, with_content=False),
@@ -165,12 +165,11 @@ def _view(ws: Workspace, version, plan: ModelPlan, cpf: CPF, rows: list[dict[str
         },
         "d1": _d1(cpf, plan),
         "d2": _d2(cpf, plan, ws),
-        "map": ({**version_view(ws, map_version, with_content=False), "campaign": map_version.content.get("campaign"),
-                 "map_sha256": map_version.content.get("map_sha256"),
-                 "map_version": (map_version.content.get("map") or {}).get("version"),
-                 "supersedes": (map_version.content.get("map") or {}).get("supersedes_sha256")} if map_version else None),
+        "map": ({**version_view(ws, latest[0], with_content=False), "campaign": latest[1].campaign,
+                 "map_sha256": latest[1].map_sha256, "map_version": latest[1].map.get("version"),
+                 "supersedes": latest[1].map.get("supersedes_sha256")} if latest else None),
         # D-14: once a MAP is signed, every change is a deviation that waits for the MIDD lead's signature
-        "signed": bool(map_version and map_version.content.get("signature")),
+        "signed": bool(latest and latest[1].signed),
         "deviations": [d.model_dump(mode="json") for d in plan.deviations],
         "deviations_pending": len(plan.pending_deviations()),
         "agents": agent_jobs.agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
@@ -200,10 +199,8 @@ def read_plan(project_id: str, principal: Reader, store: StoreDep) -> dict[str, 
 
 def _signed_map(ws: Workspace) -> tuple[Any, MapDocument] | None:
     """The latest signed MAP (it carries a signature; a newer plan version makes it stale, not unsigned)."""
-    version = ws.latest(ArtifactKind.MAP, MAIN)
-    if version is None or not version.content.get("signature"):
-        return None
-    return version, MapDocument.model_validate(version.content["map"])
+    signed = signed_map(ws)
+    return (signed[0], signed[1].document()) if signed else None
 
 
 def _deviation(ws: Workspace, plan: ModelPlan, *, kind: str, target: str, change: str, reason: str,
@@ -478,13 +475,13 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
                 "cpf_uri": cpf_path.as_uri(), "cpf_sha256": hashlib.sha256(cpf_bytes).hexdigest(),
                 "map_uri": map_path.as_uri(), "observed_uri": observed_path.as_uri(), "stages": list(CAMPAIGN_STAGES),
                 "question": plan.structure.objective, "model_risk": plan.structure.model_risk}
-    map_version = ws.commit(ArtifactKind.MAP, MAIN, {"map": json.loads(map_bytes), "map_sha256": content_sha,
-                                                     "signature": {"signature_id": signature.signature_id,
-                                                                   "manifestation": signature.manifestation()},
-                                                     "campaign": campaign},
-                            derived_from=[version.ref], actor=principal.user_id,
-                            reason=f"MAP v{signed.version} from plan v{version.version}"
-                            + (f" ({len(pending)} deviation(s), superseding v{previous[1].version})" if previous else ""))
+    artifact = MapArtifact(map=json.loads(map_bytes), map_sha256=content_sha,
+                           signature=MapSignature(signature_id=signature.signature_id,
+                                                  manifestation=signature.manifestation()),
+                           campaign=campaign)
+    map_version = record_signed_map(ws, artifact, derived_from=[version.ref], actor=principal.user_id,
+                                    reason=f"MAP v{signed.version} from plan v{version.version}"
+                                    + (f" ({len(pending)} deviation(s), superseding v{previous[1].version})" if previous else ""))
     for ref in (version.ref, map_version.ref):
         ws.approve(ref, by=principal.user_id, printed_name=principal.printed_name, meaning="Approved",
                    signature_id=signature.signature_id, note=body.note)
