@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from openpyxl.utils import column_index_from_string
 
 from modeler_intake.grid import SheetGrid, WorkbookGrid, as_text
-from modeler_intake.recipe import MappingRecipe, TableMapping
+from modeler_intake.recipe import ConstantKey, MappingRecipe, TableMapping
 from modeler_intake.records import ConcentrationObservation, DissolutionObservation, SourceRef
 from pbpk_domain.issues import Issue
 
@@ -72,7 +72,7 @@ def _rows(grid: SheetGrid, table: TableMapping, time_column: int) -> range:
     return range(table.first_data_row, last + 1)
 
 
-def _const(table: TableMapping, key: str) -> str | float | None:
+def _const(table: TableMapping, key: ConstantKey) -> str | float | None:
     return table.constants.get(key)
 
 

@@ -17,8 +17,8 @@ from typing import Any, Literal, Protocol
 from anthropic import beta_tool
 from pydantic import BaseModel
 
-from modeler_agents.citations import quote_appears_in, value_stated_in_quote
 from modeler_agents.providers import LLMConfig
+from modeler_intake.citations import quote_appears_in, value_stated_in_quote
 
 SourceType = Literal["InVitro", "Publication", "Database", "Assumption"]
 

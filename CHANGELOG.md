@@ -15,6 +15,31 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — deterministic helpers out of the agents package; one list of recipe constant keys (architecture phase 5c)
+- **What:**
+  - The quote check moved from `modeler_agents.citations` to `modeler_intake.citations`, unchanged.
+  - The deterministic half of the data-mapping agent moved to `modeler_intake.recipe_review`, unchanged: the proposal
+    models, `to_recipe`, `check_evidence` and `review_proposal`. `modeler_agents.data_mapping` keeps the prompt and
+    `propose_mapping`.
+  - Recipe constant keys (C9) now have one owner: `modeler_intake.recipe.ConstantKey`, `CONSTANT_KEYS` and
+    `NUMERIC_CONSTANTS`. The review, `apply` and the recipe's schema text read them, and a test keeps the sheet form's
+    keys inside them.
+  - The agents package declares `pbpk-domain`, which it already imported (`CPF`, `Issue`). It is a workspace package
+    that was installed through `modeler_intake`, so this adds no new third-party dependency; `uv.lock` gains two lines.
+- **Why:**
+  - Couplings C4 and C9: the API imported deterministic code from the agents package, and four modules each listed the
+    constant keys.
+  - Deviation from the plan: the quote check went to `modeler_intake`, not `modeler_project`. The recipe review (L2)
+    needs it, and L2 cannot import L3.
+  - Plan: `docs/plans/2026-10-08-phase-5-services.md`.
+- **Impact:**
+  - No behaviour change: the same checks, messages and records. The proposal's JSON schema that the model is given is
+    unchanged, and so is the OpenAPI snapshot.
+  - `tests/architecture/boundaries.toml` (locked) drops 3 exceptions: the 2 seam exceptions (`citations`,
+    `data_mapping`) and the `declared` agents → `pbpk_domain` one. That leaves 11 → 8; its hash is refreshed.
+  - The tests moved with the code: `data-intake` has `test_citations.py` and `test_recipe_review.py`. The agents'
+    `test_data_mapping.py` checks only the agent's own work.
+
 ### Changed — every agent job reaches the agents through `modeler_api.agent_jobs` (architecture phase 5b)
 - **What:**
   - `modeler_api.agent_jobs`, the declared seam, is now the only API module that imports `modeler_agents` (bar the two

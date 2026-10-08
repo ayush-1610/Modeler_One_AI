@@ -7,7 +7,8 @@ from openpyxl import Workbook
 
 from modeler_intake.apply import apply_recipe
 from modeler_intake.grid import read_workbook_bytes
-from modeler_intake.recipe import ColumnMapping, MappingRecipe, TableMapping
+from modeler_intake.recipe import CONSTANT_KEYS, ColumnMapping, MappingRecipe, TableMapping
+from modeler_intake.recipe_review import RecipeProposal
 from modeler_intake.sheet_form import SheetForm, preview_rows, suggest, to_proposal
 from modeler_intake.triage import SheetCategory, triage_sheet
 from modeler_intake.validate import validate_concentrations, validate_dissolution
@@ -187,3 +188,17 @@ def test_file_names_with_underscores_give_each_arm_and_route_its_own_study(filen
     proposal = to_proposal(form.model_copy(update={"mean_n": 6, "lloq": 0.5}), grid.sheets[sheet])
     result = apply_recipe(grid, _recipe(proposal))
     assert {r.series for r in result.concentrations if r.statistic == "arithmetic_mean"} == {"Mean"}
+
+
+@pytest.mark.parametrize("build, filename, sheet", [
+    (_be, "230-23 Fasting Reference.xlsx", "Sheet1"),
+    (_dissolution, "Dissolution Test.xlsx", "pH 6.8"),
+    (_iv_summary, "Nichols2012 IV 50 mg 5 h infusion.xlsx", "Fig 1"),
+])
+def test_the_form_fills_only_recipe_constant_keys(build, filename, sheet):
+    # coupling C9: the form's constants are recipe.CONSTANT_KEYS, so its proposal passes the review's schema unchanged
+    grid = _grid(build, filename)
+    form, _notes = suggest(grid.sheets[sheet], filename=filename, drug="desvenlafaxine",
+                           products=[{"name": "Desvenlafaxine succinate ER Tablets", "role": "TEST"}])
+    assert form.constants and set(form.constants) <= set(CONSTANT_KEYS)
+    RecipeProposal.model_validate(to_proposal(form, grid.sheets[sheet]))

@@ -237,8 +237,8 @@ def _sample(review, *, hide_values: bool) -> dict[str, Any]:
 def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Apply a mapping recipe deterministically. Preview shows the records, problems and open questions; confirming a
     recipe with none of them creates the datasets (origin CLIENT) and keeps the recipe on the file's record."""
-    from modeler_agents.data_mapping import RecipeProposal, review_proposal
     from modeler_api.deps import blinding_view
+    from modeler_intake.recipe_review import RecipeProposal, review_proposal
     from modeler_project.blinding import EXTERNAL_PURPOSES
 
     ws = workspace_for(project_id, principal, store)

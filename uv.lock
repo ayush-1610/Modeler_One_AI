@@ -1032,6 +1032,7 @@ dependencies = [
     { name = "mcp" },
     { name = "modeler-intake" },
     { name = "modeler-project" },
+    { name = "pbpk-domain" },
     { name = "pydantic" },
 ]
 
@@ -1052,6 +1053,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.0" },
     { name = "modeler-intake", editable = "packages/data-intake" },
     { name = "modeler-project", editable = "packages/project-model" },
+    { name = "pbpk-domain", editable = "packages/pbpk-domain" },
     { name = "pydantic", specifier = ">=2.11" },
 ]
 provides-extras = ["bedrock", "vertex"]
