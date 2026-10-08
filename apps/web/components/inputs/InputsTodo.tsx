@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { send } from "@/lib/api";
+import { send, type Envelope } from "@/lib/api";
 
 export type Ev = {
   id: string; target: string; value: number | string | null; unit: string | null; value_pksim: number | null;
@@ -20,7 +20,7 @@ export type TodoItem = {
   identity?: { value: number; unit: string; quote: string; cid: string; name: string } | null;
   warnings?: string[];
 };
-type Run = (fn: () => Promise<{ errors: { message: string }[] }>, ok: string) => Promise<string | null>;
+type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string) => Promise<string | null>;
 
 const ORDER = ["conflict", "correct", "pka", "missing", "datasets", "formulation", "process", "unit", "check"];
 const TITLE: Record<string, string> = {

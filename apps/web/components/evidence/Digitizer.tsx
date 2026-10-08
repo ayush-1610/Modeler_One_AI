@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DocumentView } from "@/lib/brief";
 import { BROWSER_TOKEN, apiFile, send, type Schema } from "@/lib/api";
+import { useMutation } from "@/lib/hooks";
 
 type Mode = "x1" | "x2" | "y1" | "y2" | "points";
 type Axis = { p1: number | null; v1: string; p2: number | null; v2: string; log: boolean };
@@ -32,6 +33,7 @@ export function Digitizer({ projectId, documents, onSaved }: {
                                               formulation: "ir_tablet", food_state: "fasted", statistic: "mean_sd" });
   const [units, setUnits] = useState({ time: "h", conc: "ng/ml", locator: "Figure " });
   const [error, setError] = useState<string | null>(null);
+  const { run } = useMutation();
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const doc = figures.find((d) => d.sha256 === sha);
 
@@ -95,9 +97,9 @@ export function Digitizer({ projectId, documents, onSaved }: {
       },
       pixels: Object.fromEntries(Object.entries(points).filter(([, p]) => p.length > 0)),
     };
-    const env = await send("post", "/api/v1/projects/{project_id}/datasets:digitize", { project_id: projectId }, body);
-    if (env.errors?.length || !env.data) setError(env.errors?.[0]?.message ?? "not saved");
-    else onSaved((env.data as { id: string }).id);   // the stored dataset (an open object); only its id is read here
+    const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/datasets:digitize", { project_id: projectId }, body));
+    if (problem || !data) setError(problem ?? "not saved");
+    else onSaved((data as { id: string }).id);   // the stored dataset (an open object); only its id is read here
   }
 
   if (!figures.length) return <p className="muted">Upload the paper (PDF) or a figure image first.</p>;

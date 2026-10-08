@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Digitizer } from "@/components/evidence/Digitizer";
 import { Card } from "@/components/ui";
-import { get, narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
+import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
+import { useMutation, useResource } from "@/lib/hooks";
 
 type Series = { name: string; statistic: string; times: number[]; values: (number | null)[]; error: number[] | null;
                 error_kind: string; n: number | null };
@@ -98,31 +99,21 @@ function DatasetCard({ d: listed, onDecide, onOverlay, onReveal }: {
 
 /** P2 observed data (plan §9): clinical PK datasets with their origin, from tables, figures or by hand. */
 export function ObservedData({ projectId }: { projectId: string }) {
-  const [view, setView] = useState<View | null>(null);
-  const [docs, setDocs] = useState<DocumentView[]>([]);
-  const [problem, setProblem] = useState<string | null>(null);
+  const page = useResource("/api/v1/projects/{project_id}/evidence", { project_id: projectId },
+    { select: (d) => narrow<View>(d), poll: (d) => d.running, interval: 4000 });
+  const documents = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
+  const { run } = useMutation();
   const [digitizing, setDigitizing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const [v, d] = await Promise.all([
-      get("/api/v1/projects/{project_id}/evidence", { project_id: projectId }),
-      get("/api/v1/projects/{project_id}/documents", { project_id: projectId }),
-    ]);
-    if (v.data) { setView(narrow<View>(v.data)); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
-    if (d.data) setDocs(d.data.documents);
-  }, [projectId]);
-  useEffect(() => { void load(); }, [load]);
+  const view = page.data;
+  const docs: DocumentView[] = documents.data?.documents ?? [];
 
-  if (problem) return <div className="banner err">{problem}</div>;
+  if (page.problem) return <div className="banner err">{page.problem}</div>;
   if (!view) return <p className="muted">Loading…</p>;
 
-  const act = async <T,>(fn: () => Promise<Envelope<T>>) => {
-    const env = await fn();
-    if (env.errors?.length) return env.errors[0].message;
-    await load();
-    return null;
-  };
+  // a change, then the datasets read again; answers the API's reason when it refused
+  const act = async <T,>(fn: () => Promise<Envelope<T>>): Promise<string | null> => (await run(fn)).problem;
   const needs = view.coverage.filter((c) => ["IV-SD", "PO-SOL-FASTED / PO-IR-FASTED", "PO-FED", "PO-MD", "EXTERNAL", "urine", "DDI",
                                                "SPECIAL", "lloq", "BE study"].includes(c.target));
   return (
@@ -154,7 +145,7 @@ export function ObservedData({ projectId }: { projectId: string }) {
       </Card>
       {digitizing && (
         <Card title="Digitize a figure">
-          <Digitizer projectId={projectId} documents={docs} onSaved={async () => { setDigitizing(false); await load(); }} />
+          <Digitizer projectId={projectId} documents={docs} onSaved={() => setDigitizing(false)} />
         </Card>
       )}
       <Card title={`Datasets (${view.datasets.length})`}>
