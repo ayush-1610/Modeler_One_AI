@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 
 import "./globals.css";
 import { Nav } from "@/components/Nav";
+import { Providers } from "@/components/Providers";
 
 // Plex was drawn for technical work: unambiguous figures, a real voice, and a mono companion for the
 // identifiers in this product (parameter ids, engine paths, campaign ids) that are read character by character.
@@ -31,7 +32,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <div className="app">
           <Nav />
-          <div className="content">{children}</div>
+          <div className="content"><Providers>{children}</Providers></div>
         </div>
       </body>
     </html>

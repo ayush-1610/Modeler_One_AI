@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Card } from "@/components/ui";
-import { get, narrow, send, type Narrow, type Schema } from "@/lib/api";
+import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
+import { useMutation, useResource } from "@/lib/hooks";
 import type { ArtifactView } from "@/lib/pipeline";
 
 import { InputsTodo, type TodoItem } from "./InputsTodo";
@@ -49,33 +49,25 @@ function ChoiceForm({ label, options, onSave }: { label: string; options: string
 
 /** P4 model inputs (plan §5.2 P4): CPF v1 by PK-Sim building block, the study catalog, readiness. */
 export function ModelInputs({ projectId }: { projectId: string }) {
-  const router = useRouter();
-  const [view, setView] = useState<View | null>(null);
+  const page = useResource("/api/v1/projects/{project_id}/inputs", { project_id: projectId }, { select: (d) => narrow<View>(d) });
+  const mutation = useMutation();
   const [tab, setTab] = useState<(typeof TABS)[number]>("Compound");
-  const [problem, setProblem] = useState<string | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const view = page.data;
 
-  const load = useCallback(async () => {
-    const v = await get("/api/v1/projects/{project_id}/inputs", { project_id: projectId });
-    if (v.data) { setView(narrow<View>(v.data)); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
-  }, [projectId]);
-  useEffect(() => { void load(); }, [load]);
-
-  if (problem) return <div className="banner err">{problem}</div>;
+  if (page.problem) return <div className="banner err">{page.problem}</div>;
   if (!view) return <p className="muted">Loading…</p>;
 
-  const act = async (fn: () => Promise<{ errors: { message: string }[] }>, ok?: string) => {
-    const env = await fn();
-    if (env.errors?.length) { setMessage({ ok: false, text: env.errors[0].message }); return env.errors[0].message; }
-    setMessage(ok ? { ok: true, text: ok } : null);
-    await load();
-    router.refresh(); // the phase rail is server-rendered
-    return null;
+  // a change, then the inputs and the phase rail read again
+  const act = async <T,>(fn: () => Promise<Envelope<T>>, ok?: string) => {
+    const { problem } = await mutation.run(fn);
+    setMessage(problem ? { ok: false, text: problem } : ok ? { ok: true, text: ok } : null);
+    return problem;
   };
   // a decision on the evidence or the datasets, then the inputs assembled again so the list shows what is left
-  const run = async (fn: () => Promise<{ errors: { message: string }[] }>, ok: string) => {
-    const env = await fn();
-    if (env.errors?.length) { setMessage({ ok: false, text: env.errors[0].message }); return env.errors[0].message; }
+  const run = async <T,>(fn: () => Promise<Envelope<T>>, ok: string) => {
+    const { problem } = await mutation.run(fn, { refresh: false });
+    if (problem) { setMessage({ ok: false, text: problem }); return problem; }
     return act(() => send("post", "/api/v1/projects/{project_id}/inputs:assemble", { project_id: projectId }), ok || undefined);
   };
   const choose = (kind: Schema<"ChoiceRequest">["kind"], key: string) => (value: string, reason: string) =>

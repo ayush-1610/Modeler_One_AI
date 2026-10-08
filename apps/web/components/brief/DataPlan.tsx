@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui";
-import { get, narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
+import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
+import { useMutation, useResource } from "@/lib/hooks";
 
 type Item = {
   req_id: string;
@@ -50,20 +51,14 @@ const FEAS_CHIP: Record<string, string> = {
 
 /** The P1 data plan: every PK-Sim input and dataset the project needs, who provides it, and for what (plan §7). */
 export function DataPlan({ projectId, view: tab }: { projectId: string; view: "plan" | "feasibility" }) {
-  const [data, setData] = useState<PlanView | null>(null);
-  const [missing, setMissing] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const plan = useResource("/api/v1/projects/{project_id}/requirements", { project_id: projectId },
+    { select: (d) => narrow<PlanView>(d) });
+  const { run: change, busy } = useMutation();
+  const [failed, setFailed] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    const env = await get("/api/v1/projects/{project_id}/requirements", { project_id: projectId });
-    if (env.data) { setData(narrow<PlanView>(env.data)); setMissing(false); setProblem(null); }
-    else if (env.errors?.[0]?.message?.includes("no data plan")) setMissing(true);
-    else setProblem(env.errors?.[0]?.message ?? "The data plan could not be read.");
-  }, [projectId]);
-
-  useEffect(() => { void load(); }, [load]);
+  const data = plan.data;
+  const missing = plan.problem?.includes("no data plan") ?? false;
+  const problem = failed ?? (missing ? null : plan.problem);
 
   const groups = useMemo(() => {
     const out: Record<string, Item[]> = {};
@@ -72,11 +67,8 @@ export function DataPlan({ projectId, view: tab }: { projectId: string; view: "p
   }, [data, showAll]);
 
   async function run(call: () => Promise<Envelope<Schema<"RequirementsPage">>>) {
-    setBusy(true);
-    const env = await call();
-    setBusy(false);
-    if (env.data) { setData(narrow<PlanView>(env.data)); setMissing(false); setProblem(null); }
-    else setProblem(env.errors?.[0]?.message ?? "not saved");
+    const { problem } = await change(call);
+    setFailed(problem);
   }
 
   async function override(item: Item, change: { provider?: Provider; cross_check?: boolean }) {

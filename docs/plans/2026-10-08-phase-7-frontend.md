@@ -1,6 +1,8 @@
 # Phase 7: frontend seams, with the web types generated from the API contract
 
-Status: **7a, 7b and 7c done.** 7d next, one PR to `main`, with no behaviour change unless stated.
+Status: **7a, 7b, 7c and the 7d hooks done.** The 7d CSS split is next. Each step is one PR to `main`, with no
+behaviour change unless stated. 7d lands as two PRs, hooks then CSS, so that each stays reviewable (a deviation from
+one PR per step).
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B6, the L7 row, §6 phase 7.
 - The OpenAPI snapshot `docs/api/openapi.json`. Phase 6 typed every P0–P4 and escalation answer in it.
@@ -67,11 +69,17 @@ types can be generated from the same contract.
   - **Guard:** `tests/architecture/test_web_client.py` fails on a `fetch` outside `lib/api.ts`, and on an untyped
     helper called on a route whose answer the contract types.
 - **7d — B6 hooks and CSS:**
-  - Client pages fetch with `useResource` and change state with `useMutation`, both on react-query, which is already a
-    dependency. A mutation refreshes the phase rail and the page's own resource. This replaces hand-written
-    fetch-then-refresh code.
+  - **Hooks — done.** `lib/hooks.ts` on react-query, which was already a dependency, with `components/Providers.tsx`
+    as the cache:
+    - `useResource(route, params, { select, poll })` reads a typed route;
+    - `useMutation().run(call)` refreshes the page's resources and the server-rendered phase rail after a change
+      succeeds.
+
+    The P1–P4 review pages, the sheet reader, the digitizer and the blinding panel use them. The P5 canvas, the
+    campaign pages and the escalation decision keep their own loading until their routes are typed.
+    `test_web_client.py` checks that only the hooks import the typed read `get`.
   - The phase list is already read from the API (`PhaseRail` uses `/phases`).
-  - CSS is split per feature, where a page's styles live in the global sheet.
+  - **CSS — next.** Split per feature, where a page's styles live in the global sheet.
 
 ## Verification (every PR)
 - `npm --prefix apps/web run typecheck` (including the drift check) and `build`.

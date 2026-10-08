@@ -2,7 +2,8 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
-import { get, narrow, send } from "@/lib/api";
+import { narrow, send } from "@/lib/api";
+import { useMutation, useResource } from "@/lib/hooks";
 
 import type { ClientFile, ReadPreview, SheetForm, SheetView } from "./types";
 
@@ -135,7 +136,9 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
   projectId: string; file: ClientFile; sheet: string; last: { form: SheetForm; study: Study } | null;
   onSaved: (message: string) => Promise<void>; onClose: () => void; remember: (s: { form: SheetForm; study: Study }) => void;
 }) {
-  const [view, setView] = useState<SheetView | null>(null);
+  const sheetView = useResource("/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}",
+    { project_id: projectId, sid: file.id, sheet }, { select: (d) => narrow<SheetView>(d) });
+  const view = sheetView.data;
   const [form, setForm] = useState<SheetForm | null>(null);
   const [study, setStudy] = useState<Study>({ n: "", design: "SD", crossover: false, population_type: "healthy",
                                                infusion_time_min: "", purpose: "" });
@@ -145,29 +148,24 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
   const [result, setResult] = useState<ReadPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { run } = useMutation();
   const [showRecipe, setShowRecipe] = useState(false);
 
+  // the sheet seeds this editor's form once; a change elsewhere reads the sheet again but does not reset the form
   useEffect(() => {
-    let alive = true;
-    void get("/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}", { project_id: projectId, sid: file.id, sheet }).then((env) => {
-      if (!alive) return;
-      if (!env.data) { setError(env.errors?.[0]?.message ?? "The sheet could not be read."); return; }
-      const v = narrow<SheetView>(env.data);
-      setView(v);
-      setForm(v.form);
-      setBlq(v.form.below_lloq_tokens.join(", "));
-      setMissing(v.form.missing_tokens.join(", "));
-      if (v.form.study?.infusion_time_min) setStudy((st) => ({ ...st, infusion_time_min: v.form.study.infusion_time_min }));
-    });
-    return () => { alive = false; };
-  }, [projectId, file.id, sheet]);
+    if (!view || form) return;
+    setForm(view.form);
+    setBlq(view.form.below_lloq_tokens.join(", "));
+    setMissing(view.form.missing_tokens.join(", "));
+    if (view.form.study?.infusion_time_min) setStudy((st) => ({ ...st, infusion_time_min: view.form.study.infusion_time_min }));
+  }, [view, form]);
 
   const columns = useMemo(() => {
     const width = Math.max(1, ...(view?.rows.map((r) => r.length) ?? [1]));
     return Array.from({ length: width }, (_, i) => letter(i));
   }, [view]);
 
-  if (error && !view) return <div className="banner err">{error}</div>;
+  if (sheetView.problem && !view) return <div className="banner err">{sheetView.problem}</div>;
   if (!view || !form) return <p className="muted">Reading the sheet…</p>;
 
   const header = (c: string) => (form.header_row ? view.rows[form.header_row - 1]?.[index(c)] ?? "" : "");
@@ -230,10 +228,11 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
 
   async function save() {
     setBusy(true);
-    const env = await send("post", "/api/v1/projects/{project_id}/client-data/{sid}:map", { project_id: projectId, sid: file.id }, body(true));
+    const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:map",
+                                                   { project_id: projectId, sid: file.id }, body(true)));
     setBusy(false);
-    if (!env.data) { setError(env.errors?.[0]?.message ?? "Not saved."); return; }
-    const saved = narrow<ReadPreview>(env.data);
+    if (!data) { setError(problem ?? "Not saved."); return; }
+    const saved = narrow<ReadPreview>(data);
     remember({ form: { ...form!, below_lloq_tokens: list(blq), missing_tokens: list(missing) }, study });
     // the saved response carries the page's view (whose "dissolution" is the profiles), so the count is the check's
     const made = pk ? `${saved.datasets?.length ?? 0} dataset(s) for ${saved.studies.join(", ")}` : `${result?.dissolution ?? 0} dissolution values`;

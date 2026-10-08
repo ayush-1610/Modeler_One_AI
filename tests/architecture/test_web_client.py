@@ -5,6 +5,9 @@ response model in docs/api/openapi.json) is called by name with `get` / `send` /
 parameters, body and answer type follow from the contract. The untyped helpers (`apiGet`, `apiSend`, `apiUpload`,
 `serverRead`) remain only for routes the contract does not type yet; a call of one on a typed route fails here, and
 so does a raw `fetch` anywhere else in the app.
+
+A client page reads a typed route with `useResource` and changes state with `useMutation` (`lib/hooks.ts`, phase 7d),
+so a change refreshes the page's resources and the phase rail. Only the hooks import the typed browser read `get`.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ pytestmark = pytest.mark.req("T-25")
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "apps" / "web"
 CLIENT = WEB / "lib" / "api.ts"
+HOOKS = WEB / "lib" / "hooks.ts"
 GENERATED = WEB / "lib" / "api-types.ts"
 UNTYPED = {"apiGet": "get", "apiSend": None, "apiUpload": "post", "serverRead": "get"}
 # a call of an untyped helper: its name, an optional type argument, then the URL as a string or template literal
@@ -92,3 +96,12 @@ def test_typed_routes_are_called_by_name() -> None:
         "A route the contract types is called with its name, through get/send/upload/serverGet in lib/api.ts, so its "
         "parameters, body and answer follow from the contract:\n  " + "\n  ".join(offenders))
 
+
+
+def test_pages_read_through_the_hooks() -> None:
+    imports = re.compile(r"import\s*\{([^}]*)\}\s*from\s*\"@/lib/api\"")
+    offenders = [str(p.relative_to(ROOT)) for p in _sources() if p != HOOKS
+                 for m in imports.finditer(p.read_text()) if re.search(r"(?<![\w.])get\b(?!\s+as)", m.group(1))]
+    assert not offenders, (
+        "A page reads a typed route with useResource (lib/hooks.ts), so a change made with useMutation refreshes it and "
+        "the phase rail; only the hooks import `get`:\n  " + "\n  ".join(offenders))

@@ -15,6 +15,33 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the review pages read with `useResource` and change with `useMutation` (architecture phase 7d, hooks)
+- **What:**
+  - **Hooks:** `apps/web/lib/hooks.ts`, on `@tanstack/react-query`. It was already a dependency, unused until now, so
+    no dependency is added. `components/Providers.tsx` gives the app one query cache per tab, with no retries and no
+    refetch on window focus.
+    - `useResource(route, params, { select, poll })` reads a typed route.
+    - `useMutation().run(() => send(…))` makes a change. When it succeeds, the page's resources are read again and
+      its server-rendered parts, the phase rail among them, are re-rendered.
+  - **Pages moved onto them:** brief, data plan, document viewer, client data, sheet reader, literature evidence,
+    observed data, digitizer, model inputs and the to-do list, and the blinding panel of the plan canvas. This
+    replaces each page's own load / `useEffect` / `setInterval` / `router.refresh()` code. The plan canvas itself, the
+    campaign pages and the escalation decision keep their own loading, because their routes are not typed yet.
+  - **Removed:** `planApi.blinding` and the `Blinding` alias in `lib/plan.ts` (no caller left).
+  - **Guard:** `tests/architecture/test_web_client.py` adds a check that only `lib/hooks.ts` imports the typed browser
+    read `get`. A page that reads around the hooks fails.
+- **Why:** rule B6, plan `docs/plans/2026-10-08-phase-7-frontend.md` step 7d. Each page hand-wrote fetch-then-refresh.
+  The brief, data plan, evidence and observed-data pages never refreshed the phase rail, so it showed a status that
+  their own change had made stale until the next navigation.
+- **Impact (web only; no API change):**
+  - A successful change on any of these pages now refreshes the phase rail.
+  - A change is followed by a fresh read of the page's resources. Before, some pages used the change's answer
+    directly; now there is one extra GET per change.
+  - The observed-data and client-data pages now read again every few seconds while an agent runs, as the brief and
+    evidence pages already did. Their datasets and sheet triage appear without a reload.
+  - On the brief page, every change (not only extract and approve) disables the action buttons while it runs.
+  - After a sheet is saved, the sheet reader shows that it was read before.
+
 ### Changed — the web app calls the API through one client, typed by route (architecture phase 7c)
 - **What:**
   - **One client:** `lib/api.ts` is the only module that fetches. The transport that `lib/writes.ts` duplicated

@@ -1,18 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Card } from "@/components/ui";
-import { apiFile, get, narrow, send, upload as uploadTo, type Schema } from "@/lib/api";
+import { apiFile, narrow, send, upload as uploadTo, type Envelope, type Schema } from "@/lib/api";
+import { useMutation, useResource } from "@/lib/hooks";
 
 import { SheetReader, type Study } from "./SheetReader";
 import {
   CATEGORY_LABEL, type ClientFile, DATA_SHEETS, type Profile, type Reconciled, type SheetForm, type Triage, type View, readSheets,
 } from "./types";
 
-type Act = (fn: () => Promise<{ errors: { message: string }[] }>) => Promise<string | null>;
+type Act = <T>(fn: () => Promise<Envelope<T>>) => Promise<string | null>;
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const STATUS: Record<string, [string, string]> = {
@@ -277,7 +277,7 @@ function ProfileRow({ p, onPropose }: { p: Profile; onPropose: (formulation: str
 
 function Dissolution({ projectId, d, act }: {
   projectId: string; d: View["dissolution"];
-  act: (fn: () => Promise<{ errors: { message: string }[] }>) => Promise<string | null>;
+  act: Act;
 }) {
   const label = (id: string) => d.profiles.find((p) => p.id === id)?.label ?? id;
   return (
@@ -320,31 +320,22 @@ function Dissolution({ projectId, d, act }: {
 
 /** P3 client data (plan §10): what arrived, reading it sheet by sheet, and what the data plan still waits for. */
 export function ClientData({ projectId }: { projectId: string }) {
-  const router = useRouter();
-  const [view, setView] = useState<View | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const page = useResource("/api/v1/projects/{project_id}/client-data", { project_id: projectId },
+    { select: (d) => narrow<View>(d), poll: (d) => d.running });
+  const { run } = useMutation();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [note, setNote] = useState("");
   const [reading, setReading] = useState<{ file: string; sheet: string } | null>(null);
   const [last, setLast] = useState<{ form: SheetForm; study: Study } | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  const load = useCallback(async () => {
-    const v = await get("/api/v1/projects/{project_id}/client-data", { project_id: projectId });
-    if (v.data) { setView(narrow<View>(v.data)); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "not readable");
-  }, [projectId]);
-  useEffect(() => { void load(); }, [load]);
+  const view = page.data;
 
-  if (problem) return <div className="banner err">{problem}</div>;
+  if (page.problem) return <div className="banner err">{page.problem}</div>;
   if (!view) return <p className="muted">Loading…</p>;
 
-  const act: Act = async (fn) => {
-    const env = await fn();
-    if (env.errors?.length) return env.errors[0].message;
-    await load();
-    router.refresh(); // the phase rail is server-rendered
-    return null;
-  };
+  // a change, then the client data and the phase rail read again; answers the API's reason when it refused
+  const act: Act = async (fn) => (await run(fn)).problem;
   const say = (error: string | null, ok: string) => setMessage(error ? { ok: false, text: error } : { ok: true, text: ok });
   async function upload(files: FileList | null) {
     if (!files?.length) return;
@@ -420,7 +411,7 @@ export function ClientData({ projectId }: { projectId: string }) {
               <FileCard key={f.id} projectId={projectId} file={f} agents={view.agents.enabled} running={view.running} act={act}
                         reading={reading?.file === f.id ? reading.sheet : null}
                         setReading={(sheet) => setReading(sheet ? { file: f.id, sheet } : null)}
-                        onSaved={async (m) => { await load(); router.refresh(); say(null, m); }} last={last} remember={setLast} />
+                        onSaved={async (m) => say(null, m)} last={last} remember={setLast} />
             ))}
           </>
         )}

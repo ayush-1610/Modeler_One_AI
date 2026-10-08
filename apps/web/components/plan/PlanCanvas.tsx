@@ -6,7 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { D3Dag, STUDY_MIME, StudyChip } from "@/components/plan/D3Dag";
 import { D1Disposition, D2Absorption } from "@/components/plan/Diagrams";
 import { Card } from "@/components/ui";
-import { ROLE_LABEL, planApi, type Blinding, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
+import { useMutation, useResource } from "@/lib/hooks";
+import { ROLE_LABEL, planApi, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
 import { startCampaign } from "@/lib/writes";
 
 type Pending = { studyId: string; from: Role; to: Role; where: string; preview: Violation[] | null; problem: string | null;
@@ -118,10 +119,10 @@ function ValidatorPanel({ view, onAcknowledge }: { view: PlanView; onAcknowledge
 
 /** D-15: whether external values are blinded, and the MIDD lead's switch (with its reason, on the audit chain). */
 function BlindingPanel({ projectId }: { projectId: string }) {
-  const [state, setState] = useState<Blinding | null>(null);
+  const { data: state } = useResource("/api/v1/projects/{project_id}/blinding", { project_id: projectId });
+  const { run } = useMutation();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { void planApi.blinding(projectId).then((env) => env.data && setState(env.data)); }, [projectId]);
   if (!state) return null;
   return (
     <div data-testid="blinding" style={{ fontSize: 12 }}>
@@ -135,8 +136,9 @@ function BlindingPanel({ projectId }: { projectId: string }) {
         <div className="row" style={{ gap: 4 }}>
           <input placeholder="reason (MIDD lead)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 100 }} />
           <button className="btn tiny" disabled={!reason.trim()} data-testid="blinding-toggle" onClick={async () => {
-            const env = await planApi.setBlinding(projectId, !state.on, reason);
-            if (env.data) { setState(env.data); setReason(""); setError(null); } else setError(env.errors?.[0]?.message ?? "not changed");
+            const { problem } = await run(() => planApi.setBlinding(projectId, !state.on, reason));
+            if (!problem) setReason("");
+            setError(problem);
           }}>{state.on ? "Turn off" : "Turn on"}</button>
         </div>
       )}

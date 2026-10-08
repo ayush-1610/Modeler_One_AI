@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
 import { Card } from "@/components/ui";
@@ -8,7 +8,8 @@ import {
   display, EMPTY_RECORD, STATUS_CHIP,
   type BriefView, type Citation, type DocumentView, type FieldDef, type FieldRecord, type Impact,
 } from "@/lib/brief";
-import { get, narrow, send, type Schema } from "@/lib/api";
+import { narrow, send, type Schema } from "@/lib/api";
+import { useMutation, useResource } from "@/lib/hooks";
 
 type Focus = { sha256: string; page: number; quote: string | null } | null;
 type EditStatus = "EDITED" | "CONFIRMED" | "NOT_APPLICABLE" | "MISSING";
@@ -150,31 +151,15 @@ function StatusCell({ record }: { record: FieldRecord }) {
 
 /** Review layer L1 (plan §5.2 P1): the brief beside its sources; every edit says why; approval when nothing blocks. */
 export function BriefReview({ projectId }: { projectId: string }) {
-  const [view, setView] = useState<BriefView | null>(null);
-  const [documents, setDocuments] = useState<DocumentView[]>([]);
-  const [problem, setProblem] = useState<string | null>(null);
+  const page = useResource("/api/v1/projects/{project_id}/brief", { project_id: projectId },
+    { select: (d) => narrow<BriefView>(d), poll: (d) => d.extraction_running });
+  const docs = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
+  const { run, busy } = useMutation();
   const [editing, setEditing] = useState<string | null>(null);
   const [focus, setFocus] = useState<Focus>(null);
-  const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const [b, d] = await Promise.all([
-      get("/api/v1/projects/{project_id}/brief", { project_id: projectId }),
-      get("/api/v1/projects/{project_id}/documents", { project_id: projectId }),
-    ]);
-    if (b.errors?.length || !b.data) { setProblem(b.errors?.[0]?.message ?? "The brief could not be read."); return; }
-    setProblem(null);
-    setView(narrow<BriefView>(b.data));
-    if (d.data) setDocuments(d.data.documents);
-  }, [projectId]);
-
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    if (!view?.extraction_running) return;
-    const timer = setInterval(() => { void load(); }, 3000);
-    return () => clearInterval(timer);
-  }, [view?.extraction_running, load]);
+  const view = page.data;
+  const documents = docs.data?.documents ?? [];
 
   const defsBySection = useMemo(() => {
     const out: Record<string, FieldDef[]> = {};
@@ -182,21 +167,20 @@ export function BriefReview({ projectId }: { projectId: string }) {
     return out;
   }, [view]);
 
-  if (problem) return <div className="banner err">{problem}</div>;
+  if (page.problem) return <div className="banner err">{page.problem}</div>;
   if (!view) return <p className="muted">Loading the brief…</p>;
   const { brief, catalog } = view;
 
   const open = (c: Citation) => setFocus({ sha256: c.doc_sha256, page: c.page, quote: c.quote });
 
   async function save(change: Change): Promise<string | null> {
-    const env = await send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId },
-      { changes: [change], reason: change.note || `confirmed ${change.path}` });
-    if (env.errors?.length || !env.data) return env.errors?.[0]?.message ?? "not saved";
-    setView(narrow<BriefView>(env.data as Schema<"BriefPage">));
-    setEditing(null);
-    return null;
+    const { problem } = await run(() => send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId },
+      { changes: [change], reason: change.note || `confirmed ${change.path}` }));
+    if (!problem) setEditing(null);
+    return problem;
   }
 
+  // a dry run: what the change would make stale; nothing is stored
   async function preview(change: Change): Promise<Impact | string> {
     const env = await send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId },
       { changes: [change], reason: change.note || "preview", preview: true });
@@ -205,35 +189,29 @@ export function BriefReview({ projectId }: { projectId: string }) {
   }
 
   async function extract() {
-    setBusy(true);
-    const env = await send("post", "/api/v1/projects/{project_id}/brief:extract", { project_id: projectId }, {});
-    setBusy(false);
-    setNotice(env.errors?.length ? env.errors[0].message
-      : env.data?.agents ? "The intake agent is reading the documents; the brief refreshes as it finishes."
-      : (env.data?.problem ?? "Identity resolved; fill the brief by hand."));
-    await load();
+    const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief:extract", { project_id: projectId }, {}));
+    setNotice(problem
+      ?? (data?.agents ? "The intake agent is reading the documents; the brief refreshes as it finishes."
+        : (data?.problem ?? "Identity resolved; fill the brief by hand.")));
   }
 
   async function approve() {
-    setBusy(true);
-    const env = await send("post", "/api/v1/projects/{project_id}/brief:approve", { project_id: projectId }, { note: "" });
-    setBusy(false);
-    if (env.errors?.length || !env.data) setNotice(env.errors?.[0]?.message ?? "not approved");
-    else { setView(narrow<BriefView>(env.data)); setNotice("Brief approved."); }
+    const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief:approve", { project_id: projectId }, { note: "" }));
+    setNotice(problem ?? "Brief approved.");
   }
 
   async function answer(questionId: string, text: string, status: "answered" | "accepted_as_limitation") {
-    const env = await send("post", "/api/v1/projects/{project_id}/brief/questions/{question_id}",
-      { project_id: projectId, question_id: questionId }, { answer: text, status });
-    if (env.data) setView(narrow<BriefView>(env.data)); else setNotice(env.errors?.[0]?.message ?? "not saved");
+    const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/questions/{question_id}",
+      { project_id: projectId, question_id: questionId }, { answer: text, status }));
+    if (problem) setNotice(problem);
   }
 
   async function removeItem(group: string, index: number) {
     const reason = window.prompt(`Why remove ${group} ${index + 1}?`);
     if (!reason) return;
-    const env = await send("post", "/api/v1/projects/{project_id}/brief/items:remove", { project_id: projectId },
-      { group, index, reason });
-    if (env.data) setView(narrow<BriefView>(env.data)); else setNotice(env.errors?.[0]?.message ?? "not removed");
+    const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/items:remove", { project_id: projectId },
+      { group, index, reason }));
+    if (problem) setNotice(problem);
   }
 
   const approved = view.artifact.status === "APPROVED";

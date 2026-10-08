@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
 import { Card } from "@/components/ui";
-import { get, narrow, send, upload, type Envelope, type Narrow, type Schema } from "@/lib/api";
+import { narrow, send, upload, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
+import { useMutation, useResource } from "@/lib/hooks";
 
 type Evidence = {
   id: string;
@@ -140,44 +141,25 @@ function ManualForm({ row, onAdd }: { row: Coverage; onAdd: (body: Schema<"Manua
 
 /** Review layer L2a (plan §5.2 P2): literature evidence per data-plan item, side by side, decided with reasons. */
 export function EvidenceReview({ projectId }: { projectId: string }) {
-  const [view, setView] = useState<EvidenceViewData | null>(null);
-  const [docs, setDocs] = useState<DocumentView[]>([]);
-  const [problem, setProblem] = useState<string | null>(null);
+  const page = useResource("/api/v1/projects/{project_id}/evidence", { project_id: projectId },
+    { select: (d) => narrow<EvidenceViewData>(d), poll: (d) => d.running, interval: 4000 });
+  const documents = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
+  const { run, busy } = useMutation();
   const [notice, setNotice] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ sha256: string; page: number; quote: string | null } | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    const [v, d] = await Promise.all([
-      get("/api/v1/projects/{project_id}/evidence", { project_id: projectId }),
-      get("/api/v1/projects/{project_id}/documents", { project_id: projectId }),
-    ]);
-    if (v.data) { setView(narrow<EvidenceViewData>(v.data)); setProblem(null); } else setProblem(v.errors?.[0]?.message ?? "The evidence could not be read.");
-    if (d.data) setDocs(d.data.documents);
-  }, [projectId]);
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    if (!view?.running) return;
-    const t = setInterval(() => { void load(); }, 4000);
-    return () => clearInterval(t);
-  }, [view?.running, load]);
+  const view = page.data;
+  const docs: DocumentView[] = documents.data?.documents ?? [];
 
   const byId = useMemo(() => Object.fromEntries((view?.evidence ?? []).map((e) => [e.id, e])), [view]);
   const unlinked = useMemo(() => (view?.evidence ?? []).filter((e) =>
     !view?.coverage.some((c) => c.accepted.includes(e.id) || c.proposed.includes(e.id)) && e.state !== "REJECTED"), [view]);
 
-  if (problem) return <div className="banner err">{problem}</div>;
+  if (page.problem) return <div className="banner err">{page.problem}</div>;
   if (!view) return <p className="muted">Loading the evidence…</p>;
 
-  async function act<T>(fn: () => Promise<Envelope<T>>): Promise<string | null> {
-    setBusy(true);
-    const env = await fn();
-    setBusy(false);
-    if (env.errors?.length) return env.errors[0].message;
-    await load();
-    return null;
-  }
+  // a change, then the evidence read again; answers the API's reason when it refused
+  const act = async <T,>(fn: () => Promise<Envelope<T>>): Promise<string | null> => (await run(fn)).problem;
   const decide = (e: Evidence, state: Schema<"Decision">["state"], reason: string, value?: number) =>
     act(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id },
       { state, reason, ...(value !== undefined ? { value_pksim: value, unit_pksim: null } : {}) }));

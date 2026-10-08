@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 
 import type { DocumentView } from "@/lib/brief";
-import { get, type Schema } from "@/lib/api";
-
-type Page = Schema<"DocumentPage">;
+import { useResource } from "@/lib/hooks";
 
 /** Highlight `quote` inside `text`, tolerating whitespace differences (the citation check normalizes whitespace). */
 function highlight(text: string, quote: string | null) {
@@ -26,8 +24,6 @@ export function DocumentViewer({
 }) {
   const [sha, setSha] = useState<string | null>(focus?.sha256 ?? documents[0]?.sha256 ?? null);
   const [pageNo, setPageNo] = useState<number>(focus?.page ?? 1);
-  const [page, setPage] = useState<Page | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
     if (focus) {
@@ -40,16 +36,8 @@ export function DocumentViewer({
     if (!sha && documents[0]) setSha(documents[0].sha256);
   }, [documents, sha]);
 
-  useEffect(() => {
-    if (!sha) return;
-    let cancelled = false;
-    get("/api/v1/projects/{project_id}/documents/{sha256}/pages/{page}", { project_id: projectId, sha256: sha, page: String(pageNo) }).then((env) => {
-      if (cancelled) return;
-      if (env.errors?.length || !env.data) setProblem(env.errors?.[0]?.message ?? "page not found");
-      else { setProblem(null); setPage(env.data); }
-    });
-    return () => { cancelled = true; };
-  }, [projectId, sha, pageNo]);
+  const { data: page, problem } = useResource("/api/v1/projects/{project_id}/documents/{sha256}/pages/{page}",
+    { project_id: projectId, sha256: sha ?? "", page: String(pageNo) }, { enabled: sha !== null, keepPrevious: true });
 
   const doc = documents.find((d) => d.sha256 === sha);
   const quote = focus && focus.sha256 === sha && focus.page === pageNo ? focus.quote : null;
