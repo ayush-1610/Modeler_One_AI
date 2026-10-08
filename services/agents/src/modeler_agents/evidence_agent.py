@@ -14,10 +14,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from modeler_agents.citations import quote_appears_in, value_stated_in_quote
 from modeler_agents.llm import ChatModel, Tool, run_tool_loop
 from modeler_agents.sources import EuropePMC, SourceError
 from modeler_agents.web_search import search_tool
+from modeler_intake.citations import quote_appears_in, value_stated_in_quote
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceItem, Extraction, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import propose, request_access

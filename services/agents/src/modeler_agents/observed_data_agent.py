@@ -14,9 +14,9 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from modeler_agents.citations import quote_appears_in, value_stated_in_quote
 from modeler_agents.evidence_agent import ResearchContext, ResearchOutcome, reading_tools
 from modeler_agents.llm import ChatModel, Tool, run_tool_loop
+from modeler_intake.citations import quote_appears_in, value_stated_in_quote
 from modeler_project.dataset_register import propose_dataset
 from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, new_dataset_id
 from modeler_project.evidence import SourceRef

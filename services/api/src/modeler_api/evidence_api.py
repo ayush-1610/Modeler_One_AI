@@ -151,7 +151,7 @@ class ManualEvidence(BaseModel):
 @router.post("/projects/{project_id}/evidence", status_code=201)
 def add_evidence(project_id: str, body: ManualEvidence, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """The manual path: a person enters a value with its source. A quote from a stored document is checked verbatim."""
-    from modeler_agents.citations import quote_appears_in, value_stated_in_quote
+    from modeler_intake.citations import quote_appears_in, value_stated_in_quote
 
     ws = workspace_for(project_id, principal, store)
     _, matrix = _matrix(ws)

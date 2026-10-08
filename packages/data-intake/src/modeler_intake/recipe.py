@@ -8,7 +8,7 @@ and read without AI.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -17,6 +17,15 @@ Statistic = Literal["individual", "arithmetic_mean", "geometric_mean", "median"]
 ColumnRole = Literal["time", "value", "subject_id", "group", "sd", "n"]
 
 DEFAULT_BELOW_LLOQ_TOKENS = ["BLQ", "BQL", "<LLOQ", "LLOQ", "NQ", "ND", "BLOQ"]
+
+# The values a table states once for every row (coupling C9: the one list the recipe, its review, `apply` and the
+# sheet form share). A proposal may name only these keys; the numeric ones are stored as numbers.
+ConstantKey = Literal[
+    "study_id", "analyte", "matrix", "dose", "dose_unit", "route", "formulation", "food_state", "n",
+    "batch", "medium", "ph", "apparatus", "rpm", "product", "role", "strength_mg", "volume_ml",
+]
+CONSTANT_KEYS: tuple[str, ...] = get_args(ConstantKey)
+NUMERIC_CONSTANTS = frozenset({"dose", "n", "ph", "rpm", "strength_mg", "volume_ml"})
 
 
 class ColumnMapping(BaseModel):
@@ -48,8 +57,7 @@ class TableMapping(BaseModel):
     decimal_comma: bool = False
     constants: dict[str, str | float] = Field(
         default_factory=dict,
-        description="Values that apply to every row: study_id, analyte, matrix, dose, dose_unit, route, formulation, "
-        "food_state, n, batch, medium, ph, apparatus, rpm, product, role, strength_mg, volume_ml",
+        description="Values that apply to every row: " + ", ".join(CONSTANT_KEYS),
     )
 
     @model_validator(mode="after")

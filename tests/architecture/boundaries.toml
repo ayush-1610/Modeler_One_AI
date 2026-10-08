@@ -33,7 +33,7 @@ readers = [
   "modeler_engine.runner",      # passes chosen variables through to the engine subprocess
 ]
 
-# ---- known exceptions (2026-10-07; removed: 13 by phase 3b, 10 by 5a, 14 by 5b). rule: layer | declared | seam | router | tests ----
+# ---- known exceptions (2026-10-07; removed: 13 by phase 3b, 10 by 5a, 14 by 5b, 3 by 5c). rule: layer | declared | seam | router | tests ----
 
 [[allow]]
 rule = "layer"
@@ -43,27 +43,9 @@ reason = "the local runner calls the engine runner in-process; goes behind an en
 
 [[allow]]
 rule = "declared"
-importer = "modeler_agents"
-imported = "pbpk_domain"
-reason = "reached through modeler_intake / modeler_project; declared in phase 5"
-
-[[allow]]
-rule = "declared"
 importer = "modeler_orchestrator"
 imported = "modeler_engine"
 reason = "lazy import in local_runner; goes behind an engine port with the layer exception above"
-
-[[allow]]
-rule = "seam"
-importer = "modeler_api.client_api"
-imported = "modeler_agents.data_mapping"
-reason = "deterministic recipe review imported from the agents package; moves to modeler_intake in phase 5"
-
-[[allow]]
-rule = "seam"
-importer = "modeler_api.evidence_api"
-imported = "modeler_agents.citations"
-reason = "deterministic quote check imported from the agents package; moves to modeler_project in phase 5"
 
 [[allow]]
 rule = "router"

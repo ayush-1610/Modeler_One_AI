@@ -1,6 +1,6 @@
 # Phase 5: services out of routers, `modeler_api.deps`, deterministic helpers out of the agents package
 
-Status: **5a and 5b done.** 5c–5d next, each one PR to `main`, behaviour identical.
+Status: **5a–5c done.** 5d next, one PR to `main`, behaviour identical.
 Sources: `docs/ARCHITECTURE_BOUNDARIES.md` (rules B3/B4, couplings C3, C4, C9, §6 phase 5); exceptions in
 `tests/architecture/boundaries.toml`, which only shrinks.
 
@@ -33,13 +33,22 @@ layer.
   bodies read and write the project through router helpers that 5d moves out. Run ids, actors, step sequence, summaries
   and error messages are unchanged; the run detail still checks the run is the viewer's before reading its steps. Seam
   exceptions went from 16 to 2 (`citations`, `data_mapping`, which are 5c), and 25 → 11 overall.
-- **5c — deterministic helpers out of the agents package:**
-  - `citations` (quote check) moves to `modeler_project`;
-  - `data_mapping` (recipe review) moves to `modeler_intake`;
-  - the recipe constant keys get one owner (C9: `recipe.py`, `apply.py`, `data_mapping.ConstantKey`, `sheet_form.py`).
+- **5c — done.** Deterministic helpers left the agents package:
+  - `citations` (the quote check) is now `modeler_intake.citations`. **Deviation from this plan, which said
+    `modeler_project`:** the recipe review (L2, `modeler_intake`) needs `normalize_for_match`, and L2 cannot import L3.
+    The quote check reads text only, so it sits with the readers that produce that text.
+  - The deterministic half of `data_mapping` is now `modeler_intake.recipe_review`: the proposal models, `to_recipe`,
+    `check_evidence` and `review_proposal`. `modeler_agents.data_mapping` keeps the prompt and `propose_mapping`, the
+    part that calls a model. The proposal's JSON schema, which the model is given, is unchanged.
+  - The recipe constant keys have one owner (C9): `recipe.ConstantKey`, `CONSTANT_KEYS` and `NUMERIC_CONSTANTS`. The
+    review, `apply._const` and the recipe's schema text read them, and a test keeps the sheet form's keys inside them.
+  - `planning_agent` and `data_mapping` still use `pbpk_domain` (`CPF`, `Issue`), so the agents package now declares
+    it. That is a workspace package already installed through `modeler_intake`; no new third-party dependency, and
+    `uv.lock` gains two lines. This removes the `declared` agents → `pbpk_domain` exception.
 
-  The agents package keeps only what calls a model. This removes the `declared` agents → `pbpk_domain` exception if
-  nothing else needs it.
+  Seam exceptions went from 2 to 0, and 11 → 8 overall. The tests moved with the code: `test_citations.py` and
+  `test_recipe_review.py` in `data-intake`. The agents' `test_data_mapping.py` checks only what the agent does: it
+  sends the sheets, asks for the proposal's schema, and passes the proposal to the review unchanged.
 - **5d — services out of routers:**
   - data-plan derivation (`requirements_api`) moves to a `modeler_project` service;
   - `_observed_from_studies` (`write_api`) moves to a service;

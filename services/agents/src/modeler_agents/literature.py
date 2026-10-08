@@ -16,9 +16,9 @@ from anthropic import beta_async_tool
 from anthropic.lib.tools.mcp import async_mcp_tool
 from pydantic import BaseModel
 
-from modeler_agents.citations import quote_appears_in
 from modeler_agents.mcp_servers import MCPServerConfig, RecordingSession, RetrievalStore
 from modeler_agents.parameter_curation import CurationContext, ParameterProposal, record_proposal
+from modeler_intake.citations import quote_appears_in
 
 SYSTEM_PROMPT = """You research input data for PBPK models built in PK-Sim that may be submitted to regulators.
 

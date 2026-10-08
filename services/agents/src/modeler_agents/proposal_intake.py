@@ -14,8 +14,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from modeler_agents.citations import quote_appears_in, value_stated_in_quote
 from modeler_agents.llm import ChatModel, LoopOutcome, Tool, run_tool_loop
+from modeler_intake.citations import quote_appears_in, value_stated_in_quote
 from modeler_project.brief import (
     FIELDS,
     GROUPS,
