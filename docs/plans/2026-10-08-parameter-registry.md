@@ -1,7 +1,7 @@
 # Phase 4: one parameter registry in `pbpk_domain` (coupling C1)
 
-Status: **4a done (characterization); 4b done (registry v1.0, approved by the owner 2026-10-08, UNVERIFIED); 4c–4e
-next**, 4d and 4e with the owner's approval (locked files, science).
+Status: **4a done (characterization); 4b done (registry v1.0, approved by the owner 2026-10-08, UNVERIFIED); 4c done
+(unlocked consumers read it); 4d and 4e next**, each with the owner's approval (locked files, science).
 Sources: `docs/ARCHITECTURE_BOUNDARIES.md` (B1, C1, §6 phase 4), MS-01 §2.2 (`docs/PBPK_MODELING_WORKFLOW.md`).
 
 ## Why
@@ -66,7 +66,11 @@ The registry adds no new science:
   - `tests/architecture/test_parameter_registry.py` covers the modeler_project tables and the 4a snapshot's answers.
 
   The drift is reproduced as is, with a `drift:` note on each entry. No consumer reads the registry yet.
-- **4c — unlocked consumers derive from the registry:** `inputs`, `evidence`, `completeness`,
+- **4c — done:** `inputs` (model/reference ids and prefixes, builder unit, ValueOrigin prefixes, `placement`),
+  `evidence` (bounds, `numeric_target`), `completeness` (`check_completeness` reports `parameters.unmet_s0`) and
+  `process_bindings.is_process_id` read the registry. An AST test keeps the switched tables from turning back into
+  literals. `templates_api._BLANK_PARAMETERS` stays a template's choice; a test checks it meets every S0
+  requirement. `plan_api`'s binding group is page layout and stays as it is. The original scope was: `inputs`, `evidence`, `completeness`,
   `process_bindings.is_process_id`, `templates_api`, `plan_api`. The snapshot stays unchanged. The phase 1 vocabulary
   test becomes a registry test.
 - **4d — locked consumers** (own PR, owner approval, hashes refreshed): `parameter_units._TARGETS`,

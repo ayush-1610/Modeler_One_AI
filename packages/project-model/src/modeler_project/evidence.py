@@ -18,6 +18,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pbpk_domain import parameters
 from pbpk_domain.parameter_units import ConversionError, to_storage_unit
 
 
@@ -106,9 +107,8 @@ def new_id() -> str:
 
 
 # Physical validity only (not SME plausibility): a value outside these cannot be right whatever the source. An
-# intestinal permeability of 1 cm/min (≈ 170 µm/s) is far beyond any measured human value.
-_PHYSICAL = {"bind.fu": (0.0, 1.0), "phys.mw": (10.0, 1e6), "phys.logp": (-10.0, 15.0), "dist.bp_ratio": (0.0, 20.0),
-             "elim.renal.gfr_fraction": (0.0, 10.0), "perm.intestinal": (0.0, 1.0), "elim.fe_urine": (0.0, 1.0)}
+# intestinal permeability of 1 cm/min (≈ 170 µm/s) is far beyond any measured human value. From the parameter registry.
+_PHYSICAL = parameters.physical_bounds()
 _BINDING_WORDS = re.compile(r"\bbound\b|\bbinding\b", re.IGNORECASE)
 _UNBOUND_WORDS = re.compile(r"unbound|\bfree\b|\bfu\b", re.IGNORECASE)
 _URINE_WORDS = re.compile(r"urin|excreted|unchanged", re.IGNORECASE)
@@ -118,11 +118,10 @@ def numeric_target(target: str) -> bool:
     """A parameter whose value is a number: one with a storage unit, a process parameter, or an elimination
     placeholder. Words and documents (a binding partner, a method, an expression profile, a release type) are not."""
     from pbpk_domain.cpf.process_bindings import is_process_id
-    from pbpk_domain.parameter_units import target_family
 
     if target.startswith("form.") and target.endswith(".type"):
         return False
-    return target == "elim" or target_family(target) is not False or is_process_id(target)
+    return target == "elim" or parameters.storage_family(target) is not False or is_process_id(target)
 
 
 def review_flags(item: EvidenceItem) -> list[str]:

@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the unlocked consumers read the parameter registry (architecture phase 4c)
+- **What:** these consumers now read `pbpk_domain.parameters` instead of keeping their own copies:
+  - **`modeler_project.inputs`:** model and reference ids and prefixes, the builder unit, the ValueOrigin in-vivo /
+    in-vitro prefixes, and `placement()`, which delegates to `parameters.placement`;
+  - **`modeler_project.evidence`:** physical bounds, and `numeric_target` via `parameters.storage_family`;
+  - **`pbpk_domain.cpf.completeness`:** `check_completeness` collects the ids with a value and provenance and reports
+    `parameters.unmet_s0` (messages and ids from the registry's S0 list);
+  - **`pbpk_domain.cpf.process_bindings`:** `is_process_id` uses the registry's process families.
+
+  The module-level names stay, because other modules and tests import them.
+- **Guards:**
+  - An AST test fails if a switched table is written as a literal again.
+  - A test checks that the blank template's parameters (`templates_api._BLANK_PARAMETERS`) meet every S0 requirement.
+    That table stays a template's choice: neutral pKa, and total hepatic clearance bound as the OSP models bind it.
+- **Why:** coupling C1. An id added to one copy and not the others once produced a model without the value.
+- Impact: none on behaviour. The characterization snapshot (`docs/architecture/parameter-vocabulary.json`), the 4b
+  equality tests and the phase 1 vocabulary test (with its strict xfails for the drift) are unchanged and pass.
+  `make test`: 15 failures, all known to this environment (14 Temporal test-server downloads, 1 vault-permission test
+  when run as root); they pass in CI. Still on copies: the locked `parameter_units`, `pksim_paths` and `cpf.build`
+  (4d, with the owner's approval).
+
 ### Science (governance) — one CPF parameter registry, v1.0 UNVERIFIED (architecture phase 4b)
 - **What:** a new SME-governed data file, `packages/pbpk-domain/src/pbpk_domain/parameters/registry.yaml` (v1.0,
   `UNVERIFIED`, locked as SME content; approved by the owner 2026-10-08). For every CPF id or id family it states:
