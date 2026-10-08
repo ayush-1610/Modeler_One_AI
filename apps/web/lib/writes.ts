@@ -1,7 +1,7 @@
 // Client-side write helpers for the guided create-project flow. Each POSTs/PUTs with a bearer token; under
 // single-node dev auth any bearer is accepted, so NEXT_PUBLIC_DEMO_TOKEN ?? "dev" is enough.
 
-import type { Envelope } from "@/lib/api";
+import type { Envelope, Schema } from "@/lib/api";
 
 // Browser writes go to this same origin ("/api/..."); next.config proxies them to the backend, so there is
 // one URL and no CORS. The dev bearer is accepted by dev auth; in production the user's OIDC token is used.
@@ -137,18 +137,14 @@ export async function startCampaign(
 
 /** Resolve an escalated stage from the review inbox (retry / accept_best / abort). Every decision is an
  *  approval and is signed server-side from the session's step-up, so nothing moves without a signature. */
+/** A signed decision on an escalated stage (ResolveRequest: retry / accept_best / abort / approve, or for a failed
+ *  external validation learn / new_evidence). The answer is EscalationResolved, or the API's `detail` on refusal. */
 export async function resolveEscalation(
   campaignId: string,
   stage: string,
-  body: {
-    action: "retry" | "accept_best" | "abort" | "approve" | "learn" | "new_evidence";
-    note?: string;
-    studies?: string[];                // learn: the failing studies to move to the internal set
-    beyond_cap?: string;               // learn beyond the cycle cap (D-05): the deviation reason
-    evidence?: { parameter: string; value: number; unit: string | null; reference: string };  // new_evidence
-  },
-): Promise<{ ok: boolean; status?: string; detail?: string; signature?: { manifestation: string } }> {
-  const { ok, body: data, error } = await rawPost<{ status?: string; detail?: string; signature?: { manifestation: string } }>(
+  body: Schema<"ResolveRequest">,
+): Promise<{ ok: boolean; detail?: string } & Partial<Schema<"EscalationResolved">>> {
+  const { ok, body: data, error } = await rawPost<Partial<Schema<"EscalationResolved">> & { detail?: string }>(
     `/api/v1/campaigns/${campaignId}/stages/${stage}/escalation:resolve`, body);
   return { ok, ...data, detail: data.detail ?? error };
 }

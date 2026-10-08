@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
 import { Card } from "@/components/ui";
+import type { Narrow, Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
 import { apiGet, apiSend, apiUpload } from "@/lib/writes";
 
@@ -33,22 +34,12 @@ type Evidence = {
   note: string;
 };
 
-type Coverage = {
-  req_id: string; label: string; target: string; criticality: string; applies: string; provider: string;
-  status: string; accepted: string[]; proposed: string[];
-};
+type Coverage = Schema<"CoverageRow">;
 
-type EvidenceViewData = {
-  data_plan: { version: number; status: string };
-  evidence: Evidence[];
-  coverage: Coverage[];
-  blocking: string[];
-  access_requests: { id: string; title: string; authors: string; doi: string | null; needed_for: string; status: string }[];
-  register: { version: number; status: string; stale_reasons: string[] } | null;
-  agents: { enabled: boolean; provider?: string; model?: string; problem?: string };
-  running: boolean;
-  runs: { run_id: string; status: string; summary: Record<string, unknown> }[];
-};
+type AccessRequest = { id: string; title: string; authors: string; doi: string | null; needed_for: string; status: string };
+
+// GET /projects/{id}/evidence (EvidencePage); the stored evidence items and paper requests are typed above
+type EvidenceViewData = Narrow<Schema<"EvidencePage">, { evidence: Evidence[]; access_requests: AccessRequest[] }>;
 
 const STATUS_CHIP: Record<string, string> = {
   ACCEPTED: "low", PROPOSED: "medium", CONFLICTING: "high", NOT_FOUND: "high", NOT_AVAILABLE: "neutral", WAIVED: "neutral",

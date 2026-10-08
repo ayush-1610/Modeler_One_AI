@@ -35,7 +35,7 @@ class Reconciliation(View):
 class Dissolution(View):
     profiles: list[StoredContent]
     comparisons: list[dict[str, Any]]      # test vs reference pairs with their f2
-    problems: list[Any]
+    problems: list[str]
 
 
 class ClientDataPage(View):

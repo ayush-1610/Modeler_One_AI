@@ -5,15 +5,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Card } from "@/components/ui";
+import type { Schema } from "@/lib/api";
 import { apiUpload } from "@/lib/writes";
 
-type Initiated = {
-  project_id: string;
-  name: string;
-  documents: { name: string; role: string; n_pages: number; warnings: string[] }[];
-  brief_version: number;
-  extraction: { started: boolean; agents: boolean; problem: string | null } | null;
-};
+type Initiated = Schema<"ProjectStarted">;
 
 const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.csv,.tsv,.xlsx,.xlsm";
 

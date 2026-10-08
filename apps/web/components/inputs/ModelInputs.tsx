@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { Card } from "@/components/ui";
+import type { Narrow, Schema } from "@/lib/api";
+import type { ArtifactView } from "@/lib/pipeline";
 import { apiGet, apiSend } from "@/lib/writes";
 
 import { InputsTodo, type TodoItem } from "./InputsTodo";
@@ -16,17 +18,16 @@ type Record_ = {
 type Study = { study_id: string; route: string; dose_mg: number; formulation: string; formulation_name?: string; food_state: string;
                n: number; origin: string; evaluable: boolean; purpose: string; dataset_id: string };
 type Check = { check: string; ok: boolean; detail: string[] };
-type Artifact<C> = { version: number; status: string; stale_reasons: string[]; content?: C;
-                     approvals: { printed_name: string; at: string }[] };
-type View = {
-  cpf: (Artifact<unknown> & { assembly: { problems: string[]; records: number } }) | null;
+// GET /projects/{id}/inputs (InputsPage); the stored CPF records, catalog, readiness and choices are typed here
+type View = Narrow<Schema<"InputsPage">, {
+  cpf: Narrow<Schema<"CpfVersion">, { assembly: { problems: string[]; records: number } }> | null;
   records: Record_[];
-  catalog: Artifact<{ studies: Study[]; notes: string[] }> | null;
-  readiness: Artifact<{ ready: boolean; checks: Check[]; split: Record<string, string[]>; engine_dry_run: string }> | null;
+  catalog: ArtifactView<{ studies: Study[]; notes: string[] }> | null;
+  readiness: ArtifactView<{ ready: boolean; checks: Check[]; split: Record<string, string[]>; engine_dry_run: string }> | null;
   choices: { process: Record<string, string>; formulation: Record<string, string>; excluded_studies: Record<string, string> };
   published: { studies: string[] } | null;
   todo: TodoItem[];
-};
+}>;
 
 const TABS = ["Compound", "Formulations", "Individuals", "Simulation settings", "Studies", "Readiness"] as const;
 const SOLID = ["ir_tablet", "ir_capsule", "mr", "suspension"];

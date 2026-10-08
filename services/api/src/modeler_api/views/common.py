@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from modeler_project.artifacts import ArtifactStatus
+
 Number = int | float
+PhaseId = Literal["P0", "P1", "P2", "P3", "P4", "P5", "P6"]
 
 
 class View(BaseModel):
@@ -39,7 +42,7 @@ class VersionView(View):
     id: str
     version: int
     sha256: str
-    status: str
+    status: ArtifactStatus
     stale_reasons: list[str]
     created_at: str
     created_by: str
@@ -53,12 +56,12 @@ class ChangeView(View):
     path: str
     before: Any
     after: Any
-    kind: str
+    kind: Literal["added", "removed", "changed"]
 
 
 class AffectedView(View):
     ref: Ref
-    status: str
+    status: ArtifactStatus
     effect: str
     needs_signature: bool
 
@@ -83,16 +86,17 @@ class AgentsStatus(View):
 
 
 class RunSummary(View):
-    """One agent run as a page lists it (the run record's own keys; any may be missing from an old record)."""
+    """One agent run as a page lists it: the run record's own keys (`run_store.start_run` writes all of them; the run
+    is unfinished while `finished_at` is null). Not every page lists the provider."""
 
-    run_id: str | None
-    agent: str | None
-    status: str | None
+    run_id: str
+    agent: str
+    status: str
     provider: str | None = None
-    model: str | None
-    started_at: str | None
+    model: str
+    started_at: str
     finished_at: str | None
-    summary: dict[str, Any] | None
+    summary: dict[str, Any]
 
 
 class DocumentView(View):

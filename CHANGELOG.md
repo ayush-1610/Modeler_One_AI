@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the pages read every typed answer as its generated type (architecture phase 7b; API contract)
+- **What:**
+  - **Pages on generated types:** `lib/pipeline.ts`, the client-data, evidence, inputs and start pages, and the
+    escalation resolve call now use the generated models (`Schema<…>`). Stored content inside an answer is typed with
+    `Narrow<Schema<…>, {…}>`, which accepts only keys the answer has.
+  - **Generation flag:** `--default-non-nullable false`, so a field with a default is optional in the generated types
+    (request bodies, and answers sent with unset keys left out).
+  - **Tightened API models:**
+    - phase ids are `Literal["P0".."P6"]`;
+    - phase and artifact statuses use their enums (`PhaseStatus`, `ArtifactStatus`);
+    - change kinds are `added` / `removed` / `changed`;
+    - dissolution `problems` are strings;
+    - `RunSummary`'s keys are required, as `run_store.start_run` has always written them (`finished_at` stays null
+      until a run ends).
+  - The phase row model is renamed `PhaseStatus` → `PhaseRow`.
+- **Why:** rules B2 and B6. Pages hand-wrote answer shapes the contract already described.
+- **Impact (an API contract change for clients):**
+  - The OpenAPI snapshot gains enum schemas (`PhaseStatus`, `ArtifactStatus`) and tighter field types, and renames
+    the row schema to `PhaseRow`. The values sent are unchanged; the conftest guard compares every typed answer with
+    the handler's return value.
+  - The brief page's null guard from 7a is removed, now that `RunSummary` states what run records hold.
+  - The campaign, results, read and plan pages keep hand-written types until those routers are typed.
+
 ### Added — the web app's API types are generated from the contract (architecture phase 7a; new dev dependency)
 - **What:**
   - `openapi-typescript` is a new dev dependency of `apps/web`, pinned to exactly `7.13.0` (approved by the owner,

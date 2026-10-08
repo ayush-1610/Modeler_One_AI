@@ -1,6 +1,6 @@
 # Phase 7: frontend seams, with the web types generated from the API contract
 
-Status: **7a done** (this plan's first PR). 7b–7d next, each one PR to `main`, with no behaviour change unless stated.
+Status: **7a and 7b done.** 7c–7d next, each one PR to `main`, with no behaviour change unless stated.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B6, the L7 row, §6 phase 7.
 - The OpenAPI snapshot `docs/api/openapi.json`. Phase 6 typed every P0–P4 and escalation answer in it.
@@ -27,7 +27,29 @@ types can be generated from the same contract.
     objects.
   - The generated types surfaced one gap. The contract allows an agent run's `status` and `summary` to be null, and
     the brief page read them unguarded. The page is now null-safe.
-- **7b — every page answer from `Schema<…>`:** `lib/types.ts`, `lib/pipeline.ts`, `lib/plan.ts` and the page-local types
+- **7b — done.** The answers the contract types now come from `Schema<…>`:
+  - `lib/pipeline.ts`: phases, artifacts, history, audit;
+  - the client-data, evidence and inputs pages, and the start page;
+  - the escalation resolve call, with `ResolveRequest` / `EscalationResolved`.
+
+  What was added for it:
+  - **`Narrow<Schema<…>, {…}>`** types an answer's open-object fields (stored content) by hand. It only accepts keys
+    the answer has, so a field the API drops or renames fails the typecheck.
+  - **Generation flag:** `--default-non-nullable false`, so a field with a default is optional. A request body may
+    leave it out, and an answer sent with unset keys left out may not have it.
+  - **Tightened API models** where the values are a closed set, so the generated types keep the unions the pages use:
+    - phase ids (`PhaseId`);
+    - `PhaseStatus` and `ArtifactStatus`;
+    - change kinds;
+    - dissolution `problems` as strings;
+    - `RunSummary`, whose keys `run_store.start_run` has always written.
+
+    The view model `PhaseStatus` (a row) is renamed `PhaseRow`. The answers are unchanged, as the conftest guard
+    checks. 7a's null guard on the brief page went back out once `RunSummary` said what the records hold.
+  - **Still hand-typed:** `lib/types.ts` (campaign, results, read API) and `lib/plan.ts` (P5). Their routes were not
+    typed in phase 6, so they wait until those routers get response models.
+
+  The original scope was: **every page answer from `Schema<…>`:** `lib/types.ts`, `lib/pipeline.ts`, `lib/plan.ts` and the page-local types
   that describe an API answer become aliases of the generated models, one module at a time. Each mismatch tsc reports
   is either a web bug (fixed in the page) or a too-loose model (tightened in the API, with the snapshot and the
   CHANGELOG). Stored content, such as the brief, the plan, a CPF record and a dataset, stays hand-typed until its owner

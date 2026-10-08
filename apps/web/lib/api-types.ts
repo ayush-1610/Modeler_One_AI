@@ -1662,7 +1662,7 @@ export interface components {
              * Note
              * @default
              */
-            note: string;
+            note?: string;
         };
         /** AffectedView */
         AffectedView: {
@@ -1671,8 +1671,7 @@ export interface components {
             /** Needs Signature */
             needs_signature: boolean;
             ref: components["schemas"]["Ref"];
-            /** Status */
-            status: string;
+            status: components["schemas"]["ArtifactStatus"];
         };
         /** AgentRunDetail */
         AgentRunDetail: {
@@ -1705,7 +1704,7 @@ export interface components {
              * Note
              * @default
              */
-            note: string;
+            note?: string;
         };
         /** ApprovalView */
         ApprovalView: {
@@ -1731,7 +1730,7 @@ export interface components {
              * Note
              * @default
              */
-            note: string;
+            note?: string;
         };
         /**
          * ArtifactKind
@@ -1739,6 +1738,11 @@ export interface components {
          * @enum {string}
          */
         ArtifactKind: "document" | "brief" | "requirements" | "feasibility" | "evidence" | "access_request" | "dataset" | "client_submission" | "dissolution" | "cpf" | "study_catalog" | "readiness" | "model_plan" | "map" | "campaign";
+        /**
+         * ArtifactStatus
+         * @enum {string}
+         */
+        ArtifactStatus: "DRAFT" | "APPROVED" | "SUPERSEDED" | "STALE";
         /** Artifacts */
         Artifacts: {
             /** Artifacts */
@@ -1753,18 +1757,18 @@ export interface components {
              * Appropriateness Of Proposed Midd
              * @default
              */
-            appropriateness_of_proposed_midd: string;
+            appropriateness_of_proposed_midd?: string;
             consequence_of_wrong_decision?: components["schemas"]["RatedElement"];
             /**
              * Context Of Use
              * @default
              */
-            context_of_use: string;
+            context_of_use?: string;
             /**
              * Evaluation Of Models And Outcomes
              * @default
              */
-            evaluation_of_models_and_outcomes: string;
+            evaluation_of_models_and_outcomes?: string;
             model_impact?: components["schemas"]["RatedElement"];
             model_influence?: components["schemas"]["RatedElement"];
             model_risk?: components["schemas"]["RatedElement"];
@@ -1772,17 +1776,17 @@ export interface components {
              * Outcome Of Midd Evidence Assessment
              * @default
              */
-            outcome_of_midd_evidence_assessment: string;
+            outcome_of_midd_evidence_assessment?: string;
             /**
              * Question Of Interest
              * @default
              */
-            question_of_interest: string;
+            question_of_interest?: string;
             /**
              * Technical Criteria
              * @default
              */
-            technical_criteria: string;
+            technical_criteria?: string;
         };
         /** AuditEventView */
         AuditEventView: {
@@ -1858,7 +1862,7 @@ export interface components {
              * Note
              * @default
              */
-            note: string;
+            note?: string;
         };
         /** Body_initiate_project_api_v1_projects_initiate_post */
         Body_initiate_project_api_v1_projects_initiate_post: {
@@ -1866,24 +1870,24 @@ export interface components {
              * Context
              * @default
              */
-            context: string;
+            context?: string;
             /** Drug Name */
             drug_name: string;
             /**
              * Extract
              * @default true
              */
-            extract: boolean;
+            extract?: boolean;
             /**
              * Files
              * @default []
              */
-            files: string[];
+            files?: string[];
             /**
              * Name
              * @default
              */
-            name: string;
+            name?: string;
         };
         /** Body_upload_client_files_api_v1_projects__project_id__client_data_post */
         Body_upload_client_files_api_v1_projects__project_id__client_data_post: {
@@ -1898,7 +1902,7 @@ export interface components {
              * Role
              * @default proposal
              */
-            role: string;
+            role?: string;
         };
         /**
          * BriefCatalog
@@ -1924,7 +1928,7 @@ export interface components {
              * Preview
              * @default false
              */
-            preview: boolean;
+            preview?: boolean;
             /** Reason */
             reason: string;
         };
@@ -1994,12 +1998,12 @@ export interface components {
              * Parameters
              * @default []
              */
-            parameters: components["schemas"]["ParameterRecord"][];
+            parameters?: components["schemas"]["ParameterRecord"][];
             /**
              * Version
              * @default 1
              */
-            version: number;
+            version?: number;
         };
         /** CampaignStartRequest */
         CampaignStartRequest: {
@@ -2015,22 +2019,22 @@ export interface components {
              * Map Uri
              * @default
              */
-            map_uri: string;
+            map_uri?: string;
             /**
              * Model Risk
              * @default medium
              */
-            model_risk: string;
+            model_risk?: string;
             /**
              * Observed Uri
              * @default
              */
-            observed_uri: string;
+            observed_uri?: string;
             /**
              * Question
              * @default
              */
-            question: string;
+            question?: string;
             /** Stage Budgets Seconds */
             stage_budgets_seconds?: {
                 [key: string]: number;
@@ -2041,12 +2045,12 @@ export interface components {
              * System Sha256
              * @default
              */
-            system_sha256: string;
+            system_sha256?: string;
             /**
              * System Uri
              * @default
              */
-            system_uri: string;
+            system_uri?: string;
         };
         /** CatalogField */
         CatalogField: {
@@ -2086,8 +2090,11 @@ export interface components {
             after: unknown;
             /** Before */
             before: unknown;
-            /** Kind */
-            kind: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "added" | "removed" | "changed";
             /** Path */
             path: string;
         };
@@ -2159,7 +2166,7 @@ export interface components {
              * Note
              * @default
              */
-            note: string;
+            note?: string;
         };
         /**
          * CoCompoundSpec
@@ -2173,7 +2180,7 @@ export interface components {
              * Formulation Bins
              * @default []
              */
-            formulation_bins: string[];
+            formulation_bins?: string[];
             /** Name */
             name: string;
             /** Protocol */
@@ -2201,12 +2208,12 @@ export interface components {
              * Alternative Name
              * @default Measured
              */
-            alternative_name: string;
+            alternative_name?: string;
             /**
              * Binding Partner
              * @default Albumin
              */
-            binding_partner: ("Albumin" | "Glycoprotein" | "Unknown") | null;
+            binding_partner?: ("Albumin" | "Glycoprotein" | "Unknown") | null;
             /**
              * Calculation Methods
              * @default [
@@ -2214,7 +2221,7 @@ export interface components {
              *       "Cellular permeability - PK-Sim Standard"
              *     ]
              */
-            calculation_methods: string[];
+            calculation_methods?: string[];
             fraction_unbound: components["schemas"]["Measured"];
             /** Halogens */
             halogens?: {
@@ -2254,7 +2261,7 @@ export interface components {
              * Solubility Reference Ph
              * @default 7
              */
-            solubility_reference_ph: number;
+            solubility_reference_ph?: number;
             /** Solubility Table */
             solubility_table?: [
                 number,
@@ -2333,8 +2340,7 @@ export interface components {
             sha256: string;
             /** Stale Reasons */
             stale_reasons: string[];
-            /** Status */
-            status: string;
+            status: components["schemas"]["ArtifactStatus"];
             /** Version */
             version: number;
         };
@@ -2359,39 +2365,39 @@ export interface components {
              * Analyte
              * @default parent
              */
-            analyte: string;
+            analyte?: string;
             /**
              * Kind
              * @default profile
              * @enum {string}
              */
-            kind: "profile" | "pk_parameters";
+            kind?: "profile" | "pk_parameters";
             /**
              * Matrix
              * @default plasma
              */
-            matrix: string;
+            matrix?: string;
             /**
              * Note
              * @default
              */
-            note: string;
+            note?: string;
             /**
              * Origin
              * @default LITERATURE
              * @enum {string}
              */
-            origin: "CLIENT" | "LITERATURE" | "OSP_LIBRARY" | "SYNTHETIC" | "ILLUSTRATIVE";
+            origin?: "CLIENT" | "LITERATURE" | "OSP_LIBRARY" | "SYNTHETIC" | "ILLUSTRATIVE";
             /**
              * Purpose
              * @default model_building
              */
-            purpose: string;
+            purpose?: string;
             /**
              * Quote
              * @default
              */
-            quote: string;
+            quote?: string;
             /** Reported */
             reported?: components["schemas"]["ReportedPK"][];
             /** Series */
@@ -2405,12 +2411,12 @@ export interface components {
              * Time Unit
              * @default h
              */
-            time_unit: string;
+            time_unit?: string;
             /**
              * Unit
              * @default ng/ml
              */
-            unit: string;
+            unit?: string;
         };
         /** Decision */
         Decision: {
@@ -2465,16 +2471,16 @@ export interface components {
              * Age Years
              * @default 30
              */
-            age_years: number;
+            age_years?: number;
             /** Height Cm */
             height_cm?: number | null;
             /**
              * Population
              * @default European_ICRP_2002
              */
-            population: string;
+            population?: string;
             /** @default MALE */
-            sex: components["schemas"]["Sex"];
+            sex?: components["schemas"]["Sex"];
             /** Weight Kg */
             weight_kg?: number | null;
         };
@@ -2519,7 +2525,7 @@ export interface components {
              * Locator
              * @default
              */
-            locator: string;
+            locator?: string;
             /** N */
             n?: number | null;
             /** Page */
@@ -2535,13 +2541,13 @@ export interface components {
              * Purpose
              * @default model_building
              */
-            purpose: string;
+            purpose?: string;
             /**
              * Statistic
              * @default arithmetic_mean
              * @enum {string}
              */
-            statistic: "individual" | "arithmetic_mean" | "geometric_mean" | "median";
+            statistic?: "individual" | "arithmetic_mean" | "geometric_mean" | "median";
             /** Study */
             study: {
                 [key: string]: unknown;
@@ -2550,17 +2556,17 @@ export interface components {
              * Time Unit
              * @default h
              */
-            time_unit: string;
+            time_unit?: string;
             /**
              * Title
              * @default
              */
-            title: string;
+            title?: string;
             /**
              * Unit
              * @default ng/ml
              */
-            unit: string;
+            unit?: string;
         };
         /** Dissolution */
         Dissolution: {
@@ -2569,7 +2575,7 @@ export interface components {
                 [key: string]: unknown;
             }[];
             /** Problems */
-            problems: unknown[];
+            problems: string[];
             /** Profiles */
             profiles: {
                 [key: string]: unknown;
@@ -2643,7 +2649,7 @@ export interface components {
              * N Doses
              * @default 1
              */
-            n_doses: number;
+            n_doses?: number;
             /** Start H */
             start_h: number;
             /** Water Ml Per Kg */
@@ -2661,12 +2667,12 @@ export interface components {
              * Interval H
              * @default 0
              */
-            interval_h: number;
+            interval_h?: number;
             /**
              * Repetitions
              * @default 1
              */
-            repetitions: number;
+            repetitions?: number;
             /** Start H */
             start_h: number;
             /** Water Ml Per Kg */
@@ -2941,7 +2947,7 @@ export interface components {
              * Field
              * @default
              */
-            field: string;
+            field?: string;
             /** Quote */
             quote: string;
             /** Supports */
@@ -2950,7 +2956,7 @@ export interface components {
              * Value
              * @default
              */
-            value: string;
+            value?: string;
         };
         /**
          * EvidenceChoice
@@ -3061,7 +3067,7 @@ export interface components {
              * Category
              * @default Healthy
              */
-            category: string;
+            category?: string;
             /** Harvested */
             harvested?: {
                 [key: string]: unknown;
@@ -3077,7 +3083,7 @@ export interface components {
              * Species
              * @default Human
              */
-            species: string;
+            species?: string;
             /** Transporter Type */
             transporter_type?: string | null;
             /**
@@ -3085,7 +3091,7 @@ export interface components {
              * @default Enzyme
              * @enum {string}
              */
-            type: "Enzyme" | "Transporter" | "OtherProtein";
+            type?: "Enzyme" | "Transporter" | "OtherProtein";
         };
         /** ExtractRequest */
         ExtractRequest: {
@@ -3093,7 +3099,7 @@ export interface components {
              * Context Note
              * @default
              */
-            context_note: string;
+            context_note?: string;
         };
         /** ExtractionStart */
         ExtractionStart: {
@@ -3129,13 +3135,13 @@ export interface components {
              * Beyond Cap
              * @default
              */
-            beyond_cap: string;
+            beyond_cap?: string;
             evidence?: components["schemas"]["FeedbackEvidence"] | null;
             /**
              * Note
              * @default
              */
-            note: string;
+            note?: string;
             /** Studies */
             studies?: string[];
         };
@@ -3145,7 +3151,7 @@ export interface components {
              * Note
              * @default
              */
-            note: string;
+            note?: string;
             /** Path */
             path: string;
             /**
@@ -3178,12 +3184,12 @@ export interface components {
             /** Lower */
             lower: number;
             /** @default linear */
-            scale: components["schemas"]["Scale"];
+            scale?: components["schemas"]["Scale"];
             /**
              * Stage
              * @default []
              */
-            stage: string[];
+            stage?: string[];
             /** Upper */
             upper: number;
         };
@@ -3198,7 +3204,7 @@ export interface components {
              * @default linear
              * @enum {string}
              */
-            scale: "linear" | "log";
+            scale?: "linear" | "log";
             /** Stages */
             stages: string[];
             /** Upper */
@@ -3228,7 +3234,7 @@ export interface components {
              * Species
              * @default Human
              */
-            species: string;
+            species?: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3262,7 +3268,7 @@ export interface components {
              * Species
              * @default Human
              */
-            species: string;
+            species?: string;
         };
         /** History */
         History: {
@@ -3282,14 +3288,16 @@ export interface components {
             created_at: string;
             /** Created By */
             created_by: string;
-            /** Phase */
-            phase: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "P0" | "P1" | "P2" | "P3" | "P4" | "P5" | "P6";
             /** Reason */
             reason: string;
             /** Sha256 */
             sha256: string;
-            /** Status */
-            status: string;
+            status: components["schemas"]["ArtifactStatus"];
             /** Version */
             version: number;
         };
@@ -3395,7 +3403,7 @@ export interface components {
              * Dosing Interval
              * @default Single
              */
-            dosing_interval: string;
+            dosing_interval?: string;
             end_time?: components["schemas"]["Measured"] | null;
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -3408,7 +3416,7 @@ export interface components {
              * Phases
              * @default []
              */
-            phases: components["schemas"]["DosePhaseSpec"][];
+            phases?: components["schemas"]["DosePhaseSpec"][];
             /** Repetition Interval H */
             repetition_interval_h?: number | null;
             /** Repetitions */
@@ -3417,7 +3425,7 @@ export interface components {
              * Start Time H
              * @default 0
              */
-            start_time_h: number;
+            start_time_h?: number;
         };
         /** IntravenousProtocolSpec */
         IntravenousProtocolSpec: {
@@ -3426,7 +3434,7 @@ export interface components {
              * Dosing Interval
              * @default Single
              */
-            dosing_interval: string;
+            dosing_interval?: string;
             end_time?: components["schemas"]["Measured"] | null;
             /** Infusion Time Min */
             infusion_time_min: number;
@@ -3441,7 +3449,7 @@ export interface components {
              * Phases
              * @default []
              */
-            phases: components["schemas"]["DosePhaseSpec"][];
+            phases?: components["schemas"]["DosePhaseSpec"][];
             /** Repetition Interval H */
             repetition_interval_h?: number | null;
             /** Repetitions */
@@ -3450,7 +3458,7 @@ export interface components {
              * Start Time H
              * @default 0
              */
-            start_time_h: number;
+            start_time_h?: number;
         };
         /** ItemRemoval */
         ItemRemoval: {
@@ -3481,7 +3489,7 @@ export interface components {
              * Authors
              * @default
              */
-            authors: string;
+            authors?: string;
             /** Conditions */
             conditions?: {
                 [key: string]: string;
@@ -3494,12 +3502,12 @@ export interface components {
              * Locator
              * @default
              */
-            locator: string;
+            locator?: string;
             /**
              * Note
              * @default
              */
-            note: string;
+            note?: string;
             /** Page */
             page?: number | null;
             /** Pmid */
@@ -3508,7 +3516,7 @@ export interface components {
              * Quote
              * @default
              */
-            quote: string;
+            quote?: string;
             /** Req Id */
             req_id: string;
             source_type: components["schemas"]["SourceType"];
@@ -3518,7 +3526,7 @@ export interface components {
              * Title
              * @default
              */
-            title: string;
+            title?: string;
             /** Unit */
             unit?: string | null;
             /** Url */
@@ -3541,7 +3549,7 @@ export interface components {
              * Food Effect In Question
              * @default false
              */
-            food_effect_in_question: boolean;
+            food_effect_in_question?: boolean;
             model_risk: components["schemas"]["Rating"];
             /** Objective */
             objective: string;
@@ -3552,7 +3560,7 @@ export interface components {
              *       "planned_applications": []
              *     }
              */
-            question: components["schemas"]["QuestionOfInterest"];
+            question?: components["schemas"]["QuestionOfInterest"];
             /** Software Versions */
             software_versions: {
                 [key: string]: string;
@@ -3637,7 +3645,7 @@ export interface components {
              * Confirm
              * @default false
              */
-            confirm: boolean;
+            confirm?: boolean;
             form?: components["schemas"]["SheetForm"] | null;
             /** Proposal */
             proposal?: {
@@ -3647,7 +3655,7 @@ export interface components {
              * Replace
              * @default false
              */
-            replace: boolean;
+            replace?: boolean;
             /** Study */
             study?: {
                 [key: string]: unknown;
@@ -3750,7 +3758,7 @@ export interface components {
              * Snapshot Version
              * @default 80
              */
-            snapshot_version: number;
+            snapshot_version?: number;
             /** Subjects */
             subjects?: components["schemas"]["SubjectSpec"][];
         };
@@ -3764,14 +3772,14 @@ export interface components {
              * Time Unit
              * @default min
              */
-            time_unit: string;
+            time_unit?: string;
             /** Times */
             times: number[];
             /**
              * Unit
              * @default µmol/l
              */
-            unit: string;
+            unit?: string;
             /** Values */
             values: number[];
         };
@@ -3781,7 +3789,7 @@ export interface components {
              * Bins
              * @default []
              */
-            bins: [
+            bins?: [
                 string,
                 number
             ][];
@@ -3790,7 +3798,7 @@ export interface components {
              * Dosing Interval
              * @default Single
              */
-            dosing_interval: string;
+            dosing_interval?: string;
             end_time?: components["schemas"]["Measured"] | null;
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -3803,7 +3811,7 @@ export interface components {
              * Phases
              * @default []
              */
-            phases: components["schemas"]["DosePhaseSpec"][];
+            phases?: components["schemas"]["DosePhaseSpec"][];
             /** Repetition Interval H */
             repetition_interval_h?: number | null;
             /** Repetitions */
@@ -3812,12 +3820,12 @@ export interface components {
              * Start Time H
              * @default 0
              */
-            start_time_h: number;
+            start_time_h?: number;
             /**
              * Water Volume Ml Per Kg
              * @default 3.5
              */
-            water_volume_ml_per_kg: number;
+            water_volume_ml_per_kg?: number;
         };
         /** OverrideRequest */
         OverrideRequest: {
@@ -3866,7 +3874,7 @@ export interface components {
              * Distribution Type
              * @default 0
              */
-            distribution_type: number;
+            distribution_type?: number;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -3884,19 +3892,26 @@ export interface components {
             /** Value */
             value: number;
         };
-        /** PhaseStatus */
-        PhaseStatus: {
+        /** PhaseRow */
+        PhaseRow: {
             /** Label */
             label: string;
-            /** Phase */
-            phase: string;
-            /** Status */
-            status: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "P0" | "P1" | "P2" | "P3" | "P4" | "P5" | "P6";
+            status: components["schemas"]["PhaseStatus"];
         };
+        /**
+         * PhaseStatus
+         * @enum {string}
+         */
+        PhaseStatus: "NOT_STARTED" | "IN_REVIEW" | "APPROVED" | "STALE";
         /** Phases */
         Phases: {
             /** Phases */
-            phases: components["schemas"]["PhaseStatus"][];
+            phases: components["schemas"]["PhaseRow"][];
             /** Stale */
             stale: components["schemas"]["StaleArtifact"][];
         };
@@ -3929,7 +3944,7 @@ export interface components {
              * Source
              * @default
              */
-            source: string;
+            source?: string;
             /** Upper */
             upper: number;
         };
@@ -3941,22 +3956,22 @@ export interface components {
              * Context Of Use
              * @default Model-informed decision
              */
-            context_of_use: string;
+            context_of_use?: string;
             /**
              * Food Effect In Question
              * @default false
              */
-            food_effect_in_question: boolean;
+            food_effect_in_question?: boolean;
             /**
              * Model Risk
              * @default medium
              */
-            model_risk: string;
+            model_risk?: string;
             /**
              * Objective
              * @default Predict exposure for the question of interest
              */
-            objective: string;
+            objective?: string;
             /** Stages */
             stages?: string[] | null;
         };
@@ -3973,31 +3988,31 @@ export interface components {
              * Application
              * @default
              */
-            application: string;
+            application?: string;
             /** Compound */
             compound: string;
             /**
              * Exploratory
              * @default false
              */
-            exploratory: boolean;
+            exploratory?: boolean;
             /**
              * Model Risk
              * @default medium
              */
-            model_risk: string;
+            model_risk?: string;
             /** Name */
             name: string;
             /**
              * Question
              * @default
              */
-            question: string;
+            question?: string;
             /**
              * Risk
              * @default medium
              */
-            risk: string;
+            risk?: string;
         };
         /** ProjectStarted */
         ProjectStarted: {
@@ -4061,13 +4076,13 @@ export interface components {
              * Answer
              * @default
              */
-            answer: string;
+            answer?: string;
             /**
              * Status
              * @default answered
              * @enum {string}
              */
-            status: "answered" | "accepted_as_limitation" | "open";
+            status?: "answered" | "accepted_as_limitation" | "open";
         };
         /**
          * QuestionOfInterest
@@ -4078,17 +4093,17 @@ export interface components {
              * Food Effect
              * @default false
              */
-            food_effect: boolean;
+            food_effect?: boolean;
             /**
              * Measured Fed Solubility
              * @default false
              */
-            measured_fed_solubility: boolean;
+            measured_fed_solubility?: boolean;
             /**
              * Planned Applications
              * @default []
              */
-            planned_applications: components["schemas"]["StudyClass"][];
+            planned_applications?: components["schemas"]["StudyClass"][];
         };
         /** RatedElement */
         RatedElement: {
@@ -4096,12 +4111,12 @@ export interface components {
              * Description
              * @default
              */
-            description: string;
+            description?: string;
             /**
              * Justification
              * @default
              */
-            justification: string;
+            justification?: string;
             rating?: components["schemas"]["Rating"] | null;
         };
         /**
@@ -4215,12 +4230,12 @@ export interface components {
              * Quote
              * @default
              */
-            quote: string;
+            quote?: string;
             /**
              * Statistic
              * @default arithmetic_mean
              */
-            statistic: string;
+            statistic?: string;
             /** Unit */
             unit: string;
             /** Value */
@@ -4229,7 +4244,7 @@ export interface components {
              * Variability
              * @default
              */
-            variability: string;
+            variability?: string;
         };
         /** RequirementCounts */
         RequirementCounts: {
@@ -4279,13 +4294,13 @@ export interface components {
              * Beyond Cap
              * @default
              */
-            beyond_cap: string;
+            beyond_cap?: string;
             evidence?: components["schemas"]["FeedbackEvidence"] | null;
             /**
              * Note
              * @default
              */
-            note: string;
+            note?: string;
             /** Studies */
             studies?: string[];
         };
@@ -4309,7 +4324,7 @@ export interface components {
              * Resource Class
              * @default s
              */
-            resource_class: string;
+            resource_class?: string;
             /** Snapshot Sha256 */
             snapshot_sha256: string;
             /** Snapshot Uri */
@@ -4318,31 +4333,32 @@ export interface components {
              * Task
              * @default simulate
              */
-            task: string;
+            task?: string;
         };
         /**
          * RunSummary
-         * @description One agent run as a page lists it (the run record's own keys; any may be missing from an old record).
+         * @description One agent run as a page lists it: the run record's own keys (`run_store.start_run` writes all of them; the run
+         *     is unfinished while `finished_at` is null). Not every page lists the provider.
          */
         RunSummary: {
             /** Agent */
-            agent: string | null;
+            agent: string;
             /** Finished At */
             finished_at: string | null;
             /** Model */
-            model: string | null;
+            model: string;
             /** Provider */
             provider?: string | null;
             /** Run Id */
-            run_id: string | null;
+            run_id: string;
             /** Started At */
-            started_at: string | null;
+            started_at: string;
             /** Status */
-            status: string | null;
+            status: string;
             /** Summary */
             summary: {
                 [key: string]: unknown;
-            } | null;
+            };
         };
         /**
          * Sample
@@ -4391,20 +4407,20 @@ export interface components {
              * @default none
              * @enum {string}
              */
-            error_kind: "SD" | "SE" | "CV%" | "none";
+            error_kind?: "SD" | "SE" | "CV%" | "none";
             /** N */
             n?: number | null;
             /**
              * Name
              * @default mean
              */
-            name: string;
+            name?: string;
             /**
              * Statistic
              * @default arithmetic_mean
              * @enum {string}
              */
-            statistic: "individual" | "arithmetic_mean" | "geometric_mean" | "median";
+            statistic?: "individual" | "arithmetic_mean" | "geometric_mean" | "median";
             /** Times */
             times: number[];
             /** Values */
@@ -4435,14 +4451,14 @@ export interface components {
              * Decimal Comma
              * @default false
              */
-            decimal_comma: boolean;
+            decimal_comma?: boolean;
             /** Evidence */
             evidence?: components["schemas"]["Evidence"][];
             /**
              * First Data Row
              * @default 2
              */
-            first_data_row: number;
+            first_data_row?: number;
             /** Group Column */
             group_column?: string | null;
             /**
@@ -4450,13 +4466,13 @@ export interface components {
              * @description The row with the column headers (times across: the times)
              * @default 1
              */
-            header_row: number;
+            header_row?: number;
             /**
              * Kind
              * @default concentration_time
              * @enum {string}
              */
-            kind: "concentration_time" | "dissolution";
+            kind?: "concentration_time" | "dissolution";
             /** Last Data Row */
             last_data_row?: number | null;
             /**
@@ -4464,7 +4480,7 @@ export interface components {
              * @default times_down
              * @enum {string}
              */
-            layout: "times_down" | "times_across";
+            layout?: "times_down" | "times_across";
             /** Lloq */
             lloq?: number | null;
             /** Mean Column */
@@ -4480,7 +4496,7 @@ export interface components {
              * @default arithmetic_mean
              * @enum {string}
              */
-            mean_statistic: "individual" | "arithmetic_mean" | "geometric_mean" | "median";
+            mean_statistic?: "individual" | "arithmetic_mean" | "geometric_mean" | "median";
             /** Missing Tokens */
             missing_tokens?: string[];
             /** N Column */
@@ -4494,7 +4510,7 @@ export interface components {
              * @default individual
              * @enum {string}
              */
-            statistic: "individual" | "arithmetic_mean" | "geometric_mean" | "median";
+            statistic?: "individual" | "arithmetic_mean" | "geometric_mean" | "median";
             /** Study */
             study?: {
                 [key: string]: string;
@@ -4507,14 +4523,14 @@ export interface components {
              * Time Unit
              * @default h
              */
-            time_unit: string;
+            time_unit?: string;
             /** Value Columns */
             value_columns?: string[];
             /**
              * Value Unit
              * @default ng/ml
              */
-            value_unit: string;
+            value_unit?: string;
         };
         /**
          * SheetView
@@ -4548,7 +4564,7 @@ export interface components {
              * Note
              * @default
              */
-            note: string;
+            note?: string;
         };
         /**
          * SignatureMeaning
@@ -4585,7 +4601,7 @@ export interface components {
              * Note
              * @default
              */
-            note: string;
+            note?: string;
             /** Password */
             password: string;
             /** Printed Name */
@@ -4603,7 +4619,7 @@ export interface components {
              * Additional Outputs
              * @default []
              */
-            additional_outputs: string[];
+            additional_outputs?: string[];
             /** Alternatives */
             alternatives?: {
                 [key: string]: string;
@@ -4612,26 +4628,26 @@ export interface components {
              * Co Compounds
              * @default []
              */
-            co_compounds: components["schemas"]["CoCompoundSpec"][];
+            co_compounds?: components["schemas"]["CoCompoundSpec"][];
             /** Compound */
             compound: string;
             /**
              * Default Parameters
              * @default []
              */
-            default_parameters: string[];
+            default_parameters?: string[];
             /** End Time H */
             end_time_h: number;
             /**
              * Event Start Time H
              * @default 0
              */
-            event_start_time_h: number;
+            event_start_time_h?: number;
             /**
              * Event Times
              * @default []
              */
-            event_times: [
+            event_times?: [
                 string,
                 number
             ][];
@@ -4639,14 +4655,14 @@ export interface components {
              * Events
              * @default []
              */
-            events: string[];
+            events?: string[];
             /** Formulation */
             formulation?: string | null;
             /**
              * Formulation Bins
              * @default []
              */
-            formulation_bins: string[];
+            formulation_bins?: string[];
             /** Inactive Processes */
             inactive_processes?: {
                 [key: string]: string[];
@@ -4655,14 +4671,14 @@ export interface components {
              * Model
              * @default 4Comp
              */
-            model: string;
+            model?: string;
             /** Name */
             name: string;
             /**
              * Observer Sets
              * @default []
              */
-            observer_sets: string[];
+            observer_sets?: string[];
             /** Parameters */
             parameters?: {
                 [key: string]: components["schemas"]["Measured"];
@@ -4673,7 +4689,7 @@ export interface components {
              * Resolution Pts Per H
              * @default 10
              */
-            resolution_pts_per_h: number;
+            resolution_pts_per_h?: number;
             /** Solver */
             solver?: {
                 [key: string]: number;
@@ -4687,7 +4703,7 @@ export interface components {
              * Authors
              * @default
              */
-            authors: string;
+            authors?: string;
             /** Doc Sha256 */
             doc_sha256?: string | null;
             /** Doi */
@@ -4696,7 +4712,7 @@ export interface components {
              * Locator
              * @default
              */
-            locator: string;
+            locator?: string;
             /** Page */
             page?: number | null;
             /** Pmid */
@@ -4705,7 +4721,7 @@ export interface components {
              * Title
              * @default
              */
-            title: string;
+            title?: string;
             /** Url */
             url?: string | null;
             /** Year */
@@ -4789,36 +4805,36 @@ export interface components {
              * Crossover
              * @default false
              */
-            crossover: boolean;
+            crossover?: boolean;
             /**
              * Default Simulation Values
              * @default []
              */
-            default_simulation_values: string[];
+            default_simulation_values?: string[];
             demographics?: components["schemas"]["Demographics"] | null;
             /**
              * Design
              * @default SD
              */
-            design: string;
+            design?: string;
             /** Dose Mg */
             dose_mg: number;
             /**
              * Dose Per Kg
              * @default false
              */
-            dose_per_kg: boolean;
+            dose_per_kg?: boolean;
             /**
              * Dose Phases
              * @default []
              */
-            dose_phases: components["schemas"]["DosePhase"][];
+            dose_phases?: components["schemas"]["DosePhase"][];
             /** Dosing Interval H */
             dosing_interval_h?: number | null;
             /** @default fasted */
-            food_state: components["schemas"]["FoodState"];
+            food_state?: components["schemas"]["FoodState"];
             /** @default solution */
-            formulation: components["schemas"]["FormulationKind"];
+            formulation?: components["schemas"]["FormulationKind"];
             /** Formulation Name */
             formulation_name?: string | null;
             /** Genotype */
@@ -4837,19 +4853,19 @@ export interface components {
              *       "plasma"
              *     ]
              */
-            matrices: string[];
+            matrices?: string[];
             /** Meal Type */
             meal_type?: string | null;
             /**
              * Meals
              * @default []
              */
-            meals: components["schemas"]["Meal"][];
+            meals?: components["schemas"]["Meal"][];
             /**
              * Multiple Dose Levels
              * @default false
              */
-            multiple_dose_levels: boolean;
+            multiple_dose_levels?: boolean;
             /** N */
             n: number;
             /** N Doses */
@@ -4860,7 +4876,7 @@ export interface components {
              * Population Type
              * @default healthy
              */
-            population_type: string;
+            population_type?: string;
             /** Product */
             product?: string | null;
             published_individual?: components["schemas"]["PublishedIndividual"] | null;
@@ -4868,9 +4884,9 @@ export interface components {
              * Reference
              * @default
              */
-            reference: string;
+            reference?: string;
             /** @default oral */
-            route: components["schemas"]["Route"];
+            route?: components["schemas"]["Route"];
             /** Solver */
             solver?: {
                 [key: string]: number;
@@ -4880,9 +4896,9 @@ export interface components {
              * Species
              * @default Human
              */
-            species: string;
+            species?: string;
             /** @default mean_sd */
-            statistic: components["schemas"]["Statistic"];
+            statistic?: components["schemas"]["Statistic"];
             /** Study Id */
             study_id: string;
             /** Water Ml Per Kg */
@@ -4904,14 +4920,14 @@ export interface components {
              * Design
              * @default SD
              */
-            design: string;
+            design?: string;
             /** Dose Mg */
             dose_mg: number;
             /**
              * Dose Per Kg
              * @default false
              */
-            dose_per_kg: boolean;
+            dose_per_kg?: boolean;
             /** Dose Phases */
             dose_phases?: {
                 [key: string]: unknown;
@@ -4922,12 +4938,12 @@ export interface components {
              * Food State
              * @default fasted
              */
-            food_state: string;
+            food_state?: string;
             /**
              * Formulation
              * @default solution
              */
-            formulation: string;
+            formulation?: string;
             /** Formulation Name */
             formulation_name?: string | null;
             /** Inactive Processes */
@@ -4946,20 +4962,20 @@ export interface components {
              * N
              * @default 12
              */
-            n: number;
+            n?: number;
             /** N Doses */
             n_doses?: number | null;
             /**
              * N Timepoints
              * @default 10
              */
-            n_timepoints: number;
+            n_timepoints?: number;
             origin?: components["schemas"]["DataOrigin"] | null;
             /**
              * Population Type
              * @default healthy
              */
-            population_type: string;
+            population_type?: string;
             /** Product */
             product?: string | null;
             profile: components["schemas"]["ObservedProfile"];
@@ -4971,12 +4987,12 @@ export interface components {
              * Reference
              * @default
              */
-            reference: string;
+            reference?: string;
             /**
              * Route
              * @default oral
              */
-            route: string;
+            route?: string;
             /** Solver */
             solver?: {
                 [key: string]: number;
@@ -4999,7 +5015,7 @@ export interface components {
              *       "Body surface area - Mosteller"
              *     ]
              */
-            calculation_methods: string[];
+            calculation_methods?: string[];
             /** Expression */
             expression?: components["schemas"]["ExpressionSpec"][];
             /** Expression Documents */
@@ -5025,7 +5041,7 @@ export interface components {
              * Own Physiology
              * @default false
              */
-            own_physiology: boolean;
+            own_physiology?: boolean;
             /** Parameters */
             parameters?: {
                 [key: string]: components["schemas"]["Measured"];
@@ -5034,14 +5050,14 @@ export interface components {
              * Population
              * @default European_ICRP_2002
              */
-            population: string;
+            population?: string;
             /** Seed */
             seed: number;
             /**
              * Species
              * @default Human
              */
-            species: string;
+            species?: string;
             /** Weight Kg */
             weight_kg?: number | null;
         };
@@ -5085,7 +5101,7 @@ export interface components {
              * Method
              * @default hessian
              */
-            method: string;
+            method?: string;
             /** Sd */
             sd?: number | null;
         };
@@ -5140,8 +5156,7 @@ export interface components {
             sha256: string;
             /** Stale Reasons */
             stale_reasons: string[];
-            /** Status */
-            status: string;
+            status: components["schemas"]["ArtifactStatus"];
             /** Version */
             version: number;
         };
@@ -5158,7 +5173,7 @@ export interface components {
              * Lag Time Min
              * @default 0
              */
-            lag_time_min: number;
+            lag_time_min?: number;
             /** Name */
             name: string;
             /** Shape */
@@ -5167,7 +5182,7 @@ export interface components {
              * Use As Suspension
              * @default true
              */
-            use_as_suspension: boolean;
+            use_as_suspension?: boolean;
         };
     };
     responses: never;
