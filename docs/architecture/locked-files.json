@@ -20,6 +20,12 @@
       "reason": "data-plan templates: which data a regulatory application must have"
     },
     {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/parameters/registry.yaml",
+      "owner": "SME",
+      "layer": "L0",
+      "reason": "the CPF parameter registry: placement, storage units, PK-Sim compound names, review bounds, S0 (phase 4)"
+    },
+    {
       "pattern": "packages/pbpk-domain/src/pbpk_domain/cpf/models.py",
       "owner": "core",
       "layer": "L0",
@@ -238,6 +244,10 @@
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/parameter_units.py",
       "sha256": "e1a52095018be7033a89da12dbee65d9b40a775f38429006f46832873613923a"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/parameters/registry.yaml",
+      "sha256": "c135ebd07d28bb87f970b802219854ecadf614c5de5b722560d90bfca5fba1ed"
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/pksim_paths.py",

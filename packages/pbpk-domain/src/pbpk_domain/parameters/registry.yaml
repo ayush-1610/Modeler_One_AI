@@ -1,0 +1,115 @@
+# CPF parameter registry (MS-01 §2.2): for every CPF id or id family, where the model takes it, the unit the CPF stores
+# it in, the PK-Sim compound parameter it sets, the range a reviewer is warned outside of, how its value is obtained
+# (ValueOrigin method), and the S0 gate. Read by `pbpk_domain.parameters`.
+#
+# Scientific content, governed like the rulesets: status UNVERIFIED until a PBPK SME signs it off; any change bumps the
+# version and needs the owner's approval (CLAUDE.md). PK-Sim names are harvested (pbpk_domain.pksim_paths), never
+# invented; process parameters are not listed here: their names and units are the harvested process table's
+# (pbpk_domain.reference.osp_import.PROCESS_PARAMETERS), and an entry only names the family whose ids that table places.
+#
+# Keys: an exact id ("phys.mw"), a family ending in "." or "[" ("phys.pka.acid.", "sim["), or, for the storage unit,
+# an id that also covers its children ("phys.pka" covers "phys.pka.acid.1"). The ValueOrigin keys ("elim.renal",
+# "phys.") match by plain prefix, as `modeler_project.inputs.value_origin_method` always has.
+#
+# Fields:
+#   placement        model (the CPF builder sets it), reference (kept for checks, not set in PK-Sim), process (a
+#                    process parameter: placed only where the harvested process table has the parameter)
+#   builder_process  true: a process family the builder must place or report (cpf.build)
+#   storage          unit family of the stored value (pbpk_domain.parameter_units): a unit, "fraction", "dimensionless",
+#                    or "not_converted" (with `reason`: a scientific transformation, not a unit change)
+#   suffix           the storage rule applies to ids of the family that end with it (checked before the plain keys)
+#   pksim_compound   the harvested PK-Sim compound parameter (pbpk_domain.pksim_paths)
+#   builder_unit     the unit the snapshot builder checks when the stored value carries none
+#   physical_bounds  [low, high]: a value outside is flagged for review (never refused)
+#   origin           in_vivo | in_vitro: PK-Sim ValueOrigin.Method of a value from a publication or database
+#   drift            a known inconsistency, kept as is so the vocabulary does not change; fixed by the science PR named
+#
+# 1.0 (2026-10-08, approved by the project owner, UNVERIFIED pending SME sign-off): the code tables of 2026-10-08,
+#     moved here unchanged (docs/plans/2026-10-08-parameter-registry.md, phase 4b). Nothing added, nothing corrected:
+#     docs/architecture/parameter-vocabulary.json records what they answered and must stay unchanged.
+id: parameter-registry
+version: "1.0"
+status: UNVERIFIED
+
+parameters:
+  # --- compound physicochemistry ---------------------------------------------------------------------------------
+  - {key: phys.mw, placement: model, storage: g/mol, pksim_compound: Molecular weight, physical_bounds: [10.0, 1.0e+6]}
+  - {key: phys.logp, placement: model, storage: dimensionless, pksim_compound: Lipophilicity, builder_unit: Log Units,
+     physical_bounds: [-10.0, 15.0]}
+  - {key: phys.pka, storage: dimensionless}
+  - {key: phys.pka.acid., placement: model}
+  - {key: phys.pka.base., placement: model}
+  - {key: phys.pka.neutral, placement: model}
+  - {key: phys.halogens., placement: model}
+  - {key: bind.fu, placement: model, storage: fraction, pksim_compound: "Fraction unbound (plasma, reference value)",
+     physical_bounds: [0.0, 1.0]}
+  - {key: dist.bp_ratio, placement: reference, storage: dimensionless, physical_bounds: [0.0, 20.0]}
+  - {key: phys.solubility.ref, placement: model, storage: mg/ml, pksim_compound: Solubility at reference pH}
+  - {key: phys.solubility.ref_ph, placement: model}
+  - {key: phys.solubility.table, placement: model}
+  - {key: perm.intestinal, placement: model, storage: cm/min,
+     pksim_compound: Specific intestinal permeability (transcellular), physical_bounds: [0.0, 1.0]}
+  - {key: perm.cellular, placement: model, storage: cm/min, pksim_compound: Permeability}
+  - {key: bind.partner, placement: model}
+  - {key: dist.partition_method, placement: model}
+  - {key: dist.permeability_method, placement: model}
+  - {key: cmpd., placement: model}
+  # --- elimination -----------------------------------------------------------------------------------------------
+  - {key: elim.renal.gfr_fraction, storage: dimensionless, physical_bounds: [0.0, 10.0]}
+  - key: elim.hepatic.total_cl
+    storage: ml/min/kg
+    drift: >-
+      converts and satisfies S0's elimination requirement, but nothing places it; PK-Sim's LiverClearance is bound to
+      elim.hepatic.total.plasma_clearance (phase 4e, the science PR)
+  - key: elim.ehc_fraction
+    storage: dimensionless
+    drift: >-
+      converts, but nothing places it; MS-01 places it on the Individual (Organism|Liver|EHC continuous fraction), a
+      path not yet harvested (phase 4e)
+  - {key: elim.fe_urine, placement: reference, storage: fraction, physical_bounds: [0.0, 1.0]}
+  - {key: elim.fm, storage: fraction, origin: in_vivo}
+  - {key: elim.fm., placement: reference}
+  - {key: elim.hepatic., suffix: .clspec, storage: not_converted,
+     reason: "CLint → CLspec is an IVIVE scaling (system, protein, fu,inc), not a unit change"}
+  - {key: elim.hepatic., suffix: .km, storage: µmol/l}
+  - {key: elim.renal, origin: in_vivo}
+  - {key: elim.ehc, origin: in_vivo}
+  - {key: elim.hepatic, origin: in_vitro}
+  # --- process families: ids placed only where the harvested process table has the parameter --------------------
+  - {key: elim., placement: process, builder_process: true}
+  - {key: transp., placement: process, builder_process: true, origin: in_vitro}
+  - {key: bind.specific., placement: process}
+  - {key: ddi.perp., placement: process}
+  # --- formulation, system and simulation ------------------------------------------------------------------------
+  - {key: form., placement: model, storage: min, origin: in_vitro}
+  - {key: form., suffix: .shape, storage: dimensionless}
+  - {key: expr., placement: model}
+  - {key: indiv., placement: model}
+  - {key: sim., placement: model}
+  - {key: "sim[", placement: model}
+  - {key: alt.select, placement: model}
+  # --- ValueOrigin method by family --------------------------------------------------------------------------------
+  - {key: food., origin: in_vivo}
+  - {key: phys., origin: in_vitro}
+  - {key: bind., origin: in_vitro}
+  - {key: perm., origin: in_vitro}
+  - {key: dist., origin: in_vitro}
+  - {key: ddi., origin: in_vitro}
+
+# The S0 readiness gate (MS-01 §2.2 completeness rule), in the order it reports what is missing. A requirement is met by
+# a record of its id with a value and provenance, or by one of `or_present`, or (`any_with_prefix`) by any such record
+# of the family, ids starting with one of `excluding` not counted.
+s0:
+  - {requirement: phys.mw, message: molecular weight (phys.mw)}
+  - {requirement: phys.logp, message: lipophilicity (logP/logD) (phys.logp)}
+  - {requirement: bind.fu, message: fraction unbound in plasma (bind.fu)}
+  - {requirement: phys.solubility.ref, message: reference aqueous solubility (phys.solubility.ref),
+     or_present: [phys.solubility.table]}
+  - requirement: phys.pka
+    message: pKa values, or a documented statement that the compound is neutral (phys.pka.* or phys.pka.neutral)
+    any_with_prefix: phys.pka
+    or_present: [phys.pka.neutral]
+  - requirement: elim
+    message: at least one elimination pathway (elim.* or elim.hepatic.total_cl)
+    any_with_prefix: elim
+    excluding: [elim.fe_urine, elim.fm.]
