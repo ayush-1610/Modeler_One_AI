@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — one stylesheet per feature; phase 7 done (architecture phase 7d, CSS)
+- **What:** `apps/web/app/globals.css` now holds only the base: tokens, type, layout, the shared components, and the
+  few review classes several pages use (tabs, citations, editors, quotes, flags). Each feature's rules moved to their
+  own file in `apps/web/app/styles/`: `campaign`, `pipeline` (the phase rail), `brief`, `evidence`, `client-data`,
+  `plan` and `inputs`. The root layout imports them after the base sheet.
+- **Why:** rule B6, plan step 7d. Every page's styles lived in one 470-line sheet, so a page's look could not be
+  found or changed on its own.
+- **Impact:** no visual change. All 277 rules are kept, none changed. The files load in the order the rules had in
+  the single sheet, and the production build still emits one stylesheet in that order. Three rule pairs changed
+  relative position; each pair shares only a modifier (`wide`, `muted`) under different anchors (`.rf` / `.flow-col`
+  / `main`, `.problems` / `.dag-node-head`), so they never match the same element.
+
 ### Changed — the review pages read with `useResource` and change with `useMutation` (architecture phase 7d, hooks)
 - **What:**
   - **Hooks:** `apps/web/lib/hooks.ts`, on `@tanstack/react-query`. It was already a dependency, unused until now, so

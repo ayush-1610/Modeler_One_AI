@@ -2,6 +2,15 @@ import type { ReactNode } from "react";
 import localFont from "next/font/local";
 
 import "./globals.css";
+// One stylesheet per feature (phase 7d). They load here, after the base sheet and in this order, which is the order the
+// rules had in the single sheet, so the cascade is unchanged.
+import "./styles/campaign.css";
+import "./styles/pipeline.css";
+import "./styles/brief.css";
+import "./styles/evidence.css";
+import "./styles/client-data.css";
+import "./styles/plan.css";
+import "./styles/inputs.css";
 import { Nav } from "@/components/Nav";
 import { Providers } from "@/components/Providers";
 

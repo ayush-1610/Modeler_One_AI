@@ -1,0 +1,12 @@
+/* P2: literature evidence, observed datasets and the figure digitizer. */
+.evidence { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 10px; }
+.evidence.accepted { border-left-color: var(--pass); }
+.evidence.rejected { border-left-color: var(--fail); opacity: 0.7; }
+.digitizer fieldset { border: 1px solid var(--line); border-radius: var(--radius-sm); margin: 0 0 8px; padding: 6px 8px; display: grid; gap: 4px; }
+.digitizer legend { font-size: 12px; color: var(--ink-dim); padding: 0 4px; }
+.figure { position: relative; flex: 1; min-width: 0; max-width: 760px; border: 1px solid var(--line); background: #fff; }
+.figure canvas { display: block; width: 100%; height: auto; }
+.figure .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.figure .ref { stroke: var(--sim); stroke-width: 2; stroke-dasharray: 8 6; }
+.figure .pt { fill: var(--obs); stroke: #000; stroke-width: 1.5; }
+.figure .pt.other { fill: var(--sim); }

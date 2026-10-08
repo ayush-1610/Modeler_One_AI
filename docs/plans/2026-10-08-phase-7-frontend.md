@@ -1,8 +1,7 @@
 # Phase 7: frontend seams, with the web types generated from the API contract
 
-Status: **7a, 7b, 7c and the 7d hooks done.** The 7d CSS split is next. Each step is one PR to `main`, with no
-behaviour change unless stated. 7d lands as two PRs, hooks then CSS, so that each stays reviewable (a deviation from
-one PR per step).
+Status: **done (7a–7d).** Each step was one PR to `main`, with no behaviour change unless stated. 7d landed as two PRs,
+hooks then CSS, so that each stayed reviewable (a deviation from one PR per step).
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B6, the L7 row, §6 phase 7.
 - The OpenAPI snapshot `docs/api/openapi.json`. Phase 6 typed every P0–P4 and escalation answer in it.
@@ -79,7 +78,10 @@ types can be generated from the same contract.
     campaign pages and the escalation decision keep their own loading until their routes are typed.
     `test_web_client.py` checks that only the hooks import the typed read `get`.
   - The phase list is already read from the API (`PhaseRail` uses `/phases`).
-  - **CSS — next.** Split per feature, where a page's styles live in the global sheet.
+  - **CSS — done.** `app/globals.css` keeps the base and the classes several pages share. Each feature's rules are in
+    `app/styles/<feature>.css` (campaign, pipeline, brief, evidence, client-data, plan, inputs). The root layout
+    imports them in the order the rules had in the single sheet, so the cascade is unchanged. All 277 rules were kept,
+    which a split script checked, along with every pair of rules whose order moved.
 
 ## Verification (every PR)
 - `npm --prefix apps/web run typecheck` (including the drift check) and `build`.
