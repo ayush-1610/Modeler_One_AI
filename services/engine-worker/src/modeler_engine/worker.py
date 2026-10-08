@@ -24,11 +24,12 @@ from modeler_engine.runner import (
 
 def _runner() -> EngineRunner:
     env = runtime_env()
+    command = env.resolved_engine_command("Rscript /engine/run_job.R")  # the qualified engine inside the image
     return EngineRunner(
-        command=shlex.split(env.get("engine_command", "Rscript /engine/run_job.R")),
+        command=shlex.split(command),
         store=LocalObjectStore(),  # replace with the S3 store in deployed profiles
-        engine_id=env.get("engine_id", "unknown"),
-        image_digest=env.get("image_digest", "unknown"),
+        engine_id=env.resolved_engine_id(command),
+        image_digest=env.resolved_image_digest(),
         on_heartbeat=lambda fraction: activity.heartbeat(fraction),
     )
 
@@ -49,6 +50,7 @@ def run_engine_job(job: EngineJob) -> EngineManifest:
 
 async def main() -> None:
     env = runtime_env()
+    env.check_production()
     client = await Client.connect(env.require("temporal_address"), namespace=env.get("temporal_namespace", "default"))
     concurrency = int(env.get("engine_concurrency", "1"))
     task_queue = f"engine-{env.get('resource_class', 's')}"

@@ -17,6 +17,7 @@ from modeler_orchestrator.workflows import PopulationRunWorkflow, ReviewGateWork
 
 async def main() -> None:
     env = runtime_env()
+    env.check_production()
     client = await Client.connect(env.require("temporal_address"), namespace=env.get("temporal_namespace", "default"))
     with ThreadPoolExecutor(max_workers=8) as executor:
         worker = Worker(
