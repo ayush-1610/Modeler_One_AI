@@ -62,10 +62,11 @@ imports, `/health`), and the secret scan reads `.gitleaks.toml` (default rules; 
 | router | 14 | every router → `project_api` (auth dependencies, `workspace_for`, redaction, blinding); → `brief_api.agents_status`; `inputs_api`, `plan_api` → `write_api`; `write_api` → `read_api`; `brief_api` → `requirements_api` | phase 5 |
 | tests | 2 | `pbpk-domain/tests/test_cpf.py` and `engine-worker/tests/test_objectstore.py` → orchestrator (the 5 orchestrator tests → API went in phase 3: 3 now read `modeler_storage`, 2 whole-stack tests moved to the API's tests) | phase 5, engine port |
 
-### Known vocabulary drift (strict xfail, science fix in phase 4 with the owner's approval)
-- `elim.hepatic.total_cl` converts to `ml/min/kg` but nothing places it; S0's message still offers it. PK-Sim's
-  `LiverClearance` is bound to `elim.hepatic.total.plasma_clearance`, which in turn has no storage-unit conversion.
-- `elim.ehc_fraction` converts (dimensionless) but nothing places it.
+### Known vocabulary drift (strict xfail)
+- Fixed in phase 4e (registry 1.1, the owner's decision 2026-10-08): `elim.hepatic.total_cl` is an alias of
+  `elim.hepatic.total.plasma_clearance`, which PK-Sim's `LiverClearance` is bound to and which converts to ml/min/kg.
+- Still open: `elim.ehc_fraction` converts (dimensionless) but is refused, with its reason: MS-01's Individual path
+  (`Organism|Liver|EHC continuous fraction`) is not harvested yet. Harvesting it lets it be placed.
 
 ### 3a. Configuration (phase 2)
 
@@ -130,7 +131,7 @@ Apart from the moved audit trail, nothing in L1, L2, L4 or L7 is locked: those a
 | 1 | Guardrail tests, web and API-image CI jobs, API Dockerfile installs the locked workspace, this document | stops new violations |
 | 2 | **Done.** One reader per process (§3a), injected; tests use `api_settings` | C2 |
 | 3 | **Done.** 3a: `modeler_storage` with the Postgres audit trail (locked, moved unchanged, its own PR). 3b: the read model, repositories and tenancy move in; the orchestrator no longer imports the API; the API starts and steers campaigns through `CampaignRunner` (`modeler_contracts.ports`) obtained in `modeler_api.execution` | C7, the api ⇄ orchestrator cycle |
-| 4 | Parameter registry in `pbpk_domain` (SME-governed); characterization tests first; `total_cl` fixed in its own science PR with an alias. Plan: `docs/plans/2026-10-08-parameter-registry.md`; **4a done** (characterization snapshot), **4b done** (the registry, locked, derives every table), **4c done** (`inputs`, `evidence`, `completeness`, `process_bindings` read it), **4d done** (the locked `parameter_units`, `pksim_paths`, `cpf.build` read it; no hand-kept copy left); 4e (the science fix) next | C1 |
+| 4 | Parameter registry in `pbpk_domain` (SME-governed); characterization tests first; `total_cl` fixed in its own science PR with an alias. Plan: `docs/plans/2026-10-08-parameter-registry.md`; **4a done** (characterization snapshot), **4b done** (the registry, locked, derives every table), **4c done** (`inputs`, `evidence`, `completeness`, `process_bindings` read it), **4d done** (the locked `parameter_units`, `pksim_paths`, `cpf.build` read it; no hand-kept copy left), **4e done** (registry 1.1: `total_cl` alias, `ehc_fraction` refused with its reason, total clearance InVivo). **Phase 4 done** | C1 |
 | 5 | Services out of routers; `deps.py`; deterministic helpers out of the agents package | C3, C4, C9 |
 | 6 | Typed responses for P0–P4; one owner per artifact kind | C5, C6 |
 | 7 | Frontend seams (`openapi-typescript`, asked first) | B6 |

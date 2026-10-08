@@ -427,7 +427,7 @@
     "elim"
    ],
    "storage_family": null,
-   "target_problem": "elim.ehc_fraction: no harvested PK-Sim process carries this parameter",
+   "target_problem": "elim.ehc_fraction: MS-01 places it on the Individual (Organism|Liver|EHC continuous fraction), a path not harvested from PK-Sim yet; it cannot be set until it is",
    "to_storage_unit(1, no unit)": [
     1.0,
     null,
@@ -856,7 +856,7 @@
    "storage_family": "not converted",
    "target_problem": null,
    "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.bp_experiment; enter the PK-Sim value by hand",
-   "value_origin_method": "InVitro"
+   "value_origin_method": "InVivo"
   },
   "elim.hepatic.total.fu_experiment": {
    "binding_candidates": [
@@ -878,7 +878,7 @@
    "storage_family": "not converted",
    "target_problem": null,
    "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.fu_experiment; enter the PK-Sim value by hand",
-   "value_origin_method": "InVitro"
+   "value_origin_method": "InVivo"
   },
   "elim.hepatic.total.logp_experiment": {
    "binding_candidates": [
@@ -900,7 +900,7 @@
    "storage_family": "not converted",
    "target_problem": null,
    "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.logp_experiment; enter the PK-Sim value by hand",
-   "value_origin_method": "InVitro"
+   "value_origin_method": "InVivo"
   },
   "elim.hepatic.total.plasma_clearance": {
    "binding_candidates": [
@@ -919,10 +919,10 @@
    "s0_satisfies": [
     "elim"
    ],
-   "storage_family": "not converted",
+   "storage_family": "ml/min/kg",
    "target_problem": null,
-   "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.plasma_clearance; enter the PK-Sim value by hand",
-   "value_origin_method": "InVitro"
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to ml/min/kg for elim.hepatic.total.plasma_clearance",
+   "value_origin_method": "InVivo"
   },
   "elim.hepatic.total.specific_clearance": {
    "binding_candidates": [
@@ -944,22 +944,29 @@
    "storage_family": "not converted",
    "target_problem": null,
    "to_storage_unit(1, no unit)": "ConversionError: no storage unit known for elim.hepatic.total.specific_clearance; enter the PK-Sim value by hand",
-   "value_origin_method": "InVitro"
+   "value_origin_method": "InVivo"
   },
   "elim.hepatic.total_cl": {
-   "binding_candidates": [],
+   "binding_candidates": [
+    [
+     "LiverClearance",
+     "Plasma clearance",
+     "ml/min/kg",
+     null
+    ]
+   ],
    "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.hepatic.total_cl'",
    "numeric": true,
    "physical_bounds": null,
-   "placement": null,
+   "placement": "process",
    "process_id": true,
    "s0_satisfies": [
     "elim"
    ],
    "storage_family": "ml/min/kg",
-   "target_problem": "elim.hepatic.total_cl: no harvested PK-Sim process carries this parameter",
+   "target_problem": null,
    "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to ml/min/kg for elim.hepatic.total_cl",
-   "value_origin_method": "InVitro"
+   "value_origin_method": "InVivo"
   },
   "elim.hepatic.{enzyme}.clspec": {
    "binding_candidates": [
@@ -1908,7 +1915,7 @@
    "fraction unbound in plasma (bind.fu)",
    "reference aqueous solubility (phys.solubility.ref)",
    "pKa values, or a documented statement that the compound is neutral (phys.pka.* or phys.pka.neutral)",
-   "at least one elimination pathway (elim.* or elim.hepatic.total_cl)"
+   "at least one elimination pathway (elim.* or elim.hepatic.total.plasma_clearance)"
   ],
   "missing_ids": [
    "phys.mw",
@@ -2027,6 +2034,7 @@
   "inputs._IN_VIVO": [
    "elim.ehc",
    "elim.fm",
+   "elim.hepatic.total",
    "elim.renal",
    "food."
   ],
@@ -2219,6 +2227,10 @@
    ],
    [
     "elim.hepatic.total_cl",
+    "ml/min/kg"
+   ],
+   [
+    "elim.hepatic.total.plasma_clearance",
     "ml/min/kg"
    ],
    [

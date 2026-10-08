@@ -37,8 +37,9 @@ def _by_suffix(process: str, suffix: str) -> tuple[str, str | None] | None:
 
 
 def binding_candidates(cpf_id: str) -> list[BindingCandidate]:
-    """Every harvested process type that can carry `cpf_id` (empty: not a process parameter the builder places)."""
-    prefix, _, suffix = cpf_id.rpartition(".")
+    """Every harvested process type that can carry `cpf_id` (empty: not a process parameter the builder places). An
+    alias (`elim.hepatic.total_cl`) has the candidates of the id it stands for."""
+    prefix, _, suffix = parameters.canonical(cpf_id).rpartition(".")
     if not prefix:
         return []
     fixed = _FIXED_PREFIX.get(prefix)

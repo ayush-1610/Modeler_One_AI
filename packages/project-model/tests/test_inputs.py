@@ -87,3 +87,28 @@ def test_conflicts_and_open_structure_choices_are_named_never_resolved_by_code(t
     assert clspec.engine_binding.parameter == "CLspec/[Enzyme]"
     with pytest.raises(ValueError, match="not ready"):
         accept_inputs(ws, by="u")
+
+
+def test_a_total_clearance_filed_under_total_cl_is_placed_on_liver_clearance(tmp_path):
+    # parameter registry 1.1 (phase 4e, the owner's decision): elim.hepatic.total_cl is an alias of the id PK-Sim's
+    # LiverClearance is bound to; before, it satisfied S0 while nothing placed it
+    ws = _project(tmp_path)
+    _accept(ws, "elim.hepatic.total_cl", 0.3, "l/h/kg")
+    report = assemble(ws, by="u")["cpf"].content["assembly"]
+    cpf = current_cpf(ws)
+    assert cpf.get("elim.hepatic.total_cl") is None
+    clearance = cpf.get("elim.hepatic.total.plasma_clearance")
+    assert clearance.value == pytest.approx(5.0) and clearance.unit == "ml/min/kg"
+    assert (clearance.engine_binding.process, clearance.engine_binding.parameter) == ("LiverClearance", "Plasma clearance")
+    assert clearance.provenance.method == "InVivo"   # MS-01: a total clearance is clinical
+    assert not [i for i in report["issues"] if "total" in i["target"]]
+
+
+def test_an_ehc_fraction_is_refused_with_its_reason(tmp_path):
+    # registry 1.1: the Individual path MS-01 names is not harvested, so the value is kept out of the CPF and says why
+    ws = _project(tmp_path)
+    item = _accept(ws, "elim.ehc_fraction", 0.5)
+    report = assemble(ws, by="u")["cpf"].content["assembly"]
+    assert current_cpf(ws).get("elim.ehc_fraction") is None
+    issue = next(i for i in report["issues"] if i["target"] == "elim.ehc_fraction")
+    assert issue["evidence"] == [item.id] and "not harvested" in issue["message"] and "kept out of the CPF" in issue["message"]

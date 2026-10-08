@@ -37,20 +37,17 @@ EXAMPLES = {
     "perm.cellular": "perm.cellular",
     "elim.renal.gfr_fraction": "elim.renal.gfr_fraction",
     "elim.hepatic.total_cl": "elim.hepatic.total_cl",
+    "elim.hepatic.total.plasma_clearance": "elim.hepatic.total.plasma_clearance",
     "elim.ehc_fraction": "elim.ehc_fraction",
     "elim.fe_urine": "elim.fe_urine",
     "elim.fm": "elim.fm.CYP3A4",
     "form.": "form.tablet.weibull.t50",
 }
 
-_UNPLACEABLE = (
-    "converts to a storage unit but inputs.placement() does not place it: a value filed under it is refused (\"no "
-    "harvested PK-Sim process carries this parameter\") and the builder never sets it (fix with the phase 4 "
-    "registry, owner's approval)"
-)
+# elim.hepatic.total_cl was here until phase 4e made it an alias of elim.hepatic.total.plasma_clearance (registry 1.1)
 DRIFT = {
-    "elim.hepatic.total_cl": _UNPLACEABLE + "; PK-Sim's LiverClearance is bound to elim.hepatic.total.plasma_clearance",
-    "elim.ehc_fraction": _UNPLACEABLE,
+    "elim.ehc_fraction": "converts to a storage unit but is refused (registry 1.1): MS-01 places it on the Individual "
+                         "(Organism|Liver|EHC continuous fraction), a path not harvested yet; harvest it to place it",
 }
 _ID = re.compile(r"\b[a-z]+(?:\.[a-z0-9_]+)+\b")
 

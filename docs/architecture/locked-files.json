@@ -247,7 +247,7 @@
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/parameters/registry.yaml",
-      "sha256": "c135ebd07d28bb87f970b802219854ecadf614c5de5b722560d90bfca5fba1ed"
+      "sha256": "a91ec144b8914c14a045233f24eb361d64d45ceb531cd6a1aa5bd8e340d77f71"
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/pksim_paths.py",
