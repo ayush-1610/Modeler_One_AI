@@ -50,6 +50,21 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     orchestrator share one object-store default, and the server's computed digest equals the registration's;
   - `services/api/tests/test_production_start.py`: the API does not start in production without its settings;
   - the orchestrator's development and production engine defaults.
+### Infra — the web fonts are self-hosted (no request to Google at build or run time)
+- **What:** IBM Plex Sans (variable, weights 400–600) and IBM Plex Mono (400, 500) are now loaded with
+  `next/font/local` from `apps/web/app/fonts/`, instead of `next/font/google`.
+  - Files: the Latin `.woff2` files Google Fonts serves for these families (Sans v23, Mono v20) and the licence, SIL
+    Open Font License 1.1 (`OFL.txt`, IBM's text from github.com/IBM/plex).
+  - No npm package is added.
+  - sha256: Sans `e2291e84…`, Mono 400 `08949f72…`, Mono 500 `01d28544…`.
+- **Why** (the owner's decision, 2026-10-08):
+  - the web CI job failed once when the Google Fonts download did;
+  - the server and the app no longer depend on a third-party request;
+  - every build uses the same font files, which matters for a reviewable, reproducible package.
+- **Impact:**
+  - Same typefaces, weights, CSS variables (`--font-sans`, `--font-mono`) and `display: swap`.
+  - The production build references only `/_next/static/media/*.woff2`, with no Google URL.
+  - `npm run typecheck` and `npm run build` pass.
 
 ### Science — total hepatic clearance is placed, the EHC fraction says why it is not (registry 1.1, phase 4e)
 - **Decided by the owner on 2026-10-08.** The parameter registry
