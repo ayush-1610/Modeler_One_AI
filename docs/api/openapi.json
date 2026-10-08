@@ -12,6 +12,106 @@
         "title": "AcceptRequest",
         "type": "object"
       },
+      "AffectedView": {
+        "additionalProperties": false,
+        "properties": {
+          "effect": {
+            "title": "Effect",
+            "type": "string"
+          },
+          "needs_signature": {
+            "title": "Needs Signature",
+            "type": "boolean"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "status",
+          "effect",
+          "needs_signature"
+        ],
+        "title": "AffectedView",
+        "type": "object"
+      },
+      "AgentRunDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "run": {
+            "additionalProperties": true,
+            "title": "Run",
+            "type": "object"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run",
+          "steps"
+        ],
+        "title": "AgentRunDetail",
+        "type": "object"
+      },
+      "AgentsStatus": {
+        "additionalProperties": false,
+        "description": "`agent_jobs.agents_status`: whether an LLM provider is configured (provider and model when it is).",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "AgentsStatus",
+        "type": "object"
+      },
       "Approval": {
         "properties": {
           "note": {
@@ -21,6 +121,61 @@
           }
         },
         "title": "Approval",
+        "type": "object"
+      },
+      "ApprovalView": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "meaning": {
+            "title": "Meaning",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "printed_name": {
+            "title": "Printed Name",
+            "type": "string"
+          },
+          "record_sha256": {
+            "title": "Record Sha256",
+            "type": "string"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "signature_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Id"
+          }
+        },
+        "required": [
+          "ref",
+          "record_sha256",
+          "meaning",
+          "by",
+          "printed_name",
+          "at",
+          "signature_id",
+          "note"
+        ],
+        "title": "ApprovalView",
         "type": "object"
       },
       "ApproveRequest": {
@@ -220,6 +375,45 @@
         "title": "Body_upload_documents_api_v1_projects__project_id__documents_post",
         "type": "object"
       },
+      "BriefCatalog": {
+        "additionalProperties": false,
+        "description": "The brief's schema as the web form renders it (`modeler_project.brief.catalog`).",
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "schema": {
+            "title": "Schema",
+            "type": "string"
+          },
+          "sections": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Sections",
+            "type": "object"
+          }
+        },
+        "required": [
+          "schema",
+          "sections",
+          "fields",
+          "groups"
+        ],
+        "title": "BriefCatalog",
+        "type": "object"
+      },
       "BriefEdit": {
         "properties": {
           "changes": {
@@ -246,6 +440,131 @@
           "reason"
         ],
         "title": "BriefEdit",
+        "type": "object"
+      },
+      "BriefImpact": {
+        "additionalProperties": false,
+        "description": "A previewed brief edit: what it would change, nothing saved.",
+        "properties": {
+          "impact": {
+            "$ref": "#/components/schemas/ImpactView"
+          }
+        },
+        "required": [
+          "impact"
+        ],
+        "title": "BriefImpact",
+        "type": "object"
+      },
+      "BriefIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "path",
+          "message"
+        ],
+        "title": "BriefIssue",
+        "type": "object"
+      },
+      "BriefPage": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "artifact": {
+            "$ref": "#/components/schemas/VersionView"
+          },
+          "blocking": {
+            "title": "Blocking",
+            "type": "integer"
+          },
+          "brief": {
+            "additionalProperties": true,
+            "title": "Brief",
+            "type": "object"
+          },
+          "catalog": {
+            "$ref": "#/components/schemas/BriefCatalog"
+          },
+          "extraction_running": {
+            "title": "Extraction Running",
+            "type": "boolean"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/BriefIssue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/BriefSummary"
+          }
+        },
+        "required": [
+          "artifact",
+          "brief",
+          "issues",
+          "blocking",
+          "summary",
+          "catalog",
+          "agents",
+          "extraction_running",
+          "runs"
+        ],
+        "title": "BriefPage",
+        "type": "object"
+      },
+      "BriefSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Status",
+            "type": "object"
+          },
+          "groups": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Groups",
+            "type": "object"
+          },
+          "open_questions": {
+            "title": "Open Questions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "by_status",
+          "groups",
+          "open_questions"
+        ],
+        "title": "BriefSummary",
         "type": "object"
       },
       "CPF": {
@@ -375,6 +694,129 @@
           "cpf_sha256"
         ],
         "title": "CampaignStartRequest",
+        "type": "object"
+      },
+      "CatalogField": {
+        "additionalProperties": false,
+        "properties": {
+          "help": {
+            "title": "Help",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "id",
+          "section",
+          "label",
+          "kind",
+          "required",
+          "options",
+          "unit",
+          "help"
+        ],
+        "title": "CatalogField",
+        "type": "object"
+      },
+      "CatalogGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "section",
+          "label",
+          "required",
+          "fields"
+        ],
+        "title": "CatalogGroup",
+        "type": "object"
+      },
+      "ChangeView": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "title": "After"
+          },
+          "before": {
+            "title": "Before"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "before",
+          "after",
+          "kind"
+        ],
+        "title": "ChangeView",
         "type": "object"
       },
       "ChoiceRequest": {
@@ -1254,6 +1696,119 @@
         "title": "DissolvedFormulationSpec",
         "type": "object"
       },
+      "DocumentPage": {
+        "additionalProperties": false,
+        "properties": {
+          "n_pages": {
+            "title": "N Pages",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "name",
+          "page",
+          "n_pages",
+          "text"
+        ],
+        "title": "DocumentPage",
+        "type": "object"
+      },
+      "DocumentView": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "n_pages": {
+            "title": "N Pages",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "uploaded_at": {
+            "title": "Uploaded At",
+            "type": "string"
+          },
+          "uploaded_by": {
+            "title": "Uploaded By",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "sha256",
+          "name",
+          "kind",
+          "role",
+          "n_pages",
+          "size_bytes",
+          "warnings",
+          "uploaded_at",
+          "uploaded_by"
+        ],
+        "title": "DocumentView",
+        "type": "object"
+      },
+      "Documents": {
+        "additionalProperties": false,
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentView"
+            },
+            "title": "Documents",
+            "type": "array"
+          }
+        },
+        "required": [
+          "documents"
+        ],
+        "title": "Documents",
+        "type": "object"
+      },
       "DosePhase": {
         "additionalProperties": false,
         "description": "One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),\n``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two\nphases (OSP Voriconazole, Saari 2006: 400 mg twice 12 h apart, then 200 mg every 12 h from 24 h).",
@@ -1431,6 +1986,244 @@
         "title": "EngineBinding",
         "type": "object"
       },
+      "Envelope_AgentRunDetail_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AgentRunDetail"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[AgentRunDetail]",
+        "type": "object"
+      },
+      "Envelope_BriefPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BriefPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[BriefPage]",
+        "type": "object"
+      },
+      "Envelope_DocumentPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DocumentPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DocumentPage]",
+        "type": "object"
+      },
+      "Envelope_Documents_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Documents"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Documents]",
+        "type": "object"
+      },
+      "Envelope_ExtractionStart_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ExtractionStart"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ExtractionStart]",
+        "type": "object"
+      },
+      "Envelope_ProjectStarted_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectStarted"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ProjectStarted]",
+        "type": "object"
+      },
+      "Envelope_RequirementsPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RequirementsPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RequirementsPage]",
+        "type": "object"
+      },
+      "Envelope_Union_BriefPage__BriefImpact__": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BriefPage"
+              },
+              {
+                "$ref": "#/components/schemas/BriefImpact"
+              }
+            ],
+            "title": "Data"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Union[BriefPage, BriefImpact]]",
+        "type": "object"
+      },
+      "ErrorItem": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorItem",
+        "type": "object"
+      },
       "Evidence": {
         "properties": {
           "cell": {
@@ -1564,6 +2357,37 @@
           }
         },
         "title": "ExtractRequest",
+        "type": "object"
+      },
+      "ExtractionStart": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "title": "Agents",
+            "type": "boolean"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "started": {
+            "title": "Started",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "started",
+          "agents",
+          "problem"
+        ],
+        "title": "ExtractionStart",
         "type": "object"
       },
       "FeedbackEvidence": {
@@ -1956,6 +2780,56 @@
           "content"
         ],
         "title": "ImpactRequest",
+        "type": "object"
+      },
+      "ImpactView": {
+        "additionalProperties": false,
+        "description": "`deps.impact_view`: what a change would replace and which downstream artifacts it makes stale.",
+        "properties": {
+          "affected": {
+            "items": {
+              "$ref": "#/components/schemas/AffectedView"
+            },
+            "title": "Affected",
+            "type": "array"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeView"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "target",
+          "unchanged",
+          "changes",
+          "affected",
+          "notes"
+        ],
+        "title": "ImpactView",
         "type": "object"
       },
       "Induction": {
@@ -2544,6 +3418,30 @@
           "value"
         ],
         "title": "Measured",
+        "type": "object"
+      },
+      "Meta": {
+        "additionalProperties": false,
+        "properties": {
+          "api_version": {
+            "title": "Api Version",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "timestamp",
+          "api_version"
+        ],
+        "title": "Meta",
         "type": "object"
       },
       "MichaelisMentenMetabolism": {
@@ -3363,6 +4261,49 @@
         "title": "ProjectCreate",
         "type": "object"
       },
+      "ProjectStarted": {
+        "additionalProperties": false,
+        "properties": {
+          "brief_version": {
+            "title": "Brief Version",
+            "type": "integer"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentView"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "extraction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExtractionStart"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "name",
+          "documents",
+          "brief_version",
+          "extraction"
+        ],
+        "title": "ProjectStarted",
+        "type": "object"
+      },
       "Provenance": {
         "additionalProperties": false,
         "properties": {
@@ -3580,6 +4521,30 @@
         "title": "ReasonRequest",
         "type": "object"
       },
+      "Ref": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "version"
+        ],
+        "title": "Ref",
+        "type": "object"
+      },
       "ReleaseModelRequest": {
         "properties": {
           "formulation": {
@@ -3641,6 +4606,79 @@
           "unit"
         ],
         "title": "ReportedPK",
+        "type": "object"
+      },
+      "RequirementCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "applicable": {
+            "title": "Applicable",
+            "type": "integer"
+          },
+          "by_provider": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Provider",
+            "type": "object"
+          },
+          "to_harvest": {
+            "title": "To Harvest",
+            "type": "integer"
+          },
+          "undetermined": {
+            "title": "Undetermined",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "applicable",
+          "by_provider",
+          "undetermined",
+          "to_harvest"
+        ],
+        "title": "RequirementCounts",
+        "type": "object"
+      },
+      "RequirementsPage": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/VersionView"
+          },
+          "brief_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brief Status"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RequirementCounts"
+          },
+          "feasibility": {
+            "additionalProperties": true,
+            "title": "Feasibility",
+            "type": "object"
+          },
+          "matrix": {
+            "additionalProperties": true,
+            "title": "Matrix",
+            "type": "object"
+          }
+        },
+        "required": [
+          "artifact",
+          "matrix",
+          "counts",
+          "feasibility",
+          "brief_status"
+        ],
+        "title": "RequirementsPage",
         "type": "object"
       },
       "ResolveRequest": {
@@ -3748,6 +4786,112 @@
           "snapshot_sha256"
         ],
         "title": "RunSubmission",
+        "type": "object"
+      },
+      "RunSummary": {
+        "additionalProperties": false,
+        "description": "One agent run as a page lists it (the run record's own keys; any may be missing from an old record).",
+        "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "run_id",
+          "agent",
+          "status",
+          "model",
+          "started_at",
+          "finished_at",
+          "summary"
+        ],
+        "title": "RunSummary",
         "type": "object"
       },
       "Scale": {
@@ -5478,6 +6622,92 @@
         "title": "ValueOrigin",
         "type": "object"
       },
+      "VersionView": {
+        "additionalProperties": false,
+        "description": "`deps.version_view`: an artifact version's identity, status, provenance and approvals (content when asked).",
+        "properties": {
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalView"
+            },
+            "title": "Approvals",
+            "type": "array"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "derived_from": {
+            "items": {
+              "$ref": "#/components/schemas/Ref"
+            },
+            "title": "Derived From",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "stale_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stale Reasons",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "version",
+          "sha256",
+          "status",
+          "stale_reasons",
+          "created_at",
+          "created_by",
+          "reason",
+          "derived_from",
+          "approvals"
+        ],
+        "title": "VersionView",
+        "type": "object"
+      },
       "WeibullFormulationSpec": {
         "additionalProperties": false,
         "properties": {
@@ -6540,9 +7770,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Agent Run Api V1 Projects  Project Id  Agent Runs  Run Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_AgentRunDetail_"
                 }
               }
             },
@@ -7048,9 +8276,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Brief Api V1 Projects  Project Id  Brief Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_BriefPage_"
                 }
               }
             },
@@ -7117,9 +8343,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Edit Brief Api V1 Projects  Project Id  Brief Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_Union_BriefPage__BriefImpact__"
                 }
               }
             },
@@ -7187,9 +8411,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Remove Brief Item Api V1 Projects  Project Id  Brief Items Remove Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_BriefPage_"
                 }
               }
             },
@@ -7266,9 +8488,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Answer Question Api V1 Projects  Project Id  Brief Questions  Question Id  Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_BriefPage_"
                 }
               }
             },
@@ -7337,9 +8557,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Approve Brief Api V1 Projects  Project Id  Brief Approve Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_BriefPage_"
                 }
               }
             },
@@ -7407,9 +8625,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Extract Brief Api V1 Projects  Project Id  Brief Extract Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ExtractionStart_"
                 }
               }
             },
@@ -8647,9 +9863,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Documents Api V1 Projects  Project Id  Documents Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_Documents_"
                 }
               }
             },
@@ -8715,9 +9929,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Upload Documents Api V1 Projects  Project Id  Documents Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_Documents_"
                 }
               }
             },
@@ -8793,9 +10005,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Document Page Api V1 Projects  Project Id  Documents  Sha256  Pages  Page  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_DocumentPage_"
                 }
               }
             },
@@ -11034,9 +12244,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Requirements Api V1 Projects  Project Id  Requirements Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_RequirementsPage_"
                 }
               }
             },
@@ -11114,9 +12322,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Override Requirement Api V1 Projects  Project Id  Requirements  Req Id  Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_RequirementsPage_"
                 }
               }
             },
@@ -11185,9 +12391,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Approve Requirements Api V1 Projects  Project Id  Requirements Approve Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_RequirementsPage_"
                 }
               }
             },
@@ -11245,9 +12449,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Derive Requirements Api V1 Projects  Project Id  Requirements Derive Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_RequirementsPage_"
                 }
               }
             },
@@ -11576,9 +12778,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Initiate Project Api V1 Projects Initiate Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ProjectStarted_"
                 }
               }
             },

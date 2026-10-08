@@ -1,6 +1,6 @@
 # Phase 6: typed responses for P0–P4, one owner per artifact kind
 
-Status: **6a done** (this plan's first PR: the two ratchets, no code change). 6b–6f next, each one PR to `main`.
+Status: **6a and 6b done.** 6c–6f next, each one PR to `main`.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B3, couplings C5 and C6, §6 phase 6.
 - The exceptions in `tests/architecture/boundaries.toml` (`[response]`, `[owners]`, `[owner_exceptions]`), which only
@@ -34,7 +34,17 @@ Sources:
     `**….content`). Today's exceptions:
     - 3 writers: `brief_api` → brief, `inputs_api` → cpf, `plan_api` → map;
     - 48 raw reads in 12 modules, recorded as exact counts.
-- **6b — the envelope, then P0/P1:**
+- **6b — done** (P0/P1: the 11 JSON routes of `brief_api` and the 4 of `requirements_api`). As planned, plus:
+  - `answers(Model)` in `modeler_api.responses` gives a route `response_model=Envelope[Model]` and
+    `response_model_exclude_unset=True`, so a key the handler leaves out (an optional one) stays out.
+  - A guard in `services/api/tests/conftest.py` compares every typed answer in the API tests with the handler's own
+    return value, serialized without a model. A dropped, added or coerced value fails the test that made the request.
+    A new test calls the 4 brief routes no test had reached (document upload, `brief:extract`, `items:remove`,
+    `questions/{id}`).
+  - The OpenAPI snapshot: 15 operations gain their 2xx response schema, and 33 schemas are added. No schema, request
+    or parameter changed.
+
+  The original scope was:
   - `modeler_api.responses` gains `Envelope[T]`, `Meta` and `ErrorItem`; `envelope()` is unchanged.
   - View models go in `modeler_api/views/{brief,requirements}.py`. The routes of `brief_api` and `requirements_api`
     declare `response_model=Envelope[...]`.

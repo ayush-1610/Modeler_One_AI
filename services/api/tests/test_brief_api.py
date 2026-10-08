@@ -159,3 +159,42 @@ def test_approved_brief_derives_the_data_plan_which_takes_overrides_and_closes_p
     assert c.post(f"/api/v1/projects/{pid}/requirements:approve", headers=H, json={}).status_code == 200
     phases = {p["phase"]: p["status"] for p in c.get(f"/api/v1/projects/{pid}/phases", headers=H).json()["data"]["phases"]}
     assert phases["P1"] == "APPROVED"
+
+
+def test_documents_extraction_items_and_questions_answer_through_their_typed_models(client, monkeypatch):
+    # phase 6b: every brief route answers through its response model (the conftest guard compares each answer with
+    # what the handler returned); these four had no test that called them
+    c, store = client
+    started_jobs = []
+    monkeypatch.setattr(brief_api, "run_extraction", lambda *args, **kwargs: started_jobs.append(kwargs))  # no PubChem
+    pid = _initiate(c)
+    added = c.post(f"/api/v1/projects/{pid}/documents", headers=H, data={"role": "annex"},
+                   files=[("files", ("annex.txt", b"Annex: assay validation of EX-101.", "text/plain"))])
+    assert added.status_code == 201 and [d["role"] for d in added.json()["data"]["documents"]] == ["annex"]
+
+    started = c.post(f"/api/v1/projects/{pid}/brief:extract", headers=H, json={"context_note": "annex added"})
+    assert started.status_code == 202 and started.json()["data"]["agents"] is False
+    for _ in range(100):  # the background job ends at once; wait so it never overlaps the edits below
+        if started_jobs and ("t1", pid) not in brief_api._RUNNING:
+            break
+        time.sleep(0.01)
+    assert started_jobs[0]["context_note"] == "annex added"
+
+    item = {"changes": [{"path": "products[0].name", "status": "EDITED", "value": "50 mg tablet", "note": "from the PO"}],
+            "reason": "first product"}
+    assert c.put(f"/api/v1/projects/{pid}/brief", headers=H, json=item).status_code == 200
+    removed = c.post(f"/api/v1/projects/{pid}/brief/items:remove", headers=H,
+                     json={"group": "products", "index": 0, "reason": "entered twice"}).json()["data"]
+    assert removed["brief"]["groups"].get("products", []) == []
+
+    from modeler_project import ArtifactKind, Workspace
+    from modeler_project.brief import ProjectBrief, Question
+
+    ws = Workspace(store, "t1", pid)
+    latest = ws.latest(ArtifactKind.BRIEF, "main")
+    brief = ProjectBrief.from_content(latest.content)
+    brief = brief.model_copy(update={"questions": (Question(id="q1", field="qoi.text", question="Which dose?"),)})
+    ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), derived_from=latest.derived_from, actor="agent:t",
+              reason="question raised")
+    answered = c.post(f"/api/v1/projects/{pid}/brief/questions/q1", headers=H, json={"answer": "50 mg"}).json()["data"]
+    assert answered["summary"]["open_questions"] == 0

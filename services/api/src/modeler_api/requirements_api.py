@@ -14,7 +14,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
+from modeler_api.views.requirements import RequirementsPage
 from modeler_project import ArtifactKind, ArtifactStatus, Workspace
 from modeler_project.data_plan import NoBriefError, derive_data_plan
 from modeler_project.requirements import Provider, RequirementMatrix, RequirementOverride
@@ -53,14 +54,14 @@ def _view(ws: Workspace) -> dict[str, Any]:
     }
 
 
-@router.post("/projects/{project_id}/requirements:derive")
+@router.post("/projects/{project_id}/requirements:derive", **answers(RequirementsPage))
 def derive_requirements(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     _derive(ws, actor=principal.user_id, reason="derived from the brief")
     return envelope(_view(ws))
 
 
-@router.get("/projects/{project_id}/requirements")
+@router.get("/projects/{project_id}/requirements", **answers(RequirementsPage))
 def get_requirements(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     return envelope(_view(workspace_for(project_id, principal, store)))
 
@@ -73,7 +74,7 @@ class OverrideRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.put("/projects/{project_id}/requirements/{req_id}")
+@router.put("/projects/{project_id}/requirements/{req_id}", **answers(RequirementsPage))
 def override_requirement(project_id: str, req_id: str, body: OverrideRequest, principal: Writer,
                          store: StoreDep) -> dict[str, Any]:
     """A person's decision on one item (who provides it, for what, cross-check it) — kept across re-derivations."""
@@ -94,7 +95,7 @@ class ApproveRequest(BaseModel):
     note: str = ""
 
 
-@router.post("/projects/{project_id}/requirements:approve")
+@router.post("/projects/{project_id}/requirements:approve", **answers(RequirementsPage))
 def approve_requirements(project_id: str, body: ApproveRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Closes P1 with the brief (D-07: named approval). The brief must be approved first and the plan up to date."""
     ws = workspace_for(project_id, principal, store)

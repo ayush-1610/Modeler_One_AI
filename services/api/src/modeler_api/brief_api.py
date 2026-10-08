@@ -26,7 +26,16 @@ from modeler_api import agent_jobs
 from modeler_api.auth import Principal, require_project
 from modeler_api.config import SettingsDep
 from modeler_api.deps import Reader, StoreDep, Writer, impact_view, version_view, workspace_for
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
+from modeler_api.views.brief import (
+    AgentRunDetail,
+    BriefImpact,
+    BriefPage,
+    DocumentPage,
+    Documents,
+    ExtractionStart,
+    ProjectStarted,
+)
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import (
@@ -165,7 +174,7 @@ def _start_extraction(store: ProjectStore, principal: Principal, project_id: str
 # --- P0 ------------------------------------------------------------------------------------------------------
 
 
-@router.post("/projects:initiate", status_code=201)
+@router.post("/projects:initiate", status_code=201, **answers(ProjectStarted))
 async def initiate_project(
     principal: Writer, store: StoreDep, projects: ProjectsDep,
     drug_name: Annotated[str, Form(min_length=1)],
@@ -207,7 +216,7 @@ async def initiate_project(
 # --- documents -----------------------------------------------------------------------------------------------
 
 
-@router.post("/projects/{project_id}/documents", status_code=201)
+@router.post("/projects/{project_id}/documents", status_code=201, **answers(Documents))
 async def upload_documents(project_id: str, principal: Writer, store: StoreDep,
                            files: Annotated[list[UploadFile], File()],
                            role: Annotated[str, Form()] = "proposal") -> dict[str, Any]:
@@ -224,13 +233,13 @@ async def upload_documents(project_id: str, principal: Writer, store: StoreDep,
     return envelope({"documents": [_document_view(d) for d in added]})
 
 
-@router.get("/projects/{project_id}/documents")
+@router.get("/projects/{project_id}/documents", **answers(Documents))
 def list_documents(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     return envelope({"documents": [_document_view(d) for d in DocumentLibrary(ws).documents()]})
 
 
-@router.get("/projects/{project_id}/documents/{sha256}/pages/{page}")
+@router.get("/projects/{project_id}/documents/{sha256}/pages/{page}", **answers(DocumentPage))
 def document_page(project_id: str, sha256: str, page: int, principal: Reader, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     library = DocumentLibrary(ws)
@@ -272,7 +281,7 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
     }
 
 
-@router.get("/projects/{project_id}/brief")
+@router.get("/projects/{project_id}/brief", **answers(BriefPage))
 def get_brief(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     return envelope(_brief_view(workspace_for(project_id, principal, store)))
 
@@ -281,7 +290,7 @@ class ExtractRequest(BaseModel):
     context_note: str = ""
 
 
-@router.post("/projects/{project_id}/brief:extract", status_code=202)
+@router.post("/projects/{project_id}/brief:extract", status_code=202, **answers(ExtractionStart))
 def extract_brief(project_id: str, body: ExtractRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     if ws.latest(ArtifactKind.BRIEF, BRIEF_ID) is None:
@@ -313,7 +322,7 @@ def _apply_changes(brief: ProjectBrief, changes: list[FieldChange], by: str) -> 
     return brief
 
 
-@router.put("/projects/{project_id}/brief")
+@router.put("/projects/{project_id}/brief", **answers(BriefPage | BriefImpact))
 def edit_brief(project_id: str, body: BriefEdit, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Change fields (each change says why). With ``preview`` the impact is returned and nothing is saved."""
     ws = workspace_for(project_id, principal, store)
@@ -335,7 +344,7 @@ class ItemRemoval(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.post("/projects/{project_id}/brief/items:remove")
+@router.post("/projects/{project_id}/brief/items:remove", **answers(BriefPage))
 def remove_brief_item(project_id: str, body: ItemRemoval, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     current = _brief(ws)
@@ -354,7 +363,7 @@ class QuestionAnswer(BaseModel):
     status: Literal["answered", "accepted_as_limitation", "open"] = "answered"
 
 
-@router.post("/projects/{project_id}/brief/questions/{question_id}")
+@router.post("/projects/{project_id}/brief/questions/{question_id}", **answers(BriefPage))
 def answer_question(project_id: str, question_id: str, body: QuestionAnswer, principal: Writer,
                     store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
@@ -376,7 +385,7 @@ class Approval(BaseModel):
     note: str = ""
 
 
-@router.post("/projects/{project_id}/brief:approve")
+@router.post("/projects/{project_id}/brief:approve", **answers(BriefPage))
 def approve_brief(project_id: str, body: Approval, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """L1 gate (D-07: a named approval, meaning "Reviewed"): refused while anything blocks the brief."""
     ws = workspace_for(project_id, principal, store)
@@ -402,7 +411,7 @@ def approve_brief(project_id: str, body: Approval, principal: Writer, store: Sto
 # --- agent runs ----------------------------------------------------------------------------------------------
 
 
-@router.get("/projects/{project_id}/agent-runs/{run_id}")
+@router.get("/projects/{project_id}/agent-runs/{run_id}", **answers(AgentRunDetail))
 def get_agent_run(project_id: str, run_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     require_project(project_id, principal)
     root = getattr(store, "root", "")

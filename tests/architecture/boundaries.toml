@@ -86,23 +86,6 @@ untyped = [
   "GET /api/v1/projects/{project_id}/blinding",
   "PUT /api/v1/projects/{project_id}/blinding",
   "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
-  # brief_api
-  "POST /api/v1/projects:initiate",
-  "POST /api/v1/projects/{project_id}/documents",
-  "GET /api/v1/projects/{project_id}/documents",
-  "GET /api/v1/projects/{project_id}/documents/{sha256}/pages/{page}",
-  "GET /api/v1/projects/{project_id}/brief",
-  "POST /api/v1/projects/{project_id}/brief:extract",
-  "PUT /api/v1/projects/{project_id}/brief",
-  "POST /api/v1/projects/{project_id}/brief/items:remove",
-  "POST /api/v1/projects/{project_id}/brief/questions/{question_id}",
-  "POST /api/v1/projects/{project_id}/brief:approve",
-  "GET /api/v1/projects/{project_id}/agent-runs/{run_id}",
-  # requirements_api
-  "POST /api/v1/projects/{project_id}/requirements:derive",
-  "GET /api/v1/projects/{project_id}/requirements",
-  "PUT /api/v1/projects/{project_id}/requirements/{req_id}",
-  "POST /api/v1/projects/{project_id}/requirements:approve",
   # evidence_api
   "GET /api/v1/projects/{project_id}/evidence",
   "POST /api/v1/projects/{project_id}/evidence:research",
