@@ -11,6 +11,8 @@ from __future__ import annotations
 import unicodedata
 from dataclasses import dataclass
 
+from pbpk_domain import parameters
+
 
 class ConversionError(ValueError):
     pass
@@ -45,28 +47,14 @@ _FAMILIES: dict[str, tuple[str, dict[str, float]]] = {
                           "mmol/l": 1e3, "mm": 1e3}),
     "ml/min/kg": ("ml/min/kg", {"ml/min/kg": 1.0, "l/h/kg": 1000 / 60, "ml/h/kg": 1 / 60, "l/min/kg": 1000.0}),
 }
-# CPF id prefix -> the family of its storage unit (None: dimensionless). Units are MS-01 §2.2's.
-_TARGETS: tuple[tuple[str, str | None], ...] = (
-    ("phys.mw", "g/mol"), ("phys.logp", None), ("phys.pka", None), ("bind.fu", "fraction"), ("dist.bp_ratio", None),
-    ("phys.solubility.ref", "mg/ml"), ("perm.intestinal", "cm/min"), ("perm.cellular", "cm/min"),
-    ("elim.renal.gfr_fraction", None), ("elim.hepatic.total_cl", "ml/min/kg"), ("elim.ehc_fraction", None),
-    ("elim.fe_urine", "fraction"), ("elim.fm", "fraction"),
-    ("form.", "min"),
-)
+# CPF id prefix -> the family of its storage unit (None: dimensionless). Units are MS-01 §2.2's, kept in the parameter
+# registry (pbpk_domain/parameters/registry.yaml) with the rules for a family's ids by suffix (CLspec, Km, Weibull shape).
+_TARGETS: tuple[tuple[str, str | None], ...] = parameters.storage_targets()
 
 
 def target_family(target: str) -> str | None | bool:
     """The storage family of a CPF id; False when the id is not converted here (e.g. CLspec needs IVIVE)."""
-    if target.startswith("elim.hepatic.") and target.endswith(".clspec"):
-        return False
-    if target.startswith("elim.hepatic.") and target.endswith(".km"):
-        return "µmol/l"
-    if target.startswith("form.") and target.endswith(".shape"):
-        return None
-    for prefix, family in _TARGETS:
-        if target == prefix or target.startswith(prefix + ".") or (prefix.endswith(".") and target.startswith(prefix)):
-            return family
-    return False
+    return parameters.storage_family(target)
 
 
 def to_storage_unit(target: str, value: float, unit: str | None) -> Converted:
