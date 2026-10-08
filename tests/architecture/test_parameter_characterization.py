@@ -150,6 +150,8 @@ def answers(cpf_id: str) -> dict:
 
 
 def vocabulary() -> dict:
+    # prefix tuples are only used with str.startswith, so their order has no meaning: they are recorded sorted, and a
+    # registry that derives them in another order is the same vocabulary
     tables = {
         "parameter_units._TARGETS": parameter_units._TARGETS,
         "parameter_units._FAMILIES": parameter_units._FAMILIES,
@@ -160,18 +162,18 @@ def vocabulary() -> dict:
         "pksim_paths._MOLECULE_PROCESSES": pksim_paths._MOLECULE_PROCESSES,
         "pksim_paths._NESTED_PROCESSES": pksim_paths._NESTED_PROCESSES,
         "process_bindings._FIXED_PREFIX": process_bindings._FIXED_PREFIX,
-        "build.REFERENCE_ELIMINATION": build.REFERENCE_ELIMINATION,
-        "build._PROCESS_FAMILIES": build._PROCESS_FAMILIES,
+        "build.REFERENCE_ELIMINATION": sorted(build.REFERENCE_ELIMINATION),
+        "build._PROCESS_FAMILIES": sorted(build._PROCESS_FAMILIES),
         "build.ALTERNATIVE_GROUP_OF_ID": build.ALTERNATIVE_GROUP_OF_ID,
         "inputs.MODEL_IDS": inputs.MODEL_IDS,
-        "inputs.MODEL_PREFIXES": inputs.MODEL_PREFIXES,
+        "inputs.MODEL_PREFIXES": sorted(inputs.MODEL_PREFIXES),
         "inputs.REFERENCE_IDS": inputs.REFERENCE_IDS,
-        "inputs.REFERENCE_PREFIXES": inputs.REFERENCE_PREFIXES,
+        "inputs.REFERENCE_PREFIXES": sorted(inputs.REFERENCE_PREFIXES),
         "inputs.PLACEHOLDERS": inputs.PLACEHOLDERS,
         "inputs.PATHWAY_TARGETS": inputs.PATHWAY_TARGETS,
         "inputs._BUILDER_UNIT": inputs._BUILDER_UNIT,
-        "inputs._IN_VIVO": inputs._IN_VIVO,
-        "inputs._IN_VITRO": inputs._IN_VITRO,
+        "inputs._IN_VIVO": sorted(inputs._IN_VIVO),
+        "inputs._IN_VITRO": sorted(inputs._IN_VITRO),
         "evidence._PHYSICAL": evidence._PHYSICAL,
         "map.STAGE_PLAN": {stage: {"fit_candidates": plan["fit_candidates"], "branches": plan["branches"]}
                            for stage, plan in STAGE_PLAN.items()},

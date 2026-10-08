@@ -1979,13 +1979,13 @@
    "phys.solubility.table"
   ],
   "inputs.MODEL_PREFIXES": [
+   "cmpd.",
+   "expr.",
+   "form.",
+   "indiv.",
+   "phys.halogens.",
    "phys.pka.acid.",
    "phys.pka.base.",
-   "phys.halogens.",
-   "cmpd.",
-   "form.",
-   "expr.",
-   "indiv.",
    "sim.",
    "sim["
   ],
@@ -2015,19 +2015,19 @@
    "phys.logp": "Log Units"
   },
   "inputs._IN_VITRO": [
-   "phys.",
    "bind.",
-   "perm.",
+   "ddi.",
    "dist.",
    "elim.hepatic",
-   "transp.",
    "form.",
-   "ddi."
+   "perm.",
+   "phys.",
+   "transp."
   ],
   "inputs._IN_VIVO": [
-   "elim.renal",
-   "elim.fm",
    "elim.ehc",
+   "elim.fm",
+   "elim.renal",
    "food."
   ],
   "map.STAGE_PLAN": {
