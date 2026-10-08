@@ -1,6 +1,6 @@
 # Phase 5: services out of routers, `modeler_api.deps`, deterministic helpers out of the agents package
 
-Status: **5a done** (this plan's first PR). 5b–5d next, each one PR to `main`, behaviour identical.
+Status: **5a and 5b done.** 5c–5d next, each one PR to `main`, behaviour identical.
 Sources: `docs/ARCHITECTURE_BOUNDARIES.md` (rules B3/B4, couplings C3, C4, C9, §6 phase 5); exceptions in
 `tests/architecture/boundaries.toml`, which only shrinks.
 
@@ -23,9 +23,16 @@ layer.
   `agents_status` moved to the agents seam `modeler_api.agent_jobs`. `project_api` re-exports `get_project_store`, so
   the tests' dependency overrides still find it. Router exceptions went from 14 to 4, and 35 → 25 overall. The OpenAPI
   snapshot is unchanged.
-- **5b — agent jobs into `modeler_api.agent_jobs`.** The jobs are A1 `run_extraction`, A3 triage, A2 research and A4
-  observed data, and A5 planning, plus the agent run records (`run_store`). Each router calls a job function in the
-  seam. This removes the 16 seam exceptions apart from the deterministic ones handled in 5c.
+- **5b — done.** Every router reaches the agents through `modeler_api.agent_jobs`:
+  - the configured model: `chat_model`, `require_chat_model` (the 409 an agent endpoint returns when agents are off or
+    misconfigured, with the router's own "do it by hand" message), `agents_status`;
+  - the run records: `AgentRun` (started, each step logged, finished once), `project_runs`, `run_record`, `run_steps`;
+  - one entry point per agent: A1 `proposal_intake`, A2/A3 `literature_research`, A4 `sheet_triage`, A5 `planning`.
+
+  The jobs stay in their routers (`run_extraction`, `run_triage_job`, `run_research_job`, `run_planning_job`): their
+  bodies read and write the project through router helpers that 5d moves out. Run ids, actors, step sequence, summaries
+  and error messages are unchanged; the run detail still checks the run is the viewer's before reading its steps. Seam
+  exceptions went from 16 to 2 (`citations`, `data_mapping`, which are 5c), and 25 → 11 overall.
 - **5c — deterministic helpers out of the agents package:**
   - `citations` (quote check) moves to `modeler_project`;
   - `data_mapping` (recipe review) moves to `modeler_intake`;

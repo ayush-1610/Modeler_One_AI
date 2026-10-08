@@ -467,7 +467,7 @@
     },
     {
       "path": "tests/architecture/boundaries.toml",
-      "sha256": "2da61282d3382ac54555be525033832da9ba66997ed7f89b53f37b1329b18232"
+      "sha256": "3a5a5535666bf3bb86cbca3aceaf758a1d954e1e954faa48db9a27600654096e"
     }
   ]
 }

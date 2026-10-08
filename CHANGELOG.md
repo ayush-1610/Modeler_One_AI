@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — every agent job reaches the agents through `modeler_api.agent_jobs` (architecture phase 5b)
+- **What:**
+  - `modeler_api.agent_jobs`, the declared seam, is now the only API module that imports `modeler_agents` (bar the two
+    deterministic helpers that move in 5c). It gives the routers:
+    - the configured model: `chat_model`, `require_chat_model`, `agents_status`;
+    - the run records: `AgentRun` (start, log each step, finish), `project_runs`, `run_record`, `run_steps`;
+    - one entry point per agent: A1 `proposal_intake`, A2/A3 `literature_research`, A4 `sheet_triage`, A5 `planning`.
+  - `brief_api`, `client_api`, `evidence_api` and `plan_api` call these instead of importing `modeler_agents.llm`,
+    `run_store` and the agent modules. Four copies of the run-record bookkeeping (start, step counter, finish) and of
+    the "agents off" 409 became one each.
+  - The seam imports `modeler_agents` only when called, as before, so an API with agents off does not load the
+    provider SDKs.
+- **Why:** coupling C4 and rule B4 (the HTTP layer depended on the agents package's modules). Plan:
+  `docs/plans/2026-10-08-phase-5-services.md`.
+- **Impact:**
+  - No behaviour change: same routes, run ids, actors (`agent:<run_id>`), step sequence, summaries and 409 messages.
+    The run detail still reads a run's steps only after checking the run belongs to the viewer's project and tenant.
+    The OpenAPI snapshot is unchanged.
+  - `tests/architecture/boundaries.toml` (locked) drops the 14 seam exceptions that no longer occur (seam 16 → 2;
+    25 → 11 overall), and its hash is refreshed.
+  - `make test` shows only the 15 known environment failures.
+
 ### Changed — routers share `modeler_api.deps`, not each other (architecture phase 5a)
 - **What:**
   - New `modeler_api.deps`, a module that defines no route. It holds what every phase router imported from

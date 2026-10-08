@@ -14,7 +14,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from modeler_api.agent_jobs import agents_status
+from modeler_api import agent_jobs
 from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
 from modeler_api.responses import envelope
 from modeler_intake.documents import DocumentError
@@ -63,10 +63,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
     hidden = blinded_studies(ws)
     rows = coverage(matrix, evidence, observed)
     register = ws.latest(ArtifactKind.EVIDENCE, REGISTER_LITERATURE)
-    from modeler_agents.run_store import FileRunStore
-
-    root = getattr(ws.store, "root", None)
-    runs = [r for r in (FileRunStore(root).runs(ws.tenant_id, project_id=ws.project_id) if root else [])
+    runs = [r for r in agent_jobs.project_runs(getattr(ws.store, "root", None), ws.tenant_id, ws.project_id)
             if r["agent"].startswith(("A2", "A3"))]
     return {
         "data_plan": {"version": matrix_version.version, "status": ws.status(matrix_version).value},
@@ -78,7 +75,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "blocking": [r.req_id for r in blocking(rows)],
         "access_requests": [{"id": v.id, **v.content} for v in ws.list(ArtifactKind.ACCESS_REQUEST)],
         "register": version_view(ws, register, with_content=False) if register else None,
-        "agents": agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
+        "agents": agent_jobs.agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "model", "started_at", "finished_at", "summary")}
                  for r in runs[:5]],
     }
@@ -92,49 +89,28 @@ def get_evidence(project_id: str, principal: Reader, store: StoreDep) -> dict[st
 def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, model, europe_pmc=None,
                      max_turns: int = 120, agent: Literal["A2", "A3"] = "A2") -> dict[str, Any]:
     """A2 (parameter values) or A3 (observed clinical data) over the data plan's literature items."""
-    from modeler_agents.evidence_agent import ResearchContext, run_research
-    from modeler_agents.observed_data_agent import run_observed_data
-    from modeler_agents.run_store import FileRunStore
-    from modeler_agents.sources import EuropePMC
-
     ws = Workspace(store, tenant_id, project_id)
     _, matrix = _matrix(ws)
     brief_version = ws.latest(ArtifactKind.BRIEF, "main")
     drug = ProjectBrief.from_content(brief_version.content).drug_name if brief_version else project_id
-    runs = FileRunStore(store.root, project_id=project_id)  # type: ignore[attr-defined]
-    run_id = runs.start_run(tenant_id=tenant_id, agent="A2-literature" if agent == "A2" else "A3-observed-data",
-                            provider=model.provider, model=model.model,
-                            campaign_id=None, budget={"max_turns": max_turns})
-    seq = [0]
-
-    def log_step(step: dict[str, Any]) -> None:
-        seq[0] += 1
-        runs.record_step(run_id=run_id, seq=seq[0], kind=step.get("type", "step"), content=step, usage=step.get("usage", {}))
-
-    ctx = ResearchContext(ws=ws, library=DocumentLibrary(ws), requirements=literature_items(matrix), actor=f"agent:{run_id}",
-                          europe_pmc=europe_pmc or EuropePMC())
-    runner = run_research if agent == "A2" else run_observed_data
-    outcome = runner(model, ctx, drug=drug, max_turns=max_turns, log_step=log_step)
+    run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
+                              agent="A2-literature" if agent == "A2" else "A3-observed-data", model=model,
+                              max_turns=max_turns)
+    outcome = agent_jobs.literature_research(model, agent=agent, ws=ws, library=DocumentLibrary(ws),
+                                             requirements=literature_items(matrix), actor=run.actor, drug=drug,
+                                             max_turns=max_turns, log_step=run.log_step, europe_pmc=europe_pmc)
     summary = {"proposed": len(outcome.proposed), "rejected": len(outcome.rejected), "not_found": outcome.not_found,
                "access_requests": len(outcome.access_requests), "summary": outcome.summary[:4000], "error": outcome.error}
-    runs.finish_run(run_id=run_id, status=outcome.status, input_tokens=outcome.usage["input_tokens"],
-                    output_tokens=outcome.usage["output_tokens"], cost_usd=0.0, summary=summary)
-    return {"run_id": run_id, "status": outcome.status, **summary}
+    run.finish(outcome, summary)
+    return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 
 @router.post("/projects/{project_id}/evidence:research", status_code=202)
 def start_research(project_id: str, principal: Writer, store: StoreDep, agent: Literal["A2", "A3"] = "A2") -> dict[str, Any]:
     """Run A2 (values) or, with ``?agent=A3``, the observed-data agent, in the background."""
-    from modeler_agents.llm import LLMConfigError, chat_model_from_env
-
     ws = workspace_for(project_id, principal, store)
     _matrix(ws)
-    try:
-        model = chat_model_from_env()
-    except LLMConfigError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    if model is None:
-        raise HTTPException(status_code=409, detail="agents are off: enter the evidence by hand (Add a value)")
+    model = agent_jobs.require_chat_model("agents are off: enter the evidence by hand (Add a value)")
     key = (principal.tenant_id, project_id)
     with _LOCK:
         if key in _RUNNING:

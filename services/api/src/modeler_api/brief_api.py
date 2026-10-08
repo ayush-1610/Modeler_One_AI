@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from modeler_api.agent_jobs import agents_status
+from modeler_api import agent_jobs
 from modeler_api.auth import Principal, require_project
 from modeler_api.config import SettingsDep
 from modeler_api.deps import Reader, StoreDep, Writer, impact_view, version_view, workspace_for
@@ -101,8 +101,6 @@ def _merge_agent_result(latest: ProjectBrief, produced: ProjectBrief, paths: lis
 def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: str, context_note: str = "",
                    model=None, fetch_identity=None, max_turns: int = 80) -> dict[str, Any]:
     """Resolve identity and (with a model) run A1; commit the result as the brief's next version. Returns a summary."""
-    from modeler_agents.proposal_intake import IntakeContext, run_proposal_intake
-    from modeler_agents.run_store import FileRunStore
     from modeler_project.identity import fetch_pubchem
 
     ws = Workspace(store, tenant_id, project_id)
@@ -121,26 +119,17 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
     result: dict[str, Any] = {"identity_notes": notes, "run_id": None, "status": "IDENTITY_ONLY"}
     actor = "system"
     if model is not None:
-        root = getattr(store, "root", None)
-        runs = FileRunStore(root, project_id=project_id)
-        run_id = runs.start_run(tenant_id=tenant_id, agent="A1-proposal-intake", provider=model.provider,
-                                model=model.model, campaign_id=None, budget={"max_turns": max_turns})
-        seq = [0]
-
-        def log_step(step: dict[str, Any]) -> None:
-            seq[0] += 1
-            runs.record_step(run_id=run_id, seq=seq[0], kind=step.get("type", "step"), content=step, usage=step.get("usage", {}))
-
-        ctx = IntakeContext(library=library, brief=brief, actor=f"agent:{run_id}")
-        outcome = run_proposal_intake(model, ctx, context_note=context_note, max_turns=max_turns, log_step=log_step)
-        runs.finish_run(run_id=run_id, status=outcome.status, input_tokens=outcome.usage["input_tokens"],
-                        output_tokens=outcome.usage["output_tokens"], cost_usd=0.0,
-                        summary={"accepted": len(outcome.accepted), "rejected": len(outcome.rejected),
-                                 "summary": outcome.summary[:4000], "error": outcome.error})
+        run = agent_jobs.AgentRun(getattr(store, "root", None), tenant_id=tenant_id, project_id=project_id,
+                                  agent="A1-proposal-intake", model=model, max_turns=max_turns)
+        outcome = agent_jobs.proposal_intake(model, library=library, brief=brief, actor=run.actor,
+                                             context_note=context_note, max_turns=max_turns, log_step=run.log_step)
+        run.finish(outcome, {"accepted": len(outcome.accepted), "rejected": len(outcome.rejected),
+                             "summary": outcome.summary[:4000], "error": outcome.error})
         brief = outcome.brief
         accepted_paths += [a["path"] for a in outcome.accepted]
-        actor = f"agent:{run_id}"
-        result.update(run_id=run_id, status=outcome.status, accepted=len(outcome.accepted), rejected=len(outcome.rejected))
+        actor = run.actor
+        result.update(run_id=run.run_id, status=outcome.status, accepted=len(outcome.accepted),
+                      rejected=len(outcome.rejected))
     latest = _brief(ws) or start
     merged = _merge_agent_result(latest, brief, accepted_paths)
     reason = (f"extracted by A1 ({result.get('accepted', 0)} fields accepted, {result.get('rejected', 0)} rejected)"
@@ -152,15 +141,9 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
 
 
 def _start_extraction(store: ProjectStore, principal: Principal, project_id: str, context_note: str) -> dict[str, Any]:
-    from modeler_agents.llm import LLMConfigError, chat_model_from_env
-
-    try:
-        model = chat_model_from_env()
-    except LLMConfigError as exc:
-        model = None
-        problem = str(exc)
-    else:
-        problem = None if model else "agents are off: identity resolved; fill the rest of the brief by hand"
+    model, problem = agent_jobs.chat_model()
+    if model is None and problem is None:
+        problem = "agents are off: identity resolved; fill the rest of the brief by hand"
     key = (principal.tenant_id, project_id)
     with _RUNNING_LOCK:
         if key in _RUNNING:
@@ -278,15 +261,12 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="this project has no brief yet (start it from a technical proposal)")
     brief = ProjectBrief.from_content(version.content)
     issues = validate_brief(brief)
-    from modeler_agents.run_store import FileRunStore
-
-    root = getattr(ws.store, "root", None)
-    runs = FileRunStore(root).runs(ws.tenant_id, project_id=ws.project_id) if root else []
+    runs = agent_jobs.project_runs(getattr(ws.store, "root", None), ws.tenant_id, ws.project_id)
     return {
         "artifact": version_view(ws, version, with_content=False), "brief": brief.to_content(),
         "issues": [{"code": i.code, "path": i.path, "message": i.message} for i in issues],
         "blocking": len(issues), "summary": summary(brief), "catalog": catalog(),
-        "agents": agents_status(), "extraction_running": (ws.tenant_id, ws.project_id) in _RUNNING,
+        "agents": agent_jobs.agents_status(), "extraction_running": (ws.tenant_id, ws.project_id) in _RUNNING,
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "provider", "model", "started_at", "finished_at",
                                          "summary")} for r in runs[:5]],
     }
@@ -424,15 +404,13 @@ def approve_brief(project_id: str, body: Approval, principal: Writer, store: Sto
 
 @router.get("/projects/{project_id}/agent-runs/{run_id}")
 def get_agent_run(project_id: str, run_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
-    from modeler_agents.run_store import FileRunStore
-
     require_project(project_id, principal)
-    runs = FileRunStore(getattr(store, "root", ""))
+    root = getattr(store, "root", "")
     try:
-        record = runs.get(run_id)
+        record = agent_jobs.run_record(root, run_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="no such agent run") from exc
     if record.get("project_id") != project_id or record.get("tenant_id") != principal.tenant_id:
         raise HTTPException(status_code=404, detail="no such agent run")
-    return envelope({"run": record, "steps": runs.steps(run_id)})
+    return envelope({"run": record, "steps": agent_jobs.run_steps(root, run_id)})
 
