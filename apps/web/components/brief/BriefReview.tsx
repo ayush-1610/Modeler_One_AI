@@ -272,8 +272,8 @@ export function BriefReview({ projectId }: { projectId: string }) {
         )}
         {view.runs[0] && (
           <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
-            Last agent run {view.runs[0].run_id}: {view.runs[0].status.toLowerCase()}
-            {typeof view.runs[0].summary.accepted === "number" &&
+            Last agent run {view.runs[0].run_id}: {view.runs[0].status?.toLowerCase() ?? "unknown"}
+            {typeof view.runs[0].summary?.accepted === "number" &&
               ` · ${view.runs[0].summary.accepted} fields accepted, ${view.runs[0].summary.rejected} rejected by the citation check`}
           </p>
         )}

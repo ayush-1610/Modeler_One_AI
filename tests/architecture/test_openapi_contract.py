@@ -2,9 +2,11 @@
 
 The API's OpenAPI document is compared with the committed snapshot docs/api/openapi.json, so a renamed field, a
 removed route or a changed request model shows up in review instead of as a runtime failure in the browser. When the
-change is intended, rewrite the snapshot and record the change in CHANGELOG.md:
+change is intended, rewrite the snapshot, regenerate the web app's types from it (phase 7: `npm run typecheck` in
+apps/web fails while they are older than the snapshot) and record the change in CHANGELOG.md:
 
     UPDATE_SNAPSHOTS=1 uv run pytest tests/architecture/test_openapi_contract.py
+    npm --prefix apps/web run api-types
 """
 
 from __future__ import annotations
@@ -57,5 +59,5 @@ def test_openapi_matches_the_committed_contract():
     assert not diff and committed == current, (
         "the API contract changed (+ added, - removed, ~ changed):\n" + "\n".join(diff[:60])
         + ("\n…" if len(diff) > 60 else "")
-        + "\nIf intended: UPDATE_SNAPSHOTS=1 uv run pytest tests/architecture/test_openapi_contract.py, "
-          "and say what changed for clients in CHANGELOG.md.")
+        + "\nIf intended: UPDATE_SNAPSHOTS=1 uv run pytest tests/architecture/test_openapi_contract.py, then "
+          "npm --prefix apps/web run api-types (the web types), and say what changed for clients in CHANGELOG.md.")

@@ -1,3 +1,11 @@
+import type { components } from "./api-types";
+
+/** A response model of the API, generated from docs/api/openapi.json into lib/api-types.ts (`npm run api-types`;
+ *  `npm run typecheck` fails when the file is older than the snapshot). Use it instead of hand-writing an answer's
+ *  shape: `Schema<"BriefPage">`. Stored artifact content (a brief, a plan) is typed by hand where the API sends it as
+ *  an open object. */
+export type Schema<Name extends keyof components["schemas"]> = components["schemas"][Name];
+
 export type ApiError = { code: string; location?: string; message: string };
 
 export type Envelope<T> = {
