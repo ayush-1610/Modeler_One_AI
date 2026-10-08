@@ -1,6 +1,7 @@
 # Phase 4: one parameter registry in `pbpk_domain` (coupling C1)
 
-Status: **4a done (characterization); 4b–4e need the owner's approval** (SME-governed content, locked files).
+Status: **4a done (characterization); 4b done (registry v1.0, approved by the owner 2026-10-08, UNVERIFIED); 4c–4e
+next**, 4d and 4e with the owner's approval (locked files, science).
 Sources: `docs/ARCHITECTURE_BOUNDARIES.md` (B1, C1, §6 phase 4), MS-01 §2.2 (`docs/PBPK_MODELING_WORKFLOW.md`).
 
 ## Why
@@ -57,8 +58,14 @@ The registry adds no new science:
 
   The functions covered: placement, target problem, storage family and conversion, numeric, process id and binding
   candidates, compound path, physical bounds, ValueOrigin method, and the S0 requirement satisfied.
-- **4b — registry and equality tests** (new SME-governed, locked file; owner approval). For each table, a test that
-  the registry derives it exactly. No consumer changes yet.
+- **4b — done.** `pbpk_domain/parameters/registry.yaml` (v1.0, UNVERIFIED, locked as SME content) and its loader
+  `pbpk_domain.parameters`. Tests show that it derives every table exactly and answers, for each of the 101 recorded
+  ids, what the code answers:
+  - `packages/pbpk-domain/tests/test_parameter_registry.py` covers the pbpk_domain tables, storage family over a
+    corpus, the S0 gate against `check_completeness`, and schema validation;
+  - `tests/architecture/test_parameter_registry.py` covers the modeler_project tables and the 4a snapshot's answers.
+
+  The drift is reproduced as is, with a `drift:` note on each entry. No consumer reads the registry yet.
 - **4c — unlocked consumers derive from the registry:** `inputs`, `evidence`, `completeness`,
   `process_bindings.is_process_id`, `templates_api`, `plan_api`. The snapshot stays unchanged. The phase 1 vocabulary
   test becomes a registry test.

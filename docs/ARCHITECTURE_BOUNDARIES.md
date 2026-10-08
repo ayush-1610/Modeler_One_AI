@@ -27,7 +27,7 @@ Imports point down only. Two packages on one layer do not import each other.
 
 | Rule | Statement | Enforced by |
 |---|---|---|
-| B1 | One parameter vocabulary: every CPF id with placement, value kind, storage unit, bounds, S0 role, PK-Sim name | phase 1: `test_parameter_vocabulary.py` keeps today's copies consistent; phase 4: the registry |
+| B1 | One parameter vocabulary: every CPF id with placement, value kind, storage unit, bounds, S0 role, PK-Sim name | phase 1: `test_parameter_vocabulary.py` keeps today's copies consistent; phase 4: the registry `pbpk_domain/parameters/registry.yaml` (4b: it derives every table, `test_parameter_registry.py` in `pbpk-domain/tests` and `tests/architecture`) |
 | B2 | Typed contracts at every process edge: response models per endpoint, generated web types, artifact content models | phase 1: `test_openapi_contract.py` (any contract change is visible); phases 6–7 |
 | B3 | One writer per artifact kind; nobody else reads `version.content["…"]` | phase 6 |
 | B4 | No upward or sideways imports; the API reaches the orchestrator and the agents through one seam module each; routers do not import routers | phase 1: `test_import_boundaries.py` |
@@ -95,6 +95,7 @@ CHANGELOG entry.
 |---|---|---|---|
 | L0 | SME | `pbpk_domain/rulesets/*.yaml` (4) | acceptance criteria, diagnostics, dissolution similarity, DDI screening |
 | L0 | SME | `pbpk_domain/requirements/*.yaml` (6) | data-plan templates: what an application must have |
+| L0 | SME | `pbpk_domain/parameters/registry.yaml` (added 2026-10-08, phase 4b) | the CPF parameter registry: placement, storage units, PK-Sim compound names, review bounds, S0 |
 | repo | SME | `docs/PBPK_MODELING_WORKFLOW.md` | MS-01 |
 | L0 | core | `cpf/models.py`, `cpf/build.py`, `snapshot/builder.py`, `reference/osp_import.py`, `pksim_paths.py`, `parameter_units.py` | CPF schema, builder, harvested PK-Sim names, units |
 | L0 | core | `acceptance.py`, `campaign/map.py`, `campaign/split.py`, `diagnostics.py`, `m15.py`, `reproducibility.py` | acceptance, MAP and MS01_VERSION, data split, diagnostics, ICH M15, reproducibility gate |
@@ -129,7 +130,7 @@ Apart from the moved audit trail, nothing in L1, L2, L4 or L7 is locked: those a
 | 1 | Guardrail tests, web and API-image CI jobs, API Dockerfile installs the locked workspace, this document | stops new violations |
 | 2 | **Done.** One reader per process (§3a), injected; tests use `api_settings` | C2 |
 | 3 | **Done.** 3a: `modeler_storage` with the Postgres audit trail (locked, moved unchanged, its own PR). 3b: the read model, repositories and tenancy move in; the orchestrator no longer imports the API; the API starts and steers campaigns through `CampaignRunner` (`modeler_contracts.ports`) obtained in `modeler_api.execution` | C7, the api ⇄ orchestrator cycle |
-| 4 | Parameter registry in `pbpk_domain` (SME-governed); characterization tests first; `total_cl` fixed in its own science PR with an alias. Plan: `docs/plans/2026-10-08-parameter-registry.md`; **4a done** (characterization snapshot) | C1 |
+| 4 | Parameter registry in `pbpk_domain` (SME-governed); characterization tests first; `total_cl` fixed in its own science PR with an alias. Plan: `docs/plans/2026-10-08-parameter-registry.md`; **4a done** (characterization snapshot), **4b done** (the registry, locked, derives every table) | C1 |
 | 5 | Services out of routers; `deps.py`; deterministic helpers out of the agents package | C3, C4, C9 |
 | 6 | Typed responses for P0–P4; one owner per artifact kind | C5, C6 |
 | 7 | Frontend seams (`openapi-typescript`, asked first) | B6 |

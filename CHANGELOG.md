@@ -15,6 +15,35 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Science (governance) — one CPF parameter registry, v1.0 UNVERIFIED (architecture phase 4b)
+- **What:** a new SME-governed data file, `packages/pbpk-domain/src/pbpk_domain/parameters/registry.yaml` (v1.0,
+  `UNVERIFIED`, locked as SME content; approved by the owner 2026-10-08). For every CPF id or id family it states:
+  - placement (model / reference / process family);
+  - storage unit;
+  - PK-Sim compound parameter (harvested);
+  - builder unit;
+  - review bounds;
+  - ValueOrigin method family;
+  - the S0 gate's requirements and messages.
+
+  Its loader, `pbpk_domain.parameters` (frozen pydantic, validated), answers the questions the scattered tables answered
+  and derives each of them.
+- **No new science:** the content is the code tables of 2026-10-08 moved over unchanged. No id, unit, bound or fit
+  stage is added. Process parameter names and units stay in the harvested process table. The known drift is
+  reproduced as is, with a `drift:` note naming the science PR 4e:
+  - `elim.hepatic.total_cl` converts and satisfies S0, but has no placement;
+  - `elim.ehc_fraction` converts, but has no placement.
+- **Proof:**
+  - `packages/pbpk-domain/tests/test_parameter_registry.py`: `parameter_units._TARGETS` exactly (and
+    `target_family` over a corpus), `pksim_paths._COMPOUND_PARAM`, `build.REFERENCE_ELIMINATION` /
+    `_PROCESS_FAMILIES`, `is_process_id`, the S0 report of `check_completeness` (messages, ids, and what each id or
+    combination satisfies), the IVIVE reason, and schema validation.
+  - `tests/architecture/test_parameter_registry.py`: the `modeler_project.inputs` and `evidence` tables, and, for all
+    101 ids of the 4a snapshot, placement, storage family, process id, bounds, ValueOrigin method, S0 and compound path.
+  - In total, 340 tests. Changing two entries in a scratch copy made 11 of them fail.
+- Impact: none on behaviour. No consumer reads the registry yet (4c: unlocked consumers; 4d: the locked ones, their own
+  PR). The characterization snapshot is unchanged.
+
 ### Infra — the parameter vocabulary is recorded before the registry replaces it (architecture phase 4a)
 - **What:** `tests/architecture/test_parameter_characterization.py` records the snapshot
   `docs/architecture/parameter-vocabulary.json`, which holds two things:
