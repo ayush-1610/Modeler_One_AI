@@ -189,7 +189,7 @@
     },
     {
       "path": ".github/workflows/engine-image.yml",
-      "sha256": "0e635469874a039d9e5a2a3616ed71a21e1076a185bc5d5a00c115ee511edf1e"
+      "sha256": "95479f565137469695d7590be0c4b1e23ff7cbc38fa49d4ce456da7050f97b12"
     },
     {
       "path": "CLAUDE.md",

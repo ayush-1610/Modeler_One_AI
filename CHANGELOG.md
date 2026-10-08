@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the qualified engine image is published from `main` (it never had been)
+- **What broke:** on every `main` push the Engine image workflow qualified the image (golden round trip, fitting smoke,
+  engine tasks, benchmark all pass) and then failed at "Push image by digest" in under a second. The image name is
+  `ghcr.io/${{ github.repository }}/modeler-engine`, i.e. `ghcr.io/ayush-1610/Modeler_One_AI/…`; Docker refuses
+  upper-case repository names (`invalid reference format: repository name … must be lowercase`), so `docker tag` failed
+  before anything was pushed. The SBOM, cosign signature and `engine_images` registration record after it had never
+  run, although T-12 was marked done.
+- **Change** (locked file `.github/workflows/engine-image.yml`, approved by the owner 2026-10-08): the push step
+  lower-cases the name (`ghcr.io/ayush-1610/modeler_one_ai/modeler-engine`); the registration record step runs from the
+  locked workspace with uv 0.5.11 (`uv run --frozen --package modeler-engine-worker`, as CI does) instead of a bare
+  `pip install` into the runner's system Python. The qualification gate, and what a pull request runs, are unchanged.
+- **Checked here:** the Docker CLI rejects the old name and parses the new one; the record step's command, run verbatim
+  with uv 0.5.11 on the real `golden/catalog.json`, prints a `BUILT` record (`ospsuite-12.4.4`, snapshot version 80).
+- Impact: the next `main` push touching the engine publishes the qualified image by digest, with SBOM, keyless cosign
+  signature and registration record as workflow evidence. Nothing references the GHCR name yet (deploy and dev scripts
+  use the local `modeler-engine:ospsuite-12.4.4` tag).
+
 ### Changed — storage out of the API; the API and the orchestrator no longer import each other (architecture phase 3b)
 - **Why:** the orchestrator imported the API package for its file read model and database repositories (declared as a
   dependency), while the API lazily imported the orchestrator to start and resolve campaigns: neither could change

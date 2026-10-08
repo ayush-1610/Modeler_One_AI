@@ -72,12 +72,13 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
+          image="${IMAGE,,}"   # registry paths must be lowercase; the repository name (Modeler_One_AI) is not
           tag="${GITHUB_SHA::12}"
-          docker tag modeler-engine:ci "$IMAGE:$tag"
-          docker push "$IMAGE:$tag"
-          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$tag" | cut -d@ -f2)"
+          docker tag modeler-engine:ci "$image:$tag"
+          docker push "$image:$tag"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$image:$tag" | cut -d@ -f2)"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "ref=$IMAGE@$digest" >> "$GITHUB_OUTPUT"
+          echo "ref=$image@$digest" >> "$GITHUB_OUTPUT"
 
       - name: Generate SBOM (Syft)
         if: github.event_name != 'pull_request'
@@ -94,10 +95,13 @@ jobs:
         if: github.event_name != 'pull_request'
         run: cosign sign --yes "${{ steps.push.outputs.ref }}"
 
-      # modeler_engine.registration is pure-python (no engine needed); install it on the runner for the record step.
-      - name: Install run-contracts + engine worker for the record step
+      # modeler_engine.registration is pure-python (no engine needed); the record step runs it from the locked workspace
+      # with uv, as CI does (a bare pip install into the runner's system Python can be refused, PEP 668).
+      - name: Install uv for the record step
         if: github.event_name != 'pull_request'
-        run: pip install ./packages/run-contracts ./services/engine-worker
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.11"
 
       - name: Build engine_images registration record
         if: github.event_name != 'pull_request'
@@ -105,7 +109,7 @@ jobs:
           DIGEST: ${{ steps.push.outputs.digest }}
           IMAGE_REF: ${{ steps.push.outputs.ref }}
         run: |
-          python - <<'PY'
+          uv run --frozen --package modeler-engine-worker python - <<'PY'
           import json, os
           from modeler_engine.registration import build_engine_image_registration
           catalog = json.load(open("services/engine-worker/golden/catalog.json"))
