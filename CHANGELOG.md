@@ -15,6 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — P2/P3 answers are typed (architecture phase 6c; API contract)
+- **What:**
+  - `modeler_api.views.evidence` and `modeler_api.views.client_data` hold the response models. The 12 routes of
+    `evidence_api` and the 8 JSON routes of `client_api` declare them; the template download answers with a file.
+  - The merged answers are typed as they are, one model each, built by inheritance:
+    - a value kept or corrected, plus the page;
+    - files uploaded, plus the page;
+    - a release model proposed, plus the page;
+    - a confirmed sheet reading: preview, datasets and page. Where the preview and the page both name `dissolution`,
+      the page's wins, as before.
+  - An answer that is a stored artifact's content (an evidence item, a dataset) is typed as `StoredContent` until
+    phase 6e gives its kind a content model.
+- **Why:** coupling C5 and rule B2. This continues 6b, and the response shapes are kept, as the owner chose.
+- **Impact (an API contract change for clients):**
+  - The OpenAPI snapshot gains the 2xx schemas of these 20 operations, plus 34 schemas. Nothing else changed.
+  - The answers are unchanged; the conftest guard compares each one with the handler's own return value.
+  - New tests reach 4 routes no test had reached: `evidence:research`, `access-requests/{id}:fulfil`, the success
+    path of `evidence:approve`, and `client-data/{id}:triage`.
+  - `boundaries.toml` (locked): `[response] untyped` goes from 40 to 20, and its hash is refreshed.
+
 ### Changed — P0/P1 answers are typed: `Envelope[T]` and `modeler_api.views` (architecture phase 6b; API contract)
 - **What:**
   - `modeler_api.responses` gains `Envelope[T]`, `Meta` and `ErrorItem`. `answers(Model)` gives a route its

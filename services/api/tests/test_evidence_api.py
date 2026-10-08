@@ -114,3 +114,45 @@ def test_a_hand_entered_value_must_name_a_parameter_the_model_uses(setup):
     wrong = c.post("/api/v1/projects/p1/evidence", headers=H, json={**body, "target": "plasma protein binding"})
     assert wrong.status_code == 422 and "not a parameter the model uses" in wrong.json()["detail"]
     assert c.post("/api/v1/projects/p1/evidence", headers=H, json={**body, "target": "bind.fu"}).status_code == 201
+
+
+def _wait_until_idle(running: set, key) -> None:
+    for _ in range(200):
+        if key not in running:
+            return
+        time.sleep(0.01)
+
+
+def test_research_start_paper_fulfilment_and_the_closed_register_answer_through_their_typed_models(setup, monkeypatch):
+    # phase 6c: these three routes had no test that reached their answer (the conftest guard checks each answer)
+    from modeler_api import agent_jobs, evidence_api
+    from modeler_project.evidence_register import request_access
+    from modeler_project.requirements import RequirementMatrix, RequirementOverride, literature_items
+
+    c, ws = setup
+
+    class Configured:
+        provider, model = "test", "scripted"
+
+    jobs = []
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(evidence_api, "run_research_job", lambda *args, **kwargs: jobs.append(kwargs))
+    started = c.post("/api/v1/projects/p1/evidence:research?agent=A3", headers=H)
+    assert started.status_code == 202 and started.json()["data"] == {"started": True, "provider": "test", "model": "scripted"}
+    _wait_until_idle(evidence_api._RUNNING, ("t1", "p1"))
+    assert jobs[0]["agent"] == "A3"
+
+    request_id, _ = request_access(ws, title="A paywalled binding study", authors="A. Author", doi="10.1/x", journal=None,
+                                   year=2020, needed_for="REQ-bind.fu", by="agent:t")
+    view = c.post(f"/api/v1/projects/p1/access-requests/{request_id}:fulfil", headers=H,
+                  files=[("file", ("paper.txt", b"The fraction unbound in plasma was 9 %.", "text/plain"))]).json()["data"]
+    assert next(r for r in view["access_requests"] if r["id"] == request_id)["status"] == "FULFILLED"
+
+    matrix = RequirementMatrix.from_content(ws.latest(ArtifactKind.REQUIREMENTS, "main").content)
+    waived = tuple(RequirementOverride(req_id=i.req_id, status="WAIVED", reason="not needed in this test", by="u1")
+                   for i in literature_items(matrix))
+    ws.commit(ArtifactKind.REQUIREMENTS, "main", derive(empty_brief("Exampleamide", by="u1"), waived).to_content(),
+              derived_from=[ws.latest(ArtifactKind.BRIEF, "main").ref], actor="u1", reason="every literature item waived")
+    closed = c.post("/api/v1/projects/p1/evidence:approve", headers=H, json={"note": "nothing to find"})
+    assert closed.status_code == 200, closed.text
+    assert closed.json()["data"]["register"]["status"] == "APPROVED"

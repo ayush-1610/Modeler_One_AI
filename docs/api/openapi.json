@@ -260,6 +260,23 @@
         "title": "AssessmentTable",
         "type": "object"
       },
+      "Blinded": {
+        "additionalProperties": false,
+        "properties": {
+          "blinded": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blinded",
+            "type": "array"
+          }
+        },
+        "required": [
+          "blinded"
+        ],
+        "title": "Blinded",
+        "type": "object"
+      },
       "BlindingRequest": {
         "properties": {
           "on": {
@@ -892,6 +909,125 @@
         "title": "Classification",
         "type": "object"
       },
+      "ClientDataPage": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "data_plan": {
+            "$ref": "#/components/schemas/DataPlanStatus"
+          },
+          "dissolution": {
+            "$ref": "#/components/schemas/Dissolution"
+          },
+          "files": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/Reconciliation"
+          },
+          "register": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "data_plan",
+          "files",
+          "reconciliation",
+          "dissolution",
+          "register",
+          "agents",
+          "running"
+        ],
+        "title": "ClientDataPage",
+        "type": "object"
+      },
+      "ClientUpload": {
+        "additionalProperties": false,
+        "description": "The files just stored (a filled template is read at once), and the page.",
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "data_plan": {
+            "$ref": "#/components/schemas/DataPlanStatus"
+          },
+          "dissolution": {
+            "$ref": "#/components/schemas/Dissolution"
+          },
+          "files": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "read": {
+            "items": {
+              "$ref": "#/components/schemas/ReadFile"
+            },
+            "title": "Read",
+            "type": "array"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/Reconciliation"
+          },
+          "register": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "data_plan",
+          "files",
+          "reconciliation",
+          "dissolution",
+          "register",
+          "agents",
+          "running",
+          "read"
+        ],
+        "title": "ClientUpload",
+        "type": "object"
+      },
       "CloseRequest": {
         "properties": {
           "note": {
@@ -1277,6 +1413,67 @@
         "title": "CorrectionRequest",
         "type": "object"
       },
+      "CoverageRow": {
+        "additionalProperties": false,
+        "description": "One data-plan item and the evidence that covers it (`evidence_register.Coverage`).",
+        "properties": {
+          "accepted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accepted",
+            "type": "array"
+          },
+          "applies": {
+            "title": "Applies",
+            "type": "string"
+          },
+          "criticality": {
+            "title": "Criticality",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "proposed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Proposed",
+            "type": "array"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "req_id": {
+            "title": "Req Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "req_id",
+          "label",
+          "target",
+          "criticality",
+          "applies",
+          "provider",
+          "status",
+          "accepted",
+          "proposed"
+        ],
+        "title": "CoverageRow",
+        "type": "object"
+      },
       "DataOrigin": {
         "enum": [
           "CLIENT",
@@ -1288,6 +1485,26 @@
         ],
         "title": "DataOrigin",
         "type": "string"
+      },
+      "DataPlanStatus": {
+        "additionalProperties": false,
+        "description": "The data plan version a phase page is computed from, and its status.",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "status"
+        ],
+        "title": "DataPlanStatus",
+        "type": "object"
       },
       "DatasetBody": {
         "properties": {
@@ -1675,6 +1892,39 @@
         "title": "DigitizeBody",
         "type": "object"
       },
+      "Dissolution": {
+        "additionalProperties": false,
+        "properties": {
+          "comparisons": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Comparisons",
+            "type": "array"
+          },
+          "problems": {
+            "items": {},
+            "title": "Problems",
+            "type": "array"
+          },
+          "profiles": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Profiles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "profiles",
+          "comparisons",
+          "problems"
+        ],
+        "title": "Dissolution",
+        "type": "object"
+      },
       "DissolvedFormulationSpec": {
         "additionalProperties": false,
         "properties": {
@@ -2036,6 +2286,56 @@
         "title": "Envelope[BriefPage]",
         "type": "object"
       },
+      "Envelope_ClientDataPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientDataPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ClientDataPage]",
+        "type": "object"
+      },
+      "Envelope_ClientUpload_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientUpload"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ClientUpload]",
+        "type": "object"
+      },
       "Envelope_DocumentPage_": {
         "additionalProperties": false,
         "properties": {
@@ -2084,6 +2384,81 @@
           "errors"
         ],
         "title": "Envelope[Documents]",
+        "type": "object"
+      },
+      "Envelope_EvidenceChoice_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvidenceChoice"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[EvidenceChoice]",
+        "type": "object"
+      },
+      "Envelope_EvidenceCorrection_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvidenceCorrection"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[EvidenceCorrection]",
+        "type": "object"
+      },
+      "Envelope_EvidencePage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvidencePage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[EvidencePage]",
         "type": "object"
       },
       "Envelope_ExtractionStart_": {
@@ -2136,6 +2511,31 @@
         "title": "Envelope[ProjectStarted]",
         "type": "object"
       },
+      "Envelope_ReleaseProposal_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReleaseProposal"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ReleaseProposal]",
+        "type": "object"
+      },
       "Envelope_RequirementsPage_": {
         "additionalProperties": false,
         "properties": {
@@ -2159,6 +2559,81 @@
           "errors"
         ],
         "title": "Envelope[RequirementsPage]",
+        "type": "object"
+      },
+      "Envelope_ResearchStart_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ResearchStart"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ResearchStart]",
+        "type": "object"
+      },
+      "Envelope_SheetView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SheetView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[SheetView]",
+        "type": "object"
+      },
+      "Envelope_TriageStart_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TriageStart"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[TriageStart]",
         "type": "object"
       },
       "Envelope_Union_BriefPage__BriefImpact__": {
@@ -2192,6 +2667,66 @@
           "errors"
         ],
         "title": "Envelope[Union[BriefPage, BriefImpact]]",
+        "type": "object"
+      },
+      "Envelope_Union_MapReading__MapPreview__": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapReading"
+              },
+              {
+                "$ref": "#/components/schemas/MapPreview"
+              }
+            ],
+            "title": "Data"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Union[MapReading, MapPreview]]",
+        "type": "object"
+      },
+      "Envelope_dict_str__Any__": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[dict[str, Any]]",
         "type": "object"
       },
       "ErrorItem": {
@@ -2255,6 +2790,286 @@
           "supports"
         ],
         "title": "Evidence",
+        "type": "object"
+      },
+      "EvidenceChoice": {
+        "additionalProperties": false,
+        "description": "A value kept for its parameter: the ids of the other values it rejected, and the page.",
+        "properties": {
+          "access_requests": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Access Requests",
+            "type": "array"
+          },
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "blinding": {
+            "$ref": "#/components/schemas/Blinded"
+          },
+          "blocking": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocking",
+            "type": "array"
+          },
+          "coverage": {
+            "items": {
+              "$ref": "#/components/schemas/CoverageRow"
+            },
+            "title": "Coverage",
+            "type": "array"
+          },
+          "data_plan": {
+            "$ref": "#/components/schemas/DataPlanStatus"
+          },
+          "datasets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "register": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rejected": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data_plan",
+          "evidence",
+          "datasets",
+          "blinding",
+          "coverage",
+          "blocking",
+          "access_requests",
+          "register",
+          "agents",
+          "running",
+          "runs",
+          "rejected"
+        ],
+        "title": "EvidenceChoice",
+        "type": "object"
+      },
+      "EvidenceCorrection": {
+        "additionalProperties": false,
+        "description": "A corrected copy of a value, and the page.",
+        "properties": {
+          "access_requests": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Access Requests",
+            "type": "array"
+          },
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "blinding": {
+            "$ref": "#/components/schemas/Blinded"
+          },
+          "blocking": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocking",
+            "type": "array"
+          },
+          "corrected": {
+            "additionalProperties": true,
+            "title": "Corrected",
+            "type": "object"
+          },
+          "coverage": {
+            "items": {
+              "$ref": "#/components/schemas/CoverageRow"
+            },
+            "title": "Coverage",
+            "type": "array"
+          },
+          "data_plan": {
+            "$ref": "#/components/schemas/DataPlanStatus"
+          },
+          "datasets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "register": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data_plan",
+          "evidence",
+          "datasets",
+          "blinding",
+          "coverage",
+          "blocking",
+          "access_requests",
+          "register",
+          "agents",
+          "running",
+          "runs",
+          "corrected"
+        ],
+        "title": "EvidenceCorrection",
+        "type": "object"
+      },
+      "EvidencePage": {
+        "additionalProperties": false,
+        "properties": {
+          "access_requests": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Access Requests",
+            "type": "array"
+          },
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "blinding": {
+            "$ref": "#/components/schemas/Blinded"
+          },
+          "blocking": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocking",
+            "type": "array"
+          },
+          "coverage": {
+            "items": {
+              "$ref": "#/components/schemas/CoverageRow"
+            },
+            "title": "Coverage",
+            "type": "array"
+          },
+          "data_plan": {
+            "$ref": "#/components/schemas/DataPlanStatus"
+          },
+          "datasets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "register": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data_plan",
+          "evidence",
+          "datasets",
+          "blinding",
+          "coverage",
+          "blocking",
+          "access_requests",
+          "register",
+          "agents",
+          "running",
+          "runs"
+        ],
+        "title": "EvidencePage",
         "type": "object"
       },
       "ExpressionSpec": {
@@ -3306,6 +4121,210 @@
         "title": "MapGenerateRequest",
         "type": "object"
       },
+      "MapIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "location": {
+            "title": "Location",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "location",
+          "message"
+        ],
+        "title": "MapIssue",
+        "type": "object"
+      },
+      "MapPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "concentrations": {
+            "title": "Concentrations",
+            "type": "integer"
+          },
+          "dissolution": {
+            "title": "Dissolution",
+            "type": "integer"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/MapIssue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "recipe": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipe"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/Sample"
+          },
+          "studies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Studies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ready",
+          "issues",
+          "questions",
+          "concentrations",
+          "dissolution",
+          "studies",
+          "recipe",
+          "sample"
+        ],
+        "title": "MapPreview",
+        "type": "object"
+      },
+      "MapReading": {
+        "additionalProperties": false,
+        "description": "A confirmed reading: the preview's fields, the datasets it proposed and the page, merged into one object\n(today's shape; the owner chose to keep it, 2026-10-08). Where both name a key the page's wins: `dissolution` is\nthe page's profiles and comparisons, not the preview's record count.",
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "concentrations": {
+            "title": "Concentrations",
+            "type": "integer"
+          },
+          "data_plan": {
+            "$ref": "#/components/schemas/DataPlanStatus"
+          },
+          "datasets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "dissolution": {
+            "$ref": "#/components/schemas/Dissolution"
+          },
+          "files": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/MapIssue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "recipe": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipe"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/Reconciliation"
+          },
+          "register": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/Sample"
+          },
+          "studies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Studies",
+            "type": "array"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "data_plan",
+          "files",
+          "reconciliation",
+          "dissolution",
+          "register",
+          "agents",
+          "running",
+          "ready",
+          "issues",
+          "questions",
+          "concentrations",
+          "studies",
+          "recipe",
+          "sample",
+          "datasets"
+        ],
+        "title": "MapReading",
+        "type": "object"
+      },
       "MappingBody": {
         "description": "How to read a sheet: the page's form (`form`) or a mapping recipe (`proposal`, the data-mapping agent's shape or\nwritten by a person); the study facts the sheet does not state; and whether to keep the result (False: preview).",
         "properties": {
@@ -4216,6 +5235,25 @@
         "title": "PrepareRequest",
         "type": "object"
       },
+      "Product": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "role"
+        ],
+        "title": "Product",
+        "type": "object"
+      },
       "ProjectCreate": {
         "properties": {
           "application": {
@@ -4507,6 +5545,59 @@
         "title": "Rating",
         "type": "string"
       },
+      "ReadBefore": {
+        "additionalProperties": false,
+        "properties": {
+          "datasets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "recipe_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipe Id"
+          }
+        },
+        "required": [
+          "recipe_id",
+          "datasets"
+        ],
+        "title": "ReadBefore",
+        "type": "object"
+      },
+      "ReadFile": {
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "template": {
+            "title": "Template",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "file",
+          "template"
+        ],
+        "title": "ReadFile",
+        "type": "object"
+      },
       "ReasonRequest": {
         "properties": {
           "reason": {
@@ -4519,6 +5610,122 @@
           "reason"
         ],
         "title": "ReasonRequest",
+        "type": "object"
+      },
+      "ReconciledRow": {
+        "additionalProperties": false,
+        "description": "One client item of the data plan and what arrived for it (`client_data.Reconciled`).",
+        "properties": {
+          "applies": {
+            "title": "Applies",
+            "type": "string"
+          },
+          "criticality": {
+            "title": "Criticality",
+            "type": "string"
+          },
+          "cross_check": {
+            "title": "Cross Check",
+            "type": "boolean"
+          },
+          "delivered": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Delivered",
+            "type": "array"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "literature_accepted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Literature Accepted",
+            "type": "array"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "req_id": {
+            "title": "Req Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "req_id",
+          "label",
+          "criticality",
+          "applies",
+          "status",
+          "delivered",
+          "detail",
+          "cross_check",
+          "literature_accepted",
+          "kind",
+          "target",
+          "product"
+        ],
+        "title": "ReconciledRow",
+        "type": "object"
+      },
+      "Reconciliation": {
+        "additionalProperties": false,
+        "properties": {
+          "blocking": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocking",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ReconciledRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "unpromised": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unpromised",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows",
+          "unpromised",
+          "blocking"
+        ],
+        "title": "Reconciliation",
         "type": "object"
       },
       "Ref": {
@@ -4557,6 +5764,70 @@
           "formulation"
         ],
         "title": "ReleaseModelRequest",
+        "type": "object"
+      },
+      "ReleaseProposal": {
+        "additionalProperties": false,
+        "description": "A profile's fit proposed as release-model evidence: the evidence ids, and the page.",
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "data_plan": {
+            "$ref": "#/components/schemas/DataPlanStatus"
+          },
+          "dissolution": {
+            "$ref": "#/components/schemas/Dissolution"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "files": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/Reconciliation"
+          },
+          "register": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "data_plan",
+          "files",
+          "reconciliation",
+          "dissolution",
+          "register",
+          "agents",
+          "running",
+          "evidence"
+        ],
+        "title": "ReleaseProposal",
         "type": "object"
       },
       "ReportedPK": {
@@ -4679,6 +5950,30 @@
           "brief_status"
         ],
         "title": "RequirementsPage",
+        "type": "object"
+      },
+      "ResearchStart": {
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "started": {
+            "title": "Started",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "started",
+          "provider",
+          "model"
+        ],
+        "title": "ResearchStart",
         "type": "object"
       },
       "ResolveRequest": {
@@ -4892,6 +6187,136 @@
           "summary"
         ],
         "title": "RunSummary",
+        "type": "object"
+      },
+      "Sample": {
+        "additionalProperties": false,
+        "description": "What the recipe read, in a person's terms (values withheld for an external study before the MAP is signed).",
+        "properties": {
+          "below_lloq": {
+            "title": "Below Lloq",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SampleRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "series": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "time_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Unit"
+          },
+          "times": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "title": "Times",
+            "type": "array"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "values_hidden": {
+            "title": "Values Hidden",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "series",
+          "times",
+          "rows",
+          "below_lloq",
+          "values_hidden"
+        ],
+        "title": "Sample",
+        "type": "object"
+      },
+      "SampleRow": {
+        "additionalProperties": false,
+        "properties": {
+          "blq": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blq"
+          },
+          "cell": {
+            "title": "Cell",
+            "type": "string"
+          },
+          "series": {
+            "title": "Series",
+            "type": "string"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Time"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "series",
+          "time",
+          "value",
+          "cell"
+        ],
+        "title": "SampleRow",
         "type": "object"
       },
       "Scale": {
@@ -5258,6 +6683,77 @@
           "sheet"
         ],
         "title": "SheetForm",
+        "type": "object"
+      },
+      "SheetView": {
+        "additionalProperties": false,
+        "description": "One sheet as text, the reading form's first filling and what was found.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "form": {
+            "additionalProperties": true,
+            "title": "Form",
+            "type": "object"
+          },
+          "max_column": {
+            "title": "Max Column",
+            "type": "integer"
+          },
+          "max_row": {
+            "title": "Max Row",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            },
+            "title": "Products",
+            "type": "array"
+          },
+          "read_before": {
+            "items": {
+              "$ref": "#/components/schemas/ReadBefore"
+            },
+            "title": "Read Before",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "sheet": {
+            "title": "Sheet",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sheet",
+          "rows",
+          "max_row",
+          "max_column",
+          "category",
+          "form",
+          "notes",
+          "products",
+          "read_before"
+        ],
+        "title": "SheetView",
         "type": "object"
       },
       "SignRequest": {
@@ -6485,6 +7981,20 @@
         "title": "TransporterMichaelisMenten",
         "type": "object"
       },
+      "TriageStart": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "TriageStart",
+        "type": "object"
+      },
       "Uncertainty": {
         "additionalProperties": false,
         "description": "A fitted parameter's precision, from the parameter identification's confidence-interval estimate.",
@@ -7701,9 +9211,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Fulfil Request Api V1 Projects  Project Id  Access Requests  Request Id  Fulfil Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_EvidencePage_"
                 }
               }
             },
@@ -8754,9 +10262,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Client Data Api V1 Projects  Project Id  Client Data Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ClientDataPage_"
                 }
               }
             },
@@ -8823,9 +10329,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Upload Client Files Api V1 Projects  Project Id  Client Data Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ClientUpload_"
                 }
               }
             },
@@ -8902,9 +10406,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Read Sheet Api V1 Projects  Project Id  Client Data  Sid  Sheets  Sheet  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_SheetView_"
                 }
               }
             },
@@ -8991,9 +10493,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Classify Api V1 Projects  Project Id  Client Data  Sid  Sheets  Sheet  Classify Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ClientDataPage_"
                 }
               }
             },
@@ -9071,9 +10571,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Map Sheets Api V1 Projects  Project Id  Client Data  Sid  Map Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_Union_MapReading__MapPreview__"
                 }
               }
             },
@@ -9140,9 +10638,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Start Triage Api V1 Projects  Project Id  Client Data  Sid  Triage Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_TriageStart_"
                 }
               }
             },
@@ -9211,9 +10707,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Approve Client Data Api V1 Projects  Project Id  Client Data Approve Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ClientDataPage_"
                 }
               }
             },
@@ -9424,9 +10918,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Add Dataset Api V1 Projects  Project Id  Datasets Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
                 }
               }
             },
@@ -9503,9 +10995,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Decide On Dataset Api V1 Projects  Project Id  Datasets  Dataset Id  Decide Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_EvidencePage_"
                 }
               }
             },
@@ -9572,9 +11062,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Approve Dataset Overlay Api V1 Projects  Project Id  Datasets  Dataset Id  Overlay Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
                 }
               }
             },
@@ -9723,9 +11211,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Digitize Dataset Api V1 Projects  Project Id  Datasets Digitize Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
                 }
               }
             },
@@ -9803,9 +11289,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Propose Release Api V1 Projects  Project Id  Dissolution  Profile Id  Propose Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ReleaseProposal_"
                 }
               }
             },
@@ -10128,9 +11612,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Evidence Api V1 Projects  Project Id  Evidence Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_EvidencePage_"
                 }
               }
             },
@@ -10197,9 +11679,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Add Evidence Api V1 Projects  Project Id  Evidence Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
                 }
               }
             },
@@ -10277,9 +11757,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Choose Evidence Api V1 Projects  Project Id  Evidence  Evidence Id  Choose Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_EvidenceChoice_"
                 }
               }
             },
@@ -10357,9 +11835,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Correct Evidence Api V1 Projects  Project Id  Evidence  Evidence Id  Correct Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_EvidenceCorrection_"
                 }
               }
             },
@@ -10436,9 +11912,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Decide Evidence Api V1 Projects  Project Id  Evidence  Evidence Id  Decide Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_EvidencePage_"
                 }
               }
             },
@@ -10506,9 +11980,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Approve Evidence Api V1 Projects  Project Id  Evidence Approve Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_EvidencePage_"
                 }
               }
             },
@@ -10581,9 +12053,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Start Research Api V1 Projects  Project Id  Evidence Research Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ResearchStart_"
                 }
               }
             },

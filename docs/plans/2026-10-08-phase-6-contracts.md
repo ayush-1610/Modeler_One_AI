@@ -1,6 +1,6 @@
 # Phase 6: typed responses for P0–P4, one owner per artifact kind
 
-Status: **6a and 6b done.** 6c–6f next, each one PR to `main`.
+Status: **6a–6c done.** 6d–6f next, each one PR to `main`.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B3, couplings C5 and C6, §6 phase 6.
 - The exceptions in `tests/architecture/boundaries.toml` (`[response]`, `[owners]`, `[owner_exceptions]`), which only
@@ -52,7 +52,20 @@ Sources:
     `int | float`, so no value is coerced.
   - Nested artifact content stays `dict[str, Any]` until 6e gives it a model.
   - The OpenAPI snapshot gains response schemas only (an API contract change, recorded in the CHANGELOG).
-- **6c — P2 `evidence_api` and P3 `client_api`.** The merged map response is one model, built by inheritance from the
+- **6c — done** (P2: the 12 routes of `evidence_api`; P3: the 8 JSON routes of `client_api`):
+  - `views/evidence.py` and `views/client_data.py`.
+  - The merged answers are one model each, built by inheritance:
+    - `EvidenceChoice` and `EvidenceCorrection` (the page plus `rejected` / `corrected`);
+    - `ClientUpload` and `ReleaseProposal`;
+    - `MapReading` (preview, datasets and page). Where the preview and the page both name `dissolution`, the page's
+      wins, as today.
+  - An answer that is a stored artifact's content (an evidence item, a dataset) is `Envelope[StoredContent]` (a
+    `dict[str, Any]`) until 6e gives the kind a model.
+  - New tests reach the 4 routes no test had reached: `evidence:research`, `access-requests/{id}:fulfil`,
+    `evidence:approve` (its success path) and `client-data/{id}:triage`.
+  - The OpenAPI snapshot: 20 operations gain their 2xx schema, and 34 schemas are added. Nothing else changed.
+
+  The original scope was: **P2 `evidence_api` and P3 `client_api`.** The merged map response is one model, built by inheritance from the
   preview, `datasets` and the page view.
 - **6d — P4 `inputs_api`, `project_api` and the escalation routes.** The escalation routes are typed as they are, with
   no envelope. `[response] untyped` ends empty.
