@@ -311,7 +311,7 @@
     },
     {
       "path": "packages/project-model/src/modeler_project/store.py",
-      "sha256": "c0fe65b3aaa61d318c4f77d3966e92fce234db5388f31c6b6be8fd5831cac928"
+      "sha256": "2bc5d3d07d117db33fbc5f256fc2c03a2d7bd473f8c5910dc4861792dc5f2a84"
     },
     {
       "path": "packages/storage/src/modeler_storage/audit.py",
