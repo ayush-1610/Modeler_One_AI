@@ -1,0 +1,13 @@
+# Datasets of published OSP models left out when the pipeline imports them (MS-01 D5: a data exclusion is a human
+# decision, recorded with its reason and who took it). The published data are never altered: an excluded dataset is not
+# imported, and the import lists it among its skipped datasets with the reason below. Match: the dataset's exact name in
+# the model's snapshot.
+version: 1
+exclusions:
+  - model: Rifampicin
+    dataset: "Stone 2004 - Day 14 of Rifampin alone - Rifampicin - PO - 600 mg - Plasma - agg. (n=26)"
+    reason: >-
+      labelled mg/l with values about 1000x below the other 600 mg profiles (likely ug/l); the published model never
+      simulates it, so the unit cannot be checked against its own use
+    decided_by: owner
+    decided_at: "2026-10-09"

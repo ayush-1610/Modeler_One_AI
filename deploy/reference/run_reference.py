@@ -48,7 +48,7 @@ def roundtrip(model: str, out: Path, *, system: bool = False) -> dict:
     from pbpk_domain.reference.roundtrip import roundtrip_inputs, system_roundtrip_inputs
 
     if system:
-        from pbpk_domain.reference.osp_import import import_osp_system
+        from pbpk_domain.reference import import_osp_system
 
         snapshot_path = FIXTURES / f"{model}-Model.json"
         imported = import_osp_system(json.loads(snapshot_path.read_text(encoding="utf-8")))
@@ -162,7 +162,7 @@ def campaign(model: str, mode: str, out: Path, *, system: bool = False) -> dict:
     compounds: dict = {}
     links = None
     if system:
-        from pbpk_domain.reference.osp_import import import_osp_system
+        from pbpk_domain.reference import import_osp_system
         from pbpk_domain.system import links_of
 
         imported = import_osp_system(json.loads((FIXTURES / f"{model}-Model.json").read_text(encoding="utf-8")))

@@ -248,9 +248,7 @@ metabolisers, Metformin Morrissey), model values it leaves at default (Alfentani
 suspension" (Clarithromycin, Voriconazole, Dabigatran), DDI arms named "with Perpetrator (X)" and paediatric studies
 being fitted, per-project CPF storage (two projects on one drug overwrote each other), readable study ids. Run 26 then showed, and later commits fix: pre-PK-Sim-10 individuals' expression (Voriconazole), calculation methods taken from the simulations, per-simulation solver settings, the water given with each oral dose (Verapamil, Itraconazole, Dabigatran, Ketoconazole), every meal of a simulated regimen, administrations at one moment as one dose, the Ketoconazole system. Residuals of 1e-6 to 3e-5 of the peak with AUC ratios 1.00000x (Metformin, Omeprazole, Itraconazole system) are not yet explained. Run 35 (da2b2c8, last on Actions): every pair identical, within 1e-3, or labelled; Ketoconazole fixed by its compound settings; its Verapamil and Ketoconazole system round trips finished but were not read. From here the reference checks run on the server (`deploy/reference/run_all.sh`); the Actions reference workflow is manual and the repository private. Added:
 `.pksim5` projects in the S7 package, the example seeder (`deploy/server/seed_examples.sh`), "Your own compound" in
-the wizard, `docs/USING_THE_TOOL.md`. Open data issue for the owner: OSP Rifampicin's Stone 2004 dataset is labelled
-mg/l with values ~1000× too low (the published model never simulates it); it sits in the fitting set and needs an
-exclusion decision (D5). This cloud session cannot reach the server (LAN only, no Tailscale).
+the wizard, `docs/USING_THE_TOOL.md`. OSP Rifampicin's Stone 2004 dataset (labelled mg/l, values ~1000× too low) is excluded from the import by the owner's D5 decision of 2026-10-09 (`pbpk_domain/reference/exclusions.yaml`); the published data are not altered. This cloud session cannot reach the server (LAN only, no Tailscale).
 
 ### 4.2 Platform
 

@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — OSP Rifampicin's Stone 2004 dataset is excluded from the reference import (the owner's D5 decision, 2026-10-09; data)
+- **What:**
+  - A new `pbpk_domain/reference/exclusions.yaml` records each dataset of a published OSP model that is left out,
+    with its reason, who decided, and when.
+  - `pbpk_domain.reference.import_osp_snapshot` and `import_osp_system` take those datasets out of the snapshot before
+    the locked importer runs. They add each one to the import's `skipped` list as "excluded (owner, 2026-10-09, D5):
+    <reason>".
+  - The reference runner, the showcase seeder, the wizard's templates and the T-56 kit all import through them.
+- **First entry:** Rifampicin, "Stone 2004 - Day 14 of Rifampin alone … 600 mg … (n=26)".
+  - It is labelled mg/l with values about 1000× below the other 600 mg profiles (likely µg/l).
+  - The published model never simulates it, so its unit cannot be checked against the model's own use.
+  - Until now it sat in the Rifampicin fitting set.
+- **Why:** the open data issue for the owner (continuation §4.1, D5). The published data are never altered; a
+  relabel to µg/l was declined as a guess.
+- **Impact:**
+  - The Rifampicin import has 52 studies instead of 53, and names the excluded one with its reason.
+  - Every other model imports as before, as a test checks.
+  - The Rifampicin refit on PK-Sim is re-run without it (reference workflow).
+- **Known gap closed (records only):** diag-rules 0.4 (2026-09-24) already lets the clearance rule fit Michaelis-Menten
+  `kcat`. The entry further down that still calls the Rifampicin refit "held" is superseded by that change.
+
 ### Infra — the browser flows run in CI (locked `ci.yml`, owner-approved 2026-10-09)
 - **What:** CI gains a job, `e2e` ("Browser flows (Playwright, stub engine)"). It:
   - syncs the workspace;

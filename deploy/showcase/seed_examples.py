@@ -83,7 +83,7 @@ def examples(base: str) -> list[Example]:
     """Every wizard template (the published single-compound models and the illustrative check), its refit twin for
     the plan-exit drugs, and every model system."""
     from pbpk_domain.cpf.models import CPF
-    from pbpk_domain.reference.osp_import import import_osp_system
+    from pbpk_domain.reference import import_osp_system
     from pbpk_domain.reference.refit import refit_cpf
     from pbpk_domain.system import links_of
 
