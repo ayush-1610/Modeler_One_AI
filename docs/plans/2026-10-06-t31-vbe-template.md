@@ -6,16 +6,17 @@ Spec sources: `docs/ARCHITECTURE_PACK.md` F-304 and APP-11/APP-14; `requirements
 
 ## What already exists
 - `pbpk_domain.bioequivalence`: paired crossover 90 % CI (`paired_crossover_ci`), `probability_of_success`.
-- `pbpk_domain.dissolution`: canonical profiles, f2, Weibull fit in PK-Sim's parameterization — **`ENGINE_CONFIRMED =
-  False`**: the release equation has not been checked against PK-Sim's own release curve.
+- `pbpk_domain.dissolution`: canonical profiles, f2, Weibull fit in PK-Sim's parameterization. **`ENGINE_CONFIRMED =
+  True` since 2026-10-09:** the release equation matches PK-Sim's own release curve (engine-image run 37919482630,
+  max deviation 4.2e-05 of the dose; `dissolution.ENGINE_CHECK`).
 - Brief: application `APP-14 virtual bioequivalence`, products with roles TEST / RLD; dissolution register pairs them.
 - Engine `population` task (create from demographics with a seed, or load `population.csv`; exports `pk_analyses.csv`).
 - Catalog PK names harvested: `AUC_tEnd`, `AUC_inf`, `C_max`.
 - Gap: campaigns have no "application" — S6 always runs sensitivity + uncertainty only.
 
 ## Build order
-1. **Confirm the Weibull release equation on PK-Sim** (a tablet's dissolved fraction vs `weibull_fraction`), then set
-   `ENGINE_CONFIRMED`. VBE rests on it.
+1. ~~**Confirm the Weibull release equation on PK-Sim**~~ (done 2026-10-09, PR #44: the OSP Dapagliflozin IC
+   tablet's dissolved fraction vs `weibull_fraction`; `ENGINE_CONFIRMED = True`). VBE rests on it.
 2. **Template** `templates/analysis/vbe-crossover.yaml` (DRAFT, UNVERIFIED): requires a validated oral model, TEST and
    RLD CPF formulations (`form.{name}.*`), intra-subject variability (parameter, CV, source — REQ-vbe.variability,
    never defaulted to invented numbers), design (n subjects, K trials, limits 0.80–1.25, 90 % CI, seed).

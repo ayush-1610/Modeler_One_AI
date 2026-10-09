@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the Weibull release equation is confirmed on PK-Sim (locked `golden/**` and `engine-image.yml`; science)
+- **What:**
+  - **New check:** the engine-image qualification runs a new check on PK-Sim. `golden/weibull_check.R` runs the OSP
+    Dapagliflozin "IC tablet (Chang 2015)" simulation (t50 30 min, shape 0.6, lag 0) and finds the formulation's
+    dissolved-fraction quantity among the simulation's own paths (harvested, never typed). `golden/compare_weibull.py`
+    compares that curve with `pbpk_domain.dissolution.weibull_fraction` at every output time, within 1 % of the dose.
+    The result is recorded as `weibull` in `golden.json`.
+  - **The first run passed:** engine-image run 37919482630, PK-Sim 12.3.173 and ospsuite 12.4.4. It compared
+    `Organism|Lumen|Dapagliflozin|Fraction dissolved` over 601 points. The maximum deviation was 4.2e-05 of the dose;
+    the fraction at 30 min was 0.499965.
+  - **`ENGINE_CONFIRMED = True`:** `dissolution.ENGINE_CHECK` cites that run. A proposed Weibull t50, shape or lag
+    now carries the check in its conditions (`engine check`) instead of the `unconfirmed` flag.
+- **Why:** the plan's harvest rule. The equation was written from PK-Sim's parameterization, and every fit said so
+  until PK-Sim's own curve was compared. VBE (T-31) rests on this equation.
+- **Impact:**
+  - The client-data page no longer shows "equation not yet compared with PK-Sim's own curve".
+  - Weibull values proposed from client dissolution data no longer carry the `unconfirmed` flag.
+  - The fit itself is unchanged (`weibull-pksim-1`).
+  - The f2 conditions and the dissolution checks are still the UNVERIFIED `dissolution_similarity.yaml` ruleset.
+- **Tests:** `test_dissolution.py`, `test_dissolution_register.py`, and `e2e/client-data.spec.ts`.
+
 ### Fixed — a reported analyte no longer diagnoses the fitted compound (multi-compound phase 2, PR 1; science)
 - **What:** `diagnose_round` builds its PK residuals only from gated studies. A model system's reported analyte (a
   metabolite, a sum, a study marked `gated: false` by the evaluation) is still judged and reported on its own, but its

@@ -9,9 +9,11 @@ the OSP formulation catalog; see `cpf.formulations.WEIBULL_PARAMETERS`):
 
     fraction dissolved(t) = 1 - exp(-ln 2 · ((t - lag) / t50) ** shape)   for t > lag, else 0
 
-so that half the dose is dissolved at t50 after the lag. The equation has not yet been confirmed against PK-Sim's
-own release curve on the engine (plan harvest rule): `ENGINE_CONFIRMED` is False and every fit says so until that
-run is recorded.
+so that half the dose is dissolved at t50 after the lag. The equation is confirmed against PK-Sim's own release
+curve on the engine (plan harvest rule; `ENGINE_CHECK`): the engine-image qualification runs the OSP Dapagliflozin
+"IC tablet (Chang 2015)" simulation (t50 30 min, shape 0.6, lag 0) and compares the formulation's dissolved fraction
+with `weibull_fraction` at every output time (`golden/weibull_check.R`, `golden/compare_weibull.py`; within 1 % of
+the dose). A change to the equation or to the engine image re-runs that check before it merges.
 """
 
 from __future__ import annotations
@@ -25,7 +27,10 @@ from typing import Any
 import numpy as np
 import yaml
 
-ENGINE_CONFIRMED = False
+ENGINE_CONFIRMED = True
+ENGINE_CHECK = ("engine-image run 37919482630 (2026-10-09; PK-Sim 12.3.173, ospsuite 12.4.4): OSP Dapagliflozin "
+                "IC tablet (Chang 2015), Organism|Lumen|Dapagliflozin|Fraction dissolved, 601 points, max deviation "
+                "4.2e-05 of the dose (tolerance 0.01)")
 EQUATION = "fraction dissolved(t) = 1 - exp(-ln2 * ((t - lag) / t50) ** shape)"
 FUNCTION_VERSION = "weibull-pksim-1"
 _MINUTES = {"min": 1.0, "h": 60.0, "day": 1440.0}
