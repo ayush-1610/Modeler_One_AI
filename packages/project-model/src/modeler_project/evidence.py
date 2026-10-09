@@ -67,7 +67,8 @@ class SourceRef(BaseModel):
 
 
 class EvidenceItem(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    # always dumped whole, so in the API contract (phase 9e) a field with a default is still always present
+    model_config = ConfigDict(frozen=True, extra="forbid", json_schema_serialization_defaults_required=True)
 
     id: str
     req_id: str | None = None

@@ -1,6 +1,6 @@
 # Phase 9: a typed answer for every API route, from the API through the web
 
-Status: **9a–9d done.** 9e next. Each step is one PR to `main`, and nothing changes behaviour unless a step says so.
+Status: **done (9a–9e, 2026-10-09).** Each step was one PR to `main`, and nothing changed behaviour unless a step says so.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B6, coupling C5, §6 phase 9.
 - The lists under `[response]` in the locked `tests/architecture/boundaries.toml`, which only shrink.
@@ -89,10 +89,20 @@ answers a typed envelope while the web still calls it untyped. Every step:
     - Of the pages that change state, only the escalation decision moved to `useMutation`. The campaign start and
       the wizard navigate away when they finish, so there is nothing for them to refresh.
     - The response test counts a union of models as typed.
-- **9e — the open answers:**
+- **9e — done. The open answers** (`[response] open` 5 → 0):
   - `POST /evidence` answers `EvidenceItem`. The dataset routes (`datasets`, `datasets:digitize`, `:overlay`,
     `:reveal`) answer `ObservedDataset`.
   - Both lists end empty. The web's untyped helpers are removed, leaving `apiFile` for downloads.
+  - **As built:**
+    - The answers are the owner models themselves; there are no view copies. `EvidenceItem`, `ObservedDataset`
+      and `Digitization` mark their defaulted fields as always present in the answer schema.
+    - `Series`, `ReportedPK` and `SourceRef` do not mark them, because they are also request schemas, and marking
+      them would split each into an input and an output schema.
+    - The evidence page's items and the corrected item are `EvidenceItem` too. `EvidencePage.datasets` stays open,
+      because a redacted row (D-15) has no values and carries `blinded`.
+    - `:reveal` answers the dataset as its owner parses it, instead of the raw stored content.
+    - `test_web_client.py` fails if a removed helper returns, or if the client exports a new function that takes a
+      bare URL.
 
 ## Verification (every PR)
 - `make test` (only the known environment failures are allowed), `make lint`, and `uv run pytest tests/architecture`.

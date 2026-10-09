@@ -8,38 +8,15 @@ import { narrow, send, upload, type Envelope, type Narrow, type Schema } from "@
 import type { DocumentView } from "@/lib/brief";
 import { useMutation, useResource } from "@/lib/hooks";
 
-type Evidence = {
-  id: string;
-  req_id: string | null;
-  target: string;
-  value: number | string | null;
-  unit: string | null;
-  value_pksim: number | null;
-  unit_pksim: string | null;
-  conversion: string;
-  source_type: string;
-  source: { doc_sha256: string | null; page: number | null; locator: string; title: string; authors: string;
-            year: number | null; doi: string | null; pmid: string | null; url: string | null };
-  quote: string;
-  extraction: string;
-  conditions: Record<string, string>;
-  confidence: "A" | "B" | "C" | "D";
-  flags: string[];
-  purpose: string;
-  provider: string;
-  state: "PROPOSED" | "ACCEPTED" | "REJECTED";
-  proposed_by: string;
-  decided_by: string | null;
-  decision_reason: string;
-  note: string;
-};
+// a stored evidence item with its review flags (modeler_project.evidence.EvidenceItem)
+type Evidence = Schema<"EvidenceItem">;
 
 type Coverage = Schema<"CoverageRow">;
 
 type AccessRequest = { id: string; title: string; authors: string; doi: string | null; needed_for: string; status: string };
 
-// GET /projects/{id}/evidence (EvidencePage); the stored evidence items and paper requests are typed above
-type EvidenceViewData = Narrow<Schema<"EvidencePage">, { evidence: Evidence[]; access_requests: AccessRequest[] }>;
+// GET /projects/{id}/evidence (EvidencePage); the paper requests are typed above
+type EvidenceViewData = Narrow<Schema<"EvidencePage">, { access_requests: AccessRequest[] }>;
 
 const STATUS_CHIP: Record<string, string> = {
   ACCEPTED: "low", PROPOSED: "medium", CONFLICTING: "high", NOT_FOUND: "high", NOT_AVAILABLE: "neutral", WAIVED: "neutral",

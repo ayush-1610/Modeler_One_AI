@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 from modeler_api import agent_jobs
 from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
 from modeler_api.responses import answers, envelope
-from modeler_api.views.common import StoredContent
 from modeler_api.views.evidence import EvidenceChoice, EvidenceCorrection, EvidencePage, ResearchStart
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
@@ -151,7 +150,7 @@ class ManualEvidence(BaseModel):
     note: str = ""
 
 
-@router.post("/projects/{project_id}/evidence", status_code=201, **answers(StoredContent))
+@router.post("/projects/{project_id}/evidence", status_code=201, **answers(EvidenceItem))
 def add_evidence(project_id: str, body: ManualEvidence, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """The manual path: a person enters a value with its source. A quote from a stored document is checked verbatim."""
     from modeler_intake.citations import quote_appears_in, value_stated_in_quote
@@ -300,7 +299,7 @@ def _mol_weight(ws: Workspace) -> float | None:
     return float(value) if value else None
 
 
-@router.post("/projects/{project_id}/datasets", status_code=201, **answers(StoredContent))
+@router.post("/projects/{project_id}/datasets", status_code=201, **answers(ObservedDataset))
 def add_dataset(project_id: str, body: DatasetBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """The manual path for observed data (typed from a table or a report). Its origin says what it is: synthetic or
     illustrative data are accepted for software checks but can never pass a gate (plan §9.4)."""
@@ -336,7 +335,7 @@ class DigitizeBody(BaseModel):
     doi: str | None = None
 
 
-@router.post("/projects/{project_id}/datasets:digitize", status_code=201, **answers(StoredContent))
+@router.post("/projects/{project_id}/datasets:digitize", status_code=201, **answers(ObservedDataset))
 def digitize_dataset(project_id: str, body: DigitizeBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """A figure digitized by a person: the server maps the picked pixels with the calibration (no client arithmetic)."""
     from pbpk_domain.digitize import CalibrationError
@@ -357,7 +356,7 @@ def digitize_dataset(project_id: str, body: DigitizeBody, principal: Writer, sto
     return envelope(stored.to_content())
 
 
-@router.post("/projects/{project_id}/datasets/{dataset_id}:overlay", **answers(StoredContent))
+@router.post("/projects/{project_id}/datasets/{dataset_id}:overlay", **answers(ObservedDataset))
 def approve_dataset_overlay(project_id: str, dataset_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     try:

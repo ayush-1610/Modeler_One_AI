@@ -8,35 +8,27 @@ import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api
 import type { DocumentView } from "@/lib/brief";
 import { useMutation, useResource } from "@/lib/hooks";
 
-type Series = { name: string; statistic: string; times: number[]; values: (number | null)[]; error: number[] | null;
-                error_kind: string; n: number | null };
-type Dataset = {
-  id: string; kind: "profile" | "pk_parameters"; study: Record<string, unknown>; analyte: string; matrix: string;
-  time_unit: string; unit: string; series: Series[];
-  reported: { parameter: string; value: number; unit: string; statistic: string }[];
-  origin: string; extraction: string;
-  source: { doc_sha256: string | null; page: number | null; locator: string; title: string; doi: string | null };
-  digitization: { page: number; resolution: Record<string, number>; overlay_approved_by: string | null } | null;
-  purpose: string; provider: string; flags: string[]; state: string; proposed_by: string; decided_by: string | null;
-  decision_reason: string;
-  blinded?: boolean;   // D-15: an external study's values, withheld until the MAP is signed
-};
-// the part of GET /projects/{id}/evidence (EvidencePage) this panel reads; the stored datasets are typed above
-type View = Narrow<Pick<Schema<"EvidencePage">, "coverage" | "agents" | "running" | "datasets">, { datasets: Dataset[] }>;
+// a stored dataset (modeler_project.datasets.ObservedDataset), as the dataset routes answer it
+type Dataset = Schema<"ObservedDataset">;
+// a dataset as GET /projects/{id}/evidence lists it (an open row): for an external study before the MAP is signed
+// (D-15) the redaction, its values withheld and marked `blinded`
+type Listed = Narrow<Dataset, { reported: (Omit<Schema<"ReportedPK">, "value"> & { value: number | null })[] }> & { blinded?: boolean };
+// the part of GET /projects/{id}/evidence (EvidencePage) this panel reads; the listed datasets are typed above
+type View = Narrow<Pick<Schema<"EvidencePage">, "coverage" | "agents" | "running" | "datasets">, { datasets: Listed[] }>;
 
 const ORIGIN_CHIP: Record<string, string> = {
   CLIENT: "low", LITERATURE: "low", FIGURE_DIGITIZED: "medium", OSP_LIBRARY: "low", SYNTHETIC: "high", ILLUSTRATIVE: "high",
 };
 
 function DatasetCard({ d: listed, onDecide, onOverlay, onReveal }: {
-  d: Dataset;
-  onDecide: (d: Dataset, state: Schema<"Decision">["state"], reason: string) => Promise<string | null>;
-  onOverlay: (d: Dataset) => Promise<string | null>;
-  onReveal: (d: Dataset, reason: string) => Promise<Dataset | string>;
+  d: Listed;
+  onDecide: (d: Listed, state: Schema<"Decision">["state"], reason: string) => Promise<string | null>;
+  onOverlay: (d: Listed) => Promise<string | null>;
+  onReveal: (d: Listed, reason: string) => Promise<Dataset | string>;
 }) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState<Dataset | null>(null);
+  const [revealed, setRevealed] = useState<Listed | null>(null);
   const [revealReason, setRevealReason] = useState("");
   const d = revealed ?? listed;
   const s = d.study;
@@ -71,7 +63,7 @@ function DatasetCard({ d: listed, onDecide, onOverlay, onReveal }: {
       )}
       {!d.blinded && d.series.map((series) => (
         <div key={series.name} className="series">
-          <span className="muted">{series.name} ({series.statistic.replace("_", " ")}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
+          <span className="muted">{series.name} ({series.statistic?.replace("_", " ")}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
           {series.times.map((t, i) => `${+t.toPrecision(4)}: ${series.values[i] === null ? "<LLOQ" : +(series.values[i] as number).toPrecision(4)}`).join(" · ")}
         </div>
       ))}
@@ -157,8 +149,7 @@ export function ObservedData({ projectId }: { projectId: string }) {
                        onReveal={async (ds, reason) => {
                          const env = await send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
                                                 { project_id: projectId, dataset_id: ds.id }, { reason });
-                         // the stored dataset, typed by this page (the API sends it as an open object)
-                         return (env.data as Dataset | null) ?? env.errors?.[0]?.message ?? "not revealed";
+                         return env.data ?? env.errors?.[0]?.message ?? "not revealed";
                        }} />
         ))}
       </Card>

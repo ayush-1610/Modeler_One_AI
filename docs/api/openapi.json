@@ -2948,6 +2948,67 @@
         "title": "DiffRow",
         "type": "object"
       },
+      "Digitization": {
+        "additionalProperties": false,
+        "properties": {
+          "calibration": {
+            "additionalProperties": true,
+            "title": "Calibration",
+            "type": "object"
+          },
+          "overlay_approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overlay Approved By"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "pixels": {
+            "additionalProperties": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Pixels",
+            "type": "object"
+          },
+          "resolution": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Resolution",
+            "type": "object"
+          }
+        },
+        "required": [
+          "page",
+          "calibration",
+          "pixels",
+          "resolution",
+          "overlay_approved_by"
+        ],
+        "title": "Digitization",
+        "type": "object"
+      },
       "DigitizeBody": {
         "properties": {
           "calibration": {
@@ -3965,6 +4026,31 @@
         "title": "Envelope[EvidenceCorrection]",
         "type": "object"
       },
+      "Envelope_EvidenceItem_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvidenceItem"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[EvidenceItem]",
+        "type": "object"
+      },
       "Envelope_EvidencePage_": {
         "additionalProperties": false,
         "properties": {
@@ -4138,6 +4224,31 @@
           "errors"
         ],
         "title": "Envelope[M15Validation]",
+        "type": "object"
+      },
+      "Envelope_ObservedDataset_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ObservedDataset"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ObservedDataset]",
         "type": "object"
       },
       "Envelope_Phases_": {
@@ -4739,33 +4850,6 @@
         "title": "Envelope[VersionView]",
         "type": "object"
       },
-      "Envelope_dict_str__Any__": {
-        "additionalProperties": false,
-        "properties": {
-          "data": {
-            "additionalProperties": true,
-            "title": "Data",
-            "type": "object"
-          },
-          "errors": {
-            "items": {
-              "$ref": "#/components/schemas/ErrorItem"
-            },
-            "title": "Errors",
-            "type": "array"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/Meta"
-          }
-        },
-        "required": [
-          "data",
-          "meta",
-          "errors"
-        ],
-        "title": "Envelope[dict[str, Any]]",
-        "type": "object"
-      },
       "ErrorItem": {
         "additionalProperties": false,
         "properties": {
@@ -5061,8 +5145,7 @@
           },
           "evidence": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/EvidenceItem"
             },
             "title": "Evidence",
             "type": "array"
@@ -5139,9 +5222,7 @@
             "type": "array"
           },
           "corrected": {
-            "additionalProperties": true,
-            "title": "Corrected",
-            "type": "object"
+            "$ref": "#/components/schemas/EvidenceItem"
           },
           "coverage": {
             "items": {
@@ -5163,8 +5244,7 @@
           },
           "evidence": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/EvidenceItem"
             },
             "title": "Evidence",
             "type": "array"
@@ -5206,6 +5286,212 @@
           "corrected"
         ],
         "title": "EvidenceCorrection",
+        "type": "object"
+      },
+      "EvidenceItem": {
+        "additionalProperties": false,
+        "properties": {
+          "conditions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Conditions",
+            "type": "object"
+          },
+          "confidence": {
+            "default": "D",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "title": "Confidence",
+            "type": "string"
+          },
+          "conversion": {
+            "default": "",
+            "title": "Conversion",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_reason": {
+            "default": "",
+            "title": "Decision Reason",
+            "type": "string"
+          },
+          "extraction": {
+            "$ref": "#/components/schemas/Extraction",
+            "default": "TEXT"
+          },
+          "flags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "proposed_at": {
+            "format": "date-time",
+            "title": "Proposed At",
+            "type": "string"
+          },
+          "proposed_by": {
+            "default": "",
+            "title": "Proposed By",
+            "type": "string"
+          },
+          "provider": {
+            "default": "LITERATURE",
+            "enum": [
+              "CLIENT",
+              "LITERATURE"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "purpose": {
+            "default": "model_building",
+            "title": "Purpose",
+            "type": "string"
+          },
+          "quote": {
+            "default": "",
+            "title": "Quote",
+            "type": "string"
+          },
+          "req_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Req Id"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceRef"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EvidenceState",
+            "default": "PROPOSED"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "unit_pksim": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Pksim"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "value_pksim": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Pksim"
+          }
+        },
+        "required": [
+          "id",
+          "req_id",
+          "target",
+          "value",
+          "unit",
+          "value_pksim",
+          "unit_pksim",
+          "conversion",
+          "source_type",
+          "source",
+          "quote",
+          "extraction",
+          "conditions",
+          "confidence",
+          "flags",
+          "purpose",
+          "provider",
+          "state",
+          "proposed_by",
+          "proposed_at",
+          "decided_by",
+          "decided_at",
+          "decision_reason",
+          "note"
+        ],
+        "title": "EvidenceItem",
         "type": "object"
       },
       "EvidencePage": {
@@ -5252,8 +5538,7 @@
           },
           "evidence": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/EvidenceItem"
             },
             "title": "Evidence",
             "type": "array"
@@ -5295,6 +5580,15 @@
         ],
         "title": "EvidencePage",
         "type": "object"
+      },
+      "EvidenceState": {
+        "enum": [
+          "PROPOSED",
+          "ACCEPTED",
+          "REJECTED"
+        ],
+        "title": "EvidenceState",
+        "type": "string"
       },
       "ExpressionSpec": {
         "additionalProperties": false,
@@ -5397,6 +5691,18 @@
         },
         "title": "ExtractRequest",
         "type": "object"
+      },
+      "Extraction": {
+        "enum": [
+          "TEXT",
+          "TABLE",
+          "FIGURE_DIGITIZED",
+          "CELL",
+          "COMPUTED",
+          "MANUAL"
+        ],
+        "title": "Extraction",
+        "type": "string"
       },
       "ExtractionStart": {
         "additionalProperties": false,
@@ -8342,6 +8648,181 @@
           "deviations"
         ],
         "title": "ModelPlan",
+        "type": "object"
+      },
+      "ObservedDataset": {
+        "additionalProperties": false,
+        "properties": {
+          "analyte": {
+            "default": "parent",
+            "title": "Analyte",
+            "type": "string"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_reason": {
+            "default": "",
+            "title": "Decision Reason",
+            "type": "string"
+          },
+          "digitization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digitization"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extraction": {
+            "default": "MANUAL",
+            "enum": [
+              "TABLE",
+              "FIGURE_DIGITIZED",
+              "CELL",
+              "MANUAL",
+              "OSP_SNAPSHOT"
+            ],
+            "title": "Extraction",
+            "type": "string"
+          },
+          "flags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "profile",
+              "pk_parameters"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "matrix": {
+            "default": "plasma",
+            "title": "Matrix",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/DataOrigin"
+          },
+          "proposed_at": {
+            "format": "date-time",
+            "title": "Proposed At",
+            "type": "string"
+          },
+          "proposed_by": {
+            "default": "",
+            "title": "Proposed By",
+            "type": "string"
+          },
+          "provider": {
+            "default": "LITERATURE",
+            "enum": [
+              "CLIENT",
+              "LITERATURE"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "purpose": {
+            "default": "model_building",
+            "title": "Purpose",
+            "type": "string"
+          },
+          "quote": {
+            "default": "",
+            "title": "Quote",
+            "type": "string"
+          },
+          "reported": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ReportedPK"
+            },
+            "title": "Reported",
+            "type": "array"
+          },
+          "series": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Series"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceRef"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EvidenceState",
+            "default": "PROPOSED"
+          },
+          "study": {
+            "additionalProperties": true,
+            "title": "Study",
+            "type": "object"
+          },
+          "time_unit": {
+            "default": "h",
+            "title": "Time Unit",
+            "type": "string"
+          },
+          "unit": {
+            "default": "ng/ml",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "study",
+          "analyte",
+          "matrix",
+          "time_unit",
+          "unit",
+          "series",
+          "reported",
+          "origin",
+          "extraction",
+          "source",
+          "quote",
+          "digitization",
+          "purpose",
+          "provider",
+          "flags",
+          "state",
+          "proposed_by",
+          "proposed_at",
+          "decided_by",
+          "decision_reason",
+          "note"
+        ],
+        "title": "ObservedDataset",
         "type": "object"
       },
       "ObservedProfile": {
@@ -16630,7 +17111,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
+                  "$ref": "#/components/schemas/Envelope_ObservedDataset_"
                 }
               }
             },
@@ -16774,7 +17255,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
+                  "$ref": "#/components/schemas/Envelope_ObservedDataset_"
                 }
               }
             },
@@ -16852,7 +17333,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
+                  "$ref": "#/components/schemas/Envelope_ObservedDataset_"
                 }
               }
             },
@@ -16921,7 +17402,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
+                  "$ref": "#/components/schemas/Envelope_ObservedDataset_"
                 }
               }
             },
@@ -17389,7 +17870,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_dict_str__Any__"
+                  "$ref": "#/components/schemas/Envelope_EvidenceItem_"
                 }
               }
             },

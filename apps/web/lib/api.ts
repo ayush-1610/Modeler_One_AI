@@ -1,16 +1,16 @@
-// The web app's one API client (phase 7, rule B6). Server components read with `serverGet` / `serverRead` (server to
-// server); the browser uses `get` / `send` / `upload` on same-origin "/api/..." paths that next.config proxies to the
-// backend. A typed call names its route as the contract does ("/api/v1/projects/{project_id}/brief"): the path
-// parameters, the body and the answer's type follow from the route, so a page cannot call a route that does not exist
-// or read a shape the API does not send. Routes the contract does not type yet use `apiGet` / `apiSend` / `serverRead`
-// with a hand-written type.
+// The web app's one API client (phase 7, rule B6). Server components read with `serverGet` (server to server); the
+// browser uses `get` / `send` / `upload` / `post` on same-origin "/api/..." paths that next.config proxies to the
+// backend, and `apiFile` for a download. A call names its route as the contract does
+// ("/api/v1/projects/{project_id}/brief"): the path parameters, the body and the answer's type follow from the route,
+// so a page cannot call a route that does not exist or read a shape the API does not send. Every JSON route is typed
+// (phase 9), so there is no call by bare URL.
 
 import type { components, paths } from "./api-types";
 
 /** A response model of the API, generated from docs/api/openapi.json into lib/api-types.ts (`npm run api-types`;
  *  `npm run typecheck` fails when the file is older than the snapshot). Use it instead of hand-writing an answer's
- *  shape: `Schema<"BriefPage">`. Stored artifact content (a brief, a plan) is typed by hand where the API sends it as
- *  an open object. */
+ *  shape: `Schema<"BriefPage">`. Stored content the API sends as an open object (a redacted dataset, a template's CPF)
+ *  is narrowed by the page that reads it. */
 export type Schema<Name extends keyof components["schemas"]> = components["schemas"][Name];
 
 /** A generated answer with some of its open-object fields (stored content the API sends untyped) typed by the page.
@@ -74,10 +74,13 @@ const SERVER_TOKEN = process.env.MODELER_WEB_TOKEN ?? "dev";
  *  because a page that looks live but is not hides the real fault (and fake numbers must never pass as results). */
 export type Live<T> = { data: T | null; problem: string | null; notFound: boolean };
 
-export async function serverRead<T>(url: string): Promise<Live<T>> {
+/** A typed server-side read of a route: `serverGet("/api/v1/projects/{project_id}/phases", { project_id })`. */
+export async function serverGet<R extends RouteFor<"get">>(
+  route: R, params: Params<R>, query?: Record<string, string | undefined>,
+): Promise<Live<Data<R, "get">>> {
   let response: Response;
   try {
-    response = await fetch(`${SERVER_API_BASE}${url}`, {
+    response = await fetch(`${SERVER_API_BASE}${path(route, params, query)}`, {
       headers: { Authorization: `Bearer ${SERVER_TOKEN}` },
       cache: "no-store",
     });
@@ -92,16 +95,9 @@ export async function serverRead<T>(url: string): Promise<Live<T>> {
     try { detail = ((await response.json()) as { detail?: string }).detail ?? ""; } catch { /* not JSON */ }
     return { data: null, notFound: false, problem: `The API answered HTTP ${response.status}${detail ? `: ${detail}` : ""}` };
   }
-  const env = (await response.json()) as Envelope<T>;
+  const env = (await response.json()) as Envelope<Data<R, "get">>;
   if (env.errors?.length) return { data: null, notFound: false, problem: env.errors[0].message };
   return { data: env.data, notFound: false, problem: null };
-}
-
-/** A typed server-side read of a route: `serverGet("/api/v1/projects/{project_id}/phases", { project_id })`. */
-export function serverGet<R extends RouteFor<"get">>(
-  route: R, params: Params<R>, query?: Record<string, string | undefined>,
-): Promise<Live<Data<R, "get">>> {
-  return serverRead<Data<R, "get">>(path(route, params, query));
 }
 
 // --- the browser: same-origin calls with the user's bearer ----------------------------------------------------
@@ -183,21 +179,6 @@ export function send<M extends "post" | "put", R extends RouteFor<M>>(
 /** A typed multipart upload (files and form fields); the browser sets the multipart boundary itself. */
 export function upload<R extends RouteFor<"post">>(route: R, params: Params<R>, form: FormData): Promise<Envelope<Data<R, "post">>> {
   return multipart(path(route, params), form);
-}
-
-/** A browser read of a route the contract does not type yet (its answer type is the page's). */
-export function apiGet<T>(url: string): Promise<Envelope<T>> {
-  return request<T>(url, "GET");
-}
-
-/** A browser write to a route the contract does not type yet. */
-export function apiSend<T>(url: string, method: "POST" | "PUT", body?: unknown): Promise<Envelope<T>> {
-  return request<T>(url, method, body ?? {});
-}
-
-/** A multipart upload to a route the contract does not type yet. */
-export function apiUpload<T>(url: string, form: FormData): Promise<Envelope<T>> {
-  return multipart<T>(url, form);
 }
 
 /** A browser download of a file the API serves (a package artifact, the client-data template, a stored figure): the

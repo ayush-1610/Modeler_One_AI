@@ -15,6 +15,44 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the evidence and observed-data answers are typed, and the web's untyped helpers are gone; phase 9 is done (architecture phase 9e; API contract)
+- **What:**
+  - **Typed routes:** the last 5 routes that answered an open stored object now answer the owner's content model.
+    - `POST /projects/{id}/evidence` answers the stored `EvidenceItem` (`modeler_project.evidence`).
+    - `POST datasets`, `datasets:digitize`, `datasets/{id}:overlay` and `datasets/{id}:reveal` answer the stored
+      `ObservedDataset` (`modeler_project.datasets`).
+    - The evidence page's items (`EvidencePage.evidence`, and `corrected` after a correction) are the same
+      `EvidenceItem`.
+    - `EvidencePage.datasets` stays an open row. Before the MAP is signed, an external study's row is redacted (D-15):
+      it has no values and carries `blinded`, so it is not an `ObservedDataset`.
+  - **Schemas:** `EvidenceItem`, `ObservedDataset` and `Digitization` mark their defaulted fields as always present
+    in the answer schema, because they are always dumped whole (as the plan's models did in 9b).
+    - `Series`, `ReportedPK` and `SourceRef` keep their defaults optional. They are request schemas too, and marking
+      them would split each into an input and an output schema, renaming existing ones.
+  - **`:reveal` reads through the owner:** it answers the dataset as `ObservedDataset` parses it, not the raw stored
+    content. A dataset stored before a field existed now shows that field's default.
+  - **Ratchet:** `[response] open` is empty, like `untyped`. Every JSON route of every router has a response model,
+    and a new open or untyped route needs the owner's approval.
+  - **Web:**
+    - The evidence review uses the generated `EvidenceItem`, replacing its 25-line hand type.
+    - The observed-data panel uses `ObservedDataset`, and narrows only the redacted list rows.
+    - The digitizer and the reveal drop their casts.
+    - `lib/api.ts` loses `apiGet`, `apiSend`, `apiUpload` and `serverRead`; nothing called them. `apiFile` stays for
+      file downloads.
+    - `test_web_client.py` fails if a removed helper comes back, or if the client exports a new function that takes
+      a bare URL.
+- **Why:** rules B2 and B6, plan `docs/plans/2026-10-09-phase-9-typed-api.md` step 9e, and the owner's decision that
+  stored content in the contract reuses its owner's model.
+- **Impact:**
+  - **API contract change:** the OpenAPI snapshot gains 7 schemas: the 3 models, the `EvidenceState` and `Extraction`
+    enums, and 2 envelopes.
+    - `EvidencePage`, `EvidenceChoice` and `EvidenceCorrection` type their evidence items.
+    - The unused open envelope `Envelope_dict_str__Any__` is gone.
+    - `SourceRef`, `Series` and `ReportedPK` are unchanged.
+  - The answers are unchanged, as the conftest guard checks, except that `:reveal` now fills defaults on an old
+    dataset.
+  - Phase 9 is done.
+
 ### Changed — the campaign monitor, the review inbox and the remaining routes are typed; every route has a model (architecture phase 9d; API contract)
 - **What:**
   - **Shared records:** `modeler_storage.records` gains `CampaignRecord` (with `StageRecord`, `RoundRecord`,
