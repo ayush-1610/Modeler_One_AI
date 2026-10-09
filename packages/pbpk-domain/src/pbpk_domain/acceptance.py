@@ -4,7 +4,8 @@ Limits come from ``rulesets/pbpk_acceptance_criteria.yaml``; see that file for t
 Fitting and validation studies are reported separately because only validation studies show
 predictive performance; both must pass. Within a role, comparisons may carry a ``group`` (e.g. "fasted" /
 "fed" for external validation, MS-01 §8), and each group is judged on its own so a good fasted fit cannot
-hide a failing fed prediction.
+hide a failing fed prediction. In a model system each analyte is its own group too (MS-01 v1.3 §6.5, §8): a
+metabolite is judged by the same tier limits as the parent, and a good parent fit cannot hide a failing metabolite.
 """
 
 from __future__ import annotations
@@ -44,6 +45,7 @@ class Comparison:
     observed: float
     role: Role
     group: str = ""  # sub-group judged separately within the role, e.g. "fasted" / "fed"; "" = the whole role
+    analyte: str = ""  # a model system's analyte, judged as its own group; "" = the single compound
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,7 @@ class GroupResult:
     fraction_within: float
     required_fraction: float
     group: str = ""
+    analyte: str = ""
 
     @property
     def passes(self) -> bool:
@@ -105,19 +108,19 @@ def evaluate(
     ruleset = ruleset or load_acceptance_ruleset()
     tier = ruleset["tiers"][str(model_risk)]
     verdicts: list[Verdict] = []
-    grouped: dict[tuple[Role, str, str], list[Verdict]] = defaultdict(list)
+    grouped: dict[tuple[Role, str, str, str], list[Verdict]] = defaultdict(list)
     for comparison in comparisons:
         section = _RULESET_SECTION.get(comparison.quantity)
         if section is None:
             raise ValueError(f"no acceptance rule for quantity {comparison.quantity!r}")
         verdict = _judge(comparison, tier[section][comparison.quantity])
         verdicts.append(verdict)
-        grouped[(comparison.role, comparison.group, comparison.quantity)].append(verdict)
+        grouped[(comparison.role, comparison.analyte, comparison.group, comparison.quantity)].append(verdict)
 
     required = float(tier["min_fraction_within"])
     groups = [
-        GroupResult(role, quantity, len(items), sum(v.passes for v in items) / len(items), required, group)
-        for (role, group, quantity), items in sorted(grouped.items())
+        GroupResult(role, quantity, len(items), sum(v.passes for v in items) / len(items), required, group, analyte)
+        for (role, analyte, group, quantity), items in sorted(grouped.items())
     ]
     return AcceptanceReport(
         tier=str(model_risk), ruleset=f"{ruleset['id']}@{ruleset['version']}", verdicts=verdicts, groups=groups

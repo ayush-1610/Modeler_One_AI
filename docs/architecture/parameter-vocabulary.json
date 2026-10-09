@@ -2109,6 +2109,17 @@
     "fit_candidates": [
      "fitted in S1–S3"
     ]
+   },
+   "SM": {
+    "branches": [],
+    "fit_candidates": [
+     "{metabolite}::elim.hepatic.{enzyme}.clspec",
+     "{metabolite}::elim.hepatic.{enzyme}.kcat",
+     "{metabolite}::transp.{name}.kcat",
+     "{metabolite}::elim.renal.gfr_fraction",
+     "{metabolite}::formation",
+     "{metabolite}::phys.logp"
+    ]
    }
   },
   "parameter_units._BOUND": [

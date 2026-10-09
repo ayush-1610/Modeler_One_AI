@@ -13,8 +13,12 @@
 # regulatory SMEs approve them; high-risk uses should be confirmed with the agency (scientific advice /
 # pre-submission meeting). A MAP may tighten any limit; loosening one requires a documented justification.
 id: pbpk-acceptance-criteria
-version: "2026.1-draft"
+version: "2026.2-draft"
 status: UNVERIFIED
+# 2026.2-draft (2026-10-09, approved by the project owner with MS-01 v1.3, D-25; still UNVERIFIED pending SME
+#     sign-off): in a model system each analyte is judged as its own group (`acceptance.Comparison.analyte`). A
+#     metabolite, a co-parent and a racemic sum are held to the same tier limits and minimum fraction as the parent:
+#     the conservative placeholder until an SME sets metabolite-specific criteria. No limit changed.
 
 sources:
   ema_pbpk_reporting: "EMA Guideline on the reporting of PBPK modelling and simulation, EMA/CHMP/458101/2016 (effective 1 July 2019)"

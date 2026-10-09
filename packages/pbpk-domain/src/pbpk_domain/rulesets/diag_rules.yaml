@@ -9,8 +9,16 @@
 # name a candidate/branch by the same token used in the MAP stage plan (STAGE_PLAN); an action is only
 # offered when that token is a permitted fit candidate / branch for the current stage and has not been tried.
 id: diag-rules
-version: "0.5"
+version: "0.6"
 status: UNVERIFIED
+# 0.6 (2026-10-09, approved by the project owner with MS-01 v1.3, D-25; still UNVERIFIED pending SME sign-off): rules
+#     for stage SM, which fits a model system's metabolites to their own data. The caller diagnoses each metabolite's
+#     studies apart and applies the actions to that metabolite (its own clearance and distribution) or, for
+#     `formation`, to the rate of the process that forms it on the compound that forms it.
+#     - metabolite_clearance: the metabolite's t1/2 and AUC off the same way -> its own clearance first, then logP;
+#     - metabolite_formation: its AUC off with its t1/2 right -> how much is formed (the formation rate);
+#     - the exposure fallback, the optimiser rules and the at-bound escalation also hold at SM.
+#     A formation fit moves the forming compound: when that is the parent, the no-regression gate re-judges S1–S3.
 # 0.5 (2026-09-24, approved by the project owner, still UNVERIFIED pending SME sign-off): an exposure fallback. When
 #     AUC is off by more than 1.5-fold (either direction) in a fitting study and no other rule matches, fit the
 #     clearance parameters first (clspec, kcat), then logP. The clearance rule needs the terminal t1/2 to move with
@@ -64,6 +72,28 @@ rules:
       - {op: fit, target: "elim.renal.gfr_fraction"}
       - {op: fit, target: "elim.renal.ts_clspec"}
       - {op: fit, target: "phys.logp"}
+
+  - id: metabolite_clearance
+    cause: "Metabolite elimination mis-specified"
+    type: fit
+    stages: [SM]
+    routes: [iv, oral]
+    evidence: clearance_off        # the metabolite's terminal t1/2 and AUC off in the same direction
+    actions:
+      - {op: fit, target: "elim.hepatic.{enzyme}.clspec"}
+      - {op: fit, target: "elim.hepatic.{enzyme}.kcat"}
+      - {op: fit, target: "transp.{name}.kcat"}
+      - {op: fit, target: "elim.renal.gfr_fraction"}
+      - {op: fit, target: "phys.logp"}
+
+  - id: metabolite_formation
+    cause: "Metabolite formation mis-specified"
+    type: fit
+    stages: [SM]
+    routes: [iv, oral]
+    evidence: formation_off        # the metabolite's AUC off with its terminal t1/2 within the band
+    actions:
+      - {op: fit, target: "formation"}
 
   - id: distribution
     cause: "Distribution volume mis-specified"
@@ -172,7 +202,7 @@ rules:
   - id: non_identifiable_pair
     cause: "Non-identifiable parameter pair"
     type: fit
-    stages: [S1, S2, S3]
+    stages: [S1, S2, S3, SM]
     routes: [iv, oral]
     evidence: correlated_pair       # correlation > 0.95 between two fitted parameters
     actions:
@@ -181,7 +211,7 @@ rules:
   - id: multiple_optima
     cause: "Multiple optima (optimiser starts disagree)"
     type: fit
-    stages: [S1, S2, S3]
+    stages: [S1, S2, S3, SM]
     routes: [iv, oral]
     evidence: starts_disagree       # agreement between optimiser starts < starts_agreement_min
     actions:
@@ -191,13 +221,14 @@ rules:
     cause: "Exposure off with no specific diagnosis (clearance first)"
     type: fit
     fallback: true                 # fires only when no other rule's evidence is present
-    stages: [S1, S2]
+    stages: [S1, S2, SM]
     routes: [iv, oral]
     evidence: exposure_off         # AUC ratio > fold or < 1/fold in a fitting study
     actions:
       - {op: fit, target: "elim.hepatic.{enzyme}.clspec"}
       - {op: fit, target: "elim.hepatic.{enzyme}.kcat"}
       - {op: fit, target: "transp.{name}.kcat"}
+      - {op: fit, target: "formation"}   # SM only (a candidate nowhere else)
       - {op: fit, target: "phys.logp"}
 
   # --- conditions that require a person (MS-01 §5, §4) -----------------------------------------------
@@ -220,7 +251,7 @@ rules:
   - id: parameter_at_bound
     cause: "A fitted parameter sits at its bound"
     type: escalate
-    stages: [S1, S2, S3]
+    stages: [S1, S2, S3, SM]
     routes: [iv, oral]
     evidence: param_at_bound
     actions: []

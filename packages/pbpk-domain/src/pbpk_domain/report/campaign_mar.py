@@ -26,7 +26,7 @@ from pbpk_domain.report.mar import (
 
 STAGE_TITLES = {
     "S0": "Readiness", "S1": "IV disposition", "S2": "Oral absorption (fasted)", "S3": "Formulation and fed state",
-    "SJ": "Joint refinement", "S4": "Internal validation", "S5": "External validation", "S6": "Prediction", "S7": "Report and package",
+    "SM": "Metabolites", "SJ": "Joint refinement", "S4": "Internal validation", "S5": "External validation", "S6": "Prediction", "S7": "Report and package",
 }
 
 
@@ -163,7 +163,7 @@ def assemble_campaign_mar(
                     parts.append(f"The final {q} geometric mean fold error is {{{{value:{vid}}}}}.")
         return "\n\n".join(parts)
 
-    developed = ("S1", "S2", "S3", *(("SJ",) if "SJ" in stage_evidence else ()))
+    developed = ("S1", "S2", "S3", *(s for s in ("SM", "SJ") if s in stage_evidence))
     development = tuple(MarSection(number=f"4.{i}", heading=f"{s} — {STAGE_TITLES[s]}", body=stage_body(s))
                         for i, s in enumerate(developed, start=1))
     if history and history.get("entries"):
@@ -220,7 +220,7 @@ def assemble_campaign_mar(
         repro_parts.append("The data bundle's manifest hash is {{value:data_bundle_sha256}}.")
 
     all_passed = all((stage_evidence.get(s) or {}).get("status") in ("PASSED", "ACCEPTED", "SKIPPED")
-                     for s in ("S1", "S2", "S3", "S4", "S5"))
+                     for s in ("S1", "S2", "S3", "S4", "S5", *(("SM",) if "SM" in stage_evidence else ())))
     conclusion = ("Every model development and validation stage passed, was accepted by a signed decision, or was "
                   "skipped for want of data; the model meets the {{value:acceptance_tier}} acceptance tier for the stated "
                   "context of use, within the limitations listed." if all_passed else

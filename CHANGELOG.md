@@ -15,6 +15,60 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — MS-01 v1.3: a model system's every analyte judged on its own; metabolites fitted at a new stage SM (multi-compound phase 2, PR 3; locked `map.py`, `split.py`, `acceptance.py`, `diagnostics.py`, rulesets and MS-01; science, UNVERIFIED, D-25)
+- **What:**
+  - **Split (§3.3 rule 7):** each analyte of a model system is split on its own: the fitted parent's plasma, a
+    co-parent's, a sum's and each metabolite's own data. Before, the published Itraconazole system's 24
+    hydroxy-itraconazole studies competed with the parent's in every class and all landed EXTERNAL, so no metabolite
+    ever had data to train on. A single compound has one analyte and is split exactly as before.
+  - **Gating (§6.5, `system.gated(stage)`, `system.subjects`):**
+    - a co-parent's plasma (S-Verapamil, Dabigatran given IV) is gated at the parent stages and fits that compound;
+    - a molar sum of parents sharing one molecular weight (racemic Verapamil) is gated and fits both enantiomers
+      together (`a+S-Verapamil::a`);
+    - a metabolite's plasma, or a molar sum of metabolites sharing one weight, is reported at S1–S3 and gated at SM,
+      SJ, S4 and S5;
+    - a sum of a parent and a metabolite, a mass sum, and a molar sum of different weights are never gated.
+  - **Stage SM (§4 SM):** after S3 and before SJ, planned only when the MAP has internal metabolite data. A metabolite
+    study that trains a parent stage is also planned at SM, where it is gated. The fit candidates are the metabolite's
+    own clearance (clspec, kcat, transporter kcat, GFR fraction), its formation rate, and its logP.
+    - The formation rate is the rate of the process that forms the metabolite, on the compound that forms it
+      (`system.formation_targets`: the published model's `Metabolite` link). In Itraconazole that is the parent's
+      CYP3A4 kcat for hydroxy-itraconazole, and hydroxy's own CYP3A4 kcat for keto-itraconazole.
+    - A formation fit on the parent is re-judged at S1–S3 by the no-regression gate.
+    - SM takes 10 % of the campaign budget when planned, and every other stage keeps 90 % of its share; a single
+      compound's plan and budgets are unchanged.
+    - SJ refines what S1–S3 and SM fitted (`TRAINING_STAGES`). A metabolite study planned twice is judged there once,
+      gated.
+  - **Diagnosis:** each analyte's studies are diagnosed apart (`diagnose_round`: `_subject_candidates`,
+    `_qualify_action`, `_merge_diagnoses`), and the actions are qualified for the compounds they inform.
+    - An escalate rule anywhere escalates the round.
+    - diag-rules 0.6 adds `metabolite_clearance` (t½ and AUC off the same way: the metabolite's own clearance, then its
+      logP) and `metabolite_formation` (AUC off with t½ right: the formation rate, evidence `formation_off`, computed at
+      SM only).
+    - The fallback, the optimiser rules and the at-bound escalation also hold at SM.
+  - **Acceptance (§8, criteria 2026.2-draft):** every analyte is its own group (`Comparison.analyte`), held to the
+    parent's tier limits. That is the conservative placeholder until an SME sets metabolite criteria; no limit changed.
+  - **Runners:** `CAMPAIGN_STAGES` includes SM. A MAP that does not plan SM makes it "absent" (`plan_stage`), and the
+    runner passes over it without a record. The MAR shows SM when it ran.
+  - **Versions:** `MS01_VERSION` 1.3, diag-rules 0.6, acceptance criteria 2026.2-draft. All UNVERIFIED pending SME
+    sign-off; the D-25 row is in the start-up plan's decision record.
+- **Why:** the owner approved multi-compound phase 2 on 2026-10-09 ("do them all now"). Phase 1 simulated a system's
+  every compound but fitted and judged the parent alone; its metabolite, co-parent and racemic-sum data informed
+  nothing.
+- **Impact:**
+  - Single-compound campaigns are unchanged, apart from the MAP's standard version (1.3): no SM in the plan, the
+    same split and budgets, and the same diagnosis (one subject).
+  - System campaigns now train on more studies (each analyte's best), judge more groups, and may fit metabolite and
+    co-parent parameters.
+  - Not yet proven on PK-Sim: the Itraconazole and Verapamil system campaigns and a system refit follow (B7).
+- **Tests:**
+  - `test_metabolite_stage.py`: SM planning, budgets, the single-compound plan unchanged, rule 7, per-analyte
+    acceptance;
+  - `test_metabolite_diagnosis.py`: the formation rate on the parent, the metabolite's own clearance, a tried action,
+    and a racemic sum fitting both enantiomers;
+  - SM rules in `test_diagnostics.py`;
+  - the Verapamil campaign tests updated to v1.3.
+
 ### Added — a fit can move another compound of a model system (multi-compound phase 2, PR 2; science, D-25)
 - **What:**
   - **Fit ids:** in a model system, another compound's parameter is fitted as `<compound>::<CPF id>`

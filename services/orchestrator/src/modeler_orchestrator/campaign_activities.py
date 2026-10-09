@@ -153,20 +153,24 @@ def plan_campaign_cpf(cpf) -> S0Readiness:
 def plan_stage(request: StageRequest) -> StagePlan:
     """Decide what a stage does from the signed MAP before its first round (MS-01 §4).
 
-    S1–S3 are fit loops, S4/S5 simulate the final CPF once and judge it. A stage with no scenario is skipped
+    S1–S3 (and SM) are fit loops, S4/S5 simulate the final CPF once and judge it. A stage with no scenario is skipped
     with its documented reason (e.g. no oral study -> S2 skipped, decision tree §6.2; no external study -> S5
-    not achievable) instead of running a round that has nothing to simulate and escalating on it."""
-    from pbpk_domain.campaign.map import FIT_STAGES, VALIDATION_STAGES, MapDocument, stage_coverage
+    not achievable) instead of running a round that has nothing to simulate and escalating on it. A stage the MAP
+    does not plan at all (SM for a single compound, MS-01 v1.3 §6.5) is "absent": not part of this campaign."""
+    from pbpk_domain.campaign.map import METABOLITE_STAGE, TRAINING_STAGES, VALIDATION_STAGES, MapDocument, stage_coverage
 
-    kind = "validate" if request.stage in VALIDATION_STAGES else "fit" if request.stage in FIT_STAGES else "readiness"
+    kind = "validate" if request.stage in VALIDATION_STAGES else "fit" if request.stage in TRAINING_STAGES else "readiness"
     map_text = _load_local_text(request.map_uri) if request.map_uri else None
+    if (request.stage == METABOLITE_STAGE and map_text is not None
+            and all(p.stage != METABOLITE_STAGE for p in MapDocument.model_validate_json(map_text).stage_plan)):
+        return StagePlan(stage=request.stage, kind="absent")
     if request.stage == "SJ":
-        # the joint refinement (MS-01 v1.1, UNVERIFIED): every internal study of S1–S3; what it refits is decided from
-        # the CPF when it runs (the parameters S1–S3 fitted)
+        # the joint refinement (MS-01 v1.1, UNVERIFIED): every internal study of S1–S3 and SM; what it refits is
+        # decided from the CPF when it runs (the parameters those stages fitted)
         if map_text is None:
             return StagePlan(stage="SJ", kind="joint", notes=["MAP not locally loadable; stage not pre-planned"])
         doc = MapDocument.model_validate_json(map_text)
-        studies = sorted({s.study_id for s in doc.scenarios if s.stage in FIT_STAGES})
+        studies = sorted({s.study_id for s in doc.scenarios if s.stage in TRAINING_STAGES})
         return StagePlan(stage="SJ", kind="joint", studies=studies,
                          skip_reason=None if studies else "No internal study: there is nothing to refine jointly.")
     if map_text is None:
@@ -620,7 +624,8 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
     group_of = food_of if ctx.stage == "S5" else {}
 
     # A model system's study is read on its analyte's curve (the engine bundle keeps every selected output by path);
-    # one that is not gated (a metabolite or sum, phase 1) is reported beside the gate, not in it.
+    # one this stage does not gate (a metabolite at a parent stage, a mass sum: MS-01 v1.3 §6.5) is reported beside
+    # the gate, not in it.
     stage_scenarios = {s.study_id: s for s in map_doc.scenarios if s.stage == ctx.stage}
     reported: set[str] = set()
     not_read: list[str] = []
@@ -640,6 +645,7 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
         simulated.append(SimulatedProfile(
             study_id=study_id, role=role_of.get(study_id, "validation"),
             times=prof.get("times_min", []), concentrations=concentrations, group=group_of.get(study_id, ""),
+            analyte=(scenario.analyte or "") if scenario is not None else "",  # its own acceptance group (MS-01 v1.3)
         ))
     observed_doc = _load_local_json(ctx.observed_uri) if ctx.observed_uri else {}
     def _window(pk: dict) -> tuple[float | None, float | None]:
@@ -723,6 +729,73 @@ def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str, system=No
     return tuple(keep)
 
 
+def _subject_candidates(cpf, system, subject: tuple[str, ...], candidates: tuple[str, ...], stage: str) -> tuple[str, ...]:
+    """The stage's candidate tokens the subject's compounds can each fit (MS-01 v1.3 §6.5): read on each compound's own
+    CPF, and `formation` on the compound that forms it (`pbpk_domain.system.formation_targets`)."""
+    from pbpk_domain.fit_spec import qualify
+    from pbpk_domain.system import formation_targets
+
+    if system is None or subject == (cpf.compound,):
+        return _fittable_candidates(cpf, candidates, stage, system)
+    keep = []
+    for token in candidates:
+        ok = True
+        for member in subject:
+            if token == "formation":
+                targets = tuple(qualify(c, pid, cpf.compound) for c, pid in formation_targets(system, member))
+                ok = ok and bool(targets) and all(_fittable_candidates(cpf, (t,), stage, system) for t in targets)
+            else:
+                ok = ok and bool(_fittable_candidates(cpf, (qualify(member, token, cpf.compound),), stage, system))
+        if ok:
+            keep.append(token)
+    return tuple(keep)
+
+
+def _qualify_action(action: str, subject: tuple[str, ...], fitted: str, system) -> str | None:
+    """A diagnosed action for the compounds a study informs (MS-01 v1.3 §6.5). A fit names each member's parameter
+    (``<compound>::<id>``; a racemic sum fits both enantiomers', joined by ``+``), and ``formation`` the forming rate.
+    A method branch or switch belongs to the fitted compound alone; the fit-level actions apply as they are."""
+    from pbpk_domain.fit_spec import qualify
+    from pbpk_domain.system import formation_targets
+
+    op, _, target = action.partition(" ")
+    if op == "fit":
+        parts: list[str] = []
+        for member in subject:
+            if target == "formation":
+                parts += [qualify(c, pid, fitted) for c, pid in (formation_targets(system, member) if system else ())]
+            else:
+                parts.append(qualify(member, target, fitted))
+        return f"fit {'+'.join(dict.fromkeys(parts))}" if parts else None
+    if subject == (fitted,) or op in ("switch_algorithm", "fix_and_refit"):
+        return action
+    return None
+
+
+_NOT_FORCED = ("all permitted actions for the matched diagnosis have already been tried",
+               "no diagnostic rule matched the round's evidence")
+
+
+def _merge_diagnoses(diagnoses):
+    """One round diagnosis from each subject's (fitted parent first): an escalate rule anywhere escalates the round; else
+    every subject's actions, in order; else the first subject's reason."""
+    from pbpk_domain.diagnostics import Diagnosis
+
+    if len(diagnoses) == 1 and tuple(diagnoses[0][2]) == diagnoses[0][1].permitted_actions:
+        return diagnoses[0][1]  # one compound: exactly as diagnosed
+    evidence = tuple(sorted({e for _s, found, _a in diagnoses for e in found.evidence}))
+    causes = tuple(dict.fromkeys(c for _s, found, _a in diagnoses for c in found.causes))
+    forced = next((found for _s, found, _a in diagnoses if found.escalate and found.reason not in _NOT_FORCED), None)
+    if forced is not None:
+        return Diagnosis(evidence=evidence, causes=causes, permitted_actions=(), escalate=True, reason=forced.reason)
+    permitted = tuple(dict.fromkeys(a for _s, _f, actions in diagnoses for a in actions))
+    if permitted:
+        return Diagnosis(evidence=evidence, causes=causes, permitted_actions=permitted, escalate=False)
+    first = diagnoses[0][1]
+    reason = _NOT_FORCED[0] if any(found.permitted_actions for _s, found, _a in diagnoses) else (first.reason or _NOT_FORCED[1])
+    return Diagnosis(evidence=evidence, causes=causes, permitted_actions=(), escalate=True, reason=reason)
+
+
 def _off(ratio: float | None, thresholds: dict) -> bool:
     """A predicted/observed ratio outside the ruleset's diagnostic band (ratio_low .. ratio_high)."""
     return ratio is not None and not float(thresholds["ratio_low"]) <= ratio <= float(thresholds["ratio_high"])
@@ -744,36 +817,45 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
         return RoundDiagnosis(evidence=[], permitted_actions=[], escalate=True,
                               escalation_reason="diagnostics: MAP not locally loadable (object-store I/O pending)")
 
-    from pbpk_domain.campaign.map import STAGE_PLAN, MapDocument
+    from pbpk_domain.campaign.map import METABOLITE_STAGE, STAGE_PLAN, MapDocument
     from pbpk_domain.diagnostics import FitSignals, StudyResidual, diagnose, load_diag_ruleset
+    from pbpk_domain.system import subjects
 
     map_doc = MapDocument.model_validate_json(map_text)
     plan = STAGE_PLAN.get(ctx.stage, {})
     candidates = tuple(plan.get("fit_candidates", ()))
+    if ctx.stage == METABOLITE_STAGE:
+        candidates = tuple(c.split("::", 1)[1] for c in candidates)  # "{metabolite}::…": each metabolite below
     cpf_text = _load_local_text(ctx.cpf_uri)
+    cpf = system = None
     if cpf_text is not None:
         from pbpk_domain.cpf import CPF
 
         cpf = CPF.model_validate_json(cpf_text)
-        usable = _fittable_candidates(cpf, candidates, ctx.stage, _round_system(ctx, cpf))
-        if usable != candidates:
-            activity.logger.info(
-                "diagnose_round %s %s: fit candidates usable for this CPF: %s (dropped %s)",
-                ctx.campaign_id, ctx.stage, ",".join(usable) or "none",
-                ",".join(c for c in candidates if c not in usable) or "none",
-            )
-        candidates = usable
+        system = _round_system(ctx, cpf)
     scenarios = {s.study_id: s for s in map_doc.scenarios}
+    staged = {s.study_id: s for s in map_doc.scenarios if s.stage == ctx.stage}
     thresholds = load_diag_ruleset()["thresholds"]
-    residuals = [
-        StudyResidual(
-            study_id=st["study_id"], role=st.get("role", "fitting"),
-            route="iv" if (scenarios.get(st["study_id"]) and scenarios[st["study_id"]].route.startswith("iv")) else "oral",
+    # Each study diagnoses the compounds it informs (MS-01 v1.3 §6.5): the fitted parent's own data its parameters, a
+    # co-parent's or a metabolite's data that compound's, a racemic sum both enantiomers'. A study the stage does not
+    # gate (a metabolite at a parent stage, a mass sum) diagnoses nothing (multi-compound phase 2, PR 1).
+    groups: dict[tuple[str, ...], list[StudyResidual]] = {}
+    for st in evaluation.metrics.get("studies", []):
+        if not st.get("gated", True):
+            continue
+        sid = st["study_id"]
+        scenario = staged.get(sid) or scenarios.get(sid)
+        subject = ((cpf.compound,) if cpf is not None else ("",)) if system is None or scenario is None \
+            else subjects(system, scenario.analyte, cpf.compound)
+        if not subject:
+            continue
+        groups.setdefault(subject, []).append(StudyResidual(
+            study_id=sid, role=st.get("role", "fitting"),
+            route="iv" if (scenario is not None and scenario.route.startswith("iv")) else "oral",
             # a per-kg dose is not comparable with absolute ones in the dose-normalised trend, nor is a phased regimen's
             # first dose (a loading dose then maintenance): left out of it
-            dose_mg=(scenarios[st["study_id"]].dose_mg
-                     if st["study_id"] in scenarios and not scenarios[st["study_id"]].dose_per_kg
-                     and not scenarios[st["study_id"]].dose_phases else None),
+            dose_mg=(scenario.dose_mg if scenario is not None and not scenario.dose_per_kg and not scenario.dose_phases
+                     else None),
             auc_ratio=_ratio(st.get("predicted_auc"), st.get("observed_auc")),
             cmax_ratio=_ratio(st.get("predicted_cmax"), st.get("observed_cmax")),
             tmax_ratio=_ratio(st.get("predicted_tmax"), st.get("observed_tmax")),
@@ -781,21 +863,36 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
             observed_auc=st.get("observed_auc"), auc_in_limits=st.get("auc_in_limits"),
             early_phase_off=_off(st.get("early_ratio"), thresholds),
             vss_off=_off(st.get("vss_ratio"), thresholds),
-        )
-        # a model system's reported analyte (a metabolite, a sum, a co-parent the fit does not move) is judged on its
-        # own and never diagnoses the fitted compound's parameters (multi-compound phase 2, PR 1)
-        for st in evaluation.metrics.get("studies", []) if st.get("gated", True)
-    ]
+        ))
     signals = ctx.fit_signals or {}
     fit = FitSignals(
         at_bound=tuple(signals.get("at_bound") or ()),
         correlated_pairs=tuple(tuple(p) for p in signals.get("correlated_pairs") or () if len(p) == 2),
         starts_agreement=signals.get("starts_agreement"),
     )
-    diagnosis = diagnose(
-        residuals, stage=ctx.stage, stage_candidates=candidates,
-        stage_branches=plan.get("branches", ()), actions_tried=ctx.actions_tried, fit=fit,
-    )
+    fitted = cpf.compound if cpf is not None else ""
+    order = {c.compound: i for i, c in enumerate(system.compounds)} if system is not None else {}
+    if not groups:
+        groups[(fitted,)] = []
+    diagnoses = []
+    for subject in sorted(groups, key=lambda subj: (subj != (fitted,), order.get(subj[0], 0))):
+        own = subject == (fitted,)
+        usable = candidates if cpf is None else _subject_candidates(cpf, system, subject, candidates, ctx.stage)
+        if own and usable != candidates:
+            activity.logger.info(
+                "diagnose_round %s %s: fit candidates usable for this CPF: %s (dropped %s)",
+                ctx.campaign_id, ctx.stage, ",".join(usable) or "none",
+                ",".join(c for c in candidates if c not in usable) or "none",
+            )
+        found = diagnose(
+            groups[subject], stage=ctx.stage, stage_candidates=usable,
+            stage_branches=plan.get("branches", ()) if own else (),
+            actions_tried=ctx.actions_tried if own else (), fit=fit,
+        )
+        actions = [q for a in found.permitted_actions
+                   if (q := _qualify_action(a, subject, fitted, system)) and q not in ctx.actions_tried]
+        diagnoses.append((subject, found, actions))
+    diagnosis = _merge_diagnoses(diagnoses)
     activity.logger.info(
         "diagnose_round %s %s round %d: causes=%s actions=%d escalate=%s",
         ctx.campaign_id, ctx.stage, ctx.round_index, list(diagnosis.causes), len(diagnosis.permitted_actions), diagnosis.escalate,

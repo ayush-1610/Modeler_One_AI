@@ -24,7 +24,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from pbpk_domain.atomic_io import atomic_write_bytes
-from pbpk_domain.campaign.map import FIT_STAGES
+from pbpk_domain.campaign.map import TRAINING_STAGES
 
 JOINT = "SJ"
 
@@ -71,7 +71,14 @@ def joint_map(map_uri: str, stages: tuple[str, ...], *, tag: str) -> tuple[str, 
     (which is not changed): (uri, sha256, study ids). Evaluation reads a stage's scenarios by its name, so the joint
     round is judged on exactly these studies with their fitting role."""
     doc = json.loads(_path(map_uri).read_text(encoding="utf-8"))
-    scenarios = [{**s, "stage": JOINT} for s in doc.get("scenarios", []) if s.get("stage") in stages and s["stage"] in FIT_STAGES]
+    scenarios: dict[str, dict] = {}
+    for s in doc.get("scenarios", []):
+        if s.get("stage") in stages and s["stage"] in TRAINING_STAGES:
+            # a metabolite study is planned twice, reported at its parent stage and gated at SM: SJ judges it gated
+            kept = scenarios.get(s["study_id"])
+            if kept is None or (s.get("gated", True) and not kept.get("gated", True)):
+                scenarios[s["study_id"]] = {**s, "stage": JOINT}
+    scenarios = list(scenarios.values())
     derived = {**doc, "scenarios": scenarios}
     out = _path(map_uri).with_name(f"map-{JOINT}-{tag}.json")
     data = json.dumps(derived, ensure_ascii=False).encode("utf-8")

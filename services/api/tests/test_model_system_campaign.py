@@ -76,9 +76,16 @@ def test_a_verapamil_campaign_is_planned_built_and_judged_per_analyte(client, tm
     assert prep["model_system_sha256"] == system.sha256 and prep["system_uri"].endswith("prep/q/system.json")
     map_doc = MapDocument.model_validate_json(Path(prep["map_uri"].removeprefix("file://")).read_text(encoding="utf-8"))
     assert map_doc.model_system_sha256 == system.sha256
-    plan = {s.study_id: s for s in map_doc.scenarios}
+    plan: dict = {}
+    for scenario in map_doc.scenarios:
+        plan.setdefault(scenario.study_id, scenario)  # each study where it trains (a metabolite's SM copy comes last)
     rv, total, norv = (plan[s["study_id"]] for s in chosen)
-    assert (rv.gated, total.gated, norv.gated) == (True, False, False)
+    # MS-01 v1.3 §6.5: a parent's plasma and a racemic sum of parents are gated; a metabolite is reported where it
+    # trains a parent stage and gated at SM, which the MAP plans with its own budget
+    assert (rv.gated, total.gated, norv.gated) == (True, True, False)
+    sm = [s for s in map_doc.scenarios if s.stage == "SM"]
+    assert [s.study_id for s in sm] == [norv.study_id] and sm[0].gated
+    assert any(p.stage == "SM" and p.budget_seconds > 0 for p in map_doc.stage_plan)
     assert total.analyte_output.endswith("|Sum-Verapamil Plasma (Peripheral Venous Blood)")
 
     ctx_args = dict(campaign_id="c1", tenant_id="t1", round_index=1, cpf_uri=prep["cpf_uri"], cpf_sha256=prep["cpf_sha256"],
@@ -98,7 +105,7 @@ def test_a_verapamil_campaign_is_planned_built_and_judged_per_analyte(client, tm
     assert {c["Name"] for c in snapshot["Compounds"]} == set(system.roles)
     assert {o["Name"] for o in snapshot.get("ObserverSets", [])} == {"Sum-Verapamil", "Sum-Norverapamil"}
 
-    # evaluation reads the sum study on the sum observer's curve, and keeps it out of the gate
+    # evaluation reads the sum study on the sum observer's curve, and judges it in the gate (its own analyte group)
     times = [float(t) for t in range(0, 24 * 60 + 1, 10)]
     curve = [0.0] + [1.0 / (1 + t / 300.0) for t in times[1:]]
     zero = [0.0] * len(times)
@@ -112,13 +119,13 @@ def test_a_verapamil_campaign_is_planned_built_and_judged_per_analyte(client, tm
     evaluation = evaluate_round(RoundContext(stage=stage, **ctx_args),
                                 RoundRunResult(results_uri=results.as_uri(), cpf_uri=prep["cpf_uri"], cpf_sha256="b" * 64))
     rows = {row["study_id"]: row for row in evaluation.metrics["studies"]}
-    assert rows[total.study_id]["gated"] is False
+    assert rows[total.study_id]["gated"] is True and rows[total.study_id]["analyte"] == total.analyte
     assert rows[total.study_id]["predicted_cmax"] == pytest.approx(max(curve))  # the observer's curve, not the zero plasma
 
 
-def test_a_stage_whose_studies_are_all_reported_analytes_is_skipped_with_its_reason():
-    # Verapamil's IV data are racemic sums: in phase 1 no study there measures the fitted parent's plasma, so S1 has
-    # nothing to judge or fit — skipped and named, not escalated as "no diagnostic rule matched"
+def test_a_racemic_sum_is_judged_at_the_parent_stages():
+    # Verapamil's IV data are racemic sums. Phase 1 reported them and skipped S1 (no study measured the fitted parent's
+    # plasma); MS-01 v1.3 §6.5 gates a molar sum of enantiomers sharing one molecular weight, informing both
     from pbpk_domain.campaign.map import generate_map, stage_coverage
     from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
     from pbpk_domain.m15 import Rating
@@ -131,5 +138,5 @@ def test_a_stage_whose_studies_are_all_reported_analytes_is_skipped_with_its_rea
                            food_effect_in_question=False, model_risk=Rating.MEDIUM, engine_image_digest="t",
                            software_versions={}, system=imported.system)
     s1 = stage_coverage(map_doc, "S1")
-    assert s1.studies and s1.skip_reason and "reported but not gated" in s1.skip_reason
-    assert all(not s.gated for s in map_doc.scenarios if s.stage == "S1")
+    assert s1.studies and s1.skip_reason is None
+    assert all(s.gated for s in map_doc.scenarios if s.stage == "S1")

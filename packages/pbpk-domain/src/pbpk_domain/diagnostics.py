@@ -10,7 +10,9 @@ strategist agent (T-15) only chooses among what this returns.
 
 Actions are strings ``"{op} {target}"`` where op is fit / branch / switch / fix_and_refit / switch_algorithm
 and target is the same token the MAP stage plan uses (e.g. ``elim.hepatic.{enzyme}.clspec``); the enzyme/name
-placeholder is resolved when the action is applied.
+placeholder is resolved when the action is applied. In a model system the caller diagnoses each analyte's studies
+apart and qualifies the actions for the compounds they inform (MS-01 v1.3 §6.5; at SM, ``formation`` names the rate of
+the process that forms the metabolite).
 """
 
 from __future__ import annotations
@@ -119,6 +121,7 @@ def compute_evidence(
     fit: FitSignals = _NO_FIT,
     fed: FedSignals = _NO_FED,
     ruleset: dict[str, Any] | None = None,
+    stage: str = "",
 ) -> Evidence:
     """Compute the evidence labels present this round from the PK residuals and fit signals."""
     th = (ruleset or load_diag_ruleset())["thresholds"]
@@ -135,6 +138,12 @@ def compute_evidence(
         labels.add("clearance_off")
     if any_fit(lambda r: r.thalf_ratio is not None and r.auc_ratio is not None and r.thalf_ratio < lo and r.auc_ratio < lo):
         labels.add("clearance_off")
+
+    # Metabolite formation (SM, diag-rules 0.6): the metabolite's exposure is off while its terminal t1/2 is right, so
+    # what it eliminates is fine and how much is formed is not. Only SM reads it.
+    if stage == "SM" and any_fit(lambda r: r.thalf_ratio is not None and r.auc_ratio is not None
+                                 and lo <= r.thalf_ratio <= hi and (r.auc_ratio > hi or r.auc_ratio < lo)):
+        labels.add("formation_off")
 
     # Exposure off by more than the fallback fold, whatever t1/2 does (diag-rules 0.5 fallback rule).
     fold = float(th.get("exposure_fallback_fold", 0) or 0)
@@ -234,7 +243,7 @@ def diagnose(
 ) -> Diagnosis:
     """Map the round's evidence to permitted actions for this stage (MS-01 §5)."""
     ruleset = ruleset or load_diag_ruleset()
-    ev = compute_evidence(residuals, fit=fit, fed=fed, ruleset=ruleset)
+    ev = compute_evidence(residuals, fit=fit, fed=fed, ruleset=ruleset, stage=stage)
     candidates, branches, tried = set(stage_candidates), set(stage_branches), set(actions_tried)
 
     matched = [rule for rule in ruleset["rules"] if stage in rule["stages"] and rule["evidence"] in ev.labels]

@@ -519,5 +519,22 @@ class _Planner:
 
 
 def split_studies(studies: Sequence[StudyRecord], question: QuestionOfInterest | None = None) -> SplitResult:
-    """Classify and split a study set into INTERNAL/EXTERNAL/SUPPORTIVE with rationale and limitations (MS-01 §3.3)."""
-    return _Planner(studies, question or QuestionOfInterest()).run()
+    """Classify and split a study set into INTERNAL/EXTERNAL/SUPPORTIVE with rationale and limitations (MS-01 §3.3).
+
+    In a model system each analyte is split on its own (MS-01 v1.3 §3.3 rule 7, UNVERIFIED, D-25): a parent's plasma, a
+    co-parent's, a sum's and each metabolite's own data each get rules 1–5, so every analyte the campaign fits has its
+    best studies to train on and keeps the rest to validate. One analyte (a single compound) is split exactly as
+    before."""
+    question = question or QuestionOfInterest()
+    analytes = list(dict.fromkeys(s.analyte for s in studies))
+    if len(analytes) <= 1:
+        return _Planner(studies, question).run()
+    parts = [(analyte, _Planner([s for s in studies if s.analyte == analyte], question).run()) for analyte in analytes]
+    by_id = {row.study_id: row for _analyte, result in parts for row in result.splits}
+    rule = ("Each analyte of the model system is split on its own: " + ", ".join(str(a) for a, _r in parts)
+            + " (rule 7).")
+    return SplitResult(
+        splits=tuple(by_id[s.study_id] for s in studies),
+        rationale=(*(f"{analyte}: {line}" for analyte, result in parts for line in result.rationale), rule),
+        limitations=tuple(f"{analyte}: {line}" for analyte, result in parts for line in result.limitations),
+    )

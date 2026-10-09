@@ -33,7 +33,7 @@ def po(**kw) -> StudyResidual:
 
 
 def test_ruleset_version_is_unverified() -> None:
-    assert diag_ruleset_version() == "diag-rules@0.5-UNVERIFIED"
+    assert diag_ruleset_version() == "diag-rules@0.6-UNVERIFIED"
 
 
 # --- individual rules ----------------------------------------------------------------------------
@@ -267,3 +267,35 @@ def test_case_agreement_at_least_80_percent() -> None:
         if d.permitted_actions and d.permitted_actions[0] == expected_first:
             agree += 1
     assert agree / len(CASES) >= 0.8
+
+
+# --- SM: a model system's metabolites (MS-01 v1.3 §6.5, diag-rules 0.6) ---------------------------------------------
+
+
+def _sm(residuals, **kw):
+    # the caller diagnoses each metabolite's studies apart, with the stage's candidates for that metabolite (bare)
+    bare = tuple(c.split("::", 1)[1] for c in cands("SM"))
+    return diagnose(residuals, stage="SM", stage_candidates=bare, stage_branches=(), **kw)
+
+
+def test_a_metabolite_eliminated_wrongly_is_offered_its_own_clearance_then_logp() -> None:
+    d = _sm([po(thalf_ratio=1.5, auc_ratio=1.6)])
+    assert d.permitted_actions == ("fit elim.hepatic.{enzyme}.clspec", "fit elim.hepatic.{enzyme}.kcat",
+                                   "fit transp.{name}.kcat", "fit elim.renal.gfr_fraction", "fit phys.logp")
+
+
+def test_a_metabolite_formed_in_the_wrong_amount_is_offered_its_formation_rate() -> None:
+    # AUC 2-fold low with the terminal t1/2 right: elimination is fine, formation is not
+    d = _sm([po(thalf_ratio=1.0, auc_ratio=0.5)])
+    assert "formation_off" in d.evidence and d.permitted_actions == ("fit formation",)
+
+
+def test_formation_is_judged_only_at_sm() -> None:
+    d = _diag("S2", [po(thalf_ratio=1.0, auc_ratio=0.5)])
+    assert "formation_off" not in d.evidence
+    assert "fit formation" not in d.permitted_actions  # the fallback's formation is no S2 candidate
+
+
+def test_a_metabolite_fit_at_its_bound_escalates() -> None:
+    d = _sm([po(thalf_ratio=1.5, auc_ratio=1.6)], fit=FitSignals(at_bound=("Hydroxy::elim.hepatic.CYP3A4.kcat",)))
+    assert d.escalate and "Hydroxy::elim.hepatic.CYP3A4.kcat" in d.reason

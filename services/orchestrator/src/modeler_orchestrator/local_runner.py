@@ -69,7 +69,7 @@ from modeler_orchestrator.history import Ledger, influence_map, study_verdict
 from modeler_orchestrator.memo import model_set
 from modeler_storage.filestore import FileWriteStore, WriteStore
 from modeler_storage.records import CampaignRecord, EscalationRecord, Record
-from pbpk_domain.campaign.map import FIT_STAGES
+from pbpk_domain.campaign.map import FIT_STAGES, TRAINING_STAGES
 from pbpk_domain.data_origin import real_data_summary, signature_refusal
 from pbpk_domain.fitting import BudgetTooSmallError
 
@@ -78,7 +78,7 @@ EngineRun = Callable[[EngineJob], EngineManifest]
 
 STAGE_LABELS = {
     "S0": "Readiness", "S1": "IV disposition", "S2": "Oral fasted",
-    "S3": "Formulation / fed", "SJ": "Joint refinement", "S4": "Internal validation", "S5": "External validation",
+    "S3": "Formulation / fed", "SM": "Metabolites", "SJ": "Joint refinement", "S4": "Internal validation", "S5": "External validation",
     "S6": "Prediction", "S7": "Report & package",
 }
 # Stages that stop the campaign when a stage ends there.
@@ -427,7 +427,7 @@ class LocalExecutor:
         outcomes: list[StageOutcome] = []
         # a resumed campaign's fit stages that passed are the no-regression baseline (an accepted-best stage is not)
         status_of = self.writer._status if self.writer else {}
-        self._passed |= {s for s in completed if s in FIT_STAGES and status_of.get(s, "PASSED") == "PASSED"}
+        self._passed |= {s for s in completed if s in TRAINING_STAGES and status_of.get(s, "PASSED") == "PASSED"}
 
         # S0 readiness (no engine) — the MAP is already signed (a campaign only starts after that gate).
         if "S0" in request.stages:
@@ -467,6 +467,8 @@ class LocalExecutor:
                 campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=stage, cpf_uri=cpf_uri,
                 cpf_sha256=cpf_sha, budget_seconds=0, map_uri=request.map_uri, map_sha256=request.map_sha256,
             ))
+            if plan.kind == "absent":
+                continue  # the MAP does not plan this stage (SM for a single compound): not part of this campaign
             if self.writer:
                 self.writer.stage_notes(stage, plan.notes)
             if plan.skip_reason:
@@ -488,7 +490,7 @@ class LocalExecutor:
                 self.writer.flush(current_stage=stage, status="RUNNING")
             try:
                 if plan.kind == "joint":
-                    outcome = self._run_joint(request, cpf_uri, cpf_sha, stages=FIT_STAGES, record_stage="SJ")
+                    outcome = self._run_joint(request, cpf_uri, cpf_sha, stages=_training_stages(request), record_stage="SJ")
                 elif plan.kind == "validate":
                     outcome = self._run_validation(request, stage, cpf_uri, cpf_sha)
                 elif plan.kind == "predict":
@@ -504,13 +506,14 @@ class LocalExecutor:
                     stage=stage, status="FAILED", rounds_run=0, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
                     findings=[f"{type(exc).__name__}: {exc}"], escalation_reason="stage_failed",
                 )
-            if stage in FIT_STAGES and outcome.status == "PASSED":
+            if stage in TRAINING_STAGES and outcome.status == "PASSED":
                 if outcome.cpf_sha256 != cpf_sha:
                     # the stage changed the parameter set: every earlier stage that passed is judged again on it
                     regressions = self._no_regression(request, stage, outcome.cpf_uri, outcome.cpf_sha256)
                     if regressions:
                         # the remedy first: one joint fit over the stages up to this one (N2 → N3); else escalate
-                        upto = FIT_STAGES[: FIT_STAGES.index(stage) + 1]
+                        planned = _training_stages(request)
+                        upto = planned[: planned.index(stage) + 1]
                         joint = self._run_joint(request, outcome.cpf_uri, outcome.cpf_sha256, stages=upto,
                                                 record_stage=stage, after_regression=True)
                         if joint.status == "PASSED":
@@ -766,7 +769,8 @@ class LocalExecutor:
         passed, from the new model set, and judge it against its own stage gate (external studies stay unseen). A
         study that passed before and fails now is a regression; the findings say which and why."""
         regressions: list[str] = []
-        for earlier in [s for s in FIT_STAGES if s in self._passed and FIT_STAGES.index(s) < FIT_STAGES.index(stage)]:
+        for earlier in [s for s in TRAINING_STAGES
+                        if s in self._passed and TRAINING_STAGES.index(s) < TRAINING_STAGES.index(stage)]:
             ctx = RoundContext(
                 campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=earlier, round_index=1,
                 cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, seed=request.seed,
@@ -1244,9 +1248,17 @@ def _start_cycle(writer: CampaignArtifactWriter, request: CampaignRequest, diagn
         request = replace(request, cycle=cycle)
     # learn refits the affected stage only (MS-01 §6.6), then SJ re-judges and refines every internal study, S4 and
     # S5 follow (plan §12.4: [S(k), SJ, S4, S5]); new evidence re-runs the whole chain from S1
-    skipped = set(FIT_STAGES) - {entry} if action == "learn" else set()
+    skipped = set(TRAINING_STAGES) - {entry} if action == "learn" else set()
     queue = [s for s in request.stages if s != "S0" and order.get(s, 99) >= order[entry] and s not in skipped]
     return request, cpf_uri, cpf_sha, queue
+
+
+def _training_stages(request: CampaignRequest) -> tuple[str, ...]:
+    """The training stages this campaign's MAP plans, in order: S1–S3, and SM for a model system with metabolite data
+    (MS-01 v1.3 §6.5)."""
+    text = _local_text(request.map_uri) if request.map_uri else None
+    planned = {p.get("stage") for p in json.loads(text).get("stage_plan", [])} if text else set()
+    return tuple(s for s in TRAINING_STAGES if s in FIT_STAGES or s in planned)
 
 
 def _request_from_spec(spec: dict) -> CampaignRequest:
