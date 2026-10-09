@@ -2,7 +2,8 @@
 
 Status: **design only (2026-10-06)**, scoped in worktree branch `claude/vbe-template`; no VBE code is written yet.
 Spec sources: `docs/ARCHITECTURE_PACK.md` F-304 and APP-11/APP-14; `requirements/app_vbe.yaml` (REQ-vbe.*);
-`templates/analysis/ddi-cyp3a4-victim.yaml` (the template format to follow).
+`pbpk_domain/analysis_templates/ddi-cyp3a4-victim.yaml` (the template format to follow; moved from `templates/analysis/`
+on 2026-10-09).
 
 ## What already exists
 - `pbpk_domain.bioequivalence`: paired crossover 90 % CI (`paired_crossover_ci`), `probability_of_success`.
@@ -17,7 +18,7 @@ Spec sources: `docs/ARCHITECTURE_PACK.md` F-304 and APP-11/APP-14; `requirements
 ## Build order
 1. ~~**Confirm the Weibull release equation on PK-Sim**~~ (done 2026-10-09, PR #44: the OSP Dapagliflozin IC
    tablet's dissolved fraction vs `weibull_fraction`; `ENGINE_CONFIRMED = True`). VBE rests on it.
-2. **Template** `templates/analysis/vbe-crossover.yaml` (DRAFT, UNVERIFIED): requires a validated oral model, TEST and
+2. ~~**Template**~~ (done 2026-10-09, B6 PR 1, decision D-26) `pbpk_domain/analysis_templates/vbe-crossover.yaml` (DRAFT, UNVERIFIED): requires a validated oral model, TEST and
    RLD CPF formulations (`form.{name}.*`), intra-subject variability (parameter, CV, source — REQ-vbe.variability,
    never defaulted to invented numbers), design (n subjects, K trials, limits 0.80–1.25, 90 % CI, seed).
 3. **Signed MAP carries the application** (`MapDocument.applications`, excluded from the content hash when empty so

@@ -1,0 +1,81 @@
+# Analysis Template: virtual bioequivalence, a two-way crossover of a TEST product against its reference (RLD)
+# (APP-11, APP-14; design docs/plans/2026-10-06-t31-vbe-template.md).
+# DRAFT, UNVERIFIED (owner-approved 2026-10-09, decision D-26): the limits, the design inputs and the variability gate
+# await PBPK SME + QA sign-off. Every input the decision depends on is the person's to give: none is defaulted, because a
+# made-up variability or trial size would decide the probability of success.
+id: vbe-crossover
+version: 0.1.0-draft
+applies_to: [APP-11, APP-14]
+status: DRAFT
+
+requires:
+  model:
+    status: EVALUATED          # S4 and S5 signed: VBE runs at S6 from the final CPF
+    route: oral
+  formulations: [test, reference]
+  data: [REQ-vbe.rld_dissolution, REQ-vbe.be_study, REQ-vbe.variability]
+
+inputs:
+  - {id: test_formulation, label: "TEST formulation (a CPF formulation, form.{name}.*)", kind: formulation}
+  - {id: reference_formulation, label: "Reference (RLD) formulation (a CPF formulation)", kind: formulation}
+  - id: variability
+    label: "Intra-subject variability: per model parameter, its CV and its source"
+    kind: variability
+    never_default: true
+    note: >-
+      REQ-vbe.variability. Each arm of a virtual subject is a separate occasion: the parameter is multiplied by a seeded
+      log-normal factor of this CV. The parameter path is harvested from the oral simulation, never typed; the CV and
+      its source come from a cited crossover study or the client's data.
+  - {id: n_subjects, label: "Subjects per virtual trial", kind: integer, never_default: true}
+  - {id: n_trials, label: "Virtual trials", kind: integer, never_default: true}
+  - {id: seed, label: "Random seed (recorded in the MAP)", kind: integer, never_default: true}
+  - {id: pos_threshold, label: "Probability of BE success the decision needs", kind: fraction, never_default: true}
+  - id: limits
+    label: "Bioequivalence limits on the 90 % CI of the geometric mean ratio"
+    kind: limits
+    default: standard
+    note: "standard unless the drug has a narrow therapeutic index (nti, [VERIFY])"
+
+limits:
+  standard:
+    lower: 0.80
+    upper: 1.25
+    ci_level: 0.90
+    verified: true
+    source: "FDA and EMA bioequivalence guidance: the 90 % CI of the GMR within 80.00–125.00 % (AUC and Cmax)"
+  nti:
+    lower: 0.90
+    upper: 1.1111
+    ci_level: 0.90
+    verified: false
+    source: "[VERIFY] EMA narrow therapeutic index: 90.00–111.11 %; the FDA scales by reference variability instead"
+
+steps:
+  - id: populations
+    uses: engine.population
+    with: {arms: [test, reference], shared_individuals: true, occasion_seed_per_arm: true}
+  - id: pk
+    uses: engine.pk_analyses
+    with: {metrics: [AUC_inf, C_max]}       # PK-Sim's own PK parameter names (harvested catalog)
+  - id: trials
+    uses: pbpk_domain.bioequivalence.paired_crossover_ci
+  - id: probability
+    uses: pbpk_domain.bioequivalence.probability_of_success
+  - id: validation_gate
+    uses: gate.vbe_variability              # F-304; without observed BE data the result is "not validated" (D-19)
+    with: {data: REQ-vbe.be_study}
+  - id: evaluation_review
+    uses: gate.review
+    with: {meaning: Reviewed, roles: [scientific_reviewer]}
+
+default_technical_criteria:
+  - {metric: be_90ci_within_limits, per: trial}
+  - {metric: probability_of_success, threshold: "input:pos_threshold"}
+  - {metric: simulated_vs_observed_between_subject_cv, threshold: "[VERIFY] within 1.5-fold"}
+  - {metric: observed_gmr_within_simulated_5_95, threshold: required}
+
+report_sections:
+  - data_and_methods.vbe
+  - results.vbe_trials
+  - results.vbe_probability
+  - discussion.vbe

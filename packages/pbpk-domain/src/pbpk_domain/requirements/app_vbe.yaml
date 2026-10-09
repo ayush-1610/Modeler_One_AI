@@ -1,7 +1,11 @@
 # Virtual bioequivalence / dissolution safe space (APP-11, APP-14): generic products against the RLD.
 # Status UNVERIFIED (owner-approved plan 2026-10-05; awaiting SME sign-off).
+# 2026.2-draft (2026-10-09, the owner's decision D-26, UNVERIFIED): the intra-subject variability has no default
+#     provider (NOT_STATED). The data plan says who gives it, a cited crossover study or the client, because it decides
+#     the virtual trials' probability of success and is never an invented or assumed number (analysis template
+#     vbe-crossover).
 id: req-app-vbe
-version: "2026.1-draft"
+version: "2026.2-draft"
 status: UNVERIFIED
 applies_to: [APP-11, APP-14]
 items:
@@ -12,7 +16,7 @@ items:
      group: VBE, criticality: REQUIRED, data_category: rld_data, default_provider: CLIENT, needed_for: [S5, S6],
      purpose: external_validation}
   - {id: REQ-vbe.variability, label: Intra- and inter-subject variability of AUC and Cmax, kind: parameter, target: variability,
-     group: VBE, criticality: REQUIRED, data_category: rld_data, default_provider: LITERATURE, needed_for: [S6],
+     group: VBE, criticality: REQUIRED, data_category: rld_data, default_provider: NOT_STATED, needed_for: [S6],
      purpose: application_verification}
   - {id: REQ-vbe.criteria, label: BE criteria (90 % CI of the GMR within 80–125 %), kind: parameter, target: be_limits,
      group: VBE, criticality: REQUIRED, data_category: other, default_provider: PROPOSAL, needed_for: [S6]}
