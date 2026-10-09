@@ -14,7 +14,6 @@ and the brief is approved by a named reviewer (D-07: a simple approval, "Reviewe
 from __future__ import annotations
 
 import re
-import threading
 import uuid
 from typing import Annotated, Any, Literal
 
@@ -22,7 +21,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from modeler_api import agent_jobs
+from modeler_api import agent_jobs, jobs
 from modeler_api.auth import Principal, require_project
 from modeler_api.config import SettingsDep
 from modeler_api.deps import Reader, StoreDep, Writer, impact_view, version_view, workspace_for
@@ -54,8 +53,6 @@ from modeler_storage.records import ProjectRecord
 
 router = APIRouter(prefix="/api/v1", tags=["brief"])
 
-_RUNNING: set[tuple[str, str]] = set()
-_RUNNING_LOCK = threading.Lock()
 
 
 def _slug(name: str) -> str:
@@ -152,21 +149,13 @@ def _start_extraction(store: ProjectStore, principal: Principal, project_id: str
     model, problem = agent_jobs.chat_model()
     if model is None and problem is None:
         problem = "agents are off: identity resolved; fill the rest of the brief by hand"
-    key = (principal.tenant_id, project_id)
-    with _RUNNING_LOCK:
-        if key in _RUNNING:
-            raise HTTPException(status_code=409, detail="an extraction is already running for this project")
-        _RUNNING.add(key)
 
     def job() -> None:
-        try:
-            run_extraction(store, principal.tenant_id, project_id, by=principal.user_id, context_note=context_note,
-                           model=model)
-        finally:
-            with _RUNNING_LOCK:
-                _RUNNING.discard(key)
+        run_extraction(store, principal.tenant_id, project_id, by=principal.user_id, context_note=context_note,
+                       model=model)
 
-    threading.Thread(target=job, name=f"extract-{project_id}", daemon=True).start()
+    jobs.start(store, principal.tenant_id, project_id, "extraction", job,
+               busy="an extraction is already running for this project", name=f"extract-{project_id}")
     return {"started": True, "agents": model is not None, "problem": problem}
 
 
@@ -275,7 +264,7 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
         "artifact": version_view(ws, version, with_content=False), "brief": brief.to_content(),
         "issues": [{"code": i.code, "path": i.path, "message": i.message} for i in issues],
         "blocking": len(issues), "summary": summary(brief), "catalog": catalog(),
-        "agents": agent_jobs.agents_status(), "extraction_running": (ws.tenant_id, ws.project_id) in _RUNNING,
+        "agents": agent_jobs.agents_status(), "extraction_running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "extraction"),
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "provider", "model", "started_at", "finished_at",
                                          "summary")} for r in runs[:5]],
     }

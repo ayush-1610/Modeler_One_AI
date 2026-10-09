@@ -59,6 +59,7 @@ testpaths = [
   "packages/data-intake/tests",
   "packages/run-contracts/tests",
   "packages/project-model/tests",
+  "packages/storage/tests",
   "services/api/tests",
   "services/engine-worker/tests",
   "services/agents/tests",

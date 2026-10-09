@@ -2,18 +2,20 @@
 
 Layout ``<root>/<tenant>/agent_runs/<run_id>/run.json`` (the run, rewritten on finish) and ``steps.jsonl`` (one
 immutable line per step). The Postgres `agent_runs` / `agent_steps` tables implement the same protocol (T-20).
+
+`run.json` is replaced atomically and every change to it, or append to `steps.jsonl`, holds that file's lock across
+threads and processes (phase 8): a page reading a run while the agent records it never sees half a file.
 """
 
 from __future__ import annotations
 
 import json
-import threading
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-_LOCK = threading.Lock()
+from pbpk_domain.atomic_io import atomic_write_text, file_lock
 
 
 class FileRunStore:
@@ -38,36 +40,41 @@ class FileRunStore:
                   "provider": provider, "model": model, "campaign_id": campaign_id, "budget": budget,
                   "status": "RUNNING", "started_at": datetime.now(UTC).isoformat(), "finished_at": None,
                   "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "summary": {}, "proposals": []}
-        (folder / "run.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
+        atomic_write_text(folder / "run.json", json.dumps(record, indent=2))
         return run_id
 
     def record_step(self, *, run_id: str, seq: int, kind: str, content: dict[str, Any], usage: dict[str, int]) -> None:
         folder = self._dir(self._tenant_of(run_id), run_id)
         line = json.dumps({"seq": seq, "kind": kind, "at": datetime.now(UTC).isoformat(), "content": content,
                            "usage": usage}, ensure_ascii=False, default=str)
-        with _LOCK, (folder / "steps.jsonl").open("a", encoding="utf-8") as handle:
+        with file_lock(folder / "steps.jsonl"), (folder / "steps.jsonl").open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
 
     def record_proposal(self, *, run_id: str, parameter_id: str, value: str | None, unit: str | None,
                         citation: dict[str, Any]) -> str:
-        record = self.get(run_id)
-        proposal_id = f"{run_id}-p{len(record['proposals']) + 1}"
-        record["proposals"].append({"proposal_id": proposal_id, "parameter_id": parameter_id, "value": value,
-                                    "unit": unit, "citation": citation})
-        self._write(record)
+        with self._locked(run_id):
+            record = self.get(run_id)
+            proposal_id = f"{run_id}-p{len(record['proposals']) + 1}"
+            record["proposals"].append({"proposal_id": proposal_id, "parameter_id": parameter_id, "value": value,
+                                        "unit": unit, "citation": citation})
+            self._write(record)
         return proposal_id
 
     def finish_run(self, *, run_id: str, status: str, input_tokens: int, output_tokens: int, cost_usd: float,
                    summary: dict[str, Any]) -> None:
-        record = self.get(run_id)
-        record.update(status=status, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost_usd,
-                      summary=summary, finished_at=datetime.now(UTC).isoformat())
-        self._write(record)
+        with self._locked(run_id):
+            record = self.get(run_id)
+            record.update(status=status, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost_usd,
+                          summary=summary, finished_at=datetime.now(UTC).isoformat())
+            self._write(record)
+
+    def _locked(self, run_id: str):
+        """The lock on a run's record, held across its read-modify-write."""
+        return file_lock(self._dir(self._tenant_of(run_id), run_id) / "run.json")
 
     def _write(self, record: dict[str, Any]) -> None:
         path = self._dir(record["tenant_id"], record["run_id"]) / "run.json"
-        with _LOCK:
-            path.write_text(json.dumps(record, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+        atomic_write_text(path, json.dumps(record, indent=2, ensure_ascii=False, default=str))
 
     # --- reads ----------------------------------------------------------------------------------------------
 

@@ -13,14 +13,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import threading
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from modeler_api import agent_jobs
+from modeler_api import agent_jobs, jobs
 from modeler_api.auth import Principal, ensure_step_up, require_role
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep, get_settings
@@ -59,8 +58,6 @@ from pbpk_domain.cpf.models import CPF
 
 router = APIRouter(prefix="/api/v1", tags=["plan"])
 MiddLead = Annotated[Principal, Depends(require_role("modeler-reviewer"))]
-_RUNNING: set[tuple[str, str]] = set()
-_LOCK = threading.Lock()
 
 
 def _inputs(ws: Workspace) -> tuple[CPF, list[dict[str, Any]], list[Any]]:
@@ -173,7 +170,7 @@ def _view(ws: Workspace, version, plan: ModelPlan, cpf: CPF, rows: list[dict[str
         "signed": bool(latest and latest[1].signed),
         "deviations": [d.model_dump(mode="json") for d in plan.deviations],
         "deviations_pending": len(plan.pending_deviations()),
-        "agents": agent_jobs.agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
+        "agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "planning"),
     }
 
 
@@ -388,21 +385,13 @@ def start_draft(project_id: str, principal: Writer, store: StoreDep) -> dict[str
     ws = workspace_for(project_id, principal, store)
     _ensure(ws, principal.user_id)
     model = agent_jobs.require_chat_model("agents are off: the MS-01 default stands; explain changes yourself")
-    key = (principal.tenant_id, project_id)
-    with _LOCK:
-        if key in _RUNNING:
-            raise HTTPException(status_code=409, detail="A5 is already drafting")
-        _RUNNING.add(key)
     exploratory = _exploratory(ws)
 
     def job() -> None:
-        try:
-            run_planning_job(store, principal.tenant_id, project_id, model=model, exploratory=exploratory)
-        finally:
-            with _LOCK:
-                _RUNNING.discard(key)
+        run_planning_job(store, principal.tenant_id, project_id, model=model, exploratory=exploratory)
 
-    threading.Thread(target=job, daemon=True).start()
+    jobs.start(store, principal.tenant_id, project_id, "planning", job, busy="A5 is already drafting",
+               name=f"plan-{project_id}")
     return envelope({"status": "RUNNING"})
 
 

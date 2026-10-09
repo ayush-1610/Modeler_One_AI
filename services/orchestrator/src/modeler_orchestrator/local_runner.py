@@ -1142,7 +1142,10 @@ def resolve_escalation(
 
     request = CampaignRequest(**resume["request"])
     writer = CampaignArtifactWriter.from_campaign(write, tenant_id, campaign)
-    write.remove_escalation(tenant_id, f"{campaign_id}-{stage}")  # the decision resolves it
+    # the decision resolves it; removing it is the claim, so a second decision on the same escalation (another worker,
+    # a double click) is refused instead of running the campaign twice
+    if not write.remove_escalation(tenant_id, f"{campaign_id}-{stage}"):
+        raise ValueError(f"the escalation of campaign {campaign_id} at stage {stage} has already been decided")
     completed = list(resume.get("completed_stages", []))
     cpf_uri, cpf_sha = resume["cpf_uri"], resume["cpf_sha256"]
 

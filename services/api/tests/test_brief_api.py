@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from modeler_agents.llm import ChatResult, ToolCall
-from modeler_api import brief_api, project_api
+from modeler_api import brief_api, jobs, project_api
 from modeler_api.auth import get_verifier
 from modeler_api.main import app
 from modeler_project import FileProjectStore
@@ -175,7 +175,7 @@ def test_documents_extraction_items_and_questions_answer_through_their_typed_mod
     started = c.post(f"/api/v1/projects/{pid}/brief:extract", headers=H, json={"context_note": "annex added"})
     assert started.status_code == 202 and started.json()["data"]["agents"] is False
     for _ in range(100):  # the background job ends at once; wait so it never overlaps the edits below
-        if started_jobs and ("t1", pid) not in brief_api._RUNNING:
+        if started_jobs and not jobs.running(store, "t1", pid, "extraction"):
             break
         time.sleep(0.01)
     assert started_jobs[0]["context_note"] == "annex added"
@@ -198,3 +198,23 @@ def test_documents_extraction_items_and_questions_answer_through_their_typed_mod
               reason="question raised")
     answered = c.post(f"/api/v1/projects/{pid}/brief/questions/q1", headers=H, json={"answer": "50 mg"}).json()["data"]
     assert answered["summary"]["open_questions"] == 0
+
+
+def test_an_extraction_running_on_another_worker_is_shown_and_not_started_twice(client):
+    # phase 8 (C8): the job's lease lives under the store's root, so a worker that did not start it sees it running
+    # and refuses a second start with the same 409 (a lease another worker renewed just now)
+    import json as _json
+    from datetime import UTC, datetime
+
+    from modeler_storage.jobs import FileJobRegistry
+
+    c, store = client
+    pid = _initiate(c)
+    lease = FileJobRegistry(store.root)._path("t1", pid, "extraction")
+    lease.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(UTC).isoformat()
+    lease.write_text(_json.dumps({"owner": "worker-2:4242:x", "host": "worker-2", "pid": 4242, "started_at": now,
+                                  "heartbeat_at": now}))
+    assert c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]["extraction_running"] is True
+    second = c.post(f"/api/v1/projects/{pid}/brief:extract", headers=H, json={"context_note": ""})
+    assert second.status_code == 409 and "already running" in second.json()["detail"]

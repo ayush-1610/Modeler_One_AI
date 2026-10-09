@@ -8,13 +8,12 @@ evidence or is recorded as not available, and the register snapshot is approved 
 
 from __future__ import annotations
 
-import threading
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from modeler_api import agent_jobs
+from modeler_api import agent_jobs, jobs
 from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
 from modeler_api.responses import answers, envelope
 from modeler_api.views.evidence import EvidenceChoice, EvidenceCorrection, EvidencePage, ResearchStart
@@ -42,8 +41,6 @@ from modeler_project.evidence_register import (
 from modeler_project.requirements import RequirementMatrix, literature_items
 
 router = APIRouter(prefix="/api/v1", tags=["evidence"])
-_RUNNING: set[tuple[str, str]] = set()
-_LOCK = threading.Lock()
 
 
 def _matrix(ws: Workspace) -> tuple[Any, RequirementMatrix]:
@@ -77,7 +74,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "blocking": [r.req_id for r in blocking(rows)],
         "access_requests": access_requests(ws),
         "register": version_view(ws, register, with_content=False) if register else None,
-        "agents": agent_jobs.agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
+        "agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "research"),
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "model", "started_at", "finished_at", "summary")}
                  for r in runs[:5]],
     }
@@ -113,20 +110,12 @@ def start_research(project_id: str, principal: Writer, store: StoreDep, agent: L
     ws = workspace_for(project_id, principal, store)
     _matrix(ws)
     model = agent_jobs.require_chat_model("agents are off: enter the evidence by hand (Add a value)")
-    key = (principal.tenant_id, project_id)
-    with _LOCK:
-        if key in _RUNNING:
-            raise HTTPException(status_code=409, detail="a literature run is already in progress")
-        _RUNNING.add(key)
 
     def job() -> None:
-        try:
-            run_research_job(store, principal.tenant_id, project_id, model=model, agent=agent)
-        finally:
-            with _LOCK:
-                _RUNNING.discard(key)
+        run_research_job(store, principal.tenant_id, project_id, model=model, agent=agent)
 
-    threading.Thread(target=job, name=f"research-{project_id}", daemon=True).start()
+    jobs.start(store, principal.tenant_id, project_id, "research", job, busy="a literature run is already in progress",
+               name=f"research-{project_id}")
     return envelope({"started": True, "provider": model.provider, "model": model.model})
 
 

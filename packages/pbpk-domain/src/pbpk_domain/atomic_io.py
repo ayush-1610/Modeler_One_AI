@@ -8,11 +8,15 @@ is a same-filesystem rename), is flushed and ``fsync``-ed, then ``os.replace`` s
 
 `atomic_output` serves writers that are external programs (pandoc, typst): they write the temporary path, and it is
 swapped in only when they succeed.
+
+`file_lock` serializes a read-modify-write of one document across threads and processes (phase 8: two API workers, or
+an agent job beside a request, upserting one collection would otherwise lose an update).
 """
 
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import os
 import tempfile
 from collections.abc import Iterator
@@ -67,3 +71,19 @@ def atomic_write_bytes(path: str | Path, data: bytes) -> None:
 def atomic_write_text(path: str | Path, text: str, encoding: str = "utf-8") -> None:
     """Replace ``path`` with ``text`` atomically."""
     atomic_write_bytes(path, text.encode(encoding))
+
+
+@contextlib.contextmanager
+def file_lock(path: str | Path) -> Iterator[None]:
+    """Hold an exclusive lock on ``path`` (an ``flock`` on ``<path>.lock``) for the block, across threads and processes.
+
+    Not reentrant: a block that already holds the lock on ``path`` must not take it again."""
+    lock = Path(path)
+    lock = lock.with_name(lock.name + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock, "a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)

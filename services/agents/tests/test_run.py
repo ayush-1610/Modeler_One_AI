@@ -136,3 +136,21 @@ def test_cannot_record_after_finish():
     run.finish(RunStatus.COMPLETED)
     with pytest.raises(RuntimeError, match="cannot record"):
         run.record("assistant", {"text": "late"}, Usage(1, 1))
+
+
+def test_concurrent_proposals_on_one_run_are_all_recorded(tmp_path):
+    # phase 8: a run's record is read, changed and replaced under its file lock, so writers never lose a proposal
+    import threading
+
+    from modeler_agents.run_store import FileRunStore
+
+    store = FileRunStore(tmp_path, project_id="p1")
+    run_id = store.start_run(tenant_id="t1", agent="A2", provider="test", model="scripted", campaign_id=None, budget={})
+    threads = [threading.Thread(target=store.record_proposal, kwargs=dict(run_id=run_id, parameter_id=f"p{i}", value="1",
+                                                                          unit=None, citation={}))
+               for i in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(p["parameter_id"] for p in store.get(run_id)["proposals"]) == sorted(f"p{i}" for i in range(20))
