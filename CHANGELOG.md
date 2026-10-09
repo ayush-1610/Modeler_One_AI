@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the response-model ratchet covers every router (architecture phase 9a; locked file, owner-approved)
+- **What:**
+  - **Ratchet coverage:** `tests/architecture/test_response_models.py` now checks every router.
+    `[response] routers` in the locked `boundaries.toml` adds `plan_api`, `campaign_api`, `read_api`, `results_api`,
+    `signatures_api`, `templates_api`, `write_api` and `system_api`.
+  - **Untyped rule:** a route without a pydantic response model now counts as untyped. Only a handler annotated to
+    return a `Response` (a file download) is exempt. Before, the test took any route without a response model for a
+    file, so `read_api`, `templates_api` and the routes in `main.py` were never counted. The two download handlers
+    that had no annotation (`documents/{sha}/raw`, `campaigns/{id}/package/{artifact}`) now say `-> FileResponse`.
+  - **Open answers:** a second list, `[response] open`, records the routes typed only as an envelope of an open
+    object (`Envelope[dict[str, Any]]`).
+  - **Recorded lists:** today's 37 untyped routes and 5 open answers are written to `boundaries.toml`. Both lists only
+    shrink. The locked hash is refreshed.
+  - **`system_api` router:** the 4 routes that lived on the app in `main.py` (`/health`, `model-versions/preview`,
+    `m15/validate`, `runs`) move unchanged to a new router, `modeler_api.system_api`, where the ratchet sees them.
+- **Why:** rule B2 and the owner's decision of 2026-10-08 to type every remaining route (plan
+  `docs/plans/2026-10-09-phase-9-typed-api.md`). Without these lists, nothing stopped a new untyped route in
+  those routers.
+- **Impact:** no behaviour change. The paths, handlers and answers are unchanged, and the OpenAPI snapshot is
+  identical.
+
 ### Changed — one stylesheet per feature; phase 7 done (architecture phase 7d, CSS)
 - **What:** `apps/web/app/globals.css` now holds only the base: tokens, type, layout, the shared components, and the
   few review classes several pages use (tabs, citations, editors, quotes, flags). Each feature's rules moved to their
