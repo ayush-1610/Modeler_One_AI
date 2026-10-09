@@ -455,7 +455,7 @@
     },
     {
       "path": "services/engine-worker/golden/weibull_check.R",
-      "sha256": "651f0abdc7c643f8653df0189988475e9fb28298154238565ffcd16acef5c78e"
+      "sha256": "2be6c0eeda3be4afb7972124b67825b40bd4b5628bf0fac111d697775edb5a61"
     },
     {
       "path": "services/engine-worker/r/benchmark.R",

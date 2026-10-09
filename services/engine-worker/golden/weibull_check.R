@@ -29,14 +29,18 @@ pkml <- list.files(run_dir, pattern = "\\.pkml$", full.names = TRUE, recursive =
 if (length(pkml) != 1) stop(sprintf("expected one exported simulation, found %d", length(pkml)))
 sim <- loadSimulation(pkml[[1]], loadFromCache = FALSE)
 
+# The formulation lives under the protocol's events (its Weibull parameters are at
+# "Events|<protocol>|<formulation>|Dissolution time (50% dissolved)"); its dissolved fraction is a quantity whose name
+# says so. Every path is searched; the 50 %-time parameter is not the fraction.
 paths <- getAllQuantityPathsIn(sim)
-applications <- paths[startsWith(paths, "Applications|")]
-dissolved <- applications[grepl("dissolved", applications, ignore.case = TRUE) & grepl("fraction", applications, ignore.case = TRUE)]
+dissolved <- paths[grepl("fraction", paths, ignore.case = TRUE) & grepl("dissolv", paths, ignore.case = TRUE) &
+                   !grepl("Dissolution time", paths, fixed = TRUE)]
 if (length(dissolved) == 0) {
-  cat("no dissolved-fraction quantity among the application paths:\n", paste(applications, collapse = "\n"), "\n")
+  formulation <- paths[grepl("Chang 2015", paths, fixed = TRUE) | grepl("dissolv", paths, ignore.case = TRUE)]
+  cat("no dissolved-fraction quantity; the formulation's paths:\n", paste(formulation, collapse = "\n"), "\n")
   stop("the formulation's dissolved fraction was not found")
 }
-cat("dissolved-fraction quantity:", dissolved[[1]], "\n")
+cat("dissolved-fraction quantities:\n", paste(dissolved, collapse = "\n"), "\n")
 
 clearOutputs(sim)
 addOutputs(dissolved[[1]], sim)
