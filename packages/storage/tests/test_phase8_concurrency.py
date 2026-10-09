@@ -87,6 +87,7 @@ def test_a_background_job_holds_its_lease_while_it_runs_and_releases_it_after(tm
     assert not registry.running("t1", "p1", "planning")
 
 
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")  # the job fails on purpose
 def test_a_failing_background_job_still_releases_its_lease(tmp_path):
     registry = FileJobRegistry(tmp_path)
 
