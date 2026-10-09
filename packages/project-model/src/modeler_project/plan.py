@@ -25,7 +25,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
 from modeler_project.brief import ProjectBrief
 from modeler_project.workspace import Workspace
-from pbpk_domain.campaign.map import FIT_STAGES, S5_CLASSES, STAGE_PLAN, MapDocument, generate_map, training_stages
+from pbpk_domain.campaign.map import (
+    FIT_STAGES,
+    S5_CLASSES,
+    STAGE_PLAN,
+    MapApplication,
+    MapDocument,
+    generate_map,
+    training_stages,
+)
 from pbpk_domain.campaign.split import (
     FLAGGED_CLASSES,
     Assignment,
@@ -111,6 +119,7 @@ class Structure(BaseModel):
     food_effect_in_question: bool = False
     measured_fed_solubility: bool = False
     planned_applications: tuple[str, ...] = ()   # flagged classes with a planned S6 application (MS-01 rule 4)
+    applications: tuple[MapApplication, ...] = ()  # the analysis templates S6 runs (T-31), with the person's inputs
     locked: tuple[str, ...] = ()                  # structure keys a person set (userLocked)
     reasons: dict[str, str] = Field(default_factory=dict)
 
@@ -190,6 +199,9 @@ class ModelPlan(BaseModel):
         return found
 
 
+# The brief's applications whose analysis template S6 runs: the plan starts each with no inputs, and the validator
+# names every one the person still has to give (T-31; a never-defaulted input is never filled in).
+_RUNNABLE_TEMPLATES = {"APP-14": "vbe-crossover"}
 # Which flagged study class verifies which application of the brief (MS-01 §3.3 rule 4: planned applications).
 _APPLICATION_CLASSES = {"APP-03": "DDI", "APP-04": "DDI", "APP-13": "DDI", "APP-05": "PGX", "APP-06": "SPECIAL",
                         "APP-07": "SPECIAL", "APP-08": "SPECIAL", "APP-09": "SPECIAL", "APP-10": "SPECIAL",
@@ -209,7 +221,9 @@ def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility:
                      context_of_use=str((brief.value("qoi.context_of_use") if brief else None) or Structure().context_of_use),
                      model_risk=tier if tier in ("low", "medium", "high") else "medium",
                      food_effect_in_question="APP-12" in apps, measured_fed_solubility=measured_fed_solubility,
-                     planned_applications=tuple(sorted({_APPLICATION_CLASSES[a] for a in apps if a in _APPLICATION_CLASSES})))
+                     planned_applications=tuple(sorted({_APPLICATION_CLASSES[a] for a in apps if a in _APPLICATION_CLASSES})),
+                     applications=tuple(MapApplication.pinned(_RUNNABLE_TEMPLATES[a]) for a in sorted(apps)
+                                        if a in _RUNNABLE_TEMPLATES))
 
 
 # --- the default (MS-01, exactly as generate_map) --------------------------------------------------------------
@@ -249,7 +263,7 @@ def default_map(cpf: CPF, rows: list[dict[str, Any]], structure: Structure, *, s
                        context_of_use=structure.context_of_use, food_effect_in_question=structure.food_effect_in_question,
                        model_risk=Rating(structure.model_risk), engine_image_digest=ENGINE_DIGEST,
                        software_versions={"ospsuite": "12.4.4"}, sampling_end_h=_sampling_end_h(rows),
-                       campaign_budget_seconds=campaign_budget_seconds)
+                       campaign_budget_seconds=campaign_budget_seconds, applications=structure.applications)
     return doc, split
 
 
@@ -401,6 +415,9 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
         trained = [st for st in fit.stages if any(r == st for r in roles.values())]
         if not trained:
             add("warning", "fit-data", pid, f"{pid}: no study trains {', '.join(fit.stages)}, so nothing will fit it")
+    for application in plan.structure.applications:
+        for line in application.problems(cpf):
+            add("error", "application", application.template, line)
     return out
 
 
@@ -443,6 +460,11 @@ def set_structure(plan: ModelPlan, key: str, value: Any, *, by: str, reason: str
     if not reason.strip():
         raise PlanError("a structure change needs a reason")
     current = plan.structure.model_dump()
+    if key == "applications":  # each pinned at the registry's version of its template; an unknown one is refused
+        try:
+            value = tuple(MapApplication.pinned(a["template"], a.get("inputs")) for a in value)
+        except (KeyError, TypeError) as exc:
+            raise PlanError(f"applications: each names a known analysis template and its inputs ({exc})") from exc
     current[key] = value
     current["locked"] = tuple(dict.fromkeys([*plan.structure.locked, key]))
     current["reasons"] = {**plan.structure.reasons, key: f"{reason} ({by})"}
@@ -500,7 +522,10 @@ def diff(plan: ModelPlan) -> list[dict[str, Any]]:
         out.append({"kind": "fit", "target": pid, "from": "fixed", "to": f"fitted in {', '.join(fit.stages)} "
                     f"[{fit.lower:g}, {fit.upper:g}] {fit.scale}", "by": fit.by, "reason": fit.reason, "status": "APPLIED"})
     for key in plan.structure.locked:
-        out.append({"kind": "structure", "target": key, "from": "brief / default", "to": getattr(plan.structure, key),
+        to = getattr(plan.structure, key)
+        if key == "applications":
+            to = [f"{a.template} {a.template_version}" for a in to]
+        out.append({"kind": "structure", "target": key, "from": "brief / default", "to": to,
                     "by": "person", "reason": plan.structure.reasons.get(key, ""), "status": "APPLIED"})
     for pr in plan.proposals:
         if pr.status == "PENDING":

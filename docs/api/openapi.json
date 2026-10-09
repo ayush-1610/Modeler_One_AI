@@ -155,6 +155,26 @@
         "title": "AgentsStatus",
         "type": "object"
       },
+      "ApplicationRequest": {
+        "description": "An application the campaign runs at S6 (T-31): an analysis template and the person's inputs to it.",
+        "properties": {
+          "inputs": {
+            "additionalProperties": true,
+            "title": "Inputs",
+            "type": "object"
+          },
+          "template": {
+            "minLength": 1,
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template"
+        ],
+        "title": "ApplicationRequest",
+        "type": "object"
+      },
       "Approval": {
         "properties": {
           "note": {
@@ -900,6 +920,20 @@
         "additionalProperties": false,
         "description": "`campaign:prepare`: the staged CPF, MAP and observed PK a campaign starts from; a model system adds its own.",
         "properties": {
+          "application_problems": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Problems"
+          },
           "compound": {
             "title": "Compound",
             "type": "string"
@@ -7154,10 +7188,43 @@
         "title": "MapAcceptance",
         "type": "object"
       },
+      "MapApplication": {
+        "additionalProperties": false,
+        "description": "An application the question of interest pins (T-31): its analysis template, pinned by version, and the\nperson's inputs to it. An input the template marks ``never_default`` is the person's to give; until it is\ngiven the application names it (`problems`) and the MAP cannot be signed.",
+        "properties": {
+          "inputs": {
+            "additionalProperties": true,
+            "title": "Inputs",
+            "type": "object"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          },
+          "template_version": {
+            "title": "Template Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "template_version"
+        ],
+        "title": "MapApplication",
+        "type": "object"
+      },
       "MapDocument": {
         "properties": {
           "acceptance": {
             "$ref": "#/components/schemas/MapAcceptance"
+          },
+          "applications": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MapApplication"
+            },
+            "title": "Applications",
+            "type": "array"
           },
           "compound": {
             "title": "Compound",
@@ -10013,6 +10080,13 @@
       },
       "PrepareRequest": {
         "properties": {
+          "applications": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationRequest"
+            },
+            "title": "Applications",
+            "type": "array"
+          },
           "compound": {
             "minLength": 1,
             "title": "Compound",
@@ -12721,6 +12795,14 @@
       "Structure": {
         "additionalProperties": false,
         "properties": {
+          "applications": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MapApplication"
+            },
+            "title": "Applications",
+            "type": "array"
+          },
           "context_of_use": {
             "default": "Model-informed decision",
             "title": "Context Of Use",
@@ -12782,6 +12864,7 @@
           "food_effect_in_question",
           "measured_fed_solubility",
           "planned_applications",
+          "applications",
           "locked",
           "reasons"
         ],
@@ -12797,7 +12880,8 @@
               "model_risk",
               "food_effect_in_question",
               "measured_fed_solubility",
-              "planned_applications"
+              "planned_applications",
+              "applications"
             ],
             "title": "Key",
             "type": "string"
