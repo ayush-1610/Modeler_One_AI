@@ -17,7 +17,6 @@ from pbpk_domain.reference.osp_import import import_osp_system
 FIXTURES = Path(__file__).resolve().parents[3] / "services" / "engine-worker" / "golden" / "fixtures"
 pytestmark = pytest.mark.req("T-13")
 
-
 def _map(model: str, *, system: bool = True, budget: int = 3600):
     imported = import_osp_system(json.loads((FIXTURES / f"{model}-Model.json").read_text(encoding="utf-8")))
     fitted = imported.system.parents[0]
@@ -28,7 +27,6 @@ def _map(model: str, *, system: bool = True, budget: int = 3600):
         split=split_studies(studies, QuestionOfInterest()), objective="t", context_of_use="t",
         food_effect_in_question=False, model_risk=Rating.MEDIUM, engine_image_digest="t", software_versions={},
         system=imported.system if system else None, campaign_budget_seconds=budget)
-
 
 def test_internal_metabolite_data_is_fitted_at_sm_and_reported_at_the_parent_stages():
     system, doc = _map("Itraconazole")
@@ -41,7 +39,6 @@ def test_internal_metabolite_data_is_fitted_at_sm_and_reported_at_the_parent_sta
     assert all(s.gated for s in doc.scenarios if s.stage == "S4")
     assert stage_coverage(doc, "SM").kind == "fit" and stage_coverage(doc, "SM").skip_reason is None
 
-
 def test_sm_takes_ten_percent_and_the_other_stages_keep_ninety():
     _system, doc = _map("Itraconazole", budget=10_000)
     budgets = {p.stage: p.budget_seconds for p in doc.stage_plan}
@@ -50,13 +47,11 @@ def test_sm_takes_ten_percent_and_the_other_stages_keep_ninety():
     assert budgets["S1"] == round(10_000 * BUDGET_FRACTION["S1"] * (1 - SM_BUDGET_FRACTION))
     assert abs(sum(budgets.values()) - 10_000) <= len(budgets)
 
-
 def test_a_single_compound_plan_has_no_sm_and_its_budgets_are_unchanged():
     _system, doc = _map("Itraconazole", system=False, budget=10_000)
     budgets = {p.stage: p.budget_seconds for p in doc.stage_plan}
     assert "SM" not in budgets and all(s.stage != "SM" for s in doc.scenarios)
     assert budgets == {stage: round(10_000 * f) for stage, f in BUDGET_FRACTION.items()}
-
 
 def test_every_analyte_is_its_own_acceptance_group():
     comparisons = [Comparison("p1", "AUC", 1.0, 1.0, "fitting", analyte="Itraconazole"),
@@ -66,7 +61,6 @@ def test_every_analyte_is_its_own_acceptance_group():
     assert by["Itraconazole"].passes and not by["Hydroxy-Itraconazole"].passes
     assert not report.passes  # a good parent fit does not hide a failing metabolite
     assert report.ruleset == "pbpk-acceptance-criteria@2026.2-draft"
-
 
 def test_each_analyte_is_split_on_its_own():
     # MS-01 v1.3 §3.3 rule 7: before, Itraconazole's 24 hydroxy studies competed with the parent's in each class and all
@@ -80,6 +74,22 @@ def test_each_analyte_is_split_on_its_own():
     # a single compound's split is unchanged: no prefix, no rule 7
     _s, single = _map("Itraconazole", system=False)
     assert not any("(rule 7)" in line or line.startswith("Itraconazole: ") for line in single.split_rationale)
+
+def test_the_mar_lists_the_model_system():
+    # multi-compound plan §3.5: the report names every compound, product and analyte, and where each analyte is judged
+    from pbpk_domain.report.campaign_mar import assemble_campaign_mar
+    from pbpk_domain.report.mar import check_report
+
+    system, doc = _map("Verapamil")
+    fitted = system.cpf("R-Verapamil")
+    mar = assemble_campaign_mar(map_doc=doc, final_cpf=fitted, stage_evidence={"S1": {"status": "PASSED"}}, system=system)
+    tables = {t.id: t for t in mar.evidence.tables}
+    assert {r[0] for r in tables["system_compounds"].rows} == set(system.roles)
+    assert ("R-Norverapamil", "metabolite", "R-Verapamil (MetabolizationLiverMicrosomes_MM:CYP3A4)") == \
+        tables["system_compounds"].rows[[r[0] for r in tables["system_compounds"].rows].index("R-Norverapamil")][:3]
+    judged = {r[0]: r[2] for r in tables["system_analytes"].rows}
+    assert judged["R-Norverapamil"] == "SM · SJ · S4 · S5"
+    assert "{{table:system_analytes}}" in mar.sections[2].body and not check_report(mar)
 
 
 def test_a_system_refit_frees_a_metabolite_at_sm_and_its_forming_rate_there_too():
@@ -95,3 +105,4 @@ def test_a_system_refit_frees_a_metabolite_at_sm_and_its_forming_rate_there_too(
     parent, _ = refit_cpf(system.cpf("R-Verapamil"), formation=forming)
     assert parent.get("elim.hepatic.CYP3A4@Norverapamil.kcat").fit_policy.stage == ("S1", "S2", "SM")
     assert parent.get("elim.hepatic.CYP3A4@D617.kcat").fit_policy.stage == ("S1", "S2")  # forms no system compound
+

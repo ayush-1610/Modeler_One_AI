@@ -1506,7 +1506,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get System
+         * @description The project's model system (compounds and roles, formation, products with their dose fractions, analytes and
+         *     the stages that judge each, MS-01 v1.3 §6.5), or none for a single-compound project.
+         */
+        get: operations["get_system_api_v1_projects__project_id__system_get"];
         /**
          * Put System
          * @description Relate the project's compounds as one model system (parent, enantiomers, metabolites): roles, formation links,
@@ -3262,6 +3267,13 @@ export interface components {
         /** Envelope[ProjectStarted] */
         Envelope_ProjectStarted_: {
             data: components["schemas"]["ProjectStarted"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[ProjectSystem] */
+        Envelope_ProjectSystem_: {
+            data: components["schemas"]["ProjectSystem"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -5398,6 +5410,18 @@ export interface components {
             /** Project Id */
             project_id: string;
         };
+        /**
+         * ProjectSystem
+         * @description `GET /projects/{id}/system`: the project's model system, or none for a single compound. `links` is the stored
+         *     document a client edits and puts back (`PUT /projects/{id}/system`).
+         */
+        ProjectSystem: {
+            /** Links */
+            links: {
+                [key: string]: unknown;
+            } | null;
+            system: components["schemas"]["SystemDetail"] | null;
+        };
         /** Projects */
         Projects: {
             /** Projects */
@@ -6878,6 +6902,74 @@ export interface components {
             species?: string;
             /** Weight Kg */
             weight_kg?: number | null;
+        };
+        /**
+         * SystemAnalyte
+         * @description What a study can measure, and where MS-01 v1.3 judges it (§6.5).
+         */
+        SystemAnalyte: {
+            /** Informs */
+            informs: string[];
+            /** Judged At */
+            judged_at: string[];
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /**
+             * Note
+             * @default
+             */
+            note?: string;
+        };
+        /** SystemCompound */
+        SystemCompound: {
+            /** Compound */
+            compound: string;
+            /** Has Cpf */
+            has_cpf: boolean;
+            /** Role */
+            role: string;
+        };
+        /** SystemDetail */
+        SystemDetail: {
+            /** Analytes */
+            analytes: components["schemas"]["SystemAnalyte"][];
+            /** Compounds */
+            compounds: components["schemas"]["SystemCompound"][];
+            /** Fitted */
+            fitted: string;
+            /** Formation */
+            formation: components["schemas"]["SystemFormation"][];
+            /** Name */
+            name: string;
+            /**
+             * Problem
+             * @default
+             */
+            problem?: string;
+            /** Products */
+            products: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Sha256 */
+            sha256: string | null;
+        };
+        /**
+         * SystemFormation
+         * @description A process of `compound` that forms `metabolite` (the published model's `Metabolite` link).
+         */
+        SystemFormation: {
+            /** Compound */
+            compound: string;
+            /** Data Source */
+            data_source: string;
+            /** Metabolite */
+            metabolite: string;
+            /** Process */
+            process: string;
         };
         /**
          * SystemView
@@ -10182,6 +10274,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_StudiesStored_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_system_api_v1_projects__project_id__system_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ProjectSystem_"];
                 };
             };
             /** @description Validation Error */

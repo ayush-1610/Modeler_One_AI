@@ -15,6 +15,39 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the model system on the project page, in the upload form and in the MAR (multi-compound phase 3, B5 PR 4)
+- **What:**
+  - **`GET /projects/{id}/system`** (`ProjectSystem`, `modeler_api.system_view`): the project's model system, or none
+    for a single compound. It lists:
+    - every compound with its role, and whether its CPF is there;
+    - the formation links;
+    - the products with each compound's dose fraction;
+    - each analyte, with the compounds it informs and the stages that judge it (MS-01 v1.3 §6.5);
+    - the stored links, which a client edits and puts back.
+
+    API contract: `docs/api/openapi.json` and the generated web types.
+  - **System panel** on the project page (`components/system/SystemPanel.tsx`): the compounds, formation, products and
+    analytes. The dose fraction of every product is edited in place and saved through `PUT /projects/{id}/system`.
+    An empty or non-positive fraction is refused before it is sent, because it is never defaulted (owner decision 2).
+  - **Data intake:** in a project with a system, each uploaded study names the analyte it measures (each option says
+    where it is judged) and the product it gives. Both are chosen, never guessed, and the study is not saved without
+    them.
+  - **MAR §3 lists the model system** (multi-compound plan §3.5), as of the final CPF from the bundle's
+    `cpf/system.json`:
+    - each compound's role, what forms it, and its CPF version and content hash;
+    - every product's dose fractions;
+    - each analyte, with the compounds it informs and where it is judged;
+    - the system's content hash.
+- **Why:** phase 3 of the multi-compound plan. A person can now see and correct what a system campaign simulates and
+  judges, and the report says it.
+- **Impact:** single-compound projects show no panel, and the upload form and the MAR are unchanged for them.
+- **Tests:**
+  - `test_model_system_campaign.py`: the panel's read;
+  - `test_metabolite_stage.py`: the MAR tables;
+  - `e2e/model-system.spec.ts`: the panel, a refused empty fraction, a saved one, and the upload form's analyte and
+    product choices;
+  - browser flows: 15 of 15 pass.
+
 ### Added — the reference refit frees every compound of a model system (`reference/refit.py`, `run_reference.py`)
 - **What:** `run_reference.py campaign <model> --mode refit --system` frees each compound's identified parameters,
   shifted and bounded as approved on 2026-09-24.

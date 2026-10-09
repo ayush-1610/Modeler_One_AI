@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { Card } from "@/components/ui";
+import { useResource } from "@/lib/hooks";
 import { uploadStudies } from "@/lib/writes";
 
 const SAMPLE_CSV = `time_min,conc_umol_l
@@ -43,6 +44,11 @@ export function DataIntake({ projectId }: { projectId: string }) {
   const [origin, setOrigin] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ kind: "ok" | "err"; message: string } | null>(null);
+  // a model system: each study names what it measures and the product it gives (MS-01 v1.3 §6.5); chosen, not guessed
+  const { data: systemData } = useResource("/api/v1/projects/{project_id}/system", { project_id: projectId });
+  const system = systemData?.system ?? null;
+  const [analyte, setAnalyte] = useState("");
+  const [product, setProduct] = useState("");
 
   const table = useMemo(() => parseTable(text), [text]);
 
@@ -70,7 +76,8 @@ export function DataIntake({ projectId }: { projectId: string }) {
     return { times, values };
   }, [table, timeCol, concCol]);
 
-  const ready = profile.times.length >= 2 && studyId.trim().length > 0 && Number(dose) > 0 && origin !== "";
+  const ready = profile.times.length >= 2 && studyId.trim().length > 0 && Number(dose) > 0 && origin !== ""
+    && (!system || (analyte !== "" && product !== ""));
 
   async function save() {
     setBusy(true);
@@ -87,6 +94,7 @@ export function DataIntake({ projectId }: { projectId: string }) {
         n_timepoints: profile.times.length,
         profile: { times: profile.times, values: profile.values, time_unit: timeUnit, unit },
         origin,
+        ...(system ? { analyte, product } : {}),
       };
       const env = await uploadStudies(projectId, [study]);
       if (env.errors?.length) setResult({ kind: "err", message: env.errors[0].message });
@@ -185,6 +193,28 @@ export function DataIntake({ projectId }: { projectId: string }) {
                 <option value="ILLUSTRATIVE">Example data (test only)</option>
               </select>
             </div>
+            {system && (
+              <>
+                <div className="field">
+                  <label>Analyte measured</label>
+                  <select value={analyte} onChange={(e) => setAnalyte(e.target.value)} data-testid="intake-analyte">
+                    <option value="">choose…</option>
+                    {system.analytes.map((a) => (
+                      <option key={a.name} value={a.name}>
+                        {a.name}{a.judged_at.length ? ` (judged at ${a.judged_at.join(", ")})` : " (reported, not judged)"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Product given</label>
+                  <select value={product} onChange={(e) => setProduct(e.target.value)} data-testid="intake-product">
+                    <option value="">choose…</option>
+                    {Object.keys(system.products).map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
             <div className="field">
               <label>Route</label>
               <select value={route} onChange={(e) => setRoute(e.target.value)}>
@@ -212,7 +242,7 @@ export function DataIntake({ projectId }: { projectId: string }) {
             <button className="btn primary" disabled={!ready || busy} onClick={save}>
               {busy ? "Saving…" : "Confirm mapping & save study"}
             </button>
-            {!ready && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Needs a study id, a dose, where the data come from, and at least two numeric rows.</p>}
+            {!ready && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Needs a study id, a dose, where the data come from{system ? ", the analyte and the product" : ""}, and at least two numeric rows.</p>}
           </>
         )}
         {result && (

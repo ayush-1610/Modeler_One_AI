@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { PhaseRail } from "@/components/PhaseRail";
 import { RunCampaignButton } from "@/components/RunCampaignButton";
+import { SystemPanel } from "@/components/system/SystemPanel";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
 
@@ -94,6 +95,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
           )}
         </Card>
       </div>
+
+      <SystemPanel projectId={project.id} />
 
       <Card title="Campaigns">
         {campaigns && campaigns.length > 0 ? (

@@ -380,9 +380,14 @@ def finish_package(tenant_id: str, campaign_id: str, *, files: dict[str, bytes],
     cpf = CPF.model_validate_json(_path(cpf_uri).read_text(encoding="utf-8"))
     data_manifest = assemble_bundle(f"{campaign_id}-data", campaign_id, files, numeric_paths=numeric,
                                     engine_image_digest=engine_image_digest, software_versions=map_doc.software_versions)
+    system = None
+    if "cpf/system.json" in files:  # a model system, as of the final CPF (collect_bundle)
+        from pbpk_domain.system import ModelSystem, with_cpf
+
+        system = with_cpf(ModelSystem.model_validate_json(files["cpf/system.json"]), cpf)
     mar = assemble_campaign_mar(map_doc=map_doc, final_cpf=cpf, stage_evidence=evidence, prediction=prediction,
                                 reproduction=reproduction, data_bundle_sha256=data_manifest.content_sha256(),
-                                history=history)
+                                history=history, system=system)
     issues = check_report(mar)
     out = campaign_dir(tenant_id, campaign_id) / "package"
     out.mkdir(parents=True, exist_ok=True)
