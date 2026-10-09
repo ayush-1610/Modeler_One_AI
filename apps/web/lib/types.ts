@@ -39,6 +39,28 @@ export type Prediction = {
   sensitivity?: Record<string, { parameter: string; pk_parameter: string; value: number }[]>;
   intervals?: Record<string, { AUC?: Band; Cmax?: Band }>;
   notes?: string[];
+  vbe?: Vbe;
+};
+// S6 virtual bioequivalence (T-31): the trials, the probability of success, and the F-304 validation gate.
+export type VbeMetric = { probability_of_success: number; gmr_median: number; gmr_p05: number; gmr_p95: number;
+  between_subject_cv_percent: number };
+export type Vbe = {
+  template: string;
+  template_version: string;
+  status: "RUN" | "NOT_RUN";
+  reason?: string;
+  formulations?: { test: string; reference: string };
+  design_study?: string;
+  n_subjects?: number;
+  n_trials_run?: number;
+  n_trials_planned?: number;
+  limits?: [number, number];
+  limits_verified?: boolean;
+  pos_threshold?: number;
+  joint_probability_of_success?: number;
+  meets_threshold?: boolean;
+  metrics?: Record<string, VbeMetric>;
+  validation: { status: "PASSED" | "FAILED" | "NOT_VALIDATED"; reason: string };
 };
 export type PackageRecord = {
   exportable: boolean;
