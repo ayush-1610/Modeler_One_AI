@@ -9,13 +9,12 @@ client item is delivered, skipped as not available, or covered by an accepted li
 
 from __future__ import annotations
 
-import threading
 from typing import Annotated, Any
 
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from modeler_api import agent_jobs
+from modeler_api import agent_jobs, jobs
 from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
 from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import (
@@ -54,8 +53,6 @@ from modeler_project.evidence import EvidenceState
 from modeler_project.requirements import RequirementMatrix
 
 router = APIRouter(prefix="/api/v1", tags=["client-data"])
-_RUNNING: set[tuple[str, str]] = set()
-_LOCK = threading.Lock()
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
@@ -82,7 +79,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "reconciliation": recon.to_content(),
         "dissolution": {"profiles": profiles(ws), **comparisons(ws)},
         "register": version_view(ws, register, with_content=False) if register else None,
-        "agents": agent_jobs.agents_status(), "running": (ws.tenant_id, ws.project_id) in _RUNNING,
+        "agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "triage"),
     }
 
 
@@ -169,20 +166,12 @@ def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) 
     ws = workspace_for(project_id, principal, store)
     _workbook(ws, sid)
     model = agent_jobs.require_chat_model("agents are off: say what each sheet holds by hand")
-    key = (principal.tenant_id, project_id)
-    with _LOCK:
-        if key in _RUNNING:
-            raise HTTPException(status_code=409, detail="a triage run is already in progress")
-        _RUNNING.add(key)
 
     def job() -> None:
-        try:
-            run_triage_job(store, principal.tenant_id, project_id, sid, model=model)
-        finally:
-            with _LOCK:
-                _RUNNING.discard(key)
+        run_triage_job(store, principal.tenant_id, project_id, sid, model=model)
 
-    threading.Thread(target=job, daemon=True).start()
+    jobs.start(store, principal.tenant_id, project_id, "triage", job, busy="a triage run is already in progress",
+               name=f"triage-{project_id}")
     return envelope({"status": "RUNNING"})
 
 

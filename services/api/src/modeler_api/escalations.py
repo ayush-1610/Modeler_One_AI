@@ -247,6 +247,11 @@ def resolve_escalation_decision(
     if project_id:
         require_project(project_id, principal)
 
+    # A decision already taken (by another worker, or a second click) is refused before a signature is taken for it.
+    reads = FileReadStore(settings.read_root)
+    if not any(e.get("id") == f"{campaign_id}-{stage}" for e in reads.list_escalations(principal.tenant_id)):
+        raise HTTPException(status_code=409, detail=f"the escalation of campaign {campaign_id} at stage {stage} is not "
+                                                    "open: it has already been decided")
     # Nothing judged on data that is not real is signed outside an exploratory project (plan §9.4, D-19); refused
     # before the signature is taken, so no signature exists for a decision that was not applied.
     if request.action == "approve" and (refusal := runner.gate_refusal(campaign, FileReadStore(settings.read_root).get_project(

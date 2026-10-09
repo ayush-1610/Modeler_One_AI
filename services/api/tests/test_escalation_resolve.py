@@ -87,6 +87,23 @@ def test_abort_is_applied_and_signed(tmp_path, monkeypatch, local_settings):
     assert json.loads((tmp_path / "t1" / "escalations.json").read_text())["escalations"] == []
 
 
+def test_a_decision_already_taken_is_refused_before_any_signature(tmp_path, monkeypatch, local_settings):
+    # phase 8: removing the escalation is the decision's claim, so a second decision (another worker, a double
+    # click) is refused, and refused before a signature exists for it
+    from modeler_api import escalations
+
+    seed_campaign(tmp_path)
+    local_settings()
+    app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims())
+    client = TestClient(app)
+    assert client.post(URL, json={"action": "abort", "note": "first"}, headers=_auth()).status_code == 200
+    signed = []
+    monkeypatch.setattr(escalations, "sign_after_step_up", lambda **kw: signed.append(kw))
+    second = client.post(URL, json={"action": "abort", "note": "second"}, headers=_auth())
+    assert second.status_code == 409 and "already been decided" in second.json()["detail"]
+    assert signed == []
+
+
 def test_without_step_up_nothing_is_applied(tmp_path, monkeypatch, local_settings):
     seed_campaign(tmp_path)
     local_settings()

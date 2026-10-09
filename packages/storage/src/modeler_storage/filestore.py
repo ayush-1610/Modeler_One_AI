@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import unquote, urlparse
 
-from pbpk_domain.atomic_io import atomic_write_bytes, atomic_write_text
+from pbpk_domain.atomic_io import atomic_write_bytes, atomic_write_text, file_lock
 from pbpk_domain.cpf import CPF
 
 
@@ -67,7 +67,7 @@ class WriteStore(Protocol):
 
     def upsert_proposal(self, tenant_id: str, proposal: dict[str, Any]) -> None: ...
 
-    def remove_escalation(self, tenant_id: str, escalation_id: str) -> None: ...
+    def remove_escalation(self, tenant_id: str, escalation_id: str) -> bool: ...
 
 
 class _FileStoreBase:
@@ -135,22 +135,24 @@ class FileWriteStore(_FileStoreBase):
     """Writes the same per-tenant JSON documents the ``FileReadStore`` reads.
 
     Collection writes are id-keyed upserts (replace the row with the same ``id``/``campaignId`` or append),
-    so the create-project API and the campaign runner can both persist idempotently to one root.
+    so the create-project API and the campaign runner can both persist idempotently to one root. Each read-modify-write
+    holds the document's lock (``file_lock``), so two threads or processes upserting one collection never lose a row.
     """
 
     def _upsert(self, tenant_id: str, filename: str, key: str, item: dict[str, Any], *, id_field: str = "id") -> None:
         path = self.root / tenant_id / filename
-        rows = self._read_list(tenant_id, filename, key)
-        item_id = item.get(id_field)
-        replaced = False
-        for index, row in enumerate(rows):
-            if row.get(id_field) == item_id:
-                rows[index] = item
-                replaced = True
-                break
-        if not replaced:
-            rows.append(item)
-        self._write_json(path, {key: rows})
+        with file_lock(path):
+            rows = self._read_list(tenant_id, filename, key)
+            item_id = item.get(id_field)
+            replaced = False
+            for index, row in enumerate(rows):
+                if row.get(id_field) == item_id:
+                    rows[index] = item
+                    replaced = True
+                    break
+            if not replaced:
+                rows.append(item)
+            self._write_json(path, {key: rows})
 
     def put_project(self, tenant_id: str, project: dict[str, Any]) -> None:
         self._upsert(tenant_id, "projects.json", "projects", project)
@@ -163,9 +165,11 @@ class FileWriteStore(_FileStoreBase):
 
     def put_studies(self, tenant_id: str, project_id: str, studies: list[dict[str, Any]]) -> None:
         """Replace this project's studies, leaving other projects' rows untouched."""
-        others = [s for s in self._read_list(tenant_id, "studies.json", "studies") if s.get("project") != project_id]
-        rows = others + [{**s, "project": project_id} for s in studies]
-        self._write_json(self.root / tenant_id / "studies.json", {"studies": rows})
+        path = self.root / tenant_id / "studies.json"
+        with file_lock(path):
+            others = [s for s in self._read_list(tenant_id, "studies.json", "studies") if s.get("project") != project_id]
+            rows = others + [{**s, "project": project_id} for s in studies]
+            self._write_json(path, {"studies": rows})
 
     def upsert_campaign(self, tenant_id: str, campaign: dict[str, Any]) -> None:
         self._upsert(tenant_id, "campaigns.json", "campaigns", campaign)
@@ -176,10 +180,18 @@ class FileWriteStore(_FileStoreBase):
     def upsert_proposal(self, tenant_id: str, proposal: dict[str, Any]) -> None:
         self._upsert(tenant_id, "proposals.json", "proposals", proposal)
 
-    def remove_escalation(self, tenant_id: str, escalation_id: str) -> None:
-        """Drop a resolved escalation so the review inbox no longer shows it as awaiting a decision."""
-        rows = [e for e in self._read_list(tenant_id, "escalations.json", "escalations") if e.get("id") != escalation_id]
-        self._write_json(self.root / tenant_id / "escalations.json", {"escalations": rows})
+    def remove_escalation(self, tenant_id: str, escalation_id: str) -> bool:
+        """Drop a resolved escalation so the review inbox no longer shows it as awaiting a decision. False when it was
+        not there: under the document's lock this is the one place a decision is claimed, so of two workers resolving
+        the same escalation at once exactly one removes it (phase 8)."""
+        path = self.root / tenant_id / "escalations.json"
+        with file_lock(path):
+            rows = self._read_list(tenant_id, "escalations.json", "escalations")
+            kept = [e for e in rows if e.get("id") != escalation_id]
+            if len(kept) == len(rows):
+                return False
+            self._write_json(path, {"escalations": kept})
+            return True
 
     def materialize(self, tenant_id: str, relpath: str, data: bytes) -> Path:
         """Write a raw file under ``<root>/<tenant>/<relpath>`` and return its path (for a file:// URI).

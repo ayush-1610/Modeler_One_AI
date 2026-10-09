@@ -260,22 +260,22 @@ def test_reading_a_sheet_again_replaces_the_earlier_reading(setup):
 
 def test_a_triage_start_answers_through_its_typed_model(setup, monkeypatch):
     # phase 6c: no test reached the started answer of :triage (the conftest guard checks each answer)
-    from modeler_api import agent_jobs, client_api
+    from modeler_api import agent_jobs, client_api, jobs
 
-    c, _ws = setup
+    c, ws = setup
     sub = c.post("/api/v1/projects/p1/client-data", headers=H,
                  files=[("files", ("raw.xlsx", _raw_workbook(), XLSX))]).json()["data"]["files"][0]
 
     class Configured:
         provider, model = "test", "scripted"
 
-    jobs = []
+    calls = []
     monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
-    monkeypatch.setattr(client_api, "run_triage_job", lambda *args, **kwargs: jobs.append(args))
+    monkeypatch.setattr(client_api, "run_triage_job", lambda *args, **kwargs: calls.append(args))
     started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:triage", headers=H)
     assert started.status_code == 202 and started.json()["data"] == {"status": "RUNNING"}
     for _ in range(200):
-        if ("t1", "p1") not in client_api._RUNNING:
+        if not jobs.running(ws.store, "t1", "p1", "triage"):
             break
         time.sleep(0.01)
-    assert jobs and jobs[0][3] == sub["id"]
+    assert calls and calls[0][3] == sub["id"]

@@ -15,6 +15,47 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — job state lives beside the data, not in one process; a decision is applied once (architecture phase 8b)
+- **What:**
+  - **Agent jobs:** each project's agent job (A1 extraction, A2/A3 research, A4 triage, A5 planning) holds a lease,
+    `<root>/<tenant>/jobs/<project>/<kind>.json`.
+    - The lease is kept by `modeler_storage.jobs.FileJobRegistry` and started through `modeler_api.jobs`.
+    - It replaces the four module-level `_RUNNING` sets and thread locks in `brief_api`, `evidence_api`, `client_api`
+      and `plan_api`.
+    - The job renews its lease every 30 s and releases it when it ends, including on an error.
+    - A lease is stale, and is taken over, when it has not been renewed for 120 s or when its process is gone on this
+      host. A job lost in a crash or restart therefore never blocks its project.
+    - Every worker sees the same `running` flag and refuses a second start with the same 409 text.
+  - **Read model:** the read-modify-write collections hold an `flock` on the document while they rewrite it:
+    projects, studies, campaigns, escalations and proposals. The lock is `pbpk_domain.atomic_io.file_lock`.
+  - **Agent run records:** written atomically, and changed under their lock.
+  - **Decisions:** removing an escalation is the claim on its decision (`FileWriteStore.remove_escalation` now
+    answers whether it removed one).
+    - A second decision on the same escalation is refused with 409 **before** a signature is taken, in the API.
+    - It is refused again in the runner, so a campaign never continues twice.
+  - **Guardrail:** `tests/architecture/test_process_state.py` fails on new module-level mutable state: a set, a
+    thread lock or event, a queue, or an empty collection. The one exception is the audit chain's in-process lock,
+    which comes before its cross-process `flock`.
+- **Why:**
+  - Coupling C8: state kept in one process holds only for the process that owns it. A second worker started the same
+    agent job again, showed it as not running, and two simultaneous decisions could both continue a campaign.
+  - The 2026-10-07 known gap: upserts were not locked, so two writers could lose an update.
+- **Impact:**
+  - The answers and texts are unchanged, and the OpenAPI snapshot is unchanged.
+  - New tests:
+    - leases: claim, release, a stale lease taken over by age and by a dead pid, a lease held by another process,
+      and a background job releasing its lease after an error;
+    - two processes upserting one collection lose no row;
+    - an escalation is removed once, and a decision already taken is refused before any signature;
+    - an extraction running on another worker shows and refuses a second start;
+    - concurrent proposals on one agent run are all recorded.
+  - `packages/storage/tests` joins the test paths.
+- **Deviation from the plan:**
+  - The plan named a separate campaign lease. Claiming the escalation does the same job with no new state, because
+    every paused campaign has exactly one open escalation.
+  - The plan's two-uvicorn-workers test became cross-process tests of the registry, plus an API test with a lease
+    held by another worker. They prove the same thing without a flaky server start.
+
 ### Fixed — an artifact version or blob is never seen half written, and approvals lock across processes (architecture phase 8a; locked `store.py`, owner-approved 2026-10-09)
 - **What:** in the Part 11 artifact store (`modeler_project.store.FileProjectStore`):
   - **Versions:** a version is written to a temporary file in its folder, flushed to disk, then hard-linked into
