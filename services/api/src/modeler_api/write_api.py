@@ -249,8 +249,9 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
         "map_uri": map_path.as_uri(), "map_sha256": hashlib.sha256(map_bytes).hexdigest(),
         "observed_uri": observed_path.as_uri(),
         # Every stage by default: a stage with nothing to simulate is skipped with its documented reason, so
-        # asking for fewer stages only hides the rest of the pipeline.
-        "stages": body.stages or list(CAMPAIGN_STAGES),
+        # asking for fewer stages only hides the rest of the pipeline. SM only when the MAP plans it (MS-01 v1.3).
+        "stages": [s for s in (body.stages or CAMPAIGN_STAGES)
+                   if s != "SM" or any(p.stage == "SM" for p in map_doc.stage_plan)],
         "tier": map_doc.acceptance.tier,
         "studies": [{"study_id": s.study_id, "assignment": s.assignment} for s in map_doc.studies],
         # what each study's observed data is (plan §9.4); a study with no profile is not evaluable

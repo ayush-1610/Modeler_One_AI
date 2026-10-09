@@ -463,7 +463,9 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
 
     campaign = {"compound": cpf.compound, "map_id": f"map-{project_id}-v{signed.version}",
                 "cpf_uri": cpf_path.as_uri(), "cpf_sha256": hashlib.sha256(cpf_bytes).hexdigest(),
-                "map_uri": map_path.as_uri(), "observed_uri": observed_path.as_uri(), "stages": list(CAMPAIGN_STAGES),
+                "map_uri": map_path.as_uri(), "observed_uri": observed_path.as_uri(),
+                # SM only when the MAP plans it (a model system with metabolite data, MS-01 v1.3)
+                "stages": [s for s in CAMPAIGN_STAGES if s != "SM" or any(p.stage == "SM" for p in signed.stage_plan)],
                 "question": plan.structure.objective, "model_risk": plan.structure.model_risk}
     artifact = MapArtifact(map=json.loads(map_bytes), map_sha256=content_sha,
                            signature=MapSignature(signature_id=signature.signature_id,
