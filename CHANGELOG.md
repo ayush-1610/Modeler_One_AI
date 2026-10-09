@@ -15,6 +15,37 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the P5 model plan answers are typed, and the canvas reads them through the hooks (architecture phase 9b; API contract)
+- **What:**
+  - **API:** the 13 routes of `plan_api` declare response models (`modeler_api/views/plan.py`).
+    - `PlanPage` is the plan page. Its `plan` is the owner's `ModelPlan` model (phase 9 decision: stored content is
+      described by its owner's model).
+    - The placement dry run answers `PlacementPreview`, `plan:sign` answers `PlanSigned` (the page plus its
+      `signature`), and `plan:draft` answers `DraftStart`.
+    - The plan's content models (`ModelPlan`, `Placement`, `FitChoice`, `Proposal`, `Structure`, `StudyView`,
+      `Deviation`, `Violation`) mark a field with a default as always present in the answer schema
+      (`json_schema_serialization_defaults_required`). The plan is always dumped whole, so the generated web types
+      need no guards for those fields. Stored content and validation are unchanged.
+    - A new test reaches every route no test had reached: `plan:view`, the dry run, fits set and removed, a structure
+      choice, `plan:rebase` and `plan:draft`. The conftest guard checks each answer against the handler's own value.
+    - `[response] untyped` in `boundaries.toml` shrinks from 37 to 24 routes, and the locked hash is refreshed.
+  - **Web:**
+    - `lib/plan.ts`: its hand-written types become aliases of the generated ones, and `planApi` calls each route by
+      name, with the bodies checked against the request models.
+    - `PlanCanvas` reads the plan with `useResource`, which also refreshes while A5 is drafting, and makes every change
+      with `useMutation`. The dry run stays a plain call.
+    - The blinding panel's change now reloads the plan as well.
+    - Removed: the unused `planApi.get` / `unlock`, `ROLES` and `PlanEnvelope`.
+- **Why:** rules B2 and B6, plan `docs/plans/2026-10-09-phase-9-typed-api.md` step 9b. The canvas mirrored the plan
+  page by hand, and a renamed key would have passed every check.
+- **Impact:**
+  - **API contract change:** the OpenAPI snapshot gains the 13 operations' response schemas and 29 schemas. No
+    existing schema, request or parameter changed. The answers are unchanged, as the conftest guard checks.
+  - **Web behavior:**
+    - After a change, the canvas reads the plan again; it used to take the change's answer.
+    - The canvas now refreshes every few seconds while A5 drafts.
+    - A dissolution profile with no release model now says so; the page assumed one.
+
 ### Changed — the response-model ratchet covers every router (architecture phase 9a; locked file, owner-approved)
 - **What:**
   - **Ratchet coverage:** `tests/architecture/test_response_models.py` now checks every router.

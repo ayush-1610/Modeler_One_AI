@@ -25,7 +25,8 @@ from modeler_api.auth import Principal, ensure_step_up, require_role
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep, get_settings
 from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
+from modeler_api.views.plan import DraftStart, PlacementPreview, PlanPage, PlanSigned
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
 from modeler_project.dissolution_register import profiles as dissolution_profiles
@@ -181,12 +182,12 @@ def _respond(ws: Workspace, by: str) -> dict[str, Any]:
     return envelope(_view(ws, version, plan, cpf, rows))
 
 
-@router.get("/projects/{project_id}/plan")
+@router.get("/projects/{project_id}/plan", **answers(PlanPage))
 def get_plan(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     return _respond(workspace_for(project_id, principal, store), principal.user_id)
 
 
-@router.get("/projects/{project_id}/plan:view")
+@router.get("/projects/{project_id}/plan:view", **answers(PlanPage))
 def read_plan(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     """Read-only view for viewers (the plan must exist)."""
     ws = workspace_for(project_id, principal, store)
@@ -242,7 +243,7 @@ class PlacementRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.put("/projects/{project_id}/plan/placements/{study_id}")
+@router.put("/projects/{project_id}/plan/placements/{study_id}", **answers(PlanPage | PlacementPreview))
 def put_placement(project_id: str, study_id: str, body: PlacementRequest, principal: Writer, store: StoreDep,
                   dry_run: bool = False) -> dict[str, Any]:
     """A study dropped on a D3 node: placed by a person (userLocked), with the reason. ``dry_run`` validates only."""
@@ -252,7 +253,7 @@ def put_placement(project_id: str, study_id: str, body: PlacementRequest, princi
                    deviation=("role", study_id, f"placed in {body.role}"))
 
 
-@router.post("/projects/{project_id}/plan/placements/{study_id}:unlock")
+@router.post("/projects/{project_id}/plan/placements/{study_id}:unlock", **answers(PlanPage))
 def unlock_placement(project_id: str, study_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal, lambda p: unlock(p, study_id), f"{study_id} back to the MS-01 default",
@@ -267,7 +268,7 @@ class FitRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.put("/projects/{project_id}/plan/fits/{parameter}")
+@router.put("/projects/{project_id}/plan/fits/{parameter}", **answers(PlanPage))
 def put_fit(project_id: str, parameter: str, body: FitRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     fit = {"stages": tuple(body.stages), "lower": body.lower, "upper": body.upper, "scale": body.scale}
@@ -280,7 +281,7 @@ class ReasonRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.post("/projects/{project_id}/plan/fits/{parameter}:remove")
+@router.post("/projects/{project_id}/plan/fits/{parameter}:remove", **answers(PlanPage))
 def remove_fit(project_id: str, parameter: str, body: ReasonRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal, lambda p: set_fit(p, parameter, None, by=principal.user_id, reason=body.reason),
@@ -294,7 +295,7 @@ class StructureRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.put("/projects/{project_id}/plan/structure")
+@router.put("/projects/{project_id}/plan/structure", **answers(PlanPage))
 def put_structure(project_id: str, body: StructureRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """A structure choice; the default split depends on some of them, so non-locked placements follow the new default."""
     ws = workspace_for(project_id, principal, store)
@@ -308,7 +309,7 @@ def put_structure(project_id: str, body: StructureRequest, principal: Writer, st
                    deviation=("structure", body.key, f"set to {body.value}"))
 
 
-@router.post("/projects/{project_id}/plan/violations/{violation_id}:acknowledge")
+@router.post("/projects/{project_id}/plan/violations/{violation_id}:acknowledge", **answers(PlanPage))
 def acknowledge_violation(project_id: str, violation_id: str, body: ReasonRequest, principal: Writer,
                           store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
@@ -322,7 +323,7 @@ class DecisionRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.post("/projects/{project_id}/plan/proposals/{proposal_id}:decide")
+@router.post("/projects/{project_id}/plan/proposals/{proposal_id}:decide", **answers(PlanPage))
 def decide(project_id: str, proposal_id: str, body: DecisionRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal,
@@ -335,13 +336,13 @@ class LayoutRequest(BaseModel):
     layout: dict[str, dict[str, float]]
 
 
-@router.put("/projects/{project_id}/plan/layout")
+@router.put("/projects/{project_id}/plan/layout", **answers(PlanPage))
 def put_layout(project_id: str, body: LayoutRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal, lambda p: p.model_copy(update={"layout": body.layout}), "canvas layout")
 
 
-@router.post("/projects/{project_id}/plan:rebase")
+@router.post("/projects/{project_id}/plan:rebase", **answers(PlanPage))
 def rebase_plan(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """New inputs (P4 changed): the default is recomputed, a person's choices are kept, new studies are marked."""
     ws = workspace_for(project_id, principal, store)
@@ -382,7 +383,7 @@ def run_planning_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
     return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 
-@router.post("/projects/{project_id}/plan:draft", status_code=202)
+@router.post("/projects/{project_id}/plan:draft", status_code=202, **answers(DraftStart))
 def start_draft(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     _ensure(ws, principal.user_id)
@@ -412,7 +413,7 @@ class SignRequest(BaseModel):
     note: str = ""
 
 
-@router.post("/projects/{project_id}/plan:sign")
+@router.post("/projects/{project_id}/plan:sign", **answers(PlanSigned))
 def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: StoreDep,
               settings: SettingsDep) -> dict[str, Any]:
     """Approve and sign: the MAP generated from the plan, signed (Part 11, step-up), and the campaign inputs staged."""

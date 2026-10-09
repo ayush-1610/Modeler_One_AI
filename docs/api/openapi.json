@@ -1,6 +1,50 @@
 {
   "components": {
     "schemas": {
+      "Absorption": {
+        "additionalProperties": false,
+        "description": "D2: absorption parameters, one lane per formulation with its studies, and the dissolution profiles.",
+        "properties": {
+          "absorption": {
+            "items": {
+              "$ref": "#/components/schemas/ParamNode"
+            },
+            "title": "Absorption",
+            "type": "array"
+          },
+          "dissolution": {
+            "items": {
+              "$ref": "#/components/schemas/DissolutionProfile"
+            },
+            "title": "Dissolution",
+            "type": "array"
+          },
+          "food_effect_in_question": {
+            "title": "Food Effect In Question",
+            "type": "boolean"
+          },
+          "lanes": {
+            "items": {
+              "$ref": "#/components/schemas/Lane"
+            },
+            "title": "Lanes",
+            "type": "array"
+          },
+          "measured_fed_solubility": {
+            "title": "Measured Fed Solubility",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "absorption",
+          "lanes",
+          "dissolution",
+          "food_effect_in_question",
+          "measured_fed_solubility"
+        ],
+        "title": "Absorption",
+        "type": "object"
+      },
       "AcceptRequest": {
         "properties": {
           "note": {
@@ -2058,6 +2102,76 @@
         "title": "Demographics",
         "type": "object"
       },
+      "Deviation": {
+        "additionalProperties": false,
+        "description": "A change to the plan after its MAP was signed (D-14, ICH M15 §4.2): it applies to campaigns only once the MIDD\nlead signs it, which makes a new MAP version superseding the signed one.",
+        "properties": {
+          "against_map": {
+            "title": "Against Map",
+            "type": "integer"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "change": {
+            "title": "Change",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "signature_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Id"
+          },
+          "signed_map": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Map"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "target",
+          "change",
+          "reason",
+          "by",
+          "at",
+          "against_map",
+          "signature_id",
+          "signed_map"
+        ],
+        "title": "Deviation",
+        "type": "object"
+      },
       "DeviationRecorded": {
         "additionalProperties": false,
         "properties": {
@@ -2129,6 +2243,87 @@
           "second_factor"
         ],
         "title": "DeviationRequest",
+        "type": "object"
+      },
+      "DiffRow": {
+        "additionalProperties": false,
+        "description": "A departure from the MS-01 default (`modeler_project.plan.diff`); `proposal` only on a pending A5 proposal.",
+        "properties": {
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "role",
+              "fit",
+              "structure"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "APPLIED",
+              "PENDING"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "required": [
+          "kind",
+          "target",
+          "from",
+          "to",
+          "by",
+          "reason",
+          "status"
+        ],
+        "title": "DiffRow",
         "type": "object"
       },
       "DigitizeBody": {
@@ -2244,6 +2439,48 @@
         "title": "DigitizeBody",
         "type": "object"
       },
+      "Disposition": {
+        "additionalProperties": false,
+        "description": "D1: binding and distribution, then each elimination / transport pathway.",
+        "properties": {
+          "binding": {
+            "items": {
+              "$ref": "#/components/schemas/ParamNode"
+            },
+            "title": "Binding",
+            "type": "array"
+          },
+          "distribution": {
+            "items": {
+              "$ref": "#/components/schemas/ParamNode"
+            },
+            "title": "Distribution",
+            "type": "array"
+          },
+          "informed_by": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Informed By",
+            "type": "array"
+          },
+          "pathways": {
+            "items": {
+              "$ref": "#/components/schemas/Pathway"
+            },
+            "title": "Pathways",
+            "type": "array"
+          }
+        },
+        "required": [
+          "binding",
+          "distribution",
+          "pathways",
+          "informed_by"
+        ],
+        "title": "Disposition",
+        "type": "object"
+      },
       "Dissolution": {
         "additionalProperties": false,
         "properties": {
@@ -2277,6 +2514,37 @@
           "problems"
         ],
         "title": "Dissolution",
+        "type": "object"
+      },
+      "DissolutionProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "release_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Model"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "release_model"
+        ],
+        "title": "DissolutionProfile",
         "type": "object"
       },
       "DissolvedFormulationSpec": {
@@ -2531,6 +2799,21 @@
           "dose"
         ],
         "title": "DosePhaseSpec",
+        "type": "object"
+      },
+      "DraftStart": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "const": "RUNNING",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "DraftStart",
         "type": "object"
       },
       "EngineBinding": {
@@ -2815,6 +3098,31 @@
         "title": "Envelope[Documents]",
         "type": "object"
       },
+      "Envelope_DraftStart_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DraftStart"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DraftStart]",
+        "type": "object"
+      },
       "Envelope_EvidenceChoice_": {
         "additionalProperties": false,
         "properties": {
@@ -3040,6 +3348,56 @@
         "title": "Envelope[Phases]",
         "type": "object"
       },
+      "Envelope_PlanPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PlanPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[PlanPage]",
+        "type": "object"
+      },
+      "Envelope_PlanSigned_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PlanSigned"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[PlanSigned]",
+        "type": "object"
+      },
       "Envelope_ProjectStarted_": {
         "additionalProperties": false,
         "properties": {
@@ -3254,6 +3612,39 @@
           "errors"
         ],
         "title": "Envelope[Union[MapReading, MapPreview]]",
+        "type": "object"
+      },
+      "Envelope_Union_PlanPage__PlacementPreview__": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanPage"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementPreview"
+              }
+            ],
+            "title": "Data"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Union[PlanPage, PlacementPreview]]",
         "type": "object"
       },
       "Envelope_VersionView_": {
@@ -4034,6 +4425,60 @@
         "title": "FirstOrderMetabolism",
         "type": "object"
       },
+      "FitChoice": {
+        "additionalProperties": false,
+        "properties": {
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "lower": {
+            "title": "Lower",
+            "type": "number"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "scale": {
+            "default": "linear",
+            "enum": [
+              "linear",
+              "log"
+            ],
+            "title": "Scale",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "upper": {
+            "title": "Upper",
+            "type": "number"
+          },
+          "userLocked": {
+            "default": true,
+            "title": "Userlocked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stages",
+          "lower",
+          "upper",
+          "scale",
+          "by",
+          "userLocked",
+          "reason"
+        ],
+        "title": "FitChoice",
+        "type": "object"
+      },
       "FitPolicy": {
         "additionalProperties": false,
         "properties": {
@@ -4781,6 +5226,130 @@
         "title": "ItemRemoval",
         "type": "object"
       },
+      "Lane": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/LaneParameter"
+            },
+            "title": "Parameters",
+            "type": "array"
+          },
+          "release": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release"
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/LaneStudy"
+            },
+            "title": "Studies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "release",
+          "parameters",
+          "studies"
+        ],
+        "title": "Lane",
+        "type": "object"
+      },
+      "LaneParameter": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "value",
+          "unit"
+        ],
+        "title": "LaneParameter",
+        "type": "object"
+      },
+      "LaneStudy": {
+        "additionalProperties": false,
+        "properties": {
+          "food_state": {
+            "title": "Food State",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S5",
+              "S6",
+              "SUPPORTIVE"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_id",
+          "food_state",
+          "role"
+        ],
+        "title": "LaneStudy",
+        "type": "object"
+      },
       "LayoutRequest": {
         "properties": {
           "layout": {
@@ -5235,6 +5804,133 @@
         "title": "MapReading",
         "type": "object"
       },
+      "MapVersion": {
+        "additionalProperties": false,
+        "description": "The latest MAP version, its hash and the campaign inputs its signature staged.",
+        "properties": {
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalView"
+            },
+            "title": "Approvals",
+            "type": "array"
+          },
+          "campaign": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "derived_from": {
+            "items": {
+              "$ref": "#/components/schemas/Ref"
+            },
+            "title": "Derived From",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "map_sha256": {
+            "title": "Map Sha256",
+            "type": "string"
+          },
+          "map_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Map Version"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "stale_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stale Reasons",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ArtifactStatus"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "version",
+          "sha256",
+          "status",
+          "stale_reasons",
+          "created_at",
+          "created_by",
+          "reason",
+          "derived_from",
+          "approvals",
+          "campaign",
+          "map_sha256",
+          "map_version",
+          "supersedes"
+        ],
+        "title": "MapVersion",
+        "type": "object"
+      },
       "MappingBody": {
         "description": "How to read a sheet: the page's form (`form`) or a mapping recipe (`proposal`, the data-mapping agent's shape or\nwritten by a person); the study facts the sheet does not state; and whether to keep the result (False: preview).",
         "properties": {
@@ -5599,6 +6295,136 @@
         "title": "ModelBuildRequest",
         "type": "object"
       },
+      "ModelPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledged": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Acknowledged",
+            "type": "object"
+          },
+          "budgets": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Budgets",
+            "type": "object"
+          },
+          "compound": {
+            "title": "Compound",
+            "type": "string"
+          },
+          "default_limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Default Limitations",
+            "type": "array"
+          },
+          "default_rationale": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Default Rationale",
+            "type": "array"
+          },
+          "deviations": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Deviation"
+            },
+            "title": "Deviations",
+            "type": "array"
+          },
+          "fit_candidates": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Fit Candidates",
+            "type": "object"
+          },
+          "fits": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FitChoice"
+            },
+            "title": "Fits",
+            "type": "object"
+          },
+          "layout": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            "title": "Layout",
+            "type": "object"
+          },
+          "placements": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Placement"
+            },
+            "title": "Placements",
+            "type": "object"
+          },
+          "proposals": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Proposal"
+            },
+            "title": "Proposals",
+            "type": "array"
+          },
+          "rationale": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Rationale",
+            "type": "object"
+          },
+          "schema": {
+            "default": "model-plan/1",
+            "title": "Schema",
+            "type": "string"
+          },
+          "structure": {
+            "$ref": "#/components/schemas/Structure"
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/StudyView"
+            },
+            "title": "Studies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema",
+          "compound",
+          "studies",
+          "placements",
+          "fits",
+          "structure",
+          "default_rationale",
+          "default_limitations",
+          "rationale",
+          "proposals",
+          "acknowledged",
+          "layout",
+          "fit_candidates",
+          "budgets",
+          "deviations"
+        ],
+        "title": "ModelPlan",
+        "type": "object"
+      },
       "ObservedProfile": {
         "properties": {
           "lloq": {
@@ -5762,6 +6588,155 @@
         "title": "OralProtocolSpec",
         "type": "object"
       },
+      "OverallData": {
+        "additionalProperties": false,
+        "properties": {
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/ParameterRow"
+            },
+            "title": "Parameters",
+            "type": "array"
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/OverallStudy"
+            },
+            "title": "Studies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "studies",
+          "parameters"
+        ],
+        "title": "OverallData",
+        "type": "object"
+      },
+      "OverallStudy": {
+        "additionalProperties": false,
+        "description": "A study of Overall Data: what the plan knows about it, and where it is placed now.",
+        "properties": {
+          "default_role": {
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S5",
+              "S6",
+              "SUPPORTIVE"
+            ],
+            "title": "Default Role",
+            "type": "string"
+          },
+          "design": {
+            "title": "Design",
+            "type": "string"
+          },
+          "dose_mg": {
+            "title": "Dose Mg",
+            "type": "number"
+          },
+          "evaluable": {
+            "title": "Evaluable",
+            "type": "boolean"
+          },
+          "food_state": {
+            "title": "Food State",
+            "type": "string"
+          },
+          "formulation": {
+            "title": "Formulation",
+            "type": "string"
+          },
+          "kind": {
+            "default": "profile",
+            "title": "Kind",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "new": {
+            "default": false,
+            "title": "New",
+            "type": "boolean"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "purpose": {
+            "default": "",
+            "title": "Purpose",
+            "type": "string"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S5",
+              "S6",
+              "SUPPORTIVE"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "study_class": {
+            "title": "Study Class",
+            "type": "string"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          },
+          "userLocked": {
+            "title": "Userlocked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "study_id",
+          "study_class",
+          "score",
+          "route",
+          "dose_mg",
+          "formulation",
+          "food_state",
+          "design",
+          "n",
+          "origin",
+          "evaluable",
+          "kind",
+          "purpose",
+          "default_role",
+          "new",
+          "role",
+          "userLocked",
+          "reason",
+          "rationale"
+        ],
+        "title": "OverallStudy",
+        "type": "object"
+      },
       "OverrideRequest": {
         "properties": {
           "cross_check": {
@@ -5835,6 +6810,86 @@
           "reason"
         ],
         "title": "OverrideRequest",
+        "type": "object"
+      },
+      "ParamNode": {
+        "additionalProperties": false,
+        "description": "A CPF parameter on D1 / D2, with its fit choice and the stages that may fit it; D2 nodes carry no source.",
+        "properties": {
+          "candidate_at": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Candidate At",
+            "type": "array"
+          },
+          "fit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FitChoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "value",
+          "unit",
+          "status",
+          "fit",
+          "candidate_at"
+        ],
+        "title": "ParamNode",
         "type": "object"
       },
       "ParameterRecord": {
@@ -5942,6 +6997,55 @@
         "title": "ParameterRecord",
         "type": "object"
       },
+      "ParameterRow": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "value",
+          "unit",
+          "status"
+        ],
+        "title": "ParameterRow",
+        "type": "object"
+      },
       "ParameterStatus": {
         "enum": [
           "FIXED",
@@ -6011,6 +7115,38 @@
           "value"
         ],
         "title": "PathValue",
+        "type": "object"
+      },
+      "Pathway": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "elimination",
+              "transport",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/ParamNode"
+            },
+            "title": "Parameters",
+            "type": "array"
+          },
+          "process": {
+            "title": "Process",
+            "type": "string"
+          }
+        },
+        "required": [
+          "process",
+          "kind",
+          "parameters"
+        ],
+        "title": "Pathway",
         "type": "object"
       },
       "PhaseRow": {
@@ -6113,6 +7249,90 @@
         "title": "PkaSpec",
         "type": "object"
       },
+      "Placement": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "by": {
+            "default": "default",
+            "title": "By",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S5",
+              "S6",
+              "SUPPORTIVE"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "userLocked": {
+            "default": false,
+            "title": "Userlocked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "role",
+          "by",
+          "userLocked",
+          "reason",
+          "at"
+        ],
+        "title": "Placement",
+        "type": "object"
+      },
+      "PlacementPreview": {
+        "additionalProperties": false,
+        "description": "A move's dry run: what the validator and the diff would say; nothing is saved.",
+        "properties": {
+          "deviation": {
+            "title": "Deviation",
+            "type": "boolean"
+          },
+          "diff": {
+            "items": {
+              "$ref": "#/components/schemas/DiffRow"
+            },
+            "title": "Diff",
+            "type": "array"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/Violation"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "violations",
+          "diff",
+          "deviation"
+        ],
+        "title": "PlacementPreview",
+        "type": "object"
+      },
       "PlacementRequest": {
         "properties": {
           "reason": {
@@ -6138,6 +7358,187 @@
           "reason"
         ],
         "title": "PlacementRequest",
+        "type": "object"
+      },
+      "PlanPage": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "artifact": {
+            "$ref": "#/components/schemas/VersionView"
+          },
+          "blocking": {
+            "title": "Blocking",
+            "type": "integer"
+          },
+          "d1": {
+            "$ref": "#/components/schemas/Disposition"
+          },
+          "d2": {
+            "$ref": "#/components/schemas/Absorption"
+          },
+          "deviations": {
+            "items": {
+              "$ref": "#/components/schemas/Deviation"
+            },
+            "title": "Deviations",
+            "type": "array"
+          },
+          "deviations_pending": {
+            "title": "Deviations Pending",
+            "type": "integer"
+          },
+          "diff": {
+            "items": {
+              "$ref": "#/components/schemas/DiffRow"
+            },
+            "title": "Diff",
+            "type": "array"
+          },
+          "map": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overall_data": {
+            "$ref": "#/components/schemas/OverallData"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ModelPlan"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "signed": {
+            "title": "Signed",
+            "type": "boolean"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/Violation"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plan",
+          "artifact",
+          "violations",
+          "blocking",
+          "diff",
+          "overall_data",
+          "d1",
+          "d2",
+          "map",
+          "signed",
+          "deviations",
+          "deviations_pending",
+          "agents",
+          "running"
+        ],
+        "title": "PlanPage",
+        "type": "object"
+      },
+      "PlanSigned": {
+        "additionalProperties": false,
+        "description": "The page after `plan:sign`, and the signature the MAP carries.",
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "artifact": {
+            "$ref": "#/components/schemas/VersionView"
+          },
+          "blocking": {
+            "title": "Blocking",
+            "type": "integer"
+          },
+          "d1": {
+            "$ref": "#/components/schemas/Disposition"
+          },
+          "d2": {
+            "$ref": "#/components/schemas/Absorption"
+          },
+          "deviations": {
+            "items": {
+              "$ref": "#/components/schemas/Deviation"
+            },
+            "title": "Deviations",
+            "type": "array"
+          },
+          "deviations_pending": {
+            "title": "Deviations Pending",
+            "type": "integer"
+          },
+          "diff": {
+            "items": {
+              "$ref": "#/components/schemas/DiffRow"
+            },
+            "title": "Diff",
+            "type": "array"
+          },
+          "map": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overall_data": {
+            "$ref": "#/components/schemas/OverallData"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ModelPlan"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/SignatureView"
+          },
+          "signed": {
+            "title": "Signed",
+            "type": "boolean"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/Violation"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plan",
+          "artifact",
+          "violations",
+          "blocking",
+          "diff",
+          "overall_data",
+          "d1",
+          "d2",
+          "map",
+          "signed",
+          "deviations",
+          "deviations_pending",
+          "agents",
+          "running",
+          "signature"
+        ],
+        "title": "PlanSigned",
         "type": "object"
       },
       "Plausibility": {
@@ -6317,6 +7718,80 @@
           "extraction"
         ],
         "title": "ProjectStarted",
+        "type": "object"
+      },
+      "Proposal": {
+        "additionalProperties": false,
+        "description": "An A5 departure from the plan, shown in the diff until a person accepts or rejects it.",
+        "properties": {
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_reason": {
+            "default": "",
+            "title": "Decision Reason",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "role",
+              "fit"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "default": "PENDING",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REJECTED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "value": {
+            "additionalProperties": true,
+            "title": "Value",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "target",
+          "value",
+          "reason",
+          "by",
+          "status",
+          "decided_by",
+          "decision_reason"
+        ],
+        "title": "Proposal",
         "type": "object"
       },
       "Provenance": {
@@ -8169,6 +9644,76 @@
         "title": "Statistic",
         "type": "string"
       },
+      "Structure": {
+        "additionalProperties": false,
+        "properties": {
+          "context_of_use": {
+            "default": "Model-informed decision",
+            "title": "Context Of Use",
+            "type": "string"
+          },
+          "food_effect_in_question": {
+            "default": false,
+            "title": "Food Effect In Question",
+            "type": "boolean"
+          },
+          "locked": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Locked",
+            "type": "array"
+          },
+          "measured_fed_solubility": {
+            "default": false,
+            "title": "Measured Fed Solubility",
+            "type": "boolean"
+          },
+          "model_risk": {
+            "default": "medium",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Model Risk",
+            "type": "string"
+          },
+          "objective": {
+            "default": "Predict exposure for the question of interest",
+            "title": "Objective",
+            "type": "string"
+          },
+          "planned_applications": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Planned Applications",
+            "type": "array"
+          },
+          "reasons": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "object"
+          }
+        },
+        "required": [
+          "objective",
+          "context_of_use",
+          "model_risk",
+          "food_effect_in_question",
+          "measured_fed_solubility",
+          "planned_applications",
+          "locked",
+          "reasons"
+        ],
+        "title": "Structure",
+        "type": "object"
+      },
       "StructureRequest": {
         "properties": {
           "key": {
@@ -8784,6 +10329,102 @@
         "title": "StudyUpload",
         "type": "object"
       },
+      "StudyView": {
+        "additionalProperties": false,
+        "description": "What the plan knows about a study (from the P4 catalog): enough to plan and validate, no observed values.",
+        "properties": {
+          "default_role": {
+            "enum": [
+              "S1",
+              "S2",
+              "S3",
+              "S5",
+              "S6",
+              "SUPPORTIVE"
+            ],
+            "title": "Default Role",
+            "type": "string"
+          },
+          "design": {
+            "title": "Design",
+            "type": "string"
+          },
+          "dose_mg": {
+            "title": "Dose Mg",
+            "type": "number"
+          },
+          "evaluable": {
+            "title": "Evaluable",
+            "type": "boolean"
+          },
+          "food_state": {
+            "title": "Food State",
+            "type": "string"
+          },
+          "formulation": {
+            "title": "Formulation",
+            "type": "string"
+          },
+          "kind": {
+            "default": "profile",
+            "title": "Kind",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "new": {
+            "default": false,
+            "title": "New",
+            "type": "boolean"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "purpose": {
+            "default": "",
+            "title": "Purpose",
+            "type": "string"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "study_class": {
+            "title": "Study Class",
+            "type": "string"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_id",
+          "study_class",
+          "score",
+          "route",
+          "dose_mg",
+          "formulation",
+          "food_state",
+          "design",
+          "n",
+          "origin",
+          "evaluable",
+          "kind",
+          "purpose",
+          "default_role",
+          "new"
+        ],
+        "title": "StudyView",
+        "type": "object"
+      },
       "SubjectSpec": {
         "additionalProperties": false,
         "properties": {
@@ -9190,6 +10831,55 @@
           "approvals"
         ],
         "title": "VersionView",
+        "type": "object"
+      },
+      "Violation": {
+        "properties": {
+          "acknowledged": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "rule",
+          "target",
+          "message",
+          "acknowledged"
+        ],
+        "title": "Violation",
         "type": "object"
       },
       "WeibullFormulationSpec": {
@@ -13559,9 +15249,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Plan Api V1 Projects  Project Id  Plan Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },
@@ -13638,9 +15326,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Fit Api V1 Projects  Project Id  Plan Fits  Parameter  Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },
@@ -13717,9 +15403,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Remove Fit Api V1 Projects  Project Id  Plan Fits  Parameter  Remove Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },
@@ -13787,9 +15471,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Layout Api V1 Projects  Project Id  Plan Layout Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },
@@ -13877,9 +15559,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Placement Api V1 Projects  Project Id  Plan Placements  Study Id  Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_Union_PlanPage__PlacementPreview__"
                 }
               }
             },
@@ -13946,9 +15626,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Unlock Placement Api V1 Projects  Project Id  Plan Placements  Study Id  Unlock Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },
@@ -14025,9 +15703,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Decide Api V1 Projects  Project Id  Plan Proposals  Proposal Id  Decide Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },
@@ -14096,9 +15772,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Structure Api V1 Projects  Project Id  Plan Structure Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },
@@ -14175,9 +15849,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Acknowledge Violation Api V1 Projects  Project Id  Plan Violations  Violation Id  Acknowledge Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },
@@ -14235,9 +15907,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Start Draft Api V1 Projects  Project Id  Plan Draft Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_DraftStart_"
                 }
               }
             },
@@ -14296,9 +15966,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Rebase Plan Api V1 Projects  Project Id  Plan Rebase Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },
@@ -14367,9 +16035,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Sign Plan Api V1 Projects  Project Id  Plan Sign Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanSigned_"
                 }
               }
             },
@@ -14428,9 +16094,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Read Plan Api V1 Projects  Project Id  Plan View Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
                 }
               }
             },

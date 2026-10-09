@@ -59,8 +59,13 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+# The plan's stored content is always dumped whole (`to_content`), so in the API contract (phase 9b) a field with a
+# default is still always present: the answer schema marks it required.
+_CONTENT = ConfigDict(frozen=True, extra="forbid", json_schema_serialization_defaults_required=True)
+
+
 class Placement(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = _CONTENT
 
     role: Role
     by: str = "default"              # default | agent:<run> | a person's user id
@@ -70,7 +75,7 @@ class Placement(BaseModel):
 
 
 class FitChoice(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = _CONTENT
 
     stages: tuple[str, ...]
     lower: float
@@ -84,7 +89,7 @@ class FitChoice(BaseModel):
 class Proposal(BaseModel):
     """An A5 departure from the plan, shown in the diff until a person accepts or rejects it."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = _CONTENT
 
     id: str
     kind: Literal["role", "fit"]
@@ -98,7 +103,7 @@ class Proposal(BaseModel):
 
 
 class Structure(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = _CONTENT
 
     objective: str = "Predict exposure for the question of interest"
     context_of_use: str = "Model-informed decision"
@@ -113,7 +118,7 @@ class Structure(BaseModel):
 class StudyView(BaseModel):
     """What the plan knows about a study (from the P4 catalog): enough to plan and validate, no observed values."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = _CONTENT
 
     study_id: str
     study_class: str
@@ -136,7 +141,7 @@ class Deviation(BaseModel):
     """A change to the plan after its MAP was signed (D-14, ICH M15 §4.2): it applies to campaigns only once the MIDD
     lead signs it, which makes a new MAP version superseding the signed one."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = _CONTENT
 
     kind: str                         # role | fit | fit removed | unlock | structure | acknowledged | proposal
     target: str
@@ -150,7 +155,7 @@ class Deviation(BaseModel):
 
 
 class ModelPlan(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = _CONTENT
 
     schema_id: str = Field(default="model-plan/1", alias="schema")
     compound: str
@@ -304,7 +309,7 @@ def rebase(previous: ModelPlan | None, fresh: ModelPlan) -> ModelPlan:
 
 
 class Violation(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, json_schema_serialization_defaults_required=True)
 
     id: str
     severity: Literal["error", "warning"]
