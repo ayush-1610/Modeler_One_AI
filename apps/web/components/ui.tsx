@@ -2,10 +2,13 @@ import type { ReactNode } from "react";
 
 import type { Rating } from "@/lib/api";
 
-export function RiskChip({ rating }: { rating: Rating | null }) {
+const RATINGS: readonly string[] = ["low", "medium", "high"] satisfies Rating[];
+
+/** A rating as the record states it; a value outside low / medium / high is shown as it is, uncoloured. */
+export function RiskChip({ rating }: { rating: string | null }) {
   if (!rating) return <span className="chip neutral">not rated</span>;
   return (
-    <span className={`chip ${rating}`}>
+    <span className={`chip ${RATINGS.includes(rating) ? rating : "neutral"}`}>
       <span className="chip-dot" aria-hidden />
       {rating}
     </span>

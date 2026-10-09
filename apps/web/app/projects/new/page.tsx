@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { Card } from "@/components/ui";
+import { narrow } from "@/lib/api";
+import { useResource } from "@/lib/hooks";
 import {
-  createProject, getTemplate, listTemplates, prepareCampaign, putCpf, signMap, startCampaign, uploadStudies,
-  type PrepareResult, type StudyRow, type TemplateContent, type TemplateSummary,
+  createProject, prepareCampaign, putCpf, signMap, startCampaign, uploadStudies,
+  type PrepareResult, type TemplateContent, type TemplateStudy,
 } from "@/lib/writes";
 
 type Step = 0 | 1 | 2 | 3 | 4;
@@ -18,7 +20,13 @@ export default function NewProjectWizard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [templates, setTemplates] = useState<TemplateSummary[] | null>(null);
+  const listed = useResource("/api/v1/templates", {});
+  const templates = listed.data?.templates ?? null;
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [asked, setAsked] = useState(0);      // each pick of a starting point, applied once (a pick after Back too)
+  const [applied, setApplied] = useState(0);
+  const picked = useResource("/api/v1/templates/{template_id}", { template_id: chosen ?? "" },
+                             { enabled: chosen !== null, select: (d) => narrow<TemplateContent>(d) });
   const [template, setTemplate] = useState<TemplateContent | null>(null);
 
   const [name, setName] = useState("");
@@ -44,14 +52,11 @@ export default function NewProjectWizard() {
     }
   }
 
+  // the chosen starting point seeds the wizard's fields once; editing them afterwards is the person's
   useEffect(() => {
-    guard(() => listTemplates()).then((data) => { if (data) setTemplates(data.templates); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function choose(id: string) {
-    const data = await guard(() => getTemplate(id));
-    if (!data) return;
+    const data = picked.data;
+    if (!data || data.id !== chosen || applied === asked) return;
+    setApplied(asked);
     setTemplate(data);
     setName(`${data.compound} ${new Date().toISOString().slice(0, 16).replace("T", " ")}`);
     setCompound(data.compound);
@@ -60,7 +65,9 @@ export default function NewProjectWizard() {
     setCpfText(JSON.stringify(data.cpf, null, 2));
     setStudiesText(JSON.stringify(data.studies, null, 2));
     setStep(1);
-  }
+  }, [picked.data, chosen, asked, applied]);
+  const loadProblem = listed.problem ?? picked.problem;
+  const loading = chosen !== null && !picked.data && !picked.problem;
 
   async function step1() {
     // An illustrative starting point is a demo: its project is exploratory and may sign TEST ONLY verdicts (plan §9.4).
@@ -132,8 +139,8 @@ export default function NewProjectWizard() {
     }
   }
 
-  let parsedStudies: StudyRow[] = [];
-  try { parsedStudies = studiesText ? (JSON.parse(studiesText) as StudyRow[]) : []; } catch { parsedStudies = []; }
+  let parsedStudies: TemplateStudy[] = [];
+  try { parsedStudies = studiesText ? (JSON.parse(studiesText) as TemplateStudy[]) : []; } catch { parsedStudies = []; }
   let parsedCpf: TemplateContent["cpf"] | null = null;
   try { parsedCpf = cpfText ? JSON.parse(cpfText) : null; } catch { parsedCpf = null; }
 
@@ -151,11 +158,13 @@ export default function NewProjectWizard() {
         ))}
       </div>
 
-      {error && <div className="banner err" data-testid="wizard-error" style={{ marginBottom: 14 }}>{error}</div>}
+      {(error ?? loadProblem) && (
+        <div className="banner err" data-testid="wizard-error" style={{ marginBottom: 14 }}>{error ?? loadProblem}</div>
+      )}
 
       {step === 0 && (
         <Card title="0 · Start from">
-          {!templates && !error && <p className="muted">Loading starting points…</p>}
+          {!templates && !loadProblem && <p className="muted">Loading starting points…</p>}
           <div style={{ display: "grid", gap: 12 }}>
             {templates?.map((t) => (
               <div key={t.id} className="card" style={{ margin: 0 }}>
@@ -166,8 +175,8 @@ export default function NewProjectWizard() {
                   </span>
                 </div>
                 <p className="muted" style={{ margin: "8px 0" }}>{t.description}</p>
-                <button className={`btn ${t.real_data ? "primary" : ""}`} disabled={busy}
-                  data-testid={`template-${t.id}`} onClick={() => choose(t.id)}>
+                <button className={`btn ${t.real_data ? "primary" : ""}`} disabled={busy || loading}
+                  data-testid={`template-${t.id}`} onClick={() => { setChosen(t.id); setAsked((n) => n + 1); }}>
                   Use this starting point
                 </button>
               </div>

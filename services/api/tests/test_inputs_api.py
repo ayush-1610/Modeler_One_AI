@@ -36,7 +36,8 @@ def setup(tmp_path, api_settings):
     api_settings(read_root=str(read_root), execution_backend="local")
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier()
     app.dependency_overrides[project_api.get_project_store] = lambda: store
-    FileWriteStore(str(read_root)).put_project("t1", {"id": "p1", "name": "P1", "compounds": ["Renaldrug"], "pipeline": True})
+    FileWriteStore(str(read_root)).put_project("t1", {"id": "p1", "name": "P1", "compounds": ["Renaldrug"], "openQuestions": 0,
+                                                       "risk": "medium", "questions": [], "pipeline": True})
     ws = Workspace(store, "t1", "p1")
     brief = empty_brief("Renaldrug", by="u1")
     b = ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), actor="u1", reason="start")

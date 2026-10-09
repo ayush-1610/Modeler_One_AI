@@ -1,43 +1,30 @@
-// Client-side write helpers for the guided create-project flow, the campaign start and the escalations. They call the
-// API through the one client in lib/api.ts; these routes are not typed in the contract yet, so the answers are typed here.
+// Client-side write helpers for the guided create-project flow, the campaign start and the escalations, through the
+// one client in lib/api.ts. The project writes are typed by the contract (phase 9c); signatures, the campaign start and
+// the escalation decision answer without the envelope and are typed here until phase 9d.
 
-import { apiGet, apiSend, rawPost, type Schema } from "@/lib/api";
+import { rawPost, send, type Narrow, type Schema } from "@/lib/api";
 
-export type CreatedProject = { id: string; name: string; compounds: string[]; questions: { id: string }[] };
-export type PrepareResult = {
-  map_id: string;
-  compound: string;
-  cpf_uri: string;
-  cpf_sha256: string;
-  map_uri: string;
-  map_sha256: string;
-  observed_uri: string;
-  stages: string[];
-  tier: string;
-  studies: { study_id: string; assignment: string }[];
-  origins?: Record<string, string | null>;
-  not_evaluable?: string[];
-};
+export type PrepareResult = Schema<"CampaignInputs">;
 
-export function createProject(body: { name: string; compound: string; question?: string; risk?: string; model_risk?: string;
-                                      exploratory?: boolean }) {
-  return apiSend<CreatedProject>("/api/v1/projects", "POST", body);
+export function createProject(body: Schema<"ProjectCreate">) {
+  return send("post", "/api/v1/projects", {}, body);
 }
 
+/** Put a compound's CPF; the JSON a person edited is the body, checked by the API against the CPF schema. */
 export function putCpf(projectId: string, compound: string, cpf: unknown) {
-  return apiSend<unknown>(`/api/v1/projects/${projectId}/compounds/${compound}/cpf`, "PUT", cpf);
+  return send("put", "/api/v1/projects/{project_id}/compounds/{compound}/cpf", { project_id: projectId, compound },
+              cpf as Schema<"CPF">);
 }
 
+/** Upload observed studies; the rows a person edited are the body, checked by the API against the upload schema. */
 export function uploadStudies(projectId: string, studies: unknown[]) {
-  return apiSend<{ stored: number }>(`/api/v1/projects/${projectId}/studies`, "POST", { studies });
+  return send("post", "/api/v1/projects/{project_id}/studies", { project_id: projectId },
+              { studies: studies as Schema<"StudiesUpload">["studies"] });
 }
 
-export function prepareCampaign(
-  projectId: string,
-  questionId: string,
-  body: { compound: string; stages?: string[]; model_risk?: string },
-) {
-  return apiSend<PrepareResult>(`/api/v1/projects/${projectId}/questions/${questionId}/campaign:prepare`, "POST", body);
+export function prepareCampaign(projectId: string, questionId: string, body: Schema<"PrepareRequest">) {
+  return send("post", "/api/v1/projects/{project_id}/questions/{question_id}/campaign:prepare",
+              { project_id: projectId, question_id: questionId }, body);
 }
 
 /** Sign the MAP (Part 11). Returns whether the signature was accepted (loa2 step-up satisfied), and why not. */
@@ -84,20 +71,12 @@ export async function resolveEscalation(
   return { ok, ...data, detail: data.detail ?? error };
 }
 
-// --- project starting points (GET /templates) ----------------------------------------------------------------
+// --- project starting points (GET /templates; the wizard reads them with useResource) ---------------------------
 
-export type TemplateSummary = {
-  id: string;
-  name: string;
-  compound: string;
-  question: string;
-  model_risk: string;
-  real_data: boolean;
-  blank?: boolean; // the user's own compound: the S0 parameters, each missing, and no studies yet
-  description: string;
-};
+export type TemplateSummary = Schema<"TemplateSummary">;
 
-export type StudyRow = {
+/** A template's study, in the upload shape it is sent back in (the template's own document). */
+export type TemplateStudy = {
   study_id: string;
   reference?: string;
   route: string;
@@ -112,7 +91,8 @@ export type StudyRow = {
   profile: { times: number[]; values: number[]; time_unit: string; unit: string };
 };
 
-export type TemplateContent = TemplateSummary & {
+/** A template in full; its CPF and studies are the template's documents, typed here as the wizard edits them. */
+export type TemplateContent = Narrow<Schema<"TemplateContent">, {
   cpf: {
     compound: string;
     parameters: {
@@ -120,16 +100,5 @@ export type TemplateContent = TemplateSummary & {
       provenance?: { source_type: string; reference?: string } | null;
     }[];
   };
-  studies: StudyRow[];
-  skipped: string[];
-  notes: string[];
-  source: string;
-};
-
-export function listTemplates() {
-  return apiGet<{ templates: TemplateSummary[] }>("/api/v1/templates");
-}
-
-export function getTemplate(id: string) {
-  return apiGet<TemplateContent>(`/api/v1/templates/${id}`);
-}
+  studies: TemplateStudy[];
+}>;

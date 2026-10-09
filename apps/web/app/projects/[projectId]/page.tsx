@@ -5,7 +5,7 @@ import { RunCampaignButton } from "@/components/RunCampaignButton";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
 
-function points(study: { profile?: { times: number[] } }) {
+function points(study: { profile?: { times: number[] } | null }) {
   return study.profile?.times?.length ?? 0;
 }
 
@@ -79,7 +79,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
                 {studies.map((s) => (
                   <tr key={s.study_id}>
                     <td><code>{s.study_id}</code></td>
-                    <td>{s.route.replace("_", " ")}</td>
+                    <td>{s.route?.replace("_", " ") ?? "—"}</td>
                     <td className="num">{s.dose_mg} mg</td>
                     <td className="num">{points(s)}</td>
                   </tr>

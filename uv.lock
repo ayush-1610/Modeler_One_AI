@@ -1255,6 +1255,7 @@ source = { editable = "packages/storage" }
 dependencies = [
     { name = "asyncpg" },
     { name = "pbpk-domain" },
+    { name = "pydantic" },
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
 
@@ -1262,6 +1263,7 @@ dependencies = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.29" },
     { name = "pbpk-domain", editable = "packages/pbpk-domain" },
+    { name = "pydantic", specifier = ">=2.11" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.30" },
 ]
 

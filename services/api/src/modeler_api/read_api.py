@@ -20,9 +20,11 @@ from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
 from modeler_api.cpf_view import project_cpf_view
 from modeler_api.deps import get_project_store
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
+from modeler_api.views.read import CpfView, Projects, Proposals, Studies
 from modeler_project import ProjectStore, Workspace
 from modeler_storage.filestore import FileReadStore, ReadStore
+from modeler_storage.records import ProjectRecord
 
 # re-exported so existing imports (`from modeler_api.read_api import FileReadStore`) keep working
 __all__ = ["FileReadStore", "ReadStore", "get_read_store", "project_cpf_view", "router"]
@@ -42,12 +44,12 @@ PrincipalDep = Annotated[Principal, Depends(require_role(*_READ_ROLES))]
 StoreDep = Annotated[ReadStore, Depends(get_read_store)]
 
 
-@router.get("/projects")
+@router.get("/projects", **answers(Projects))
 def list_projects(principal: PrincipalDep, store: StoreDep):
     return envelope({"projects": store.list_projects(principal.tenant_id)})
 
 
-@router.get("/projects/{project_id}")
+@router.get("/projects/{project_id}", **answers(ProjectRecord))
 def get_project(project_id: str, principal: PrincipalDep, store: StoreDep):
     require_project(project_id, principal)
     project = store.get_project(principal.tenant_id, project_id)
@@ -56,7 +58,7 @@ def get_project(project_id: str, principal: PrincipalDep, store: StoreDep):
     return envelope(project)
 
 
-@router.get("/projects/{project_id}/compounds/{compound}/cpf")
+@router.get("/projects/{project_id}/compounds/{compound}/cpf", **answers(CpfView))
 def get_compound_cpf(project_id: str, compound: str, principal: PrincipalDep, store: StoreDep):
     require_project(project_id, principal)
     cpf = store.get_cpf(principal.tenant_id, project_id, compound)
@@ -166,7 +168,7 @@ def download_campaign_artifact(campaign_id: str, artifact: str, principal: Princ
     return FileResponse(path, media_type=_ARTIFACTS[artifact], filename=f"{campaign_id}-{artifact}")
 
 
-@router.get("/projects/{project_id}/studies")
+@router.get("/projects/{project_id}/studies", **answers(Studies))
 def list_studies(project_id: str, principal: PrincipalDep, store: StoreDep,
                  projects: Annotated[ProjectStore, Depends(get_project_store)]):
     """The observed clinical studies uploaded for this project (what the campaign fits and validates against)."""
@@ -189,7 +191,7 @@ def list_escalations(principal: PrincipalDep, store: StoreDep):
     return envelope({"escalations": store.list_escalations(principal.tenant_id)})
 
 
-@router.get("/proposals")
+@router.get("/proposals", **answers(Proposals))
 def list_proposals(principal: PrincipalDep, store: StoreDep):
     """Pending agent parameter proposals awaiting curator acceptance (review inbox)."""
     return envelope({"proposals": store.list_proposals(principal.tenant_id)})

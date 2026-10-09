@@ -1,39 +1,24 @@
 // The shapes the read APIs return, mirroring the backend domain models. This file used to carry sample data that
 // pages showed whenever a read failed; that hid real faults behind made-up numbers, so it holds types only now.
 
-import type { Rating } from "@/lib/api";
+import type { Rating, Schema } from "@/lib/api";
 
-export type Project = { id: string; name: string; compounds: string[]; openQuestions: number; risk: Rating };
-export type ProjectDetail = Project & { questions?: Question[] };
-
-export type CpfParameter = {
-  id: string;
-  value: string | null;
-  unit: string | null;
-  status: string; // CPF status: fixed | fitted | predicted | derived
-  source: string; // provenance source_type (drives the provenance chip)
-  reference: string;
-  fittableStages: string[];
-};
+// The project, its questions and a compound's CPF view are typed by the API contract (phase 9c).
+export type Project = Schema<"ProjectRecord">;
+export type ProjectDetail = Project;
+export type Question = Schema<"QuestionRecord">;
+export type CpfParameter = Schema<"CpfParameterRow">;
 
 // provenance sources that count as measured / literature evidence (vs fitted or predicted)
 export const MEASURED_SOURCES = ["measured", "Publication", "Database", "Other"];
 
+/** A compound's CPF as the compound page shows it: the API's CPF view, with the project it belongs to. */
 export type Compound = {
   name: string;
   project: string;
   version: number;
   completeness: number; // 0..1 (S0 readiness)
   parameters: CpfParameter[];
-};
-
-export type Question = {
-  id: string;
-  question: string;
-  application: string;
-  modelRisk: Rating | null;
-  stage: "planning" | "evaluation" | "reporting" | "signed";
-  failingCriteria: number;
 };
 
 // What a round's verdict rests on (plan §9.4): judged studies, how many are real observed data, by origin.
@@ -175,12 +160,4 @@ export type Escalation = {
   feedback?: FeedbackDiagnosis;
 };
 
-export type Proposal = {
-  id: string;
-  parameterId: string;
-  value: string;
-  unit: string | null;
-  quote: string;
-  reference: string;
-  agent: string;
-};
+export type Proposal = Schema<"ProposalRecord">;

@@ -1,6 +1,6 @@
 # Phase 9: a typed answer for every API route, from the API through the web
 
-Status: **9a and 9b done.** 9c–9e next. Each step is one PR to `main`, and nothing changes behaviour unless a step says so.
+Status: **9a–9c done.** 9d–9e next. Each step is one PR to `main`, and nothing changes behaviour unless a step says so.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B6, coupling C5, §6 phase 9.
 - The lists under `[response]` in the locked `tests/architecture/boundaries.toml`, which only shrink.
@@ -66,11 +66,18 @@ answers a typed envelope while the web still calls it untyped. Every step:
       (`json_schema_serialization_defaults_required`), because the plan is always dumped whole.
     - The snapshot gains 13 response schemas and 29 schemas, and changes none.
     - The e2e specs for the canvas, blinding and new project pass.
-- **9c — API-owned records** (part of `read_api`, plus `write_api` and `templates_api`):
+- **9c — done. API-owned records** (part of `read_api`, plus `write_api` and `templates_api`; untyped 24 → 12):
   - **API:** `modeler_storage.records` gets `ProjectRecord`, `QuestionRecord` and `StudyRecord`, built by every API
     writer. There are also views for the CPF, templates, prepare, system and studies-stored answers. The partial test
     fakes are completed to the real shapes.
   - **Web:** `lib/reads.ts` moves to `serverGet` and `lib/writes.ts` to `send`.
+  - **As built:**
+    - `ProjectRecord` and `ProposalRecord` are in `modeler_storage.records`, because the orchestrator reads the
+      project.
+    - The study row is `views/read.StudyRow`, the upload model (`modeler_api.studies.StudyUpload`) as stored. This
+      departs from the plan, which put it in storage. Only the API writes and reads `studies.json`, and the row is
+      the API's own request model, so moving it down two layers would buy nothing.
+    - The wizard reads the templates through `useResource`.
 - **9d — orchestrator-written records and the answers without an envelope** (`read_api`, `campaign_api`,
   `signatures_api`, `results_api`, `system_api`):
   - **API:** `CampaignRecord` and `EscalationRecord` go in `modeler_storage.records`, written by `local_runner`.

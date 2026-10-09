@@ -1,7 +1,7 @@
 // Typed server-side fetchers for the read APIs. Each returns the live data or the problem that prevented it
 // (`Live<T>`); pages render the problem instead of sample data.
 
-import { serverRead, type Live } from "@/lib/api";
+import { serverGet, serverRead, type Live, type Schema } from "@/lib/api";
 import type { Campaign, CampaignDetail, Compound, Escalation, Project, ProjectDetail, Proposal } from "@/lib/types";
 
 function pick<A, B>(live: Live<A>, f: (a: A) => B): Live<B> {
@@ -9,22 +9,15 @@ function pick<A, B>(live: Live<A>, f: (a: A) => B): Live<B> {
 }
 
 export async function getProjects(): Promise<Live<Project[]>> {
-  return pick(await serverRead<{ projects: Project[] }>("/api/v1/projects"), (d) => d.projects);
+  return pick(await serverGet("/api/v1/projects", {}), (d) => d.projects);
 }
 
 export async function getProject(projectId: string): Promise<Live<ProjectDetail>> {
-  return serverRead<ProjectDetail>(`/api/v1/projects/${projectId}`);
+  return serverGet("/api/v1/projects/{project_id}", { project_id: projectId });
 }
 
-type CpfView = {
-  compound: string;
-  version: number;
-  completeness: number;
-  parameters: Compound["parameters"];
-};
-
 export async function getCompoundCpf(projectId: string, compound: string): Promise<Live<Compound>> {
-  const live = await serverRead<CpfView>(`/api/v1/projects/${projectId}/compounds/${compound}/cpf`);
+  const live = await serverGet("/api/v1/projects/{project_id}/compounds/{compound}/cpf", { project_id: projectId, compound });
   return pick(live, (view) => ({
     name: view.compound,
     project: projectId,
@@ -34,22 +27,12 @@ export async function getCompoundCpf(projectId: string, compound: string): Promi
   }));
 }
 
-export type StudyRow = {
-  study_id: string;
-  reference?: string;
-  route: string;
-  dose_mg: number;
-  infusion_time_min?: number | null;
-  formulation: string;
-  food_state: string;
-  n?: number;
-  n_timepoints?: number;
-  profile?: { times: number[]; values: number[]; time_unit: string; unit: string };
-};
+// An observed study as stored for the project (D-15: a blinded external study comes without its profile).
+export type StudyRow = Schema<"StudyRow">;
 
 /** The observed clinical studies uploaded for a project (what a campaign fits and validates against). */
 export async function getStudies(projectId: string): Promise<Live<StudyRow[]>> {
-  return pick(await serverRead<{ studies: StudyRow[] }>(`/api/v1/projects/${projectId}/studies`), (d) => d.studies);
+  return pick(await serverGet("/api/v1/projects/{project_id}/studies", { project_id: projectId }), (d) => d.studies);
 }
 
 /** Campaigns for the tenant, or just one project's when `project` is given. */
@@ -67,5 +50,5 @@ export async function getEscalations(): Promise<Live<Escalation[]>> {
 }
 
 export async function getProposals(): Promise<Live<Proposal[]>> {
-  return pick(await serverRead<{ proposals: Proposal[] }>("/api/v1/proposals"), (d) => d.proposals);
+  return pick(await serverGet("/api/v1/proposals", {}), (d) => d.proposals);
 }

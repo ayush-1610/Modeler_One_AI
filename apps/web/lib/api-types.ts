@@ -1841,6 +1841,20 @@ export interface components {
             /** Blinded */
             blinded: string[];
         };
+        /**
+         * BlindingChoice
+         * @description The MIDD lead's blinding choice for the project (D-15), with its reason.
+         */
+        BlindingChoice: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** On */
+            on: boolean;
+            /** Reason */
+            reason: string;
+        };
         /** BlindingRequest */
         BlindingRequest: {
             /** On */
@@ -2020,6 +2034,46 @@ export interface components {
              * @default 1
              */
             version?: number;
+        };
+        /**
+         * CampaignInputs
+         * @description `campaign:prepare`: the staged CPF, MAP and observed PK a campaign starts from; a model system adds its own.
+         */
+        CampaignInputs: {
+            /** Compound */
+            compound: string;
+            /** Cpf Sha256 */
+            cpf_sha256: string;
+            /** Cpf Uri */
+            cpf_uri: string;
+            /** Map Id */
+            map_id: string;
+            /** Map Sha256 */
+            map_sha256: string;
+            /** Map Uri */
+            map_uri: string;
+            /** Model System Sha256 */
+            model_system_sha256?: string | null;
+            /** Not Evaluable */
+            not_evaluable: string[];
+            /** Not Evaluated */
+            not_evaluated?: string[] | null;
+            /** Observed Uri */
+            observed_uri: string;
+            /** Origins */
+            origins: {
+                [key: string]: string | null;
+            };
+            /** Stages */
+            stages: string[];
+            /** Studies */
+            studies: components["schemas"]["StudyAssignment"][];
+            /** System Sha256 */
+            system_sha256?: string | null;
+            /** System Uri */
+            system_uri?: string | null;
+            /** Tier */
+            tier: string;
         };
         /** CampaignStartRequest */
         CampaignStartRequest: {
@@ -2325,6 +2379,23 @@ export interface components {
             /** Target */
             target: string;
         };
+        /** CpfParameterRow */
+        CpfParameterRow: {
+            /** Fittablestages */
+            fittableStages: string[];
+            /** Id */
+            id: string;
+            /** Reference */
+            reference: string;
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: string | null;
+        };
         /**
          * CpfVersion
          * @description The assembled CPF's version, and the assembly report (what came from which evidence).
@@ -2357,6 +2428,24 @@ export interface components {
             /** Stale Reasons */
             stale_reasons: string[];
             status: components["schemas"]["ArtifactStatus"];
+            /** Version */
+            version: number;
+        };
+        /**
+         * CpfView
+         * @description `cpf_view.project_cpf_view`: the compound screen's parameter rows and the S0 completeness.
+         */
+        CpfView: {
+            /** Completeness */
+            completeness: number;
+            /** Compound */
+            compound: string;
+            /** Missing */
+            missing: string[];
+            /** Parameters */
+            parameters: components["schemas"]["CpfParameterRow"][];
+            /** Ready */
+            ready: boolean;
             /** Version */
             version: number;
         };
@@ -2838,6 +2927,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[CampaignInputs] */
+        Envelope_CampaignInputs_: {
+            data: components["schemas"]["CampaignInputs"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[ClientDataPage] */
         Envelope_ClientDataPage_: {
             data: components["schemas"]["ClientDataPage"];
@@ -2848,6 +2944,13 @@ export interface components {
         /** Envelope[ClientUpload] */
         Envelope_ClientUpload_: {
             data: components["schemas"]["ClientUpload"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[CpfView] */
+        Envelope_CpfView_: {
+            data: components["schemas"]["CpfView"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -2950,9 +3053,30 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[ProjectRecord] */
+        Envelope_ProjectRecord_: {
+            data: components["schemas"]["ProjectRecord"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[ProjectStarted] */
         Envelope_ProjectStarted_: {
             data: components["schemas"]["ProjectStarted"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[Projects] */
+        Envelope_Projects_: {
+            data: components["schemas"]["Projects"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[Proposals] */
+        Envelope_Proposals_: {
+            data: components["schemas"]["Proposals"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -2981,6 +3105,41 @@ export interface components {
         /** Envelope[SheetView] */
         Envelope_SheetView_: {
             data: components["schemas"]["SheetView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[StudiesStored] */
+        Envelope_StudiesStored_: {
+            data: components["schemas"]["StudiesStored"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[Studies] */
+        Envelope_Studies_: {
+            data: components["schemas"]["Studies"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[SystemView] */
+        Envelope_SystemView_: {
+            data: components["schemas"]["SystemView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[TemplateContent] */
+        Envelope_TemplateContent_: {
+            data: components["schemas"]["TemplateContent"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[Templates] */
+        Envelope_Templates_: {
+            data: components["schemas"]["Templates"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -4503,6 +4662,32 @@ export interface components {
              */
             risk?: string;
         };
+        /** ProjectRecord */
+        ProjectRecord: {
+            blinding?: components["schemas"]["BlindingChoice"] | null;
+            /** Compounds */
+            compounds: string[];
+            /**
+             * Exploratory
+             * @default false
+             */
+            exploratory?: boolean;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Openquestions */
+            openQuestions: number;
+            /**
+             * Pipeline
+             * @default false
+             */
+            pipeline?: boolean;
+            /** Questions */
+            questions?: components["schemas"]["QuestionRecord"][];
+            /** Risk */
+            risk: string;
+        };
         /** ProjectStarted */
         ProjectStarted: {
             /** Brief Version */
@@ -4514,6 +4699,11 @@ export interface components {
             name: string;
             /** Project Id */
             project_id: string;
+        };
+        /** Projects */
+        Projects: {
+            /** Projects */
+            projects: components["schemas"]["ProjectRecord"][];
         };
         /**
          * Proposal
@@ -4550,6 +4740,28 @@ export interface components {
             value: {
                 [key: string]: unknown;
             };
+        };
+        /** ProposalRecord */
+        ProposalRecord: {
+            /** Agent */
+            agent: string;
+            /** Id */
+            id: string;
+            /** Parameterid */
+            parameterId: string;
+            /** Quote */
+            quote: string;
+            /** Reference */
+            reference: string;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: string;
+        };
+        /** Proposals */
+        Proposals: {
+            /** Proposals */
+            proposals: components["schemas"]["ProposalRecord"][];
         };
         /** Provenance */
         Provenance: {
@@ -4629,6 +4841,24 @@ export interface components {
              * @default []
              */
             planned_applications?: components["schemas"]["StudyClass"][];
+        };
+        /**
+         * QuestionRecord
+         * @description A question of interest the project answers.
+         */
+        QuestionRecord: {
+            /** Application */
+            application: string;
+            /** Failingcriteria */
+            failingCriteria: number;
+            /** Id */
+            id: string;
+            /** Modelrisk */
+            modelRisk: string | null;
+            /** Question */
+            question: string;
+            /** Stage */
+            stage: string;
         };
         /** RatedElement */
         RatedElement: {
@@ -5350,10 +5580,29 @@ export interface components {
             /** Value */
             value: unknown;
         };
+        /** Studies */
+        Studies: {
+            /** Studies */
+            studies: components["schemas"]["StudyRow"][];
+        };
+        /** StudiesStored */
+        StudiesStored: {
+            /** Stored */
+            stored: number;
+            /** Total */
+            total: number;
+        };
         /** StudiesUpload */
         StudiesUpload: {
             /** Studies */
             studies: components["schemas"]["StudyUpload"][];
+        };
+        /** StudyAssignment */
+        StudyAssignment: {
+            /** Assignment */
+            assignment: string;
+            /** Study Id */
+            study_id: string;
         };
         /**
          * StudyClass
@@ -5467,6 +5716,116 @@ export interface components {
             species?: string;
             /** @default mean_sd */
             statistic?: components["schemas"]["Statistic"];
+            /** Study Id */
+            study_id: string;
+            /** Water Ml Per Kg */
+            water_ml_per_kg?: number | null;
+        };
+        /**
+         * StudyRow
+         * @description An observed study as stored for the project. D-15: a blinded external study comes without its profile.
+         */
+        StudyRow: {
+            /** Analyte */
+            analyte?: string | null;
+            /**
+             * Blinded
+             * @default false
+             */
+            blinded?: boolean;
+            /** Co Medication */
+            co_medication?: string | null;
+            /** Default Simulation Values */
+            default_simulation_values?: string[];
+            /** Demographics */
+            demographics?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Design
+             * @default SD
+             */
+            design?: string;
+            /** Dose Mg */
+            dose_mg: number;
+            /**
+             * Dose Per Kg
+             * @default false
+             */
+            dose_per_kg?: boolean;
+            /** Dose Phases */
+            dose_phases?: {
+                [key: string]: unknown;
+            }[];
+            /** Dosing Interval H */
+            dosing_interval_h?: number | null;
+            /**
+             * Food State
+             * @default fasted
+             */
+            food_state?: string;
+            /**
+             * Formulation
+             * @default solution
+             */
+            formulation?: string;
+            /** Formulation Name */
+            formulation_name?: string | null;
+            /** Inactive Processes */
+            inactive_processes?: {
+                [key: string]: string[];
+            };
+            /** Infusion Time Min */
+            infusion_time_min?: number | null;
+            /** Lloq */
+            lloq?: number | null;
+            /** Meals */
+            meals?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * N
+             * @default 12
+             */
+            n?: number;
+            /** N Doses */
+            n_doses?: number | null;
+            /**
+             * N Timepoints
+             * @default 10
+             */
+            n_timepoints?: number;
+            origin?: components["schemas"]["DataOrigin"] | null;
+            /**
+             * Population Type
+             * @default healthy
+             */
+            population_type?: string;
+            /** Product */
+            product?: string | null;
+            profile?: components["schemas"]["ObservedProfile"] | null;
+            /** Project */
+            project: string;
+            /** Published Individual */
+            published_individual?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Reference
+             * @default
+             */
+            reference?: string;
+            /**
+             * Route
+             * @default oral
+             */
+            route?: string;
+            /** Solver */
+            solver?: {
+                [key: string]: number;
+            };
+            /** Special Population */
+            special_population?: string | null;
             /** Study Id */
             study_id: string;
             /** Water Ml Per Kg */
@@ -5676,6 +6035,91 @@ export interface components {
             species?: string;
             /** Weight Kg */
             weight_kg?: number | null;
+        };
+        /**
+         * SystemView
+         * @description The project's model system as stored (`pbpk_domain.system`): compounds, roles, products, analytes.
+         */
+        SystemView: {
+            /** Analytes */
+            analytes: string[];
+            /** Compounds */
+            compounds: string[];
+            /** Name */
+            name: string;
+            /** Products */
+            products: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Roles */
+            roles: {
+                [key: string]: string;
+            };
+            /** Sha256 */
+            sha256: string;
+        };
+        /**
+         * TemplateContent
+         * @description A starting point in full. The CPF and the studies are the template's own documents, in the upload shapes they
+         *     are sent back in (a reference model's CPF, the blank one's empty parameters; studies with their origin).
+         */
+        TemplateContent: {
+            /** Blank */
+            blank: boolean;
+            /** Compound */
+            compound: string;
+            /** Cpf */
+            cpf: {
+                [key: string]: unknown;
+            };
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Model Risk */
+            model_risk: string;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes: string[];
+            /** Question */
+            question: string;
+            /** Real Data */
+            real_data: boolean;
+            /** Skipped */
+            skipped: string[];
+            /** Source */
+            source: string;
+            /** Studies */
+            studies: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** TemplateSummary */
+        TemplateSummary: {
+            /** Blank */
+            blank: boolean;
+            /** Compound */
+            compound: string;
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Model Risk */
+            model_risk: string;
+            /** Name */
+            name: string;
+            /** Question */
+            question: string;
+            /** Real Data */
+            real_data: boolean;
+        };
+        /** Templates */
+        Templates: {
+            /** Templates */
+            templates: components["schemas"]["TemplateSummary"][];
         };
         /**
          * TransporterMichaelisMenten
@@ -6275,7 +6719,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_Projects_"];
                 };
             };
             /** @description Validation Error */
@@ -6310,9 +6754,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Envelope_ProjectRecord_"];
                 };
             };
             /** @description Validation Error */
@@ -6345,7 +6787,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_ProjectRecord_"];
                 };
             };
             /** @description Validation Error */
@@ -7174,7 +7616,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_CpfView_"];
                 };
             };
             /** @description Validation Error */
@@ -7212,9 +7654,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Envelope_CpfView_"];
                 };
             };
             /** @description Validation Error */
@@ -8614,9 +9054,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Envelope_CampaignInputs_"];
                 };
             };
             /** @description Validation Error */
@@ -8869,7 +9307,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_Studies_"];
                 };
             };
             /** @description Validation Error */
@@ -8906,9 +9344,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Envelope_StudiesStored_"];
                 };
             };
             /** @description Validation Error */
@@ -8947,9 +9383,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Envelope_SystemView_"];
                 };
             };
             /** @description Validation Error */
@@ -9015,7 +9449,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_Proposals_"];
                 };
             };
             /** @description Validation Error */
@@ -9121,7 +9555,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_Templates_"];
                 };
             };
             /** @description Validation Error */
@@ -9154,7 +9588,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_TemplateContent_"];
                 };
             };
             /** @description Validation Error */

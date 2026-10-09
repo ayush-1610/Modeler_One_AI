@@ -39,6 +39,7 @@ from modeler_project import ArtifactKind, ArtifactRef
 from modeler_project import blinding as blind
 from modeler_project.datasets import ObservedDataset
 from modeler_project.workspace import PHASE_LABELS
+from modeler_storage.records import BlindingChoice, ProjectRecord
 
 router = APIRouter(prefix="/api/v1", tags=["project-pipeline"])
 
@@ -145,8 +146,9 @@ def set_blinding(project_id: str, body: BlindingRequest, principal: MiddLead, st
     if project is None:
         raise HTTPException(status_code=404, detail="the project record is not in the read store")
     before = blind.setting(project, model_risk(ws))
-    choice = {"on": body.on, "reason": body.reason, "by": principal.user_id, "at": datetime.now(UTC).isoformat()}
-    FileWriteStore(get_settings().read_root).put_project(ws.tenant_id, {**project, "blinding": choice})
+    choice = BlindingChoice(on=body.on, reason=body.reason, by=principal.user_id, at=datetime.now(UTC).isoformat())
+    record = ProjectRecord.model_validate({**project, "blinding": choice.model_dump()})
+    FileWriteStore(get_settings().read_root).put_project(ws.tenant_id, record.stored())
     store.audit(ws.tenant_id).append(actor=principal.user_id, action="blinding.set", resource_type="project",
                                      resource_id=f"{project_id}/blinding", before=before["on"], after=body.on,
                                      reason=body.reason)

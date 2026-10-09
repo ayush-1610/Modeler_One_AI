@@ -445,6 +445,36 @@
         "title": "Blinded",
         "type": "object"
       },
+      "BlindingChoice": {
+        "additionalProperties": false,
+        "description": "The MIDD lead's blinding choice for the project (D-15), with its reason.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "on",
+          "reason",
+          "by",
+          "at"
+        ],
+        "title": "BlindingChoice",
+        "type": "object"
+      },
       "BlindingRequest": {
         "properties": {
           "on": {
@@ -864,6 +894,142 @@
           "compound"
         ],
         "title": "CPF",
+        "type": "object"
+      },
+      "CampaignInputs": {
+        "additionalProperties": false,
+        "description": "`campaign:prepare`: the staged CPF, MAP and observed PK a campaign starts from; a model system adds its own.",
+        "properties": {
+          "compound": {
+            "title": "Compound",
+            "type": "string"
+          },
+          "cpf_sha256": {
+            "title": "Cpf Sha256",
+            "type": "string"
+          },
+          "cpf_uri": {
+            "title": "Cpf Uri",
+            "type": "string"
+          },
+          "map_id": {
+            "title": "Map Id",
+            "type": "string"
+          },
+          "map_sha256": {
+            "title": "Map Sha256",
+            "type": "string"
+          },
+          "map_uri": {
+            "title": "Map Uri",
+            "type": "string"
+          },
+          "model_system_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model System Sha256"
+          },
+          "not_evaluable": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Evaluable",
+            "type": "array"
+          },
+          "not_evaluated": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Evaluated"
+          },
+          "observed_uri": {
+            "title": "Observed Uri",
+            "type": "string"
+          },
+          "origins": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Origins",
+            "type": "object"
+          },
+          "stages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/StudyAssignment"
+            },
+            "title": "Studies",
+            "type": "array"
+          },
+          "system_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Sha256"
+          },
+          "system_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Uri"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "map_id",
+          "compound",
+          "cpf_uri",
+          "cpf_sha256",
+          "map_uri",
+          "map_sha256",
+          "observed_uri",
+          "stages",
+          "tier",
+          "studies",
+          "origins",
+          "not_evaluable"
+        ],
+        "title": "CampaignInputs",
         "type": "object"
       },
       "CampaignStartRequest": {
@@ -1715,6 +1881,67 @@
         "title": "CoverageRow",
         "type": "object"
       },
+      "CpfParameterRow": {
+        "additionalProperties": false,
+        "properties": {
+          "fittableStages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fittablestages",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "value",
+          "unit",
+          "status",
+          "source",
+          "reference",
+          "fittableStages"
+        ],
+        "title": "CpfParameterRow",
+        "type": "object"
+      },
       "CpfVersion": {
         "additionalProperties": false,
         "description": "The assembled CPF's version, and the assembly report (what came from which evidence).",
@@ -1804,6 +2031,59 @@
           "assembly"
         ],
         "title": "CpfVersion",
+        "type": "object"
+      },
+      "CpfView": {
+        "additionalProperties": false,
+        "description": "`cpf_view.project_cpf_view`: the compound screen's parameter rows and the S0 completeness.",
+        "properties": {
+          "completeness": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Completeness"
+          },
+          "compound": {
+            "title": "Compound",
+            "type": "string"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/CpfParameterRow"
+            },
+            "title": "Parameters",
+            "type": "array"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "compound",
+          "version",
+          "completeness",
+          "ready",
+          "missing",
+          "parameters"
+        ],
+        "title": "CpfView",
         "type": "object"
       },
       "DataOrigin": {
@@ -2998,6 +3278,31 @@
         "title": "Envelope[BriefPage]",
         "type": "object"
       },
+      "Envelope_CampaignInputs_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CampaignInputs"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[CampaignInputs]",
+        "type": "object"
+      },
       "Envelope_ClientDataPage_": {
         "additionalProperties": false,
         "properties": {
@@ -3046,6 +3351,31 @@
           "errors"
         ],
         "title": "Envelope[ClientUpload]",
+        "type": "object"
+      },
+      "Envelope_CpfView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CpfView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[CpfView]",
         "type": "object"
       },
       "Envelope_DocumentPage_": {
@@ -3398,6 +3728,31 @@
         "title": "Envelope[PlanSigned]",
         "type": "object"
       },
+      "Envelope_ProjectRecord_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectRecord"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ProjectRecord]",
+        "type": "object"
+      },
       "Envelope_ProjectStarted_": {
         "additionalProperties": false,
         "properties": {
@@ -3421,6 +3776,56 @@
           "errors"
         ],
         "title": "Envelope[ProjectStarted]",
+        "type": "object"
+      },
+      "Envelope_Projects_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Projects"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Projects]",
+        "type": "object"
+      },
+      "Envelope_Proposals_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Proposals"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Proposals]",
         "type": "object"
       },
       "Envelope_ReleaseProposal_": {
@@ -3521,6 +3926,131 @@
           "errors"
         ],
         "title": "Envelope[SheetView]",
+        "type": "object"
+      },
+      "Envelope_StudiesStored_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StudiesStored"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[StudiesStored]",
+        "type": "object"
+      },
+      "Envelope_Studies_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Studies"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Studies]",
+        "type": "object"
+      },
+      "Envelope_SystemView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SystemView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[SystemView]",
+        "type": "object"
+      },
+      "Envelope_TemplateContent_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TemplateContent"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[TemplateContent]",
+        "type": "object"
+      },
+      "Envelope_Templates_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Templates"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Templates]",
         "type": "object"
       },
       "Envelope_TriageStart_": {
@@ -7677,6 +8207,70 @@
         "title": "ProjectCreate",
         "type": "object"
       },
+      "ProjectRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "blinding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlindingChoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compounds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Compounds",
+            "type": "array"
+          },
+          "exploratory": {
+            "default": false,
+            "title": "Exploratory",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "openQuestions": {
+            "title": "Openquestions",
+            "type": "integer"
+          },
+          "pipeline": {
+            "default": false,
+            "title": "Pipeline",
+            "type": "boolean"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionRecord"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "risk": {
+            "title": "Risk",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "compounds",
+          "openQuestions",
+          "risk"
+        ],
+        "title": "ProjectRecord",
+        "type": "object"
+      },
       "ProjectStarted": {
         "additionalProperties": false,
         "properties": {
@@ -7718,6 +8312,23 @@
           "extraction"
         ],
         "title": "ProjectStarted",
+        "type": "object"
+      },
+      "Projects": {
+        "additionalProperties": false,
+        "properties": {
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectRecord"
+            },
+            "title": "Projects",
+            "type": "array"
+          }
+        },
+        "required": [
+          "projects"
+        ],
+        "title": "Projects",
         "type": "object"
       },
       "Proposal": {
@@ -7792,6 +8403,74 @@
           "decision_reason"
         ],
         "title": "Proposal",
+        "type": "object"
+      },
+      "ProposalRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "parameterId": {
+            "title": "Parameterid",
+            "type": "string"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "parameterId",
+          "value",
+          "unit",
+          "quote",
+          "reference",
+          "agent"
+        ],
+        "title": "ProposalRecord",
+        "type": "object"
+      },
+      "Proposals": {
+        "additionalProperties": false,
+        "properties": {
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalRecord"
+            },
+            "title": "Proposals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "proposals"
+        ],
+        "title": "Proposals",
         "type": "object"
       },
       "Provenance": {
@@ -7960,6 +8639,53 @@
           }
         },
         "title": "QuestionOfInterest",
+        "type": "object"
+      },
+      "QuestionRecord": {
+        "additionalProperties": false,
+        "description": "A question of interest the project answers.",
+        "properties": {
+          "application": {
+            "title": "Application",
+            "type": "string"
+          },
+          "failingCriteria": {
+            "title": "Failingcriteria",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "modelRisk": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelrisk"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "question",
+          "application",
+          "modelRisk",
+          "stage",
+          "failingCriteria"
+        ],
+        "title": "QuestionRecord",
         "type": "object"
       },
       "RatedElement": {
@@ -9745,6 +10471,42 @@
         "title": "StructureRequest",
         "type": "object"
       },
+      "Studies": {
+        "additionalProperties": false,
+        "properties": {
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/StudyRow"
+            },
+            "title": "Studies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "studies"
+        ],
+        "title": "Studies",
+        "type": "object"
+      },
+      "StudiesStored": {
+        "additionalProperties": false,
+        "properties": {
+          "stored": {
+            "title": "Stored",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stored",
+          "total"
+        ],
+        "title": "StudiesStored",
+        "type": "object"
+      },
       "StudiesUpload": {
         "properties": {
           "studies": {
@@ -9760,6 +10522,25 @@
           "studies"
         ],
         "title": "StudiesUpload",
+        "type": "object"
+      },
+      "StudyAssignment": {
+        "additionalProperties": false,
+        "properties": {
+          "assignment": {
+            "title": "Assignment",
+            "type": "string"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_id",
+          "assignment"
+        ],
+        "title": "StudyAssignment",
         "type": "object"
       },
       "StudyClass": {
@@ -10069,6 +10850,282 @@
           "n_timepoints"
         ],
         "title": "StudyRecord",
+        "type": "object"
+      },
+      "StudyRow": {
+        "additionalProperties": false,
+        "description": "An observed study as stored for the project. D-15: a blinded external study comes without its profile.",
+        "properties": {
+          "analyte": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyte"
+          },
+          "blinded": {
+            "default": false,
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "co_medication": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Co Medication"
+          },
+          "default_simulation_values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Default Simulation Values",
+            "type": "array"
+          },
+          "demographics": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demographics"
+          },
+          "design": {
+            "default": "SD",
+            "title": "Design",
+            "type": "string"
+          },
+          "dose_mg": {
+            "exclusiveMinimum": 0.0,
+            "title": "Dose Mg",
+            "type": "number"
+          },
+          "dose_per_kg": {
+            "default": false,
+            "title": "Dose Per Kg",
+            "type": "boolean"
+          },
+          "dose_phases": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Dose Phases",
+            "type": "array"
+          },
+          "dosing_interval_h": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dosing Interval H"
+          },
+          "food_state": {
+            "default": "fasted",
+            "title": "Food State",
+            "type": "string"
+          },
+          "formulation": {
+            "default": "solution",
+            "title": "Formulation",
+            "type": "string"
+          },
+          "formulation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formulation Name"
+          },
+          "inactive_processes": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Inactive Processes",
+            "type": "object"
+          },
+          "infusion_time_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Infusion Time Min"
+          },
+          "lloq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lloq"
+          },
+          "meals": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Meals",
+            "type": "array"
+          },
+          "n": {
+            "default": 12,
+            "exclusiveMinimum": 0.0,
+            "title": "N",
+            "type": "integer"
+          },
+          "n_doses": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Doses"
+          },
+          "n_timepoints": {
+            "default": 10,
+            "exclusiveMinimum": 0.0,
+            "title": "N Timepoints",
+            "type": "integer"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "population_type": {
+            "default": "healthy",
+            "title": "Population Type",
+            "type": "string"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservedProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "published_individual": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Individual"
+          },
+          "reference": {
+            "default": "",
+            "title": "Reference",
+            "type": "string"
+          },
+          "route": {
+            "default": "oral",
+            "title": "Route",
+            "type": "string"
+          },
+          "solver": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Solver",
+            "type": "object"
+          },
+          "special_population": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Special Population"
+          },
+          "study_id": {
+            "minLength": 1,
+            "title": "Study Id",
+            "type": "string"
+          },
+          "water_ml_per_kg": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Water Ml Per Kg"
+          }
+        },
+        "required": [
+          "study_id",
+          "dose_mg",
+          "project"
+        ],
+        "title": "StudyRow",
         "type": "object"
       },
       "StudyUpload": {
@@ -10539,6 +11596,220 @@
           "seed"
         ],
         "title": "SubjectSpec",
+        "type": "object"
+      },
+      "SystemView": {
+        "additionalProperties": false,
+        "description": "The project's model system as stored (`pbpk_domain.system`): compounds, roles, products, analytes.",
+        "properties": {
+          "analytes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Analytes",
+            "type": "array"
+          },
+          "compounds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Compounds",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "products": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "title": "Products",
+            "type": "object"
+          },
+          "roles": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "object"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "compounds",
+          "roles",
+          "products",
+          "analytes",
+          "sha256"
+        ],
+        "title": "SystemView",
+        "type": "object"
+      },
+      "TemplateContent": {
+        "additionalProperties": false,
+        "description": "A starting point in full. The CPF and the studies are the template's own documents, in the upload shapes they\nare sent back in (a reference model's CPF, the blank one's empty parameters; studies with their origin).",
+        "properties": {
+          "blank": {
+            "title": "Blank",
+            "type": "boolean"
+          },
+          "compound": {
+            "title": "Compound",
+            "type": "string"
+          },
+          "cpf": {
+            "additionalProperties": true,
+            "title": "Cpf",
+            "type": "object"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model_risk": {
+            "title": "Model Risk",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "real_data": {
+            "title": "Real Data",
+            "type": "boolean"
+          },
+          "skipped": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "studies": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Studies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "blank",
+          "name",
+          "compound",
+          "question",
+          "model_risk",
+          "real_data",
+          "description",
+          "cpf",
+          "studies",
+          "skipped",
+          "notes",
+          "source"
+        ],
+        "title": "TemplateContent",
+        "type": "object"
+      },
+      "TemplateSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "blank": {
+            "title": "Blank",
+            "type": "boolean"
+          },
+          "compound": {
+            "title": "Compound",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model_risk": {
+            "title": "Model Risk",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "real_data": {
+            "title": "Real Data",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "blank",
+          "name",
+          "compound",
+          "question",
+          "model_risk",
+          "real_data",
+          "description"
+        ],
+        "title": "TemplateSummary",
+        "type": "object"
+      },
+      "Templates": {
+        "additionalProperties": false,
+        "properties": {
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateSummary"
+            },
+            "title": "Templates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "templates"
+        ],
+        "title": "Templates",
         "type": "object"
       },
       "TransporterMichaelisMenten": {
@@ -11673,7 +12944,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_Projects_"
+                }
               }
             },
             "description": "Successful Response"
@@ -11729,9 +13002,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Create Project Api V1 Projects Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_ProjectRecord_"
                 }
               }
             },
@@ -11788,7 +13059,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ProjectRecord_"
+                }
               }
             },
             "description": "Successful Response"
@@ -13415,7 +14688,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CpfView_"
+                }
               }
             },
             "description": "Successful Response"
@@ -13489,9 +14764,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Cpf Api V1 Projects  Project Id  Compounds  Compound  Cpf Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_CpfView_"
                 }
               }
             },
@@ -16172,9 +17445,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Prepare Campaign Api V1 Projects  Project Id  Questions  Question Id  Campaign Prepare Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_CampaignInputs_"
                 }
               }
             },
@@ -16645,7 +17916,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_Studies_"
+                }
               }
             },
             "description": "Successful Response"
@@ -16711,9 +17984,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Upload Studies Api V1 Projects  Project Id  Studies Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_StudiesStored_"
                 }
               }
             },
@@ -16784,9 +18055,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put System Api V1 Projects  Project Id  System Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Envelope_SystemView_"
                 }
               }
             },
@@ -16895,7 +18164,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_Proposals_"
+                }
               }
             },
             "description": "Successful Response"
@@ -17097,7 +18368,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_Templates_"
+                }
               }
             },
             "description": "Successful Response"
@@ -17154,7 +18427,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TemplateContent_"
+                }
               }
             },
             "description": "Successful Response"
