@@ -3,11 +3,17 @@ submitted, and an ingested run's outputs."""
 
 from __future__ import annotations
 
+from typing import Literal
+
 from modeler_api.views.common import Number, StoredContent, View
 
 
 class Health(View):
+    """The API is up, which deployment it is, and how it verifies a sign-in ("dev": the DEV verifier, never Part 11)."""
+
     status: str
+    deployment: Literal["development", "pilot", "production"]
+    verifier: Literal["dev", "oidc", "none"]
 
 
 class SnapshotPreview(View):

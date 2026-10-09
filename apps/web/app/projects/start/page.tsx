@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui";
 import { upload } from "@/lib/api";
 
-const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.csv,.tsv,.xlsx,.xlsm";
+const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.csv,.tsv,.xlsx,.xlsm,.xls";
 
 /** P0 · Initiate (plan §5.2): the drug, the technical proposal, any context. Nothing else is asked here. */
 export default function StartProjectPage() {

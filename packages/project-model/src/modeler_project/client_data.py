@@ -38,7 +38,7 @@ from modeler_project.workspace import Workspace
 from pbpk_domain.issues import Issue
 
 REGISTER = "register"
-SPREADSHEETS = (".xlsx", ".xlsm", ".csv")
+SPREADSHEETS = (".xlsx", ".xlsm", ".xls", ".csv")
 _STATISTIC = {"arithmetic_mean": "arithmetic_mean", "geometric_mean": "geometric_mean", "median": "median"}
 _ERROR_KIND = {"SD": "SD", "SE": "SE", "CV%": "CV%"}
 _PROMISED_COUNT = re.compile(r"\b(\d+|two|three|four|five|six)\s+(?:dissolution\s+)?(?:media|medium|buffers?|ph\s+values?|conditions)",

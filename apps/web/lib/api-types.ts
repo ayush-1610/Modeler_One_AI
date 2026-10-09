@@ -3907,10 +3907,23 @@ export interface components {
              */
             species?: string;
         };
-        /** Health */
+        /**
+         * Health
+         * @description The API is up, which deployment it is, and how it verifies a sign-in ("dev": the DEV verifier, never Part 11).
+         */
         Health: {
+            /**
+             * Deployment
+             * @enum {string}
+             */
+            deployment: "development" | "pilot" | "production";
             /** Status */
             status: string;
+            /**
+             * Verifier
+             * @enum {string}
+             */
+            verifier: "dev" | "oidc" | "none";
         };
         /** History */
         History: {

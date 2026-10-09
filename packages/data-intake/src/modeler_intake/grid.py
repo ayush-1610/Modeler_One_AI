@@ -104,6 +104,51 @@ def _load_xlsx(path: Path, sha256: str) -> WorkbookGrid:
     return WorkbookGrid(getattr(path, "name", "workbook.xlsx"), sha256, sheets)
 
 
+def _xls_value(book, cell) -> Any:
+    """A legacy .xls cell's value as openpyxl would give it: a number, text, a bool, a datetime; None when empty."""
+    import xlrd
+
+    if cell.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK, xlrd.XL_CELL_ERROR):
+        return None
+    if cell.ctype == xlrd.XL_CELL_DATE:
+        return xlrd.xldate.xldate_as_datetime(cell.value, book.datemode)
+    if cell.ctype == xlrd.XL_CELL_BOOLEAN:
+        return bool(cell.value)
+    if cell.ctype == xlrd.XL_CELL_NUMBER and float(cell.value).is_integer():
+        return int(cell.value)
+    return cell.value
+
+
+def _load_xls(data: bytes, name: str, sha256: str) -> WorkbookGrid:
+    """A legacy Excel 97–2003 workbook (`xlrd`, owner-approved 2026-10-09) as the same grid as an .xlsx: cell values,
+    their sheet!A1 references, and merged ranges carried to every cell they cover."""
+    import xlrd
+    from xlrd.compdoc import CompDocError
+
+    try:
+        book = xlrd.open_workbook(file_contents=data, formatting_info=True)
+    except (xlrd.XLRDError, CompDocError) as exc:  # not a workbook, or a damaged compound file
+        raise ValueError(f"the .xls workbook could not be read: {exc}") from exc
+    sheets: dict[str, SheetGrid] = {}
+    for ws in book.sheets():
+        grid = SheetGrid(name=ws.name, max_row=ws.nrows, max_column=ws.ncols)
+        for r in range(ws.nrows):
+            for c in range(ws.ncols):
+                value = _xls_value(book, ws.cell(r, c))
+                if value is not None:
+                    grid.cells[(r + 1, c + 1)] = Cell(ws.name, r + 1, c + 1, value)
+        for r_lo, r_hi, c_lo, c_hi in ws.merged_cells:   # half-open, 0-based
+            origin = grid.cells.get((r_lo + 1, c_lo + 1))
+            if origin is None:
+                continue
+            for r in range(r_lo + 1, r_hi + 1):
+                for c in range(c_lo + 1, c_hi + 1):
+                    if (r, c) != (r_lo + 1, c_lo + 1):
+                        grid.cells[(r, c)] = Cell(ws.name, r, c, origin.value, merged_from=origin.ref)
+        sheets[ws.name] = grid
+    return WorkbookGrid(name, sha256, sheets)
+
+
 def _load_csv(path: Path, sha256: str) -> WorkbookGrid:
     name = path.stem
     grid = SheetGrid(name=name, max_row=0, max_column=0)
@@ -126,6 +171,8 @@ def read_workbook_bytes(data: bytes, filename: str) -> WorkbookGrid:
     if suffix in (".xlsx", ".xlsm"):
         grid = _load_xlsx(io.BytesIO(data), sha256)  # type: ignore[arg-type]
         return WorkbookGrid(Path(filename).name, sha256, grid.sheets)
+    if suffix == ".xls":
+        return _load_xls(data, Path(filename).name, sha256)
     if suffix == ".csv":
         name = Path(filename).stem
         sheet = SheetGrid(name=name, max_row=0, max_column=0)
@@ -136,16 +183,18 @@ def read_workbook_bytes(data: bytes, filename: str) -> WorkbookGrid:
                 if value != "":
                     sheet.cells[(r, c)] = Cell(name, r, c, value)
         return WorkbookGrid(Path(filename).name, sha256, {name: sheet})
-    raise ValueError(f"unsupported spreadsheet type {suffix!r}; convert .xls to .xlsx first")
+    raise ValueError(f"unsupported spreadsheet type {suffix!r}: use .xlsx, .xlsm, .xls or .csv")
 
 
 def read_workbook(path: Path, sha256: str) -> WorkbookGrid:
     suffix = path.suffix.lower()
     if suffix in (".xlsx", ".xlsm"):
         return _load_xlsx(path, sha256)
+    if suffix == ".xls":
+        return _load_xls(path.read_bytes(), path.name, sha256)
     if suffix == ".csv":
         return _load_csv(path, sha256)
-    raise ValueError(f"unsupported spreadsheet type {suffix!r}; convert .xls to .xlsx first")
+    raise ValueError(f"unsupported spreadsheet type {suffix!r}: use .xlsx, .xlsm, .xls or .csv")
 
 
 def as_text(value: Any) -> str:

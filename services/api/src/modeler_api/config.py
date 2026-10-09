@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from fastapi import Depends
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from modeler_contracts.runtime import LOCAL_OBJECT_STORE, PLACEHOLDER_DIGEST
+from modeler_contracts.runtime import LOCAL_OBJECT_STORE, PLACEHOLDER_DIGEST, ConfigurationError, RuntimeSettings
 
 
 class Settings(BaseSettings):
@@ -42,6 +42,22 @@ class Settings(BaseSettings):
     image_digest: str = PLACEHOLDER_DIGEST
     # Where the server's service logs live, for the project doctor (MODELER_LOGS; empty: ~/modeler-logs).
     logs: str = ""
+
+
+def verifier_kind(settings: Settings) -> Literal["dev", "oidc", "none"]:
+    """How the API verifies a sign-in: the DEV verifier, Keycloak OIDC, or not configured (every request refused)."""
+    if settings.dev_auth:
+        return "dev"
+    return "oidc" if settings.oidc_jwks_url and settings.oidc_issuer else "none"
+
+
+def check_auth(settings: Settings, runtime: RuntimeSettings) -> None:
+    """Production refuses the DEV verifier (the owner's decision, 2026-10-09): its signatures stand in for Part 11
+    step-up and must never be a production record. Development and pilot deployments may run it."""
+    if runtime.production and settings.dev_auth:
+        raise ConfigurationError("production deployment refused: MODELER_DEV_AUTH is set, and the DEV verifier is for "
+                                 "development and pilot deployments only; configure Keycloak (MODELER_OIDC_JWKS_URL, "
+                                 "MODELER_OIDC_ISSUER) or run as MODELER_DEPLOYMENT=pilot")
 
 
 @lru_cache

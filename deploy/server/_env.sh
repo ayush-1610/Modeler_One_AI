@@ -19,9 +19,11 @@ export LC_ALL=en_US.UTF-8
 export LD_LIBRARY_PATH="$R_LIBS_USER/ospsuite/lib:$HOME/miniforge3/lib:${LD_LIBRARY_PATH:-}"
 
 # --- application: single-node local execution against the real engine ---
-# Production: the API and the runners refuse to start unless the object store, the engine command and a real engine
-# digest are set here (modeler_contracts.runtime). No development default applies on this server.
-export MODELER_DEPLOYMENT=production
+# Pilot (the owner's decision, 2026-10-09): held to production's engine settings (the API and the runners refuse to start
+# unless the object store, the engine command and a real engine digest are set here; modeler_contracts.runtime), but
+# still signing in with the DEV verifier until Keycloak is deployed. Production refuses MODELER_DEV_AUTH: switch to
+# MODELER_DEPLOYMENT=production together with MODELER_OIDC_JWKS_URL / MODELER_OIDC_ISSUER, and drop MODELER_DEV_AUTH.
+export MODELER_DEPLOYMENT=pilot
 export MODELER_DEV_AUTH=1
 export MODELER_EXECUTION_BACKEND=local
 export MODELER_READ_ROOT="$DATA/read-root"
