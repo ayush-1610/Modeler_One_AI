@@ -250,7 +250,7 @@ def document_page(project_id: str, sha256: str, page: int, principal: Reader, st
 
 
 @router.get("/projects/{project_id}/documents/{sha256}/raw")
-def document_raw(project_id: str, sha256: str, principal: Reader, store: StoreDep):
+def document_raw(project_id: str, sha256: str, principal: Reader, store: StoreDep) -> FileResponse:
     ws = workspace_for(project_id, principal, store)
     version = DocumentLibrary(ws).by_sha(sha256)
     path = store.blob_path(principal.tenant_id, project_id, sha256) if version else None

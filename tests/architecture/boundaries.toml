@@ -63,8 +63,10 @@ reason = "the S3 object store lives in the orchestrator; moves with the engine p
 
 # ---- phase 6 (2026-10-08, approved by the owner): response models (B2) and artifact owners (B3) ----
 
-# Routes of these routers that still answer with an untyped dict (test_response_models.py). Phase 6 typed them all
-# (6b-6d), keeping the shapes; the empty list keeps a new route from answering untyped. File downloads are not counted.
+# Routes of these routers that still answer with an untyped dict (test_response_models.py). Phase 6 typed the P0–P4
+# and escalation routers (6b-6d), keeping the shapes. Phase 9 (2026-10-08, approved by the owner) guards every router
+# and records what is left: `untyped` (no pydantic model) and `open` (an envelope of stored content without a model).
+# Both only shrink. File downloads (a handler annotated to return a Response) are not counted.
 [response]
 routers = [
   "modeler_api.project_api",
@@ -74,8 +76,61 @@ routers = [
   "modeler_api.client_api",
   "modeler_api.inputs_api",
   "modeler_api.escalations",
+  "modeler_api.plan_api",
+  "modeler_api.campaign_api",
+  "modeler_api.read_api",
+  "modeler_api.results_api",
+  "modeler_api.signatures_api",
+  "modeler_api.templates_api",
+  "modeler_api.write_api",
+  "modeler_api.system_api",
 ]
-untyped = []
+untyped = [
+  "GET /api/v1/campaigns",
+  "GET /api/v1/campaigns/{campaign_id}",
+  "GET /api/v1/campaigns/{campaign_id}/package",
+  "GET /api/v1/escalations",
+  "GET /api/v1/projects",
+  "GET /api/v1/projects/{project_id}",
+  "GET /api/v1/projects/{project_id}/compounds/{compound}/cpf",
+  "GET /api/v1/projects/{project_id}/plan",
+  "GET /api/v1/projects/{project_id}/plan:view",
+  "GET /api/v1/projects/{project_id}/studies",
+  "GET /api/v1/proposals",
+  "GET /api/v1/runs/{run_id}/results",
+  "GET /api/v1/templates",
+  "GET /api/v1/templates/{template_id}",
+  "GET /health",
+  "POST /api/v1/m15/validate",
+  "POST /api/v1/model-versions/preview",
+  "POST /api/v1/projects",
+  "POST /api/v1/projects/{project_id}/campaigns",
+  "POST /api/v1/projects/{project_id}/plan/fits/{parameter}:remove",
+  "POST /api/v1/projects/{project_id}/plan/placements/{study_id}:unlock",
+  "POST /api/v1/projects/{project_id}/plan/proposals/{proposal_id}:decide",
+  "POST /api/v1/projects/{project_id}/plan/violations/{violation_id}:acknowledge",
+  "POST /api/v1/projects/{project_id}/plan:draft",
+  "POST /api/v1/projects/{project_id}/plan:rebase",
+  "POST /api/v1/projects/{project_id}/plan:sign",
+  "POST /api/v1/projects/{project_id}/questions/{question_id}/campaign:prepare",
+  "POST /api/v1/projects/{project_id}/questions/{question_id}/map:generate",
+  "POST /api/v1/projects/{project_id}/signatures",
+  "POST /api/v1/projects/{project_id}/studies",
+  "POST /api/v1/runs",
+  "PUT /api/v1/projects/{project_id}/compounds/{compound}/cpf",
+  "PUT /api/v1/projects/{project_id}/plan/fits/{parameter}",
+  "PUT /api/v1/projects/{project_id}/plan/layout",
+  "PUT /api/v1/projects/{project_id}/plan/placements/{study_id}",
+  "PUT /api/v1/projects/{project_id}/plan/structure",
+  "PUT /api/v1/projects/{project_id}/system",
+]
+open = [
+  "POST /api/v1/projects/{project_id}/datasets",
+  "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
+  "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
+  "POST /api/v1/projects/{project_id}/datasets:digitize",
+  "POST /api/v1/projects/{project_id}/evidence",
+]
 
 # The one module that writes each artifact kind and reads its stored content raw (test_artifact_owners.py). Everyone
 # else asks the owner. brief_ops and map_artifact take over the writes in phase 6e (map_artifact is created then).

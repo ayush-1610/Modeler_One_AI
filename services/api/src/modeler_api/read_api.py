@@ -14,6 +14,7 @@ from typing import Annotated, Any
 from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
@@ -145,11 +146,9 @@ def get_campaign_package(campaign_id: str, principal: PrincipalDep, store: Store
 
 @router.get("/campaigns/{campaign_id}/package/{artifact}")
 def download_campaign_artifact(campaign_id: str, artifact: str, principal: PrincipalDep, store: StoreDep,
-                               root: ArtifactRootDep):
+                               root: ArtifactRootDep) -> FileResponse:
     """Download the package zip or the rendered MAR. The zip is refused while reproduction has not passed (D13);
     only files inside the object store are ever served."""
-    from fastapi.responses import FileResponse
-
     record = _package_record(campaign_id, principal, store)
     if artifact not in _ARTIFACTS:
         raise HTTPException(status_code=404, detail=f"unknown artifact {artifact!r}")
