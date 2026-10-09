@@ -20,6 +20,12 @@
       "reason": "data-plan templates: which data a regulatory application must have"
     },
     {
+      "pattern": "packages/pbpk-domain/src/pbpk_domain/analysis_templates/*.yaml",
+      "owner": "SME",
+      "layer": "L0",
+      "reason": "analysis templates: each PBPK application's inputs, limits, steps and criteria (T-31; D-26 for VBE)"
+    },
+    {
       "pattern": "packages/pbpk-domain/src/pbpk_domain/parameters/registry.yaml",
       "owner": "SME",
       "layer": "L0",
@@ -218,6 +224,14 @@
       "sha256": "7bf2a2d4889609b8fb86344669218612fa49170cd015db3c5da2d59ffb56002d"
     },
     {
+      "path": "packages/pbpk-domain/src/pbpk_domain/analysis_templates/ddi-cyp3a4-victim.yaml",
+      "sha256": "5107a89acd76f30a2ad302504757144cdbe263287c67c9654e5b1db3ae71fdef"
+    },
+    {
+      "path": "packages/pbpk-domain/src/pbpk_domain/analysis_templates/vbe-crossover.yaml",
+      "sha256": "ebadafa28280117ee11ad12617286b35350c5575161b6011d7f013be8bae4c79"
+    },
+    {
       "path": "packages/pbpk-domain/src/pbpk_domain/campaign/map.py",
       "sha256": "8110ce5d6b67e8ffbd7412f885878f8d1746644a83f2f890983fd96a4d6b33f1"
     },
@@ -279,7 +293,7 @@
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/requirements/app_vbe.yaml",
-      "sha256": "620abc595d451722b2c966fb8fa99bf8ff66c81a766aa336fccbe27fde262cf4"
+      "sha256": "e294df8d626462843d0599bdfdbfce3b43e73617dc1eb4ffd1d7bd40188ea7df"
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/requirements/core_small_molecule.yaml",

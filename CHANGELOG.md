@@ -15,6 +15,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — analysis templates as a typed, locked registry; the VBE crossover template (T-31 B6 PR 1; science, UNVERIFIED, D-26)
+- **What:**
+  - **Registry:** `pbpk_domain.analysis_templates` is a typed loader (`AnalysisTemplate`, `load_template`,
+    `list_templates`, `check_inputs`, `resolved_limits`) for the versioned recipe of each PBPK application. The DDI
+    template moves there from `templates/analysis/`. Templates are locked and SME-governed like the rulesets (a new
+    lock pattern).
+  - **`vbe-crossover` 0.1.0-draft (APP-11, APP-14):**
+    - It requires a validated oral model, TEST and reference formulations, and the dissolution, BE-study and
+      variability data items.
+    - Steps: shared individuals across arms, a seeded occasion per arm, AUC_inf and C_max, per-trial GMR with a
+      90 % CI, the probability of success, and the F-304 variability gate.
+    - Limits: standard 0.80–1.25 at a 90 % CI (default, verified), and NTI 0.90–1.1111 marked [VERIFY].
+  - **Never defaulted:** the intra-subject variability (parameter, CV, source), the subjects per trial, the trials,
+    the seed and the PoS threshold.
+    - The schema refuses a default for any of them, and `check_inputs` names each until it is given.
+    - A variability entry without its source, or with a CV of 0, is refused.
+  - **`app_vbe.yaml` 2026.2-draft:** `REQ-vbe.variability` has no default provider (NOT_STATED). The data plan
+    says who gives it.
+- **Why:** the owner's decision D-26 (2026-10-09). A made-up variability or trial size would decide the virtual
+  trials' probability of success.
+- **Impact:**
+  - No campaign runs VBE yet: the MAP carrying the application, the engine variability and the S6 step follow
+    (B6 PRs 2–4).
+  - VBE projects' data plans now show the variability as "not stated" until someone is named.
+- **Tests:** `test_analysis_templates.py`.
+
 ### Added — the model system on the project page, in the upload form and in the MAR (multi-compound phase 3, B5 PR 4)
 - **What:**
   - **`GET /projects/{id}/system`** (`ProjectSystem`, `modeler_api.system_view`): the project's model system, or none

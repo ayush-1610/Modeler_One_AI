@@ -27,7 +27,7 @@ question of interest to a signed ICH M15 assessment table and a reviewer-reprodu
 | `services/orchestrator` | Temporal workflows: simulation runs, population fan-out, fitting rounds with a deadline, review gates |
 | `services/engine-worker` | Engine container and scripts: `r/run_job.R`, `r/run_pi.R` (one fitting start), `r/benchmark.R`, `golden/` engine checks, `scripts/ubuntu_engine_check.sh` |
 | `services/agents` | Claude agents: data mapping, parameter curation, literature research over MCP servers, with deterministic citation checks |
-| `templates/analysis` | Versioned analysis templates per PBPK application |
+| `packages/pbpk-domain/src/pbpk_domain/analysis_templates` | Versioned analysis templates per PBPK application (typed loader; locked, SME-governed) |
 | `apps/web` | Next.js front end starters |
 
 ## Quick start
