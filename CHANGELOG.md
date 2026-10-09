@@ -15,6 +15,47 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the reference refit frees every compound of a model system (`reference/refit.py`, `run_reference.py`)
+- **What:** `run_reference.py campaign <model> --mode refit --system` frees each compound's identified parameters,
+  shifted and bounded as approved on 2026-09-24.
+  - A parent's (and a co-parent's) are fitted at the parent stages.
+  - A metabolite's own clearance and logP are fitted at SM. Its absorption and cellular permeability stay as published,
+    because it is formed, not dosed.
+  - The rate that forms each metabolite also gets SM in its fit policy (`refit_cpf(role=, formation=)`).
+  - The report keys the freed parameters by fit id (`S-Norverapamil::…`) and reads each final value from the system
+    as of the final CPF.
+  - A new matrix task, `verapamil-system-refit`: OSP Verapamil identified its norverapamils' CYP3A4 kcat, P-gp kcat and
+    logP, so its refit exercises SM. Itraconazole's metabolites carry no identified parameter.
+- **Why:** to prove stage SM on PK-Sim (plan B7). The as-is system campaigns judge the published values; only a refit
+  makes SM fit.
+- **Impact:** single-compound refits are unchanged. Tested in `test_metabolite_stage.py`; locally smoke-run on the
+  stub engine up to the first PK-Sim simulation, which is not evidence.
+
+### Verified on PK-Sim — `main` after the architecture refactor and B1–B4 gives the same results as before it
+- **The runs:** reference run 37922984864 (2026-10-09, `main` at 1bff09d, engine 12.4.4) compared with run
+  36079717728 (2026-09-25, before phases 1–9 and 8).
+- **Campaigns, identical to every printed digit** (predicted AUC, Cmax, t½, the GMFEs, the fitted estimates and the
+  escalation):
+  - Dapagliflozin as-is: S1 escalates on the Boulton 2013 IV microdose Cmax, 0.52×;
+  - Rifampicin as-is: S1, Sanofi 2013 300 mg IV Cmax, 1.59×;
+  - Rifampicin refit: S1, VPC 3/6;
+  - Dapagliflozin refit: S1 after the clearance fit, UGT1A9 clspec at its lower bound.
+- **Round trips, the same counts and rows:**
+
+  | Model | Identical within 1e-6 | Within 1e-3 (solver level) | Labelled by design |
+  |---|---|---|---|
+  | Dapagliflozin | 25 / 34 | 3 | 6 |
+  | Rifampicin | 21 / 22 | 1 | 1 |
+  | Midazolam | 85 / 88 | 0 | 3 |
+  | Itraconazole system | 16 / 54 | 37 | 9 |
+  | Verapamil system | 71 / 75 | 2 | 2 |
+  | Dabigatran system | 3 / 10 | 7 | 0 |
+- **What this means:** the refactor and B1–B4 changed no PK-Sim result. The Stone 2004 exclusion does not reach S1,
+  where the Rifampicin refit stops, and the SJ study weights are not reached either.
+- **Still open:** the four campaign escalations are open science items, recorded before this session: the Dapagliflozin
+  IV microdose Cmax, the Rifampicin IV Cmax, the Rifampicin VPC, and the UGT1A9 bound. Only these PK-Sim runs count as
+  evidence.
+
 ### Changed — MS-01 v1.3: a model system's every analyte judged on its own; metabolites fitted at a new stage SM (multi-compound phase 2, PR 3; locked `map.py`, `split.py`, `acceptance.py`, `diagnostics.py`, rulesets and MS-01; science, UNVERIFIED, D-25)
 - **What:**
   - **Split (§3.3 rule 7):** each analyte of a model system is split on its own: the fitted parent's plasma, a
