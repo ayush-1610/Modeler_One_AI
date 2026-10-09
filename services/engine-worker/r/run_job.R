@@ -6,6 +6,7 @@
 # loadProjectFromSnapshot, exportProjectToSnapshot, runSimulationsFromSnapshot (Linux/Windows only, not macOS),
 # loadSimulation, runSimulations(simulation, population=...), createPopulationCharacteristics/createPopulation
 # (returns list(population, derivedParameters, seed)), loadPopulation/exportPopulationToCSV,
+# Population$allParameterPaths/getParameterValues/setParameterValues/allIndividualIds (occasions, golden_tasks.R),
 # SensitivityAnalysis$new(simulation=)/$addParameterPaths/$numberOfSteps/$variationRange, runSensitivityAnalysis,
 # SensitivityAnalysisRunOptions$new()/$numberOfCores/$showProgress, exportSensitivityAnalysisResultsToCSV,
 # createSimulationBatch(simulation, parametersOrPaths, moleculesOrPaths) + $addRunValues(parameterValues, initialValues)
@@ -192,7 +193,31 @@ run_task <- function() {
       population <- created$population
     }
     progress(0.2)
-    exportPopulationToCSV(population, file.path(out_dir, "population.csv"))  # the exact individuals that ran
+    # the individuals that ran, before any occasion: a second arm loads this file to run the same individuals
+    exportPopulationToCSV(population, file.path(out_dir, "population.csv"))
+    variability <- job$options$variability
+    if (length(variability) > 0) {
+      # An occasion (virtual bioequivalence, T-31): each listed parameter of each individual is multiplied by a
+      # seeded log-normal factor of median 1 and the given CV, so two arms run on the same individuals differ only by
+      # their own occasion. Each path must be a parameter of the simulation (harvested upstream, never typed): an
+      # unknown one stops the job. The factors go to occasion.json, so the arm can be reproduced exactly.
+      if (is.null(job$options$occasion_seed)) stop("variability needs an occasion_seed")
+      occasion_seed <- as.integer(job$options$occasion_seed)
+      set.seed(occasion_seed, kind = "Mersenne-Twister", normal.kind = "Inversion")
+      applied <- lapply(variability, function(v) {
+        parameter <- getParameter(v$path, sim, stopIfNotFound = TRUE)
+        cv <- as.numeric(v$cv_percent) / 100
+        if (length(cv) != 1 || !is.finite(cv) || cv <= 0) stop(sprintf("variability %s: a CV above 0 %% is needed", v$path))
+        base <- if (v$path %in% population$allParameterPaths) population$getParameterValues(v$path)
+                else rep(parameter$value, population$count)
+        sigma <- sqrt(log(1 + cv^2))
+        factors <- exp(sigma * stats::rnorm(population$count))
+        population$setParameterValues(v$path, base * factors)
+        list(path = v$path, cv_percent = cv * 100, sigma = sigma, factors = factors)
+      })
+      write_json(list(occasion_seed = occasion_seed, individual_ids = population$allIndividualIds, parameters = applied),
+                 file.path(out_dir, "occasion.json"), auto_unbox = TRUE, digits = NA)
+    }
     results <- runSimulations(sim, population = population)[[1]]
     progress(0.85)
     exportResultsToCSV(results, file.path(out_dir, "results.csv"))

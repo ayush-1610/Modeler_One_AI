@@ -437,7 +437,7 @@
     },
     {
       "path": "services/engine-worker/golden/golden_tasks.R",
-      "sha256": "2850e3538ff1666edd467d4ca789dc975777d47364cdb1243de9532bb20b34bf"
+      "sha256": "db3338b35af30ee61600de5ad14f0bd7beec9e05b291b84c486a525bdf80ebfe"
     },
     {
       "path": "services/engine-worker/golden/make_example_snapshot.py",
@@ -481,7 +481,7 @@
     },
     {
       "path": "services/engine-worker/r/run_job.R",
-      "sha256": "0d26806cfdca4a8591aa99e928d56981f3decd137ef8236163c405fc280d7676"
+      "sha256": "4432c8f6770533208dda7866cc133b5b329d14a7243fe6627975dd4d7ec6cc0e"
     },
     {
       "path": "services/engine-worker/r/run_pi.R",
