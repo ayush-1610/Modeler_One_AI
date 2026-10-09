@@ -63,6 +63,43 @@ def _percentile(values: list[float], q: float) -> float:
     return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
 
 
+def between_subject_cv(values: list[float]) -> float:
+    """The between-subject CV (%) of log-normally distributed exposure: √(exp(s²) − 1), s the SD of the logs."""
+    s = statistics.stdev(math.log(v) for v in values)
+    return 100.0 * math.sqrt(math.exp(s * s) - 1.0)
+
+
+def validation_gate(result: dict, observed: Mapping | None, *, cv_fold: float) -> dict:
+    """F-304: does the model reproduce the observed BE study? Per metric the observed study names, the simulated
+    reference arm's between-subject CV must lie within `cv_fold` of the observed one, and the observed GMR within the
+    simulated trials' 5–95 %. No observed study gives "not validated", never a pass (real-data rule, D-19)."""
+    if not observed:
+        return {"status": "NOT_VALIDATED", "reason": "no observed BE study (REQ-vbe.be_study) was given: the VBE result "
+                                                     "is not validated"}
+    checks, missing = [], []
+    for metric, row in observed["metrics"].items():
+        simulated = result["metrics"].get(metric)
+        if simulated is None:
+            missing.append(metric)
+            continue
+        ratio = simulated["between_subject_cv_percent"] / float(row["between_subject_cv_percent"])
+        checks.append({"metric": metric, "check": "between_subject_cv", "simulated": simulated["between_subject_cv_percent"],
+                       "observed": float(row["between_subject_cv_percent"]), "ratio": ratio,
+                       "passes": 1 / cv_fold <= ratio <= cv_fold})
+        gmr = float(row["gmr"])
+        checks.append({"metric": metric, "check": "observed_gmr_within_simulated_5_95", "observed": gmr,
+                       "simulated_p05": simulated["gmr_p05"], "simulated_p95": simulated["gmr_p95"],
+                       "passes": simulated["gmr_p05"] <= gmr <= simulated["gmr_p95"]})
+    if missing or not checks:
+        return {"status": "NOT_VALIDATED", "checks": checks,
+                "reason": f"the observed study's {', '.join(missing) or 'metrics'} are not simulated metrics "
+                          f"({', '.join(result['metrics'])})"}
+    failed = [f"{c['metric']} {c['check']}" for c in checks if not c["passes"]]
+    return {"status": "FAILED" if failed else "PASSED", "checks": checks, "source": observed.get("source"),
+            "cv_fold": cv_fold, "reason": ("the model does not reproduce the observed BE study: " + ", ".join(failed))
+            if failed else "the model reproduces the observed BE study's variability and GMR"}
+
+
 def _trial_row(result: BioequivalenceResult) -> dict:
     return {"gmr": result.geometric_mean_ratio, "lower": result.ci_lower, "upper": result.ci_upper,
             "passes": result.passes}
@@ -96,7 +133,9 @@ def run_trials(test: Mapping[str, Mapping[int, float]], reference: Mapping[str, 
         gmrs = [r.geometric_mean_ratio for r in results]
         summary[m] = {"probability_of_success": sum(r.passes for r in results) / trials_run,
                       "gmr_median": statistics.median(gmrs), "gmr_p05": _percentile(gmrs, 0.05),
-                      "gmr_p95": _percentile(gmrs, 0.95), "trials": [_trial_row(r) for r in results]}
+                      "gmr_p95": _percentile(gmrs, 0.95),
+                      "between_subject_cv_percent": between_subject_cv([reference[m][i] for i in kept]),
+                      "trials": [_trial_row(r) for r in results]}
     return {
         "metrics": summary, "joint_probability_of_success": joint, "pos_threshold": pos_threshold,
         "meets_threshold": joint >= pos_threshold, "limits": list(limits), "confidence": confidence,

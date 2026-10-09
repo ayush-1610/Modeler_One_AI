@@ -133,7 +133,7 @@ def test_both_arms_run_the_same_individuals_on_their_own_occasions_and_k_trials_
     assert vbe["n_trials_run"] == 4 and vbe["individuals"] == 48 and vbe["design_study"] == "rld-sd"
     assert 1.0 < vbe["metrics"]["AUC_inf"]["gmr_median"] < 1.07 and vbe["meets_threshold"]
     assert vbe["limits"] == [0.80, 1.25] and vbe["limits_verified"] is True
-    assert vbe["validation"].startswith("not validated")
+    assert vbe["validation"]["status"] == "NOT_VALIDATED" and "no observed BE study" in vbe["validation"]["reason"]
 
 
 def test_a_vbe_that_cannot_run_says_why_and_never_falls_back(tmp_path, monkeypatch):
@@ -161,6 +161,24 @@ def test_the_s6_notes_state_the_vbe_result_or_why_it_did_not_run(tmp_path, monke
     ctx, cpf, doc = _ctx(tmp_path, INPUTS)
     note = _vbe_note(run_vbe(ctx, ScriptedEngine(), cpf=cpf, map_doc=doc))
     assert note.startswith("VBE (vbe-crossover ") and "4 virtual trials of 12" in note and "joint" in note
-    assert note.endswith("not validated: the F-304 gate against observed BE data has not run")
+    assert "validation NOT_VALIDATED: no observed BE study" in note
     assert _vbe_note({"template": "vbe-crossover", "template_version": "0.1.0-draft", "status": "NOT_RUN",
                       "reason": "the engine stopped: x"}) == "VBE (vbe-crossover 0.1.0-draft) not run: the engine stopped: x"
+
+
+def test_the_f304_gate_judges_the_model_against_the_observed_be_study(tmp_path, monkeypatch):
+    monkeypatch.setenv("MODELER_OBJECT_STORE_URI", (tmp_path / "objstore").as_uri())
+    ctx, cpf, doc = _ctx(tmp_path, INPUTS)
+    simulated = run_vbe(ctx, ScriptedEngine(), cpf=cpf, map_doc=doc)["metrics"]["AUC_inf"]
+    cv, mid = simulated["between_subject_cv_percent"], simulated["gmr_median"]
+    observed = {"source": "Client BE study 2021 (reference arm n=24)",
+                "metrics": {"AUC_inf": {"gmr": mid, "between_subject_cv_percent": cv * 1.2}}}
+    ctx, cpf, doc = _ctx(tmp_path, {**INPUTS, "observed_be": observed})
+    passed = run_vbe(ctx, ScriptedEngine(), cpf=cpf, map_doc=doc)["validation"]
+    assert passed["status"] == "PASSED" and passed["cv_fold"] == 1.5 and passed["criterion_verified"] is False
+    assert {c["check"] for c in passed["checks"]} == {"between_subject_cv", "observed_gmr_within_simulated_5_95"}
+    far = {**observed, "metrics": {"AUC_inf": {"gmr": 1.4, "between_subject_cv_percent": cv * 3}}}
+    ctx, cpf, doc = _ctx(tmp_path, {**INPUTS, "observed_be": far})
+    failed = run_vbe(ctx, ScriptedEngine(), cpf=cpf, map_doc=doc)["validation"]
+    assert failed["status"] == "FAILED"
+    assert "AUC_inf between_subject_cv" in failed["reason"] and "AUC_inf observed_gmr_within_simulated_5_95" in failed["reason"]

@@ -172,7 +172,7 @@ def _vbe_note(vbe: dict) -> str:
     per = ", ".join(f"{m} {v['probability_of_success']:.0%}" for m, v in vbe["metrics"].items())
     return (f"{name}: {vbe['n_trials_run']} virtual trials of {vbe['n_subjects']}; probability of BE success {per}, "
             f"joint {vbe['joint_probability_of_success']:.0%} against the threshold {vbe['pos_threshold']:.0%}; "
-            f"{vbe['validation']}")
+            f"validation {vbe['validation']['status']}: {vbe['validation']['reason']}")
 
 
 def _local_json(uri: str) -> dict | None:

@@ -15,6 +15,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the F-304 validation gate: a VBE result is judged against the observed BE study, or it is "not validated" (T-31 B6 PR 5; template `vbe-crossover` 0.2.0-draft; science, UNVERIFIED, D-26)
+- **What:**
+  - **New template input `observed_be`.** It is optional and never defaulted, and gives the observed BE study
+    (REQ-vbe.be_study): per metric, its geometric mean ratio and between-subject CV, plus a source that is required.
+    `check_inputs` refuses a value that is not above 0 and refuses a missing source.
+  - **The gate** (`pbpk_domain.vbe.validation_gate`). For every metric the observed study names, it checks two
+    things:
+    - the simulated reference arm's between-subject CV (√(exp(s²) − 1) of the log exposures) lies within the
+      template's fold of the observed CV. The fold is 1.5, now a number in the template, `verified: false`;
+    - the observed GMR lies within the simulated trials' 5–95 %.
+
+    The result is PASSED or FAILED, naming each check. With no observed study, or one whose metrics are not
+    simulated, the result is NOT_VALIDATED and never a pass (real-data rule, D-19).
+  - **The S6 VBE result** carries the gate (`validation`: status, checks, source, fold, whether the criterion is
+    verified), and the S6 note states it.
+- **Why:** step 6 of the VBE design. A probability of success means something only if the model reproduces an
+  observed BE study.
+- **Impact:**
+  - The template is now 0.2.0-draft, so a MAP that pinned 0.1.0-draft is told its pin moved (`MapApplication.problems`).
+    No such MAP has run.
+  - The 1.5-fold CV criterion stays `[VERIFY]` for the SME.
+- **Tests:**
+  - `test_vbe.py`: the CV formula, and no study → NOT_VALIDATED;
+  - `test_analysis_templates.py`: `observed_be` is optional, and complete with a source when given;
+  - `test_vbe_s6.py`: an observed study the model reproduces → PASSED, one it does not → FAILED with both checks named.
+
 ### Added — S6 runs the MAP's virtual bioequivalence: two arms, the same individuals, K trials, the probability of success (T-31 B6 PR 4; science, UNVERIFIED, D-26)
 - **What:** when the signed MAP pins `vbe-crossover`, S6 runs it from the final CPF (`modeler_orchestrator.vbe_activities`).
   1. **Design.** The trial copies the reference product's own oral single-dose study in the MAP (a fasted one first),

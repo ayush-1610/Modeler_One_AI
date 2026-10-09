@@ -3,8 +3,10 @@
 # DRAFT, UNVERIFIED (owner-approved 2026-10-09, decision D-26): the limits, the design inputs and the variability gate
 # await PBPK SME + QA sign-off. Every input the decision depends on is the person's to give: none is defaulted, because a
 # made-up variability or trial size would decide the probability of success.
+# 0.2.0-draft (2026-10-09, B6 PR 5, F-304): the observed BE study's summary is an input (`observed_be`, never defaulted,
+#     optional: without it the result is "not validated", D-19); the between-subject CV criterion is machine-readable.
 id: vbe-crossover
-version: 0.1.0-draft
+version: 0.2.0-draft
 applies_to: [APP-11, APP-14]
 status: DRAFT
 
@@ -30,6 +32,15 @@ inputs:
   - {id: n_trials, label: "Virtual trials", kind: integer, never_default: true}
   - {id: seed, label: "Random seed (recorded in the MAP)", kind: integer, never_default: true}
   - {id: pos_threshold, label: "Probability of BE success the decision needs", kind: fraction, never_default: true}
+  - id: observed_be
+    label: "Observed BE study (REQ-vbe.be_study): per metric, its geometric mean ratio and between-subject CV, and the source"
+    kind: be_summary
+    required: false
+    never_default: true
+    note: >-
+      The F-304 validation gate: the model must reproduce the observed study's between-subject variability and its
+      observed GMR must fall within the simulated trials' 5-95 %. Without it the VBE result is reported "not
+      validated", never a pass (D-19).
   - id: limits
     label: "Bioequivalence limits on the 90 % CI of the geometric mean ratio"
     kind: limits
@@ -71,7 +82,7 @@ steps:
 default_technical_criteria:
   - {metric: be_90ci_within_limits, per: trial}
   - {metric: probability_of_success, threshold: "input:pos_threshold"}
-  - {metric: simulated_vs_observed_between_subject_cv, threshold: "[VERIFY] within 1.5-fold"}
+  - {metric: simulated_vs_observed_between_subject_cv, fold: 1.5, verified: false, note: "[VERIFY] within 1.5-fold"}
   - {metric: observed_gmr_within_simulated_5_95, threshold: required}
 
 report_sections:

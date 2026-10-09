@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
+import statistics
 from pathlib import Path
 
 import pytest
 
-from pbpk_domain.vbe import VbeError, read_pk_analyses, run_trials
+from pbpk_domain.vbe import VbeError, between_subject_cv, read_pk_analyses, run_trials, validation_gate
 
 pytestmark = pytest.mark.req("T-31")
 SAMPLE = Path(__file__).parents[3] / "services" / "engine-worker" / "golden" / "results_sample" / "pk_analyses.csv"
@@ -50,3 +52,18 @@ def test_an_unusable_individual_is_excluded_by_name_and_trials_are_only_whole():
     assert out["n_trials_planned"] == 5 and out["n_trials_run"] == 2  # 28 usable individuals fill 2 trials of 12
     with pytest.raises(VbeError, match="cannot fill one trial"):
         run_trials(*_arms(1.0, 5), n_subjects=12, n_trials=1, limits=(0.8, 1.25), confidence=0.9, pos_threshold=0.8)
+
+
+def test_between_subject_cv_is_the_log_normal_cv():
+    s = 0.3
+    logs = [s * z for z in (-1.5, -0.5, 0.5, 1.5)]
+    expected = 100 * math.sqrt(math.exp(statistics.stdev(logs) ** 2) - 1)
+    assert abs(between_subject_cv([math.exp(v) for v in logs]) - expected) < 1e-9
+
+
+def test_the_gate_without_an_observed_study_never_passes():
+    result = run_trials(*_arms(1.0, 24, noise=0.05), n_subjects=12, n_trials=2, limits=(0.8, 1.25), confidence=0.9,
+                        pos_threshold=0.8)
+    assert validation_gate(result, None, cv_fold=1.5)["status"] == "NOT_VALIDATED"
+    other = {"source": "x", "metrics": {"AUC_tEnd": {"gmr": 1.0, "between_subject_cv_percent": 20}}}
+    assert validation_gate(result, other, cv_fold=1.5)["status"] == "NOT_VALIDATED"

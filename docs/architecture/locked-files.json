@@ -229,7 +229,7 @@
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/analysis_templates/vbe-crossover.yaml",
-      "sha256": "ebadafa28280117ee11ad12617286b35350c5575161b6011d7f013be8bae4c79"
+      "sha256": "5a7bca0bf2e9aca6d6532bf98b344a3204827d2803cfa8261d73eb087908ae21"
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/campaign/map.py",
