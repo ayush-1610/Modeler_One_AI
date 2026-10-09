@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the engine runs behind a port; no boundary exception is left; phase 8 is done (architecture phase 8c; locked `boundaries.toml`)
+- **What:**
+  - **The engine port:** `modeler_contracts.ports.EngineFactory`, with `engine_factory()` to load it.
+    - The engine worker registers its subprocess runner under the `modeler.engines` entry point
+      (`modeler_engine.runner:subprocess_engine`).
+    - `local_runner.default_engine` builds the engine through the port, so the orchestrator no longer imports
+      `modeler_engine`. Both packages sit on layer 5.
+  - **The S3 object store:** `S3ObjectStore` with its presigned URLs moves unchanged from `modeler_orchestrator.storage`
+    to `modeler_storage.objects`, because it is persistence. `modeler-storage` now declares `boto3` (already in the
+    lock) and `modeler-contracts`; the orchestrator, which no longer uses `boto3`, drops it.
+  - **The tests that reached into the orchestrator moved:**
+    - the CPF test of `_fittable_candidates` is now `orchestrator/tests/test_fittable_candidates.py`;
+    - the engine's object-store test reads `modeler_storage.objects`.
+  - **`boundaries.toml`** has no `[[allow]]` entries left; the 4 exceptions are gone. Its hash is refreshed, since the
+    file is locked; the exceptions were recorded on 2026-10-07 as "goes behind an engine port".
+- **Why:** coupling C3 and rule B4. These were the last 4 recorded exceptions to the layer rule (48 on 2026-10-07).
+  Phase 8 is now done: 8a, 8b and 8c.
+- **Impact:**
+  - No behaviour changes: the same engine runs with the same command and identity.
+  - The API image installs every workspace package, so the entry point is registered there as on the server.
+
 ### Changed — job state lives beside the data, not in one process; a decision is applied once (architecture phase 8b)
 - **What:**
   - **Agent jobs:** each project's agent job (A1 extraction, A2/A3 research, A4 triage, A5 planning) holds a lease,

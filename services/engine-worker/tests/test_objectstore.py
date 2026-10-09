@@ -39,7 +39,7 @@ print("PROGRESS 1.000")
 
 
 def _s3(endpoint: str):
-    from modeler_orchestrator.storage import S3ObjectStore, S3Settings
+    from modeler_storage.objects import S3ObjectStore, S3Settings
 
     return S3ObjectStore(S3Settings(endpoint_url=endpoint, access_key="minioadmin", secret_key="minioadmin", bucket="modeler"))
 

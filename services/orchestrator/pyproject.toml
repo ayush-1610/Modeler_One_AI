@@ -9,7 +9,6 @@ dependencies = [
   "pbpk-domain",
   "modeler-storage",
   "modeler-agents",
-  "boto3>=1.35",
   "pypandoc-binary>=1.17",
   "typst>=0.15.0",
 ]

@@ -227,3 +227,9 @@ class EngineRunner:
         if self.on_heartbeat:
             self.on_heartbeat(progress[0])
         return warnings, "".join(stderr_lines)[-4000:], returncode, timed_out, cancelled
+
+
+def subprocess_engine(*, command: Sequence[str], engine_id: str, image_digest: str) -> Callable[[EngineJob], EngineManifest]:
+    """The `modeler.engines` "subprocess" implementation of `modeler_contracts.ports.EngineFactory`: each job runs as
+    `command <job.json>` over a file:// object store (the single-node runner, the server, the Mac's Docker engine)."""
+    return EngineRunner(command=list(command), store=LocalObjectStore(), engine_id=engine_id, image_digest=image_digest).run

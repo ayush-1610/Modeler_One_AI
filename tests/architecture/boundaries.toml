@@ -33,31 +33,15 @@ readers = [
   "modeler_engine.runner",      # passes chosen variables through to the engine subprocess
 ]
 
-# ---- known exceptions (2026-10-07; removed: 13 by phase 3b, 10 by 5a, 14 by 5b, 3 by 5c, 4 by 5d). rule: layer | declared | seam | router | tests ----
-
-[[allow]]
-rule = "layer"
-importer = "modeler_orchestrator.local_runner"
-imported = "modeler_engine.runner"
-reason = "the local runner calls the engine runner in-process; goes behind an engine port in modeler_contracts"
-
-[[allow]]
-rule = "declared"
-importer = "modeler_orchestrator"
-imported = "modeler_engine"
-reason = "lazy import in local_runner; goes behind an engine port with the layer exception above"
-
-[[allow]]
-rule = "tests"
-importer = "packages/pbpk-domain/tests/test_cpf.py"
-imported = "modeler_orchestrator"
-reason = "a CPF test reaches into the orchestrator's _fittable_candidates; moves to the orchestrator tests in phase 5"
-
-[[allow]]
-rule = "tests"
-importer = "services/engine-worker/tests/test_objectstore.py"
-imported = "modeler_orchestrator"
-reason = "the S3 object store lives in the orchestrator; moves with the engine port (after phase 3)"
+# ---- known exceptions (2026-10-07: 48; removed: 13 by phase 3b, 10 by 5a, 14 by 5b, 3 by 5c, 4 by 5d, the last 4 by 8c).
+# None is left: the engine runs behind a port (modeler_contracts.ports.engine_factory, phase 8c). A new one needs the
+# owner's approval, in its own PR with a CHANGELOG entry. rule: layer | declared | seam | router | tests
+#
+# [[allow]]
+# rule = "layer"
+# importer = "..."
+# imported = "..."
+# reason = "..."
 
 
 

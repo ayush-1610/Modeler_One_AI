@@ -34,6 +34,7 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from modeler_contracts.ports import engine_factory
 from modeler_contracts.runs import (
     CampaignOutcome,
     CampaignRequest,
@@ -114,19 +115,13 @@ def default_engine() -> EngineRun:
     """A real engine dispatcher: ``Rscript run_job.R`` over a ``file://`` object store, configured from env.
 
     On the server the engine env (PATH, LD_LIBRARY_PATH, DOTNET_ROOT, R_LIBS_USER, LC_ALL) is passed through
-    to the subprocess by EngineRunner; ``MODELER_ENGINE_COMMAND`` points at the run_job.R for this host.
+    to the subprocess by the engine runner; ``MODELER_ENGINE_COMMAND`` points at the run_job.R for this host. The
+    runner is the engine worker's, found through the engine port (`modeler_contracts.ports.engine_factory`).
     """
-    from modeler_engine.runner import EngineRunner, LocalObjectStore
-
     env = runtime_env()
     command = env.resolved_engine_command(development_engine())
-    runner = EngineRunner(
-        command=shlex.split(command),
-        store=LocalObjectStore(),
-        engine_id=env.resolved_engine_id(command),
-        image_digest=env.resolved_image_digest(),
-    )
-    return runner.run
+    return engine_factory()(command=shlex.split(command), engine_id=env.resolved_engine_id(command),
+                            image_digest=env.resolved_image_digest())
 
 
 def development_engine() -> str:
