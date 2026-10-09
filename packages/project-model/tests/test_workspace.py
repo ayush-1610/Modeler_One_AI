@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+import threading
 
 import pytest
 
@@ -126,3 +129,82 @@ def test_blobs_are_content_addressed(tmp_path):
     assert store.put_blob("t1", "p1", b"%PDF-1.7 proposal") == sha
     assert store.blob_path("t1", "p1", sha).read_bytes() == b"%PDF-1.7 proposal"
     assert store.blob_path("t1", "p1", "0" * 64) is None
+
+
+# --- phase 8: a second worker -------------------------------------------------------------------------------------
+
+
+def test_a_version_is_written_once_even_when_two_writers_race(tmp_path):
+    store = FileProjectStore(tmp_path)
+    ws = Workspace(store, "t1", "p1")
+    first = ws.commit(K.BRIEF, "main", {"dose": 50}, actor="u", reason="first")
+    rival = ArtifactVersion.model_validate({**first.model_dump(), "content": {"dose": 75}})
+    with pytest.raises(ImmutableVersionError):
+        store.put("t1", "p1", rival)
+    assert ws.latest(K.BRIEF, "main").content == {"dose": 50}
+    folder = tmp_path / "t1" / "projects" / "p1" / "artifacts" / "brief" / "main"
+    assert sorted(p.name for p in folder.iterdir()) == ["v0001.json"]  # no temporary file left behind
+
+
+def test_a_reader_never_sees_a_half_written_version(tmp_path):
+    store = FileProjectStore(tmp_path)
+    ws = Workspace(store, "t1", "p1")
+    big = {"rows": ["x" * 200] * 2000}
+    done = threading.Event()
+    errors: list[Exception] = []
+
+    def read() -> None:
+        while not done.is_set():
+            try:
+                store.versions("t1", "p1", K.BRIEF, "main")
+            except ValueError as exc:  # a truncated file fails to parse (pydantic ValidationError, JSONDecodeError)
+                errors.append(exc)
+
+    reader = threading.Thread(target=read)
+    reader.start()
+    try:
+        for n in range(15):
+            ws.commit(K.BRIEF, "main", {**big, "n": n}, actor="u", reason=f"edit {n}")
+    finally:
+        done.set()
+        reader.join()
+    assert not errors
+    assert len(store.versions("t1", "p1", K.BRIEF, "main")) == 15
+
+
+def test_identical_blobs_written_at_once_are_one_blob(tmp_path):
+    store = FileProjectStore(tmp_path)
+    shas: list[str] = []
+    threads = [threading.Thread(target=lambda: shas.append(store.put_blob("t1", "p1", b"same bytes" * 1000)))
+               for _ in range(8)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    assert len(set(shas)) == 1 and len(shas) == 8
+    blobs = tmp_path / "t1" / "projects" / "p1" / "blobs"
+    assert [p.name for p in blobs.iterdir()] == [shas[0]]
+    assert store.blob_path("t1", "p1", shas[0]).read_bytes() == b"same bytes" * 1000
+
+
+_APPROVE_MANY = """
+import sys
+from modeler_project import FileProjectStore
+from modeler_project.artifacts import Approval
+
+root, actor, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
+store = FileProjectStore(root)
+for i in range(n):
+    store.add_approval("t1", "p1", Approval.model_validate(
+        {"ref": {"kind": "brief", "id": "main", "version": 1}, "record_sha256": "0" * 64, "meaning": "Reviewed",
+         "by": actor, "note": f"{actor} {i}"}))
+"""
+
+
+def test_two_processes_appending_approvals_lose_nothing(tmp_path):
+    workers = [subprocess.Popen([sys.executable, "-c", _APPROVE_MANY, str(tmp_path), actor, "150"])
+               for actor in ("worker-a", "worker-b")]
+    assert [w.wait(timeout=120) for w in workers] == [0, 0]
+    approvals = FileProjectStore(tmp_path).approvals("t1", "p1")
+    assert len(approvals) == 300
+    assert {a.by for a in approvals} == {"worker-a", "worker-b"}

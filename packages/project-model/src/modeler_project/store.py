@@ -7,13 +7,21 @@
     <root>/<tenant>/projects/<pid>/blobs/<sha256>                     raw uploaded bytes (write-once)
     <root>/<tenant>/audit.jsonl                                       the tenant's hash-chained audit trail
 
+A version or blob appears whole or not at all: it is written to a temporary file in its folder, flushed to disk and
+then linked into place, and the link fails when the name exists, so a version stays write-once (phase 8). Approvals are
+appended under a cross-process lock, as the audit chain is: two API workers or an agent job writing beside a request
+never interleave or lose a line.
+
 The Postgres tables `artifact_versions`, `artifact_edges` and `audit_events` implement the same protocol later.
 """
 
 from __future__ import annotations
 
+import errno
+import fcntl
 import hashlib
-import threading
+import os
+import tempfile
 from pathlib import Path
 from typing import Protocol
 from urllib.parse import unquote, urlparse
@@ -21,7 +29,8 @@ from urllib.parse import unquote, urlparse
 from modeler_project.artifacts import Approval, ArtifactKind, ArtifactVersion
 from modeler_project.audit import AuditLog
 
-_LOCK = threading.Lock()
+# Filesystems without hard links (some network and container mounts): fall back to an exclusive create, written in place.
+_NO_LINKS = {errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP, errno.EXDEV, errno.EMLINK}
 
 
 class ImmutableVersionError(RuntimeError):
@@ -44,6 +53,34 @@ class ProjectStore(Protocol):
     def blob_path(self, tenant_id: str, project_id: str, sha256: str) -> Path | None: ...
 
     def audit(self, tenant_id: str) -> AuditLog: ...
+
+
+def _publish(path: Path, data: bytes) -> bool:
+    """Write `data` as `path`, whole or not at all; False when `path` already exists (it is never overwritten).
+
+    The temporary file starts with "." and ends ".part", so no reader's pattern (`v*.json`, a blob's sha) matches it."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".part")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            os.fchmod(handle.fileno(), 0o644)  # as a plain create would leave it (mkstemp makes it private)
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.link(tmp, path)
+        except FileExistsError:
+            return False
+        except OSError as exc:
+            if exc.errno not in _NO_LINKS:
+                raise
+            try:
+                with path.open("xb") as handle:
+                    handle.write(data)
+            except FileExistsError:
+                return False
+        return True
+    finally:
+        os.unlink(tmp)
 
 
 def resolve_root(root: str | Path) -> Path:
@@ -69,11 +106,8 @@ class FileProjectStore:
         folder = self._artifact_dir(tenant_id, project_id, version.kind, version.id)
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f"v{version.version:04d}.json"
-        try:
-            with path.open("x", encoding="utf-8") as handle:
-                handle.write(version.model_dump_json(indent=2))
-        except FileExistsError as exc:
-            raise ImmutableVersionError(f"{version.ref.label()} already exists; versions are immutable") from exc
+        if not _publish(path, version.model_dump_json(indent=2).encode("utf-8")):
+            raise ImmutableVersionError(f"{version.ref.label()} already exists; versions are immutable")
 
     def versions(self, tenant_id: str, project_id: str, kind: ArtifactKind, artifact_id: str) -> list[ArtifactVersion]:
         folder = self._artifact_dir(tenant_id, project_id, kind, artifact_id)
@@ -104,8 +138,13 @@ class FileProjectStore:
     def add_approval(self, tenant_id: str, project_id: str, approval: Approval) -> None:
         path = self._project_dir(tenant_id, project_id) / "approvals.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
-        with _LOCK, path.open("a", encoding="utf-8") as handle:
-            handle.write(approval.model_dump_json() + "\n")
+        with path.open("a", encoding="utf-8") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            try:
+                handle.write(approval.model_dump_json() + "\n")
+                handle.flush()
+            finally:
+                fcntl.flock(handle, fcntl.LOCK_UN)
 
     # --- raw files --------------------------------------------------------------------------------------------
 
@@ -115,8 +154,7 @@ class FileProjectStore:
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / sha
         if not path.exists():
-            with path.open("xb") as handle:
-                handle.write(data)
+            _publish(path, data)  # a concurrent writer of the same bytes may win; the blob is the same either way
         return sha
 
     def blob_path(self, tenant_id: str, project_id: str, sha256: str) -> Path | None:

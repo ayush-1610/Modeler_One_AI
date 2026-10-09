@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — an artifact version or blob is never seen half written, and approvals lock across processes (architecture phase 8a; locked `store.py`, owner-approved 2026-10-09)
+- **What:** in the Part 11 artifact store (`modeler_project.store.FileProjectStore`):
+  - **Versions:** a version is written to a temporary file in its folder, flushed to disk, then hard-linked into
+    `vNNNN.json`. The link fails when the version exists, so a version stays write-once.
+  - **Blobs:** written the same way. Two writers of the same bytes no longer collide.
+  - **Approvals:** `approvals.jsonl` is appended under `flock` instead of a lock held only within one process.
+  - On a filesystem without hard links, the store falls back to an exclusive create.
+  - The file mode stays 0644. The audit chain already locked across processes and is unchanged.
+- **Why:**
+  - The known gap recorded on 2026-10-07: the store created a version file and then filled it, so the API could
+    read an empty version while an agent job wrote one.
+  - Phase 8 (C8, job state out of the process): with a second worker process, a thread lock protects nothing.
+- **Impact:**
+  - The layout, names and immutability are unchanged, and so is every stored byte.
+  - New tests:
+    - a rival write of an existing version is refused and leaves no temporary file;
+    - a reader polling while 15 large versions are written never sees a partial one;
+    - 8 simultaneous identical blobs make one file;
+    - two processes appending 150 approvals each lose none.
+  - The locked-file hash is refreshed.
+
 ### Changed — the evidence and observed-data answers are typed, and the web's untyped helpers are gone; phase 9 is done (architecture phase 9e; API contract)
 - **What:**
   - **Typed routes:** the last 5 routes that answered an open stored object now answer the owner's content model.
