@@ -3,8 +3,8 @@ name: CI
 # Continuous integration and validation evidence (task T-25, ENGINEERING_PLAN §9.5).
 # Every push and pull request runs lint, the full test suite (emitting the requirement trace
 # matrix as a validation-evidence artifact; it includes the architecture guardrails in tests/architecture),
-# the web app's typecheck and production build, the API image build with a smoke start, a secret scan and a
-# Trivy filesystem scan.
+# the web app's typecheck and production build, the browser acceptance flows (Playwright, stub engine), the API
+# image build with a smoke start, a secret scan and a Trivy filesystem scan.
 # Tagged releases (v*) additionally publish the validation evidence pack.
 
 on:
@@ -104,6 +104,45 @@ jobs:
       - name: Production build
         run: npm run build
 
+  e2e:
+    # The Playwright acceptance flows (T-26/T-28; owner-approved 2026-10-09): the browser drives the real web app
+    # against the real API on the stub engine (deploy/dev/stub_engine.py), so a pass proves the software path, never
+    # the pharmacology. The config starts both servers on their own ports with a fresh data directory.
+    name: Browser flows (Playwright, stub engine)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Sync workspace
+        run: uv sync --all-packages --frozen
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Install Chromium for Playwright
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Run the browser flows
+        working-directory: apps/web
+        run: npm run e2e
+      - name: Upload the failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          if-no-files-found: ignore
+
   api-image:
     name: API image (build + smoke start)
     runs-on: ubuntu-latest
@@ -168,7 +207,7 @@ jobs:
   release-evidence:
     name: Publish validation evidence pack
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, test, web, api-image, secret-scan, trivy]
+    needs: [lint, test, web, e2e, api-image, secret-scan, trivy]
     runs-on: ubuntu-latest
     permissions:
       contents: write  # attach assets to the GitHub Release
