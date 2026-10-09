@@ -15,6 +15,42 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — S6 runs the MAP's virtual bioequivalence: two arms, the same individuals, K trials, the probability of success (T-31 B6 PR 4; science, UNVERIFIED, D-26)
+- **What:** when the signed MAP pins `vbe-crossover`, S6 runs it from the final CPF (`modeler_orchestrator.vbe_activities`).
+  1. **Design.** The trial copies the reference product's own oral single-dose study in the MAP (a fasted one first),
+     else another oral single-dose study given as a CPF formulation. The TEST and reference arms are that scenario
+     with each product's CPF formulation, built by the round builder.
+  2. **Arms.**
+     - The TEST arm's population job creates K·n individuals from the person's seed.
+     - The reference arm loads exactly those individuals (the TEST arm's `population.csv`).
+     - Each arm has its own occasion (the engine's intra-subject variability, B6 PR 3), seeded 2s+1 and 2s+2 from
+       the person's seed and recorded.
+  3. **Trials** (`pbpk_domain.vbe`).
+     - PK-Sim's `pk_analyses.csv` gives AUC_inf and C_max per individual for the named plasma output. A file with
+       several outputs is never guessed.
+     - An individual without a positive exposure in both arms is excluded and named.
+     - The rest form whole trials of n in id order. Each trial is judged by the template's CI on the geometric mean
+       ratio (`paired_crossover_ci`).
+     - The result is the probability of success per metric and jointly (both metrics pass in the same trial), set
+       against the person's threshold, plus the GMR median and its 5–95 %.
+  4. **What the result carries:** the template and version, the design study, the formulations, the limits and
+     their source and verified flag, the seeds, and the variability.
+     - It is always marked "not validated" until the F-304 gate against observed BE data runs (next PR).
+     - A VBE that cannot run is `NOT_RUN` with the reason: an input missing, no design study, an arm that cannot be
+       built, or an engine stop (e.g. an unknown variability path). It never falls back to a default.
+  5. **The S6 notes** state the result in one line.
+- **Why:** step 5 of the VBE design. The question of interest is answered by the signed template and the person's
+  inputs, on the validated model.
+- **Impact:**
+  - A MAP without applications runs S6 exactly as before.
+  - The number is real evidence only from PK-Sim. The tests use a scripted engine that writes PK-Sim-shaped files,
+    and the proof on PK-Sim is B6 PR 7.
+- **Tests:**
+  - `test_vbe.py`: PK-Sim's own `pk_analyses.csv`, where the two outputs are never guessed; identical vs 30 % apart
+    products; exclusions; whole trials only;
+  - `test_vbe_s6.py`: two arms each with its own formulation, the same individuals, occasion seeds 11 and 12, K
+    trials, and the NOT_RUN reasons.
+
 ### Added — the engine's population task runs an occasion: the same individuals, each arm its own seeded variability (T-31 B6 PR 3; locked `run_job.R` and `golden_tasks.R`; science, UNVERIFIED, D-26)
 - **What:** the `population` task takes `variability: [{path, cv_percent}]` and an `occasion_seed`.
   - **The occasion:** each individual's value of each listed parameter is multiplied by a log-normal factor with a
