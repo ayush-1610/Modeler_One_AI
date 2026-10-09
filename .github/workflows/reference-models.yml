@@ -66,6 +66,8 @@ jobs:
           - {task: itraconazole-system-as-is, run: "deploy/reference/run_reference.py campaign Itraconazole --mode as-is --system"}
           # MS-01 v1.3 (D-25): every compound's identified parameters freed; metabolites fitted at SM
           - {task: verapamil-system-refit, run: "deploy/reference/run_reference.py campaign Verapamil --mode refit --system"}
+          # T-31: an ILLUSTRATIVE virtual bioequivalence (invented TEST tablet, illustrative CV): the machinery on PK-Sim
+          - {task: dapagliflozin-vbe, run: "deploy/reference/run_reference.py vbe Dapagliflozin"}
           - {task: portfolio, run: "deploy/reference/portfolio.py"}  # import / S0 / split of the whole library
     steps:
       - uses: actions/checkout@v4

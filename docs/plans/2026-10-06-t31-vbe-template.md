@@ -1,6 +1,6 @@
 # T-31 slice: the virtual bioequivalence (VBE) application template — design, not yet built
 
-Status: **design only (2026-10-06)**, scoped in worktree branch `claude/vbe-template`; no VBE code is written yet.
+Status: **built (2026-10-09, B6 PRs 1–7, #51–#57), UNVERIFIED (D-26)**. Every step below is on `main`. The illustrative proof ran on PK-Sim (reference run 37965688096). The SME questions are in `docs/SME_SIGNOFF.md` §3.
 Spec sources: `docs/ARCHITECTURE_PACK.md` F-304 and APP-11/APP-14; `requirements/app_vbe.yaml` (REQ-vbe.*);
 `pbpk_domain/analysis_templates/ddi-cyp3a4-victim.yaml` (the template format to follow; moved from `templates/analysis/`
 on 2026-10-09).
