@@ -162,15 +162,28 @@ def campaign(model: str, mode: str, out: Path, *, system: bool = False) -> dict:
     compounds: dict = {}
     links = None
     if system:
+        from pbpk_domain.fit_spec import qualify
         from pbpk_domain.reference import import_osp_system
-        from pbpk_domain.system import links_of
+        from pbpk_domain.system import formation_targets, links_of
 
         imported = import_osp_system(json.loads((FIXTURES / f"{model}-Model.json").read_text(encoding="utf-8")))
-        fitted_name = imported.system.parents[0]
-        compounds = {c.compound: c for c in imported.system.compounds}
-        links = links_of(imported.system).model_dump(mode="json")
-        cpf, freed = (refit_cpf(compounds[fitted_name]) if mode == "refit" else (compounds[fitted_name], {}))
-        compounds[fitted_name] = cpf
+        system = imported.system
+        fitted_name = system.parents[0]
+        compounds = {c.compound: c for c in system.compounds}
+        links = links_of(system).model_dump(mode="json")
+        freed = {}
+        if mode == "refit":
+            # every compound's identified parameters (MS-01 v1.3): a parent's at the parent stages, a metabolite's at SM,
+            # and the rate forming each metabolite at SM too; reported under their fit ids
+            forms = {}
+            for metabolite in (c for c, role in system.roles.items() if role == "metabolite"):
+                for compound, pid in formation_targets(system, metabolite):
+                    forms.setdefault(compound, set()).add(pid)
+            for name, original in list(compounds.items()):
+                compounds[name], theirs = refit_cpf(original, role=system.roles[name],
+                                                    formation=frozenset(forms.get(name, ())))
+                freed |= {qualify(name, pid, fitted_name): info for pid, info in theirs.items()}
+        cpf = compounds[fitted_name]
     else:
         _snapshot_path, imported = _import(model)
         fitted_name = model
@@ -222,19 +235,36 @@ def campaign(model: str, mode: str, out: Path, *, system: bool = False) -> dict:
         path = Path(unquote(urlparse(outcome.final_cpf_uri).path))
         if path.exists():
             final_cpf = json.loads(path.read_text(encoding="utf-8"))
+    final_system = None
+    if final_cpf is not None and request.system_uri:
+        from modeler_orchestrator.round_system import current_system_uri
+
+        system_path = Path(unquote(urlparse(current_system_uri(outcome.final_cpf_uri, request.system_uri)).path))
+        if system_path.exists():
+            final_system = json.loads(system_path.read_text(encoding="utf-8"))
     result = {
         "model": model, "mode": mode, "seconds": round(time.monotonic() - started),
         "outcome": {"status": outcome.status, "reason": getattr(outcome, "reason", None)},
         "freed": freed, "split": prep["studies"], "campaign": record, "not_evaluated": prep.get("not_evaluated", []),
-        "fitted": _fitted(final_cpf, freed) if final_cpf else {},
+        "fitted": _fitted(final_cpf, freed, final_system) if final_cpf else {},
     }
     (out / f"campaign-{mode}.json").write_text(json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
     return result
 
 
-def _fitted(final_cpf: dict, freed: dict) -> dict:
-    by_id = {p["id"]: p for p in final_cpf.get("parameters", [])}
-    return {pid: {**info, "fitted": by_id.get(pid, {}).get("value")} for pid, info in freed.items()}
+def _fitted(final_cpf: dict, freed: dict, final_system: dict | None = None) -> dict:
+    """Each freed parameter's final value; another compound's (``<compound>::<id>``) from the system as of the final CPF."""
+    from pbpk_domain.fit_spec import split_fit_id
+
+    by_compound = {c["compound"]: {p["id"]: p for p in c.get("parameters", [])}
+                   for c in (final_system or {}).get("compounds", [])}
+    own = {p["id"]: p for p in final_cpf.get("parameters", [])}
+    out = {}
+    for fit_id, info in freed.items():
+        compound, pid = split_fit_id(fit_id)
+        values = by_compound.get(compound, {}) if compound else own
+        out[fit_id] = {**info, "fitted": values.get(pid, {}).get("value")}
+    return out
 
 
 def summary(step: str, result: dict) -> str:

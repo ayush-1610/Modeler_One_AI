@@ -22,7 +22,7 @@ from modeler_api.cpf_view import project_cpf_view
 from modeler_api.deps import get_project_store
 from modeler_api.responses import answers, envelope
 from modeler_api.views.campaigns import CampaignPackage, Campaigns, Escalations
-from modeler_api.views.read import CpfView, Projects, Proposals, Studies
+from modeler_api.views.read import CpfView, Projects, ProjectSystem, Proposals, Studies
 from modeler_project import ProjectStore, Workspace
 from modeler_storage.filestore import FileReadStore, ReadStore
 from modeler_storage.records import CampaignRecord, ProjectRecord
@@ -184,6 +184,20 @@ def list_studies(project_id: str, principal: PrincipalDep, store: StoreDep,
         studies = [redact_row(s) if str(s.get("study_id")) in hidden else s for s in studies]
     return envelope({"studies": studies})
 
+
+
+@router.get("/projects/{project_id}/system", **answers(ProjectSystem))
+def get_system(project_id: str, principal: PrincipalDep, store: StoreDep):
+    """The project's model system (compounds and roles, formation, products with their dose fractions, analytes and
+    the stages that judge each, MS-01 v1.3 §6.5), or none for a single-compound project."""
+    require_project(project_id, principal)
+    links = store.get_system(principal.tenant_id, project_id)
+    if links is None:
+        return envelope({"system": None, "links": None})
+    from modeler_api.system_view import system_detail
+
+    cpfs = {c: cpf for c in links.get("compounds", []) if (cpf := store.get_cpf(principal.tenant_id, project_id, c)) is not None}
+    return envelope({"system": system_detail(links, cpfs), "links": links})
 
 
 @router.get("/escalations", **answers(Escalations))

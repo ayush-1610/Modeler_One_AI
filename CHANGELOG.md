@@ -41,6 +41,80 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - VBE projects' data plans now show the variability as "not stated" until someone is named.
 - **Tests:** `test_analysis_templates.py`.
 
+### Added — the model system on the project page, in the upload form and in the MAR (multi-compound phase 3, B5 PR 4)
+- **What:**
+  - **`GET /projects/{id}/system`** (`ProjectSystem`, `modeler_api.system_view`): the project's model system, or none
+    for a single compound. It lists:
+    - every compound with its role, and whether its CPF is there;
+    - the formation links;
+    - the products with each compound's dose fraction;
+    - each analyte, with the compounds it informs and the stages that judge it (MS-01 v1.3 §6.5);
+    - the stored links, which a client edits and puts back.
+
+    API contract: `docs/api/openapi.json` and the generated web types.
+  - **System panel** on the project page (`components/system/SystemPanel.tsx`): the compounds, formation, products and
+    analytes. The dose fraction of every product is edited in place and saved through `PUT /projects/{id}/system`.
+    An empty or non-positive fraction is refused before it is sent, because it is never defaulted (owner decision 2).
+  - **Data intake:** in a project with a system, each uploaded study names the analyte it measures (each option says
+    where it is judged) and the product it gives. Both are chosen, never guessed, and the study is not saved without
+    them.
+  - **MAR §3 lists the model system** (multi-compound plan §3.5), as of the final CPF from the bundle's
+    `cpf/system.json`:
+    - each compound's role, what forms it, and its CPF version and content hash;
+    - every product's dose fractions;
+    - each analyte, with the compounds it informs and where it is judged;
+    - the system's content hash.
+- **Why:** phase 3 of the multi-compound plan. A person can now see and correct what a system campaign simulates and
+  judges, and the report says it.
+- **Impact:** single-compound projects show no panel, and the upload form and the MAR are unchanged for them.
+- **Tests:**
+  - `test_model_system_campaign.py`: the panel's read;
+  - `test_metabolite_stage.py`: the MAR tables;
+  - `e2e/model-system.spec.ts`: the panel, a refused empty fraction, a saved one, and the upload form's analyte and
+    product choices;
+  - browser flows: 15 of 15 pass.
+
+### Added — the reference refit frees every compound of a model system (`reference/refit.py`, `run_reference.py`)
+- **What:** `run_reference.py campaign <model> --mode refit --system` frees each compound's identified parameters,
+  shifted and bounded as approved on 2026-09-24.
+  - A parent's (and a co-parent's) are fitted at the parent stages.
+  - A metabolite's own clearance and logP are fitted at SM. Its absorption and cellular permeability stay as published,
+    because it is formed, not dosed.
+  - The rate that forms each metabolite also gets SM in its fit policy (`refit_cpf(role=, formation=)`).
+  - The report keys the freed parameters by fit id (`S-Norverapamil::…`) and reads each final value from the system
+    as of the final CPF.
+  - A new matrix task, `verapamil-system-refit`: OSP Verapamil identified its norverapamils' CYP3A4 kcat, P-gp kcat and
+    logP, so its refit exercises SM. Itraconazole's metabolites carry no identified parameter.
+- **Why:** to prove stage SM on PK-Sim (plan B7). The as-is system campaigns judge the published values; only a refit
+  makes SM fit.
+- **Impact:** single-compound refits are unchanged. Tested in `test_metabolite_stage.py`; locally smoke-run on the
+  stub engine up to the first PK-Sim simulation, which is not evidence.
+
+### Verified on PK-Sim — `main` after the architecture refactor and B1–B4 gives the same results as before it
+- **The runs:** reference run 37922984864 (2026-10-09, `main` at 1bff09d, engine 12.4.4) compared with run
+  36079717728 (2026-09-25, before phases 1–9 and 8).
+- **Campaigns, identical to every printed digit** (predicted AUC, Cmax, t½, the GMFEs, the fitted estimates and the
+  escalation):
+  - Dapagliflozin as-is: S1 escalates on the Boulton 2013 IV microdose Cmax, 0.52×;
+  - Rifampicin as-is: S1, Sanofi 2013 300 mg IV Cmax, 1.59×;
+  - Rifampicin refit: S1, VPC 3/6;
+  - Dapagliflozin refit: S1 after the clearance fit, UGT1A9 clspec at its lower bound.
+- **Round trips, the same counts and rows:**
+
+  | Model | Identical within 1e-6 | Within 1e-3 (solver level) | Labelled by design |
+  |---|---|---|---|
+  | Dapagliflozin | 25 / 34 | 3 | 6 |
+  | Rifampicin | 21 / 22 | 1 | 1 |
+  | Midazolam | 85 / 88 | 0 | 3 |
+  | Itraconazole system | 16 / 54 | 37 | 9 |
+  | Verapamil system | 71 / 75 | 2 | 2 |
+  | Dabigatran system | 3 / 10 | 7 | 0 |
+- **What this means:** the refactor and B1–B4 changed no PK-Sim result. The Stone 2004 exclusion does not reach S1,
+  where the Rifampicin refit stops, and the SJ study weights are not reached either.
+- **Still open:** the four campaign escalations are open science items, recorded before this session: the Dapagliflozin
+  IV microdose Cmax, the Rifampicin IV Cmax, the Rifampicin VPC, and the UGT1A9 bound. Only these PK-Sim runs count as
+  evidence.
+
 ### Changed — MS-01 v1.3: a model system's every analyte judged on its own; metabolites fitted at a new stage SM (multi-compound phase 2, PR 3; locked `map.py`, `split.py`, `acceptance.py`, `diagnostics.py`, rulesets and MS-01; science, UNVERIFIED, D-25)
 - **What:**
   - **Split (§3.3 rule 7):** each analyte of a model system is split on its own: the fitted parent's plasma, a
