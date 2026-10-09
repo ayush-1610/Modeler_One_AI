@@ -143,3 +143,19 @@ def test_diagnose_round_is_the_registered_activity() -> None:
     from temporalio import activity as temporal_activity
 
     assert temporal_activity._Definition.from_callable(diagnose_round).name == "diagnose_round"
+
+
+def test_a_reported_analyte_never_diagnoses_the_fitted_compound(tmp_path: Path) -> None:
+    # multi-compound phase 2, PR 1: a metabolite or sum study (gated False) is reported, not judged against the parent's
+    # fit; before, its residuals fed the parent's diagnosis and could propose a fit of the parent's clearance
+    map_uri = _iv_map(tmp_path)
+    ctx = _ctx(tmp_path, map_uri, _observed(tmp_path, auc=GOLDEN_AUC, cmax=GOLDEN_CMAX, thalf=181.0))
+    study = {"study_id": "iv", "role": "fitting", "predicted_auc": GOLDEN_AUC * 3, "observed_auc": GOLDEN_AUC,
+             "predicted_cmax": GOLDEN_CMAX * 3, "observed_cmax": GOLDEN_CMAX, "predicted_thalf": 181.0,
+             "observed_thalf": 60.0, "auc_in_limits": False}
+    gated = RoundEvaluation(gate_passed=False, acceptable=False, metrics={"studies": [study]}, findings=[])
+    reported = RoundEvaluation(gate_passed=False, acceptable=False, metrics={"studies": [{**study, "gated": False}]},
+                               findings=[])
+    assert "clearance_off" in diagnose_round(ctx, gated).evidence
+    diag = diagnose_round(ctx, reported)
+    assert diag.evidence == [] and diag.escalate is True

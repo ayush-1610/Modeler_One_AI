@@ -15,6 +15,17 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a reported analyte no longer diagnoses the fitted compound (multi-compound phase 2, PR 1; science)
+- **What:** `diagnose_round` builds its PK residuals only from gated studies. A model system's reported analyte (a
+  metabolite, a sum, a study marked `gated: false` by the evaluation) is still judged and reported on its own, but its
+  residuals no longer reach the diagnostic rules.
+- **Why:** the evaluation already kept those studies out of the stage gate, but the diagnosis read every study row. A
+  metabolite's under-prediction could fire `clearance_off` and propose a fit of the parent's clearance, moving the
+  parent to explain data it does not produce.
+- **Impact:** single-compound campaigns are unchanged (every study is gated). In a system, only the parent's own data
+  drives its diagnosis until the metabolite stage of phase 2 lands. Test:
+  `test_diagnose_round_activity.py::test_a_reported_analyte_never_diagnoses_the_fitted_compound`.
+
 ### Changed — the enterohepatic recycling fraction is placed and fitted on the Individual (parameter registry 1.2; locked registry and `pksim_paths.py`; science, UNVERIFIED)
 - **What:**
   - **Placement:** `elim.ehc_fraction` is no longer refused. It is set on the Individual at `Organism|Liver|EHC
