@@ -21,10 +21,11 @@ from modeler_api.config import SettingsDep
 from modeler_api.cpf_view import project_cpf_view
 from modeler_api.deps import get_project_store
 from modeler_api.responses import answers, envelope
+from modeler_api.views.campaigns import CampaignPackage, Campaigns, Escalations
 from modeler_api.views.read import CpfView, Projects, Proposals, Studies
 from modeler_project import ProjectStore, Workspace
 from modeler_storage.filestore import FileReadStore, ReadStore
-from modeler_storage.records import ProjectRecord
+from modeler_storage.records import CampaignRecord, ProjectRecord
 
 # re-exported so existing imports (`from modeler_api.read_api import FileReadStore`) keep working
 __all__ = ["FileReadStore", "ReadStore", "get_read_store", "project_cpf_view", "router"]
@@ -67,7 +68,7 @@ def get_compound_cpf(project_id: str, compound: str, principal: PrincipalDep, st
     return envelope(project_cpf_view(cpf))
 
 
-@router.get("/campaigns")
+@router.get("/campaigns", **answers(Campaigns))
 def list_campaigns(principal: PrincipalDep, store: StoreDep, project: str | None = None):
     """List the tenant's campaigns (summary + stage/round detail); ``?project=`` narrows to one project."""
     campaigns = store.list_campaigns(principal.tenant_id)
@@ -76,7 +77,7 @@ def list_campaigns(principal: PrincipalDep, store: StoreDep, project: str | None
     return envelope({"campaigns": campaigns})
 
 
-@router.get("/campaigns/{campaign_id}")
+@router.get("/campaigns/{campaign_id}", **answers(CampaignRecord))
 def get_campaign(campaign_id: str, principal: PrincipalDep, store: StoreDep):
     """One campaign's monitor view. 404 when it is not in the tenant; 403 when the caller is not a member of
     the campaign's project (checked after the lookup, since the project is a property of the campaign, not the URL)."""
@@ -126,7 +127,7 @@ def _available(record: dict[str, Any]) -> list[str]:
     return (["package.zip"] if record.get("exportable") else []) + sorted(names)
 
 
-@router.get("/campaigns/{campaign_id}/package")
+@router.get("/campaigns/{campaign_id}/package", **answers(CampaignPackage))
 def get_campaign_package(campaign_id: str, principal: PrincipalDep, store: StoreDep):
     """The S7 package: reproduction verdict, whether it may be exported (D13), hashes, and the downloadable
     artifacts. Server paths are never returned."""
@@ -185,7 +186,7 @@ def list_studies(project_id: str, principal: PrincipalDep, store: StoreDep,
 
 
 
-@router.get("/escalations")
+@router.get("/escalations", **answers(Escalations))
 def list_escalations(principal: PrincipalDep, store: StoreDep):
     """Open campaign escalations awaiting a signed decision (review inbox)."""
     return envelope({"escalations": store.list_escalations(principal.tenant_id)})

@@ -2075,6 +2075,110 @@ export interface components {
             /** Tier */
             tier: string;
         };
+        /**
+         * CampaignPackage
+         * @description The S7 package: the reproduction verdict, whether it may be exported (D13), hashes and the downloadable artifacts.
+         *     Server paths are never sent.
+         */
+        CampaignPackage: {
+            /** Artifacts */
+            artifacts: string[];
+            /** Data Bundle Sha256 */
+            data_bundle_sha256: string | null;
+            /** Exportable */
+            exportable: boolean;
+            /** Files */
+            files: number | null;
+            /** Package Sha256 */
+            package_sha256: string | null;
+            /** Pksim Projects */
+            pksim_projects: string[];
+            /** Project Notes */
+            project_notes: string[];
+            /** Report Issues */
+            report_issues: components["schemas"]["ReportIssue"][];
+            /** Report Notes */
+            report_notes: string[];
+            /** Reproduction */
+            reproduction: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** CampaignRecord */
+        CampaignRecord: {
+            /** Budgetseconds */
+            budgetSeconds: number;
+            /** Compound */
+            compound: string;
+            /** Currentstage */
+            currentStage: string;
+            /**
+             * Cycle
+             * @default 1
+             */
+            cycle?: number;
+            /** Elapsedseconds */
+            elapsedSeconds: number;
+            engine?: components["schemas"]["EngineIdentity"] | null;
+            /** Feedback */
+            feedback?: {
+                [key: string]: unknown;
+            }[];
+            /** Feedbackpending */
+            feedbackPending?: {
+                [key: string]: unknown;
+            } | null;
+            /** Gof */
+            gof?: {
+                [key: string]: unknown;
+            }[];
+            /** Gofbystage */
+            gofByStage?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                }[];
+            };
+            /** Id */
+            id: string;
+            /** Influence */
+            influence?: {
+                [key: string]: unknown;
+            } | null;
+            /** Ledger */
+            ledger?: {
+                [key: string]: unknown;
+            } | null;
+            /** Modelrisk */
+            modelRisk: string;
+            /** Observedorigins */
+            observedOrigins?: {
+                [key: string]: string | null;
+            };
+            /** Package */
+            package?: {
+                [key: string]: unknown;
+            } | null;
+            /** Prediction */
+            prediction?: {
+                [key: string]: unknown;
+            } | null;
+            /** Project */
+            project: string;
+            /** Question */
+            question: string;
+            /** Realdata */
+            realData?: {
+                [key: string]: components["schemas"]["RealDataSummary"];
+            };
+            /** Resume */
+            resume?: {
+                [key: string]: unknown;
+            } | null;
+            /** Stages */
+            stages: components["schemas"]["StageRecord"][];
+            /** Status */
+            status: string;
+        };
         /** CampaignStartRequest */
         CampaignStartRequest: {
             /** Compound */
@@ -2121,6 +2225,20 @@ export interface components {
              * @default
              */
             system_uri?: string;
+        };
+        /** CampaignStarted */
+        CampaignStarted: {
+            /** Campaign Id */
+            campaign_id: string;
+            /** Status */
+            status: string;
+            /** Status Url */
+            status_url: string;
+        };
+        /** Campaigns */
+        Campaigns: {
+            /** Campaigns */
+            campaigns: components["schemas"]["CampaignRecord"][];
         };
         /** CatalogField */
         CatalogField: {
@@ -2892,6 +3010,16 @@ export interface components {
             /** Route */
             route?: ("oral" | "iv") | null;
         };
+        /**
+         * EngineIdentity
+         * @description What produced the numbers: real PK-Sim, a software fixture, or an injected engine (never read as PBPK).
+         */
+        EngineIdentity: {
+            /** Command */
+            command: string;
+            /** Kind */
+            kind: string;
+        };
         /** Envelope[AgentRunDetail] */
         Envelope_AgentRunDetail_: {
             data: components["schemas"]["AgentRunDetail"];
@@ -2934,6 +3062,27 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[CampaignPackage] */
+        Envelope_CampaignPackage_: {
+            data: components["schemas"]["CampaignPackage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[CampaignRecord] */
+        Envelope_CampaignRecord_: {
+            data: components["schemas"]["CampaignRecord"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[Campaigns] */
+        Envelope_Campaigns_: {
+            data: components["schemas"]["Campaigns"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[ClientDataPage] */
         Envelope_ClientDataPage_: {
             data: components["schemas"]["ClientDataPage"];
@@ -2972,6 +3121,13 @@ export interface components {
         /** Envelope[DraftStart] */
         Envelope_DraftStart_: {
             data: components["schemas"]["DraftStart"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[Escalations] */
+        Envelope_Escalations_: {
+            data: components["schemas"]["Escalations"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -3028,6 +3184,13 @@ export interface components {
         /** Envelope[InputsPage] */
         Envelope_InputsPage_: {
             data: components["schemas"]["InputsPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[M15Validation] */
+        Envelope_M15Validation_: {
+            data: components["schemas"]["M15Validation"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -3102,9 +3265,23 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[RunAccepted] */
+        Envelope_RunAccepted_: {
+            data: components["schemas"]["RunAccepted"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[SheetView] */
         Envelope_SheetView_: {
             data: components["schemas"]["SheetView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[SnapshotPreview] */
+        Envelope_SnapshotPreview_: {
+            data: components["schemas"]["SnapshotPreview"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -3211,6 +3388,36 @@ export interface components {
             /** Stage */
             stage: string;
         };
+        /** EscalationOption */
+        EscalationOption: {
+            /** Disabled */
+            disabled?: string | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Requiressignature */
+            requiresSignature: boolean;
+        };
+        /** EscalationRecord */
+        EscalationRecord: {
+            /** Campaignid */
+            campaignId: string;
+            /** Evidence */
+            evidence: string;
+            /** Feedback */
+            feedback?: {
+                [key: string]: unknown;
+            } | null;
+            /** Id */
+            id: string;
+            /** Options */
+            options: components["schemas"]["EscalationOption"][];
+            /** Reasoncode */
+            reasonCode: string;
+            /** Stage */
+            stage: string;
+        };
         /**
          * EscalationResolved
          * @description A signed decision applied to a single-node campaign: the stage's new status (and the stages still to run).
@@ -3229,6 +3436,11 @@ export interface components {
             stage: string;
             /** Status */
             status: string;
+        };
+        /** Escalations */
+        Escalations: {
+            /** Escalations */
+            escalations: components["schemas"]["EscalationRecord"][];
         };
         /** Evidence */
         Evidence: {
@@ -3585,6 +3797,11 @@ export interface components {
              */
             species?: string;
         };
+        /** Health */
+        Health: {
+            /** Status */
+            status: string;
+        };
         /** History */
         History: {
             /** Versions */
@@ -3825,6 +4042,24 @@ export interface components {
                 };
             };
         };
+        /** M15Issue */
+        M15Issue: {
+            /** Code */
+            code: string;
+            /** Location */
+            location: string;
+            /** Message */
+            message: string;
+        };
+        /** M15Validation */
+        M15Validation: {
+            /** Allowed Model Risk */
+            allowed_model_risk: string[] | null;
+            /** Complete */
+            complete: boolean;
+            /** Issues */
+            issues: components["schemas"]["M15Issue"][];
+        };
         /** M15ValidationRequest */
         M15ValidationRequest: {
             stage: components["schemas"]["Stage"];
@@ -3883,6 +4118,80 @@ export interface components {
             /** Year */
             year?: number | null;
         };
+        /** MapAcceptance */
+        MapAcceptance: {
+            /** Criteria */
+            criteria: {
+                [key: string]: unknown;
+            };
+            /** Ruleset */
+            ruleset: string;
+            /** Tier */
+            tier: string;
+        };
+        /** MapDocument */
+        MapDocument: {
+            acceptance: components["schemas"]["MapAcceptance"];
+            /** Compound */
+            compound: string;
+            /** Context Of Use */
+            context_of_use: string;
+            /** Cpf Parameters */
+            cpf_parameters: components["schemas"]["MapParameter"][];
+            /** Diagnostics Ruleset Version */
+            diagnostics_ruleset_version: string;
+            /** Engine Image Digest */
+            engine_image_digest: string;
+            /**
+             * Escalation Triggers
+             * @default [
+             *       "maximum rounds reached without passing the gate",
+             *       "stage time budget exhausted",
+             *       "a fitted parameter sits at its bound",
+             *       "two fitted parameters correlate > 0.95 after fixing one",
+             *       "CV > 50% on a parameter the question of interest depends on",
+             *       "no permitted diagnostic action left to try",
+             *       "multiple-dose accumulation mismatch (possible time-dependent clearance)",
+             *       "external validation fails (decision tree §6.6)"
+             *     ]
+             */
+            escalation_triggers?: string[];
+            /** Food Effect In Question */
+            food_effect_in_question: boolean;
+            model_risk: components["schemas"]["Rating"];
+            /** Model System Sha256 */
+            model_system_sha256?: string | null;
+            /** Objective */
+            objective: string;
+            /** Scenarios */
+            scenarios: components["schemas"]["MapScenario"][];
+            /** Seeds */
+            seeds: {
+                [key: string]: number;
+            };
+            signature?: components["schemas"]["MapSignature"] | null;
+            /** Software Versions */
+            software_versions: {
+                [key: string]: string;
+            };
+            /** Split Limitations */
+            split_limitations: string[];
+            /** Split Rationale */
+            split_rationale: string[];
+            /** Stage Plan */
+            stage_plan: components["schemas"]["MapStagePlan"][];
+            /** @default DRAFT */
+            status?: components["schemas"]["MapStatus"];
+            /** Studies */
+            studies: components["schemas"]["MapStudy"][];
+            /** Supersedes Sha256 */
+            supersedes_sha256?: string | null;
+            /**
+             * Version
+             * @default 1
+             */
+            version?: number;
+        };
         /** MapGenerateRequest */
         MapGenerateRequest: {
             /** Compound */
@@ -3915,6 +4224,12 @@ export interface components {
             /** Studies */
             studies: components["schemas"]["StudyRecord"][];
         };
+        /** MapGenerated */
+        MapGenerated: {
+            map: components["schemas"]["MapDocument"];
+            /** Question Id */
+            question_id: string;
+        };
         /** MapIssue */
         MapIssue: {
             /** Code */
@@ -3923,6 +4238,24 @@ export interface components {
             location: string;
             /** Message */
             message: string;
+        };
+        /** MapParameter */
+        MapParameter: {
+            /**
+             * Fittable Stages
+             * @default []
+             */
+            fittable_stages?: string[];
+            /** Id */
+            id: string;
+            /** Source */
+            source: string | null;
+            /** Status */
+            status: string;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: number | string | null;
         };
         /** MapPreview */
         MapPreview: {
@@ -3981,6 +4314,150 @@ export interface components {
             studies: string[];
             /** Template */
             template: string;
+        };
+        /**
+         * MapScenario
+         * @description One internal study's simulation plan — what `build_round_snapshot` turns into a simulation.
+         *
+         *     Carries the studied individual's demographics (population, sex, age) so the round build can construct the
+         *     PK-Sim individual; ``infusion_time_min`` is the IV infusion duration (required for an IV scenario).
+         */
+        MapScenario: {
+            /** Age Years */
+            age_years: number;
+            /** Analyte */
+            analyte?: string | null;
+            /** Analyte Output */
+            analyte_output?: string | null;
+            /**
+             * Default Simulation Values
+             * @default []
+             */
+            default_simulation_values?: string[];
+            /** Dose Mg */
+            dose_mg: number;
+            /**
+             * Dose Per Kg
+             * @default false
+             */
+            dose_per_kg?: boolean;
+            /**
+             * Dose Phases
+             * @default []
+             */
+            dose_phases?: components["schemas"]["DosePhase"][];
+            /** Dosing Interval H */
+            dosing_interval_h?: number | null;
+            /** Food State */
+            food_state: string;
+            /** Formulation */
+            formulation: string;
+            /** Formulation Name */
+            formulation_name?: string | null;
+            /**
+             * Gated
+             * @default true
+             */
+            gated?: boolean;
+            /** Height Cm */
+            height_cm?: number | null;
+            /** Inactive Processes */
+            inactive_processes?: {
+                [key: string]: string[];
+            };
+            /** Infusion Time Min */
+            infusion_time_min: number | null;
+            /** Meal Template */
+            meal_template: string | null;
+            /**
+             * Meals
+             * @default []
+             */
+            meals?: components["schemas"]["Meal"][];
+            /** N Doses */
+            n_doses?: number | null;
+            /** N Subjects */
+            n_subjects: number;
+            /** Population */
+            population: string;
+            /** Product */
+            product?: string | null;
+            published_individual?: components["schemas"]["PublishedIndividual"] | null;
+            /** Route */
+            route: string;
+            /** Sex */
+            sex: string;
+            /** Sim End Time H */
+            sim_end_time_h?: number | null;
+            /** Solver */
+            solver?: {
+                [key: string]: number;
+            };
+            /** Stage */
+            stage: string;
+            /**
+             * Study Class
+             * @default
+             */
+            study_class?: string;
+            /** Study Id */
+            study_id: string;
+            /** Vpc Age Max */
+            vpc_age_max?: number | null;
+            /** Vpc Age Min */
+            vpc_age_min?: number | null;
+            /** Water Ml Per Kg */
+            water_ml_per_kg?: number | null;
+            /** Weight Kg */
+            weight_kg?: number | null;
+        };
+        /** MapSignature */
+        MapSignature: {
+            /**
+             * Content Sha256
+             * @default
+             */
+            content_sha256?: string;
+            /** Meaning */
+            meaning: string;
+            /** Printed Name */
+            printed_name: string;
+            /** Signature Id */
+            signature_id?: string | null;
+            /**
+             * Signed At
+             * Format: date-time
+             */
+            signed_at: string;
+        };
+        /** MapStagePlan */
+        MapStagePlan: {
+            /** Branches */
+            branches: string[];
+            /** Budget Seconds */
+            budget_seconds: number;
+            /** Fit Candidates */
+            fit_candidates: string[];
+            /** Max Rounds */
+            max_rounds: number;
+            /** Stage */
+            stage: string;
+        };
+        /**
+         * MapStatus
+         * @enum {string}
+         */
+        MapStatus: "DRAFT" | "SIGNED";
+        /** MapStudy */
+        MapStudy: {
+            /** Assignment */
+            assignment: string;
+            /** Score */
+            score: number;
+            /** Study Class */
+            study_class: string;
+            /** Study Id */
+            study_id: string;
         };
         /**
          * MapVersion
@@ -4895,6 +5372,28 @@ export interface components {
             /** Template */
             template: boolean;
         };
+        /**
+         * RealDataSummary
+         * @description What a round's verdict rests on (`pbpk_domain.data_origin.real_data_summary`, plan §9.4).
+         */
+        RealDataSummary: {
+            /** Byorigin */
+            byOrigin: {
+                [key: string]: number;
+            };
+            /** Judged */
+            judged: number;
+            /** Label */
+            label: string;
+            /** Notevaluable */
+            notEvaluable: string[];
+            /** Notreal */
+            notReal: string[];
+            /** Passable */
+            passable: boolean;
+            /** Real */
+            real: number;
+        };
         /** ReasonRequest */
         ReasonRequest: {
             /** Reason */
@@ -4973,6 +5472,15 @@ export interface components {
             running: boolean;
             /** Template */
             template: string;
+        };
+        /** ReportIssue */
+        ReportIssue: {
+            /** Detail */
+            detail: string;
+            /** Kind */
+            kind: string;
+            /** Location */
+            location: string;
         };
         /** ReportedPK */
         ReportedPK: {
@@ -5064,11 +5572,75 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** RoundRecord */
+        RoundRecord: {
+            /** Action */
+            action: string;
+            /** Aucgmfe */
+            aucGmfe: number | null;
+            /** Cmaxgmfe */
+            cmaxGmfe: number | null;
+            /**
+             * Cycle
+             * @default 1
+             */
+            cycle?: number;
+            /** Findings */
+            findings?: string[];
+            /** Groups */
+            groups?: {
+                [key: string]: unknown;
+            }[];
+            /** Modelset */
+            modelSet?: {
+                [key: string]: unknown;
+            } | null;
+            realData?: components["schemas"]["RealDataSummary"] | null;
+            /** Round */
+            round: number;
+            /** Studies */
+            studies?: {
+                [key: string]: unknown;
+            }[];
+            /** Verdict */
+            verdict: string;
+            /** Vpc */
+            vpc?: {
+                [key: string]: unknown;
+            };
+        };
         /**
          * Route
          * @enum {string}
          */
         Route: "iv_bolus" | "iv_infusion" | "oral" | "other";
+        /** RunAccepted */
+        RunAccepted: {
+            /** Run Id */
+            run_id: string;
+            /** Status */
+            status: string;
+            /** Status Url */
+            status_url: string;
+        };
+        /** RunOutputs */
+        RunOutputs: {
+            /** Output Paths */
+            output_paths: string[];
+            /** Run Id */
+            run_id: string;
+        };
+        /** RunSeries */
+        RunSeries: {
+            /** Individual Id */
+            individual_id: number;
+            /** Path */
+            path: string;
+            /** Run Id */
+            run_id: string;
+            /** Series */
+            series: components["schemas"]["SeriesPoint"][];
+        };
         /** RunSubmission */
         RunSubmission: {
             /** Options */
@@ -5180,6 +5752,13 @@ export interface components {
             times: number[];
             /** Values */
             values: (number | null)[];
+        };
+        /** SeriesPoint */
+        SeriesPoint: {
+            /** Time */
+            time: number;
+            /** Value */
+            value: number;
         };
         /**
          * Sex
@@ -5322,6 +5901,22 @@ export interface components {
             note?: string;
         };
         /**
+         * SignatureCreated
+         * @description A Part 11 signature, from the token's step-up (never a password).
+         */
+        SignatureCreated: {
+            /** Auth Method */
+            auth_method: string;
+            /** Manifestation */
+            manifestation: string;
+            /** Record Sha256 */
+            record_sha256: string;
+            /** Signature Id */
+            signature_id: string;
+            /** Signed By */
+            signed_by: string;
+        };
+        /**
          * SignatureMeaning
          * @enum {string}
          */
@@ -5452,6 +6047,20 @@ export interface components {
             /** Subject */
             subject: string;
         };
+        /**
+         * SnapshotPreview
+         * @description A built and validated PK-Sim snapshot, not persisted; the snapshot is PK-Sim's own JSON.
+         */
+        SnapshotPreview: {
+            /** Snapshot */
+            snapshot: {
+                [key: string]: unknown;
+            };
+            /** Snapshot Sha256 */
+            snapshot_sha256: string;
+            /** Snapshot Version */
+            snapshot_version: number;
+        };
         /** SourceRef */
         SourceRef: {
             /**
@@ -5514,6 +6123,19 @@ export interface components {
          * @enum {string}
          */
         Stage: "planning" | "submission";
+        /** StageRecord */
+        StageRecord: {
+            /** Label */
+            label: string;
+            /** Notes */
+            notes?: string[];
+            /** Rounds */
+            rounds: components["schemas"]["RoundRecord"][];
+            /** Stage */
+            stage: string;
+            /** Status */
+            status: string;
+        };
         /** StaleArtifact */
         StaleArtifact: {
             /** Reasons */
@@ -6290,7 +6912,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_Campaigns_"];
                 };
             };
             /** @description Validation Error */
@@ -6323,7 +6945,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_CampaignRecord_"];
                 };
             };
             /** @description Validation Error */
@@ -6430,7 +7052,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_CampaignPackage_"];
                 };
             };
             /** @description Validation Error */
@@ -6602,7 +7224,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_Escalations_"];
                 };
             };
             /** @description Validation Error */
@@ -6655,7 +7277,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_M15Validation_"];
                 };
             };
             /** @description Validation Error */
@@ -6688,7 +7310,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_SnapshotPreview_"];
                 };
             };
             /** @description Validation Error */
@@ -7327,9 +7949,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CampaignStarted"];
                 };
             };
             /** @description Validation Error */
@@ -9092,9 +9712,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MapGenerated"];
                 };
             };
             /** @description Validation Error */
@@ -9272,9 +9890,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SignatureCreated"];
                 };
             };
             /** @description Validation Error */
@@ -9484,7 +10100,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Envelope_RunAccepted_"];
                 };
             };
             /** @description Validation Error */
@@ -9522,9 +10138,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["RunOutputs"] | components["schemas"]["RunSeries"];
                 };
             };
             /** @description Validation Error */
@@ -9617,9 +10231,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
+                    "application/json": components["schemas"]["Health"];
                 };
             };
         };

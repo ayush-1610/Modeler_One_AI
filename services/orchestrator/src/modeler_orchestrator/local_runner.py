@@ -67,6 +67,7 @@ from modeler_orchestrator.fitting_activities import plan_jobs
 from modeler_orchestrator.history import Ledger, influence_map, study_verdict
 from modeler_orchestrator.memo import model_set
 from modeler_storage.filestore import FileWriteStore, WriteStore
+from modeler_storage.records import CampaignRecord, EscalationRecord, Record
 from pbpk_domain.campaign.map import FIT_STAGES
 from pbpk_domain.data_origin import real_data_summary, signature_refusal
 from pbpk_domain.fitting import BudgetTooSmallError
@@ -216,6 +217,13 @@ def _gof_series(results_uri: str, observed_uri: str) -> list[dict]:
     return series
 
 
+def _checked(model: type[Record], record: dict) -> dict:
+    """A monitor record checked against the read model the API answers with (phase 9d, B2). It is stored exactly as
+    built (the metrics may hold NaN, which a re-dump would change); a key the model does not know fails here."""
+    model.model_validate(record)
+    return record
+
+
 @dataclass
 class CampaignArtifactWriter:
     """Projects campaign progress to the monitor read model (``campaigns.json``) and escalations, live."""
@@ -335,7 +343,8 @@ class CampaignArtifactWriter:
                 self._gof_by_stage[stage] = series
 
     def flush(self, *, current_stage: str, status: str) -> None:
-        self.store.upsert_campaign(self.tenant_id, {
+        # the record the API answers with (modeler_storage.records): checked here, stored as built
+        self.store.upsert_campaign(self.tenant_id, _checked(CampaignRecord, {
             "id": self.campaign_id, "project": self.project, "compound": self.compound,
             "question": self.question, "modelRisk": self.model_risk,
             "budgetSeconds": self.budget_seconds, "elapsedSeconds": self._elapsed(),
@@ -358,7 +367,7 @@ class CampaignArtifactWriter:
             "feedback": self.feedback,
             "feedbackPending": self.feedback_pending,
             "resume": self.resume,
-        })
+        }))
 
     def real_data(self) -> dict[str, dict]:
         """Each stage's real-data summary of its last judged round (the one the stage's verdict rests on)."""
@@ -371,33 +380,33 @@ class CampaignArtifactWriter:
 
     def record_signature_request(self, stage: str) -> None:
         """The review-inbox item that holds the campaign until the S4/S5 evaluation is signed (MS-01 §4 S6)."""
-        self.store.upsert_escalation(self.tenant_id, {
+        self.store.upsert_escalation(self.tenant_id, _checked(EscalationRecord, {
             "id": f"{self.campaign_id}-{stage}", "campaignId": self.campaign_id, "stage": stage,
             "reasonCode": "SIGNATURE_REQUIRED",
             "evidence": "Internal (S4) and external (S5) validation are complete. MS-01 requires them signed before "
                         "the model is used for prediction (S6) and the report and package are assembled (S7).",
             "options": _SIGNATURE_OPTIONS,
-        })
+        }))
 
     def record_feedback(self, diagnosis: dict, findings: list[str]) -> None:
         """The review-inbox item for an S5 failure (plan §12.4 FEEDBACK_PENDING): the diagnosis and the decisions."""
         self.feedback_pending = diagnosis
         failing = "; ".join(f"{f['study_id']} ({f['class']}): {', '.join(f['failed'])} {f['direction']}"
                             for f in diagnosis.get("failing", []))
-        self.store.upsert_escalation(self.tenant_id, {
+        self.store.upsert_escalation(self.tenant_id, _checked(EscalationRecord, {
             "id": f"{self.campaign_id}-S5", "campaignId": self.campaign_id, "stage": "S5",
             "reasonCode": "EXTERNAL_VALIDATION_FAILED",
             "evidence": f"External validation failed (cycle {self.cycle}): {failing or '; '.join(findings)}.",
             "options": diagnosis.get("options", _VALIDATION_OPTIONS), "feedback": diagnosis,
-        })
+        }))
 
     def record_escalation(self, stage: str, reason: str, findings: list[str]) -> None:
         evidence = "; ".join(findings) if findings else f"Stage {stage} escalated ({reason})."
         options = _VALIDATION_OPTIONS if stage in _VALIDATION_FAILURE else _ESCALATION_OPTIONS
-        self.store.upsert_escalation(self.tenant_id, {
+        self.store.upsert_escalation(self.tenant_id, _checked(EscalationRecord, {
             "id": f"{self.campaign_id}-{stage}", "campaignId": self.campaign_id, "stage": stage,
             "reasonCode": (reason or "ESCALATED").upper(), "evidence": evidence, "options": options,
-        })
+        }))
 
 
 @dataclass

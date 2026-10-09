@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib
 import tomllib
+import types
 import typing
 from pathlib import Path
 
@@ -44,12 +45,16 @@ def _is_file(route: APIRoute) -> bool:
 
 
 def _typed(route: APIRoute) -> bool:
-    return isinstance(route.response_model, type) and issubclass(route.response_model, BaseModel)
+    """A pydantic model, or a union of them (an answer that is one of two shapes, without the envelope)."""
+    model = route.response_model
+    members = typing.get_args(model) if isinstance(model, types.UnionType) else (model,)
+    return bool(members) and all(isinstance(m, type) and issubclass(m, BaseModel) for m in members)
 
 
 def _is_open(route: APIRoute) -> bool:
     """`Envelope[dict[str, Any]]`: an envelope whose data is an open object."""
-    data = route.response_model.model_fields.get("data") if _typed(route) else None
+    model = route.response_model
+    data = model.model_fields.get("data") if isinstance(model, type) and issubclass(model, BaseModel) else None
     return data is not None and typing.get_origin(data.annotation) is dict
 
 

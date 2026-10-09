@@ -1,8 +1,8 @@
 """The web app calls the API through its one client, typed by route (docs/ARCHITECTURE_BOUNDARIES.md, B6, phase 7c).
 
-`apps/web/lib/api.ts` is the only module that fetches. A route the contract types (its answer is an `Envelope_…`
-response model in docs/api/openapi.json) is called by name with `get` / `send` / `upload` / `serverGet`, so its path
-parameters, body and answer type follow from the contract. The untyped helpers (`apiGet`, `apiSend`, `apiUpload`,
+`apps/web/lib/api.ts` is the only module that fetches. A route the contract types (its answer is a response model in
+docs/api/openapi.json, in the envelope or without it) is called by name with `get` / `send` / `upload` / `serverGet` /
+`post`, so its path parameters, body and answer type follow from the contract. The untyped helpers (`apiGet`, `apiSend`, `apiUpload`,
 `serverRead`) remain only for routes the contract does not type yet; a call of one on a typed route fails here, and
 so does a raw `fetch` anywhere else in the app.
 
@@ -37,14 +37,15 @@ def _sources() -> list[Path]:
 
 
 def _typed_routes() -> list[tuple[str, str]]:
-    """(method, example path) of every route whose answer is a typed envelope; a parameter reads as "x"."""
+    """(method, example path) of every route whose answer has a model (in the envelope or, since phase 9d, without it);
+    a parameter reads as "x"."""
     spec = json.loads((ROOT / "docs" / "api" / "openapi.json").read_text())
     out = []
     for route, operations in spec["paths"].items():
         for method, op in operations.items():
             answers = [r.get("content", {}).get("application/json", {}).get("schema", {})
                        for code, r in op["responses"].items() if code.startswith("2")]
-            if any(a.get("$ref", "").split("/")[-1].startswith("Envelope_") for a in answers):
+            if any(a.get("$ref") for a in answers):
                 out.append((method, re.sub(r"\{[^}]+\}", "x", route)))
     return out
 

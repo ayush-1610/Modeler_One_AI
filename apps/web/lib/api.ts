@@ -213,19 +213,21 @@ export async function apiFile(url: string): Promise<{ file: Blob | null; problem
   return { file: await res.blob(), problem: null };
 }
 
-/** A write to a route that answers without the envelope (signatures, campaign start, escalation decisions). */
-export async function rawPost<T>(url: string, body: unknown): Promise<{ ok: boolean; body: T; error?: string }> {
+/** A typed write to a route that answers without the envelope (a signature, a campaign start, an escalation
+ *  decision): the answer is wrapped in an envelope here, so it reads and composes (`useMutation`) like every other call. */
+export async function post<R extends RouteFor<"post">>(route: R, params: Params<R>, body: Body<R, "post">):
+    Promise<Envelope<Answer<R, "post">>> {
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetch(path(route, params), {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${BROWSER_TOKEN}` },
       body: JSON.stringify(body),
       cache: "no-store",
     });
   } catch {
-    return { ok: false, body: {} as T, error: UNREACHABLE };
+    return errorEnvelope(UNREACHABLE);
   }
-  if (!res.ok) return { ok: false, body: {} as T, error: await failure(res) };
-  return { ok: true, body: (await res.json()) as T };
+  if (!res.ok) return errorEnvelope(await failure(res));
+  return { data: (await res.json()) as Answer<R, "post">, meta: { request_id: "", timestamp: "", api_version: "" }, errors: [] };
 }

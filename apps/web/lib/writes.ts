@@ -1,8 +1,8 @@
 // Client-side write helpers for the guided create-project flow, the campaign start and the escalations, through the
-// one client in lib/api.ts. The project writes are typed by the contract (phase 9c); signatures, the campaign start and
-// the escalation decision answer without the envelope and are typed here until phase 9d.
+// one client in lib/api.ts, each typed by its route; signatures, the campaign start and the escalation decision answer
+// without the envelope and go through `post`.
 
-import { rawPost, send, type Narrow, type Schema } from "@/lib/api";
+import { post, send, type Narrow, type Schema } from "@/lib/api";
 
 export type PrepareResult = Schema<"CampaignInputs">;
 
@@ -32,43 +32,24 @@ export async function signMap(
   projectId: string,
   body: { record_id: string; record_sha256: string },
 ): Promise<{ ok: boolean; error?: string }> {
-  const { ok, error } = await rawPost(`/api/v1/projects/${projectId}/signatures`, {
+  const env = await post("/api/v1/projects/{project_id}/signatures", { project_id: projectId }, {
     meaning: "Approved", record_type: "map_approval", record_id: body.record_id, record_sha256: body.record_sha256,
   });
-  return { ok, error };
+  return { ok: !env.errors.length, error: env.errors[0]?.message };
 }
 
 export async function startCampaign(
   projectId: string,
-  body: {
-    compound: string;
-    map_id: string;
-    cpf_uri: string;
-    cpf_sha256: string;
-    map_uri: string;
-    observed_uri: string;
-    question?: string;
-    model_risk?: string;
-    stages?: string[];
-  },
+  body: Schema<"CampaignStartRequest">,
 ): Promise<{ campaign_id?: string; status?: string; error?: string }> {
-  const { body: data, error } = await rawPost<{ campaign_id?: string; status?: string }>(
-    `/api/v1/projects/${projectId}/campaigns`, body);
-  return { ...data, error };
+  const env = await post("/api/v1/projects/{project_id}/campaigns", { project_id: projectId }, body);
+  return { campaign_id: env.data?.campaign_id, status: env.data?.status, error: env.errors[0]?.message };
 }
 
-/** Resolve an escalated stage from the review inbox (retry / accept_best / abort). Every decision is an
- *  approval and is signed server-side from the session's step-up, so nothing moves without a signature. */
 /** A signed decision on an escalated stage (ResolveRequest: retry / accept_best / abort / approve, or for a failed
- *  external validation learn / new_evidence). The answer is EscalationResolved, or the API's `detail` on refusal. */
-export async function resolveEscalation(
-  campaignId: string,
-  stage: string,
-  body: Schema<"ResolveRequest">,
-): Promise<{ ok: boolean; detail?: string } & Partial<Schema<"EscalationResolved">>> {
-  const { ok, body: data, error } = await rawPost<Partial<Schema<"EscalationResolved">> & { detail?: string }>(
-    `/api/v1/campaigns/${campaignId}/stages/${stage}/escalation:resolve`, body);
-  return { ok, ...data, detail: data.detail ?? error };
+ *  external validation learn / new_evidence). The answer is EscalationResolved, or the API's reason on refusal. */
+export function resolveEscalation(campaignId: string, stage: string, body: Schema<"ResolveRequest">) {
+  return post("/api/v1/campaigns/{campaign_id}/stages/{stage}/escalation:resolve", { campaign_id: campaignId, stage }, body);
 }
 
 // --- project starting points (GET /templates; the wizard reads them with useResource) ---------------------------

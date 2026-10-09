@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 
 from modeler_api.auth import CurrentPrincipal, ensure_step_up, require_project
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
+from modeler_api.responses import answers_without_envelope
+from modeler_api.views.campaigns import SignatureCreated
 
 router = APIRouter(prefix="/api/v1", tags=["signatures"])
 
@@ -22,7 +24,7 @@ class SignatureRequest(BaseModel):
     record_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
-@router.post("/projects/{project_id}/signatures", status_code=201)
+@router.post("/projects/{project_id}/signatures", status_code=201, **answers_without_envelope(SignatureCreated))
 def create_signature(project_id: str, request: SignatureRequest, principal: CurrentPrincipal) -> dict:
     require_project(project_id, principal)   # 403 for a project the principal is not a member of
     ensure_step_up(principal)                # 403 STEP_UP_REQUIRED / STEP_UP_STALE

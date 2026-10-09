@@ -87,3 +87,31 @@ def test_run_submission_requires_orchestrator():
         assert response.status_code == 503  # authenticated, but MODELER_TEMPORAL_ADDRESS unset
     finally:
         app.dependency_overrides.clear()
+
+
+def test_run_submission_answers_the_queued_run(api_settings, monkeypatch):
+    """Phase 9d: the accepted run answers its typed model (the conftest guard compares it with the handler's value);
+    Temporal is replaced by a client that records the workflow it is asked to start."""
+    import temporalio.client
+
+    started = []
+
+    class _Client:
+        @staticmethod
+        async def connect(address, namespace):
+            return _Client()
+
+        async def start_workflow(self, name, request, *, id, task_queue):
+            started.append((name, request.task, id))
+
+    monkeypatch.setattr(temporalio.client, "Client", _Client)
+    api_settings(temporal_address="temporal:7233")
+    _fake_curator()
+    try:
+        response = client.post("/api/v1/runs", json=RUN_BODY, headers={"Authorization": "Bearer tok"})
+        assert response.status_code == 202
+        data = response.json()["data"]
+        assert data["status"] == "QUEUED" and data["status_url"] == f"/api/v1/runs/{data['run_id']}"
+        assert started == [("SimulationRunWorkflow", "simulate", data["run_id"])]
+    finally:
+        app.dependency_overrides.clear()
