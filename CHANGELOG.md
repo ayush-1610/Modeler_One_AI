@@ -15,7 +15,7 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
-### Added — a fit can move another compound of a model system (multi-compound phase 2, PR 2; science, D-20)
+### Added — a fit can move another compound of a model system (multi-compound phase 2, PR 2; science, D-25)
 - **What:**
   - **Fit ids:** in a model system, another compound's parameter is fitted as `<compound>::<CPF id>`
     (`fit_spec.qualify`, `split_fit_id`, `fit_owner`, `by_compound`). The fitted compound's own ids stay bare, so

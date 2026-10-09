@@ -1,4 +1,4 @@
-"""A model system's state beside each campaign CPF version (multi-compound phase 2, D-20).
+"""A model system's state beside each campaign CPF version (multi-compound phase 2, D-25).
 
 A campaign's round state is one CPF: every round, post-fit pass, joint fit and feedback decision reads `cpf_uri` and
 writes the next CPF version beside it. In a model system a fit may also move another compound's parameter (a

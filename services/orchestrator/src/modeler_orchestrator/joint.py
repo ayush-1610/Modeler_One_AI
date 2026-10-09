@@ -43,7 +43,7 @@ class JointPlan:
 
 def joint_parameters(cpf: Any, stages: tuple[str, ...], system: Any = None) -> JointPlan:
     """The parameters `stages` fitted (status FITTED there, with a fit policy), and the S1-CI guard bounds. In a model
-    system, another compound's fitted parameters join under their qualified fit id (``<compound>::<id>``, D-20)."""
+    system, another compound's fitted parameters join under their qualified fit id (``<compound>::<id>``, D-25)."""
     from pbpk_domain.fit_spec import qualify
 
     ids, bounds, guarded, notes = [], {}, [], []

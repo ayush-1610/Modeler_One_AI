@@ -10,7 +10,7 @@ The parameter paths are the harvested candidates; the fit step must still verify
 pkml before running PI (a path can vary per compound). Fitting a compound-level parameter shares one path
 across every simulation; the same value is identified jointly from all of them.
 
-In a model system (`pbpk_domain.system`, multi-compound phase 2, D-20) a fit can move another compound's parameter:
+In a model system (`pbpk_domain.system`, multi-compound phase 2, D-25) a fit can move another compound's parameter:
 a metabolite's clearance, a co-parent enantiomer's. Its fit id is qualified, ``<compound>::<CPF id>``
 (`qualify`, `split_fit_id`); the fitted compound's own ids stay bare, so every single-compound target, rule and fit
 spec is unchanged. Each CPF stays the record of its own parameters: the estimates go back to the compound they name.

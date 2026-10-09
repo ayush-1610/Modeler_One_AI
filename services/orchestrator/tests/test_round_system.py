@@ -1,4 +1,4 @@
-"""A fit that moves another compound of a model system (multi-compound phase 2, D-20): the estimate goes into that
+"""A fit that moves another compound of a model system (multi-compound phase 2, D-25): the estimate goes into that
 compound's CPF, the system as of the new version is written beside it, and the next round reads it from there."""
 
 from __future__ import annotations

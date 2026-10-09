@@ -1,5 +1,5 @@
 """Fit ids in a model system: another compound's parameter is fitted as ``<compound>::<id>`` (multi-compound phase 2,
-D-20). Uses the published OSP Itraconazole system (parent and three metabolites, fixtures/SOURCES.md)."""
+D-25). Uses the published OSP Itraconazole system (parent and three metabolites, fixtures/SOURCES.md)."""
 
 from __future__ import annotations
 

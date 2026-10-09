@@ -225,7 +225,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
 
     target = ctx.pending_action.split(" ", 1)[1] if ctx.pending_action and " " in ctx.pending_action else ""
     # a joint fit names several parameters, "a+b+c" (SJ); a single target resolves as before. In a model system a
-    # target may name another compound's parameter, "<compound>::<id>" (multi-compound phase 2, D-20)
+    # target may name another compound's parameter, "<compound>::<id>" (multi-compound phase 2, D-25)
     fit_ids = list(dict.fromkeys(cid for part in target.split("+") for cid in resolve_fit_ids(cpf, part, system)))
     if not fit_ids:
         activity.logger.info("build_round_snapshot %s %s: no fittable CPF parameter for %r", ctx.campaign_id, ctx.stage, target)
@@ -702,7 +702,7 @@ def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str, system=No
     keep: list[str] = []
     for target in candidates:
         for fit_id in resolve_fit_ids(cpf, target, system):
-            owner, pid = fit_owner(cpf, fit_id, system)  # another compound's parameter in a model system (D-20)
+            owner, pid = fit_owner(cpf, fit_id, system)  # another compound's parameter in a model system (D-25)
             record = owner.get(pid)
             if owner is not cpf and pid.startswith("form."):
                 continue  # formulations are the fitted compound's (fit_spec._paths)
