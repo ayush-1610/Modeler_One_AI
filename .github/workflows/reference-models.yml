@@ -10,10 +10,15 @@
 # gate: this run never signs on anyone's behalf. Results: each job's summary and its "reference-<task>" artifact.
 name: Reference models (PK-Sim)
 
-# Manual only (Actions tab → Run workflow): the reference checks run on the server's PK-Sim
-# (bash deploy/reference/run_all.sh); a private repository's Actions minutes are kept for CI.
+# Manual only (Actions tab → Run workflow), or on the server's PK-Sim (bash deploy/reference/run_all.sh). The
+# `tasks` input runs a subset: every step of a task not named is skipped, so its job ends in seconds.
 on:
   workflow_dispatch:
+    inputs:
+      tasks:
+        description: "Tasks to run, comma-separated with no spaces (e.g. dapagliflozin-roundtrip,rifampicin-refit); empty runs every task"
+        required: false
+        default: ""
 
 # No concurrency group: a push starts a new set beside a running one, whose results (hours of PK-Sim) are kept.
 
@@ -62,10 +67,13 @@ jobs:
           - {task: portfolio, run: "deploy/reference/portfolio.py"}  # import / S0 / split of the whole library
     steps:
       - uses: actions/checkout@v4
+        if: ${{ inputs.tasks == '' || contains(format(',{0},', inputs.tasks), format(',{0},', matrix.task)) }}
 
       - uses: docker/setup-buildx-action@v3
+        if: ${{ inputs.tasks == '' || contains(format(',{0},', inputs.tasks), format(',{0},', matrix.task)) }}
 
       - name: Build engine image (layer cache between runs)
+        if: ${{ inputs.tasks == '' || contains(format(',{0},', inputs.tasks), format(',{0},', matrix.task)) }}
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -77,14 +85,18 @@ jobs:
           cache-to: type=gha,mode=max,scope=engine
 
       - name: Engine check (golden round trip)
+        if: ${{ inputs.tasks == '' || contains(format(',{0},', inputs.tasks), format(',{0},', matrix.task)) }}
         run: docker run --rm "$ENGINE_IMAGE" Rscript /engine/golden/golden_roundtrip.R /engine/golden/example_snapshot.json /tmp/golden
 
       - uses: astral-sh/setup-uv@v6
+        if: ${{ inputs.tasks == '' || contains(format(',{0},', inputs.tasks), format(',{0},', matrix.task)) }}
 
       - name: Install the workspace
+        if: ${{ inputs.tasks == '' || contains(format(',{0},', inputs.tasks), format(',{0},', matrix.task)) }}
         run: uv sync --all-packages
 
       - name: ${{ matrix.task }}
+        if: ${{ inputs.tasks == '' || contains(format(',{0},', inputs.tasks), format(',{0},', matrix.task)) }}
         env:
           MODELER_ENGINE_IMAGE: ${{ env.ENGINE_IMAGE }}
           MODELER_FIT_WORKERS: "4"
@@ -96,7 +108,7 @@ jobs:
           uv run python ${{ matrix.run }} --out "reports/reference/${{ matrix.task }}"
 
       - name: Upload report
-        if: always()
+        if: ${{ always() && (inputs.tasks == '' || contains(format(',{0},', inputs.tasks), format(',{0},', matrix.task))) }}
         uses: actions/upload-artifact@v4
         with:
           name: reference-${{ matrix.task }}

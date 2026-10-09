@@ -15,6 +15,13 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Infra — the reference workflow runs a chosen subset of tasks (`reference-models.yml`, unlocked)
+- **What:** a `tasks` input on the manual dispatch takes comma-separated task names. Every step of a task not
+  named is skipped, so its job ends in seconds; empty runs every task, as before.
+- **Why:** plan B7. The real-PK-Sim evidence for `main` (the refactor's round trip and as-is, then each science
+  change's refit) needs a few tasks at a time, not the whole 2–3 hour matrix.
+- **Impact:** none on CI. The workflow is manual only.
+
 ### Changed — the Weibull release equation is confirmed on PK-Sim (locked `golden/**` and `engine-image.yml`; science)
 - **What:**
   - **New check:** the engine-image qualification runs a new check on PK-Sim. `golden/weibull_check.R` runs the OSP
