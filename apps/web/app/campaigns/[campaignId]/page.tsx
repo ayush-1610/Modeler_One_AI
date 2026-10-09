@@ -5,6 +5,7 @@ import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
 import { FeedbackDiagnosisView, FeedbackTimeline } from "@/components/campaign/Feedback";
 import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
+import { VbeCard } from "@/components/campaign/Vbe";
 import { getCampaign } from "@/lib/reads";
 
 function mmss(s: number) {
@@ -205,6 +206,8 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
           )}
         </Card>
       )}
+
+      {prediction?.vbe && <VbeCard vbe={prediction.vbe} />}
 
       {pkg && (
         <Card title="Report and package (S7)"

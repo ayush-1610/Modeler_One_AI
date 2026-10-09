@@ -31,8 +31,44 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   evidence. Without an observed BE study, the F-304 gate reports it NOT_VALIDATED.
 - **Why:** step 8 of the VBE design, a proof on PK-Sim. Only a PK-Sim run counts as evidence that the two arms, the
   occasions and the trials work end to end.
-- **Impact:** a new reference task, which runs only when dispatched. The run's result goes in the records when it
-  finishes.
+- **Result on PK-Sim** (reference run 37965688096, job 113939339374, ILLUSTRATIVE): **RUN** in 156 s.
+  - 480 individuals, none excluded; 20 trials × 24; occasion seeds 4053 and 4054.
+  - **AUC_inf:** GMR median 0.979 (5–95 % 0.977–0.982), PoS 100 %, simulated between-subject CV 27.2 %.
+  - **C_max:** GMR median 0.880 (0.877–0.889), PoS 100 %, CV 32.0 %.
+  - Joint PoS 100 %. Validation: **NOT_VALIDATED** (no observed BE study, as designed).
+  - The slower TEST tablet (t50 × 1.5) lowers Cmax about 12 % and leaves AUC almost unchanged, the expected
+    direction.
+  - The narrow trial-to-trial GMR spread says the illustrative 30 % CV on gastric emptying moves Dapagliflozin
+    exposure little. Which parameters carry intra-subject variability is the SME's question (D-26).
+- **Impact:** a new reference task, which runs only when dispatched.
+
+### Added — the MAR, the M15 table and the campaign monitor report the virtual bioequivalence (T-31 B6 PR 6)
+- **What:**
+  - **MAR §6 (Prediction)** gains the S6 VBE (`campaign_mar._vbe_parts`):
+    - `vbe_design`: the template and version, the formulations, the design study, trials × subjects, the individuals
+      and how many were excluded, the variability with its sources, the seeds, the limits (flagged when not
+      verified), and the threshold;
+    - `vbe_results`: per metric the PoS, the GMR median and 5–95 %, and the simulated between-subject CV, plus the
+      joint PoS;
+    - `vbe_validation`: the F-304 checks against the observed study, when one was given.
+
+    A result that is not validated opens the section in bold: "not validated … does not support a bioequivalence
+    decision on its own". The same goes in §8 (limitations) and §9 (conclusion), together with the DRAFT /
+    UNVERIFIED template and any limits that are not verified. A VBE that did not run says why.
+  - **M15:** a second assessment table, because the VBE is its own question of interest (M15 Appendix 1). It holds
+    the technical criteria (the CI limits per trial, the PoS threshold, F-304) and the validation status.
+  - **Campaign monitor:** a "Virtual bioequivalence (S6)" card (`components/campaign/Vbe.tsx`).
+    - A chip shows the validation status.
+    - A warning banner appears before any number when the result is not validated, or when the VBE did not run.
+    - Below it: the PoS per metric, the GMR median and 5–95 %, the between-subject CV, and the joint PoS against
+      the threshold.
+- **Why:** step 7 of the VBE design. A reviewer sees the VBE's design, result and validation status in the report and
+  on the monitor, with an unvalidated result never shown as a pass.
+- **Impact:** campaigns without a VBE render exactly as before (no new sections, one M15 table).
+- **Tests:**
+  - `test_vbe_report.py`: the unvalidated, validated and not-run MARs; `check_report` passes; the second M15 table;
+  - `e2e/vbe.spec.ts`: a seeded campaign, software test data with no engine run; the card shows "not validated"
+    before its 91 % joint PoS.
 
 ### Added — the F-304 validation gate: a VBE result is judged against the observed BE study, or it is "not validated" (T-31 B6 PR 5; template `vbe-crossover` 0.2.0-draft; science, UNVERIFIED, D-26)
 - **What:**

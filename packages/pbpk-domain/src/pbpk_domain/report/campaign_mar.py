@@ -145,6 +145,69 @@ def _history_table(entries: Sequence[Mapping]) -> TableRef:
                     source="campaign change ledger")
 
 
+def _pct(value: float) -> str:
+    return f"{100 * value:.0f} %"
+
+
+def _vbe_parts(vbe: Mapping, tables: list[TableRef], limitations: list[str]) -> list[str]:
+    """The S6 virtual bioequivalence (T-31): its design, the probability of success, and the F-304 validation gate.
+    A VBE that is not validated says so first, in bold, and in the limitations."""
+    name = f"{vbe.get('template')} {vbe.get('template_version')}"
+    validation = vbe.get("validation") or {}
+    if vbe.get("status") != "RUN":
+        limitations.append(f"S6: the virtual bioequivalence ({name}) did not run: {vbe.get('reason')}")
+        return [f"**The virtual bioequivalence ({name}) did not run:** {vbe.get('reason')}"]
+    status = validation.get("status", "NOT_VALIDATED")
+    parts = []
+    if status != "PASSED":
+        parts.append(f"**This virtual bioequivalence result is not validated ({status}):** {validation.get('reason')}. It "
+                     "does not support a bioequivalence decision on its own.")
+        limitations.append(f"S6: the virtual bioequivalence is not validated ({status}): {validation.get('reason')}")
+    if not vbe.get("limits_verified", False):
+        limitations.append(f"S6: the bioequivalence limits '{vbe.get('limits_name')}' are not verified "
+                           f"({vbe.get('limits_source')})")
+    limitations.append(f"S6: the analysis template {name} is DRAFT and UNVERIFIED until a PBPK SME and QA sign it")
+    variability = "; ".join(f"{v['parameter']} CV {v['cv_percent']} % ({v['source']})" for v in vbe.get("variability", []))
+    lower, upper = vbe["limits"]
+    tables.append(TableRef(id="vbe_design", title="Virtual bioequivalence design", columns=("Item", "Value"), rows=(
+        ("Template", name),
+        ("TEST formulation", str(vbe["formulations"]["test"])),
+        ("Reference (RLD) formulation", str(vbe["formulations"]["reference"])),
+        ("Design taken from", (f"{vbe['design_study']} ({format_number(vbe['dose_mg'])} mg, {vbe['food_state']}, "
+                               f"{vbe['population']})")),
+        ("Trials × subjects", f"{vbe['n_trials_run']} of {vbe['n_trials_planned']} planned × {vbe['n_subjects']}"),
+        ("Individuals (excluded)", f"{vbe['individuals']} ({len(vbe.get('excluded_individuals', []))})"),
+        ("Intra-subject variability", variability),
+        ("Seeds", (f"population {vbe['seed']}; occasions TEST {vbe['occasion_seeds']['test']}, "
+                   f"reference {vbe['occasion_seeds']['reference']}")),
+        ("Limits", (f"{_pct(vbe['confidence'])} CI of the GMR within {format_number(lower)}–{format_number(upper)} "
+                    f"({vbe['limits_name']}{'' if vbe.get('limits_verified') else ', not verified'})")),
+        ("Probability-of-success threshold", _pct(vbe["pos_threshold"])),
+    ), source="the signed MAP's vbe-crossover application"))
+    rows = [(m, _pct(r["probability_of_success"]), format_number(r["gmr_median"]), format_number(r["gmr_p05"]),
+             format_number(r["gmr_p95"]), f"{format_number(r['between_subject_cv_percent'])} %")
+            for m, r in vbe["metrics"].items()]
+    rows.append(("Joint (every metric in the same trial)", _pct(vbe["joint_probability_of_success"]), "", "", "", ""))
+    tables.append(TableRef(id="vbe_results", title="Virtual bioequivalence trials",
+                           columns=("Metric", "Probability of success", "GMR median", "GMR 5th percentile",
+                                    "GMR 95th percentile", "Simulated between-subject CV"),
+                           rows=tuple(rows), source="S6 virtual trials (engine population occasions, pk_analyses.csv)"))
+    verdict = "meets" if vbe["meets_threshold"] else "does not meet"
+    parts.append(f"The virtual trials give the probabilities of bioequivalence success below; the joint probability "
+                 f"{verdict} the threshold the plan set.\n\n{{{{table:vbe_design}}}}\n\n{{{{table:vbe_results}}}}")
+    checks = validation.get("checks") or []
+    if checks:
+        tables.append(TableRef(id="vbe_validation", title="Validation against the observed BE study (F-304)",
+                               columns=("Metric", "Check", "Observed", "Simulated", "Passes"),
+                               rows=tuple((c["metric"], c["check"], format_number(c["observed"]),
+                                           (format_number(c["simulated"]) if "simulated" in c else
+                                            f"{format_number(c['simulated_p05'])}–{format_number(c['simulated_p95'])}"),
+                                           "yes" if c["passes"] else "no") for c in checks),
+                               source=f"observed BE study: {validation.get('source')}"))
+        parts.append(f"Validation against the observed BE study: **{status}**.\n\n{{{{table:vbe_validation}}}}")
+    return parts
+
+
 def assemble_campaign_mar(
     *,
     map_doc: MapDocument,
@@ -243,7 +306,9 @@ def assemble_campaign_mar(
                                    rows=tuple(rows), source="S6 uncertainty propagation (engine batch)"))
             pred_parts.append("Propagating the fitted parameters' uncertainty gives the intervals below.\n\n"
                               "{{table:prediction_intervals}}")
-        limitations.extend(f"S6: {n}" for n in prediction.get("notes", []))
+        limitations.extend(f"S6: {n}" for n in prediction.get("notes", []) if not n.startswith("VBE ("))
+        if prediction.get("vbe"):
+            pred_parts.extend(_vbe_parts(prediction["vbe"], tables, limitations))
     if not pred_parts:
         pred_parts.append("No prediction was made (see the limitations).")
 
@@ -268,6 +333,10 @@ def assemble_campaign_mar(
                   "skipped for want of data; the model meets the {{value:acceptance_tier}} acceptance tier for the stated "
                   "context of use, within the limitations listed." if all_passed else
                   "Not every stage passed; the model does not yet support the stated context of use.")
+    vbe = (prediction or {}).get("vbe")
+    if vbe and (vbe.get("status") != "RUN" or (vbe.get("validation") or {}).get("status") != "PASSED"):
+        conclusion += (" The virtual bioequivalence is not validated against an observed BE study, so it does not "
+                       "support a bioequivalence decision on its own.")
 
     sections = (
         MarSection(number="1", heading="Objective and context of use", verbatim=True,
@@ -291,10 +360,28 @@ def assemble_campaign_mar(
                            f"{map_doc.diagnostics_ruleset_version}",
         evaluation_of_models_and_outcomes="See sections 4 and 5 of this report.",
     )
+    m15_tables = (m15,)
+    if vbe:
+        # M15 Appendix 1: one table per question of interest; the VBE application is its own question (T-31)
+        validation = vbe.get("validation") or {}
+        m15_tables += (AssessmentTable(
+            question_of_interest=f"Virtual bioequivalence of {(vbe.get('formulations') or {}).get('test')} against "
+                                 f"{(vbe.get('formulations') or {}).get('reference')} ({vbe.get('template')} "
+                                 f"{vbe.get('template_version')})",
+            context_of_use=map_doc.context_of_use,
+            model_risk=RatedElement(description="from the signed MAP", rating=map_doc.model_risk,
+                                    justification="Model influence and decision consequence are recorded by the modeler"),
+            technical_criteria=(f"{_pct(vbe['confidence'])} CI of the GMR within {vbe['limits'][0]}–{vbe['limits'][1]} per "
+                                f"trial; probability of success at least {_pct(vbe['pos_threshold'])}; F-304 validation "
+                                "against the observed BE study" if vbe.get("status") == "RUN" else
+                                f"not run: {vbe.get('reason')}"),
+            evaluation_of_models_and_outcomes=(f"Validation {validation.get('status', 'NOT_VALIDATED')}: "
+                                               f"{validation.get('reason', '')}. See section 6."),
+        ),)
     return MarDocument(
         compound=map_doc.compound, title=f"Modeling Analysis Report — {map_doc.compound}",
         question_of_interest=map_doc.objective, context_of_use=map_doc.context_of_use, model_risk=map_doc.model_risk,
-        sections=sections, evidence=Evidence(values=tuple(values), tables=tuple(tables)), m15_tables=(m15,),
+        sections=sections, evidence=Evidence(values=tuple(values), tables=tuple(tables)), m15_tables=m15_tables,
         engine_image_digest=map_doc.engine_image_digest, software_versions=dict(map_doc.software_versions),
         bundle_sha256=data_bundle_sha256, generated_at=generated_at or datetime.now(UTC),
     )
