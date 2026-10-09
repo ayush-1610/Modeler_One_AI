@@ -55,7 +55,7 @@ export function StudyChip({ s, view, compact = false }: { s: OverallStudy; view:
 export function D3Dag({ view, onDrop, onLayout }: {
   view: PlanView;
   onDrop: (studyId: string, role: Role, where: string) => void;
-  onLayout: (layout: Record<string, { x: number; y: number }>) => void;
+  onLayout: (layout: PlanView["plan"]["layout"]) => void;
 }) {
   const canvas = useRef<HTMLDivElement | null>(null);
   const [over, setOver] = useState<string | null>(null);

@@ -1,6 +1,6 @@
 # Phase 9: a typed answer for every API route, from the API through the web
 
-Status: **9a done.** 9b–9e next. Each step is one PR to `main`, and nothing changes behaviour unless a step says so.
+Status: **9a and 9b done.** 9c–9e next. Each step is one PR to `main`, and nothing changes behaviour unless a step says so.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B6, coupling C5, §6 phase 9.
 - The lists under `[response]` in the locked `tests/architecture/boundaries.toml`, which only shrink.
@@ -52,7 +52,7 @@ answers a typed envelope while the web still calls it untyped. Every step:
     `templates_api`, `write_api` and `system_api`. The lists record what is left: 37 untyped routes and 5 open
     answers.
   - The locked hash is refreshed. The OpenAPI snapshot is unchanged.
-- **9b — the P5 model plan** (13 routes of `plan_api`):
+- **9b — done. The P5 model plan** (13 routes of `plan_api`; untyped 37 → 24):
   - **API:** a `views/plan.py` holds `PlanPage`:
     - `plan` is `ModelPlan`; alongside it are the artifact, violations, diff, overall data, D1/D2, MAP, deviations,
       agents and running;
@@ -61,6 +61,11 @@ answers a typed envelope while the web still calls it untyped. Every step:
     - new tests cover the routes no test reaches: `plan:view`, fits, structure, rebase, draft, and the dry run.
   - **Web:** the `lib/plan.ts` types become `Schema` aliases, and `planApi` calls the routes by name. `PlanCanvas` uses
     `useResource` and `useMutation`.
+  - **As built:**
+    - The plan's content models mark their defaulted fields as always present in the answer schema
+      (`json_schema_serialization_defaults_required`), because the plan is always dumped whole.
+    - The snapshot gains 13 response schemas and 29 schemas, and changes none.
+    - The e2e specs for the canvas, blinding and new project pass.
 - **9c — API-owned records** (part of `read_api`, plus `write_api` and `templates_api`):
   - **API:** `modeler_storage.records` gets `ProjectRecord`, `QuestionRecord` and `StudyRecord`, built by every API
     writer. There are also views for the CPF, templates, prepare, system and studies-stored answers. The partial test

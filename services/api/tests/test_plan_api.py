@@ -237,3 +237,39 @@ def test_external_values_are_blinded_until_the_map_is_signed(setup):
     assert c.post("/api/v1/projects/p1/plan:sign", headers=H, json={}).status_code == 200
     after = c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]
     assert next(d for d in after["datasets"] if d["study"]["study_id"] == sid)["series"][0]["values"][0] == 20.0
+
+
+def test_every_canvas_route_answers_the_typed_page(setup, monkeypatch):
+    """Phase 9b: the routes no other test reaches answer their response model (the conftest guard compares each typed
+    answer with the handler's own value): the read-only view, a move's dry run, a fit set and removed, a structure
+    choice, a rebase and the A5 draft."""
+    from modeler_api import plan_api
+
+    c, _ws, _root = setup
+    c.get("/api/v1/projects/p1/plan", headers=H)
+    viewed = c.get("/api/v1/projects/p1/plan:view", headers=H)
+    assert viewed.status_code == 200 and viewed.json()["data"]["plan"]["schema"] == "model-plan/1"
+
+    preview = c.put("/api/v1/projects/p1/plan/placements/po-50?dry_run=true", headers=H,
+                    json={"role": "S5", "reason": "mid dose for validation"}).json()["data"]
+    assert set(preview) == {"violations", "diff", "deviation"} and preview["deviation"] is False
+
+    fit = {"stages": ["S1"], "lower": 0.1, "upper": 10, "scale": "log", "reason": "GFR fraction is uncertain"}
+    fitted = c.put("/api/v1/projects/p1/plan/fits/elim.renal.gfr_fraction", headers=H, json=fit).json()["data"]
+    assert fitted["plan"]["fits"]["elim.renal.gfr_fraction"]["stages"] == ["S1"]
+    removed = c.post("/api/v1/projects/p1/plan/fits/elim.renal.gfr_fraction:remove", headers=H,
+                     json={"reason": "fixed after all"}).json()["data"]
+    assert "elim.renal.gfr_fraction" not in removed["plan"]["fits"]
+
+    food = c.put("/api/v1/projects/p1/plan/structure", headers=H,
+                 json={"key": "food_effect_in_question", "value": True, "reason": "the label asks about food"}).json()["data"]
+    row = next(d for d in food["diff"] if d["kind"] == "structure")
+    assert row["to"] is True and food["d2"]["food_effect_in_question"] is True
+
+    rebased = c.post("/api/v1/projects/p1/plan:rebase", headers=H)
+    assert rebased.status_code == 200 and rebased.json()["data"]["artifact"]["kind"] == "model_plan"
+
+    monkeypatch.setattr(plan_api.agent_jobs, "require_chat_model", lambda _off: object())
+    monkeypatch.setattr(plan_api, "run_planning_job", lambda *a, **k: None)
+    draft = c.post("/api/v1/projects/p1/plan:draft", headers=H)
+    assert draft.status_code == 202 and draft.json()["data"] == {"status": "RUNNING"}

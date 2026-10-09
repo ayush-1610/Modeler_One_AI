@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import type { Schema } from "@/lib/api";
 import { ROLE_LABEL, type ParamNode, type PlanView } from "@/lib/plan";
 
 // D1 · disposition and D2 · absorption and formulation (plan §11.2, §11.3): read-mostly in this release (D-13). The
@@ -95,7 +96,7 @@ export function D1Disposition({ view, onFit, onUnfit }: { view: PlanView; onFit:
 }
 
 export function D2Absorption({ view, onFit, onUnfit, onStructure }: {
-  view: PlanView; onFit: FitSave; onUnfit: FitRemove; onStructure: (key: string, value: unknown, reason: string) => Promise<string | null>;
+  view: PlanView; onFit: FitSave; onUnfit: FitRemove; onStructure: (key: Schema<"StructureRequest">["key"], value: unknown, reason: string) => Promise<string | null>;
 }) {
   const d = view.d2;
   const [reason, setReason] = useState("");
@@ -132,7 +133,7 @@ export function D2Absorption({ view, onFit, onUnfit, onStructure }: {
         </div>
         <div className="flow-arrow">→</div>
         <div className="flow-col"><h4>Dissolution</h4>
-          {d.dissolution.map((p) => <div key={p.id} className="param-node"><span className="sq">◆</span> {p.label}<div className="muted" style={{ fontSize: 12 }}>{p.release_model.toLowerCase()}</div></div>)}
+          {d.dissolution.map((p) => <div key={p.id} className="param-node"><span className="sq">◆</span> {p.label}<div className="muted" style={{ fontSize: 12 }}>{p.release_model?.toLowerCase() ?? "release model not set"}</div></div>)}
           {d.dissolution.length === 0 && <div className="param-node muted">no dissolution profile</div>}
         </div>
       </div>
