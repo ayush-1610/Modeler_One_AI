@@ -54,7 +54,16 @@ STAGE_PLAN: dict[str, dict] = {
     },
     "S3": {"fit_candidates": ("form.{name}.weibull.t50", "form.{name}.weibull.shape", "food.fed_solubility_factor"),
            "branches": (), "max_rounds": 2},
-    # MS-01 v1.1 (UNVERIFIED, D-04): one joint fit of the parameters S1–S3 fitted, over every internal study
+    # MS-01 v1.3 §6.5 (UNVERIFIED, D-25): a model system's metabolites fitted to their own data, after the parent's
+    # stages. `{metabolite}` is each metabolite the stage's studies measure; `formation` is the rate of the process
+    # that forms it, on the compound that forms it (`pbpk_domain.system.formation_targets`). Planned only when the MAP
+    # has a metabolite study to fit (generate_map).
+    "SM": {"fit_candidates": ("{metabolite}::elim.hepatic.{enzyme}.clspec", "{metabolite}::elim.hepatic.{enzyme}.kcat",
+                              "{metabolite}::transp.{name}.kcat", "{metabolite}::elim.renal.gfr_fraction",
+                              "{metabolite}::formation", "{metabolite}::phys.logp"),
+           "branches": (), "max_rounds": 4},
+    # MS-01 v1.1 (UNVERIFIED, D-04): one joint fit of the parameters S1–S3 (and SM, v1.3) fitted, over every internal
+    # study
     "SJ": {"fit_candidates": ("fitted in S1–S3",), "branches": (), "max_rounds": 1},
     "S4": {"fit_candidates": (), "branches": (), "max_rounds": 1},
     "S5": {"fit_candidates": (), "branches": (), "max_rounds": 1},
@@ -65,12 +74,19 @@ STAGE_PLAN: dict[str, dict] = {
 # Campaign-budget split (MS-01 §7; v1.1 UNVERIFIED, D-04: S1 20 %, S2 20 %, S3 7 %, SJ 15 %, the rest unchanged).
 BUDGET_FRACTION = {"S0": 0.01, "S1": 0.20, "S2": 0.20, "S3": 0.07, "SJ": 0.15, "S4": 0.05, "S5": 0.05, "S6": 0.20,
                    "S7": 0.07}
-MS01_VERSION = "1.2 (SJ, feedback cycles UNVERIFIED)"
+# MS-01 v1.3 §7 (UNVERIFIED, D-25): when SM is planned it takes 10 % of the campaign and every other stage keeps 90 % of
+# its share, so the total stays the campaign budget.
+SM_BUDGET_FRACTION = 0.10
+MS01_VERSION = "1.3 (SJ, feedback cycles, metabolite stage SM UNVERIFIED)"
 
 # Stage kinds (MS-01 §4). S1–S3 are round loops that may fit; S4/S5 simulate the final CPF once and judge it,
 # never fitting — a validation failure escalates rather than refits.
 FIT_STAGES = ("S1", "S2", "S3")
 VALIDATION_STAGES = ("S4", "S5")
+# MS-01 v1.3 §6.5: SM fits a model system's metabolites after the parent's stages. The training stages are the round
+# loops that may fit, in order: SJ refines what they fitted, and the no-regression gate re-judges them.
+METABOLITE_STAGE = "SM"
+TRAINING_STAGES = (*FIT_STAGES, METABOLITE_STAGE)
 
 # Which stage each internal study class trains. Every study that trains a stage is re-simulated in S4.
 _CLASS_STAGE = {
@@ -93,6 +109,7 @@ _SKIP_REASON = {
           "fitted (MS-01 decision tree §6.2).",
     "S3": "No internal fed or formulation study: S3 has nothing to fit; fed exposure, where relevant, is predicted "
           "and judged in S5 (MS-01 decision tree §6.7).",
+    "SM": "No internal study measures a metabolite with its own data: SM has nothing to fit (MS-01 §6.5).",
     "S4": "No study was fitted, so there is nothing to validate internally.",
     "S5": "No external study: external validation is not achievable — a documented limitation (MS-01 §3.3 rule 2).",
     "S6": "No internal study to predict from: sensitivity and uncertainty need the validated simulations of S4.",
@@ -368,7 +385,7 @@ def stage_coverage(map_doc: MapDocument, stage: str) -> StageCoverage:
 
     For S5 the notes also name every external study that is *not* judged there — flagged studies validate their
     S6 application (rule 4) — so the record shows each study's fate, not just the ones that ran."""
-    kind = ("validate" if stage in VALIDATION_STAGES else "fit" if stage in FIT_STAGES
+    kind = ("validate" if stage in VALIDATION_STAGES else "fit" if stage in TRAINING_STAGES
             else "predict" if stage == "S6" else "report" if stage == "S7" else "readiness")
     # S6 predicts from the internal studies' simulations (the final CPF); S7 packages whatever the campaign made.
     source = "S4" if stage == "S6" else stage
@@ -388,22 +405,30 @@ def stage_coverage(map_doc: MapDocument, stage: str) -> StageCoverage:
     if skip is None and kind in ("fit", "validate") and studies and map_doc.model_system_sha256:
         gated_studies = {s.study_id for s in map_doc.scenarios if s.stage == source and s.gated}
         if not gated_studies:
-            # a model system whose studies here all measure a metabolite or a sum (Verapamil's IV data are racemic):
-            # reported beside the gate in phase 1, so nothing judges or fits this stage (owner decision 3)
-            skip = (f"no study of this stage measures the fitted parent's plasma: {', '.join(studies)} measure other "
-                    "analytes of the model system, reported but not gated or fitted in phase 1")
+            # a model system whose studies here all measure an analyte this stage does not judge (a metabolite at a
+            # parent stage, a mass sum): reported beside the gate, so nothing judges or fits this stage (MS-01 §6.5)
+            skip = (f"no study of this stage measures an analyte it judges: {', '.join(studies)} measure other analytes "
+                    "of the model system, reported beside the gate (MS-01 §6.5)")
     return StageCoverage(stage=stage, kind=kind, studies=studies, skip_reason=skip, notes=tuple(notes))
 
 
 def _system_scenarios(scenarios: tuple[MapScenario, ...], system: ModelSystem | None, fitted: str) -> tuple[MapScenario, ...]:
-    """Each scenario of a model system names its analyte's output path and whether it is gated (fitted parent only)."""
+    """Each scenario of a model system names its analyte's output path and whether its stage gates it (MS-01 v1.3
+    §6.5, `pbpk_domain.system.gated`). A metabolite study that trains a parent stage (where it is reported) is also
+    planned at SM, where it is gated and fitted."""
     if system is None:
         return scenarios
     from pbpk_domain.system import gated
 
-    return tuple(s.model_copy(update={
-        "analyte_output": system.analytes[s.analyte].output_path if s.analyte in system.analytes else None,
-        "gated": gated(system, s.analyte, fitted)}) for s in scenarios)
+    out, metabolite = [], []
+    for s in scenarios:
+        placed = s.model_copy(update={
+            "analyte_output": system.analytes[s.analyte].output_path if s.analyte in system.analytes else None,
+            "gated": gated(system, s.analyte, fitted, s.stage)})
+        out.append(placed)
+        if s.stage in FIT_STAGES and not placed.gated and gated(system, s.analyte, fitted, METABOLITE_STAGE):
+            metabolite.append(placed.model_copy(update={"stage": METABOLITE_STAGE, "gated": True}))
+    return (*out, *metabolite)
 
 
 def generate_map(
@@ -445,12 +470,18 @@ def generate_map(
         MapStudy(study_id=s.study_id, study_class=s.study_class.value, score=round(s.score, 3), assignment=s.assignment.value)
         for s in split.splits
     )
+    scenarios = _system_scenarios(_scenarios(studies, split, meal_template=meal_template, cpf=cpf,
+                                             sampling_end_h=sampling_end_h), system, cpf.compound)
+    # SM is planned only when a metabolite study trains it (MS-01 v1.3 §6.5); a single compound's plan is unchanged
+    with_sm = any(sc.stage == METABOLITE_STAGE for sc in scenarios)
+    fractions = ({**{k: v * (1 - SM_BUDGET_FRACTION) for k, v in BUDGET_FRACTION.items()},
+                  METABOLITE_STAGE: SM_BUDGET_FRACTION} if with_sm else BUDGET_FRACTION)
     stage_plan = tuple(
         MapStagePlan(
-            stage=stage, budget_seconds=round(campaign_budget_seconds * BUDGET_FRACTION[stage]),
+            stage=stage, budget_seconds=round(campaign_budget_seconds * fractions[stage]),
             fit_candidates=plan["fit_candidates"], branches=plan["branches"], max_rounds=plan["max_rounds"],
         )
-        for stage, plan in STAGE_PLAN.items()
+        for stage, plan in STAGE_PLAN.items() if stage != METABOLITE_STAGE or with_sm
     )
     return MapDocument(
         compound=compound,
@@ -463,8 +494,7 @@ def generate_map(
         split_rationale=split.rationale,
         split_limitations=split.limitations,
         stage_plan=stage_plan,
-        scenarios=_system_scenarios(_scenarios(studies, split, meal_template=meal_template, cpf=cpf,
-                                               sampling_end_h=sampling_end_h), system, cpf.compound),
+        scenarios=scenarios,
         model_system_sha256=system.sha256 if system is not None else None,
         diagnostics_ruleset_version=diagnostics_ruleset_version,
         acceptance=_acceptance(model_risk),

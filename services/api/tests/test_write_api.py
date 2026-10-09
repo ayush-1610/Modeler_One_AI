@@ -126,6 +126,7 @@ def _prepared(tmp_path, study: dict, body: dict | None = None):
 def test_prepare_schedules_every_stage_by_default(tmp_path):
     """R0: the campaign used to be prepared for S0–S2 only (and the UI asked for S0–S1)."""
     _, prep, _ = _prepared(tmp_path, _study())
+    # SM (MS-01 v1.3) is scheduled only when the MAP plans it: a single compound's does not
     assert prep["stages"] == ["S0", "S1", "S2", "S3", "SJ", "S4", "S5", "S6", "S7"]
 
 

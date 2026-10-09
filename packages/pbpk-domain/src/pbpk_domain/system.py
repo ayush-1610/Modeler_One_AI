@@ -198,10 +198,67 @@ def analyte_molecular_weight(system: ModelSystem, analyte: str) -> tuple[float |
     return weights.pop(), None
 
 
-def gated(system: ModelSystem, analyte: str | None, fitted: str) -> bool:
-    """Whether a study on ``analyte`` enters the acceptance gate and the fit: only the fitted parent's own plasma in
-    phase 1 (owner decision 3: metabolite and sum analytes are reported, not gated)."""
+# MS-01 v1.3 §6.5 (UNVERIFIED, owner-approved 2026-10-09, D-25): the stages that judge a metabolite's own data. The
+# parent stages (S1–S3) report it beside their gate; SM fits the metabolite to it; SJ refines jointly; S4 and S5
+# validate it as its own acceptance group.
+METABOLITE_STAGES = ("SM", "SJ", "S4", "S5")
+
+
+def subjects(system: ModelSystem, analyte: str | None, fitted: str) -> tuple[str, ...]:
+    """The compounds whose parameters a study on ``analyte`` informs, in system order (MS-01 v1.3 §6.5).
+
+    A compound's own plasma informs that compound. A molar sum whose compounds share one molecular weight (a racemate:
+    Verapamil's R + S) informs every member jointly, since the sum cannot tell them apart. A mass sum, a molar sum of
+    different weights, or an unknown analyte informs none (not evaluated: `analyte_molecular_weight` says why)."""
     if analyte is None:
-        return True
+        return (fitted,)
     a = system.analytes.get(analyte)
-    return a is not None and a.kind == "compound" and a.compound == fitted
+    if a is None:
+        return ()
+    if a.kind == "compound":
+        return (a.compound,)
+    _weight, why = analyte_molecular_weight(system, analyte)
+    if why:
+        return ()
+    observer = next((o for o in system.observers[a.observer].get("Observers", []) if o.get("Name") == a.name), {})
+    refs = [r.get("Path", "") for r in (observer.get("Formula") or {}).get("References", [])]
+    members = {p.split("|")[-2] for p in refs if p.endswith("|Concentration") and p.count("|") >= 2}
+    return tuple(c.compound for c in system.compounds if c.compound in members)
+
+
+def gated(system: ModelSystem, analyte: str | None, fitted: str, stage: str = "") -> bool:
+    """Whether a study on ``analyte`` enters the acceptance gate (and the fit) at ``stage`` (MS-01 v1.3 §6.5).
+
+    - a parent's own plasma, the fitted parent's or a co-parent's (S-Verapamil, Dabigatran given IV), and a molar sum
+      of parents sharing one molecular weight (racemic Verapamil): gated at every stage, like the single compound;
+    - a metabolite's own plasma, or a molar sum of metabolites sharing one weight: reported at the parent stages
+      (S1–S3), gated at `METABOLITE_STAGES` (SM fits it);
+    - a sum of a parent and a metabolite, a mass sum, a molar sum of different weights: never gated (reported, with
+      the reason). Without a stage (phase-1 callers) a metabolite analyte is not gated."""
+    members = subjects(system, analyte, fitted)
+    if not members:
+        return False
+    roles = {system.roles[c] for c in members}
+    if len(roles) != 1:
+        return False
+    if roles == {"parent"}:
+        return True
+    return stage in METABOLITE_STAGES
+
+
+def formation_targets(system: ModelSystem, metabolite: str) -> tuple[tuple[str, str], ...]:
+    """(forming compound, CPF id) of the rate parameters of each process that forms ``metabolite`` (MS-01 v1.3 SM).
+
+    The process is the one the published model's ``Metabolite`` setting names (`Formation`): its engine binding has the
+    same internal name, molecule and data source. Its catalytic or first-order rate (``…kcat`` / ``…clspec``) is the
+    formation parameter; Km and the in vitro Vmax stay as they are."""
+    out: list[tuple[str, str]] = []
+    for f in system.formation:
+        if f.metabolite != metabolite:
+            continue
+        for p in system.cpf(f.compound).parameters:
+            b = p.engine_binding
+            if (b is not None and b.process == f"{f.internal_name}:{f.molecule}" and b.data_source == f.data_source
+                    and p.id.endswith((".kcat", ".clspec"))):
+                out.append((f.compound, p.id))
+    return tuple(out)

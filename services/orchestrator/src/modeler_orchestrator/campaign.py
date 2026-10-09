@@ -374,6 +374,8 @@ class ModelingCampaignWorkflow:
             plan: StagePlan = await workflow.execute_activity(
                 "plan_stage", stage_req, start_to_close_timeout=_MIN, retry_policy=ACT_RETRY, result_type=StagePlan,
             )
+            if plan.kind == "absent":
+                continue  # the MAP does not plan this stage (SM for a single compound): not part of this campaign
             if plan.skip_reason:
                 # Nothing to simulate here: a documented limitation (MS-01 §6.2 / §6.7, §3.3 rule 2), not a failure.
                 stage_outcomes.append(StageOutcome(stage=stage, status="SKIPPED", rounds_run=0, cpf_uri=cpf_uri,

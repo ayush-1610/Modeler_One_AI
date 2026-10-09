@@ -35,6 +35,7 @@ class SimulatedProfile:
     times: Sequence[float]
     concentrations: Sequence[float]
     group: str = ""                 # judged as its own group within the role (S5: "fasted" / "fed")
+    analyte: str = ""               # a model system's analyte, judged as its own group (MS-01 v1.3 §6.5)
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,7 @@ class StudyPK:
     observed_thalf: float | None
     early_ratio: float | None = None  # IV: geometric mean predicted/observed over samples up to 2 x observed tmax
     vss_ratio: float | None = None    # IV: predicted/observed Vss (MRT/AUC over identical sampling; dose cancels)
+    analyte: str = ""
 
 
 @dataclass(frozen=True)
@@ -128,8 +130,8 @@ def assess_round(
 ) -> RoundAssessment:
     """Reduce each simulated profile to PK, compare with the observed PK, and judge the tier gate.
 
-    ``reported`` studies (a model system's metabolite or sum analytes in phase 1) are reduced and reported but take no
-    part in the gate."""
+    ``reported`` studies (a model system's analyte the stage does not judge: a metabolite at a parent stage, a mass
+    sum) are reduced and reported but take no part in the gate. Each analyte is judged as its own group."""
     studies: list[StudyPK] = []
     comparisons: list[Comparison] = []
     findings: list[str] = []
@@ -165,7 +167,7 @@ def assess_round(
             predicted_thalf=result.t_half,
             observed_auc=obs.auc if obs else None, observed_cmax=obs.cmax if obs else None,
             observed_tmax=obs.tmax if obs else None, observed_thalf=obs.thalf if obs else None,
-            early_ratio=early, vss_ratio=vss,
+            early_ratio=early, vss_ratio=vss, analyte=profile.analyte,
         ))
         if obs is None:
             findings.append(f"{profile.study_id}: no observed PK; not compared")
@@ -173,9 +175,11 @@ def assess_round(
         if profile.study_id in reported:
             continue  # reported beside the gate
         if obs.auc is not None and pred_auc is not None and pred_auc > 0:
-            comparisons.append(Comparison(profile.study_id, "AUC", pred_auc, obs.auc, profile.role, profile.group))
+            comparisons.append(Comparison(profile.study_id, "AUC", pred_auc, obs.auc, profile.role, profile.group,
+                                          profile.analyte))
         if obs.cmax is not None and result.c_max > 0:
-            comparisons.append(Comparison(profile.study_id, "Cmax", result.c_max, obs.cmax, profile.role, profile.group))
+            comparisons.append(Comparison(profile.study_id, "Cmax", result.c_max, obs.cmax, profile.role, profile.group,
+                                          profile.analyte))
 
     if not comparisons:
         findings.append("no observed PK to compare against; acceptance gate cannot be judged this round")
@@ -187,7 +191,7 @@ def assess_round(
     report = evaluate(comparisons, model_risk)
     if not report.passes:
         for v in report.failures():
-            group = f", {v.comparison.group}" if v.comparison.group else ""
+            group = "".join(f", {x}" for x in (v.comparison.analyte, v.comparison.group) if x)
             findings.append(
                 f"{v.comparison.study} {v.comparison.quantity} ({v.comparison.role}{group}): "
                 f"ratio {v.ratio:.2f} outside {v.limit} (PE {v.prediction_error_pct:+.0f}%)"
@@ -240,7 +244,7 @@ def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None,
     metrics: dict[str, Any] = {
         "studies": [
             {
-                "study_id": s.study_id, "role": s.role, "group": s.group,
+                "study_id": s.study_id, "role": s.role, "group": s.group, "analyte": s.analyte,
                 "predicted_auc": s.predicted_auc, "observed_auc": s.observed_auc,
                 "predicted_cmax": s.predicted_cmax, "observed_cmax": s.observed_cmax,
                 "predicted_tmax": s.predicted_tmax, "observed_tmax": s.observed_tmax,
@@ -265,7 +269,7 @@ def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None,
         metrics["tier"] = report.tier
         metrics["ruleset"] = report.ruleset
         metrics["groups"] = [
-            {"role": g.role, "group": g.group, "quantity": g.quantity, "n": g.n,
+            {"role": g.role, "group": g.group, "analyte": g.analyte, "quantity": g.quantity, "n": g.n,
              "fraction_within": g.fraction_within, "required_fraction": g.required_fraction, "passes": g.passes}
             for g in report.groups
         ]
