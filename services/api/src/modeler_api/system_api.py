@@ -12,10 +12,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from modeler_api.auth import Principal, require_role
-from modeler_api.config import SettingsDep
+from modeler_api.config import SettingsDep, verifier_kind
 from modeler_api.responses import answers, answers_without_envelope, envelope
 from modeler_api.views.system import Health, M15Validation, RunAccepted, SnapshotPreview
 from modeler_contracts.runs import RUN_TASKS, RunRequest
+from modeler_contracts.runtime import runtime_env
 from pbpk_domain.m15 import AssessmentTable, Stage, allowed_model_risk, validate_table
 from pbpk_domain.snapshot.builder import (
     CompoundSpec,
@@ -31,8 +32,8 @@ router = APIRouter()
 
 
 @router.get("/health", **answers_without_envelope(Health))
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health(settings: SettingsDep) -> dict[str, str]:
+    return {"status": "ok", "deployment": runtime_env().deployment_kind, "verifier": verifier_kind(settings)}
 
 
 class ModelBuildRequest(BaseModel):

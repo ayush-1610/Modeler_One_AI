@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from modeler_api.brief_api import router as brief_router
 from modeler_api.campaign_api import router as campaign_router
 from modeler_api.client_api import router as client_router
-from modeler_api.config import get_settings
+from modeler_api.config import check_auth, get_settings
 from modeler_api.escalations import router as escalations_router
 from modeler_api.evidence_api import router as evidence_router
 from modeler_api.inputs_api import router as inputs_router
@@ -33,9 +33,11 @@ from modeler_contracts.runtime import runtime_env
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # A production deployment (MODELER_DEPLOYMENT=production) refuses to start without its engine settings: no default
-    # engine, no placeholder digest, an explicit object store (modeler_contracts.runtime).
-    runtime_env().check_production()
+    # A pilot or production deployment refuses to start without its engine settings: no default engine, no placeholder
+    # digest, an explicit object store (modeler_contracts.runtime); production also refuses the DEV verifier.
+    runtime = runtime_env()
+    runtime.check_production()
+    check_auth(get_settings(), runtime)
     yield
 
 

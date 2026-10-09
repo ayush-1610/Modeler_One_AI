@@ -6159,14 +6159,35 @@
       },
       "Health": {
         "additionalProperties": false,
+        "description": "The API is up, which deployment it is, and how it verifies a sign-in (\"dev\": the DEV verifier, never Part 11).",
         "properties": {
+          "deployment": {
+            "enum": [
+              "development",
+              "pilot",
+              "production"
+            ],
+            "title": "Deployment",
+            "type": "string"
+          },
           "status": {
             "title": "Status",
+            "type": "string"
+          },
+          "verifier": {
+            "enum": [
+              "dev",
+              "oidc",
+              "none"
+            ],
+            "title": "Verifier",
             "type": "string"
           }
         },
         "required": [
-          "status"
+          "status",
+          "deployment",
+          "verifier"
         ],
         "title": "Health",
         "type": "object"

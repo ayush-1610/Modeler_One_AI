@@ -258,7 +258,7 @@ exclusion decision (D5). This cloud session cannot reach the server (LAN only, n
 |---|---|
 | Execution | Single-node `LocalExecutor` (in-process, same activities) — **used**. Temporal workflows — built, tested, not deployed |
 | Persistence | File-backed `ReadStore` / `WriteStore` under `MODELER_READ_ROOT` — **used**. Postgres schema with RLS and append-only audit (T-05) — built, not used |
-| Auth | `DevVerifier` (**DEV ONLY**, `MODELER_DEV_AUTH=1`) in the single-node deploy. Keycloak OIDC + step-up (T-06) — built, not deployed |
+| Auth | `DevVerifier` (**DEV ONLY**, `MODELER_DEV_AUTH=1`) in the single-node deploy, which runs as `MODELER_DEPLOYMENT=pilot` (production's engine settings, DEV sign-in; 2026-10-09). A `production` deployment refuses `MODELER_DEV_AUTH` at startup; `/health` reports the deployment and the verifier. Keycloak OIDC + step-up (T-06) — built, not deployed |
 | Object store | `file://` — used. MinIO presigned I/O — not built |
 | Engine | Real PK-Sim on the server, and on the Mac through Docker (`deploy/dev/docker_engine.sh`, image from `services/engine-worker/Dockerfile`; set `MODELER_ENGINE_COMMAND="bash <repo>/deploy/dev/docker_engine.sh"`). `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
 | Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog, installed 2026-09-24) / Tailscale (installed userspace, awaiting the owner's login). Redeploy from the Mac: `bash deploy/dev/deploy_to_server.sh` |

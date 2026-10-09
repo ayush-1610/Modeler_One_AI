@@ -26,14 +26,18 @@ MAX_BYTES = 60 * 1024 * 1024
 
 KINDS = {
     ".pdf": "pdf", ".docx": "docx", ".md": "markdown", ".markdown": "markdown", ".txt": "text", ".text": "text",
-    ".csv": "csv", ".tsv": "csv", ".xlsx": "xlsx", ".xlsm": "xlsx", ".png": "image", ".jpg": "image", ".jpeg": "image",
+    ".csv": "csv", ".tsv": "csv", ".xlsx": "xlsx", ".xlsm": "xlsx", ".xls": "xls", ".png": "image", ".jpg": "image", ".jpeg": "image",
 }
 MEDIA_TYPES = {
     "pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "markdown": "text/markdown", "text": "text/plain", "csv": "text/csv",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "xls": "application/vnd.ms-excel",
     "image": "image/png",
 }
+
+
+_OLE2 = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"  # the compound-file signature every Excel 97–2003 workbook starts with
 
 
 class DocumentError(ValueError):
@@ -62,8 +66,6 @@ class ExtractedDocument:
 
 def detect_kind(data: bytes, filename: str) -> str:
     suffix = PurePath(filename).suffix.lower()
-    if suffix == ".xls":
-        raise DocumentError("legacy .xls workbooks are not read; save the file as .xlsx")
     if suffix == ".doc":
         raise DocumentError("legacy .doc files are not read; save the file as .docx")
     kind = KINDS.get(suffix)
@@ -75,6 +77,8 @@ def detect_kind(data: bytes, filename: str) -> str:
         raise DocumentError(f"{filename} is not a PDF file")
     if kind in ("docx", "xlsx") and not data.startswith(b"PK"):
         raise DocumentError(f"{filename} is not a valid {kind.upper()} file")
+    if kind == "xls" and not data.startswith(_OLE2):
+        raise DocumentError(f"{filename} is not a valid XLS (Excel 97–2003) file")
     if kind == "image" and not data.startswith((b"\x89PNG", b"\xff\xd8")):
         raise DocumentError(f"{filename} is not a PNG or JPEG image")
     return kind
@@ -170,6 +174,19 @@ def _sheet_pages(data: bytes, kind: str, name: str) -> list[str]:
         delimiter = "\t" if name.lower().endswith(".tsv") else ","
         text = data.decode("utf-8-sig", errors="replace")
         return _chunk(_rows_to_blocks(PurePath(name).stem, csv.reader(io.StringIO(text), delimiter=delimiter)))
+    if kind == "xls":
+        from modeler_intake.grid import read_workbook_bytes
+
+        try:
+            grid = read_workbook_bytes(data, name)
+        except ValueError as exc:
+            raise DocumentError(str(exc)) from exc
+        pages = []
+        for sheet in grid.sheets.values():
+            rows = [[sheet.cells[(r, c)].value if (r, c) in sheet.cells and not sheet.cells[(r, c)].merged_from else None
+                     for c in range(1, sheet.max_column + 1)] for r in range(1, sheet.max_row + 1)]
+            pages.extend(_chunk(_rows_to_blocks(sheet.name, rows)))
+        return pages or [""]
     from openpyxl import load_workbook
 
     try:

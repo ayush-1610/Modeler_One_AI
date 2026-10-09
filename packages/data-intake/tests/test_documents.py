@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pytest
 
@@ -92,9 +93,24 @@ def test_long_text_is_cut_at_line_boundaries():
     assert doc.pages[1].text.startswith("line ")
 
 
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_a_legacy_xls_workbook_is_read_into_quotable_pages():
+    # legacy-study.xls was written once with xlwt 1.3.0 (not a dependency): a merged title, numbers, a date, a bool
+    doc = extract_document((FIXTURES / "legacy-study.xls").read_bytes(), "legacy-study.xls")
+    assert doc.kind == "xls" and doc.media_type == "application/vnd.ms-excel"
+    text = "\n".join(p.text for p in doc.pages)
+    assert "[PK row 1] A1=Study EX-101 plasma concentrations" in text
+    assert "[PK row 3] A3=0.5 | B3=12.5 | C3=S01" in text
+    assert "[Info row 1] A1=Dose (mg) | B1=50" in text and "2024-03-05" in text
+
+
 def test_unreadable_files_are_refused_with_a_reason():
-    with pytest.raises(DocumentError, match="xlsx"):
-        extract_document(b"\xd0\xcf\x11\xe0", "old.xls")
+    with pytest.raises(DocumentError, match="not a valid XLS"):
+        extract_document(b"not an ole2 file", "old.xls")
+    with pytest.raises(DocumentError, match="could not be read"):
+        extract_document(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64, "broken.xls")
     with pytest.raises(DocumentError, match="not a PDF"):
         extract_document(b"hello", "fake.pdf")
     with pytest.raises(DocumentError, match="not a PNG"):

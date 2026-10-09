@@ -9,6 +9,7 @@ dependencies = [
   "python-docx>=1.1",
   "pydantic>=2.11",
   "pbpk-domain",
+  "xlrd>=2.0.1",
 ]
 
 [tool.uv.sources]

@@ -35,13 +35,14 @@ def test_the_api_and_the_orchestrator_share_one_object_store_default():
     assert Settings.model_fields["image_digest"].default == PLACEHOLDER_DIGEST
 
 
-def test_the_server_is_a_production_deployment_recording_its_catalog_digest():
+def test_the_server_is_a_pilot_deployment_recording_its_catalog_digest():
+    # a pilot (the owner's decision, 2026-10-09): production's engine settings, still the DEV sign-in until Keycloak
     text = SERVER_ENV.read_text(encoding="utf-8")
-    assert re.search(r"^export MODELER_DEPLOYMENT=production$", text, re.MULTILINE)
+    assert re.search(r"^export MODELER_DEPLOYMENT=pilot$", text, re.MULTILINE)
     snippet = re.search(r"^MODELER_ENGINE_CATALOG=.*?^export MODELER_IMAGE_DIGEST=.*?$", text, re.MULTILINE | re.DOTALL)
     digest = subprocess.run(["bash", "-c", f'REPO="{ROOT}"; {snippet.group(0)}; echo "$MODELER_IMAGE_DIGEST"'],
                             capture_output=True, text=True, check=True).stdout.strip()
     assert digest == "catalog:sha256:" + _registration()["catalog_sha256"]
-    env = runtime_env({"MODELER_DEPLOYMENT": "production", "MODELER_OBJECT_STORE_URI": "file:///data",
+    env = runtime_env({"MODELER_DEPLOYMENT": "pilot", "MODELER_OBJECT_STORE_URI": "file:///data",
                        "MODELER_ENGINE_COMMAND": "Rscript run_job.R", "MODELER_IMAGE_DIGEST": digest})
     env.check_production()

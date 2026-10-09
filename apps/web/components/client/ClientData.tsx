@@ -393,10 +393,10 @@ export function ClientData({ projectId }: { projectId: string }) {
         <label className={`dropzone${dragging ? " over" : ""}`}
                onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
                onDrop={(e) => { e.preventDefault(); setDragging(false); void upload(e.dataTransfer.files); }}>
-          <input type="file" multiple hidden data-testid="client-upload" accept=".xlsx,.xlsm,.csv,.pdf,.docx,.md,.txt"
+          <input type="file" multiple hidden data-testid="client-upload" accept=".xlsx,.xlsm,.xls,.csv,.pdf,.docx,.md,.txt"
                  onChange={(e) => void upload(e.target.files)} />
           <strong>Drop the client&apos;s files here</strong> or click to choose
-          <span className="muted">Excel (.xlsx), CSV, PDF, Word, Markdown. Workbooks are sorted sheet by sheet; reports are kept as citable documents.</span>
+          <span className="muted">Excel (.xlsx, or .xls from Excel 97–2003), CSV, PDF, Word, Markdown. Workbooks are sorted sheet by sheet; reports are kept as citable documents.</span>
         </label>
       </Card>
 

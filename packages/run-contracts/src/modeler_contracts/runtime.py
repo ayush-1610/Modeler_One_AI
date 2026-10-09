@@ -6,7 +6,9 @@ field is None when its variable is unset.
 
 One default per variable (the owner's decision, 2026-10-08): development defaults that let a laptop run without
 configuration, and a production deployment (MODELER_DEPLOYMENT=production) that must set them and refuses to start
-otherwise (`production_problems`):
+otherwise (`production_problems`). A pilot deployment (MODELER_DEPLOYMENT=pilot, the owner's decision 2026-10-09) is
+held to the same engine settings, but may still sign in with the API's DEV verifier until Keycloak is deployed;
+production refuses that verifier (`modeler_api.config.check_auth`):
 - object store: `LOCAL_OBJECT_STORE` for the API and the orchestrator alike; production sets it;
 - engine command: production sets it; development falls back to the caller's default (the stub engine for the
   orchestrator, which every page labels a software fixture);
@@ -49,7 +51,7 @@ VARIABLES = {
 
 # The object store when MODELER_OBJECT_STORE_URI is unset, for the API and the orchestrator alike (development only).
 LOCAL_OBJECT_STORE = "file:///tmp/modeler-object-store"
-DEPLOYMENTS = ("development", "production")
+DEPLOYMENTS = ("development", "pilot", "production")
 # The digest of no engine: tests and development only, refused in production; a run carrying it is never evidence.
 PLACEHOLDER_DIGEST = "sha256:" + "0" * 64
 _DIGEST = re.compile(r"^(catalog:)?sha256:[0-9a-f]{64}$")
@@ -106,15 +108,24 @@ class RuntimeSettings:
     deployment: str | None = None
 
     @property
-    def production(self) -> bool:
+    def deployment_kind(self) -> str:
         deployment = self.deployment or "development"
         if deployment not in DEPLOYMENTS:
             raise ConfigurationError(f"MODELER_DEPLOYMENT is {deployment!r}; expected one of {', '.join(DEPLOYMENTS)}")
-        return deployment == "production"
+        return deployment
+
+    @property
+    def production(self) -> bool:
+        return self.deployment_kind == "production"
+
+    @property
+    def strict(self) -> bool:
+        """A deployment that runs real work (pilot or production): no development default applies to the engine."""
+        return self.deployment_kind in ("pilot", "production")
 
     def production_problems(self) -> list[str]:
-        """What a production deployment is missing (empty in development, and in a complete production setup)."""
-        if not self.production:
+        """What a pilot or production deployment is missing (empty in development, and in a complete setup)."""
+        if not self.strict:
             return []
         problems = [f"{VARIABLES[name]} is not set" for name in ("object_store_uri", "engine_command") if not getattr(self, name)]
         digest = self.image_digest
@@ -127,25 +138,25 @@ class RuntimeSettings:
         return problems
 
     def check_production(self) -> None:
-        """Refuse to start a production deployment that is missing a setting (ConfigurationError naming each)."""
+        """Refuse to start a pilot or production deployment that is missing a setting (ConfigurationError naming each)."""
         problems = self.production_problems()
         if problems:
-            raise ConfigurationError("production deployment refused: " + "; ".join(problems))
+            raise ConfigurationError(f"{self.deployment_kind} deployment refused: " + "; ".join(problems))
 
     def resolved_engine_command(self, development_default: str) -> str:
         """The engine command: production must set it; development falls back to `development_default`."""
         if self.engine_command:
             return self.engine_command
-        if self.production:
-            raise ConfigurationError("MODELER_ENGINE_COMMAND is not set (production has no default engine)")
+        if self.strict:
+            raise ConfigurationError(f"MODELER_ENGINE_COMMAND is not set ({self.deployment_kind} has no default engine)")
         return development_default
 
     def resolved_engine_id(self, command: str) -> str:
         return self.engine_id or default_engine_id(command)
 
     def resolved_image_digest(self) -> str:
-        """The digest a run records: production's checked value, else the placeholder in development."""
-        if self.production:
+        """The digest a run records: a pilot's or production's checked value, else the placeholder in development."""
+        if self.strict:
             self.check_production()
         return self.image_digest or PLACEHOLDER_DIGEST
 

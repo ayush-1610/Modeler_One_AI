@@ -15,6 +15,50 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — production refuses the DEV verifier; the server becomes a pilot deployment (the owner's decision, 2026-10-09)
+- **What:**
+  - `MODELER_DEPLOYMENT` gains a third value, `pilot`. It is held to production's engine settings (an explicit object
+    store, an engine command, a real engine digest), but it may still sign in with the API's DEV verifier.
+  - A production deployment now refuses to start when `MODELER_DEV_AUTH` is set (`modeler_api.config.check_auth`,
+    called at startup). The locked `auth.py` is unchanged.
+  - `deploy/server/_env.sh` sets `MODELER_DEPLOYMENT=pilot`, because the server signs in with the DEV verifier until
+    Keycloak is deployed.
+  - `/health` answers the deployment and the verifier (`dev`, `oidc` or `none`). This is an API contract change; the
+    snapshot and web types are updated.
+- **Why:** a DEV signature stands in for Part 11 step-up and must never become a production record (21 CFR 11.200).
+  Before this change the server ran `production` with the DEV verifier.
+- **Impact:**
+  - Tests: production with dev auth refuses to start; a pilot with dev auth starts and says so in `/health`; a pilot
+    without its engine settings refuses to start.
+  - **Deviation:** the plan's "pilot" banner on the monitor and in the MAR is not built. The web app does not read
+    `/health` yet, and the runner that writes the MAR does not know the verifier. `/health` carries the fact for when
+    it does.
+  - **The owner's next step:** deploy Keycloak, then switch to `production` and drop `MODELER_DEV_AUTH`.
+
+### Changed — the web app moves to Next.js 16.4; npm audit is clean
+- **What:**
+  - `npm audit fix` updated `sharp`, `source-map-js` and the transitive `postcss`.
+  - The two remaining findings cleared only with Next.js 16, so `next` moves from 15.5 to 16.4.0: Next's SSG/ISR cache
+    poisoning advisory, and the PostCSS it bundles (GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-fxqj-rqcc-2cmp,
+    GHSA-r28c-9q8g-f849).
+  - React was already 19. Next 16 builds with Turbopack and rewrote `tsconfig.json` itself (`jsx: react-jsx`, plus
+    the dev types path).
+- **Why:** the owner's open item, "review the npm audit findings".
+- **Impact:** `npm audit` reports 0 vulnerabilities. Typecheck, build and the 14 e2e specs pass on Next 16.
+
+### Added — legacy Excel 97–2003 workbooks (.xls) are read (`xlrd`, owner-approved 2026-10-09)
+- **What:**
+  - **Grid:** `modeler_intake.grid` reads `.xls` through `xlrd` into the same grid as `.xlsx`: values with their
+    sheet!A1 references, merged ranges carried to every cell they cover, dates as datetimes, and whole numbers as
+    integers, as openpyxl gives them.
+  - **Documents:** read into quotable pages, and recognized by the compound-file signature. A damaged file is refused
+    with the reason.
+  - **Client data and the start page** accept `.xls`.
+  - **Test fixture:** `tests/fixtures/legacy-study.xls` was written once with xlwt 1.3.0, which is not a dependency.
+- **Why:** client data often arrives as `.xls`. Before, it was refused with "save it as .xlsx", the known gap of the
+  guided reader.
+- **Impact:** a new dependency, `xlrd` 2.0.2 (BSD, pure Python), for `modeler-intake`.
+
 ### Changed — the engine runs behind a port; no boundary exception is left; phase 8 is done (architecture phase 8c; locked `boundaries.toml`)
 - **What:**
   - **The engine port:** `modeler_contracts.ports.EngineFactory`, with `engine_factory()` to load it.
