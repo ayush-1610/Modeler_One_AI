@@ -164,6 +164,17 @@ def _local_text(uri: str) -> str | None:
         return None
 
 
+def _vbe_note(vbe: dict) -> str:
+    """One line on the S6 virtual bioequivalence for the stage notes."""
+    name = f"VBE ({vbe['template']} {vbe['template_version']})"
+    if vbe.get("status") != "RUN":
+        return f"{name} not run: {vbe.get('reason')}"
+    per = ", ".join(f"{m} {v['probability_of_success']:.0%}" for m, v in vbe["metrics"].items())
+    return (f"{name}: {vbe['n_trials_run']} virtual trials of {vbe['n_subjects']}; probability of BE success {per}, "
+            f"joint {vbe['joint_probability_of_success']:.0%} against the threshold {vbe['pos_threshold']:.0%}; "
+            f"{vbe['validation']}")
+
+
 def _local_json(uri: str) -> dict | None:
     parsed = urlparse(uri)
     if parsed.scheme != "file":
@@ -702,8 +713,12 @@ class LocalExecutor:
                                 findings=[f"S6 not run: {reason}"])
         jobs, notes = prepare_s6_jobs(ctx, manifest)
         result = evaluate_s6(ctx, jobs, self._run_jobs(jobs))
-        notes.append("application templates for the question of interest (DDI, paediatric, organ impairment, VBE) "
-                     "are the next phase (T-31); S6 characterises the validated model")
+        vbe = self._run_vbe(ctx)
+        if vbe is not None:
+            result["vbe"] = vbe
+            notes.append(_vbe_note(vbe))
+        notes.append("the other application templates (DDI, paediatric, organ impairment) are the next phase (T-31); "
+                     "S6 characterises the validated model")
         result["notes"] = notes
         self._last["S6"] = {"prediction": result}
         if self.writer:
@@ -712,6 +727,22 @@ class LocalExecutor:
             self.writer.flush(current_stage="S6", status="RUNNING")
         return StageOutcome(stage="S6", status="PASSED", rounds_run=1, cpf_uri=cpf_uri, cpf_sha256=cpf_sha,
                             findings=notes)
+
+    def _run_vbe(self, ctx: RoundContext) -> dict | None:
+        """The MAP's virtual bioequivalence application (T-31), or None when it pins none."""
+        from modeler_orchestrator.campaign_activities import _round_system
+        from modeler_orchestrator.vbe_activities import run_vbe
+        from pbpk_domain.campaign.map import MapDocument
+        from pbpk_domain.cpf import CPF
+
+        map_text, cpf_text = _local_text(ctx.map_uri or ""), _local_text(ctx.cpf_uri)
+        if map_text is None or cpf_text is None:
+            return None
+        map_doc = MapDocument.model_validate_json(map_text)
+        if not map_doc.applications:
+            return None
+        cpf = CPF.model_validate_json(cpf_text)
+        return run_vbe(ctx, self.engine, cpf=cpf, map_doc=map_doc, system=_round_system(ctx, cpf))
 
     def _run_package(self, request: CampaignRequest, cpf_uri: str, cpf_sha: str) -> StageOutcome:
         """S7 (MS-01 §4): assemble the data bundle from the persisted evidence, re-run every bundled simulation on
