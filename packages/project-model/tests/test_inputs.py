@@ -104,11 +104,17 @@ def test_a_total_clearance_filed_under_total_cl_is_placed_on_liver_clearance(tmp
     assert not [i for i in report["issues"] if "total" in i["target"]]
 
 
-def test_an_ehc_fraction_is_refused_with_its_reason(tmp_path):
-    # registry 1.1: the Individual path MS-01 names is not harvested, so the value is kept out of the CPF and says why
+def test_an_ehc_fraction_is_set_on_the_individual_at_its_harvested_path(tmp_path):
+    # registry 1.2 (the owner's decision, 2026-10-09; UNVERIFIED): MS-01 places it on the Individual, at the path the OSP
+    # reference snapshots set (Organism|Liver|EHC continuous fraction); before, it was refused
+    from pbpk_domain.cpf.build import individual_parameters
+
     ws = _project(tmp_path)
-    item = _accept(ws, "elim.ehc_fraction", 0.5)
+    _accept(ws, "elim.ehc_fraction", 0.5)
     report = assemble(ws, by="u")["cpf"].content["assembly"]
-    assert current_cpf(ws).get("elim.ehc_fraction") is None
-    issue = next(i for i in report["issues"] if i["target"] == "elim.ehc_fraction")
-    assert issue["evidence"] == [item.id] and "not harvested" in issue["message"] and "kept out of the CPF" in issue["message"]
+    record = current_cpf(ws).get("elim.ehc_fraction")
+    assert record is not None and record.value == 0.5
+    assert (record.engine_binding.building_block, record.engine_binding.parameter) == (
+        "Individual", "Organism|Liver|EHC continuous fraction")
+    assert individual_parameters(current_cpf(ws))["Organism|Liver|EHC continuous fraction"].value == 0.5
+    assert not [i for i in report["issues"] if i["target"] == "elim.ehc_fraction"]

@@ -56,6 +56,11 @@ def pksim_parameter_path(record: ParameterRecord, *, compound: str) -> str:
     binding = record.engine_binding
     internal = binding.process_internal_name if binding else None
 
+    # A value set on the Individual (registry 1.2: elim.ehc_fraction) sits in a simulation at the same path, from its
+    # root ("Organism|Liver|EHC continuous fraction", as the OSP snapshots' simulation parameters are written).
+    if binding is not None and binding.building_block == "Individual" and binding.parameter.startswith("Organism|"):
+        return binding.parameter
+
     # Compound-level physicochemistry (no process): keyed by CPF id, falling back to the binding's own name.
     if internal is None:
         name = _COMPOUND_PARAM.get(record.id)

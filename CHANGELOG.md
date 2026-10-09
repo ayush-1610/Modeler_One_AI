@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the enterohepatic recycling fraction is placed and fitted on the Individual (parameter registry 1.2; locked registry and `pksim_paths.py`; science, UNVERIFIED)
+- **What:**
+  - **Placement:** `elim.ehc_fraction` is no longer refused. It is set on the Individual at `Organism|Liver|EHC
+    continuous fraction`, where MS-01 §2.2 places it. The path is harvested from the OSP reference snapshots:
+    Dapagliflozin, Midazolam, Rifampicin, Verapamil and Itraconazole set it on their individual, and their simulation
+    parameters are written from the same root.
+  - **Registry 1.2:** placement `model`, stored as a fraction, with physical bounds [0, 1]. A new registry field,
+    `pksim_individual`, names the path (`parameters.individual_paths`).
+  - **P4:** binds the value to the Individual, as a published model's `indiv.*` value is bound
+    (`cpf.build.individual_parameters` places it).
+  - **Fitting:** `pksim_paths` resolves an Individual-bound parameter to its own path, so MS-01's "secondary peak → fit
+    `elim.ehc_fraction`" (diag-rules, S2 candidates) can fit it. Before, the fit specification could not be built.
+- **Why:** it was refused in registry 1.1 for want of a harvested path. The path exists in the reference snapshots, so
+  nothing is invented.
+- **Impact:**
+  - The parameter vocabulary snapshot changes only on `elim.ehc_fraction`: placement, storage family, bounds, and no
+    refusal.
+  - The strict xfail in `test_parameter_vocabulary.py` is gone.
+  - The registry stays UNVERIFIED, version 1.1 → 1.2.
+  - Locked hashes are refreshed: the registry, `pksim_paths.py` and the vocabulary snapshot.
+
 ### Changed — the joint refinement weighs every study equally (MS-01 v1.1 SJ, D-04; locked `run_pi.R` and `golden/pi_smoke.R`; science, UNVERIFIED)
 - **What:**
   - **The weight:** in a joint fit (SJ, and the joint fit that answers a regression), a study of n points among N

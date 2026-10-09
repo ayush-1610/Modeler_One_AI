@@ -29,7 +29,7 @@ from modeler_project.datasets import ObservedDataset
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceType, numeric_target, review_flags
 from modeler_project.workspace import Workspace
 from pbpk_domain import parameters
-from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.cpf.models import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
 from pbpk_domain.data_origin import REAL_ORIGINS
 
@@ -240,6 +240,11 @@ def assemble_cpf(ws: Workspace, compound: str, picked: InputChoices) -> tuple[CP
                            f"{cpf_id}: value in {unit!r}, PK-Sim places {c.parameter} in {c.unit!r}; convert it")
                 binding = c.binding("Client" if item.provider == "CLIENT" else "Literature")
                 bindings.append({"id": cpf_id, "process": binding.process, "parameter": c.parameter, "unit": c.unit})
+        elif (path := parameters.individual_paths().get(cpf_id)) is not None:
+            # set on the Individual at its harvested path (registry 1.2: elim.ehc_fraction), as a published model's
+            # indiv.* value is (cpf.build.individual_parameters)
+            binding = EngineBinding(building_block="Individual", parameter=path)
+            bindings.append({"id": cpf_id, "process": None, "parameter": path, "unit": unit})
         status = ParameterStatus.PREDICTED if item.source_type is SourceType.PREDICTED else ParameterStatus.FIXED
         records.append(ParameterRecord(id=cpf_id, value=value, unit=unit, status=status,
                                        provenance=provenance_for(item, version.version), engine_binding=binding))

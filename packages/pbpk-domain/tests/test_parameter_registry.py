@@ -40,7 +40,7 @@ def _record(cpf_id: str) -> ParameterRecord:
 
 def test_registry_is_governed_content():
     reg = parameters.registry()
-    assert reg.id == "parameter-registry" and reg.version == "1.1" and reg.status == "UNVERIFIED"
+    assert reg.id == "parameter-registry" and reg.version == "1.2" and reg.status == "UNVERIFIED"
 
 
 def test_storage_units_are_parameter_units_tables():
@@ -119,9 +119,16 @@ def test_an_alias_resolves_to_what_it_stands_for():
 
 
 def test_a_refused_id_is_never_placed():
-    assert parameters.refusal("elim.ehc_fraction") and "not harvested" in parameters.refusal("elim.ehc_fraction")
-    assert parameters.placement("elim.ehc_fraction") is None
+    refused = [r.key for r in parameters.registry().parameters if r.refused]
+    assert all(parameters.placement(key) is None for key in refused)
     assert parameters.refusal("bind.fu") is None
+
+
+def test_the_ehc_fraction_is_placed_on_the_individual_at_its_harvested_path():
+    # registry 1.2 (2026-10-09, UNVERIFIED): refused until then for want of a harvested path
+    assert parameters.refusal("elim.ehc_fraction") is None and parameters.placement("elim.ehc_fraction") == "model"
+    assert parameters.individual_paths() == {"elim.ehc_fraction": "Organism|Liver|EHC continuous fraction"}
+    assert parameters.storage_family("elim.ehc_fraction") == "fraction"
 
 
 def test_total_plasma_clearance_alone_is_an_elimination_pathway_the_builder_places():
