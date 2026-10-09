@@ -140,3 +140,16 @@ def test_a_racemic_sum_is_judged_at_the_parent_stages():
     s1 = stage_coverage(map_doc, "S1")
     assert s1.studies and s1.skip_reason is None
     assert all(s.gated for s in map_doc.scenarios if s.stage == "S1")
+
+
+def test_a_system_with_metabolite_data_schedules_sm(client, tmp_path):
+    imported = import_osp_system(json.loads((FIXTURES / "Verapamil-Model.json").read_text(encoding="utf-8")))
+    system = imported.system
+    client.post("/api/v1/projects", json={"name": "Verapamil", "compound": "R-Verapamil", "question": "q"}, headers=AUTH)
+    for cpf in system.compounds:
+        client.put(f"/api/v1/projects/verapamil/compounds/{cpf.compound}/cpf", json=cpf.model_dump(mode="json"), headers=AUTH)
+    client.put("/api/v1/projects/verapamil/system", json=links_of(system).model_dump(mode="json"), headers=AUTH)
+    client.post("/api/v1/projects/verapamil/studies", json={"studies": imported.studies}, headers=AUTH).raise_for_status()
+    prep = client.post("/api/v1/projects/verapamil/questions/q/campaign:prepare", json={"compound": "R-Verapamil"},
+                       headers=AUTH).json()["data"]
+    assert prep["stages"] == ["S0", "S1", "S2", "S3", "SM", "SJ", "S4", "S5", "S6", "S7"]
