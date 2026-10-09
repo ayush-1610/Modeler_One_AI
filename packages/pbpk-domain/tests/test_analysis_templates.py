@@ -62,3 +62,14 @@ def test_the_schema_refuses_a_default_for_an_input_that_is_never_defaulted():
     doc["inputs"] = [{**i, "default": 0.8} if i["id"] == "pos_threshold" else i for i in doc["inputs"]]
     with pytest.raises(ValidationError, match="never defaulted"):
         AnalysisTemplate.model_validate(doc)
+
+
+@pytest.mark.req("T-31")
+def test_the_observed_be_study_is_optional_but_complete_with_its_source_when_given():
+    template = load_template("vbe-crossover")
+    assert not template.input("observed_be").required and template.input("observed_be").never_default
+    assert not any("Observed BE study" in p for p in check_inputs(template, {}))
+    bad = {"observed_be": {"metrics": {"AUC_inf": {"gmr": 1.02, "between_subject_cv_percent": 25}}}}
+    assert any("its source is needed" in p for p in check_inputs(template, bad))
+    zero = {"observed_be": {"source": "study", "metrics": {"C_max": {"gmr": 0, "between_subject_cv_percent": 25}}}}
+    assert any("C_max: gmr above 0 is needed" in p for p in check_inputs(template, zero))

@@ -10,7 +10,8 @@
    n subjects, each judged by the 90 % CI of its geometric mean ratio, and the probability of success.
 
 Nothing is defaulted: every input comes from the signed MAP (`MapApplication.problems` is empty, or it is not run).
-The result says what it is not yet: validated against observed BE data (the F-304 gate is the next step).
+4. The F-304 gate (`pbpk_domain.vbe.validation_gate`): the observed BE study the person gave (``observed_be``) against
+   the simulated between-subject CV and trial GMRs. Without one the result is "not validated", never a pass (D-19).
 """
 
 from __future__ import annotations
@@ -66,13 +67,13 @@ def run_vbe(ctx: RoundContext, engine: Callable[[EngineJob], EngineManifest], *,
     (``status: NOT_RUN``); it never falls back to a default."""
     from pbpk_domain.analysis_templates import load_template, resolved_limits
     from pbpk_domain.campaign.round_build import ScenarioBuildError, build_stage_snapshot
-    from pbpk_domain.vbe import VbeError, read_pk_analyses, run_trials
+    from pbpk_domain.vbe import VbeError, read_pk_analyses, run_trials, validation_gate
 
     application = vbe_application(map_doc)
     if application is None:
         return None
     header = {"template": application.template, "template_version": application.template_version,
-              "validation": "not validated: the F-304 gate against observed BE data has not run"}
+              "validation": {"status": "NOT_VALIDATED", "reason": "the VBE did not run"}}
     if problems := application.problems(cpf):
         return {**header, **_not_run("; ".join(problems))}
     template = load_template(application.template)
@@ -148,4 +149,8 @@ def run_vbe(ctx: RoundContext, engine: Callable[[EngineJob], EngineManifest], *,
                             pos_threshold=float(inputs["pos_threshold"]))
     except VbeError as exc:
         return {**header, **_not_run(str(exc))}
-    return {**header, "status": "RUN", "output_path": output_path, **trials}
+    criterion = next((c for c in template.default_technical_criteria
+                      if c.get("metric") == "simulated_vs_observed_between_subject_cv"), {})
+    validation = validation_gate(trials, inputs.get("observed_be"), cv_fold=float(criterion.get("fold", 1.5)))
+    validation["criterion_verified"] = bool(criterion.get("verified", False))
+    return {**header, "status": "RUN", "output_path": output_path, **trials, "validation": validation}

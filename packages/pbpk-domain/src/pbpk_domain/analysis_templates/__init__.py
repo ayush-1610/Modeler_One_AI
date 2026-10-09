@@ -16,7 +16,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-InputKind = Literal["formulation", "variability", "integer", "number", "fraction", "limits", "text"]
+InputKind = Literal["formulation", "variability", "integer", "number", "fraction", "limits", "text", "be_summary"]
 
 
 class TemplateInput(BaseModel):
@@ -123,6 +123,17 @@ def _problem(spec: TemplateInput, value: Any, template: AnalysisTemplate) -> str
                 return f"{spec.label}: {row.get('parameter')}: a CV above 0 % is needed"
             if not str(row.get("source", "")).strip():
                 return f"{spec.label}: {row.get('parameter')}: its source is needed (never an invented number)"
+    elif spec.kind == "be_summary":
+        metrics = value.get("metrics") if isinstance(value, dict) else None
+        if not isinstance(metrics, dict) or not metrics:
+            return f"{spec.label}: per metric, its observed GMR and between-subject CV are needed"
+        if not str(value.get("source", "")).strip():
+            return f"{spec.label}: its source is needed (never an invented number)"
+        for metric, row in metrics.items():
+            for key in ("gmr", "between_subject_cv_percent"):
+                number = row.get(key) if isinstance(row, dict) else None
+                if isinstance(number, bool) or not isinstance(number, int | float) or number <= 0:
+                    return f"{spec.label}: {metric}: {key} above 0 is needed"
     elif spec.kind == "limits":
         if value not in template.limits:
             return f"{spec.label}: one of {', '.join(template.limits)}"
