@@ -48,8 +48,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     - The fallback, the optimiser rules and the at-bound escalation also hold at SM.
   - **Acceptance (§8, criteria 2026.2-draft):** every analyte is its own group (`Comparison.analyte`), held to the
     parent's tier limits. That is the conservative placeholder until an SME sets metabolite criteria; no limit changed.
-  - **Runners:** `CAMPAIGN_STAGES` includes SM. A MAP that does not plan SM makes it "absent" (`plan_stage`), and the
-    runner passes over it without a record. The MAR shows SM when it ran.
+  - **Runners:** `CAMPAIGN_STAGES` includes SM. A MAP that does not plan SM makes it "absent" (`plan_stage`): the
+    runner passes over it, and the monitor never lists it (`_planned_stages`). The MAR shows SM when it ran.
   - **Versions:** `MS01_VERSION` 1.3, diag-rules 0.6, acceptance criteria 2026.2-draft. All UNVERIFIED pending SME
     sign-off; the D-25 row is in the start-up plan's decision record.
 - **Why:** the owner approved multi-compound phase 2 on 2026-10-09 ("do them all now"). Phase 1 simulated a system's

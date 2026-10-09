@@ -69,7 +69,7 @@ from modeler_orchestrator.history import Ledger, influence_map, study_verdict
 from modeler_orchestrator.memo import model_set
 from modeler_storage.filestore import FileWriteStore, WriteStore
 from modeler_storage.records import CampaignRecord, EscalationRecord, Record
-from pbpk_domain.campaign.map import FIT_STAGES, TRAINING_STAGES
+from pbpk_domain.campaign.map import METABOLITE_STAGE, TRAINING_STAGES
 from pbpk_domain.data_origin import real_data_summary, signature_refusal
 from pbpk_domain.fitting import BudgetTooSmallError
 
@@ -1020,7 +1020,7 @@ def _campaign_writer(request: CampaignRequest, *, read_root: str, project: str, 
     return CampaignArtifactWriter(
         store=FileWriteStore(read_root), tenant_id=request.tenant_id, campaign_id=request.campaign_id,
         project=project, compound=request.compound, question=question, model_risk=model_risk,
-        budget_seconds=total_budget, stages=list(request.stages), engine=engine_identity(engine),
+        budget_seconds=total_budget, stages=_planned_stages(request, request.stages), engine=engine_identity(engine),
         origins=observed_origins(request.observed_uri),
     )
 
@@ -1253,12 +1253,19 @@ def _start_cycle(writer: CampaignArtifactWriter, request: CampaignRequest, diagn
     return request, cpf_uri, cpf_sha, queue
 
 
-def _training_stages(request: CampaignRequest) -> tuple[str, ...]:
-    """The training stages this campaign's MAP plans, in order: S1–S3, and SM for a model system with metabolite data
-    (MS-01 v1.3 §6.5)."""
+def _planned_stages(request: CampaignRequest, stages: list[str] | tuple[str, ...]) -> list[str]:
+    """`stages` less the ones this campaign's MAP does not plan: SM runs only for a model system with metabolite data
+    (MS-01 v1.3 §6.5). Without a loadable MAP every stage stays."""
     text = _local_text(request.map_uri) if request.map_uri else None
-    planned = {p.get("stage") for p in json.loads(text).get("stage_plan", [])} if text else set()
-    return tuple(s for s in TRAINING_STAGES if s in FIT_STAGES or s in planned)
+    if text is None:
+        return list(stages)
+    planned = {p.get("stage") for p in json.loads(text).get("stage_plan", [])}
+    return [s for s in stages if s != METABOLITE_STAGE or s in planned]
+
+
+def _training_stages(request: CampaignRequest) -> tuple[str, ...]:
+    """The training stages this campaign's MAP plans, in order: S1–S3, and SM for a model system with metabolite data."""
+    return tuple(_planned_stages(request, TRAINING_STAGES))
 
 
 def _request_from_spec(spec: dict) -> CampaignRequest:

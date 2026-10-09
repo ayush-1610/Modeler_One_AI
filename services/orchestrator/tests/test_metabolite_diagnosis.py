@@ -101,3 +101,22 @@ def test_a_racemic_sum_fits_both_enantiomers_together(tmp_path):
     diag = diagnose_round(ctx, _evaluation(_row(total.study_id, auc=1.8, thalf=1.6, analyte=total.analyte)))
     # the sum cannot tell the enantiomers apart: one fit of both their rates (the fitted R bare, S qualified)
     assert diag.permitted_actions[0] == "fit elim.hepatic.{enzyme}.kcat+S-Verapamil::elim.hepatic.{enzyme}.kcat"
+
+
+def test_a_single_compound_monitor_has_no_sm_row(tmp_path):
+    # SM is in the campaign's stage list, but a MAP that does not plan it is not part of the campaign: no pending row
+    from modeler_contracts.runs import CAMPAIGN_STAGES, CampaignRequest
+    from modeler_orchestrator.local_runner import _campaign_writer
+
+    ctx, _system, doc = _campaign(tmp_path, "Itraconazole", ITZ)
+    single = doc.model_copy(update={"stage_plan": tuple(p for p in doc.stage_plan if p.stage != "SM")})
+    (tmp_path / "single.json").write_text(single.model_dump_json(), encoding="utf-8")
+    request = CampaignRequest(campaign_id="c1", tenant_id="t1", compound="Itraconazole", map_id="m", cpf_uri=ctx.cpf_uri,
+                              cpf_sha256="a" * 64, map_uri=(tmp_path / "single.json").as_uri(), stages=list(CAMPAIGN_STAGES))
+    writer = _campaign_writer(request, read_root=str(tmp_path / "root"), project="p", question="q", model_risk="medium",
+                              budget_seconds=None, engine=None)
+    assert "SM" not in writer.stages and "S3" in writer.stages
+    planned = _campaign_writer(CampaignRequest(**{**request.__dict__, "map_uri": ctx.map_uri}),
+                               read_root=str(tmp_path / "root"), project="p", question="q", model_risk="medium",
+                               budget_seconds=None, engine=None)
+    assert planned.stages.index("SM") == planned.stages.index("S3") + 1
