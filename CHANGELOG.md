@@ -15,6 +15,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Verified on PK-Sim — the model systems, the engine occasion and the system refit (2026-10-09; records only)
+- **The Itraconazole and Verapamil systems as-is** (reference run 37947587365 on `main` c2cfd2e) both **escalate at
+  S1, before SM**, on the published models' IV Cmax while AUC is in band:
+  - Itraconazole, Heykants 1989 IV 100 mg: Cmax 2.14× (AUC GMFE 1.016);
+  - Verapamil, McAllister 1982 IV 10 mg (5-min infusion): racemic-sum Cmax 3.10× (stage GMFE AUC 1.198 / Cmax 1.594).
+    S1 also judges R-Verapamil (Eichelbaum 1984) and S-Verapamil (Abernethy 1993) on their own analytes, which shows
+    MS-01 v1.3 gating at work on PK-Sim.
+
+  Both IV studies **round-trip identically** to the published simulations (run 37922984864: McAllister 6.8e-08,
+  Heykants 0). So this is the published models' own early IV peak judged by our S1 Cmax criterion, not a builder
+  defect; Dapagliflozin as-is shows the same pattern (S1 IV Cmax 0.52×). Whether S1 should judge a short infusion's
+  Cmax is an acceptance-criteria question for the SME (`docs/SME_SIGNOFF.md` §1). Until it is answered, an as-is run
+  cannot reach SM.
+- **The engine occasion** (`run_job.R` `variability` + `occasion_seed`, B6 PR 3) passed its golden case inside the
+  engine image on PK-Sim (engine-image run 37958733969, job 113915823199): "same 6 individuals, seeds 11 and 12 differ,
+  seed 11 reproduces, an unknown path stops".
+- **The Verapamil system refit** (reference run 37951203929 on `main` fe978bd, 12 045 s) **escalates at S1**: "a fitted
+  parameter sits at its bound".
+  - The R-Verapamil formation kcats `elim.hepatic.CYP3A4@Norverapamil.kcat` and `@D617.kcat` end at their lower bounds
+    (3.49 and 4.40 against the published 34.9 and 44.0, started at 2×). The McAllister racemic-sum AUC is still 0.46×.
+  - The cause: the refit shifts every compound's identified parameters at once, but S1 fits only the parent's own
+    candidates. The co-parent's shifted kcats (S-Verapamil at 2×) and the shared shifts (logP +0.5, cellular
+    permeability ×2, P-gp ×2) are left at their starts, and they drive the racemic sum.
+  - It is recorded as an open science question in `docs/SME_SIGNOFF.md` §6: fit a co-parent against a racemic sum at
+    S1, or shift one compound at a time. Nothing is changed.
+
 ### Added — an illustrative virtual bioequivalence on PK-Sim, the proof of the VBE machinery (T-31 B6 PR 7)
 - **What:** `run_reference.py vbe Dapagliflozin` and the reference workflow task `dapagliflozin-vbe` run S6's own VBE
   step (`run_vbe`) on real PK-Sim.
@@ -2965,3 +2991,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-05 (cloud session) | Claude Opus 5.5 | Built the approved start-up pipeline P0–P5 (T-40 → T-50) and the non-linear backend T-51 → T-55 (MS-01 v1.1 SJ, v1.2 feedback cycles, both UNVERIFIED); verified in software only — no PK-Sim in this container, T-56 is the server's |
 | 2026-10-06 (worktree `claude/vbe-template`) | Claude Opus 5.5 | Atomic writes for every file the API reads during a campaign; first campaign record written before the id is returned (T-56 kit test flake); T-31 VBE template |
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
+| 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
