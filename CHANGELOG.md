@@ -38,6 +38,13 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Tests:** `test_fit_spec_system.py`, on the published OSP Itraconazole system. `test_round_system.py` covers
   apply, carry forward, the joint plan and single-compound behavior.
 
+### Infra — the reference workflow runs a chosen subset of tasks (`reference-models.yml`, unlocked)
+- **What:** a `tasks` input on the manual dispatch takes comma-separated task names. Every step of a task not
+  named is skipped, so its job ends in seconds; empty runs every task, as before.
+- **Why:** plan B7. The real-PK-Sim evidence for `main` (the refactor's round trip and as-is, then each science
+  change's refit) needs a few tasks at a time, not the whole 2–3 hour matrix.
+- **Impact:** none on CI. The workflow is manual only.
+
 ### Changed — the Weibull release equation is confirmed on PK-Sim (locked `golden/**` and `engine-image.yml`; science)
 - **What:**
   - **New check:** the engine-image qualification runs a new check on PK-Sim. `golden/weibull_check.R` runs the OSP
