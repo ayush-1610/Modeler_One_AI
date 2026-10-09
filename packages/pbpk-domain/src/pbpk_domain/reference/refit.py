@@ -8,11 +8,17 @@ its fitted model's fold errors with the published model's on the same studies (t
 recovered parameter values. From plasma data alone the split of clearance between enzymes and kidney is not
 identifiable (the published model also used urine and mass-balance data, task T-11), so equally good fits with
 different splits are expected and are reported as such.
+
+In a model system (MS-01 v1.3, D-25) every compound's identified parameters are freed. A parent's are fitted at the
+parent stages, as above. A metabolite's are fitted at SM: its own clearance and its logP. Its absorption and
+permeability stay as published, because a metabolite is formed, not absorbed. The rate that forms a metabolite (on the
+compound that forms it) may also be fitted at SM.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Literal
 
 from pbpk_domain.cpf.models import CPF, FitPolicy, ParameterRecord, ParameterStatus, Plausibility, Provenance, Scale
 
@@ -45,13 +51,30 @@ def _rule(param_id: str) -> FreedParameter | None:
     return None
 
 
-def refit_cpf(published: CPF) -> tuple[CPF, dict[str, dict[str, float]]]:
+# What SM may fit on a metabolite (MS-01 v1.3 §4 SM): its own clearance and distribution
+_METABOLITE_FAMILIES = (".clspec", ".kcat", "elim.renal.gfr_fraction", "phys.logp")
+
+
+def _system_rule(param_id: str, role: str, formation: frozenset[str]) -> FreedParameter | None:
+    rule = _rule(param_id)
+    if rule is None:
+        return None
+    if role == "metabolite":
+        return replace(rule, stages=("SM",)) if param_id.endswith(_METABOLITE_FAMILIES) else None
+    if param_id in formation:  # the rate forming a metabolite: also fitted at SM, to the metabolite's data
+        return replace(rule, stages=(*rule.stages, "SM"))
+    return rule
+
+
+def refit_cpf(published: CPF, *, role: Literal["parent", "metabolite"] = "parent",
+              formation: frozenset[str] = frozenset()) -> tuple[CPF, dict[str, dict[str, float]]]:
     """The published CPF with the identified parameters freed and shifted. Returns it and, per freed parameter,
-    the published value, the start and the bounds (for the report)."""
+    the published value, the start and the bounds (for the report). In a model system, ``role`` is the compound's,
+    and ``formation`` names its parameters that form a metabolite (`pbpk_domain.system.formation_targets`)."""
     records: list[ParameterRecord] = []
     freed: dict[str, dict[str, float]] = {}
     for record in published.parameters:
-        rule = _rule(record.id)
+        rule = _system_rule(record.id, role, formation)
         identified = record.status is ParameterStatus.FITTED
         if rule is None or not identified or not isinstance(record.value, int | float):
             records.append(record)
