@@ -17,6 +17,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -225,6 +226,47 @@ class MapSignature(BaseModel):
     content_sha256: str = ""
 
 
+class MapApplication(BaseModel):
+    """An application the question of interest pins (T-31): its analysis template, pinned by version, and the
+    person's inputs to it. An input the template marks ``never_default`` is the person's to give; until it is
+    given the application names it (`problems`) and the MAP cannot be signed."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    template: str
+    template_version: str
+    inputs: dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def pinned(cls, template: str, inputs: Mapping[str, Any] | None = None) -> MapApplication:
+        """The application at the registry's current version of `template`; raises KeyError for an unknown one."""
+        from pbpk_domain.analysis_templates import load_template
+
+        return cls(template=template, template_version=load_template(template).version, inputs=dict(inputs or {}))
+
+    def problems(self, cpf: CPF | None = None) -> list[str]:
+        """What stops this application from running: an unknown or moved template, a missing or invalid input, and
+        (given the CPF) a formulation input that names no CPF formulation. Empty when it can run."""
+        from pbpk_domain.analysis_templates import check_inputs, load_template
+        from pbpk_domain.cpf.formulations import formulation_names
+
+        try:
+            template = load_template(self.template)
+        except KeyError:
+            return [f"{self.template}: no such analysis template"]
+        if template.version != self.template_version:
+            return [f"{self.template}: the MAP pins version {self.template_version}, the registry has {template.version}"]
+        out = [f"{self.template}: {line}" for line in check_inputs(template, self.inputs)]
+        if cpf is not None:
+            names = formulation_names(cpf)
+            for spec in template.inputs:
+                value = self.inputs.get(spec.id)
+                if spec.kind == "formulation" and isinstance(value, str) and value.strip() and value not in names:
+                    out.append(f"{self.template}: {spec.label}: {value!r} is not a CPF formulation"
+                               f" ({', '.join(names) or 'the CPF defines none'})")
+        return out
+
+
 class MapDocument(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -251,19 +293,29 @@ class MapDocument(BaseModel):
     supersedes_sha256: str | None = None
     # a model system's content hash (pbpk_domain.system.ModelSystem.sha256) when the campaign simulates one
     model_system_sha256: str | None = None
+    # the applications the question of interest pins (T-31, e.g. VBE): each runs at S6 from the final CPF
+    applications: tuple[MapApplication, ...] = ()
 
     # --- identity & lifecycle --------------------------------------------------------------------
 
     def content_sha256(self) -> str:
-        """Hash of the plan's substance (everything except its status, signature and this hash)."""
-        content = self.model_dump(mode="json", exclude={"status", "signature"})
+        """Hash of the plan's substance (everything except its status, signature and this hash). A MAP with no
+        application hashes as it did before applications existed, so the signatures already given stay valid."""
+        exclude = {"status", "signature"} | (set() if self.applications else {"applications"})
+        content = self.model_dump(mode="json", exclude=exclude)
         return hashlib.sha256(json.dumps(content, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+    def application_problems(self, cpf: CPF | None = None) -> list[str]:
+        return [line for application in self.applications for line in application.problems(cpf)]
 
     def sign(self, *, printed_name: str, meaning: str = "Approved", signature_id: str | None = None,
              when: datetime | None = None) -> MapDocument:
-        """Return the signed MAP. The signature binds this version's content hash."""
+        """Return the signed MAP. The signature binds this version's content hash; a MAP whose application is
+        missing an input is refused (a never-defaulted input is never filled in)."""
         if self.status is MapStatus.SIGNED:
             raise ValueError("MAP is already signed; revise it to create a new version")
+        if problems := self.application_problems():
+            raise ValueError("the MAP's applications are incomplete: " + "; ".join(problems))
         signature = MapSignature(
             printed_name=printed_name, meaning=meaning, signed_at=when or datetime.now(UTC),
             signature_id=signature_id, content_sha256=self.content_sha256(),
@@ -449,6 +501,7 @@ def generate_map(
     meal_template: str = "Meal: High-fat breakfast (Human)",
     sampling_end_h: Mapping[str, float] | None = None,
     system: ModelSystem | None = None,
+    applications: tuple[MapApplication, ...] = (),
 ) -> MapDocument:
     """Produce the MAP (version 1, DRAFT) from the standard and the campaign's inputs (MS-01 §9).
 
@@ -496,6 +549,7 @@ def generate_map(
         stage_plan=stage_plan,
         scenarios=scenarios,
         model_system_sha256=system.sha256 if system is not None else None,
+        applications=tuple(applications),
         diagnostics_ruleset_version=diagnostics_ruleset_version,
         acceptance=_acceptance(model_risk),
         engine_image_digest=engine_image_digest,

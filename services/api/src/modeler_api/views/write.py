@@ -42,6 +42,7 @@ class CampaignInputs(View):
     studies: list[StudyAssignment]
     origins: dict[str, str | None]              # each study's observed-data origin (plan §9.4)
     not_evaluable: list[str]
+    application_problems: list[str] | None = None  # the MAP's applications: what they still need before signing
     system_uri: str | None = None
     system_sha256: str | None = None
     model_system_sha256: str | None = None

@@ -131,3 +131,40 @@ def test_fit_choices_become_fit_policies_of_the_campaign_cpf():
     assert gfr.fittable_stages == ("S1",)
     bad = set_fit(plan, "phys.logp", {"stages": ("S4",), "lower": -3, "upper": 0}, by="u", reason="x")
     assert any(v.rule == "fit" and "S1–S3" in v.message for v in validate(bad, cpf, ROWS))
+
+
+@pytest.mark.req("T-31")
+def test_the_briefs_vbe_application_waits_for_the_persons_inputs_before_the_map():
+    from modeler_project.plan import set_structure, structure_from_brief
+    from pbpk_domain.campaign.map import MapApplication
+
+    class Brief:  # the one brief field the structure reads here
+        def value(self, key):
+            return ["APP-14 virtual bioequivalence"] if key == "qoi.applications" else None
+
+    structure = structure_from_brief(Brief())  # type: ignore[arg-type]
+    assert structure.applications == (MapApplication.pinned("vbe-crossover"),)  # started with no inputs, none invented
+    cpf = _cpf()
+    plan = build_default(cpf, ROWS, structure)
+    named = [v.message for v in blocking(validate(plan, cpf, ROWS)) if v.rule == "application"]
+    assert any("Intra-subject variability" in m and "never defaulted" in m for m in named)
+    with pytest.raises(PlanError, match="Virtual trials: not given"):
+        map_from_plan(plan, cpf, ROWS)
+
+    inputs = {"test_formulation": "Test", "reference_formulation": "Ref", "n_subjects": 24, "n_trials": 100, "seed": 7,
+              "pos_threshold": 0.8,
+              "variability": [{"parameter": "Organism|Stomach|Gastric emptying time", "cv_percent": 30, "source": "cited"}]}
+    given = set_structure(plan, "applications", [{"template": "vbe-crossover", "inputs": inputs}], by="u1", reason="design")
+    assert [v.message for v in validate(given, cpf, ROWS) if v.rule == "application"] == [
+        ("vbe-crossover: TEST formulation (a CPF formulation, form.{name}.*): 'Test' is not a CPF formulation (the CPF "
+         "defines none)"),
+        "vbe-crossover: Reference (RLD) formulation (a CPF formulation): 'Ref' is not a CPF formulation (the CPF defines none)"]
+    tablets = tuple(ParameterRecord(id=f"form.{n}.weibull.t50", value=30.0, unit="min", status=ParameterStatus.FIXED,
+                                    provenance=PROV) for n in ("Test", "Ref"))
+    with_tablets = cpf.model_copy(update={"parameters": (*cpf.parameters, *tablets)})
+    assert not [v for v in validate(given, with_tablets, ROWS) if v.rule == "application"]
+    assert map_from_plan(given, with_tablets, ROWS).applications[0].inputs == inputs
+    row = next(r for r in diff(given) if r["target"] == "applications")
+    assert row["to"] == [f"vbe-crossover {structure.applications[0].template_version}"]
+    with pytest.raises(PlanError, match="known analysis template"):
+        set_structure(plan, "applications", [{"template": "no-such"}], by="u1", reason="x")
