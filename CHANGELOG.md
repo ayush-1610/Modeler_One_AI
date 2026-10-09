@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — a fit can move another compound of a model system (multi-compound phase 2, PR 2; science, D-20)
+- **What:**
+  - **Fit ids:** in a model system, another compound's parameter is fitted as `<compound>::<CPF id>`
+    (`fit_spec.qualify`, `split_fit_id`, `fit_owner`, `by_compound`). The fitted compound's own ids stay bare, so
+    every existing target, rule and fit spec is unchanged.
+  - **System-aware fit steps:** `resolve_fit_ids`, `build_fit_spec` (each parameter at its own compound's PK-Sim
+    path), `_fittable_candidates`, the joint refinement's `joint_parameters`, and the fit request (the observed data of
+    each study converted with its analyte's molecular weight).
+  - **Applying a fit:** each estimate goes back into the CPF of the compound it names, with its own version and
+    provenance. The new parent version names each compound the fit moved, with its version and content hash.
+  - **Where the state lives (`modeler_orchestrator.round_system`):** a system campaign writes the system as of each
+    new CPF version beside it, as `<stem>.system.json`. Every later round, the joint fit, a new-evidence decision
+    and the S7 bundle (`cpf/system.json`) read it from there. A CPF with nothing beside it uses the campaign's
+    starting system, as before.
+- **Why:** MS-01 v1.3, the owner's go-ahead on 2026-10-09 (still UNVERIFIED). Gating a metabolite needs its own
+  clearance and distribution to be fittable. A co-parent enantiomer needs its own parameters. Each CPF stays the
+  record of its own compound's parameters (the plan's §3.1: no merged CPF with prefixed ids).
+- **Impact:**
+  - Single-compound campaigns are unchanged: no qualified id is ever produced, and no system file is written.
+  - Nothing proposes a qualified target yet. The gating and stage SM that use it are PR 3.
+- **Tests:** `test_fit_spec_system.py`, on the published OSP Itraconazole system. `test_round_system.py` covers
+  apply, carry forward, the joint plan and single-compound behavior.
+
 ### Fixed — a reported analyte no longer diagnoses the fitted compound (multi-compound phase 2, PR 1; science)
 - **What:** `diagnose_round` builds its PK residuals only from gated studies. A model system's reported analyte (a
   metabolite, a sum, a study marked `gated: false` by the evaluation) is still judged and reported on its own, but its

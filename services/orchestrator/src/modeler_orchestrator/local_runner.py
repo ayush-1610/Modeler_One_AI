@@ -724,9 +724,11 @@ class LocalExecutor:
         )
 
         evidence = load_stage_evidence(request.tenant_id, request.campaign_id)
+        from modeler_orchestrator.round_system import current_system_uri
+
         files, numeric, snapshots = collect_bundle(request.tenant_id, request.campaign_id, cpf_uri=cpf_uri,
                                                    map_uri=request.map_uri, observed_uri=request.observed_uri,
-                                                   evidence=evidence, system_uri=request.system_uri)
+                                                   evidence=evidence, system_uri=current_system_uri(cpf_uri, request.system_uri))
         jobs = prepare_reproduction_jobs(request.tenant_id, request.campaign_id, files, snapshots)
         reproduction = verify_package_reproduction(files, numeric, jobs, self._run_jobs(jobs))
         projects: dict[str, bytes] = {}
@@ -784,13 +786,18 @@ class LocalExecutor:
                                    f"N2): {why}")
         return regressions
 
-    def _joint_plan(self, cpf_uri: str, stages: tuple[str, ...]):
-        """The parameters `stages` fitted and the S1-CI guard (from the CPF the joint fit starts from)."""
+    def _joint_plan(self, cpf_uri: str, stages: tuple[str, ...], system_uri: str = ""):
+        """The parameters `stages` fitted and the S1-CI guard (from the CPF the joint fit starts from, and in a model
+        system the other compounds' CPFs as of that version)."""
         from modeler_orchestrator.joint import joint_parameters
+        from modeler_orchestrator.round_system import round_system
         from pbpk_domain.cpf import CPF
 
         text = _local_text(cpf_uri)
-        return joint_parameters(CPF.model_validate_json(text), stages) if text else None
+        if not text:
+            return None
+        cpf = CPF.model_validate_json(text)
+        return joint_parameters(cpf, stages, round_system(cpf_uri, system_uri, cpf))
 
     def _joint_map(self, request: CampaignRequest, stages: tuple[str, ...], tag: str) -> tuple[str, str, list[str]]:
         from modeler_orchestrator.joint import joint_map
@@ -805,7 +812,7 @@ class LocalExecutor:
         from modeler_orchestrator.joint import JOINT, agreement
 
         label = "S1–" + stages[-1] if len(stages) > 1 else stages[0]
-        plan = self._joint_plan(cpf_uri, stages)
+        plan = self._joint_plan(cpf_uri, stages, request.system_uri)
         if plan is None or not plan.fit_ids:
             why = f"no parameter was fitted in {label}: nothing to refine jointly (S4 judges every internal study)"
             if self.writer and not after_regression:
@@ -1222,7 +1229,8 @@ def _start_cycle(writer: CampaignArtifactWriter, request: CampaignRequest, diagn
         value, unit = float(payload["value"]), payload.get("unit") or None
         reference = str(payload.get("reference", ""))
         new_uri, new_sha = new_evidence_cpf(cpf_uri, parameter=str(payload["parameter"]), value=value, unit=unit,
-                                            reference=reference, cycle=cycle, campaign_id=request.campaign_id, failing=failing)
+                                            reference=reference, cycle=cycle, campaign_id=request.campaign_id, failing=failing,
+                                            system_uri=request.system_uri)
         reason = (f"{payload['parameter']} = {value:g}{' ' + unit if unit else ''} measured ({reference}), "
                   f"{PROMPTED_BY_S5} ({', '.join(failing)})")
         writer.record_change("S5", "new evidence", reason, (cpf_uri, cpf_sha), (new_uri, new_sha))

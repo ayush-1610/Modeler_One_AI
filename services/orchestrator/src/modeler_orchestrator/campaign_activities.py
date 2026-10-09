@@ -178,13 +178,11 @@ def plan_stage(request: StageRequest) -> StagePlan:
 
 
 def _round_system(ctx, cpf):
-    """The round's model system with the parent's current (possibly fitted) CPF, or None for one compound."""
-    text = _load_local_text(ctx.system_uri) if getattr(ctx, "system_uri", "") else None
-    if text is None:
-        return None
-    from pbpk_domain.system import ModelSystem, with_cpf
+    """The round's model system with the parent's current (possibly fitted) CPF, or None for one compound: the system
+    beside the round's CPF when a fit moved another compound, else the campaign's (`round_system`)."""
+    from modeler_orchestrator.round_system import round_system
 
-    return with_cpf(ModelSystem.model_validate_json(text), cpf)
+    return round_system(ctx.cpf_uri, getattr(ctx, "system_uri", ""), cpf)
 
 
 def _round_stem(ctx: RoundContext) -> str:
@@ -203,12 +201,16 @@ async def resume_campaign(request: CampaignRequest) -> ResumeState:
     return await store.resume(request)
 
 
-def _is_log_scale(cpf, param_id: str) -> bool:
-    record = cpf.get(param_id)
+def _is_log_scale(cpf, param_id: str, system=None) -> bool:
+    from pbpk_domain.fit_spec import fit_owner
+
+    owner, pid = fit_owner(cpf, param_id, system)
+    record = owner.get(pid)
     return bool(record and record.fit_policy and record.fit_policy.scale.value == "log")
 
 
-def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, out_dir: Path) -> FitRoundRequest | None:
+def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, out_dir: Path,
+                       system=None) -> FitRoundRequest | None:
     """Assemble the round's FitRoundRequest from the chosen action, the CPF and the observed profiles.
 
     Returns None (the round then simulates instead of fitting) when there is no fittable parameter, no
@@ -218,11 +220,13 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     from pbpk_domain.cpf.build import ALTERNATIVE_GROUP_OF_ID
     from pbpk_domain.cpf.formulations import FormulationError, resolve_formulation_name
     from pbpk_domain.fit_spec import FitSimulation, FitSpecError, build_fit_spec, pi_observed, resolve_fit_ids
+    from pbpk_domain.system import analyte_molecular_weight
     from pbpk_domain.units import is_molar
 
     target = ctx.pending_action.split(" ", 1)[1] if ctx.pending_action and " " in ctx.pending_action else ""
-    # a joint fit names several parameters, "a+b+c" (SJ); a single target resolves as before
-    fit_ids = list(dict.fromkeys(cid for part in target.split("+") for cid in resolve_fit_ids(cpf, part)))
+    # a joint fit names several parameters, "a+b+c" (SJ); a single target resolves as before. In a model system a
+    # target may name another compound's parameter, "<compound>::<id>" (multi-compound phase 2, D-20)
+    fit_ids = list(dict.fromkeys(cid for part in target.split("+") for cid in resolve_fit_ids(cpf, part, system)))
     if not fit_ids:
         activity.logger.info("build_round_snapshot %s %s: no fittable CPF parameter for %r", ctx.campaign_id, ctx.stage, target)
         return None
@@ -252,7 +256,16 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
                                  ctx.campaign_id, ctx.stage, scenario.study_id, ", ".join(fit_ids), ", ".join(sorted(other)))
             continue
         profile = (observed_doc or {}).get(scenario.study_id, {}).get("profile")
-        if not profile or mol_weight is None:
+        # the observed values convert with the molecular weight of what the study measures: in a model system its
+        # analyte's (a metabolite's own, or a molar sum's shared one); a sum with no single weight is not fitted
+        study_weight = mol_weight
+        if system is not None and scenario.analyte:
+            study_weight, why = analyte_molecular_weight(system, scenario.analyte)
+            if why:
+                activity.logger.info("build_round_snapshot %s %s: %s left out of the fit (%s)",
+                                     ctx.campaign_id, ctx.stage, scenario.study_id, why)
+                continue
+        if not profile or study_weight is None:
             continue
         # Observed profiles are stored in the engine's units (µmol/l, `pbpk_domain.units`); declare the molar
         # dimension, or ospsuite reads µmol/l as a mass concentration and the fit is meaningless or fails.
@@ -267,7 +280,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
             study_id=scenario.study_id, pkml=exported_pkml_name(scenario.study_id),
             output_path=scenario.analyte_output or output_path,
             observed=pi_observed(scenario.study_id, profile["times"], profile["values"], time_unit=profile["time_unit"],
-                                 unit=profile["unit"], mol_weight=mol_weight, dimension=dimension,
+                                 unit=profile["unit"], mol_weight=study_weight, dimension=dimension,
                                  sd=profile.get("sd"), lloq=profile.get("lloq")),
             protocol=protocol_name(scenario.study_id), formulation=formulation,
         ))
@@ -278,7 +291,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     try:
         # the joint refinement weighs every study equally (MS-01 v1.1 SJ, D-04); a stage fit weighs every point
         spec = build_fit_spec(cpf, fit_ids, simulations, bounds_override=override or None, seed=ctx.seed,
-                              equal_study_weights=ctx.stage == "SJ")
+                              equal_study_weights=ctx.stage == "SJ", system=system)
     except FitSpecError as exc:
         activity.logger.info("build_round_snapshot %s %s: fit spec not built (%s)", ctx.campaign_id, ctx.stage, exc)
         return None
@@ -286,7 +299,8 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     spec_path = out_dir / f"{snapshot_stem}-pi_spec.json"
     payload = json.dumps(spec, ensure_ascii=False, indent=2).encode("utf-8")
     atomic_write_bytes(spec_path, payload)
-    bounds = [FitParameterBounds(name=p["name"], lower=p["min"], upper=p["max"], log_scale=_is_log_scale(cpf, p["name"]))
+    bounds = [FitParameterBounds(name=p["name"], lower=p["min"], upper=p["max"],
+                                 log_scale=_is_log_scale(cpf, p["name"], system))
               for p in spec["parameters"]]
     activity.logger.info("build_round_snapshot %s %s round %d: fit request for %s over %d study(ies)",
                          ctx.campaign_id, ctx.stage, ctx.round_index, ",".join(fit_ids), len(simulations))
@@ -343,13 +357,14 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
 
     cpf = CPF.model_validate_json(cpf_text)
     map_doc = MapDocument.model_validate_json(map_text)
+    system = _round_system(ctx, cpf)
     try:
         # A validation stage judges every study it can build and names the rest; a fitting stage must not
         # silently fit to fewer studies than the MAP planned, so it fails on any unbuildable one.
         # S6 predicts from the internal studies (S4's scenarios) with the final CPF.
         scenario_stage = "S4" if ctx.stage == "S6" else ctx.stage
         stage = build_stage_snapshot(cpf, list(map_doc.scenarios), stage=scenario_stage, seed=ctx.seed,
-                                     skip_unbuildable=scenario_stage in VALIDATION_STAGES, system=_round_system(ctx, cpf))
+                                     skip_unbuildable=scenario_stage in VALIDATION_STAGES, system=system)
     except ScenarioBuildError as exc:
         echoed = _echo(str(exc))
         echoed.notes = [str(exc)]
@@ -363,7 +378,8 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     snapshot_sha = hashlib.sha256(out.read_bytes()).hexdigest()
     for note in stage.notes:
         activity.logger.info("build_round_snapshot %s %s: %s", ctx.campaign_id, ctx.stage, note)
-    fit_request = _build_fit_request(ctx, cpf, map_doc, snapshot_stem=out.stem, out_dir=out.parent) if needs_fit else None
+    fit_request = (_build_fit_request(ctx, cpf, map_doc, snapshot_stem=out.stem, out_dir=out.parent, system=system)
+                   if needs_fit else None)
     activity.logger.info(
         "build_round_snapshot %s %s round %d: built %d simulation(s) fit=%s fit_request=%s",
         ctx.campaign_id, ctx.stage, ctx.round_index, len(stage.simulations), needs_fit, fit_request is not None,
@@ -495,20 +511,40 @@ def _best_estimates(fit_outcome) -> dict[str, float]:
 def _apply_round_fit(ctx: RoundContext, fit_outcome) -> tuple[str, str]:
     """Transfer a fit's estimates into a new CPF version written next to the CPF; returns (cpf_uri, sha256).
 
-    Falls back to the unchanged CPF when no estimates were produced or the CPF is not locally loadable."""
+    In a model system, an estimate for another compound (``<compound>::<id>``) goes into that compound's CPF, and the
+    system as of the new version is written beside it (`round_system`); the new version's note names each compound
+    it moved, with its version and content hash. Falls back to the unchanged CPF when no estimates were produced, the
+    CPF is not locally loadable, or an estimate names a compound the system does not have."""
     estimates = _best_estimates(fit_outcome)
     cpf_text = _load_local_text(ctx.cpf_uri) if estimates else None
     if not estimates or cpf_text is None:
         return ctx.cpf_uri, ctx.cpf_sha256
 
+    from modeler_orchestrator.round_system import moved_note, write_beside
     from pbpk_domain.cpf import CPF
-    from pbpk_domain.fit_spec import FitSpecError, apply_fit_estimates
+    from pbpk_domain.fit_spec import FitSpecError, apply_fit_estimates, by_compound
+    from pbpk_domain.system import with_cpf
 
+    cpf = CPF.model_validate_json(cpf_text)
+    system = _round_system(ctx, cpf)
+    run = f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}" + (f"-c{ctx.cycle}" if ctx.cycle > 1 else "")
     try:
         best = next(s for s in fit_outcome.starts if s.start_index == fit_outcome.best_start_index)
-        updated = apply_fit_estimates(CPF.model_validate_json(cpf_text), estimates, stage=ctx.stage,
-                                      run=f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}" + (f"-c{ctx.cycle}" if ctx.cycle > 1 else ""),
-                                      uncertainty=getattr(best, "uncertainty", None))
+        values = by_compound(estimates, cpf.compound)
+        spreads = by_compound(getattr(best, "uncertainty", None) or {}, cpf.compound)
+        own = values.pop(cpf.compound, {})
+        moved = []
+        for compound, theirs in values.items():
+            if system is None or compound not in system.roles:
+                raise FitSpecError(f"an estimate for {compound!r}, which is not a compound of this campaign's model system")
+            other = apply_fit_estimates(system.cpf(compound), theirs, stage=ctx.stage, run=run,
+                                        uncertainty=spreads.get(compound))
+            system = with_cpf(system, other)
+            moved.append(other)
+        note = (f"applied {len(estimates)} fitted estimate(s) at {ctx.stage}; moved {moved_note(moved)} in the model "
+                "system beside this CPF") if moved else None
+        updated = (apply_fit_estimates(cpf, own, stage=ctx.stage, run=run, uncertainty=spreads.get(cpf.compound), note=note)
+                   if own else cpf.replace(note=note))
     except FitSpecError as exc:
         activity.logger.warning("run_round %s %s round %d: fit not applied (%s)", ctx.campaign_id, ctx.stage, ctx.round_index, exc)
         return ctx.cpf_uri, ctx.cpf_sha256
@@ -517,6 +553,8 @@ def _apply_round_fit(ctx: RoundContext, fit_outcome) -> tuple[str, str]:
     cycle = f"-c{ctx.cycle}" if ctx.cycle > 1 else ""
     out = _local_path(ctx.cpf_uri).parent / "cpf" / f"{ctx.campaign_id}-{ctx.stage}-r{ctx.round_index}{cycle}.json"
     atomic_write_bytes(out, payload)
+    if system is not None:
+        write_beside(out, with_cpf(system, updated))
     activity.logger.info(
         "run_round %s %s round %d: applied %d estimate(s) -> CPF v%d",
         ctx.campaign_id, ctx.stage, ctx.round_index, len(estimates), updated.version,
@@ -649,7 +687,7 @@ def _ratio(predicted: float | None, observed: float | None) -> float | None:
     return predicted / observed if predicted and observed and observed > 0 else None
 
 
-def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str) -> tuple[str, ...]:
+def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str, system=None) -> tuple[str, ...]:
     """Keep only the stage's fit candidates this CPF can actually fit.
 
     A candidate that resolves to no parameter (a hepatic enzyme clearance on a renally cleared compound), or
@@ -658,13 +696,16 @@ def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str) -> tuple[
     before the candidate that would have worked is ever tried.
     """
     from pbpk_domain.cpf.formulations import weibull_parameter_path
-    from pbpk_domain.fit_spec import resolve_fit_ids
+    from pbpk_domain.fit_spec import fit_owner, resolve_fit_ids
     from pbpk_domain.pksim_paths import ParameterPathError, pksim_parameter_path
 
     keep: list[str] = []
     for target in candidates:
-        for pid in resolve_fit_ids(cpf, target):
-            record = cpf.get(pid)
+        for fit_id in resolve_fit_ids(cpf, target, system):
+            owner, pid = fit_owner(cpf, fit_id, system)  # another compound's parameter in a model system (D-20)
+            record = owner.get(pid)
+            if owner is not cpf and pid.startswith("form."):
+                continue  # formulations are the fitted compound's (fit_spec._paths)
             if record is None or record.value is None:
                 continue
             policy = record.fit_policy
@@ -674,7 +715,7 @@ def _fittable_candidates(cpf, candidates: tuple[str, ...], stage: str) -> tuple[
                 continue  # nothing to bound the fit with
             if weibull_parameter_path(pid, protocol="<protocol>") is None:  # formulation paths are per simulation
                 try:
-                    pksim_parameter_path(record, compound=cpf.compound)
+                    pksim_parameter_path(record, compound=owner.compound)
                 except ParameterPathError:
                     continue  # no engine path: the fit could not be applied even if it ran
             keep.append(target)
@@ -714,7 +755,7 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
         from pbpk_domain.cpf import CPF
 
         cpf = CPF.model_validate_json(cpf_text)
-        usable = _fittable_candidates(cpf, candidates, ctx.stage)
+        usable = _fittable_candidates(cpf, candidates, ctx.stage, _round_system(ctx, cpf))
         if usable != candidates:
             activity.logger.info(
                 "diagnose_round %s %s: fit candidates usable for this CPF: %s (dropped %s)",
