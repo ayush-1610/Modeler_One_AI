@@ -99,7 +99,7 @@ export function Digitizer({ projectId, documents, onSaved }: {
     };
     const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/datasets:digitize", { project_id: projectId }, body));
     if (problem || !data) setError(problem ?? "not saved");
-    else onSaved((data as { id: string }).id);   // the stored dataset (an open object); only its id is read here
+    else onSaved(data.id);
   }
 
   if (!figures.length) return <p className="muted">Upload the paper (PDF) or a figure image first.</p>;

@@ -25,6 +25,10 @@ from pbpk_domain.units import UnitError, is_molar, minutes_per, umol_per_l_per
 Origin = DataOrigin  # the six origins of the real-data rule, shared with the campaign path (pbpk_domain.data_origin)
 NCA_TOLERANCE = 0.20  # reported vs recomputed NCA [SME]
 
+# A dataset is always dumped whole (`to_content`), so in the API contract (phase 9e) a field with a default is still
+# always present. `Series`, `ReportedPK` and `SourceRef` are request schemas too, and keep their defaults optional.
+_CONTENT = ConfigDict(frozen=True, extra="forbid", json_schema_serialization_defaults_required=True)
+
 
 class Series(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -50,7 +54,7 @@ class ReportedPK(BaseModel):
 
 
 class Digitization(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = _CONTENT
 
     page: int
     calibration: dict[str, Any]           # x / y: p1, v1, p2, v2, scale
@@ -60,7 +64,7 @@ class Digitization(BaseModel):
 
 
 class ObservedDataset(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = _CONTENT
 
     id: str
     kind: Literal["profile", "pk_parameters"]

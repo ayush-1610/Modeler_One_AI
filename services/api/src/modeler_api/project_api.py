@@ -33,7 +33,7 @@ from modeler_api.deps import (  # noqa: F401 - re-exported: tests override proje
     workspace_for,
 )
 from modeler_api.responses import answers, envelope
-from modeler_api.views.common import ImpactView, StoredContent, VersionView
+from modeler_api.views.common import ImpactView, VersionView
 from modeler_api.views.project import Artifacts, AuditTrail, BlindingView, History, Phases
 from modeler_project import ArtifactKind, ArtifactRef
 from modeler_project import blinding as blind
@@ -159,7 +159,7 @@ class RevealRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
-@router.post("/projects/{project_id}/datasets/{dataset_id}:reveal", **answers(StoredContent))
+@router.post("/projects/{project_id}/datasets/{dataset_id}:reveal", **answers(ObservedDataset))
 def reveal_dataset(project_id: str, dataset_id: str, body: RevealRequest, principal: Writer,
                    store: StoreDep) -> dict[str, Any]:
     """A blinded dataset's values for one check (digitization, acceptance), with the reason on the audit chain."""
@@ -167,9 +167,9 @@ def reveal_dataset(project_id: str, dataset_id: str, body: RevealRequest, princi
     version = ws.latest(ArtifactKind.DATASET, dataset_id)
     if version is None:
         raise HTTPException(status_code=404, detail=f"no dataset {dataset_id}")
-    sid = str(ObservedDataset.from_content(version.content).study.get("study_id"))
-    if sid in blinded_studies(ws):
+    dataset = ObservedDataset.from_content(version.content)
+    if str(dataset.study.get("study_id")) in blinded_studies(ws):
         store.audit(ws.tenant_id).append(actor=principal.user_id, action="dataset.reveal", resource_type="dataset",
                                          resource_id=f"{project_id}/{dataset_id}@v{version.version}",
                                          after=version.sha256, reason=body.reason)
-    return envelope(version.content)
+    return envelope(dataset.to_content())

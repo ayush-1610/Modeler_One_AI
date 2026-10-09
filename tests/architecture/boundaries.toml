@@ -66,7 +66,8 @@ reason = "the S3 object store lives in the orchestrator; moves with the engine p
 # Routes of these routers that still answer with an untyped dict (test_response_models.py). Phase 6 typed the P0–P4
 # and escalation routers (6b-6d), keeping the shapes. Phase 9 (2026-10-08, approved by the owner) guards every router
 # and records what is left: `untyped` (no pydantic model) and `open` (an envelope of stored content without a model).
-# Both only shrink. File downloads (a handler annotated to return a Response) are not counted.
+# Both only shrink, and both are empty since phase 9e: a new entry needs the owner's approval. File downloads (a
+# handler annotated to return a Response) are not counted.
 [response]
 routers = [
   "modeler_api.project_api",
@@ -86,13 +87,7 @@ routers = [
   "modeler_api.system_api",
 ]
 untyped = []
-open = [
-  "POST /api/v1/projects/{project_id}/datasets",
-  "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
-  "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
-  "POST /api/v1/projects/{project_id}/datasets:digitize",
-  "POST /api/v1/projects/{project_id}/evidence",
-]
+open = []
 
 # The one module that writes each artifact kind and reads its stored content raw (test_artifact_owners.py). Everyone
 # else asks the owner. brief_ops and map_artifact take over the writes in phase 6e (map_artifact is created then).

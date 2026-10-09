@@ -2788,6 +2788,28 @@ export interface components {
             /** To */
             to: string | boolean | string[] | null;
         };
+        /** Digitization */
+        Digitization: {
+            /** Calibration */
+            calibration: {
+                [key: string]: unknown;
+            };
+            /** Overlay Approved By */
+            overlay_approved_by: string | null;
+            /** Page */
+            page: number;
+            /** Pixels */
+            pixels: {
+                [key: string]: [
+                    number,
+                    number
+                ][];
+            };
+            /** Resolution */
+            resolution: {
+                [key: string]: number;
+            };
+        };
         /** DigitizeBody */
         DigitizeBody: {
             /** Calibration */
@@ -3146,6 +3168,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[EvidenceItem] */
+        Envelope_EvidenceItem_: {
+            data: components["schemas"]["EvidenceItem"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[EvidencePage] */
         Envelope_EvidencePage_: {
             data: components["schemas"]["EvidencePage"];
@@ -3191,6 +3220,13 @@ export interface components {
         /** Envelope[M15Validation] */
         Envelope_M15Validation_: {
             data: components["schemas"]["M15Validation"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[ObservedDataset] */
+        Envelope_ObservedDataset_: {
+            data: components["schemas"]["ObservedDataset"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -3359,16 +3395,6 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
-        /** Envelope[dict[str, Any]] */
-        Envelope_dict_str__Any__: {
-            /** Data */
-            data: {
-                [key: string]: unknown;
-            };
-            /** Errors */
-            errors: components["schemas"]["ErrorItem"][];
-            meta: components["schemas"]["Meta"];
-        };
         /** ErrorItem */
         ErrorItem: {
             /** Code */
@@ -3482,9 +3508,7 @@ export interface components {
                 [key: string]: unknown;
             }[];
             /** Evidence */
-            evidence: {
-                [key: string]: unknown;
-            }[];
+            evidence: components["schemas"]["EvidenceItem"][];
             register: components["schemas"]["VersionView"] | null;
             /** Rejected */
             rejected: string[];
@@ -3506,10 +3530,7 @@ export interface components {
             blinding: components["schemas"]["Blinded"];
             /** Blocking */
             blocking: string[];
-            /** Corrected */
-            corrected: {
-                [key: string]: unknown;
-            };
+            corrected: components["schemas"]["EvidenceItem"];
             /** Coverage */
             coverage: components["schemas"]["CoverageRow"][];
             data_plan: components["schemas"]["DataPlanStatus"];
@@ -3518,14 +3539,95 @@ export interface components {
                 [key: string]: unknown;
             }[];
             /** Evidence */
-            evidence: {
-                [key: string]: unknown;
-            }[];
+            evidence: components["schemas"]["EvidenceItem"][];
             register: components["schemas"]["VersionView"] | null;
             /** Running */
             running: boolean;
             /** Runs */
             runs: components["schemas"]["RunSummary"][];
+        };
+        /** EvidenceItem */
+        EvidenceItem: {
+            /** Conditions */
+            conditions: {
+                [key: string]: string;
+            };
+            /**
+             * Confidence
+             * @default D
+             * @enum {string}
+             */
+            confidence: "A" | "B" | "C" | "D";
+            /**
+             * Conversion
+             * @default
+             */
+            conversion: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /**
+             * Decision Reason
+             * @default
+             */
+            decision_reason: string;
+            /** @default TEXT */
+            extraction: components["schemas"]["Extraction"];
+            /**
+             * Flags
+             * @default []
+             */
+            flags: string[];
+            /** Id */
+            id: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Proposed At
+             * Format: date-time
+             */
+            proposed_at: string;
+            /**
+             * Proposed By
+             * @default
+             */
+            proposed_by: string;
+            /**
+             * Provider
+             * @default LITERATURE
+             * @enum {string}
+             */
+            provider: "CLIENT" | "LITERATURE";
+            /**
+             * Purpose
+             * @default model_building
+             */
+            purpose: string;
+            /**
+             * Quote
+             * @default
+             */
+            quote: string;
+            /** Req Id */
+            req_id: string | null;
+            source: components["schemas"]["SourceRef"];
+            source_type: components["schemas"]["SourceType"];
+            /** @default PROPOSED */
+            state: components["schemas"]["EvidenceState"];
+            /** Target */
+            target: string;
+            /** Unit */
+            unit: string | null;
+            /** Unit Pksim */
+            unit_pksim: string | null;
+            /** Value */
+            value: number | string | null;
+            /** Value Pksim */
+            value_pksim: number | null;
         };
         /** EvidencePage */
         EvidencePage: {
@@ -3545,15 +3647,18 @@ export interface components {
                 [key: string]: unknown;
             }[];
             /** Evidence */
-            evidence: {
-                [key: string]: unknown;
-            }[];
+            evidence: components["schemas"]["EvidenceItem"][];
             register: components["schemas"]["VersionView"] | null;
             /** Running */
             running: boolean;
             /** Runs */
             runs: components["schemas"]["RunSummary"][];
         };
+        /**
+         * EvidenceState
+         * @enum {string}
+         */
+        EvidenceState: "PROPOSED" | "ACCEPTED" | "REJECTED";
         /**
          * ExpressionSpec
          * @description An enzyme, transporter or other-protein expression profile. Real OSP transporter profiles carry no
@@ -3604,6 +3709,11 @@ export interface components {
              */
             context_note?: string;
         };
+        /**
+         * Extraction
+         * @enum {string}
+         */
+        Extraction: "TEXT" | "TABLE" | "FIGURE_DIGITIZED" | "CELL" | "COMPUTED" | "MANUAL";
         /** ExtractionStart */
         ExtractionStart: {
             /** Agents */
@@ -4689,6 +4799,104 @@ export interface components {
             structure: components["schemas"]["Structure"];
             /** Studies */
             studies: components["schemas"]["StudyView"][];
+        };
+        /** ObservedDataset */
+        ObservedDataset: {
+            /**
+             * Analyte
+             * @default parent
+             */
+            analyte: string;
+            /** Decided By */
+            decided_by: string | null;
+            /**
+             * Decision Reason
+             * @default
+             */
+            decision_reason: string;
+            digitization: components["schemas"]["Digitization"] | null;
+            /**
+             * Extraction
+             * @default MANUAL
+             * @enum {string}
+             */
+            extraction: "TABLE" | "FIGURE_DIGITIZED" | "CELL" | "MANUAL" | "OSP_SNAPSHOT";
+            /**
+             * Flags
+             * @default []
+             */
+            flags: string[];
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "profile" | "pk_parameters";
+            /**
+             * Matrix
+             * @default plasma
+             */
+            matrix: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            origin: components["schemas"]["DataOrigin"];
+            /**
+             * Proposed At
+             * Format: date-time
+             */
+            proposed_at: string;
+            /**
+             * Proposed By
+             * @default
+             */
+            proposed_by: string;
+            /**
+             * Provider
+             * @default LITERATURE
+             * @enum {string}
+             */
+            provider: "CLIENT" | "LITERATURE";
+            /**
+             * Purpose
+             * @default model_building
+             */
+            purpose: string;
+            /**
+             * Quote
+             * @default
+             */
+            quote: string;
+            /**
+             * Reported
+             * @default []
+             */
+            reported: components["schemas"]["ReportedPK"][];
+            /**
+             * Series
+             * @default []
+             */
+            series: components["schemas"]["Series"][];
+            source: components["schemas"]["SourceRef"];
+            /** @default PROPOSED */
+            state: components["schemas"]["EvidenceState"];
+            /** Study */
+            study: {
+                [key: string]: unknown;
+            };
+            /**
+             * Time Unit
+             * @default h
+             */
+            time_unit: string;
+            /**
+             * Unit
+             * @default ng/ml
+             */
+            unit: string;
         };
         /** ObservedProfile */
         ObservedProfile: {
@@ -8311,7 +8519,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_dict_str__Any__"];
+                    "application/json": components["schemas"]["Envelope_ObservedDataset_"];
                 };
             };
             /** @description Validation Error */
@@ -8383,7 +8591,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_dict_str__Any__"];
+                    "application/json": components["schemas"]["Envelope_ObservedDataset_"];
                 };
             };
             /** @description Validation Error */
@@ -8421,7 +8629,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_dict_str__Any__"];
+                    "application/json": components["schemas"]["Envelope_ObservedDataset_"];
                 };
             };
             /** @description Validation Error */
@@ -8458,7 +8666,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_dict_str__Any__"];
+                    "application/json": components["schemas"]["Envelope_ObservedDataset_"];
                 };
             };
             /** @description Validation Error */
@@ -8705,7 +8913,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_dict_str__Any__"];
+                    "application/json": components["schemas"]["Envelope_EvidenceItem_"];
                 };
             };
             /** @description Validation Error */

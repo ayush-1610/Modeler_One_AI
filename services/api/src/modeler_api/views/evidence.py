@@ -1,10 +1,15 @@
-"""P2 answers of `evidence_api`: the literature evidence page, a research start, a stored item or dataset."""
+"""P2 answers of `evidence_api`: the literature evidence page, a research start, a correction.
+
+A stored item or dataset is answered with its owner's content model (`modeler_project.evidence.EvidenceItem`,
+`modeler_project.datasets.ObservedDataset`; phase 9e).
+"""
 
 from __future__ import annotations
 
 from pydantic import Field
 
 from modeler_api.views.common import AgentsStatus, DataPlanStatus, RunSummary, StoredContent, VersionView, View
+from modeler_project.evidence import EvidenceItem
 
 
 class Blinded(View):
@@ -27,8 +32,9 @@ class CoverageRow(View):
 
 class EvidencePage(View):
     data_plan: DataPlanStatus
-    evidence: list[StoredContent]          # each item with its review flags
-    datasets: list[StoredContent]          # external values withheld until the MAP is signed (D-15)
+    evidence: list[EvidenceItem]           # each item with its review flags
+    datasets: list[StoredContent]          # external values withheld until the MAP is signed (D-15): a redacted row
+                                           # has no values and carries `blinded`, so it is not an ObservedDataset
     blinding: Blinded
     coverage: list[CoverageRow]
     blocking: list[str]
@@ -54,4 +60,4 @@ class EvidenceChoice(EvidencePage):
 class EvidenceCorrection(EvidencePage):
     """A corrected copy of a value, and the page."""
 
-    corrected: StoredContent
+    corrected: EvidenceItem
