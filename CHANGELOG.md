@@ -15,6 +15,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Infra — the browser flows run in CI (locked `ci.yml`, owner-approved 2026-10-09)
+- **What:** CI gains a job, `e2e` ("Browser flows (Playwright, stub engine)"). It:
+  - syncs the workspace;
+  - installs the web dependencies and Chromium;
+  - runs `npm run e2e`, all 14 specs;
+  - uploads the Playwright traces on failure.
+
+  The release evidence pack now also waits on it. The locked-file hash is refreshed.
+- **Why:** the specs ran only locally, so a change that broke a page passed CI. This was an owner item marked "needs
+  approval".
+- **Impact:** about 5 minutes per CI run. The stub engine is a software fixture, so a pass proves UI → API → runner →
+  monitor, never the pharmacology.
+
 ### Changed — production refuses the DEV verifier; the server becomes a pilot deployment (the owner's decision, 2026-10-09)
 - **What:**
   - `MODELER_DEPLOYMENT` gains a third value, `pilot`. It is held to production's engine settings (an explicit object
