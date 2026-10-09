@@ -13,7 +13,8 @@ from pydantic import BaseModel, Field
 
 from modeler_api.auth import Principal, require_role
 from modeler_api.config import SettingsDep
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, answers_without_envelope, envelope
+from modeler_api.views.system import Health, M15Validation, RunAccepted, SnapshotPreview
 from modeler_contracts.runs import RUN_TASKS, RunRequest
 from pbpk_domain.m15 import AssessmentTable, Stage, allowed_model_risk, validate_table
 from pbpk_domain.snapshot.builder import (
@@ -29,7 +30,7 @@ from pbpk_domain.snapshot.builder import (
 router = APIRouter()
 
 
-@router.get("/health")
+@router.get("/health", **answers_without_envelope(Health))
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
@@ -43,7 +44,7 @@ class ModelBuildRequest(BaseModel):
     simulations: list[SimulationSpec] = Field(default_factory=list)
 
 
-@router.post("/api/v1/model-versions/preview")
+@router.post("/api/v1/model-versions/preview", **answers(SnapshotPreview))
 def preview_model_version(request: ModelBuildRequest):
     """Build and validate a snapshot without persisting it."""
     builder = SnapshotBuilder(snapshot_version=request.snapshot_version)
@@ -80,7 +81,7 @@ class M15ValidationRequest(BaseModel):
     table: AssessmentTable
 
 
-@router.post("/api/v1/m15/validate")
+@router.post("/api/v1/m15/validate", **answers(M15Validation))
 def validate_m15_table(request: M15ValidationRequest):
     issues = validate_table(request.table, request.stage)
     influence = request.table.model_influence.rating
@@ -103,7 +104,7 @@ class RunSubmission(BaseModel):
     resource_class: str = Field(default="s", pattern=r"^(s|m|l)$")
 
 
-@router.post("/api/v1/runs", status_code=202)
+@router.post("/api/v1/runs", status_code=202, **answers(RunAccepted))
 async def submit_run(
     submission: RunSubmission,
     principal: Annotated[Principal, Depends(require_role("modeler-curator", "modeler-reviewer"))],

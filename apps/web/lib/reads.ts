@@ -1,7 +1,7 @@
 // Typed server-side fetchers for the read APIs. Each returns the live data or the problem that prevented it
 // (`Live<T>`); pages render the problem instead of sample data.
 
-import { serverGet, serverRead, type Live, type Schema } from "@/lib/api";
+import { narrow, serverGet, type Live, type Schema } from "@/lib/api";
 import type { Campaign, CampaignDetail, Compound, Escalation, Project, ProjectDetail, Proposal } from "@/lib/types";
 
 function pick<A, B>(live: Live<A>, f: (a: A) => B): Live<B> {
@@ -37,16 +37,15 @@ export async function getStudies(projectId: string): Promise<Live<StudyRow[]>> {
 
 /** Campaigns for the tenant, or just one project's when `project` is given. */
 export async function getCampaigns(project?: string): Promise<Live<Campaign[]>> {
-  const query = project ? `?project=${encodeURIComponent(project)}` : "";
-  return pick(await serverRead<{ campaigns: Campaign[] }>(`/api/v1/campaigns${query}`), (d) => d.campaigns);
+  return pick(await serverGet("/api/v1/campaigns", {}, { project }), (d) => d.campaigns);
 }
 
 export async function getCampaign(campaignId: string): Promise<Live<CampaignDetail>> {
-  return serverRead<CampaignDetail>(`/api/v1/campaigns/${campaignId}`);
+  return pick(await serverGet("/api/v1/campaigns/{campaign_id}", { campaign_id: campaignId }), (d) => narrow<CampaignDetail>(d));
 }
 
 export async function getEscalations(): Promise<Live<Escalation[]>> {
-  return pick(await serverRead<{ escalations: Escalation[] }>("/api/v1/escalations"), (d) => d.escalations);
+  return pick(await serverGet("/api/v1/escalations", {}), (d) => d.escalations.map((e) => narrow<Escalation>(e)));
 }
 
 export async function getProposals(): Promise<Live<Proposal[]>> {

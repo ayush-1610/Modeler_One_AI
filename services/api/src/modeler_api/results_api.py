@@ -13,7 +13,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from modeler_api.auth import CurrentPrincipal
 from modeler_api.config import SettingsDep
+from modeler_api.responses import answers_without_envelope
 from modeler_api.results.query import concentration_series, output_paths, query_results
+from modeler_api.views.system import RunOutputs, RunSeries
 
 router = APIRouter(prefix="/api/v1", tags=["results"])
 
@@ -29,7 +31,7 @@ def _run_parquet(results_dir: Path, tenant_id: str, run_id: str) -> Path:
     return results_dir / "tenants" / tenant_id / "runs" / run_id / "results.parquet"
 
 
-@router.get("/runs/{run_id}/results")
+@router.get("/runs/{run_id}/results", **answers_without_envelope(RunOutputs | RunSeries))
 def get_run_results(
     run_id: str,
     principal: CurrentPrincipal,

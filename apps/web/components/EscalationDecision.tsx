@@ -1,20 +1,19 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { FeedbackDiagnosisView } from "@/components/campaign/Feedback";
+import { useMutation } from "@/lib/hooks";
 import type { Escalation } from "@/lib/types";
 import { resolveEscalation } from "@/lib/writes";
 
 type Result = { kind: "ok" | "err"; message: string } | null;
 
 export function EscalationDecision({ escalation }: { escalation: Escalation }) {
-  const router = useRouter();
+  const { run, busy } = useMutation();
   const [choice, setChoice] = useState<string>("");
   const [rationale, setRationale] = useState("");
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result>(null);
   const fb = escalation.feedback;
   // learn: the failing studies whose class may learn are preselected; new evidence: one measured value
@@ -34,32 +33,25 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
     : false;
 
   async function submit() {
-    setBusy(true);
     setResult(null);
-    try {
-      const res = await resolveEscalation(escalation.campaignId, escalation.stage, {
+    // a signed decision, then the inbox and the monitor (server-rendered) read again
+    const { data, problem } = await run(() => resolveEscalation(escalation.campaignId, escalation.stage, {
         action: choice as "retry" | "accept_best" | "abort" | "approve" | "learn" | "new_evidence",
         note: rationale,
         ...(choice === "learn" ? { studies, beyond_cap: beyondCap } : {}),
         ...(choice === "new_evidence" ? { evidence: { parameter: evidence.parameter.trim(), value: evidenceValue,
           unit: evidence.unit.trim() || null, reference: evidence.reference.trim() } } : {}),
-      });
-      if (!res.ok) {
-        setResult({ kind: "err", message: res.detail ?? "The decision was rejected." });
-        return;
-      }
-      setResult({
-        kind: "ok",
-        message: `Decision recorded — the campaign is now ${res.status ?? "updated"}.` +
-          (res.signature ? ` Signed: ${res.signature.manifestation}` : ""),
-      });
-      router.refresh(); // the escalation is resolved; the inbox and monitor move on
-    } catch {
-      setResult({ kind: "err", message: "Could not reach the API to submit the decision." });
-    } finally {
-      setBusy(false);
-      setConfirming(false);
+    }));
+    setConfirming(false);
+    if (!data) {
+      setResult({ kind: "err", message: problem ?? "The decision was rejected." });
+      return;
     }
+    setResult({
+      kind: "ok",
+      message: `Decision recorded — the campaign is now ${data.status ?? "updated"}.` +
+        (data.signature ? ` Signed: ${data.signature.manifestation}` : ""),
+    });
   }
 
   return (

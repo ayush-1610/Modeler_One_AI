@@ -1,6 +1,6 @@
 # Phase 9: a typed answer for every API route, from the API through the web
 
-Status: **9a–9c done.** 9d–9e next. Each step is one PR to `main`, and nothing changes behaviour unless a step says so.
+Status: **9a–9d done.** 9e next. Each step is one PR to `main`, and nothing changes behaviour unless a step says so.
 Sources:
 - `docs/ARCHITECTURE_BOUNDARIES.md`: rules B2 and B6, coupling C5, §6 phase 9.
 - The lists under `[response]` in the locked `tests/architecture/boundaries.toml`, which only shrink.
@@ -78,11 +78,17 @@ answers a typed envelope while the web still calls it untyped. Every step:
       departs from the plan, which put it in storage. Only the API writes and reads `studies.json`, and the row is
       the API's own request model, so moving it down two layers would buy nothing.
     - The wizard reads the templates through `useResource`.
-- **9d — orchestrator-written records and the answers without an envelope** (`read_api`, `campaign_api`,
+- **9d — done (untyped 12 → 0). Orchestrator-written records and the answers without an envelope** (`read_api`, `campaign_api`,
   `signatures_api`, `results_api`, `system_api`):
   - **API:** `CampaignRecord` and `EscalationRecord` go in `modeler_storage.records`, written by `local_runner`.
   - **Web:** a typed `post` for routes without the envelope replaces `rawPost`. The campaign types become `Schema`
     aliases, and the escalation decision, campaign start and new-project pages move to `useMutation`.
+  - **As built:**
+    - The runner checks each record against the model and stores it as built, so stored bytes stay unchanged.
+    - The monitor's science blocks stay open, each owned by its own module.
+    - Of the pages that change state, only the escalation decision moved to `useMutation`. The campaign start and
+      the wizard navigate away when they finish, so there is nothing for them to refresh.
+    - The response test counts a union of models as typed.
 - **9e — the open answers:**
   - `POST /evidence` answers `EvidenceItem`. The dataset routes (`datasets`, `datasets:digitize`, `:overlay`,
     `:reveal`) answer `ObservedDataset`.

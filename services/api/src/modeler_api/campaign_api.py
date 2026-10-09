@@ -17,6 +17,8 @@ from pydantic import BaseModel, Field
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
 from modeler_api.execution import RunnerDep
+from modeler_api.responses import answers_without_envelope
+from modeler_api.views.campaigns import CampaignStarted, MapGenerated
 from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
 from pbpk_domain.cpf.models import CPF
@@ -40,7 +42,7 @@ class MapGenerateRequest(BaseModel):
     software_versions: dict[str, str]
 
 
-@router.post("/projects/{project_id}/questions/{question_id}/map:generate")
+@router.post("/projects/{project_id}/questions/{question_id}/map:generate", **answers_without_envelope(MapGenerated))
 def generate_map_endpoint(project_id: str, question_id: str, request: MapGenerateRequest, principal: Author) -> dict[str, Any]:
     """Generate the MAP (version 1, DRAFT) for a question from its CPF, studies and context."""
     require_project(project_id, principal)
@@ -69,7 +71,7 @@ class CampaignStartRequest(BaseModel):
     stage_budgets_seconds: dict[str, int] = Field(default_factory=dict)
 
 
-@router.post("/projects/{project_id}/campaigns", status_code=202)
+@router.post("/projects/{project_id}/campaigns", status_code=202, **answers_without_envelope(CampaignStarted))
 async def start_campaign(project_id: str, request: CampaignStartRequest, principal: Author,
                          settings: SettingsDep, runner: RunnerDep) -> dict[str, Any]:
     """Start a modeling campaign through the configured execution backend (local single-node, or Temporal)."""

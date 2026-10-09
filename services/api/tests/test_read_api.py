@@ -41,8 +41,10 @@ def _cpf() -> CPF:
 
 
 def _campaign() -> dict:
-    return {"id": "camp-101", "project": "example-a", "compound": "Example-A", "modelRisk": "high",
-            "budgetSeconds": 3600, "elapsedSeconds": 2340, "currentStage": "S3", "stages": [],
+    # a monitor record as the runner writes it (modeler_storage.records.CampaignRecord)
+    return {"id": "camp-101", "project": "example-a", "compound": "Example-A", "question": "Exposure in adults",
+            "modelRisk": "high", "budgetSeconds": 3600, "elapsedSeconds": 2340, "currentStage": "S3", "status": "RUNNING",
+            "stages": [],
             "gof": [{"name": "Observed", "kind": "observed", "unit": "µmol/l", "time_h": [1], "concentration": [40]}]}
 
 

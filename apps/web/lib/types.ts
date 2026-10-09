@@ -1,7 +1,7 @@
 // The shapes the read APIs return, mirroring the backend domain models. This file used to carry sample data that
 // pages showed whenever a read failed; that hid real faults behind made-up numbers, so it holds types only now.
 
-import type { Rating, Schema } from "@/lib/api";
+import type { Narrow, Schema } from "@/lib/api";
 
 // The project, its questions and a compound's CPF view are typed by the API contract (phase 9c).
 export type Project = Schema<"ProjectRecord">;
@@ -21,47 +21,14 @@ export type Compound = {
   parameters: CpfParameter[];
 };
 
-// What a round's verdict rests on (plan §9.4): judged studies, how many are real observed data, by origin.
-export type RealData = {
-  judged: number;
-  real: number;
-  byOrigin: Record<string, number>;
-  notReal: string[];
-  notEvaluable: string[];
-  passable: boolean;
-  label: string;
-};
-
-export type Round = {
-  round: number;
-  action: string;
-  aucGmfe: number | null;
-  cmaxGmfe: number | null;
-  verdict: string;
-  realData?: RealData;
-  cycle?: number;
-};
-
-export type Stage = {
-  stage: string;
-  label: string;
-  status: "RUNNING" | "PASSED" | "ACCEPTED" | "SKIPPED" | "ESCALATED" | "ABORTED" | "FAILED" | "PENDING";
-  rounds: Round[];
-  notes?: string[]; // why a stage was skipped, studies it could not simulate, what the build deferred
-};
-
-export type Campaign = {
-  id: string;
-  project?: string;
-  status?: string; // QUEUED | RUNNING | COMPLETED | ESCALATED (from the runner)
-  compound: string;
-  question: string;
-  modelRisk: Rating;
-  budgetSeconds: number;
-  elapsedSeconds: number;
-  currentStage: string;
-  stages: Stage[];
-};
+// The campaign monitor as the runner writes it and the API answers (modeler_storage.records, phase 9d). Its science
+// blocks (the goodness-of-fit series, the S6 prediction, the S7 package, the ledger, the influence map, the S5
+// diagnosis and the decisions) are their own modules' documents, open in the contract and typed below as the pages read them.
+export type RealData = Schema<"RealDataSummary">;
+export type Round = Schema<"RoundRecord">;
+export type Stage = Schema<"StageRecord">;
+export type Campaign = Schema<"CampaignRecord">;
+export type EngineIdentity = Schema<"EngineIdentity">;
 
 export type GofSeries = { name: string; time_h: number[]; concentration: number[]; unit: string; kind: "simulated" | "observed" };
 
@@ -82,7 +49,6 @@ export type PackageRecord = {
   files?: number;
   report_notes?: string[];
 };
-export type EngineIdentity = { kind: "pksim" | "software-fixture" | "injected" | "unknown"; command: string };
 // Plan §12.3 N6: every change of the working parameter set and the study verdicts it moved.
 export type LedgerEntry = {
   seq: number;
@@ -107,18 +73,15 @@ export type InfluenceMap = {
   status?: Record<string, string>;
   fitted_at_stage?: Record<string, string | null>;
 };
-export type CampaignDetail = Campaign & {
+export type CampaignDetail = Narrow<Campaign, {
   gof?: GofSeries[];
   prediction?: Prediction | null;
   package?: PackageRecord | null;
-  engine?: EngineIdentity | null;
-  realData?: Record<string, RealData>; // per stage, its last judged round
   ledger?: { entries: LedgerEntry[] } | null;
   influence?: InfluenceMap | null;
-  cycle?: number;
   feedback?: FeedbackDecision[];
   feedbackPending?: FeedbackDiagnosis | null;
-};
+}>;
 
 // Plan §12.3 N4: the diagnosis of a failed external validation (S5), and the decisions it allows.
 export type FeedbackDiagnosis = {
@@ -150,14 +113,6 @@ export type FeedbackDecision = {
   note?: string;
 };
 
-export type Escalation = {
-  id: string;
-  campaignId: string;
-  stage: string;
-  reasonCode: string;
-  evidence: string;
-  options: { id: string; label: string; requiresSignature: boolean; disabled?: string }[];
-  feedback?: FeedbackDiagnosis;
-};
+export type Escalation = Narrow<Schema<"EscalationRecord">, { feedback?: FeedbackDiagnosis | null }>;
 
 export type Proposal = Schema<"ProposalRecord">;

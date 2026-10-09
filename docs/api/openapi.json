@@ -1032,6 +1032,307 @@
         "title": "CampaignInputs",
         "type": "object"
       },
+      "CampaignPackage": {
+        "additionalProperties": false,
+        "description": "The S7 package: the reproduction verdict, whether it may be exported (D13), hashes and the downloadable artifacts.\nServer paths are never sent.",
+        "properties": {
+          "artifacts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "data_bundle_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Bundle Sha256"
+          },
+          "exportable": {
+            "title": "Exportable",
+            "type": "boolean"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files"
+          },
+          "package_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Sha256"
+          },
+          "pksim_projects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pksim Projects",
+            "type": "array"
+          },
+          "project_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Project Notes",
+            "type": "array"
+          },
+          "report_issues": {
+            "items": {
+              "$ref": "#/components/schemas/ReportIssue"
+            },
+            "title": "Report Issues",
+            "type": "array"
+          },
+          "report_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Report Notes",
+            "type": "array"
+          },
+          "reproduction": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reproduction"
+          }
+        },
+        "required": [
+          "exportable",
+          "reproduction",
+          "data_bundle_sha256",
+          "package_sha256",
+          "files",
+          "report_notes",
+          "report_issues",
+          "artifacts",
+          "pksim_projects",
+          "project_notes"
+        ],
+        "title": "CampaignPackage",
+        "type": "object"
+      },
+      "CampaignRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "budgetSeconds": {
+            "title": "Budgetseconds",
+            "type": "integer"
+          },
+          "compound": {
+            "title": "Compound",
+            "type": "string"
+          },
+          "currentStage": {
+            "title": "Currentstage",
+            "type": "string"
+          },
+          "cycle": {
+            "default": 1,
+            "title": "Cycle",
+            "type": "integer"
+          },
+          "elapsedSeconds": {
+            "title": "Elapsedseconds",
+            "type": "integer"
+          },
+          "engine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineIdentity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feedback": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Feedback",
+            "type": "array"
+          },
+          "feedbackPending": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedbackpending"
+          },
+          "gof": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Gof",
+            "type": "array"
+          },
+          "gofByStage": {
+            "additionalProperties": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "title": "Gofbystage",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "influence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Influence"
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger"
+          },
+          "modelRisk": {
+            "title": "Modelrisk",
+            "type": "string"
+          },
+          "observedOrigins": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Observedorigins",
+            "type": "object"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package"
+          },
+          "prediction": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prediction"
+          },
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "realData": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RealDataSummary"
+            },
+            "title": "Realdata",
+            "type": "object"
+          },
+          "resume": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageRecord"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project",
+          "compound",
+          "question",
+          "modelRisk",
+          "budgetSeconds",
+          "elapsedSeconds",
+          "currentStage",
+          "status",
+          "stages"
+        ],
+        "title": "CampaignRecord",
+        "type": "object"
+      },
       "CampaignStartRequest": {
         "properties": {
           "compound": {
@@ -1113,6 +1414,47 @@
           "cpf_sha256"
         ],
         "title": "CampaignStartRequest",
+        "type": "object"
+      },
+      "CampaignStarted": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "status_url": {
+            "title": "Status Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "status",
+          "status_url"
+        ],
+        "title": "CampaignStarted",
+        "type": "object"
+      },
+      "Campaigns": {
+        "additionalProperties": false,
+        "properties": {
+          "campaigns": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignRecord"
+            },
+            "title": "Campaigns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "campaigns"
+        ],
+        "title": "Campaigns",
         "type": "object"
       },
       "CatalogField": {
@@ -3153,6 +3495,26 @@
         "title": "EngineBinding",
         "type": "object"
       },
+      "EngineIdentity": {
+        "additionalProperties": false,
+        "description": "What produced the numbers: real PK-Sim, a software fixture, or an injected engine (never read as PBPK).",
+        "properties": {
+          "command": {
+            "title": "Command",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "command"
+        ],
+        "title": "EngineIdentity",
+        "type": "object"
+      },
       "Envelope_AgentRunDetail_": {
         "additionalProperties": false,
         "properties": {
@@ -3303,6 +3665,81 @@
         "title": "Envelope[CampaignInputs]",
         "type": "object"
       },
+      "Envelope_CampaignPackage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CampaignPackage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[CampaignPackage]",
+        "type": "object"
+      },
+      "Envelope_CampaignRecord_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CampaignRecord"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[CampaignRecord]",
+        "type": "object"
+      },
+      "Envelope_Campaigns_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Campaigns"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Campaigns]",
+        "type": "object"
+      },
       "Envelope_ClientDataPage_": {
         "additionalProperties": false,
         "properties": {
@@ -3451,6 +3888,31 @@
           "errors"
         ],
         "title": "Envelope[DraftStart]",
+        "type": "object"
+      },
+      "Envelope_Escalations_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Escalations"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Escalations]",
         "type": "object"
       },
       "Envelope_EvidenceChoice_": {
@@ -3651,6 +4113,31 @@
           "errors"
         ],
         "title": "Envelope[InputsPage]",
+        "type": "object"
+      },
+      "Envelope_M15Validation_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/M15Validation"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[M15Validation]",
         "type": "object"
       },
       "Envelope_Phases_": {
@@ -3903,6 +4390,31 @@
         "title": "Envelope[ResearchStart]",
         "type": "object"
       },
+      "Envelope_RunAccepted_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RunAccepted"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RunAccepted]",
+        "type": "object"
+      },
       "Envelope_SheetView_": {
         "additionalProperties": false,
         "properties": {
@@ -3926,6 +4438,31 @@
           "errors"
         ],
         "title": "Envelope[SheetView]",
+        "type": "object"
+      },
+      "Envelope_SnapshotPreview_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SnapshotPreview"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[SnapshotPreview]",
         "type": "object"
       },
       "Envelope_StudiesStored_": {
@@ -4287,6 +4824,95 @@
         "title": "EscalationDecided",
         "type": "object"
       },
+      "EscalationOption": {
+        "additionalProperties": false,
+        "properties": {
+          "disabled": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabled"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "requiresSignature": {
+            "title": "Requiressignature",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "requiresSignature"
+        ],
+        "title": "EscalationOption",
+        "type": "object"
+      },
+      "EscalationRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "campaignId": {
+            "title": "Campaignid",
+            "type": "string"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "reasonCode": {
+            "title": "Reasoncode",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campaignId",
+          "stage",
+          "reasonCode",
+          "evidence",
+          "options"
+        ],
+        "title": "EscalationRecord",
+        "type": "object"
+      },
       "EscalationResolved": {
         "additionalProperties": false,
         "description": "A signed decision applied to a single-node campaign: the stage's new status (and the stages still to run).",
@@ -4338,6 +4964,23 @@
           "signature"
         ],
         "title": "EscalationResolved",
+        "type": "object"
+      },
+      "Escalations": {
+        "additionalProperties": false,
+        "properties": {
+          "escalations": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationRecord"
+            },
+            "title": "Escalations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "escalations"
+        ],
+        "title": "Escalations",
         "type": "object"
       },
       "Evidence": {
@@ -5208,6 +5851,20 @@
         "title": "HarvestedProcess",
         "type": "object"
       },
+      "Health": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
       "History": {
         "additionalProperties": false,
         "properties": {
@@ -5899,6 +6556,67 @@
         "title": "LayoutRequest",
         "type": "object"
       },
+      "M15Issue": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "location": {
+            "title": "Location",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "location",
+          "message"
+        ],
+        "title": "M15Issue",
+        "type": "object"
+      },
+      "M15Validation": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_model_risk": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Model Risk"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/M15Issue"
+            },
+            "title": "Issues",
+            "type": "array"
+          }
+        },
+        "required": [
+          "complete",
+          "allowed_model_risk",
+          "issues"
+        ],
+        "title": "M15Validation",
+        "type": "object"
+      },
       "M15ValidationRequest": {
         "properties": {
           "stage": {
@@ -6060,6 +6778,198 @@
         "title": "ManualEvidence",
         "type": "object"
       },
+      "MapAcceptance": {
+        "properties": {
+          "criteria": {
+            "additionalProperties": true,
+            "title": "Criteria",
+            "type": "object"
+          },
+          "ruleset": {
+            "title": "Ruleset",
+            "type": "string"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tier",
+          "ruleset",
+          "criteria"
+        ],
+        "title": "MapAcceptance",
+        "type": "object"
+      },
+      "MapDocument": {
+        "properties": {
+          "acceptance": {
+            "$ref": "#/components/schemas/MapAcceptance"
+          },
+          "compound": {
+            "title": "Compound",
+            "type": "string"
+          },
+          "context_of_use": {
+            "title": "Context Of Use",
+            "type": "string"
+          },
+          "cpf_parameters": {
+            "items": {
+              "$ref": "#/components/schemas/MapParameter"
+            },
+            "title": "Cpf Parameters",
+            "type": "array"
+          },
+          "diagnostics_ruleset_version": {
+            "title": "Diagnostics Ruleset Version",
+            "type": "string"
+          },
+          "engine_image_digest": {
+            "title": "Engine Image Digest",
+            "type": "string"
+          },
+          "escalation_triggers": {
+            "default": [
+              "maximum rounds reached without passing the gate",
+              "stage time budget exhausted",
+              "a fitted parameter sits at its bound",
+              "two fitted parameters correlate > 0.95 after fixing one",
+              "CV > 50% on a parameter the question of interest depends on",
+              "no permitted diagnostic action left to try",
+              "multiple-dose accumulation mismatch (possible time-dependent clearance)",
+              "external validation fails (decision tree §6.6)"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Escalation Triggers",
+            "type": "array"
+          },
+          "food_effect_in_question": {
+            "title": "Food Effect In Question",
+            "type": "boolean"
+          },
+          "model_risk": {
+            "$ref": "#/components/schemas/Rating"
+          },
+          "model_system_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model System Sha256"
+          },
+          "objective": {
+            "title": "Objective",
+            "type": "string"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/MapScenario"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "seeds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Seeds",
+            "type": "object"
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapSignature"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "software_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Software Versions",
+            "type": "object"
+          },
+          "split_limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Split Limitations",
+            "type": "array"
+          },
+          "split_rationale": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Split Rationale",
+            "type": "array"
+          },
+          "stage_plan": {
+            "items": {
+              "$ref": "#/components/schemas/MapStagePlan"
+            },
+            "title": "Stage Plan",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MapStatus",
+            "default": "DRAFT"
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/MapStudy"
+            },
+            "title": "Studies",
+            "type": "array"
+          },
+          "supersedes_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Sha256"
+          },
+          "version": {
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "compound",
+          "objective",
+          "context_of_use",
+          "food_effect_in_question",
+          "model_risk",
+          "cpf_parameters",
+          "studies",
+          "split_rationale",
+          "split_limitations",
+          "stage_plan",
+          "scenarios",
+          "diagnostics_ruleset_version",
+          "acceptance",
+          "engine_image_digest",
+          "software_versions",
+          "seeds"
+        ],
+        "title": "MapDocument",
+        "type": "object"
+      },
       "MapGenerateRequest": {
         "properties": {
           "compound": {
@@ -6130,6 +7040,24 @@
         "title": "MapGenerateRequest",
         "type": "object"
       },
+      "MapGenerated": {
+        "additionalProperties": false,
+        "properties": {
+          "map": {
+            "$ref": "#/components/schemas/MapDocument"
+          },
+          "question_id": {
+            "title": "Question Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question_id",
+          "map"
+        ],
+        "title": "MapGenerated",
+        "type": "object"
+      },
       "MapIssue": {
         "additionalProperties": false,
         "properties": {
@@ -6152,6 +7080,71 @@
           "message"
         ],
         "title": "MapIssue",
+        "type": "object"
+      },
+      "MapParameter": {
+        "properties": {
+          "fittable_stages": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Fittable Stages",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "value",
+          "unit",
+          "status",
+          "source"
+        ],
+        "title": "MapParameter",
         "type": "object"
       },
       "MapPreview": {
@@ -6332,6 +7325,402 @@
           "datasets"
         ],
         "title": "MapReading",
+        "type": "object"
+      },
+      "MapScenario": {
+        "description": "One internal study's simulation plan — what `build_round_snapshot` turns into a simulation.\n\nCarries the studied individual's demographics (population, sex, age) so the round build can construct the\nPK-Sim individual; ``infusion_time_min`` is the IV infusion duration (required for an IV scenario).",
+        "properties": {
+          "age_years": {
+            "title": "Age Years",
+            "type": "number"
+          },
+          "analyte": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyte"
+          },
+          "analyte_output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyte Output"
+          },
+          "default_simulation_values": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Default Simulation Values",
+            "type": "array"
+          },
+          "dose_mg": {
+            "title": "Dose Mg",
+            "type": "number"
+          },
+          "dose_per_kg": {
+            "default": false,
+            "title": "Dose Per Kg",
+            "type": "boolean"
+          },
+          "dose_phases": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DosePhase"
+            },
+            "title": "Dose Phases",
+            "type": "array"
+          },
+          "dosing_interval_h": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dosing Interval H"
+          },
+          "food_state": {
+            "title": "Food State",
+            "type": "string"
+          },
+          "formulation": {
+            "title": "Formulation",
+            "type": "string"
+          },
+          "formulation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formulation Name"
+          },
+          "gated": {
+            "default": true,
+            "title": "Gated",
+            "type": "boolean"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "inactive_processes": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Inactive Processes",
+            "type": "object"
+          },
+          "infusion_time_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Infusion Time Min"
+          },
+          "meal_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meal Template"
+          },
+          "meals": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Meal"
+            },
+            "title": "Meals",
+            "type": "array"
+          },
+          "n_doses": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Doses"
+          },
+          "n_subjects": {
+            "title": "N Subjects",
+            "type": "integer"
+          },
+          "population": {
+            "title": "Population",
+            "type": "string"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "published_individual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublishedIndividual"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "sex": {
+            "title": "Sex",
+            "type": "string"
+          },
+          "sim_end_time_h": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sim End Time H"
+          },
+          "solver": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Solver",
+            "type": "object"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "study_class": {
+            "default": "",
+            "title": "Study Class",
+            "type": "string"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          },
+          "vpc_age_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vpc Age Max"
+          },
+          "vpc_age_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vpc Age Min"
+          },
+          "water_ml_per_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Water Ml Per Kg"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "required": [
+          "study_id",
+          "stage",
+          "route",
+          "dose_mg",
+          "infusion_time_min",
+          "formulation",
+          "food_state",
+          "meal_template",
+          "n_subjects",
+          "population",
+          "sex",
+          "age_years"
+        ],
+        "title": "MapScenario",
+        "type": "object"
+      },
+      "MapSignature": {
+        "properties": {
+          "content_sha256": {
+            "default": "",
+            "title": "Content Sha256",
+            "type": "string"
+          },
+          "meaning": {
+            "title": "Meaning",
+            "type": "string"
+          },
+          "printed_name": {
+            "title": "Printed Name",
+            "type": "string"
+          },
+          "signature_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Id"
+          },
+          "signed_at": {
+            "format": "date-time",
+            "title": "Signed At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "printed_name",
+          "meaning",
+          "signed_at"
+        ],
+        "title": "MapSignature",
+        "type": "object"
+      },
+      "MapStagePlan": {
+        "properties": {
+          "branches": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Branches",
+            "type": "array"
+          },
+          "budget_seconds": {
+            "title": "Budget Seconds",
+            "type": "integer"
+          },
+          "fit_candidates": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fit Candidates",
+            "type": "array"
+          },
+          "max_rounds": {
+            "title": "Max Rounds",
+            "type": "integer"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "budget_seconds",
+          "fit_candidates",
+          "branches",
+          "max_rounds"
+        ],
+        "title": "MapStagePlan",
+        "type": "object"
+      },
+      "MapStatus": {
+        "enum": [
+          "DRAFT",
+          "SIGNED"
+        ],
+        "title": "MapStatus",
+        "type": "string"
+      },
+      "MapStudy": {
+        "properties": {
+          "assignment": {
+            "title": "Assignment",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "study_class": {
+            "title": "Study Class",
+            "type": "string"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_id",
+          "study_class",
+          "score",
+          "assignment"
+        ],
+        "title": "MapStudy",
         "type": "object"
       },
       "MapVersion": {
@@ -8776,6 +10165,60 @@
         "title": "ReadFile",
         "type": "object"
       },
+      "RealDataSummary": {
+        "additionalProperties": false,
+        "description": "What a round's verdict rests on (`pbpk_domain.data_origin.real_data_summary`, plan §9.4).",
+        "properties": {
+          "byOrigin": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Byorigin",
+            "type": "object"
+          },
+          "judged": {
+            "title": "Judged",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "notEvaluable": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notevaluable",
+            "type": "array"
+          },
+          "notReal": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notreal",
+            "type": "array"
+          },
+          "passable": {
+            "title": "Passable",
+            "type": "boolean"
+          },
+          "real": {
+            "title": "Real",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "judged",
+          "real",
+          "byOrigin",
+          "notReal",
+          "notEvaluable",
+          "passable",
+          "label"
+        ],
+        "title": "RealDataSummary",
+        "type": "object"
+      },
       "ReasonRequest": {
         "properties": {
           "reason": {
@@ -9008,6 +10451,30 @@
         "title": "ReleaseProposal",
         "type": "object"
       },
+      "ReportIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "location": {
+            "title": "Location",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "location",
+          "detail"
+        ],
+        "title": "ReportIssue",
+        "type": "object"
+      },
       "ReportedPK": {
         "additionalProperties": false,
         "properties": {
@@ -9216,6 +10683,115 @@
         "title": "RevealRequest",
         "type": "object"
       },
+      "RoundRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "aucGmfe": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aucgmfe"
+          },
+          "cmaxGmfe": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cmaxgmfe"
+          },
+          "cycle": {
+            "default": 1,
+            "title": "Cycle",
+            "type": "integer"
+          },
+          "findings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "modelSet": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelset"
+          },
+          "realData": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RealDataSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "round": {
+            "title": "Round",
+            "type": "integer"
+          },
+          "studies": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Studies",
+            "type": "array"
+          },
+          "verdict": {
+            "title": "Verdict",
+            "type": "string"
+          },
+          "vpc": {
+            "additionalProperties": true,
+            "title": "Vpc",
+            "type": "object"
+          }
+        },
+        "required": [
+          "round",
+          "action",
+          "aucGmfe",
+          "cmaxGmfe",
+          "verdict"
+        ],
+        "title": "RoundRecord",
+        "type": "object"
+      },
       "Route": {
         "enum": [
           "iv_bolus",
@@ -9225,6 +10801,84 @@
         ],
         "title": "Route",
         "type": "string"
+      },
+      "RunAccepted": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "status_url": {
+            "title": "Status Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "status_url"
+        ],
+        "title": "RunAccepted",
+        "type": "object"
+      },
+      "RunOutputs": {
+        "additionalProperties": false,
+        "properties": {
+          "output_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Output Paths",
+            "type": "array"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "output_paths"
+        ],
+        "title": "RunOutputs",
+        "type": "object"
+      },
+      "RunSeries": {
+        "additionalProperties": false,
+        "properties": {
+          "individual_id": {
+            "title": "Individual Id",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesPoint"
+            },
+            "title": "Series",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run_id",
+          "path",
+          "individual_id",
+          "series"
+        ],
+        "title": "RunSeries",
+        "type": "object"
       },
       "RunSubmission": {
         "properties": {
@@ -9545,6 +11199,39 @@
           "values"
         ],
         "title": "Series",
+        "type": "object"
+      },
+      "SeriesPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Time"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "time",
+          "value"
+        ],
+        "title": "SeriesPoint",
         "type": "object"
       },
       "Sex": {
@@ -9903,6 +11590,41 @@
         "title": "SignRequest",
         "type": "object"
       },
+      "SignatureCreated": {
+        "additionalProperties": false,
+        "description": "A Part 11 signature, from the token's step-up (never a password).",
+        "properties": {
+          "auth_method": {
+            "title": "Auth Method",
+            "type": "string"
+          },
+          "manifestation": {
+            "title": "Manifestation",
+            "type": "string"
+          },
+          "record_sha256": {
+            "title": "Record Sha256",
+            "type": "string"
+          },
+          "signature_id": {
+            "title": "Signature Id",
+            "type": "string"
+          },
+          "signed_by": {
+            "title": "Signed By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature_id",
+          "manifestation",
+          "record_sha256",
+          "auth_method",
+          "signed_by"
+        ],
+        "title": "SignatureCreated",
+        "type": "object"
+      },
       "SignatureMeaning": {
         "enum": [
           "Authored",
@@ -10182,6 +11904,32 @@
         "title": "SimulationSpec",
         "type": "object"
       },
+      "SnapshotPreview": {
+        "additionalProperties": false,
+        "description": "A built and validated PK-Sim snapshot, not persisted; the snapshot is PK-Sim's own JSON.",
+        "properties": {
+          "snapshot": {
+            "additionalProperties": true,
+            "title": "Snapshot",
+            "type": "object"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          },
+          "snapshot_version": {
+            "title": "Snapshot Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "snapshot_sha256",
+          "snapshot_version",
+          "snapshot"
+        ],
+        "title": "SnapshotPreview",
+        "type": "object"
+      },
       "SourceRef": {
         "additionalProperties": false,
         "properties": {
@@ -10339,6 +12087,45 @@
         ],
         "title": "Stage",
         "type": "string"
+      },
+      "StageRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "rounds": {
+            "items": {
+              "$ref": "#/components/schemas/RoundRecord"
+            },
+            "title": "Rounds",
+            "type": "array"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "label",
+          "status",
+          "rounds"
+        ],
+        "title": "StageRecord",
+        "type": "object"
       },
       "StaleArtifact": {
         "additionalProperties": false,
@@ -12247,7 +14034,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_Campaigns_"
+                }
               }
             },
             "description": "Successful Response"
@@ -12304,7 +14093,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CampaignRecord_"
+                }
               }
             },
             "description": "Successful Response"
@@ -12492,7 +14283,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CampaignPackage_"
+                }
               }
             },
             "description": "Successful Response"
@@ -12803,7 +14596,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_Escalations_"
+                }
               }
             },
             "description": "Successful Response"
@@ -12863,7 +14658,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_M15Validation_"
+                }
               }
             },
             "description": "Successful Response"
@@ -12900,7 +14697,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_SnapshotPreview_"
+                }
               }
             },
             "description": "Successful Response"
@@ -14117,9 +15916,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Start Campaign Api V1 Projects  Project Id  Campaigns Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CampaignStarted"
                 }
               }
             },
@@ -17523,9 +19320,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Generate Map Endpoint Api V1 Projects  Project Id  Questions  Question Id  Map Generate Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MapGenerated"
                 }
               }
             },
@@ -17856,9 +19651,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Create Signature Api V1 Projects  Project Id  Signatures Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/SignatureCreated"
                 }
               }
             },
@@ -18223,7 +20016,9 @@
           "202": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RunAccepted_"
+                }
               }
             },
             "description": "Successful Response"
@@ -18317,9 +20112,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Run Results Api V1 Runs  Run Id  Results Get",
-                  "type": "object"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RunOutputs"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RunSeries"
+                    }
+                  ],
+                  "title": "Response Get Run Results Api V1 Runs  Run Id  Results Get"
                 }
               }
             },
@@ -18459,11 +20260,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Health Health Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Health"
                 }
               }
             },

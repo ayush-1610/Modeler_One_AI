@@ -85,20 +85,7 @@ routers = [
   "modeler_api.write_api",
   "modeler_api.system_api",
 ]
-untyped = [
-  "GET /api/v1/campaigns",
-  "GET /api/v1/campaigns/{campaign_id}",
-  "GET /api/v1/campaigns/{campaign_id}/package",
-  "GET /api/v1/escalations",
-  "GET /api/v1/runs/{run_id}/results",
-  "GET /health",
-  "POST /api/v1/m15/validate",
-  "POST /api/v1/model-versions/preview",
-  "POST /api/v1/projects/{project_id}/campaigns",
-  "POST /api/v1/projects/{project_id}/questions/{question_id}/map:generate",
-  "POST /api/v1/projects/{project_id}/signatures",
-  "POST /api/v1/runs",
-]
+untyped = []
 open = [
   "POST /api/v1/projects/{project_id}/datasets",
   "POST /api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",

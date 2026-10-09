@@ -15,6 +15,41 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the campaign monitor, the review inbox and the remaining routes are typed; every route has a model (architecture phase 9d; API contract)
+- **What:**
+  - **Shared records:** `modeler_storage.records` gains `CampaignRecord` (with `StageRecord`, `RoundRecord`,
+    `RealDataSummary` and `EngineIdentity`) and `EscalationRecord` (with `EscalationOption`).
+    - The orchestrator's runner writes them, and the API answers with them.
+    - The runner now checks every monitor record and every escalation against these models before it writes. A key
+      the model does not know fails the runner's own tests.
+    - Each record is still stored exactly as the runner builds it, so the stored bytes are unchanged; metrics may
+      hold NaN, which a re-dump would change.
+    - Keys the monitor gained over time have defaults, so a record written by an earlier build still reads.
+    - The monitor's science blocks stay open objects, each owned by its own module: the goodness-of-fit series, the
+      S6 prediction, the S7 package record, the ledger, the influence map, the S5 diagnosis and the decisions.
+  - **Typed routes:** the last 12 untyped routes declare response models (`views/campaigns.py`, `views/system.py`):
+    - **From the read model:** campaigns, a campaign, its S7 package, the escalation inbox.
+    - **No envelope, as before:** `map:generate` (the `MapDocument`), campaign start, signature, run results (one of
+      two shapes).
+    - **The system routes:** health, snapshot preview, M15 validation, run submission.
+    - **New test:** a run submission's success path, which no test reached before.
+  - **Ratchet:** `[response] untyped` is empty. The response test now counts a union of models as typed.
+  - **Web:**
+    - A typed `post` replaces `rawPost` for the routes that answer without the envelope. It wraps their answer in an
+      envelope, so they compose with `useMutation`.
+    - The campaign, round, stage, real-data, engine and escalation types are generated aliases. The science blocks
+      are narrowed as the pages read them.
+    - The escalation decision runs through `useMutation`.
+    - `test_web_client.py` now also treats an answer without the envelope as typed.
+- **Why:** rules B2 and B6, plan `docs/plans/2026-10-09-phase-9-typed-api.md` step 9d, and the owner's decision that
+  records crossing a process edge get one model, written and read through it.
+- **Impact:**
+  - **API contract change:** the OpenAPI snapshot gains the 12 operations' response schemas and 37 schemas,
+    including the MAP document's, and changes none.
+  - The answers are unchanged, as the conftest guard checks.
+  - Stored monitor records are byte-identical.
+  - The 5 routes that answer an open stored object (`[response] open`) are next, in 9e.
+
 ### Changed — the project, CPF, study, template and guided-flow answers are typed (architecture phase 9c; API contract)
 - **What:**
   - **Shared records:** a new `modeler_storage.records` holds `ProjectRecord` (with `QuestionRecord` and
