@@ -4376,6 +4376,31 @@
         "title": "Envelope[ProjectStarted]",
         "type": "object"
       },
+      "Envelope_ProjectSystem_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectSystem"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ProjectSystem]",
+        "type": "object"
+      },
       "Envelope_Projects_": {
         "additionalProperties": false,
         "properties": {
@@ -10205,6 +10230,40 @@
         "title": "ProjectStarted",
         "type": "object"
       },
+      "ProjectSystem": {
+        "additionalProperties": false,
+        "description": "`GET /projects/{id}/system`: the project's model system, or none for a single compound. `links` is the stored\ndocument a client edits and puts back (`PUT /projects/{id}/system`).",
+        "properties": {
+          "links": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Links"
+          },
+          "system": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SystemDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "system",
+          "links"
+        ],
+        "title": "ProjectSystem",
+        "type": "object"
+      },
       "Projects": {
         "additionalProperties": false,
         "properties": {
@@ -13885,6 +13944,179 @@
           "seed"
         ],
         "title": "SubjectSpec",
+        "type": "object"
+      },
+      "SystemAnalyte": {
+        "additionalProperties": false,
+        "description": "What a study can measure, and where MS-01 v1.3 judges it (§6.5).",
+        "properties": {
+          "informs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Informs",
+            "type": "array"
+          },
+          "judged_at": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Judged At",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "informs",
+          "judged_at"
+        ],
+        "title": "SystemAnalyte",
+        "type": "object"
+      },
+      "SystemCompound": {
+        "additionalProperties": false,
+        "properties": {
+          "compound": {
+            "title": "Compound",
+            "type": "string"
+          },
+          "has_cpf": {
+            "title": "Has Cpf",
+            "type": "boolean"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "compound",
+          "role",
+          "has_cpf"
+        ],
+        "title": "SystemCompound",
+        "type": "object"
+      },
+      "SystemDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "analytes": {
+            "items": {
+              "$ref": "#/components/schemas/SystemAnalyte"
+            },
+            "title": "Analytes",
+            "type": "array"
+          },
+          "compounds": {
+            "items": {
+              "$ref": "#/components/schemas/SystemCompound"
+            },
+            "title": "Compounds",
+            "type": "array"
+          },
+          "fitted": {
+            "title": "Fitted",
+            "type": "string"
+          },
+          "formation": {
+            "items": {
+              "$ref": "#/components/schemas/SystemFormation"
+            },
+            "title": "Formation",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "problem": {
+            "default": "",
+            "title": "Problem",
+            "type": "string"
+          },
+          "products": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "title": "Products",
+            "type": "object"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          }
+        },
+        "required": [
+          "name",
+          "fitted",
+          "compounds",
+          "formation",
+          "products",
+          "analytes",
+          "sha256"
+        ],
+        "title": "SystemDetail",
+        "type": "object"
+      },
+      "SystemFormation": {
+        "additionalProperties": false,
+        "description": "A process of `compound` that forms `metabolite` (the published model's `Metabolite` link).",
+        "properties": {
+          "compound": {
+            "title": "Compound",
+            "type": "string"
+          },
+          "data_source": {
+            "title": "Data Source",
+            "type": "string"
+          },
+          "metabolite": {
+            "title": "Metabolite",
+            "type": "string"
+          },
+          "process": {
+            "title": "Process",
+            "type": "string"
+          }
+        },
+        "required": [
+          "compound",
+          "metabolite",
+          "process",
+          "data_source"
+        ],
+        "title": "SystemFormation",
         "type": "object"
       },
       "SystemView": {
@@ -20303,6 +20535,63 @@
       }
     },
     "/api/v1/projects/{project_id}/system": {
+      "get": {
+        "description": "The project's model system (compounds and roles, formation, products with their dose fractions, analytes and\nthe stages that judge each, MS-01 v1.3 §6.5), or none for a single-compound project.",
+        "operationId": "get_system_api_v1_projects__project_id__system_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ProjectSystem_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get System",
+        "tags": [
+          "read"
+        ]
+      },
       "put": {
         "description": "Relate the project's compounds as one model system (parent, enantiomers, metabolites): roles, formation links,\nproducts with their dose fractions (required: never defaulted), published sum observers and analytes. Each\ncompound's CPF is put first; the system is checked against them before it is stored.",
         "operationId": "put_system_api_v1_projects__project_id__system_put",

@@ -80,3 +80,20 @@ def test_each_analyte_is_split_on_its_own():
     # a single compound's split is unchanged: no prefix, no rule 7
     _s, single = _map("Itraconazole", system=False)
     assert not any("(rule 7)" in line or line.startswith("Itraconazole: ") for line in single.split_rationale)
+
+
+def test_the_mar_lists_the_model_system():
+    # multi-compound plan §3.5: the report names every compound, product and analyte, and where each analyte is judged
+    from pbpk_domain.report.campaign_mar import assemble_campaign_mar
+    from pbpk_domain.report.mar import check_report
+
+    system, doc = _map("Verapamil")
+    fitted = system.cpf("R-Verapamil")
+    mar = assemble_campaign_mar(map_doc=doc, final_cpf=fitted, stage_evidence={"S1": {"status": "PASSED"}}, system=system)
+    tables = {t.id: t for t in mar.evidence.tables}
+    assert {r[0] for r in tables["system_compounds"].rows} == set(system.roles)
+    assert ("R-Norverapamil", "metabolite", "R-Verapamil (MetabolizationLiverMicrosomes_MM:CYP3A4)") == \
+        tables["system_compounds"].rows[[r[0] for r in tables["system_compounds"].rows].index("R-Norverapamil")][:3]
+    judged = {r[0]: r[2] for r in tables["system_analytes"].rows}
+    assert judged["R-Norverapamil"] == "SM · SJ · S4 · S5"
+    assert "{{table:system_analytes}}" in mar.sections[2].body and not check_report(mar)

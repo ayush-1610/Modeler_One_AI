@@ -55,3 +55,48 @@ class Studies(View):
 
 class Proposals(View):
     proposals: list[ProposalRecord]
+
+
+class SystemCompound(View):
+    compound: str
+    role: str                               # parent | metabolite
+    has_cpf: bool
+
+
+class SystemFormation(View):
+    """A process of `compound` that forms `metabolite` (the published model's `Metabolite` link)."""
+
+    compound: str
+    metabolite: str
+    process: str                            # internal name : molecule
+    data_source: str
+
+
+class SystemAnalyte(View):
+    """What a study can measure, and where MS-01 v1.3 judges it (§6.5)."""
+
+    name: str
+    kind: str                               # compound | observer
+    informs: list[str]                      # the compounds whose parameters its studies inform (none: not evaluated)
+    judged_at: list[str]                    # the stages that gate it
+    note: str = ""                          # why it is not evaluated, when it is not
+
+
+class SystemDetail(View):
+    name: str
+    fitted: str                             # the parent a campaign's CPF is (the system's first parent)
+    compounds: list[SystemCompound]
+    formation: list[SystemFormation]
+    products: dict[str, dict[str, Number]]  # product -> {dosed compound: dose fraction}
+    analytes: list[SystemAnalyte]
+    sha256: str | None                      # None until every compound has its CPF
+    problem: str = ""                       # why the system cannot be assembled yet
+
+
+class ProjectSystem(View):
+    """`GET /projects/{id}/system`: the project's model system, or none for a single compound. `links` is the stored
+    document a client edits and puts back (`PUT /projects/{id}/system`)."""
+
+    system: SystemDetail | None
+    links: dict[str, object] | None
+

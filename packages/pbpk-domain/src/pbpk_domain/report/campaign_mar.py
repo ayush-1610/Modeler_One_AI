@@ -50,6 +50,38 @@ def _cpf_table(cpf: CPF) -> TableRef:
                     rows=tuple(rows), source="final CPF")
 
 
+def _system_tables(system, fitted: str) -> list[TableRef]:
+    """A model system's compounds, products and analytes (multi-compound plan §3.5, MS-01 v1.3 §6.5): what each
+    compound is, what each product doses, and what each analyte informs and where it is judged."""
+    import hashlib
+    import json
+
+    from pbpk_domain.system import gated, subjects
+
+    def sha(cpf) -> str:
+        doc = cpf.model_dump(mode="json", exclude={"created_at"})
+        return hashlib.sha256(json.dumps(doc, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:12]
+
+    forms = {f.metabolite: f"{f.compound} ({f.internal_name}:{f.molecule})" for f in system.formation}
+    compounds = TableRef(id="system_compounds", title=f"Model system {system.name}: compounds",
+                         columns=("Compound", "Role", "Formed by", "CPF version", "CPF sha256"),
+                         rows=tuple((c.compound, system.roles[c.compound], forms.get(c.compound, "—"), str(c.version),
+                                     sha(c)) for c in system.compounds))
+    products = TableRef(id="system_products", title="Products and the dose fraction each compound receives",
+                        columns=("Product", "Compound", "Dose fraction"),
+                        rows=tuple((p, c, format_number(f)) for p, doses in system.products.items() for c, f in doses.items()))
+    stages = ("S1", "S2", "S3", "SM", "SJ", "S4", "S5")
+    rows = []
+    for a in system.analytes.values():
+        informs = subjects(system, a.name, fitted)
+        metabolites = bool(informs) and all(system.roles[c] == "metabolite" for c in informs)
+        judged = [st for st in stages if gated(system, a.name, fitted, st) and (st != "SM" or metabolites)]
+        rows.append((a.name, ", ".join(informs) or "—", " · ".join(judged) or "reported, not judged"))
+    analytes = TableRef(id="system_analytes", title="Analytes: the compounds each informs, the stages that judge it",
+                        columns=("Analyte", "Informs", "Judged at"), rows=tuple(rows))
+    return [compounds, products, analytes]
+
+
 def _study_table(map_doc: MapDocument) -> TableRef:
     stages: dict[str, list[str]] = {}
     for sc in map_doc.scenarios:
@@ -123,13 +155,24 @@ def assemble_campaign_mar(
     data_bundle_sha256: str | None = None,
     generated_at: datetime | None = None,
     history: Mapping | None = None,
+    system=None,
 ) -> MarDocument:
     """``stage_evidence[stage]`` = {"status", "rounds": [...], "metrics": {...}, "notes": [...]} per stage;
     ``prediction`` = the S6 result; ``reproduction`` = {"passes", "verdicts": [{path, status, detail}]};
-    ``history`` = the campaign's change ledger (``entries``), the model development history."""
+    ``history`` = the campaign's change ledger (``entries``), the model development history; ``system`` = the model
+    system as of the final CPF (`pbpk_domain.system.ModelSystem`), listed in section 3."""
     values: list[ValueRef] = [ValueRef(id="acceptance_tier", value=map_doc.acceptance.tier,
                                        source=f"acceptance ruleset {map_doc.acceptance.ruleset}")]
     tables: list[TableRef] = [_study_table(map_doc), _cpf_table(final_cpf)]
+    model_description = "Every compound parameter, its origin and, when fitted, its precision:\n\n{{table:cpf_final}}"
+    if system is not None:
+        tables += _system_tables(system, final_cpf.compound)
+        values.append(ValueRef(id="model_system_sha256", value=system.sha256, source="the model system as of the final CPF"))
+        model_description = (
+            f"The model simulates the {system.name} system (content hash {{{{value:model_system_sha256}}}}); each compound "
+            "keeps its own parameter framework.\n\n{{table:system_compounds}}\n\n{{table:system_products}}\n\n"
+            "{{table:system_analytes}}\n\nThe fitted compound's parameters, their origin and, when fitted, their "
+            "precision:\n\n{{table:cpf_final}}")
     limitations: list[str] = list(map_doc.split_limitations)
 
     def stage_body(stage: str) -> str:
@@ -231,8 +274,7 @@ def assemble_campaign_mar(
                    body=f"{map_doc.objective}\n\n{map_doc.context_of_use}"),
         MarSection(number="2", heading="Data", body="The studies, their class and their role are given below.\n\n"
                                                     "{{table:studies}}"),
-        MarSection(number="3", heading="Model description",
-                   body="Every compound parameter, its origin and, when fitted, its precision:\n\n{{table:cpf_final}}"),
+        MarSection(number="3", heading="Model description", body=model_description),
         MarSection(number="4", heading="Model development", subsections=development),
         MarSection(number="5", heading="Model evaluation", subsections=evaluation),
         MarSection(number="6", heading="Prediction", body="\n\n".join(pred_parts)),

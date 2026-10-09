@@ -24,12 +24,10 @@ from pbpk_domain.system import links_of
 FIXTURES = Path(__file__).resolve().parents[3] / "services" / "engine-worker" / "golden" / "fixtures"
 pytestmark = pytest.mark.req("T-13")
 
-
 class _Verifier:
     def verify(self, token):
         return {"sub": "u", "name": "Dev", "tenant_id": "t1", "realm_access": {"roles": ["modeler-curator"]},
                 "projects": ["*"], "acr": "loa2", "auth_time": int(time.time())}
-
 
 @pytest.fixture
 def client(tmp_path):
@@ -39,9 +37,7 @@ def client(tmp_path):
     yield TestClient(app)
     app.dependency_overrides.clear()
 
-
 AUTH = {"Authorization": "Bearer tok"}
-
 
 def test_a_verapamil_campaign_is_planned_built_and_judged_per_analyte(client, tmp_path):
     imported = import_osp_system(json.loads((FIXTURES / "Verapamil-Model.json").read_text(encoding="utf-8")))
@@ -122,7 +118,6 @@ def test_a_verapamil_campaign_is_planned_built_and_judged_per_analyte(client, tm
     assert rows[total.study_id]["gated"] is True and rows[total.study_id]["analyte"] == total.analyte
     assert rows[total.study_id]["predicted_cmax"] == pytest.approx(max(curve))  # the observer's curve, not the zero plasma
 
-
 def test_a_racemic_sum_is_judged_at_the_parent_stages():
     # Verapamil's IV data are racemic sums. Phase 1 reported them and skipped S1 (no study measured the fitted parent's
     # plasma); MS-01 v1.3 §6.5 gates a molar sum of enantiomers sharing one molecular weight, informing both
@@ -141,7 +136,6 @@ def test_a_racemic_sum_is_judged_at_the_parent_stages():
     assert s1.studies and s1.skip_reason is None
     assert all(s.gated for s in map_doc.scenarios if s.stage == "S1")
 
-
 def test_a_system_with_metabolite_data_schedules_sm(client, tmp_path):
     imported = import_osp_system(json.loads((FIXTURES / "Verapamil-Model.json").read_text(encoding="utf-8")))
     system = imported.system
@@ -153,3 +147,30 @@ def test_a_system_with_metabolite_data_schedules_sm(client, tmp_path):
     prep = client.post("/api/v1/projects/verapamil/questions/q/campaign:prepare", json={"compound": "R-Verapamil"},
                        headers=AUTH).json()["data"]
     assert prep["stages"] == ["S0", "S1", "S2", "S3", "SM", "SJ", "S4", "S5", "S6", "S7"]
+
+def test_the_system_panel_reads_compounds_formation_products_and_where_each_analyte_is_judged(client, tmp_path):
+    from modeler_api.read_api import get_read_store
+
+    app.dependency_overrides[get_read_store] = lambda: FileReadStore(str(tmp_path))
+    imported = import_osp_system(json.loads((FIXTURES / "Verapamil-Model.json").read_text(encoding="utf-8")))
+    system = imported.system
+    client.post("/api/v1/projects", json={"name": "Verapamil", "compound": "R-Verapamil", "question": "q"}, headers=AUTH)
+    assert client.get("/api/v1/projects/verapamil/system", headers=AUTH).json()["data"] == {"system": None, "links": None}
+    for cpf in system.compounds:
+        client.put(f"/api/v1/projects/verapamil/compounds/{cpf.compound}/cpf", json=cpf.model_dump(mode="json"), headers=AUTH)
+    links = links_of(system).model_dump(mode="json")
+    client.put("/api/v1/projects/verapamil/system", json=links, headers=AUTH).raise_for_status()
+
+    data = client.get("/api/v1/projects/verapamil/system", headers=AUTH).json()["data"]
+    detail = data["system"]
+    assert data["links"] == links and detail["sha256"] == system.sha256 and detail["fitted"] == "R-Verapamil"
+    assert {(c["compound"], c["role"]) for c in detail["compounds"]} == set(system.roles.items())
+    assert {(f["compound"], f["metabolite"]) for f in detail["formation"]} == {("R-Verapamil", "R-Norverapamil"),
+                                                                             ("S-Verapamil", "S-Norverapamil")}
+    assert detail["products"] == system.products
+    judged = {a["name"]: a for a in detail["analytes"]}
+    # MS-01 v1.3 §6.5: a racemic sum informs both enantiomers at the parent stages; a metabolite is judged from SM on
+    total = judged["Sum-Verapamil Plasma (Peripheral Venous Blood)"]
+    assert total["informs"] == ["R-Verapamil", "S-Verapamil"] and total["judged_at"] == ["S1", "S2", "S3", "SJ", "S4", "S5"]
+    assert judged["R-Norverapamil"]["judged_at"] == ["SM", "SJ", "S4", "S5"]
+
