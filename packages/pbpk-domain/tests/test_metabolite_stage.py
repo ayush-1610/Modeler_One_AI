@@ -80,3 +80,18 @@ def test_each_analyte_is_split_on_its_own():
     # a single compound's split is unchanged: no prefix, no rule 7
     _s, single = _map("Itraconazole", system=False)
     assert not any("(rule 7)" in line or line.startswith("Itraconazole: ") for line in single.split_rationale)
+
+
+def test_a_system_refit_frees_a_metabolite_at_sm_and_its_forming_rate_there_too():
+    from pbpk_domain.reference.refit import refit_cpf
+    from pbpk_domain.system import formation_targets
+
+    system, _doc = _map("Verapamil")
+    norv, freed = refit_cpf(system.cpf("R-Norverapamil"), role="metabolite")
+    # its own clearance and logP at SM; absorption and cellular permeability stay as published (it is formed, not dosed)
+    assert set(freed) == {"phys.logp", "elim.hepatic.CYP3A4.kcat", "transp.P-gp.kcat"}
+    assert all(norv.get(pid).fit_policy.stage == ("SM",) for pid in freed)
+    forming = frozenset(pid for c, pid in formation_targets(system, "R-Norverapamil") if c == "R-Verapamil")
+    parent, _ = refit_cpf(system.cpf("R-Verapamil"), formation=forming)
+    assert parent.get("elim.hepatic.CYP3A4@Norverapamil.kcat").fit_policy.stage == ("S1", "S2", "SM")
+    assert parent.get("elim.hepatic.CYP3A4@D617.kcat").fit_policy.stage == ("S1", "S2")  # forms no system compound
