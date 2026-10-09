@@ -5,6 +5,9 @@
     uv run python deploy/reference/run_reference.py campaign  Dapagliflozin --mode as-is --out out/dapa
     uv run python deploy/reference/run_reference.py campaign  Dapagliflozin --mode refit --out out/dapa
 
+vbe        an ILLUSTRATIVE virtual bioequivalence on PK-Sim (T-31): S6's own VBE step run from the published model,
+           its tablet as the reference and an invented TEST tablet (the published one with t50 x1.5), with an
+           illustrative intra-subject CV. It proves the machinery on PK-Sim; it is not clinical evidence.
 roundtrip  every published simulation that runs an imported study against the one the pipeline regenerates from
            the imported CPF, on PK-Sim at identical time points (services/engine-worker/golden/reference_compare.R,
            run through REFERENCE_RSCRIPT, e.g. "docker run --rm -v $PWD:$PWD -w $PWD <image> Rscript").
@@ -135,6 +138,74 @@ def evaluate(model: str, out: Path) -> dict:
     result = {"model": model, "seconds": round(time.monotonic() - started), "summary": summary, "studies": studies,
               "not_simulated": notes, "findings": list(assessment.findings)}
     (out / "evaluate.json").write_text(json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
+    return result
+
+
+# The illustrative VBE proof per model: the published tablet as the reference, a TEST tablet with its t50 scaled.
+# The variability path is harvested from the OSP reference snapshots (Ketoconazole, Alfentanil), never typed from
+# memory; the engine refuses one the simulation does not have.
+VBE_PROOF = {
+    "Dapagliflozin": {"reference": "IC tablet (Chang 2015)", "t50_factor": 1.5,
+                      "variability": [{"parameter": "Organism|Lumen|Stomach|Gastric emptying time", "cv_percent": 30,
+                                       "source": "ILLUSTRATIVE value for the PK-Sim proof of the VBE machinery; not a "
+                                                 "clinical estimate"}],
+                      "n_subjects": 24, "n_trials": 20, "seed": 2026, "pos_threshold": 0.8},
+}
+ILLUSTRATIVE = ("ILLUSTRATIVE: the published model as imported (not a campaign-validated model), an invented TEST tablet "
+                "and an illustrative intra-subject CV. It shows the VBE machinery working on PK-Sim; it is not clinical "
+                "or regulatory evidence.")
+
+
+def vbe(model: str, out: Path) -> dict:
+    """S6's VBE step (`modeler_orchestrator.vbe_activities.run_vbe`) on PK-Sim from the published model: the MAP pins
+    `vbe-crossover` with the proof's inputs, the TEST tablet is the published tablet with its t50 scaled."""
+    import hashlib
+
+    from modeler_contracts.runs import RoundContext
+    from modeler_orchestrator.local_runner import default_engine
+    from modeler_orchestrator.vbe_activities import run_vbe
+    from pbpk_domain.campaign.map import MapApplication, generate_map
+    from pbpk_domain.campaign.split import QuestionOfInterest, split_studies
+    from pbpk_domain.cpf import Provenance
+    from pbpk_domain.m15 import Rating
+    from pbpk_domain.reference.roundtrip import study_records
+
+    proof = VBE_PROOF[model]
+    _snapshot_path, imported = _import(model)
+    reference = proof["reference"]
+    note = f"ILLUSTRATIVE TEST tablet for the VBE proof: the published {reference} with t50 x{proof['t50_factor']:g}"
+    test = []
+    for record in imported.cpf.with_prefix(f"form.{reference}"):
+        suffix = record.id[len(f"form.{reference}."):]
+        value = record.value * proof["t50_factor"] if suffix == "weibull.t50" else record.value
+        test.append(record.model_copy(update={"id": f"form.Test tablet.{suffix}", "value": value,
+                                              "provenance": Provenance(source_type="assumed", reference=note)}))
+    cpf = imported.cpf.model_copy(update={"parameters": (*imported.cpf.parameters, *test)})
+    inputs = {"test_formulation": "Test tablet", "reference_formulation": reference,
+              **{k: proof[k] for k in ("variability", "n_subjects", "n_trials", "seed", "pos_threshold")}}
+    studies = study_records(imported)
+    map_doc = generate_map(compound=imported.compound, cpf=cpf, studies=studies,
+                           split=split_studies(studies, QuestionOfInterest()), objective="illustrative VBE proof",
+                           context_of_use=ILLUSTRATIVE, food_effect_in_question=False, model_risk=Rating.MEDIUM,
+                           engine_image_digest=os.environ.get("MODELER_ENGINE_IMAGE", "reference"),
+                           software_versions={"ospsuite": "12.4.4"},
+                           applications=(MapApplication.pinned("vbe-crossover", inputs),))
+    work = out / "vbe"
+    work.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("MODELER_OBJECT_STORE_URI", (work / "objects").as_uri())
+    (work / "cpf.json").write_text(cpf.model_dump_json(), encoding="utf-8")
+    (work / "map.json").write_text(map_doc.model_dump_json(), encoding="utf-8")
+    ctx = RoundContext(campaign_id=f"vbe-{model.lower()}", tenant_id="ref", stage="S6", round_index=1,
+                       cpf_uri=(work / "cpf.json").as_uri(),
+                       cpf_sha256=hashlib.sha256((work / "cpf.json").read_bytes()).hexdigest(), pending_action=None,
+                       map_uri=(work / "map.json").as_uri(), deadline_seconds=7200.0)
+    started = time.monotonic()
+    result = {"model": model, "illustrative": ILLUSTRATIVE, **(run_vbe(ctx, default_engine(), cpf=cpf, map_doc=map_doc)
+                                                              or {"status": "NOT_RUN", "reason": "no application"})}
+    result["seconds"] = round(time.monotonic() - started)
+    for metric in (result.get("metrics") or {}).values():
+        metric.pop("trials", None)  # K rows per metric: in vbe.json only
+    (out / "vbe.json").write_text(json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
     return result
 
 
@@ -269,6 +340,24 @@ def _fitted(final_cpf: dict, freed: dict, final_system: dict | None = None) -> d
 
 def summary(step: str, result: dict) -> str:
     lines: list[str] = []
+    if step == "vbe":
+        lines.append(f"### VBE {result['model']} (illustrative): {result.get('status')} in {result.get('seconds')} s")
+        lines.append(f"_{result['illustrative']}_")
+        if result.get("status") != "RUN":
+            lines.append(f"- not run: {result.get('reason')}")
+            return "\n".join(lines)
+        lines.append(f"- TEST `{result['formulations']['test']}` vs reference `{result['formulations']['reference']}`; "
+                     f"design {result['design_study']} ({result['dose_mg']:g} mg, {result['food_state']}); "
+                     f"{result['n_trials_run']} trials x {result['n_subjects']}; individuals {result['individuals']}, "
+                     f"excluded {len(result['excluded_individuals'])}; occasion seeds {result['occasion_seeds']}")
+        lines.append("| metric | PoS | GMR median | GMR 5-95 % | simulated between-subject CV |")
+        lines.append("|---|---|---|---|---|")
+        for name, m in result["metrics"].items():
+            lines.append(f"| {name} | {m['probability_of_success']:.0%} | {m['gmr_median']:.4f} | "
+                         f"{m['gmr_p05']:.4f}-{m['gmr_p95']:.4f} | {m['between_subject_cv_percent']:.1f} % |")
+        lines.append(f"| joint | {result['joint_probability_of_success']:.0%} | | | |")
+        lines.append(f"- validation: {result['validation']['status']}: {result['validation']['reason']}")
+        return "\n".join(lines)
     if step == "evaluate":
         if "error" in result:
             return f"### Evaluate {result['model']}: {result['error']}"
@@ -367,7 +456,7 @@ def _off_row(line: str) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", choices=["roundtrip", "campaign", "evaluate"])
+    parser.add_argument("step", choices=["roundtrip", "campaign", "evaluate", "vbe"])
     parser.add_argument("model")
     parser.add_argument("--mode", choices=["as-is", "refit"], default="as-is")
     parser.add_argument("--system", action="store_true", help="the model system (parent, enantiomers, metabolites): round trip every analyte, or run the campaign on it")
@@ -379,6 +468,8 @@ def main() -> int:
         result = roundtrip(args.model, args.out, system=args.system)
     elif args.step == "evaluate":
         result = evaluate(args.model, args.out)
+    elif args.step == "vbe":
+        result = vbe(args.model, args.out)
     else:
         result = campaign(args.model, args.mode, args.out, system=args.system)
     text = summary(args.step, result)

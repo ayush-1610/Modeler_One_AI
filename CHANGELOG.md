@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — an illustrative virtual bioequivalence on PK-Sim, the proof of the VBE machinery (T-31 B6 PR 7)
+- **What:** `run_reference.py vbe Dapagliflozin` and the reference workflow task `dapagliflozin-vbe` run S6's own VBE
+  step (`run_vbe`) on real PK-Sim.
+  - **Model:** the published Dapagliflozin model as imported, not a campaign-validated one.
+  - **Reference:** the published `IC tablet (Chang 2015)`.
+  - **TEST:** an invented `Test tablet`, the same Weibull tablet with t50 × 1.5. Provenance is `assumed`, described as
+    illustrative.
+  - **Design:** taken from Chang 2015 study 2 (10 mg fasted).
+  - **Variability:** `Organism|Lumen|Stomach|Gastric emptying time` at an illustrative 30 % CV. The path is harvested
+    from the OSP Ketoconazole and Alfentanil snapshots, and the engine refuses it if the simulation does not have it.
+  - **Size:** 20 trials × 24 subjects, seed 2026, PoS threshold 80 %.
+
+  Every output is labelled ILLUSTRATIVE: it shows the machinery working on PK-Sim and is not clinical or regulatory
+  evidence. Without an observed BE study, the F-304 gate reports it NOT_VALIDATED.
+- **Why:** step 8 of the VBE design, a proof on PK-Sim. Only a PK-Sim run counts as evidence that the two arms, the
+  occasions and the trials work end to end.
+- **Impact:** a new reference task, which runs only when dispatched. The run's result goes in the records when it
+  finishes.
+
 ### Added — the F-304 validation gate: a VBE result is judged against the observed BE study, or it is "not validated" (T-31 B6 PR 5; template `vbe-crossover` 0.2.0-draft; science, UNVERIFIED, D-26)
 - **What:**
   - **New template input `observed_be`.** It is optional and never defaulted, and gives the observed BE study
