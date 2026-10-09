@@ -11,6 +11,10 @@ dependencies = [
 [project.optional-dependencies]
 s3 = ["boto3>=1.34"]
 
+# the orchestrator finds the engine through this entry point (modeler_contracts.ports.engine_factory), not an import
+[project.entry-points."modeler.engines"]
+subprocess = "modeler_engine.runner:subprocess_engine"
+
 [tool.uv.sources]
 modeler-contracts = { workspace = true }
 

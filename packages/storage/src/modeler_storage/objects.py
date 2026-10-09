@@ -1,4 +1,5 @@
-"""Credentialed object store and per-job presigned URLs (task T-07).
+"""Credentialed object store and per-job presigned URLs (task T-07). Moved from the orchestrator in phase 8c: the store is
+persistence (layer 2), and the engine's tests use it without reaching into the orchestrator.
 
 The orchestrator holds the MinIO/S3 credentials; engine pods never do. For each job the orchestrator
 mints short-lived presigned GET URLs for inputs and presigned PUT URLs for outputs (default two hours,

@@ -7,11 +7,14 @@ dependencies = [
   "sqlalchemy[asyncio]>=2.0.30",
   "asyncpg>=0.29",
   "pydantic>=2.11",
+  "boto3>=1.35",
   "pbpk-domain",
+  "modeler-contracts",
 ]
 
 [tool.uv.sources]
 pbpk-domain = { workspace = true }
+modeler-contracts = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
