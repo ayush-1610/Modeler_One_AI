@@ -51,6 +51,30 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - `test_vbe_s6.py`: two arms each with its own formulation, the same individuals, occasion seeds 11 and 12, K
     trials, and the NOT_RUN reasons.
 
+### Added — the engine's population task runs an occasion: the same individuals, each arm its own seeded variability (T-31 B6 PR 3; locked `run_job.R` and `golden_tasks.R`; science, UNVERIFIED, D-26)
+- **What:** the `population` task takes `variability: [{path, cv_percent}]` and an `occasion_seed`.
+  - **The occasion:** each individual's value of each listed parameter is multiplied by a log-normal factor with a
+    median of 1 and that CV (σ = √ln(1 + CV²)), drawn from the occasion seed (Mersenne-Twister, inversion).
+  - **The value multiplied:** the population's own value where the population varies the parameter, else the
+    simulation's.
+  - **No invented paths:** each path must be a parameter of the simulation (`getParameter(…, stopIfNotFound = TRUE)`);
+    an unknown path stops the job.
+  - **What is written:**
+    - `population.csv` holds the individuals before the occasion, so the other arm loads exactly the same people;
+    - `occasion.json` records the seed, the individual ids, and every factor, so an arm can be reproduced.
+- **Why:** step 4 of the VBE design. A crossover's TEST and reference arms are the same subjects on two occasions:
+  between-subject variability is shared, and within-subject variability is drawn per arm.
+- **Impact:**
+  - A population job without `variability` runs exactly as before.
+  - The median-1 factor and the choice of varied parameters are UNVERIFIED for the PBPK SME. The CV and its source
+    are the person's inputs (REQ-vbe.variability, never defaulted).
+- **Tests:** a golden case on PK-Sim (`golden_tasks.R`, run in the engine-image CI) varies the compound's
+  lipophilicity, harvested from the simulation at run time, by 20 % across occasions. It checks four things:
+  - two arms load the same 6 individuals;
+  - seeds 11 and 12 give different PK;
+  - seed 11 reproduces its PK;
+  - an unknown path stops the job.
+
 ### Added — the MAP carries the applications its question pins (T-31 B6 PR 2; locked `map.py`, D-26)
 - **What:**
   - **`MapDocument.applications`** (`MapApplication`): each application S6 will run, recorded as three things:
