@@ -53,3 +53,15 @@ source(run_pi[[1]])
 result <- run_parameter_identification(spec_path, file.path(work, "out"))
 stopifnot(file.exists(file.path(work, "out", "pi_result.json")), length(result$estimates) == 1, is.finite(result$objective_value))
 cat("PI SMOKE OK:", result$estimates[[1]]$name, "=", result$estimates[[1]]$estimate, "after", result$function_evaluations, "evaluations\n")
+
+# A weight on the dataset (the joint refinement's equal weight per study, MS-01 v1.1 SJ, D-04) multiplies each residual
+# before squaring: on one dataset the optimum stays where it is and the objective scales by weight^2.
+weighted <- spec
+weighted$output_mappings[[1]]$observed$weight <- 2
+weighted_path <- file.path(work, "pi_spec_weighted.json")
+write_json(weighted, weighted_path, auto_unbox = TRUE, pretty = TRUE, digits = NA)
+w_result <- run_parameter_identification(weighted_path, file.path(work, "out_weighted"))
+ratio <- w_result$objective_value / result$objective_value
+shift <- abs(w_result$estimates[[1]]$estimate - result$estimates[[1]]$estimate)
+stopifnot(is.finite(ratio), abs(ratio - 4) < 0.1, shift < 0.05)
+cat("PI SMOKE WEIGHTED OK: objective x", ratio, "(expected 4), estimate moved", shift, "\n")

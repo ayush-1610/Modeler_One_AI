@@ -263,8 +263,9 @@ fitted, started from their sequential estimates.
 - Parameters and bounds: the union of the parameters fitted in S1–S3, within their fit policies; a parameter fitted
   at S1 is held within its S1 95 % CI (compensation guard: an absorption misfit must not be absorbed by clearance)
   unless a signed decision widens it.
-- Weighting: each study contributes equally [SME] (residuals scaled by 1 / number of points; until the engine's
-  parameter identification takes weights per output mapping, points are weighted equally — recorded in the stage).
+- Weighting: each study contributes equally [SME]: a study of n points among N points over k studies weighs each of its
+  residuals by √(N / (k·n)), so every study adds the same to the weighted sum of squares (the engine's parameter
+  identification multiplies each residual by its weight before squaring; ospsuite.parameteridentification ≥ 2.1).
 - Acceptance: the joint estimate is kept only if every internal study passes its gate and the agreement (mean of the
   AUC and Cmax GMFE) is no worse; otherwise the sequential estimates stay and the attempt is recorded.
 - Nothing fitted in S1–S3: SJ is skipped (S4 judges every internal study).

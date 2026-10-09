@@ -845,7 +845,7 @@ class LocalExecutor:
                  f"refitted: {', '.join(plan.fit_ids)}"
                  + (f"; held within their S1 95 % CI: {', '.join(plan.guarded)}" if plan.guarded else ""),
                  *plan.notes,
-                 "studies weighted per observed point (equal weight per study, D-04, waits for run_pi.R weights)"]
+                 "every study weighs the same in the joint fit (residuals weighted by sqrt(N / (k n)), D-04)"]
         if kept:
             notes.append(f"joint estimate kept: every internal study passes, GMFE {base_score} → {joint_score}"
                          if base_score is not None else "joint estimate kept: every internal study passes")

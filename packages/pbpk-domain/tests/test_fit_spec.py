@@ -143,3 +143,19 @@ def test_weibull_parameter_is_fitted_per_simulation_under_its_own_protocol():
     assert (spec["parameters"][0]["min"], spec["parameters"][0]["max"]) == (15.0, 60.0)
     with pytest.raises(FitSpecError, match="uses formulation"):
         build_fit_spec(cpf, ["form.Tab.weibull.t50"], [sims[2]])
+
+
+def test_a_joint_fit_weighs_every_study_equally():
+    # MS-01 v1.1 SJ (D-04, UNVERIFIED): w = sqrt(N / (k * n)); w^2 * n is the same for every study, mean w^2 is 1
+    from pbpk_domain.fit_spec import study_weights
+
+    long, short = _sim("long"), _sim("short")
+    long = FitSimulation(**{**long.__dict__, "observed": {**long.observed, "values": [1.0] * 12}})
+    short = FitSimulation(**{**short.__dict__, "observed": {**short.observed, "values": [1.0, 2.0, None, 3.0]}})
+    weights = study_weights([long, short])
+    assert weights["long"] ** 2 * 12 == pytest.approx(weights["short"] ** 2 * 3)   # the LLOQ point does not count
+    assert (weights["long"] ** 2 * 12 + weights["short"] ** 2 * 3) / 15 == pytest.approx(1.0)
+    spec = build_fit_spec(_cpf(), ["elim.hepatic.CYP3A4.clspec"], [long, short], equal_study_weights=True)
+    assert [m["observed"]["weight"] for m in spec["output_mappings"]] == [weights["long"], weights["short"]]
+    plain = build_fit_spec(_cpf(), ["elim.hepatic.CYP3A4.clspec"], [long, short])
+    assert all("weight" not in m["observed"] for m in plain["output_mappings"])   # a stage fit weighs every point

@@ -276,7 +276,9 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
         return None
 
     try:
-        spec = build_fit_spec(cpf, fit_ids, simulations, bounds_override=override or None, seed=ctx.seed)
+        # the joint refinement weighs every study equally (MS-01 v1.1 SJ, D-04); a stage fit weighs every point
+        spec = build_fit_spec(cpf, fit_ids, simulations, bounds_override=override or None, seed=ctx.seed,
+                              equal_study_weights=ctx.stage == "SJ")
     except FitSpecError as exc:
         activity.logger.info("build_round_snapshot %s %s: fit spec not built (%s)", ctx.campaign_id, ctx.stage, exc)
         return None

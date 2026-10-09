@@ -207,7 +207,7 @@
     },
     {
       "path": "docs/PBPK_MODELING_WORKFLOW.md",
-      "sha256": "1b382d2c11b5dccf2138ee41bed3298f63183d601c9fdb4ea421469355fe1e2c"
+      "sha256": "feacbe16b4503992cb2c289667c957bd9dcb1e9b1ec6c5cb8d8d89d0f6008768"
     },
     {
       "path": "docs/validation/requirements.yaml",
@@ -431,7 +431,7 @@
     },
     {
       "path": "services/engine-worker/golden/pi_smoke.R",
-      "sha256": "d5b2fcb6ef615910c507a208f9fb8bfcf720ff8e98637144297fdd07a1a49bf1"
+      "sha256": "ab140d92dd9346ca50b7863fb37902c7c405222f49fed9f6722e150e45adcc24"
     },
     {
       "path": "services/engine-worker/golden/process_coverage_snapshot.json",
@@ -463,7 +463,7 @@
     },
     {
       "path": "services/engine-worker/r/run_pi.R",
-      "sha256": "0af960fe3021072f938d5e4a2850a7c97f9c79f316e563a2e9d3a3d187cc5c56"
+      "sha256": "3ba15eb0b2ce3cd5b38e82c71e14dc0e3b852be9b2425e970fd7f643d2e80be0"
     },
     {
       "path": "tests/architecture/boundaries.toml",

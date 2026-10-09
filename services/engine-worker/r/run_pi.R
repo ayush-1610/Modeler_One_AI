@@ -11,7 +11,9 @@
 #   parameters       [{name, unit, min, max, start, paths: [{simulation, path}]}]   one PIParameters per entry;
 #                    several paths = one value shared across simulations
 #   output_mappings  [{simulation, output_path, scaling ("lin"|"log"), observed: {name, time[], time_unit,
-#                      values[], unit, sd[] (optional), lloq (optional), mol_weight}}]
+#                      values[], unit, sd[] (optional), lloq (optional), mol_weight, weight (optional)}}]
+#                    weight: one residual weight for the whole dataset (the joint refinement gives every study the
+#                    same say, MS-01 v1.1 SJ, D-04); absent = 1 for every point, as before
 #   algorithm        "BOBYQA" | "HJKB" | "DEoptim"
 #   max_evaluations  BOBYQA maxeval / HJKB maxfeval;  generations, population_size for DEoptim;  seed
 #
@@ -105,7 +107,16 @@ run_parameter_identification <- function(spec_path, out_dir) {
 
   mappings <- lapply(spec$output_mappings, function(m) {
     mapping <- PIOutputMapping$new(quantity = getQuantity(path = m$output_path, container = simulations[[m$simulation]]))
-    mapping$addObservedDataSets(build_dataset(m$observed))
+    dataset <- build_dataset(m$observed)
+    if (!is.null(m$observed$weight)) {
+      # PIOutputMapping (ospsuite.parameteridentification >= 2.1): a scalar weight per dataset, broadcast to its
+      # points; the cost multiplies each residual by it before squaring
+      weights <- list(as.numeric(m$observed$weight))
+      names(weights) <- dataset$name
+      mapping$addObservedDataSets(dataset, weights = weights)
+    } else {
+      mapping$addObservedDataSets(dataset)
+    }
     mapping$scaling <- m$scaling
     mapping
   })

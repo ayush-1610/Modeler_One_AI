@@ -8,8 +8,8 @@ fitted, from their sequential estimates. Rules (D-04):
   guard: an absorption misfit must not be absorbed by bending clearance) unless a signed decision widens it;
 * the joint estimate is kept only if every internal study passes its gate and the agreement does not get worse
   (mean of the AUC and Cmax GMFE); otherwise the sequential parameter set stays and the attempt is recorded;
-* each study is meant to contribute equally (D-04); PK-Sim weights per output mapping are not passed by the fit
-  specification yet, so points are weighted equally until `run_pi.R` support is verified (known gap).
+* each study contributes equally (D-04): the fit specification weighs each study's residuals by sqrt(N / (k * n))
+  (`pbpk_domain.fit_spec.study_weights`), which `run_pi.R` passes to the engine's output mappings.
 
 This module holds the pieces that are not engine work: which parameters, which bounds, which studies, and the score.
 """
