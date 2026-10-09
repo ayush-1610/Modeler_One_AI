@@ -41,22 +41,28 @@ class JointPlan:
     notes: tuple[str, ...] = ()
 
 
-def joint_parameters(cpf: Any, stages: tuple[str, ...]) -> JointPlan:
-    """The parameters `stages` fitted (status FITTED there, with a fit policy), and the S1-CI guard bounds."""
+def joint_parameters(cpf: Any, stages: tuple[str, ...], system: Any = None) -> JointPlan:
+    """The parameters `stages` fitted (status FITTED there, with a fit policy), and the S1-CI guard bounds. In a model
+    system, another compound's fitted parameters join under their qualified fit id (``<compound>::<id>``, D-25)."""
+    from pbpk_domain.fit_spec import qualify
+
     ids, bounds, guarded, notes = [], {}, [], []
-    for record in cpf.parameters:
-        if record.status.value != "FITTED" or record.fitted_at_stage not in stages or record.fit_policy is None:
-            continue
-        ids.append(record.id)
-        if record.fitted_at_stage == "S1":
-            u = record.uncertainty
-            if u is not None and u.ci95_lower is not None and u.ci95_upper is not None:
-                lo, hi = max(record.fit_policy.lower, u.ci95_lower), min(record.fit_policy.upper, u.ci95_upper)
-                if lo < hi:
-                    bounds[record.id] = [lo, hi]
-                    guarded.append(record.id)
-                    continue
-            notes.append(f"{record.id}: fitted at S1 without a 95 % CI; the S1-CI guard cannot hold it (fit policy bounds)")
+    owners = [cpf] + ([c for c in system.compounds if c.compound != cpf.compound] if system is not None else [])
+    for owner in owners:
+        for record in owner.parameters:
+            if record.status.value != "FITTED" or record.fitted_at_stage not in stages or record.fit_policy is None:
+                continue
+            fit_id = qualify(owner.compound, record.id, cpf.compound)
+            ids.append(fit_id)
+            if record.fitted_at_stage == "S1":
+                u = record.uncertainty
+                if u is not None and u.ci95_lower is not None and u.ci95_upper is not None:
+                    lo, hi = max(record.fit_policy.lower, u.ci95_lower), min(record.fit_policy.upper, u.ci95_upper)
+                    if lo < hi:
+                        bounds[fit_id] = [lo, hi]
+                        guarded.append(fit_id)
+                        continue
+                notes.append(f"{fit_id}: fitted at S1 without a 95 % CI; the S1-CI guard cannot hold it (fit policy bounds)")
     return JointPlan(tuple(ids), bounds, tuple(guarded), tuple(notes))
 
 

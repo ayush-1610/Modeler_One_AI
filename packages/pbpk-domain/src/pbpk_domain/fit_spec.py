@@ -9,20 +9,61 @@ unmappable parameter, a parameter with no bounds, or an estimate for an unknown 
 The parameter paths are the harvested candidates; the fit step must still verify each exists in the exported
 pkml before running PI (a path can vary per compound). Fitting a compound-level parameter shares one path
 across every simulation; the same value is identified jointly from all of them.
+
+In a model system (`pbpk_domain.system`, multi-compound phase 2, D-25) a fit can move another compound's parameter:
+a metabolite's clearance, a co-parent enantiomer's. Its fit id is qualified, ``<compound>::<CPF id>``
+(`qualify`, `split_fit_id`); the fitted compound's own ids stay bare, so every single-compound target, rule and fit
+spec is unchanged. Each CPF stays the record of its own parameters: the estimates go back to the compound they name.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance, Uncertainty
 from pbpk_domain.pksim_paths import pksim_parameter_path
 
+if TYPE_CHECKING:
+    from pbpk_domain.system import ModelSystem
+
+QUALIFIER = "::"
+
 
 class FitSpecError(ValueError):
     pass
+
+
+def split_fit_id(fit_id: str) -> tuple[str | None, str]:
+    """(compound, CPF id) of a fit id; the compound is None for a bare id (the fitted compound's own parameter)."""
+    compound, sep, pid = fit_id.partition(QUALIFIER)
+    return (compound, pid) if sep else (None, fit_id)
+
+
+def qualify(compound: str, pid: str, fitted: str) -> str:
+    """The fit id of `compound`'s parameter `pid` in a fit of `fitted`: bare for the fitted compound's own."""
+    return pid if compound == fitted else f"{compound}{QUALIFIER}{pid}"
+
+
+def fit_owner(cpf: CPF, fit_id: str, system: ModelSystem | None = None) -> tuple[CPF, str]:
+    """(the CPF that holds the parameter, its id there). Raises FitSpecError for a compound the fit cannot reach: a
+    qualified id outside a model system, or naming a compound the system does not have."""
+    compound, pid = split_fit_id(fit_id)
+    if compound is None or compound == cpf.compound:
+        return cpf, pid
+    if system is None or compound not in system.roles:
+        raise FitSpecError(f"{fit_id!r}: {compound!r} is not a compound of this fit's model system")
+    return system.cpf(compound), pid
+
+
+def by_compound[V](values: dict[str, V], fitted: str) -> dict[str, dict[str, V]]:
+    """Split a mapping keyed by fit id into one per compound, keyed by that compound's own CPF ids."""
+    out: dict[str, dict[str, V]] = {}
+    for fit_id, value in values.items():
+        compound, pid = split_fit_id(fit_id)
+        out.setdefault(compound or fitted, {})[pid] = value
+    return out
 
 
 @dataclass(frozen=True)
@@ -54,12 +95,21 @@ def pi_observed(
     return observed
 
 
-def resolve_fit_ids(cpf: CPF, target: str) -> tuple[str, ...]:
+def resolve_fit_ids(cpf: CPF, target: str, system: ModelSystem | None = None) -> tuple[str, ...]:
     """Expand a strategist action target to the concrete CPF ids it names.
 
     Targets may template ``{enzyme}`` / ``{name}`` (e.g. ``elim.hepatic.{enzyme}.clspec``); each placeholder
     matches one id segment. A plain target resolves to itself when the CPF has it. Returns () when nothing
-    matches, so the caller surfaces that no fittable parameter was found."""
+    matches, so the caller surfaces that no fittable parameter was found. A qualified target
+    (``<compound>::<target>``) resolves against that compound's CPF in `system` and stays qualified; it matches
+    nothing outside a model system or for a compound the system does not have."""
+    compound, part = split_fit_id(target)
+    if compound is not None:
+        if compound == cpf.compound:
+            return resolve_fit_ids(cpf, part)
+        if system is None or compound not in system.roles:
+            return ()
+        return tuple(qualify(compound, pid, cpf.compound) for pid in resolve_fit_ids(system.cpf(compound), part))
     if "{" not in target:
         return (target,) if cpf.get(target) is not None else ()
     pattern = "^" + re.escape(target).replace(r"\{enzyme\}", "[^.]+").replace(r"\{name\}", "[^.]+") + "$"
@@ -81,12 +131,16 @@ def _bounds(record: ParameterRecord, override: tuple[float, float] | None) -> tu
     return float(lo), float(hi)
 
 
-def _paths(record: ParameterRecord, compound: str, simulations: list[FitSimulation]) -> list[dict[str, str]]:
+def _paths(record: ParameterRecord, compound: str, simulations: list[FitSimulation], *,
+           fitted: bool = True) -> list[dict[str, str]]:
     """Where the parameter lives in each simulation. A formulation parameter lives under each simulation's own
-    protocol and exists only in the simulations using that formulation; everything else has one path in all."""
+    protocol and exists only in the simulations using that formulation; everything else has one path in all.
+    Formulations are the fitted compound's (its products'); another compound's formulation is not fitted here."""
     from pbpk_domain.cpf.formulations import weibull_parameter_path
 
     parts = record.id.split(".")
+    if parts[0] == "form" and not fitted:
+        raise FitSpecError(f"{compound}::{record.id}: a formulation is fitted on the fitted compound only")
     if parts[0] == "form":
         paths = [
             {"simulation": s.study_id, "path": weibull_parameter_path(record.id, protocol=s.protocol)}
@@ -125,11 +179,14 @@ def build_fit_spec(
     seed: int = 1,
     scaling: str = "log",
     equal_study_weights: bool = False,
+    system: ModelSystem | None = None,
 ) -> dict[str, Any]:
     """Build the PI base spec fitting ``fit_ids`` against ``simulations``. Raises FitSpecError on any gap.
 
     ``equal_study_weights`` (the joint refinement, SJ) gives every study the same say however many points it has
-    (`study_weights`); otherwise every point weighs the same, as the stage fits always have."""
+    (`study_weights`); otherwise every point weighs the same, as the stage fits always have. A qualified fit id
+    (``<compound>::<id>``) is read from that compound's CPF in ``system`` and placed at its own PK-Sim path; the
+    PI parameter keeps the fit id as its name, so the estimate returns to the compound it belongs to."""
     if not simulations:
         raise FitSpecError("a fit spec needs at least one simulation")
     if not fit_ids:
@@ -138,14 +195,16 @@ def build_fit_spec(
     weights = study_weights(simulations) if equal_study_weights else {}
 
     parameters: list[dict[str, Any]] = []
-    for pid in fit_ids:
-        record = cpf.get(pid)
+    for fit_id in fit_ids:
+        owner, pid = fit_owner(cpf, fit_id, system)
+        record = owner.get(pid)
         if record is None:
-            raise FitSpecError(f"CPF for {cpf.compound} has no parameter {pid!r} to fit")
-        lo, hi = _bounds(record, override.get(pid))
+            raise FitSpecError(f"CPF for {owner.compound} has no parameter {pid!r} to fit")
+        lo, hi = _bounds(record, override.get(fit_id))
         start = min(max(record.numeric_value, lo), hi)  # clamp the current value into the bounds
         entry: dict[str, Any] = {
-            "name": pid, "min": lo, "max": hi, "start": start, "paths": _paths(record, cpf.compound, simulations),
+            "name": fit_id, "min": lo, "max": hi, "start": start,
+            "paths": _paths(record, owner.compound, simulations, fitted=owner is cpf),
         }
         # A dimensionless parameter (e.g. GFR fraction) carries no unit key at all: a JSON null does not survive
         # run_job.R's re-serialisation (R writes it back as {}), and ospsuite then rejects the empty "unit".

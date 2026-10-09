@@ -263,14 +263,18 @@ def check_evidence(cpf_uri: str, *, parameter: str, value: float, unit: str | No
 
 
 def new_evidence_cpf(cpf_uri: str, *, parameter: str, value: float, unit: str | None, reference: str, cycle: int,
-                     campaign_id: str, failing: list[str]) -> tuple[str, str]:
-    """CPF vN+1 with one parameter replaced by a measured value (D-06), fixed so it is not fitted again."""
+                     campaign_id: str, failing: list[str], system_uri: str = "") -> tuple[str, str]:
+    """CPF vN+1 with one parameter replaced by a measured value (D-06), fixed so it is not fitted again. In a model
+    system, the system as of `cpf_uri` goes beside the new version (`round_system`), so no compound's fit is lost."""
+    from modeler_orchestrator.round_system import carry_forward
+
     cpf, replaced = check_evidence(cpf_uri, parameter=parameter, value=value, unit=unit, reference=reference)
     updated = cpf.replace(replaced, note=f"feedback cycle {cycle}: {parameter} replaced by a measured value "
                                          f"({reference.strip()}), {PROMPTED_BY_S5} ({', '.join(failing)})")
     data = updated.model_dump_json().encode("utf-8")
     out = _path(cpf_uri).parent / f"{campaign_id}-evidence-c{cycle}.json"
     atomic_write_bytes(out, data)
+    carry_forward(cpf_uri, out, system_uri, updated)
     return out.as_uri(), hashlib.sha256(data).hexdigest()
 
 

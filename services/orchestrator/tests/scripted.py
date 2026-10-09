@@ -85,7 +85,7 @@ class ScriptedExecutor(LocalExecutor):
     def _persist(self, request, outcome) -> None:
         pass
 
-    def _joint_plan(self, cpf_uri, stages):
+    def _joint_plan(self, cpf_uri, stages, system_uri=""):
         from modeler_orchestrator.joint import JointPlan
 
         return JointPlan(fit_ids=tuple(self.joint_ids), bounds={}, guarded=())
