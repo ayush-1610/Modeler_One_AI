@@ -40,7 +40,7 @@ logp_path <- paste0(compound, "|Lipophilicity")
 cat("compound:", compound, "\nusing parameter path:", logp_path, "\n")
 
 # --- helper: run one job through run_job.R and return its outputs dir ----------------------------
-run <- function(task, options = list(), extra_inputs = list()) {
+run <- function(task, options = list(), extra_inputs = list(), expect_failure = FALSE) {
   work <- tempfile("job_"); dir.create(work)
   outdir <- file.path(work, "outputs"); dir.create(outdir)
   inputs <- c(
@@ -52,7 +52,9 @@ run <- function(task, options = list(), extra_inputs = list()) {
   write_json(job, job_file, auto_unbox = TRUE, digits = NA)
   status <- system2("Rscript", c(run_job, job_file), stdout = TRUE, stderr = TRUE)
   code <- attr(status, "status")
-  if (!is.null(code) && code != 0) { cat(paste(status, collapse = "\n"), "\n"); fail(task, "engine exited non-zero") }
+  failed <- !is.null(code) && code != 0
+  if (expect_failure) return(if (failed) paste(status, collapse = "\n") else NULL)
+  if (failed) { cat(paste(status, collapse = "\n"), "\n"); fail(task, "engine exited non-zero") }
   outdir
 }
 
@@ -70,6 +72,36 @@ if (nrow(pop_csv) != 6) fail("population expected 6 individuals, got", nrow(pop_
 res <- read.csv(file.path(pop_out, "results.csv"), check.names = FALSE)
 if (length(unique(res$IndividualId)) != 6) fail("population results cover", length(unique(res$IndividualId)), "individuals, expected 6")
 ok("population: 6 individuals simulated, results + PK exported")
+
+# --- population occasions (virtual bioequivalence, T-31): the same individuals, each arm its own seeded occasion ---
+# The varied path is the compound's lipophilicity, harvested above from the simulation (never typed).
+same_people <- list(list(name = "population.csv", path = file.path(pop_out, "population.csv"),
+                         sha256 = digest(file = file.path(pop_out, "population.csv"), algo = "sha256")))
+occasion <- function(seed) run("population", options = list(
+  variability = list(list(path = logp_path, cv_percent = 20)), occasion_seed = seed), extra_inputs = same_people)
+pk_of <- function(dir) read.csv(file.path(dir, "pk_analyses.csv"), check.names = FALSE)
+same <- function(a, b) {  # the same rows and values in the columns both files have (an exported CSV may reorder them)
+  common <- intersect(names(a), names(b))
+  nrow(a) == nrow(b) && length(common) > 0 && isTRUE(all.equal(a[common], b[common], tolerance = 1e-10,
+                                                                 check.attributes = FALSE))
+}
+arm_a <- occasion(11); arm_b <- occasion(12); arm_a_again <- occasion(11)
+occ_a <- fromJSON(file.path(arm_a, "occasion.json"), simplifyVector = TRUE)
+if (!identical(occ_a$occasion_seed, 11L) || length(occ_a$parameters$factors[[1]]) != 6)
+  fail("occasion.json: expected seed 11 and 6 factors")
+if (any(occ_a$parameters$factors[[1]] <= 0) || length(unique(round(occ_a$parameters$factors[[1]], 9))) < 6)
+  fail("occasion factors are not 6 distinct positive values")
+for (d in c(arm_a, arm_b)) {
+  if (!same(read.csv(file.path(d, "population.csv"), check.names = FALSE), pop_csv))
+    fail("an occasion arm's population.csv is not the loaded individuals")
+}
+if (same(pk_of(arm_a), pk_of(arm_b))) fail("two occasion seeds gave the same PK: the occasion had no effect")
+if (!same(pk_of(arm_a), pk_of(arm_a_again))) fail("the same occasion seed did not reproduce the same PK")
+refused <- run("population", options = list(
+  variability = list(list(path = paste0(compound, "|No such parameter"), cv_percent = 20)), occasion_seed = 1),
+  extra_inputs = same_people, expect_failure = TRUE)
+if (is.null(refused)) fail("an occasion on a path the simulation does not have ran instead of stopping")
+ok("population occasions: same 6 individuals, seeds 11 and 12 differ, seed 11 reproduces, an unknown path stops")
 
 # --- sensitivity ---------------------------------------------------------------------------------
 sens_out <- run("sensitivity", options = list(parameter_paths = list(logp_path), number_of_steps = 3, variation_range = 0.1))
