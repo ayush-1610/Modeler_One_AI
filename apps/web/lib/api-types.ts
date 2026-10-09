@@ -1719,6 +1719,18 @@ export interface components {
             /** Provider */
             provider?: string | null;
         };
+        /**
+         * ApplicationRequest
+         * @description An application the campaign runs at S6 (T-31): an analysis template and the person's inputs to it.
+         */
+        ApplicationRequest: {
+            /** Inputs */
+            inputs?: {
+                [key: string]: unknown;
+            };
+            /** Template */
+            template: string;
+        };
         /** Approval */
         Approval: {
             /**
@@ -2045,6 +2057,8 @@ export interface components {
          * @description `campaign:prepare`: the staged CPF, MAP and observed PK a campaign starts from; a model system adds its own.
          */
         CampaignInputs: {
+            /** Application Problems */
+            application_problems?: string[] | null;
             /** Compound */
             compound: string;
             /** Cpf Sha256 */
@@ -4264,9 +4278,30 @@ export interface components {
             /** Tier */
             tier: string;
         };
+        /**
+         * MapApplication
+         * @description An application the question of interest pins (T-31): its analysis template, pinned by version, and the
+         *     person's inputs to it. An input the template marks ``never_default`` is the person's to give; until it is
+         *     given the application names it (`problems`) and the MAP cannot be signed.
+         */
+        MapApplication: {
+            /** Inputs */
+            inputs?: {
+                [key: string]: unknown;
+            };
+            /** Template */
+            template: string;
+            /** Template Version */
+            template_version: string;
+        };
         /** MapDocument */
         MapDocument: {
             acceptance: components["schemas"]["MapAcceptance"];
+            /**
+             * Applications
+             * @default []
+             */
+            applications?: components["schemas"]["MapApplication"][];
             /** Compound */
             compound: string;
             /** Context Of Use */
@@ -5308,6 +5343,8 @@ export interface components {
         };
         /** PrepareRequest */
         PrepareRequest: {
+            /** Applications */
+            applications?: components["schemas"]["ApplicationRequest"][];
             /** Compound */
             compound: string;
             /**
@@ -6395,6 +6432,11 @@ export interface components {
         /** Structure */
         Structure: {
             /**
+             * Applications
+             * @default []
+             */
+            applications: components["schemas"]["MapApplication"][];
+            /**
              * Context Of Use
              * @default Model-informed decision
              */
@@ -6441,7 +6483,7 @@ export interface components {
              * Key
              * @enum {string}
              */
-            key: "objective" | "context_of_use" | "model_risk" | "food_effect_in_question" | "measured_fed_solubility" | "planned_applications";
+            key: "objective" | "context_of_use" | "model_risk" | "food_effect_in_question" | "measured_fed_solubility" | "planned_applications" | "applications";
             /** Reason */
             reason: string;
             /** Value */

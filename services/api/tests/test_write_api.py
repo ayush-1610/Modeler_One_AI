@@ -214,3 +214,17 @@ def test_a_project_may_be_marked_exploratory(tmp_path):
     assert r.json()["data"]["exploratory"] is True
     r = c.post("/api/v1/projects", json={"name": "Real", "compound": "X"}, headers=_auth())
     assert r.json()["data"]["exploratory"] is False
+
+
+@pytest.mark.req("T-31")
+def test_prepare_carries_the_applications_and_names_what_they_still_need(tmp_path):
+    body = {"compound": "Renaldrug", "applications": [{"template": "vbe-crossover", "inputs": {"n_trials": 100}}]}
+    _, prep, (_, map_doc) = _prepared(tmp_path, _study(), body)
+    assert map_doc["applications"][0]["template"] == "vbe-crossover"
+    assert map_doc["applications"][0]["inputs"] == {"n_trials": 100}
+    assert any("Intra-subject variability" in p and "never defaulted" in p for p in prep["application_problems"])
+    assert not any("Virtual trials" in p for p in prep["application_problems"])
+    r, _, _ = _prepared(tmp_path / "other", _study(), {"compound": "Renaldrug", "applications": [{"template": "nope"}]})
+    assert r.status_code == 422 and "no analysis template" in r.json()["detail"]
+    _, plain, _ = _prepared(tmp_path / "plain", _study())
+    assert "application_problems" not in plain or plain["application_problems"] is None

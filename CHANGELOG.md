@@ -15,6 +15,42 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the MAP carries the applications its question pins (T-31 B6 PR 2; locked `map.py`, D-26)
+- **What:**
+  - **`MapDocument.applications`** (`MapApplication`): each application S6 will run, recorded as three things:
+    - its analysis template;
+    - that template's version, pinned from the registry (`MapApplication.pinned`);
+    - the person's inputs.
+
+    `problems(cpf)` names what an application still needs: an unknown or moved template, a missing or invalid input
+    (`check_inputs`), and a formulation input that names no CPF formulation (`form.{name}.*`).
+  - **Signing refuses an incomplete application.** `MapDocument.sign` refuses a MAP whose application lacks an
+    input. A `never_default` input (VBE's variability, trial size, seed and PoS threshold) is named, never filled in.
+  - **The content hash leaves out an empty `applications`.** Every MAP signed before this change keeps its hash and
+    its signature.
+  - **`campaign:prepare`** takes `applications: [{template, inputs}]`:
+    - an unknown template answers 422;
+    - the answer lists `application_problems` (API contract: `docs/api/openapi.json` and the web types).
+  - **The P5 plan:**
+    - a brief that asks for APP-14 starts the plan with the `vbe-crossover` application and no inputs;
+    - the validator raises one blocking `application` violation per missing input, so the MAP is not generated or
+      signed until the person gives them (`PUT /plan/structure`, key `applications`, with a reason);
+    - the diff shows the pinned template.
+- **Why:** step 3 of the VBE design (`docs/plans/2026-10-06-t31-vbe-template.md`). The signed MAP binds what S6 runs
+  and with which inputs, so a VBE result traces back to a signature and never to a default.
+- **Impact:**
+  - A MAP without applications is unchanged: the same JSON hash and the same signatures.
+  - Plans whose brief has no APP-14 are unchanged.
+  - MS-01 §9 (what the MAP contains) does not list applications yet. It is SME-governed, so the line goes in at its
+    next revision; the T-30 sign-off list names it.
+- **Tests:**
+  - `test_map_applications.py`: the hash without applications, version pinning, the refused signature, the CPF
+    formulation check;
+  - `test_plan.py`: the brief seeds the application, the validator blocks it, the inputs are given, and the MAP carries
+    them;
+  - `test_write_api.py`: prepare carries the applications, names what they still need, and refuses an unknown
+    template.
+
 ### Added — analysis templates as a typed, locked registry; the VBE crossover template (T-31 B6 PR 1; science, UNVERIFIED, D-26)
 - **What:**
   - **Registry:** `pbpk_domain.analysis_templates` is a typed loader (`AnalysisTemplate`, `load_template`,

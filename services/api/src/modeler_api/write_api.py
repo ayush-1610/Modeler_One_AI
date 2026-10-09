@@ -141,6 +141,13 @@ def upload_studies(project_id: str, body: StudiesUpload, principal: Author, stor
 # --- prepare the campaign inputs (CPF + MAP + observed) -------------------------------------------
 
 
+class ApplicationRequest(BaseModel):
+    """An application the campaign runs at S6 (T-31): an analysis template and the person's inputs to it."""
+
+    template: str = Field(min_length=1)
+    inputs: dict[str, Any] = Field(default_factory=dict)
+
+
 class PrepareRequest(BaseModel):
     compound: str = Field(min_length=1)
     objective: str = "Predict exposure for the question of interest"
@@ -148,6 +155,7 @@ class PrepareRequest(BaseModel):
     food_effect_in_question: bool = False
     model_risk: str = "medium"
     stages: list[str] | None = None
+    applications: list[ApplicationRequest] = Field(default_factory=list)
 
 
 def _study_record(row: dict[str, Any]):
@@ -171,7 +179,7 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
     if not rows:
         raise HTTPException(status_code=422, detail="no observed studies uploaded for this project")
 
-    from pbpk_domain.campaign.map import generate_map
+    from pbpk_domain.campaign.map import MapApplication, generate_map
     from pbpk_domain.campaign.split import QuestionOfInterest, split_studies
     from pbpk_domain.units import UnitError
 
@@ -217,12 +225,16 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
     except ValueError:
         risk = Rating.MEDIUM
     question = QuestionOfInterest(food_effect=body.food_effect_in_question)
+    try:  # each pinned at the registry's current version of its template
+        applications = tuple(MapApplication.pinned(a.template, a.inputs) for a in body.applications)
+    except KeyError as exc:
+        raise HTTPException(status_code=422, detail=f"applications: no analysis template {exc}") from exc
     map_doc = generate_map(
         compound=body.compound, cpf=cpf, studies=studies, split=split_studies(studies, question),
         objective=body.objective, context_of_use=body.context_of_use,
         food_effect_in_question=body.food_effect_in_question, model_risk=risk,
         engine_image_digest=settings.image_digest, software_versions={"ospsuite": "12.4.4"},
-        sampling_end_h=sampling_end_h, system=system,
+        sampling_end_h=sampling_end_h, system=system, applications=applications,
     )
 
     # Stage a self-contained input set the single-node runner reads (build_round_snapshot writes its
@@ -257,5 +269,7 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
         # what each study's observed data is (plan §9.4); a study with no profile is not evaluable
         "origins": {sid: o.get("origin") for sid, o in observed.items()},
         "not_evaluable": sorted(r["study_id"] for r in rows if r["study_id"] not in observed),
+        # what the MAP's applications still need before it can be signed (a never-defaulted input is named, not filled)
+        **({"application_problems": map_doc.application_problems(cpf)} if applications else {}),
         **system_fields,
     })

@@ -287,7 +287,7 @@ def remove_fit(project_id: str, parameter: str, body: ReasonRequest, principal: 
 
 class StructureRequest(BaseModel):
     key: Literal["objective", "context_of_use", "model_risk", "food_effect_in_question", "measured_fed_solubility",
-                 "planned_applications"]
+                 "planned_applications", "applications"]
     value: Any
     reason: str = Field(min_length=1)
 
