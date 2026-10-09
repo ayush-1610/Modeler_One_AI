@@ -420,18 +420,21 @@
    "binding_candidates": [],
    "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'elim.ehc_fraction'",
    "numeric": true,
-   "physical_bounds": null,
-   "placement": null,
+   "physical_bounds": [
+    0.0,
+    1.0
+   ],
+   "placement": "model",
    "process_id": true,
    "s0_satisfies": [
     "elim"
    ],
-   "storage_family": null,
-   "target_problem": "elim.ehc_fraction: MS-01 places it on the Individual (Organism|Liver|EHC continuous fraction), a path not harvested from PK-Sim yet; it cannot be set until it is",
+   "storage_family": "fraction",
+   "target_problem": null,
    "to_storage_unit(1, no unit)": [
     1.0,
     null,
-    "dimensionless, unchanged"
+    "fraction, unchanged"
    ],
    "value_origin_method": "InVivo"
   },
@@ -1949,6 +1952,10 @@
     0.0,
     20.0
    ],
+   "elim.ehc_fraction": [
+    0.0,
+    1.0
+   ],
    "elim.fe_urine": [
     0.0,
     1.0
@@ -1976,6 +1983,7 @@
    "bind.partner",
    "dist.partition_method",
    "dist.permeability_method",
+   "elim.ehc_fraction",
    "perm.cellular",
    "perm.intestinal",
    "phys.logp",
@@ -2235,7 +2243,7 @@
    ],
    [
     "elim.ehc_fraction",
-    null
+    "fraction"
    ],
    [
     "elim.fe_urine",

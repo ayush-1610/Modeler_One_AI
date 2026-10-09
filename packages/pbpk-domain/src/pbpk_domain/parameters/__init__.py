@@ -36,6 +36,7 @@ class ParameterRule(BaseModel):
     storage: str | None = None
     reason: str | None = None
     pksim_compound: str | None = None
+    pksim_individual: str | None = None
     builder_unit: str | None = None
     physical_bounds: tuple[float, float] | None = None
     origin: Literal["in_vivo", "in_vitro"] | None = None
@@ -58,8 +59,10 @@ class ParameterRule(BaseModel):
             problems.append("builder_process is a process family")
         if self.placement == "process" and not self.is_family:
             problems.append("a process placement names a family")
-        if (self.pksim_compound or self.builder_unit) and (self.placement != "model" or self.is_family):
-            problems.append("a PK-Sim compound name or builder unit belongs to one model id")
+        if (self.pksim_compound or self.pksim_individual or self.builder_unit) and (self.placement != "model" or self.is_family):
+            problems.append("a PK-Sim compound name, individual path or builder unit belongs to one model id")
+        if self.pksim_compound and self.pksim_individual:
+            problems.append("a value is set on the compound or on the individual, not both")
         if self.physical_bounds and (self.is_family or not self.physical_bounds[0] < self.physical_bounds[1]):
             problems.append("physical bounds are [low, high] of one id")
         if (self.alias_of or self.refused) and (self.is_family or self.placement or self.suffix):
@@ -235,6 +238,11 @@ def placement(cpf_id: str) -> str | None:
 def compound_parameters() -> dict[str, str]:
     """CPF id -> harvested PK-Sim compound parameter (`pksim_paths._COMPOUND_PARAM`)."""
     return {r.key: r.pksim_compound for r in _rules() if r.pksim_compound}
+
+
+def individual_paths() -> dict[str, str]:
+    """CPF id -> harvested PK-Sim path on the Individual it is set at (registry 1.2: elim.ehc_fraction)."""
+    return {r.key: r.pksim_individual for r in _rules() if r.pksim_individual}
 
 
 def builder_units() -> dict[str, str]:

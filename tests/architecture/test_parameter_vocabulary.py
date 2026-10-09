@@ -44,11 +44,9 @@ EXAMPLES = {
     "form.": "form.tablet.weibull.t50",
 }
 
-# elim.hepatic.total_cl was here until phase 4e made it an alias of elim.hepatic.total.plasma_clearance (registry 1.1)
-DRIFT = {
-    "elim.ehc_fraction": "converts to a storage unit but is refused (registry 1.1): MS-01 places it on the Individual "
-                         "(Organism|Liver|EHC continuous fraction), a path not harvested yet; harvest it to place it",
-}
+# elim.hepatic.total_cl was here until phase 4e made it an alias of elim.hepatic.total.plasma_clearance (registry 1.1);
+# elim.ehc_fraction until registry 1.2 placed it on the Individual at its harvested path (2026-10-09)
+DRIFT: dict[str, str] = {}
 _ID = re.compile(r"\b[a-z]+(?:\.[a-z0-9_]+)+\b")
 
 

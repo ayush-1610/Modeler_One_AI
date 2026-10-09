@@ -247,11 +247,11 @@
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/parameters/registry.yaml",
-      "sha256": "a91ec144b8914c14a045233f24eb361d64d45ceb531cd6a1aa5bd8e340d77f71"
+      "sha256": "f7b5cfababd5880ef34017c1e3f6bedf81cfc410ff067197f996836acd1238db"
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/pksim_paths.py",
-      "sha256": "ea3d79fca949171e7334871371609bee8939844b25dd3142a2e46a671996dadf"
+      "sha256": "02c287471c5bfc842bc9bd7d1f6e7a8c04fee237ac90f3e6825a50d2bab4811f"
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/reference/osp_import.py",

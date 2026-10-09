@@ -19,6 +19,7 @@
 #                    or "not_converted" (with `reason`: a scientific transformation, not a unit change)
 #   suffix           the storage rule applies to ids of the family that end with it (checked before the plain keys)
 #   pksim_compound   the harvested PK-Sim compound parameter (pbpk_domain.pksim_paths)
+#   pksim_individual the harvested PK-Sim path on the Individual the value is set at (cpf.build.individual_parameters)
 #   builder_unit     the unit the snapshot builder checks when the stored value carries none
 #   physical_bounds  [low, high]: a value outside is flagged for review (never refused)
 #   origin           in_vivo | in_vitro: PK-Sim ValueOrigin.Method of a value from a publication or database
@@ -37,8 +38,12 @@
 #     - elim.ehc_fraction is refused with its reason (the Individual path is not harvested) instead of the misleading
 #       "no harvested PK-Sim process"; a value under it is kept out of the CPF.
 #     - a total hepatic clearance (elim.hepatic.total.*, the alias included) is obtained in vivo (MS-01: clinical).
+# 1.2 (2026-10-09, the owner's decision, UNVERIFIED pending SME sign-off):
+#     - elim.ehc_fraction is placed on the Individual at "Organism|Liver|EHC continuous fraction", the path harvested
+#       from the OSP reference snapshots (Dapagliflozin, Midazolam, Rifampicin, Verapamil, Itraconazole set it there),
+#       instead of being refused; stored as a fraction (0–1), flagged for review outside [0, 1].
 id: parameter-registry
-version: "1.1"
+version: "1.2"
 status: UNVERIFIED
 
 parameters:
@@ -68,11 +73,8 @@ parameters:
   - {key: elim.renal.gfr_fraction, storage: dimensionless, physical_bounds: [0.0, 10.0]}
   - {key: elim.hepatic.total_cl, storage: ml/min/kg, alias_of: elim.hepatic.total.plasma_clearance}
   - {key: elim.hepatic.total.plasma_clearance, storage: ml/min/kg}
-  - key: elim.ehc_fraction
-    storage: dimensionless
-    refused: >-
-      MS-01 places it on the Individual (Organism|Liver|EHC continuous fraction), a path not harvested from PK-Sim yet;
-      it cannot be set until it is
+  - {key: elim.ehc_fraction, placement: model, storage: fraction, pksim_individual: "Organism|Liver|EHC continuous fraction",
+     physical_bounds: [0.0, 1.0]}
   - {key: elim.fe_urine, placement: reference, storage: fraction, physical_bounds: [0.0, 1.0]}
   - {key: elim.fm, storage: fraction, origin: in_vivo}
   - {key: elim.fm., placement: reference}

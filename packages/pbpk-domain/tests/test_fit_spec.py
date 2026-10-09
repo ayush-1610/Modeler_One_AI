@@ -159,3 +159,17 @@ def test_a_joint_fit_weighs_every_study_equally():
     assert [m["observed"]["weight"] for m in spec["output_mappings"]] == [weights["long"], weights["short"]]
     plain = build_fit_spec(_cpf(), ["elim.hepatic.CYP3A4.clspec"], [long, short])
     assert all("weight" not in m["observed"] for m in plain["output_mappings"])   # a stage fit weighs every point
+
+
+def test_the_ehc_fraction_is_fitted_at_its_individual_path():
+    # registry 1.2 (UNVERIFIED): MS-01 fits elim.ehc_fraction on secondary peaks; it sits on the Individual
+    from pbpk_domain.cpf.models import EngineBinding
+
+    ehc = ParameterRecord(id="elim.ehc_fraction", value=1.0, status=ParameterStatus.FIXED,
+                          provenance=Provenance(source_type="measured", reference="x"),
+                          engine_binding=EngineBinding(building_block="Individual",
+                                                       parameter="Organism|Liver|EHC continuous fraction"),
+                          fit_policy=FitPolicy(stage=("S2",), lower=0.0, upper=1.0))
+    cpf = _cpf().model_copy(update={"parameters": (*_cpf().parameters, ehc)})
+    spec = build_fit_spec(cpf, ["elim.ehc_fraction"], [_sim()])
+    assert spec["parameters"][0]["paths"] == [{"simulation": "iv", "path": "Organism|Liver|EHC continuous fraction"}]
