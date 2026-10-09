@@ -19,6 +19,7 @@ from modeler_project.artifacts import ArtifactKind
 from modeler_project.evidence import EvidenceItem, Extraction, SourceRef, SourceType, new_id
 from modeler_project.workspace import Workspace
 from pbpk_domain.dissolution import (
+    ENGINE_CHECK,
     ENGINE_CONFIRMED,
     EQUATION,
     FUNCTION_VERSION,
@@ -133,6 +134,8 @@ def propose_release_model(ws: Workspace, pid: str, *, formulation: str, by: str)
                  f"t50 = {fit['t50_min']} min, shape = {fit['shape']}, lag = {fit['lag_min']} min")
         conditions = {"profile": f"{pid} v{version.version}", "function": FUNCTION_VERSION, "equation": EQUATION,
                       "fit": f"SE t50 {fit['se_t50']}, SE shape {fit['se_shape']}"}
+        if ENGINE_CONFIRMED:
+            conditions["engine check"] = ENGINE_CHECK
         flags = () if ENGINE_CONFIRMED else ("unconfirmed: the Weibull equation is not yet compared with PK-Sim's own release curve",)
         items = [EvidenceItem(id=new_id(), target=f"form.{name}.type", value="Weibull", quote=quote, conditions=conditions, **common)]
         for key, value, unit in (("t50", fit["t50_min"], "min"), ("shape", fit["shape"], None), ("lag", fit["lag_min"], "min")):

@@ -195,7 +195,7 @@
     },
     {
       "path": ".github/workflows/engine-image.yml",
-      "sha256": "95479f565137469695d7590be0c4b1e23ff7cbc38fa49d4ce456da7050f97b12"
+      "sha256": "4e81125591d6d6120882ab2a3c94c607b5c135221c68581e459adb94eea79814"
     },
     {
       "path": "CLAUDE.md",
@@ -346,6 +346,10 @@
       "sha256": "d27ddbb784f84950ee954056dbb4ef0c9cdb6e6a00c4b0b721beef338e78f560"
     },
     {
+      "path": "services/engine-worker/golden/compare_weibull.py",
+      "sha256": "bef851262be2b9b55a3ba5c4938b8736c2f9c5784c4347e8bda6a0c34bb51ef1"
+    },
+    {
       "path": "services/engine-worker/golden/example_snapshot.json",
       "sha256": "a5c21e6931b42921586265697e636d18142d2d8811d34cbac8cfc822383c9c0d"
     },
@@ -448,6 +452,10 @@
     {
       "path": "services/engine-worker/golden/results_sample/results.csv",
       "sha256": "71221cadcd60e2a2c4e18166388b57f061e542c48317d23a0033dbeea3b2a0dc"
+    },
+    {
+      "path": "services/engine-worker/golden/weibull_check.R",
+      "sha256": "2be6c0eeda3be4afb7972124b67825b40bd4b5628bf0fac111d697775edb5a61"
     },
     {
       "path": "services/engine-worker/r/benchmark.R",

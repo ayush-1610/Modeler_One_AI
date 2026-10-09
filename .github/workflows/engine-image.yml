@@ -56,8 +56,37 @@ jobs:
           echo "== fitting smoke";      run Rscript /engine/golden/pi_smoke.R /out/pi_smoke
           echo "== engine tasks";       run Rscript /engine/golden/golden_tasks.R
           echo "== benchmark";          run Rscript /engine/benchmark.R "" "" 400 /out/benchmark.json
+          # PK-Sim's own Weibull release curve: one published simulation dosing the OSP Dapagliflozin IC tablet
+          mkdir -p artifacts/weibull && chmod 777 artifacts/weibull
+          python3 - <<'PY'
+          import json
+          snap = json.load(open("services/engine-worker/golden/fixtures/Dapagliflozin-Model.json", encoding="utf-8"))
+          snap["Simulations"] = [s for s in snap["Simulations"] if "IC tablet (Chang 2015)" in s["Name"]][:1]
+          for key in ("ParameterIdentifications", "SimulationComparisons", "QualificationPlans"):
+              snap.pop(key, None)
+          assert snap["Simulations"], "no simulation of the IC tablet in the Dapagliflozin snapshot"
+          json.dump(snap, open("artifacts/weibull/snapshot.json", "w", encoding="utf-8"))
+          PY
+          echo "== weibull curve";      run Rscript /engine/golden/weibull_check.R /out/weibull/snapshot.json /out/weibull
           # every golden script exited 0 (set -e); record the gate result for the registration step
           printf '{"roundtrip": true, "pi_smoke": true, "tasks": true}\n' > artifacts/golden.json
+
+      - name: Install uv for the Weibull comparison
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.11"
+          enable-cache: true
+
+      - name: Qualify — the platform's Weibull equation against PK-Sim's curve (within 1 %)
+        run: |
+          set -euo pipefail
+          uv run --frozen --package pbpk-domain python services/engine-worker/golden/compare_weibull.py artifacts/weibull
+          python3 - <<'PY'
+          import json
+          golden = json.load(open("artifacts/golden.json"))
+          golden["weibull"] = json.load(open("artifacts/weibull/weibull_result.json"))["passed"]
+          json.dump(golden, open("artifacts/golden.json", "w"))
+          PY
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'

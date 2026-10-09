@@ -49,7 +49,7 @@ def test_profiles_are_built_fitted_and_compared_from_the_client_file(tmp_path):
     test, slow = found["Test 10 mg"], found["Slow 10 mg"]
     assert test["n"] == 12 and test["times_min"] == list(TIMES) and test["release_model"] == "Weibull"
     assert test["fit"]["t50_min"] == pytest.approx(18.0, rel=0.01) and test["fit"]["shape"] == pytest.approx(1.3, rel=0.02)
-    assert test["fit"]["engine_confirmed"] is False and test["cells"][0].startswith("Dissolution!")
+    assert test["fit"]["engine_confirmed"] is True and test["cells"][0].startswith("Dissolution!")
     assert slow["release_model"] == "Table" and slow["fit"] is None
     pair = comparisons(ws)["comparisons"]
     assert len(pair) == 1 and pair[0]["applicable"] and pair[0]["similar"] and pair[0]["f2"] > 50
@@ -60,7 +60,9 @@ def test_profiles_are_built_fitted_and_compared_from_the_client_file(tmp_path):
     assert by_target["form.Test10.type"].value == "Weibull"
     t50 = by_target["form.Test10.weibull.t50"]
     assert t50.value_pksim == pytest.approx(test["fit"]["t50_min"]) and t50.unit_pksim == "min" and t50.confidence == "C"
-    assert any(f.startswith("unconfirmed") for f in t50.flags)
+    # the equation is confirmed on PK-Sim (dissolution.ENGINE_CHECK): no "unconfirmed" flag, and the check is cited
+    assert not any(f.startswith("unconfirmed") for f in t50.flags)
+    assert "engine-image run" in t50.conditions["engine check"]
     assert len(items(ws)) == 4
     # with a release-model item in the data plan, the proposed values serve it rather than arrive unpromised
     from modeler_project.brief import Citation, FieldStatus, empty_brief
