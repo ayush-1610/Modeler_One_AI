@@ -741,7 +741,9 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
             early_phase_off=_off(st.get("early_ratio"), thresholds),
             vss_off=_off(st.get("vss_ratio"), thresholds),
         )
-        for st in evaluation.metrics.get("studies", [])
+        # a model system's reported analyte (a metabolite, a sum, a co-parent the fit does not move) is judged on its
+        # own and never diagnoses the fitted compound's parameters (multi-compound phase 2, PR 1)
+        for st in evaluation.metrics.get("studies", []) if st.get("gated", True)
     ]
     signals = ctx.fit_signals or {}
     fit = FitSignals(
