@@ -50,6 +50,7 @@ from modeler_project.brief import (
 from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, resolve_identity, save_brief, summary
 from modeler_project.documents import DocumentLibrary, document_record
 from modeler_storage.filestore import FileReadStore, FileWriteStore
+from modeler_storage.records import ProjectRecord
 
 router = APIRouter(prefix="/api/v1", tags=["brief"])
 
@@ -201,8 +202,8 @@ async def initiate_project(
                                               note="typed at project start"))
     except DocumentError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    write.put_project(principal.tenant_id, {"id": project_id, "name": title, "compounds": [drug_name.strip()],
-                                            "openQuestions": 0, "risk": "medium", "questions": [], "pipeline": True})
+    write.put_project(principal.tenant_id, ProjectRecord(id=project_id, name=title, compounds=[drug_name.strip()],
+                                                         openQuestions=0, risk="medium", questions=[], pipeline=True).stored())
     brief = empty_brief(drug_name, by=principal.user_id)
     version = save_brief(ws, brief, actor=principal.user_id, reason="project started",
                          derived_from=[d.ref for d in documents])

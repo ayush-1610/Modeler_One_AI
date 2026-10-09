@@ -4,7 +4,8 @@ import { getCompoundCpf } from "@/lib/reads";
 
 export default async function CompoundPage({ params }: { params: Promise<{ projectId: string; compound: string }> }) {
   const { projectId, compound } = await params;
-  const live = await getCompoundCpf(projectId, compound);
+  // the segment arrives URL-encoded; the typed client encodes each path parameter itself
+  const live = await getCompoundCpf(projectId, decodeURIComponent(compound));
   const cpf = live.data;
   if (!cpf) {
     return (

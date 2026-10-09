@@ -21,10 +21,13 @@ from pydantic import BaseModel, Field, ValidationError
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
 from modeler_api.cpf_view import project_cpf_view
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
 from modeler_api.studies import StudiesUpload, observed_from_studies
+from modeler_api.views.read import CpfView
+from modeler_api.views.write import CampaignInputs, StudiesStored, SystemView
 from modeler_contracts.runs import CAMPAIGN_STAGES
 from modeler_storage.filestore import FileReadStore, FileWriteStore
+from modeler_storage.records import ProjectRecord, QuestionRecord
 from pbpk_domain.cpf.models import CPF
 from pbpk_domain.m15 import Rating
 
@@ -60,17 +63,17 @@ class ProjectCreate(BaseModel):
     exploratory: bool = False
 
 
-@router.post("/projects", status_code=201)
+@router.post("/projects", status_code=201, **answers(ProjectRecord))
 def create_project(body: ProjectCreate, principal: Author, stores: StoresDep) -> dict[str, Any]:
     _read, write = stores
     project_id = _slug(body.name)
     questions = []
     if body.question:
-        questions.append({"id": f"qoi-{uuid.uuid4().hex[:6]}", "question": body.question,
-                          "application": body.application or "PBPK", "modelRisk": body.model_risk,
-                          "stage": "planning", "failingCriteria": 0})
-    project = {"id": project_id, "name": body.name, "compounds": [body.compound],
-               "openQuestions": len(questions), "risk": body.risk, "questions": questions, "exploratory": body.exploratory}
+        questions.append(QuestionRecord(id=f"qoi-{uuid.uuid4().hex[:6]}", question=body.question,
+                                        application=body.application or "PBPK", modelRisk=body.model_risk,
+                                        stage="planning", failingCriteria=0))
+    project = ProjectRecord(id=project_id, name=body.name, compounds=[body.compound], openQuestions=len(questions),
+                            risk=body.risk, questions=questions, exploratory=body.exploratory).stored()
     write.put_project(principal.tenant_id, project)
     return envelope(project)
 
@@ -78,7 +81,7 @@ def create_project(body: ProjectCreate, principal: Author, stores: StoresDep) ->
 # --- put the compound's CPF -----------------------------------------------------------------------
 
 
-@router.put("/projects/{project_id}/compounds/{compound}/cpf")
+@router.put("/projects/{project_id}/compounds/{compound}/cpf", **answers(CpfView))
 def put_cpf(project_id: str, compound: str, cpf: CPF, principal: Author, stores: StoresDep) -> dict[str, Any]:
     require_project(project_id, principal)
     if cpf.compound != compound:
@@ -97,7 +100,7 @@ def _project_system(read, tenant_id: str, project_id: str, links_doc: dict[str, 
     return assemble(links, cpfs)
 
 
-@router.put("/projects/{project_id}/system")
+@router.put("/projects/{project_id}/system", **answers(SystemView))
 def put_system(project_id: str, links: dict[str, Any], principal: Author, stores: StoresDep) -> dict[str, Any]:
     """Relate the project's compounds as one model system (parent, enantiomers, metabolites): roles, formation links,
     products with their dose fractions (required: never defaulted), published sum observers and analytes. Each
@@ -114,7 +117,8 @@ def put_system(project_id: str, links: dict[str, Any], principal: Author, stores
     project = read.get_project(principal.tenant_id, project_id)
     if project is not None:  # the project lists every compound of its system (the parent first)
         members = [c.compound for c in system.compounds]
-        write.put_project(principal.tenant_id, {**project, "compounds": list(dict.fromkeys([*project.get("compounds", []), *members]))})
+        compounds = list(dict.fromkeys([*project.get("compounds", []), *members]))
+        write.put_project(principal.tenant_id, ProjectRecord.model_validate({**project, "compounds": compounds}).stored())
     return envelope({"name": system.name, "compounds": [c.compound for c in system.compounds], "roles": system.roles,
                      "products": system.products, "analytes": sorted(system.analytes), "sha256": system.sha256})
 
@@ -122,7 +126,7 @@ def put_system(project_id: str, links: dict[str, Any], principal: Author, stores
 # --- upload observed studies ----------------------------------------------------------------------
 
 
-@router.post("/projects/{project_id}/studies", status_code=201)
+@router.post("/projects/{project_id}/studies", status_code=201, **answers(StudiesStored))
 def upload_studies(project_id: str, body: StudiesUpload, principal: Author, stores: StoresDep) -> dict[str, Any]:
     """Add observed studies to the project, replacing any with the same ``study_id`` and keeping the rest."""
     require_project(project_id, principal)
@@ -153,7 +157,7 @@ def _study_record(row: dict[str, Any]):
     return StudyRecord.model_validate(fields)
 
 
-@router.post("/projects/{project_id}/questions/{question_id}/campaign:prepare")
+@router.post("/projects/{project_id}/questions/{question_id}/campaign:prepare", **answers(CampaignInputs))
 def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, principal: Author,
                      stores: StoresDep, settings: SettingsDep) -> dict[str, Any]:
     """Stage the CPF, generate + persist the MAP, and derive observed PK, returning the runner's inputs."""

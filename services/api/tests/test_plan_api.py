@@ -59,7 +59,8 @@ def setup(tmp_path, monkeypatch, api_settings):
     ROLES["value"] = ["modeler-curator", "modeler-reviewer"]
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier()
     app.dependency_overrides[project_api.get_project_store] = lambda: store
-    FileWriteStore(str(read_root)).put_project("t1", {"id": "p1", "name": "P1", "compounds": ["Renaldrug"], "pipeline": True})
+    FileWriteStore(str(read_root)).put_project("t1", {"id": "p1", "name": "P1", "compounds": ["Renaldrug"], "openQuestions": 0,
+                                                       "risk": "medium", "questions": [], "pipeline": True})
     ws = Workspace(store, "t1", "p1")
     brief = empty_brief("Renaldrug", by="u1")
     b = ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), actor="u1", reason="start")
@@ -219,8 +220,13 @@ def test_external_values_are_blinded_until_the_map_is_signed(setup):
     from modeler_api.read_api import get_read_store
 
     # the studies published for the legacy campaign path are blinded the same way
-    FileWriteStore(str(_root)).put_studies("t1", "p1", [{"study_id": sid, "profile": {"values": [1.0]}},
-                                                       {"study_id": "iv-250", "profile": {"values": [2.0]}}])
+    from modeler_api.studies import StudyUpload
+
+    def row(study_id: str, value: float) -> dict:  # a study as `inputs:publish` stores it (the upload shape)
+        return StudyUpload(study_id=study_id, route="iv_infusion", dose_mg=250, infusion_time_min=60,
+                           profile={"times": [1.0], "values": [value]}).model_dump()
+
+    FileWriteStore(str(_root)).put_studies("t1", "p1", [row(sid, 1.0), row("iv-250", 2.0)])
     app.dependency_overrides[get_read_store] = lambda: FileReadStore(str(_root))
     listed = {s["study_id"]: s for s in c.get("/api/v1/projects/p1/studies", headers=H).json()["data"]["studies"]}
     assert listed[sid]["blinded"] and "profile" not in listed[sid] and listed["iv-250"]["profile"]

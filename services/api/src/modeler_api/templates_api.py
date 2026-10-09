@@ -17,7 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from modeler_api.auth import Principal, require_role
 from modeler_api.config import Settings, SettingsDep
-from modeler_api.responses import envelope
+from modeler_api.responses import answers, envelope
+from modeler_api.views.templates import TemplateContent, Templates
 
 router = APIRouter(prefix="/api/v1", tags=["templates"])
 
@@ -149,13 +150,13 @@ def _summary(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
             **{k: spec[k] for k in ("name", "compound", "question", "model_risk", "real_data", "description")}}
 
 
-@router.get("/templates")
+@router.get("/templates", **answers(Templates))
 def list_templates(principal: PrincipalDep):
     """The wizard's starting points, the published real-data model first."""
     return envelope({"templates": [_summary(tid, spec) for tid, spec in _TEMPLATES.items()]})
 
 
-@router.get("/templates/{template_id}")
+@router.get("/templates/{template_id}", **answers(TemplateContent))
 def get_template(template_id: str, principal: PrincipalDep, settings: SettingsDep):
     """One starting point in full: the CPF, the studies in the upload shape, and what was left out and why."""
     spec = _TEMPLATES.get(template_id)

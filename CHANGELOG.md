@@ -15,6 +15,42 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the project, CPF, study, template and guided-flow answers are typed (architecture phase 9c; API contract)
+- **What:**
+  - **Shared records:** a new `modeler_storage.records` holds `ProjectRecord` (with `QuestionRecord` and
+    `BlindingChoice`) and `ProposalRecord`.
+    - The read model's own records: the API writes the project, and the orchestrator reads it before an S4/S5 gate.
+    - The three writers build through the record and store only the keys they set: create project, project start,
+      and the model system and blinding updates. A key added or renamed on one side now fails that side's tests.
+    - `modeler-storage` declares its `pydantic` dependency, which was already used through `pbpk-domain`.
+  - **Typed routes:** 12 routes of `read_api`, `write_api` and `templates_api` declare response models (`views/read.py`,
+    `views/write.py`, `views/templates.py`): projects, a project, the CPF view (GET and PUT), studies, proposals,
+    templates, create project, the model system, the studies upload and `campaign:prepare`.
+    - A study row is the upload's shape as stored for the project. A blinded row has no profile and carries
+      `blinded`.
+    - A template's CPF and studies stay open objects, because they are the template's own documents.
+  - **Test fixtures:** they now store records in the real shape. Two fixtures had stored a project without
+    `openQuestions` and `risk`, and study rows without a dose or profile times.
+  - **Ratchet:** `[response] untyped` shrinks from 24 to 12, and the locked hash is refreshed.
+  - **Web:**
+    - `lib/reads.ts` reads the projects, project, CPF, studies and proposals with `serverGet`. `lib/writes.ts` sends
+      the project writes by route.
+    - `Project`, `Question`, `CpfParameter`, `Proposal`, `StudyRow` and the template types are generated aliases.
+    - The new-project wizard reads the templates with `useResource`.
+    - `RiskChip` shows any recorded rating, leaving one outside low/medium/high uncoloured.
+    - The compound page passes the decoded compound to the typed client, which encodes it.
+- **Why:** rules B2 and B6, plan `docs/plans/2026-10-09-phase-9-typed-api.md` step 9c, and the owner's decision to
+  give records shared across a process edge one model.
+- **Impact:**
+  - **API contract change:** the OpenAPI snapshot gains the 12 operations' response schemas and 27 schemas, and
+    changes none. The answers are unchanged, as the conftest guard checks.
+  - **Known risk on deployed data:** a stored project or study row with a key the models do not declare now fails
+    its read with a 500 that names the key, where it used to pass through.
+    - Every writer since 2026-09-19 writes only declared keys: the project keys `exploratory`, `pipeline` and
+      `blinding` are covered.
+    - A row written by hand or by an older build would show up on the project list or studies page; fix such a
+      row in `projects.json` / `studies.json`.
+
 ### Changed — the P5 model plan answers are typed, and the canvas reads them through the hooks (architecture phase 9b; API contract)
 - **What:**
   - **API:** the 13 routes of `plan_api` declare response models (`modeler_api/views/plan.py`).
