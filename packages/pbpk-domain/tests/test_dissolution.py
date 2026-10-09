@@ -36,7 +36,8 @@ def test_the_weibull_fit_recovers_known_parameters_in_pksim_parameterization():
     assert fit.rmse_percent < 1e-3 and fit.n_points == 7
     # half the dose is dissolved at t50 after the lag: the meaning of PK-Sim's "Dissolution time (50% dissolved)"
     assert float(weibull_fraction(np.array([22.0 + 5.0]), 22.0, 1.4, lag=5.0)[0]) == pytest.approx(0.5)
-    assert fit.engine_confirmed is ENGINE_CONFIRMED is False  # until PK-Sim's own release curve is compared on the engine
+    # confirmed against PK-Sim's own release curve by the engine-image qualification (dissolution.ENGINE_CHECK)
+    assert fit.engine_confirmed is ENGINE_CONFIRMED is True
 
 
 def test_profile_checks_say_which_release_model_the_data_support():

@@ -71,9 +71,11 @@ test("client files are read cell by cell, sorted, and reconciled with the data p
   await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });
   await page.goto(`/projects/${projectId}/evidence?tab=observed`);
   await expect(page.locator(".evidence", { hasText: "CL-01" })).toContainText("client");
-  // the proposed release model waits for acceptance on the Parameters tab, flagged until PK-Sim confirms the equation
+  // the proposed release model waits for acceptance on the Parameters tab; PK-Sim has confirmed the equation, so the
+  // value carries the engine check rather than an "unconfirmed" flag
   const views = await request.get(`/api/v1/projects/${projectId}/evidence`, { headers: { Authorization: "Bearer dev" } });
   const t50 = (await views.json()).data.evidence.find((e: { target: string }) => e.target === "form.Test10.weibull.t50");
   expect(t50.state).toBe("PROPOSED");
-  expect(t50.flags.join(" ")).toContain("unconfirmed");
+  expect(t50.flags.join(" ")).not.toContain("unconfirmed");
+  expect(t50.conditions["engine check"]).toContain("engine-image run");
 });
