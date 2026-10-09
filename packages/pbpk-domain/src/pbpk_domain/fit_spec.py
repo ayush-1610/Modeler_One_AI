@@ -99,6 +99,21 @@ def _paths(record: ParameterRecord, compound: str, simulations: list[FitSimulati
     return [{"simulation": s.study_id, "path": path} for s in simulations]
 
 
+def study_weights(simulations: list[FitSimulation]) -> dict[str, float]:
+    """Each study's residual weight when every study contributes equally (MS-01 v1.1 SJ, D-04, UNVERIFIED).
+
+    The engine's parameter identification multiplies each residual by its weight before squaring
+    (ospsuite.parameteridentification >= 2.1, `PIOutputMapping$addObservedDataSets(weights =)`), so a study of n points
+    adds about w^2 * n to the weighted sum of squares. w = sqrt(N / (k * n)) for N points over k studies makes that the
+    same N / k for every study, and keeps the mean squared weight at 1 (the objective's scale is unchanged)."""
+    counts = {s.study_id: sum(v is not None for v in s.observed["values"]) for s in simulations}
+    counted = {sid: n for sid, n in counts.items() if n > 0}
+    if not counted:
+        return {}
+    total, k = sum(counted.values()), len(counted)
+    return {sid: (total / (k * n)) ** 0.5 for sid, n in counted.items()}
+
+
 def build_fit_spec(
     cpf: CPF,
     fit_ids: list[str],
@@ -109,13 +124,18 @@ def build_fit_spec(
     max_evaluations: int = 200,
     seed: int = 1,
     scaling: str = "log",
+    equal_study_weights: bool = False,
 ) -> dict[str, Any]:
-    """Build the PI base spec fitting ``fit_ids`` against ``simulations``. Raises FitSpecError on any gap."""
+    """Build the PI base spec fitting ``fit_ids`` against ``simulations``. Raises FitSpecError on any gap.
+
+    ``equal_study_weights`` (the joint refinement, SJ) gives every study the same say however many points it has
+    (`study_weights`); otherwise every point weighs the same, as the stage fits always have."""
     if not simulations:
         raise FitSpecError("a fit spec needs at least one simulation")
     if not fit_ids:
         raise FitSpecError("a fit spec needs at least one parameter to fit")
     override = bounds_override or {}
+    weights = study_weights(simulations) if equal_study_weights else {}
 
     parameters: list[dict[str, Any]] = []
     for pid in fit_ids:
@@ -140,7 +160,8 @@ def build_fit_spec(
         "simulations": [{"id": s.study_id, "pkml": s.pkml} for s in simulations],
         "parameters": parameters,
         "output_mappings": [
-            {"simulation": s.study_id, "output_path": s.output_path, "scaling": scaling, "observed": s.observed}
+            {"simulation": s.study_id, "output_path": s.output_path, "scaling": scaling,
+             "observed": {**s.observed, "weight": weights[s.study_id]} if s.study_id in weights else s.observed}
             for s in simulations
         ],
     }

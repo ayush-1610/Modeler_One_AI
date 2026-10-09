@@ -15,6 +15,30 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the joint refinement weighs every study equally (MS-01 v1.1 SJ, D-04; locked `run_pi.R` and `golden/pi_smoke.R`; science, UNVERIFIED)
+- **What:**
+  - **The weight:** in a joint fit (SJ, and the joint fit that answers a regression), a study of n points among N
+    points over k studies weighs each of its residuals by √(N / (k·n)) (`pbpk_domain.fit_spec.study_weights`). Points
+    below LLOQ do not count.
+  - **Why this weight:** the engine's parameter identification multiplies each residual by its weight before
+    squaring (ospsuite.parameteridentification 2.2.0, `PIOutputMapping$addObservedDataSets(weights =)`, verified in
+    its source). So every study adds the same N / k to the weighted sum of squares, and the mean squared weight stays
+    1.
+  - **The engine:** `run_pi.R` passes `observed.weight` to the engine when the spec carries one. A spec without
+    weights runs as before, so stage fits keep equal weight per point, as they always had.
+  - **PK-Sim check:** `golden/pi_smoke.R` adds a weighted run on PK-Sim. A weight of 2 on one dataset must leave the
+    estimate where it is and multiply the objective by 4.
+  - **MS-01 v1.1 §SJ:** the "Weighting" line now says how the weight is applied. The rule itself is unchanged and stays
+    UNVERIFIED pending SME sign-off.
+- **Why:** D-04 asked each study to contribute equally. Until now the joint fit weighted every point equally and
+  recorded that as a known gap ("waits for run_pi.R weights").
+- **Impact:**
+  - A joint fit now gives a short profile the same say as a dense one, which changes SJ estimates on real data. The
+    stage note says so.
+  - The engine-image CI qualifies the weighted run on PK-Sim, and the Dapagliflozin refit is re-run on the reference
+    workflow.
+  - The locked-file hashes are refreshed: `run_pi.R`, `pi_smoke.R` and MS-01.
+
 ### Changed — OSP Rifampicin's Stone 2004 dataset is excluded from the reference import (the owner's D5 decision, 2026-10-09; data)
 - **What:**
   - A new `pbpk_domain/reference/exclusions.yaml` records each dataset of a published OSP model that is left out,
