@@ -15,6 +15,47 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the web app signs in through Keycloak, and every signature asks for the password and the code again (T-06, K2)
+- **What:** with `MODELER_OIDC_ISSUER` set, the web uses the Authorization Code flow with PKCE (S256) against the
+  `modeler` realm. Nothing new is installed: Web Crypto and `fetch` only.
+  - **Routes:**
+    - `app/auth/login` checks the state, nonce and return path, so it cannot be an open redirect;
+    - `app/auth/callback` exchanges the code over the back channel, and checks the state and the ID token's nonce,
+      issuer and audience;
+    - `app/auth/logout` ends the Keycloak session too.
+  - **The tokens live in httpOnly cookies,** which the browser's code never reads. They are Secure when the web is
+    served over HTTPS.
+  - **`proxy.ts`** (Next 16):
+    - it refreshes the access token over the back channel when it is about to expire;
+    - it puts the person's own token on every `/api/*` call, replacing the DEV bearer the browser's code sends;
+    - without a session, a page goes to the sign-in and an API call answers 401.
+  - **Server components' reads (`serverGet`) use the person's token.** It is read from the cookie through a
+    server-only dynamic import, so the browser bundle holds none of it (checked: no session cookie name in
+    `.next/static`).
+  - **The one call to Keycloak's token endpoint is `identityToken` in `lib/api.ts`,** so rule B6 holds unchanged
+    ("only the client fetches").
+  - **The layout reads the signed-in name through `lib/session.ts`.**
+  - **A signature refused for want of a step-up** (403 `STEP_UP_REQUIRED` / `STEP_UP_STALE`) opens the
+    `StepUpDialog`. It says why and opens Keycloak's loa2 check in a small window on the person's click, so the page
+    keeps what they typed. The client then sends the signature once more. This covers the MAP, plan and escalation
+    signatures, which all go through `lib/api.ts`.
+  - **The sidebar** shows the signed-in person and a "Sign out" link.
+- **Unchanged without `MODELER_OIDC_ISSUER`:** the DEV sign-in, which is not Part 11. The 16 dev-mode browser flows pass
+  unchanged.
+- **Verified in a real browser** (`e2e/oidc-signing.spec.ts`, Playwright and Chromium) against Keycloak 26.7.5 with the
+  realm imported and served by `keycloak.sh` (HTTPS front channel, HTTP back channel):
+  - sign-in through Keycloak, and the name in the sidebar;
+  - a signature without a step-up is refused: the proxy replaced the browser's DEV bearer with the person's own token;
+  - an escalation decision opens the dialog. The Keycloak window asks for the password and enrols the authenticator,
+    then closes, and the decision is sent again and accepted;
+  - a second step-up asks for the password and the code again. The signature records `auth_method` `oidc:loa2` and
+    the person's printed name;
+  - sign-out leaves no session.
+
+  The spec runs only with `E2E_OIDC_ISSUER` set. CI keeps the dev-mode flows; adding a Keycloak service to CI is a
+  change to the locked `ci.yml`, for the owner to approve.
+- **Impact:** nothing changes on the server until the switch to production (K3) sets the variables.
+
 ### Fixed / Added — the Keycloak realm imports and works; Keycloak runs on the server without sudo (T-06, K1)
 - **Fixed:** `deploy/keycloak/realm-modeler.json` could not have worked. Importing it into Keycloak 26.7.5 found:
   - **The import failed:** `Unrecognized field "__comment"`.

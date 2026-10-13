@@ -165,6 +165,7 @@ cmd_env() {
 export MODELER_OIDC_ISSUER=$PUBLIC/realms/modeler
 export MODELER_OIDC_JWKS_URL=http://127.0.0.1:$HTTP_PORT/realms/modeler/protocol/openid-connect/certs
 export MODELER_OIDC_BACKCHANNEL=http://127.0.0.1:$HTTP_PORT/realms/modeler
+export MODELER_WEB_URL=http://$HOST:$WEB_PORT
 EOF
 }
 

@@ -6,6 +6,8 @@
 // (phase 9), so there is no call by bare URL.
 
 import type { components, paths } from "./api-types";
+import { COOKIE, type OidcConfig, type TokenSet } from "./oidc";
+import { requestStepUp, STEP_UP_CODES } from "./step-up";
 
 /** A response model of the API, generated from docs/api/openapi.json into lib/api-types.ts (`npm run api-types`;
  *  `npm run typecheck` fails when the file is older than the snapshot). Use it instead of hand-writing an answer's
@@ -66,13 +68,21 @@ export function path<R extends Route>(route: R, params: Params<R>, query?: Recor
 
 // --- server components: server-to-server reads --------------------------------------------------------------
 
-// In production the user's forwarded OIDC token replaces the dev one.
-const SERVER_API_BASE = process.env.MODELER_API_BASE ?? "http://127.0.0.1:8000";
-const SERVER_TOKEN = process.env.MODELER_WEB_TOKEN ?? "dev";
-
 /** A server-side read: the data, or what went wrong. Pages show the problem; they never substitute sample data,
  *  because a page that looks live but is not hides the real fault (and fake numbers must never pass as results). */
 export type Live<T> = { data: T | null; problem: string | null; notFound: boolean };
+
+const SERVER_API_BASE = process.env.MODELER_API_BASE ?? "http://127.0.0.1:8000";
+// The DEV sign-in's bearer (development and pilot only); with Keycloak the person's own access token is used.
+const SERVER_TOKEN = process.env.MODELER_WEB_TOKEN ?? "dev";
+
+/** The bearer of a server-side read: the person's own access token with Keycloak (the proxy keeps it fresh), else the
+ *  DEV sign-in's. `next/headers` is loaded only here, on the server, so the browser's bundle never contains it. */
+async function serverBearer(): Promise<string> {
+  if (!process.env.MODELER_OIDC_ISSUER) return SERVER_TOKEN;
+  const { cookies } = await import("next/headers");
+  return (await cookies()).get(COOKIE.access)?.value ?? "";
+}
 
 /** A typed server-side read of a route: `serverGet("/api/v1/projects/{project_id}/phases", { project_id })`. */
 export async function serverGet<R extends RouteFor<"get">>(
@@ -81,7 +91,7 @@ export async function serverGet<R extends RouteFor<"get">>(
   let response: Response;
   try {
     response = await fetch(`${SERVER_API_BASE}${path(route, params, query)}`, {
-      headers: { Authorization: `Bearer ${SERVER_TOKEN}` },
+      headers: { Authorization: `Bearer ${await serverBearer()}` },
       cache: "no-store",
     });
   } catch (err) {
@@ -102,8 +112,25 @@ export async function serverGet<R extends RouteFor<"get">>(
 
 // --- the browser: same-origin calls with the user's bearer ----------------------------------------------------
 
-// The dev bearer is accepted by dev auth; in production the user's OIDC token is used.
+// The DEV sign-in's bearer. With Keycloak the web server's proxy (proxy.ts) replaces it with the person's own access
+// token, which the browser's code never holds.
 export const BROWSER_TOKEN = process.env.NEXT_PUBLIC_DEMO_TOKEN ?? "dev";
+
+/** Send a call; if the API wants a signing step-up, ask the person to confirm their identity and send it once more.
+ *  If the session has ended, go to the sign-in and come back to this page. Neither happens with the DEV sign-in. */
+async function withSession(call: () => Promise<Response>): Promise<Response> {
+  const res = await call();
+  if (res.status === 401 && typeof window !== "undefined") {
+    const here = window.location.pathname + window.location.search;
+    window.location.assign(`/auth/login?return=${encodeURIComponent(here)}`);
+    return res;
+  }
+  if (res.status !== 403) return res;
+  let code: unknown;
+  try { code = ((await res.clone().json()) as { detail?: { code?: unknown } }).detail?.code; } catch { /* not JSON */ }
+  if (!STEP_UP_CODES.includes(code as string) || !(await requestStepUp())) return res;
+  return call();
+}
 
 /** Turn any non-success answer into a readable message: the API's own `detail` when it sent one, else the HTTP
  *  status, with a hint when the web server's proxy could not reach the API at all. */
@@ -113,6 +140,10 @@ async function failure(res: Response): Promise<string> {
     const body = JSON.parse(text) as { detail?: unknown; errors?: { message: string }[] };
     if (body.errors?.length) return body.errors[0].message;
     if (typeof body.detail === "string") return body.detail;
+    // a coded refusal ({code, message}), such as a signature without a recent step-up
+    if (body.detail && typeof body.detail === "object" && "message" in body.detail) {
+      return String((body.detail as { message: unknown }).message);
+    }
     if (Array.isArray(body.detail)) {
       // FastAPI validation errors: [{loc: [...], msg}] -> "studies.0.dose_mg: field required"
       return body.detail
@@ -138,12 +169,12 @@ const UNREACHABLE = "The web server could not be reached. Check your connection 
 async function request<T>(url: string, method: "GET" | "POST" | "PUT", body?: unknown): Promise<Envelope<T>> {
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await withSession(() => fetch(url, {
       method,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${BROWSER_TOKEN}` },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
-    });
+    }));
   } catch {
     return errorEnvelope(UNREACHABLE);
   }
@@ -154,7 +185,8 @@ async function request<T>(url: string, method: "GET" | "POST" | "PUT", body?: un
 async function multipart<T>(url: string, form: FormData): Promise<Envelope<T>> {
   let res: Response;
   try {
-    res = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${BROWSER_TOKEN}` }, body: form, cache: "no-store" });
+    res = await withSession(() => fetch(url, {
+      method: "POST", headers: { Authorization: `Bearer ${BROWSER_TOKEN}` }, body: form, cache: "no-store" }));
   } catch {
     return errorEnvelope(UNREACHABLE);
   }
@@ -186,7 +218,7 @@ export function upload<R extends RouteFor<"post">>(route: R, params: Params<R>, 
 export async function apiFile(url: string): Promise<{ file: Blob | null; problem: string | null }> {
   let res: Response;
   try {
-    res = await fetch(url, { headers: { Authorization: `Bearer ${BROWSER_TOKEN}` }, cache: "no-store" });
+    res = await withSession(() => fetch(url, { headers: { Authorization: `Bearer ${BROWSER_TOKEN}` }, cache: "no-store" }));
   } catch {
     return { file: null, problem: UNREACHABLE };
   }
@@ -200,15 +232,35 @@ export async function post<R extends RouteFor<"post">>(route: R, params: Params<
     Promise<Envelope<Answer<R, "post">>> {
   let res: Response;
   try {
-    res = await fetch(path(route, params), {
+    res = await withSession(() => fetch(path(route, params), {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${BROWSER_TOKEN}` },
       body: JSON.stringify(body),
       cache: "no-store",
-    });
+    }));
   } catch {
     return errorEnvelope(UNREACHABLE);
   }
   if (!res.ok) return errorEnvelope(await failure(res));
   return { data: (await res.json()) as Answer<R, "post">, meta: { request_id: "", timestamp: "", api_version: "" }, errors: [] };
+}
+
+// --- the identity provider (web server only) ----------------------------------------------------------------------
+
+/** The configured realm's token endpoint over the back channel (lib/oidc.ts): a code exchange or a refresh. The one call
+ *  this client makes that is not to the API; it takes no address, only the realm the web is configured for. */
+export async function identityToken(config: OidcConfig, form: Record<string, string>): Promise<TokenSet | null> {
+  try {
+    const res = await fetch(`${config.backchannel}/protocol/openid-connect/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: config.clientId, ...form }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const tokens = (await res.json()) as TokenSet;
+    return tokens.access_token ? tokens : null;
+  } catch {
+    return null;
+  }
 }
