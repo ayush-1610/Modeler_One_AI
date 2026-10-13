@@ -15,6 +15,45 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed / Added — the Keycloak realm imports and works; Keycloak runs on the server without sudo (T-06, K1)
+- **Fixed:** `deploy/keycloak/realm-modeler.json` could not have worked. Importing it into Keycloak 26.7.5 found:
+  - **The import failed:** `Unrecognized field "__comment"`.
+  - **Its `clientScopes` list replaced Keycloak's built-in scopes.** Tokens would have carried no `sub`, `auth_time`,
+    `acr` or realm roles.
+  - **Keycloak 26's user profile dropped the undeclared `tenant_id` and `projects` attributes.** The API would have
+    refused every token ("no tenant claim").
+  - **There was no `modeler-api` audience**, so the API's audience check would have refused every token.
+  - **The `signing` flow was bound to nothing**, so asking for `acr=loa2` would never have triggered it.
+- **Now:**
+  - the claims and the audience are mappers on the `modeler-web` client;
+  - the user profile declares `tenant_id` and `projects` as admin-only attributes;
+  - the browser flow `modeler browser` has levels: loa1 is the password; loa2 is the password and the TOTP again,
+    with a max age of 0, so each signature re-verifies both factors (21 CFR 11.200);
+  - the redirect URIs cover `localhost`, `127.0.0.1` and `192.168.1.10` on port 3000;
+  - "forgot password" is off, because no mail server is configured.
+- **Verified on Keycloak 26.7.5** in this session, through the browser flow over HTTP forms:
+  - **Sign-in:** asks only for the password. The token has `acr=loa1`, the audience `modeler-api`, the tenant, the
+    projects and the roles. `JwksTokenVerifier` accepts it, and `ensure_step_up` refuses to sign
+    (`STEP_UP_REQUIRED`).
+  - **First step-up:** asks for the password and enrols the TOTP. The token has `acr=loa2` and a new `auth_time`, and
+    signing is allowed.
+  - **Second step-up:** asks for the password and the TOTP again.
+  - The same results held with the server script's HTTPS front channel and HTTP back channel. Re-running `install`
+    kept the users and their TOTP.
+- **Added:**
+  - **`deploy/server/keycloak.sh`** (`install`, `admin`, `start`, `stop`, `status` and `env`):
+    - Java 21 from conda-forge and Keycloak 26.7.5 from Maven Central, checked against a pinned sha256 (no sudo);
+    - a self-signed certificate made once, or the person's own;
+    - HTTPS for browsers on 8443, because Keycloak's Secure cookies fail on plain HTTP away from localhost;
+    - HTTP on 8080 for the API's key set and the web server's code exchange;
+    - the administrator's password is typed only into Keycloak's own prompt.
+  - `deploy/keycloak/README.md`.
+  - `services/api/tests/test_keycloak_realm.py`, which guards each fix above.
+- **Impact:** nothing changes until the stack is pointed at Keycloak: the web sign-in and the switch to `production`
+  come next. The server still runs `pilot` with the DEV verifier.
+- **Known gap:** Keycloak's database is its embedded file database (`dev-file`, deprecated by Keycloak for
+  production). PostgreSQL is a follow-up.
+
 ### Verified on PK-Sim — the model systems, the engine occasion and the system refit (2026-10-09; records only)
 - **The Itraconazole and Verapamil systems as-is** (reference run 37947587365 on `main` c2cfd2e) both **escalate at
   S1, before SM**, on the published models' IV Cmax while AUC is in band:
