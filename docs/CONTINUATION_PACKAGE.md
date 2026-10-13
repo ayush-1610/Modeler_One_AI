@@ -211,7 +211,7 @@ T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) 
 Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
-## 4. Where things stand (2026-10-09)
+## 4. Where things stand (2026-10-13)
 
 ### 4.1 Pipeline coverage — update this table in the same commit as any stage change
 
@@ -258,7 +258,7 @@ the wizard, `docs/USING_THE_TOOL.md`. OSP Rifampicin's Stone 2004 dataset (label
 |---|---|
 | Execution | Single-node `LocalExecutor` (in-process, same activities) — **used**. Temporal workflows — built, tested, not deployed |
 | Persistence | File-backed `ReadStore` / `WriteStore` under `MODELER_READ_ROOT` — **used**. Postgres schema with RLS and append-only audit (T-05) — built, not used |
-| Auth | `DevVerifier` (**DEV ONLY**, `MODELER_DEV_AUTH=1`) in the single-node deploy, which runs as `MODELER_DEPLOYMENT=pilot` (production's engine settings, DEV sign-in; 2026-10-09). A `production` deployment refuses `MODELER_DEV_AUTH` at startup; `/health` reports the deployment and the verifier. Keycloak OIDC + step-up (T-06) — built, not deployed |
+| Auth | **Keycloak OIDC + step-up (T-06): built and tested on Keycloak 26.7.5; switched on per server** (2026-10-13). `deploy/server/keycloak.sh` runs Keycloak without sudo (HTTPS 8443, back channel 8080). The realm (`deploy/keycloak/realm-modeler.json`) has loa2 = the password + TOTP at every signature. The web signs in with PKCE (`apps/web/lib/oidc.ts`, `proxy.ts`, `StepUpDialog`) and serves HTTPS (`apps/web/server.mjs`). With `MODELER_OIDC_ISSUER` in `~/.modeler-secrets.env`, `_env.sh` runs **production** (DEV verifier refused). Without it, **pilot** (`DevVerifier`, **DEV ONLY**, not Part 11). `/health` reports the deployment and the verifier. Keycloak's database is still its `dev-file` database |
 | Object store | `file://` — used. MinIO presigned I/O — not built |
 | Engine | Real PK-Sim on the server, and on the Mac through Docker (`deploy/dev/docker_engine.sh`, image from `services/engine-worker/Dockerfile`; set `MODELER_ENGINE_COMMAND="bash <repo>/deploy/dev/docker_engine.sh"`). `deploy/dev/stub_engine.py` (synthetic) and `analytical_engine.py` (one-compartment) are **software fixtures only — never PBPK evidence** |
 | Deployment | `deploy/server/` scripts: run / stop / status / autostart (cron `@reboot` + watchdog, installed 2026-09-24) / Tailscale (installed userspace, awaiting the owner's login). Redeploy from the Mac: `bash deploy/dev/deploy_to_server.sh` |

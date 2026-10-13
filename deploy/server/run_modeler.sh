@@ -11,7 +11,7 @@ AUTOMATIC=0
 [ "${1:-}" = "--watchdog" ] && AUTOMATIC=1
 
 if stack_healthy; then
-  [ "$AUTOMATIC" = 1 ] || echo "already running: http://$(hostname -I 2>/dev/null | awk '{print $1}'):$WEB_PORT"
+  [ "$AUTOMATIC" = 1 ] || echo "already running: $(web_scheme)://$(hostname -I 2>/dev/null | awk '{print $1}'):$WEB_PORT"
   exit 0
 fi
 
@@ -28,6 +28,11 @@ rm -f "$STOPPED_FLAG"
 
 cd "$REPO"
 
+# Keycloak first when sign-in goes through it: the web sends people there and the API reads its keys.
+if keycloak_needed && ! port_open "$KEYCLOAK_HTTP_PORT"; then
+  bash "$REPO/deploy/server/keycloak.sh" start || echo "Keycloak did not start; see $LOGS/keycloak.log" >&2
+fi
+
 if ! port_open "$API_PORT"; then
   echo "starting API on :$API_PORT"
   nohup uv run uvicorn modeler_api.main:app --host 0.0.0.0 --port "$API_PORT" \
@@ -36,9 +41,15 @@ if ! port_open "$API_PORT"; then
 fi
 
 if ! port_open "$WEB_PORT"; then
-  echo "starting web on :$WEB_PORT"
-  nohup npm --prefix "$REPO/apps/web" start -- -H 0.0.0.0 -p "$WEB_PORT" \
-      > "$LOGS/web.log" 2>&1 &
+  if web_tls; then
+    # HTTPS (production with Keycloak): Next's handler behind node:https, with the configured certificate
+    echo "starting web on :$WEB_PORT (HTTPS)"
+    MODELER_WEB_PORT="$WEB_PORT" nohup node "$REPO/apps/web/server.mjs" > "$LOGS/web.log" 2>&1 &
+  else
+    echo "starting web on :$WEB_PORT"
+    nohup npm --prefix "$REPO/apps/web" start -- -H 0.0.0.0 -p "$WEB_PORT" \
+        > "$LOGS/web.log" 2>&1 &
+  fi
   echo $! > "$LOGS/web.pid"
 fi
 
@@ -49,10 +60,11 @@ for _ in $(seq 1 30); do
 done
 
 if stack_healthy; then
-  echo "up: http://$(hostname -I 2>/dev/null | awk '{print $1}'):$WEB_PORT"
+  echo "up: $(web_scheme)://$(hostname -I 2>/dev/null | awk '{print $1}'):$WEB_PORT ($MODELER_DEPLOYMENT)"
 else
   echo "NOT fully up — check $LOGS/api.log and $LOGS/web.log" >&2
   port_open "$API_PORT" || echo "  API (:$API_PORT) is not answering" >&2
   port_open "$WEB_PORT" || echo "  web (:$WEB_PORT) is not answering" >&2
+  keycloak_needed && ! port_open "$KEYCLOAK_HTTP_PORT" && echo "  Keycloak (:$KEYCLOAK_HTTP_PORT) is not answering" >&2
   exit 1
 fi
