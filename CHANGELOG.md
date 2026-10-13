@@ -15,6 +15,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Infra — CI no longer pulls from Docker Hub (owner-approved 2026-10-12; locked `ci.yml`)
+- **What:**
+  - The Trivy job runs `ghcr.io/aquasecurity/trivy:0.74.0`, pinned by digest, instead of `aquasec/trivy:latest`.
+    The scan settings are unchanged.
+  - The API image (`services/api/Dockerfile`) uses the builtin Dockerfile frontend instead of
+    `# syntax=docker/dockerfile:1.7`, which used no 1.7 feature.
+  - Its base is the Docker official `python:3.12-slim` as AWS ECR Public mirrors it
+    (`public.ecr.aws/docker/library/python`, the same image digest as Docker Hub's on 2026-10-13).
+- **Why:** on 2026-10-09 the "API image" and "Trivy" checks failed on `main` and on #57 and #58 before any test ran.
+  The causes were a 504 from `auth.docker.io` while pulling the frontend, and Docker Hub's unauthenticated pull limit
+  for `aquasec/trivy`. Those checks then stayed red on `main` (bc79976).
+- **Impact:** no behaviour of the product changes. The two checks depend on GHCR and ECR Public instead of Docker Hub.
+- **Known gap:** the engine image still pulls from Docker Hub (`rocker/r-ver` and `dockerfile:1.7`). Its Dockerfile is
+  locked and the image is qualified, so a change would alter its digest and needs its own PR and approval.
+
 ### Verified on PK-Sim — the model systems, the engine occasion and the system refit (2026-10-09; records only)
 - **The Itraconazole and Verapamil systems as-is** (reference run 37947587365 on `main` c2cfd2e) both **escalate at
   S1, before SM**, on the published models' IV Cmax while AUC is in band:
