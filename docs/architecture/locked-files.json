@@ -197,7 +197,7 @@
   "files": [
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "d0053d94cc86afd6206e4ab28f48863f3e3dace505d87e0539f78996d4787591"
+      "sha256": "73d21b20fdcad249d2e297823c4e3729c756cbeb505d85a19969944b77277f55"
     },
     {
       "path": ".github/workflows/engine-image.yml",

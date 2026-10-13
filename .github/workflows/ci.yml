@@ -192,9 +192,12 @@ jobs:
       - uses: actions/checkout@v4
       # The trivy-action tag this used (0.28.0) was withdrawn upstream and the job could no longer start; the scanner
       # runs from Aqua's official image instead, with the same settings. Report-only: dependency CVEs do not block.
+      # The image comes from GHCR, pinned by version and digest: Docker Hub's unauthenticated pull limit stopped this
+      # job on 2026-10-09 before it scanned anything.
       - name: Trivy vulnerability + misconfig scan
         run: |
-          docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:latest fs \
+          docker run --rm -v "$PWD:/src" -w /src \
+            ghcr.io/aquasecurity/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 fs \
             --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed \
             --format sarif --output trivy-results.sarif --exit-code 0 .
       - name: Upload Trivy SARIF
