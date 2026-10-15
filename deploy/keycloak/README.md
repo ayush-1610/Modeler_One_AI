@@ -52,6 +52,15 @@ Keycloak marks its cookies Secure, so browsers can sign in only over HTTPS (plai
    - `modeler-qa` (release);
    - `modeler-admin`.
 
+### The web app's sign-in (`apps/web/lib/oidc.ts`)
+With `MODELER_OIDC_ISSUER` set, the web signs people in through Keycloak:
+- the tokens are kept in httpOnly cookies, and `apps/web/proxy.ts` adds the person's own token to every API call;
+- a signature the API refuses for want of a step-up opens a dialog, and Keycloak asks for the password and the
+  authenticator code in a small window;
+- `MODELER_WEB_URL` must be the address people open, because sign-in returns to `<it>/auth/callback`.
+
+Unset, the web keeps the DEV sign-in.
+
 ### Then point the stack at it
 Run `bash deploy/server/keycloak.sh env`. It prints the lines for `~/.modeler-secrets.env`:
 - `MODELER_OIDC_ISSUER`;

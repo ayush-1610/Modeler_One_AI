@@ -10,7 +10,8 @@ const LINKS = [
   { href: "/review", label: "Review inbox" },
 ];
 
-export function Nav() {
+/** The sidebar. `user` is the person signed in through Keycloak; with the DEV sign-in there is none to show. */
+export function Nav({ user }: { user?: string | null }) {
   const path = usePathname();
   const is = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   return (
@@ -26,6 +27,13 @@ export function Nav() {
           </Link>
         ))}
       </nav>
+      {user && (
+        <div className="nav-user" data-testid="signed-in">
+          Signed in as <strong>{user}</strong>
+          {/* a route handler, not a page: a full navigation */}
+          <a href="/auth/logout" data-testid="sign-out">Sign out</a>
+        </div>
+      )}
     </aside>
   );
 }

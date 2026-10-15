@@ -20,9 +20,15 @@ const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3011);
 const DATA = (process.env.E2E_DATA_DIR ??= mkdtempSync(join(tmpdir(), "modeler-e2e-")));
 const ENGINE = process.env.E2E_ENGINE_COMMAND ?? `python3 ${REPO}/deploy/dev/stub_engine.py`;
 const API_BASE = `http://127.0.0.1:${API_PORT}`;
+// With E2E_OIDC_ISSUER set (a test Keycloak with deploy/keycloak/realm-modeler.json imported; its back channel in
+// E2E_OIDC_BACKCHANNEL), both servers sign in through Keycloak instead of the DEV sign-in, and only the sign-in flows
+// (oidc-*.spec.ts) run. The test Keycloak's self-signed certificate is accepted by the test browser only.
+const OIDC = process.env.E2E_OIDC_ISSUER;
+const OIDC_BACK = process.env.E2E_OIDC_BACKCHANNEL ?? OIDC;
 
 export default defineConfig({
   testDir: "./e2e",
+  ...(OIDC ? { testMatch: /oidc-.*\.spec\.ts/ } : { testIgnore: /oidc-.*\.spec\.ts/ }),
   timeout: 10 * 60_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
@@ -31,6 +37,7 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${WEB_PORT}`,
     trace: "retain-on-failure",
+    ignoreHTTPSErrors: Boolean(OIDC),
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
       : {},
@@ -43,7 +50,8 @@ export default defineConfig({
       timeout: 120_000,
       reuseExistingServer: false,
       env: {
-        MODELER_DEV_AUTH: "1",
+        ...(OIDC ? { MODELER_OIDC_ISSUER: OIDC, MODELER_OIDC_JWKS_URL: `${OIDC_BACK}/protocol/openid-connect/certs` }
+                 : { MODELER_DEV_AUTH: "1" }),
         MODELER_EXECUTION_BACKEND: "local",
         MODELER_READ_ROOT: join(DATA, "read-root"),
         MODELER_OBJECT_STORE_URI: `file://${join(DATA, "objstore")}`,
@@ -56,9 +64,15 @@ export default defineConfig({
       command: `npm run build && npx next start -H 127.0.0.1 -p ${WEB_PORT}`,
       cwd: __dirname,
       url: `http://127.0.0.1:${WEB_PORT}/projects/new`,
+      // with Keycloak the page redirects to the test Keycloak's sign-in, served with its self-signed certificate
+      ignoreHTTPSErrors: Boolean(OIDC),
       timeout: 300_000,
       reuseExistingServer: false,
-      env: { MODELER_API_BASE: API_BASE, MODELER_WEB_TOKEN: "dev" },
+      env: {
+        MODELER_API_BASE: API_BASE,
+        ...(OIDC ? { MODELER_OIDC_ISSUER: OIDC, MODELER_OIDC_BACKCHANNEL: OIDC_BACK!, MODELER_WEB_URL: `http://127.0.0.1:${WEB_PORT}` }
+                 : { MODELER_WEB_TOKEN: "dev" }),
+      },
     },
   ],
 });

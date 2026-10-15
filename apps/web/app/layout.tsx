@@ -13,6 +13,7 @@ import "./styles/plan.css";
 import "./styles/inputs.css";
 import { Nav } from "@/components/Nav";
 import { Providers } from "@/components/Providers";
+import { signedInName } from "@/lib/session";
 
 // Plex was drawn for technical work: unambiguous figures, a real voice, and a mono companion for the
 // identifiers in this product (parameter ids, engine paths, campaign ids) that are read character by character.
@@ -35,12 +36,13 @@ export const metadata = {
   description: "PBPK modeling and simulation on the Open Systems Pharmacology Suite",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const user = await signedInName();
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>
         <div className="app">
-          <Nav />
+          <Nav user={user} />
           <div className="content"><Providers>{children}</Providers></div>
         </div>
       </body>

@@ -130,6 +130,11 @@ p { max-width: var(--measure); }
 .nav a:hover { background: var(--raised); color: var(--ink); }
 .nav a.active { background: color-mix(in srgb, var(--sim) 12%, transparent); color: var(--brand-ink); font-weight: 600; }
 .nav .group { margin-top: 18px; }
+.nav-user { margin-top: 22px; padding: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-dim); }
+.nav-user strong { display: block; color: var(--ink); font-weight: 600; margin: 2px 0 6px; }
+.nav-user a { color: var(--brand-ink); }
+/* the signing step-up opens over any other dialog (an escalation decision asks for a signature from inside one) */
+.dialog-backdrop.step-up { z-index: 60; }
 
 .content { flex: 1; min-width: 0; padding: 30px 34px 64px; max-width: 1180px; }
 
