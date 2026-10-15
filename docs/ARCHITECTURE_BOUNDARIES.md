@@ -16,7 +16,7 @@ Imports point down only. Two packages on one layer do not import each other.
 | L0 | `pbpk_domain` | Science: CPF, builder, MS-01 stages, units, rulesets, acceptance; later the parameter registry | import anything first-party |
 | L1 | `modeler_contracts` | Typed DTOs and ports shared across processes (runs, campaigns; later settings schema, `CampaignRunner`) | hold logic |
 | L2 | `modeler_intake` | Deterministic file reading, recipes and their vocabulary | call an LLM |
-| L2 | `modeler_storage` | The Postgres audit trail (3a), the file-backed campaign read model and the database repositories (3b) | import the API or the orchestrator |
+| L2 | `modeler_storage` | The Postgres audit trail (3a), the file-backed campaign read model and the database repositories (3b), the Part 11 store (P2) | import the API or the orchestrator |
 | L3 | `modeler_project` | Pipeline artifacts P0–P4 (`FileProjectStore`, audit), one service per artifact kind | know about HTTP |
 | L4 | `modeler_agents` | The LLM edge only: agents propose, code and people decide | hold deterministic rules others need |
 | L5 | `modeler_orchestrator`, `modeler_engine` | Campaign runner; engine worker | import `modeler_api` |
@@ -150,3 +150,12 @@ Apart from the moved audit trail, nothing in L1, L2, L4 or L7 is locked: those a
 Never in these phases: a big-bang rewrite; renaming artifact kinds, ids or stored JSON keys without a versioned
 migration (the audit chain hashes content); a change to SME-governed content or MS-01 semantics without approval;
 reordering audit or approval writes. `deploy/proof/run_t56.py` and the e2e specs keep passing unchanged through phase 5.
+
+## 7. Seams added for production readiness (2026-10-15)
+
+Neither seam adds a boundary exception; `tests/architecture/` passes unchanged.
+
+| Seam | Owner and direction | Rule |
+|---|---|---|
+| Audit mirror (P2) | `modeler_project.audit.AuditMirror` is a Protocol on L3. `modeler_api.part11.audit_mirror` builds it from `modeler_storage.part11.Part11Store` (L2) and injects it through `FileProjectStore(root, audit_mirror=…)` (`modeler_api.deps`, `modeler_api.memberships`). `modeler_project` never imports `modeler_storage` | The mirror is called inside the audit lock, before the line is written; a refusal stops the action. Every API path that writes through a `FileProjectStore` passes the mirror (the read-only `modeler_api.doctor` needs none) |
+| Project memberships (P3) | `modeler_project.members` (L3) owns `<read_root>/<tenant>/members.json` and its audit events. `modeler_api.memberships.admit` is called only by `auth.current_principal` (locked) | `admit` is the only place a principal's projects are widened. Membership changes go through `Memberships.add` / `remove`, which audit them |

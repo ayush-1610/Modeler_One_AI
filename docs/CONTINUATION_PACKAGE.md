@@ -211,7 +211,7 @@ T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) 
 Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
-## 4. Where things stand (2026-10-13)
+## 4. Where things stand (2026-10-15)
 
 ### 4.1 Pipeline coverage — update this table in the same commit as any stage change
 
@@ -290,6 +290,7 @@ records (projects, campaigns) stay in the file stores |
 | Start-up pipeline T-40 → T-50 | Done in software (plan `2026-09-25-project-startup-pipeline.md`); A1–A5 agents run with scripted models in tests; since 2026-10-06 they use the owner's in-house model (LiteLLM proxy → Ollama qwen3-coder 30B, alias `qwen-coder`) with Ollama web search as a tool — check it on the server with `python -m modeler_agents.llm_check --search` (the cloud container reaches neither); D-14 deviations and D-15 blinding built |
 | Non-linear backend T-51 → T-55 | Done in software; Temporal parity (SJ, feedback cycles) and A6 feedback proposals not built; PK-Sim acceptances pending |
 | Architecture refactor (phases 1–8) | Phase 1 done (guardrails, web and API-image CI jobs, API Dockerfile, secret-scan fix); phase 2 done (one configuration reader per process, injected; `api_settings` fixture; known gap: one variable, several defaults — `docs/ARCHITECTURE_BOUNDARIES.md` §3a). Phase 3 done: `modeler_storage` holds the Postgres audit trail, the read model and the repositories; the API and the orchestrator no longer import each other (`CampaignRunner` port); 35 boundary exceptions remain. Phase 4 done (2026-10-08): one parameter registry in `pbpk_domain` (`parameters/registry.yaml` 1.1, UNVERIFIED, locked) that every table of CPF ids reads; `total_cl` is an alias of `elim.hepatic.total.plasma_clearance`, `ehc_fraction` refused until its Individual path is harvested. Each `MODELER_*` variable has one default and a production deployment must set them (`MODELER_DEPLOYMENT=production`). Phase 5 done (2026-10-08): `modeler_api.deps`, the agents seam `modeler_api.agent_jobs`, deterministic helpers in `modeler_intake`, services out of the routers; 4 exceptions remain. Phase 6 done (2026-10-08): `Envelope[T]` and a response model for every P0–P4 and escalation route (shapes kept; the OpenAPI snapshot carries them); one writer per artifact kind (`brief_ops`, `inputs`, the new `map_artifact` for the signed MAP) and only owner modules read stored content (`DocumentRecord`, owner accessors); both guarded by ratchets in `boundaries.toml` with no exceptions left. Phase 7 (frontend seams, `openapi-typescript` 7.13.0 approved 2026-10-08): 7a done (web types generated from the snapshot, drift check in `npm run typecheck`); 7b done (the pages read every typed answer as `Schema<…>` / `Narrow<…>`); 7c done (one API client in `apps/web/lib/api.ts`, typed by route; `test_web_client.py`); 7d done (`useResource` / `useMutation` in `apps/web/lib/hooks.ts`, a change refreshes the phase rail; one stylesheet per feature in `apps/web/app/styles/`). Phase 7 done (2026-10-08). Phase 9 (every remaining route typed, API and web; plan `docs/plans/2026-10-09-phase-9-typed-api.md`): 9a done (the response ratchet covers every router; 37 untyped routes and 5 open answers recorded in `boundaries.toml`); 9b done (the P5 plan typed, the canvas on the hooks; 24 untyped left); 9c done (projects, CPF, studies, templates and the guided flow typed; `modeler_storage.records`; 12 untyped left); 9d done (campaign and escalation records shared by the runner and the API; every route has a model); 9e done (the evidence and dataset answers are the owner's `EvidenceItem` / `ObservedDataset`; no open answer left; the web's untyped helpers removed). Phase 9 done (2026-10-09). Phase 8 done (2026-10-09): 8a the locked artifact store writes versions and blobs whole and locks approvals across processes; 8b job leases (`modeler_storage.jobs`) replace the per-process running sets, read-model and agent-run writes lock across processes, a decision is claimed once; 8c the engine port, no boundary exception left |
+| Production readiness (K1–K3, P1–P3) | Built and tested, in PRs #60–#65 (2026-10-13 → 15), merged in that order by the owner: Keycloak sign-in with a step-up at each signature (K1–K3), PostgreSQL on the server with nightly backups (P1), Part 11 audit events and signatures copied to PostgreSQL in production (P2), project members kept by the platform (P3). **Live once the owner runs the go-live steps in §4.4** |
 | T-56 | Kit built and checked in software (`deploy/proof/run_t56.py`, README there): P0 → P5 from a mock proposal with the published model's cited values and datasets, the owner's acceptances, the MAP signed in the UI, then start / watch / trace. **Next: run it on the server's PK-Sim** and keep `trace.md` with the package |
 
 ### 4.4 How to run
@@ -306,6 +307,19 @@ On the server (one URL, `http://<server>:3000`): `deploy/server/run_modeler.sh`,
 `status_modeler.sh`; `install_autostart.sh` once. Configuration lives in `deploy/server/_env.sh`.
 Engine checks on the server: `Rscript services/engine-worker/golden/golden_roundtrip.R …` and
 `services/engine-worker/scripts/verify_run_round.sh`.
+
+**Going live (pilot → production), in this order.** The details are in `deploy/keycloak/README.md`.
+1. Merge #60 → #61 → #62 → #63 → #64 → #65, then deploy `main` from the Mac (`bash deploy/dev/deploy_to_server.sh`).
+2. On the server: `bash deploy/server/postgres.sh install`, then `bash deploy/server/postgres.sh env >> ~/.modeler-secrets.env`.
+3. `bash deploy/server/keycloak.sh install`, `admin` (the owner types the administrator's password into Keycloak
+   only), `start`. Keycloak runs on PostgreSQL ("Keycloak's database" in the README).
+4. Create the users in the admin console: their tenant and realm roles. The `projects` attribute is optional since P3.
+5. `bash deploy/server/keycloak.sh env >> ~/.modeler-secrets.env`, then `bash deploy/server/stop_modeler.sh &&
+   bash deploy/server/run_modeler.sh`.
+6. Check:
+   - `curl -s localhost:8000/health` answers `"deployment":"production","verifier":"oidc"`;
+   - signing a test record asks for the password and the authenticator code;
+   - `bash deploy/server/postgres.sh verify` reports OK.
 
 ### 4.5 Earlier session notes (2026-09-15 → 16) — kept for the engine facts
 
