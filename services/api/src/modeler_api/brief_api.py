@@ -25,6 +25,7 @@ from modeler_api import agent_jobs, jobs
 from modeler_api.auth import Principal, require_project
 from modeler_api.config import SettingsDep
 from modeler_api.deps import Reader, StoreDep, Writer, impact_view, version_view, workspace_for
+from modeler_api.memberships import record_creator
 from modeler_api.responses import answers, envelope
 from modeler_api.views.brief import (
     AgentRunDetail,
@@ -164,7 +165,7 @@ def _start_extraction(store: ProjectStore, principal: Principal, project_id: str
 
 @router.post("/projects:initiate", status_code=201, **answers(ProjectStarted))
 async def initiate_project(
-    principal: Writer, store: StoreDep, projects: ProjectsDep,
+    principal: Writer, store: StoreDep, projects: ProjectsDep, settings: SettingsDep,
     drug_name: Annotated[str, Form(min_length=1)],
     files: Annotated[list[UploadFile], File()] = [],  # noqa: B006 - FastAPI's form-file default
     name: Annotated[str, Form()] = "",
@@ -193,6 +194,7 @@ async def initiate_project(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     write.put_project(principal.tenant_id, ProjectRecord(id=project_id, name=title, compounds=[drug_name.strip()],
                                                          openQuestions=0, risk="medium", questions=[], pipeline=True).stored())
+    record_creator(settings, principal, project_id)
     brief = empty_brief(drug_name, by=principal.user_id)
     version = save_brief(ws, brief, actor=principal.user_id, reason="project started",
                          derived_from=[d.ref for d in documents])

@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, ValidationError
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
 from modeler_api.cpf_view import project_cpf_view
+from modeler_api.memberships import record_creator
 from modeler_api.responses import answers, envelope
 from modeler_api.studies import StudiesUpload, observed_from_studies
 from modeler_api.views.read import CpfView
@@ -64,9 +65,13 @@ class ProjectCreate(BaseModel):
 
 
 @router.post("/projects", status_code=201, **answers(ProjectRecord))
-def create_project(body: ProjectCreate, principal: Author, stores: StoresDep) -> dict[str, Any]:
-    _read, write = stores
+def create_project(body: ProjectCreate, principal: Author, stores: StoresDep, settings: SettingsDep) -> dict[str, Any]:
+    read, write = stores
     project_id = _slug(body.name)
+    existing = read.get_project(principal.tenant_id, project_id) is not None
+    if existing and project_id not in principal.projects and "*" not in principal.projects:
+        project_id = f"{project_id}-{uuid.uuid4().hex[:4]}"  # another team's same-named project is neither overwritten nor joined
+        existing = False
     questions = []
     if body.question:
         questions.append(QuestionRecord(id=f"qoi-{uuid.uuid4().hex[:6]}", question=body.question,
@@ -75,6 +80,8 @@ def create_project(body: ProjectCreate, principal: Author, stores: StoresDep) ->
     project = ProjectRecord(id=project_id, name=body.name, compounds=[body.compound], openQuestions=len(questions),
                             risk=body.risk, questions=questions, exploratory=body.exploratory).stored()
     write.put_project(principal.tenant_id, project)
+    if not existing:
+        record_creator(settings, principal, project_id)
     return envelope(project)
 
 

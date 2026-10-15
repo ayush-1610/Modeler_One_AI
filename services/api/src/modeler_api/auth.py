@@ -17,6 +17,9 @@ from typing import Annotated, Any, Protocol
 
 from fastapi import Depends, Header, HTTPException
 
+from modeler_api.config import SettingsDep
+from modeler_api.memberships import admit
+
 STEP_UP_ACR = "loa2"
 STEP_UP_MAX_AGE_S = 300  # D10: auth_time no older than 300 s at signing
 
@@ -121,16 +124,19 @@ def get_verifier() -> TokenVerifier:
 
 def current_principal(
     verifier: Annotated[TokenVerifier, Depends(get_verifier)],
+    settings: SettingsDep,
     authorization: Annotated[str | None, Header()] = None,
 ) -> Principal:
-    """Require and verify a bearer token; 401 when it is missing or invalid."""
+    """Require and verify a bearer token; 401 when it is missing or invalid. The principal's projects are the token's
+    and its platform memberships (`modeler_api.memberships`, P3)."""
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="missing bearer token", headers={"WWW-Authenticate": "Bearer"})
     token = authorization.split(" ", 1)[1].strip()
     try:
-        return principal_from_claims(verifier.verify(token))
+        principal = principal_from_claims(verifier.verify(token))
     except AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc), headers={"WWW-Authenticate": "Bearer"}) from exc
+    return admit(principal, settings)
 
 
 CurrentPrincipal = Annotated[Principal, Depends(current_principal)]

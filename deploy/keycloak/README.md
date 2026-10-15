@@ -43,7 +43,9 @@ Keycloak marks its cookies Secure, so browsers can sign in only over HTTPS (plai
 ### Users (admin console: `https://<server>:8443/admin`, realm **modeler**)
 1. **Users → Add user:** fill in the username, email, first name and last name. Then fill in:
    - **Tenant**: the tenant whose projects they work in;
-   - **Project memberships**: the project ids they may open.
+   - **Project memberships** (optional): project ids they may open besides their own. A project made in the web opens
+     to its creator, who adds colleagues in the project page's *Members* panel once they have signed in once. Use
+     this attribute only for projects made before that, or outside the web.
 2. **Credentials → Set password**, with *Temporary* on. The person chooses their own password at first sign-in.
 3. **Role mapping → Assign role → Realm roles:**
    - `modeler-viewer` (read);

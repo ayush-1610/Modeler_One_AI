@@ -19,6 +19,7 @@ from modeler_api.config import check_auth, check_part11, get_settings
 from modeler_api.escalations import router as escalations_router
 from modeler_api.evidence_api import router as evidence_router
 from modeler_api.inputs_api import router as inputs_router
+from modeler_api.members_api import router as members_router
 from modeler_api.plan_api import router as plan_router
 from modeler_api.project_api import router as project_router
 from modeler_api.read_api import router as read_router
@@ -71,3 +72,4 @@ app.include_router(client_router)
 app.include_router(inputs_router)
 app.include_router(plan_router)
 app.include_router(system_router)
+app.include_router(members_router)

@@ -8,15 +8,19 @@ from contextlib import ExitStack
 
 import pytest
 
+from modeler_api.auth import _configured_verifier
 from modeler_api.config import Settings, reload_settings, use_settings
 
 
 @pytest.fixture(autouse=True)
 def _settings_from_this_tests_environment():
-    """Each test reads MODELER_* afresh, so a `monkeypatch.setenv` in one test never leaks into the next."""
+    """Each test reads MODELER_* afresh, so a `monkeypatch.setenv` in one test never leaks into the next; nor does the
+    verifier built from them."""
     reload_settings()
+    _configured_verifier.cache_clear()
     yield
     reload_settings()
+    _configured_verifier.cache_clear()
 
 
 @pytest.fixture

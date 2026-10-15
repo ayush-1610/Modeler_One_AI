@@ -15,6 +15,42 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — a project opens to its creator and the people they add, recorded and audited (T-06, P3)
+- **What** (plan `docs/plans/2026-10-15-project-members.md`; owner-approved 2026-10-15, including the locked
+  `auth.py`):
+  - **Memberships kept by the platform** (`modeler_project.members`, per tenant in `<read_root>/<tenant>/members.json`):
+    - a new project's creator is its first member (`POST /projects` and `POST /projects:initiate`);
+    - a member adds a person who has signed in to the tenant at least once, and removes one with a reason;
+    - a project keeps its last member;
+    - every change is an audit event (`project.member.add`, `project.member.remove`), so production also keeps it in
+      PostgreSQL (P2).
+  - **Access** (`modeler_api.memberships.admit`, called by the locked `auth.current_principal`): a person opens the
+    projects in their token's `projects` claim *and* those they are a member of. Each person who signs in is
+    remembered, so a member can add them.
+  - **The project list** shows only the projects the person may open.
+  - **Routes:** `GET /projects/{id}/members`, `POST /projects/{id}/members`, `POST /projects/{id}/members:remove`
+    (members only; refusals are 409 with the reason).
+  - **The web:** a Members panel on the project page.
+  - **Unchanged:** the DEV principal's `*` (pilot, development) still opens every project. The creator is recorded,
+    and the panel says that memberships take effect under Keycloak sign-in.
+- **Fixed on the way:** `POST /projects` with the name of an existing project the person may not open used to
+  overwrite that project's record. It now gets a new id, as `POST /projects:initiate` already did, and does not join
+  the other project.
+- **Locked file changed:** `services/api/src/modeler_api/auth.py` (`current_principal` adds the platform
+  memberships). Hashes refreshed.
+- **Why:** before this, a project made in the web stayed closed to its own creator under Keycloak until an
+  administrator added its id to their `projects` attribute.
+- **Verified:**
+  - `services/api/tests/test_project_members.py` (8 tests): the creator opens the project and others get 403; the
+    list is filtered; adding needs a person who has signed in; removing needs a reason and keeps the last member;
+    non-members can neither see nor change members; a same-named project does not join another's; the token's claim
+    still admits; the DEV principal is unchanged. Each change is checked in the audit chain.
+  - `apps/web/e2e/members.spec.ts` (dev mode), and `oidc-signing.spec.ts` against Keycloak 26.7.5: a person creates a
+    project, a colleague who signed in is refused, is added in the Members panel, and then opens it.
+- **Impact:** OpenAPI gains the three member routes (`docs/api/openapi.json`, `apps/web/lib/api-types.ts`). The
+  Keycloak `projects` attribute becomes optional: it is needed only for projects made before this change or outside
+  the web.
+
 ### Added — production keeps its Part 11 records in PostgreSQL, where the API cannot change them (T-05/T-06, P2)
 - **What** (plan `docs/plans/2026-10-15-part11-records-postgres.md`; owner-approved 2026-10-15, including the locked
   files below):
