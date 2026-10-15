@@ -68,6 +68,7 @@ Unset, the web keeps the DEV sign-in.
 - its certificate: `MODELER_WEB_TLS_*`, the same one Keycloak serves.
 
 ```bash
+bash deploy/server/postgres.sh env >> ~/.modeler-secrets.env    # once: the Part 11 records go to PostgreSQL too
 bash deploy/server/keycloak.sh env >> ~/.modeler-secrets.env    # once; check the file afterwards (chmod 600)
 bash deploy/server/stop_modeler.sh && bash deploy/server/run_modeler.sh
 bash deploy/server/status_modeler.sh   # deployment: production (Keycloak sign-in); keycloak UP; web UP (https)
@@ -75,7 +76,8 @@ curl -s localhost:8000/health          # {"status":"ok","deployment":"production
 ```
 
 With `MODELER_OIDC_ISSUER` in the secrets file, `deploy/server/_env.sh` runs the stack as **production**:
-- the API refuses the DEV verifier;
+- the API refuses the DEV verifier, and refuses to start unless its Part 11 records also go to PostgreSQL
+  (`MODELER_PART11_STORE=postgres`, from `postgres.sh env`; install PostgreSQL first, below);
 - every signature is a Part 11 signature;
 - `run_modeler.sh` starts Keycloak with the stack, and `apps/web/server.mjs` serves the web over HTTPS at
   `https://<server>:3000`.
@@ -87,7 +89,7 @@ Keycloak starts on its embedded file database. Keycloak calls that deprecated fo
 PostgreSQL, which the same server runs without sudo:
 ```bash
 bash deploy/server/postgres.sh install        # PostgreSQL 16 (conda-forge), roles, databases, the platform's schema
-echo 'export MODELER_KEYCLOAK_DB=postgres' >> ~/.modeler-secrets.env
+bash deploy/server/postgres.sh env >> ~/.modeler-secrets.env   # Keycloak's database and the Part 11 store
 source ~/.modeler-secrets.env
 bash deploy/server/keycloak.sh migrate-db     # realms, users and their authenticators, from the file database
 bash deploy/server/stop_modeler.sh && bash deploy/server/run_modeler.sh
@@ -102,6 +104,11 @@ bash deploy/server/install_autostart.sh       # once: adds the nightly backup an
   - each migration runs once, recorded with its sha256.
 - **Backups** go to `~/modeler-backups/<date>`; set `MODELER_BACKUP_DIR` to put them on another disk. Each is restored
   into scratch databases every night to prove it is complete (`~/modeler-logs/backup.log`).
+- **The Part 11 records** (production): every audit event is copied into PostgreSQL before its file line is
+  written, with the file chain's own hashes; the pilot's earlier events are copied first. Every signature becomes a
+  row. The API's login cannot change or remove either. `bash deploy/server/postgres.sh verify` (nightly too) checks
+  the database copy against the file chains, so a file chain rewritten after the fact shows up
+  (`docs/plans/2026-10-15-part11-records-postgres.md`).
 
 ## Limits, recorded
 - **Re-running `install` keeps the existing realm** (`--override=false`), so users and their TOTP survive. A later

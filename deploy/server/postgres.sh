@@ -9,6 +9,8 @@
 #   postgres.sh start | stop | status
 #   postgres.sh backup          dump both databases into $MODELER_BACKUP_DIR/<date> (nightly from cron); keep 14 days
 #   postgres.sh restore-check   restore the latest dumps into scratch databases and compare them with the live ones
+#   postgres.sh env             the lines for ~/.modeler-secrets.env: Keycloak and the Part 11 records on PostgreSQL
+#   postgres.sh verify          the Part 11 copy against the file audit chains (python -m modeler_api.part11)
 #
 # Settings (environment, default in brackets): MODELER_POSTGRES_HOME [~/modeler-postgres], MODELER_POSTGRES_PORT
 # [5432], MODELER_BACKUP_DIR [~/modeler-backups] (better on another disk), MODELER_POSTGRES_BIN (an existing
@@ -182,6 +184,22 @@ cmd_restore_check() {
   echo "restore check: $dir restores completely (keycloak, modeler)"
 }
 
+cmd_env() {
+  installed || die "not installed: run 'postgres.sh install'"
+  cat <<EOF
+# PostgreSQL (deploy/server/postgres.sh env): add to ~/.modeler-secrets.env (mode 600), then restart the stack.
+export MODELER_KEYCLOAK_DB=postgres
+export MODELER_PART11_STORE=postgres
+export MODELER_DATABASE_URL=postgresql+asyncpg://modeler:$(secret modeler)@127.0.0.1:$PG_PORT/modeler
+EOF
+}
+
+# The Part 11 copy against the file chains; the database URL goes by environment (never in the process list).
+cmd_verify() {
+  if [ "${MODELER_PART11_STORE:-file}" != postgres ]; then echo "Part 11 records are kept in files only: nothing to verify"; return; fi
+  cd "$REPO" && uv run --quiet python -m modeler_api.part11 verify
+}
+
 BIN="$(pg_bin || true)"
 case "${1:-}" in
   install) cmd_install ;;
@@ -190,6 +208,8 @@ case "${1:-}" in
   stop) [ -n "$BIN" ] || { echo "postgres not installed"; exit 0; }; cmd_stop ;;
   status) [ -n "$BIN" ] || { echo "postgres not installed"; exit 1; }; cmd_status ;;
   backup) [ -n "$BIN" ] || { echo "postgres not installed: nothing to back up"; exit 0; }; cmd_backup ;;
+  env) [ -n "$BIN" ] || die "not installed"; cmd_env ;;
+  verify) cmd_verify ;;
   restore-check) [ -n "$BIN" ] || { echo "postgres not installed: nothing to check"; exit 0; }; cmd_restore_check ;;
   *) sed -n '2,20p' "$0"; exit 2 ;;
 esac

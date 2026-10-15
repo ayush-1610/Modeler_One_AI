@@ -1,6 +1,6 @@
 # Part 11 records in PostgreSQL (production readiness P2, 2026-10-15)
 
-Status: **in progress.** The owner approved the plan, including the changes to locked files, on 2026-10-15. Builds on
+Status: **built** (2026-10-15, branch `part11-postgres`). The owner approved the plan, including the changes to locked files, on 2026-10-15. Builds on
 P1 (`deploy/server/postgres.sh`, #63).
 
 ## Why
@@ -36,7 +36,7 @@ UPDATE/DELETE/TRUNCATE grant.
 5. **Production needs it.** `MODELER_PART11_STORE=postgres` with `MODELER_DATABASE_URL`, both printed by
    `postgres.sh env`. A production deployment refuses to start without them (`modeler_api.config`). Pilot and
    development keep the files only.
-6. **Verification:** `python -m modeler_storage.part11 verify` checks each tenant. Every file record must be in the
+6. **Verification:** `python -m modeler_api.part11 verify` checks each tenant. Every file record must be in the
    database with the same hashes, and the database chain must recompute. A rewritten file chain then shows up against
    the database copy. The nightly backup runs it (`postgres.sh`).
 

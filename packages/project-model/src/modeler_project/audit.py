@@ -15,7 +15,7 @@ import threading
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 GENESIS_HASH = "0" * 64
 _LOCK = threading.Lock()
@@ -51,12 +51,22 @@ class AuditRecord:
     row_hash: str
 
 
-class AuditLog:
-    """Append-only chain in `<root>/<tenant>/audit.jsonl`."""
+class AuditMirror(Protocol):
+    """Where a production deployment copies each record before the line is written (`modeler_storage.part11`):
+    `record` and `earlier(from_seq)` are in the line shape {"event", "prev_hash", "row_hash"}. Raising stops the
+    append, so no event exists only in the file."""
 
-    def __init__(self, root: Path, tenant_id: str):
+    def __call__(self, tenant_id: str, record: dict[str, Any], earlier: Any) -> None: ...
+
+
+class AuditLog:
+    """Append-only chain in `<root>/<tenant>/audit.jsonl`; with a mirror, every record also goes to the Part 11
+    database first (production readiness P2)."""
+
+    def __init__(self, root: Path, tenant_id: str, mirror: AuditMirror | None = None):
         self.tenant_id = tenant_id
         self.path = root / tenant_id / "audit.jsonl"
+        self.mirror = mirror
 
     def records(self) -> list[AuditRecord]:
         if not self.path.exists():
@@ -86,9 +96,12 @@ class AuditLog:
                     reason=reason, request_id=request_id,
                 )
                 record = AuditRecord(event=event, prev_hash=prev, row_hash=row_hash(prev, event))
+                line = {"event": asdict(event), "prev_hash": prev, "row_hash": record.row_hash}
+                if self.mirror is not None:  # the database copy first: if it refuses, nothing is written
+                    self.mirror(self.tenant_id, json.loads(json.dumps(line, ensure_ascii=False, default=str)),
+                                lambda first: [json.loads(ln) for ln in lines if json.loads(ln)["event"]["seq"] >= first])
                 handle.seek(0, 2)
-                handle.write(json.dumps({"event": asdict(event), "prev_hash": prev, "row_hash": record.row_hash},
-                                        ensure_ascii=False, default=str) + "\n")
+                handle.write(json.dumps(line, ensure_ascii=False, default=str) + "\n")
                 handle.flush()
             finally:
                 fcntl.flock(handle, fcntl.LOCK_UN)

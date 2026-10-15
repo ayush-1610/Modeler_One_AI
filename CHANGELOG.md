@@ -15,6 +15,53 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — production keeps its Part 11 records in PostgreSQL, where the API cannot change them (T-05/T-06, P2)
+- **What** (plan `docs/plans/2026-10-15-part11-records-postgres.md`; owner-approved 2026-10-15, including the locked
+  files below):
+  - **Audit events** go through `modeler_storage.part11`:
+    - the file chain (`modeler_project.audit.AuditLog`) calls an injected mirror inside its lock, *before* a line is
+      written;
+    - the record goes into `audit_events` with the file chain's own hashes, after any records the database lacks
+      (the pilot's history, a past outage), in order;
+    - a database that refuses, or is ahead of the file chain, or does not link to it, stops the append and so the
+      action. No event exists only in the file.
+  - **Every signature is a row.** The sign points in use (`signatures_api`, `plan_api` approve, the local escalation
+    resolve) write it right after `sign_after_step_up`, before the signed record is applied. The signer is upserted
+    into `users` by token subject.
+  - **Tenants:** the file chain names them (`dev`) and the schema keys them by UUID. They map through `tenants.slug`,
+    and the hashes cover the name, exactly as the file chain computed them.
+  - **Production requires it** (`modeler_api.config.check_part11`): `MODELER_PART11_STORE=postgres`, and the
+    database must answer, with its Part 11 tables, before the API serves anything. Pilot and development keep the
+    files only.
+  - **`postgres.sh env`** prints the lines for the secrets file.
+  - **`postgres.sh verify`** (`python -m modeler_api.part11 verify`, also nightly) checks every tenant's copy against
+    its file chain, with the deployment's own settings. The database URL is never a command-line argument.
+- **Locked files changed:**
+  - `packages/project-model/src/modeler_project/audit.py`: the `AuditMirror` hook;
+  - `packages/project-model/src/modeler_project/store.py`: the store passes it on;
+  - `services/api/migrations/0004_part11_records.sql`, new: `signatures.record_id` becomes text, because records are
+    named, not UUIDs; `users.email` becomes nullable, because a token may carry none. Applied migrations are never
+    edited.
+- **Why:** the owner approved production readiness on 2026-10-15. A file chain shows a tampered line, but nothing
+  stopped a whole rewritten chain. The database copy cannot be changed by the API's own login.
+- **Verified** (`services/api/tests/test_part11_postgres.py`: 6 tests against PostgreSQL 16 set up by `postgres.sh`,
+  through the API's login, run as an ordinary account):
+  - events reach the database with identical hashes, and `verify` is clean;
+  - the pilot's history is backfilled in order;
+  - a refusing database leaves the file unwritten;
+  - a rewritten file line is reported, and a shortened file chain stops the append;
+  - a signature taken through `POST /signatures` is one row (`oidc:` method, printed name), and recording it again
+    is refused;
+  - the verify command checks every tenant with the deployment's settings.
+
+  Also: `test_production_start.py` (production starts only with the Part 11 store, which is asked first) and the 4
+  P1 deploy tests.
+- **Impact:**
+  - nothing changes until a deployment sets `MODELER_PART11_STORE=postgres`;
+  - on the server, `postgres.sh install` and `postgres.sh env` come before the switch to production (README);
+  - the other records (projects, campaigns) stay in the file stores;
+  - the Temporal-path routes, not deployed, are unchanged.
+
 ### Added — PostgreSQL on the server without sudo; Keycloak on it; nightly backups with a restore check (T-05, P1)
 - **What:** `deploy/server/postgres.sh` (`install`, `migrate`, `start`, `stop`, `status`, `backup`, `restore-check`):
   - **Install:** PostgreSQL 16 from conda-forge (it publishes `postgresql` 16 for linux-64), under
