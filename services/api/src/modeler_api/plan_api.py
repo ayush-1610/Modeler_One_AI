@@ -24,6 +24,7 @@ from modeler_api.auth import Principal, ensure_step_up, require_role
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep, get_settings
 from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
+from modeler_api.part11 import record_signature
 from modeler_api.responses import answers, envelope
 from modeler_api.views.plan import DraftStart, PlacementPreview, PlanPage, PlanSigned
 from modeler_project import ArtifactKind, ProjectStore, Workspace
@@ -439,6 +440,7 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
         signer=Signer(user_id=principal.user_id, printed_name=principal.printed_name), meaning=SignatureMeaning.APPROVED,
         record_type="map-deviation" if previous else "map", record_id=f"{project_id}/plan-v{version.version}",
         record_sha256=content_sha, acr=principal.acr or "")
+    record_signature(settings, principal.tenant_id, signature)
     signed = doc.sign(printed_name=principal.printed_name, signature_id=signature.signature_id)
     if pending:  # the deviations now carry their signature and the MAP version that holds them
         marked = tuple(d.model_copy(update={"signature_id": signature.signature_id, "signed_map": signed.version})

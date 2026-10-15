@@ -321,11 +321,11 @@
     },
     {
       "path": "packages/project-model/src/modeler_project/audit.py",
-      "sha256": "b092b9e4ce76719df179c9d5103134e73b55d2e2f1570d2779487f005c12676f"
+      "sha256": "b92e07237d4a640f58459c31abad692bd76049dac04f13d690a095f5b86b1e9c"
     },
     {
       "path": "packages/project-model/src/modeler_project/store.py",
-      "sha256": "2bc5d3d07d117db33fbc5f256fc2c03a2d7bd473f8c5910dc4861792dc5f2a84"
+      "sha256": "3165905138ac3644dbae36a425571d0d91b0fa1b61c69a8dd4ca0ca600571b21"
     },
     {
       "path": "packages/storage/src/modeler_storage/audit.py",
@@ -342,6 +342,10 @@
     {
       "path": "services/api/migrations/0003_agents.sql",
       "sha256": "5e6bfcc35ebf2c4b62905f27398e4d464e0cf2dd4f62ff12318f787e6778ff6c"
+    },
+    {
+      "path": "services/api/migrations/0004_part11_records.sql",
+      "sha256": "ec2aa45b781d50af3d4cf0ab2a40931bc9cc8c3ddedd26c7bcab79a328839b64"
     },
     {
       "path": "services/api/src/modeler_api/auth.py",

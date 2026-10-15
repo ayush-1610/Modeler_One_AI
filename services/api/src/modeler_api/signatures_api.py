@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 
 from modeler_api.auth import CurrentPrincipal, ensure_step_up, require_project
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
+from modeler_api.config import SettingsDep
+from modeler_api.part11 import record_signature
 from modeler_api.responses import answers_without_envelope
 from modeler_api.views.campaigns import SignatureCreated
 
@@ -25,7 +27,7 @@ class SignatureRequest(BaseModel):
 
 
 @router.post("/projects/{project_id}/signatures", status_code=201, **answers_without_envelope(SignatureCreated))
-def create_signature(project_id: str, request: SignatureRequest, principal: CurrentPrincipal) -> dict:
+def create_signature(project_id: str, request: SignatureRequest, principal: CurrentPrincipal, settings: SettingsDep) -> dict:
     require_project(project_id, principal)   # 403 for a project the principal is not a member of
     ensure_step_up(principal)                # 403 STEP_UP_REQUIRED / STEP_UP_STALE
     signature = sign_after_step_up(
@@ -33,6 +35,7 @@ def create_signature(project_id: str, request: SignatureRequest, principal: Curr
         meaning=request.meaning, record_type=request.record_type, record_id=request.record_id,
         record_sha256=request.record_sha256, acr=principal.acr or "",
     )
+    record_signature(settings, principal.tenant_id, signature)
     return {
         "signature_id": signature.signature_id,
         "manifestation": signature.manifestation(),

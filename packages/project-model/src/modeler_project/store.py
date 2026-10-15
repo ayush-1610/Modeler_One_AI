@@ -27,7 +27,7 @@ from typing import Protocol
 from urllib.parse import unquote, urlparse
 
 from modeler_project.artifacts import Approval, ArtifactKind, ArtifactVersion
-from modeler_project.audit import AuditLog
+from modeler_project.audit import AuditLog, AuditMirror
 
 # Filesystems without hard links (some network and container mounts): fall back to an exclusive create, written in place.
 _NO_LINKS = {errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP, errno.EXDEV, errno.EMLINK}
@@ -91,8 +91,10 @@ def resolve_root(root: str | Path) -> Path:
 
 
 class FileProjectStore:
-    def __init__(self, root: str | Path):
+    def __init__(self, root: str | Path, audit_mirror: AuditMirror | None = None):
         self.root = resolve_root(root)
+        # production: each audit record is copied into the Part 11 database before it is written (P2)
+        self.audit_mirror = audit_mirror
 
     def _project_dir(self, tenant_id: str, project_id: str) -> Path:
         return self.root / tenant_id / "projects" / project_id
@@ -164,5 +166,5 @@ class FileProjectStore:
     # --- audit ------------------------------------------------------------------------------------------------
 
     def audit(self, tenant_id: str) -> AuditLog:
-        return AuditLog(self.root, tenant_id)
+        return AuditLog(self.root, tenant_id, mirror=self.audit_mirror)
 

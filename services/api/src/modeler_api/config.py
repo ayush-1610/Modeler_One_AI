@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     oidc_jwks_url: str | None = None
     oidc_issuer: str | None = None
     oidc_audience: str = "modeler-api"
+    # Where the Part 11 records (audit events, signatures) are kept beyond the files: "postgres" copies every one into
+    # MODELER_DATABASE_URL (deploy/server/postgres.sh), where the API's login cannot change or remove them. A
+    # production deployment must set it (check_part11); pilot and development keep the files only.
+    part11_store: Literal["file", "postgres"] = "file"
     # DEV ONLY: when true, a fixed development principal is accepted for any bearer token, so the web app can
     # run against live read APIs without Keycloak. Never enable outside local development.
     dev_auth: bool = False
@@ -58,6 +62,20 @@ def check_auth(settings: Settings, runtime: RuntimeSettings) -> None:
         raise ConfigurationError("production deployment refused: MODELER_DEV_AUTH is set, and the DEV verifier is for "
                                  "development and pilot deployments only; configure Keycloak (MODELER_OIDC_JWKS_URL, "
                                  "MODELER_OIDC_ISSUER) or run as MODELER_DEPLOYMENT=pilot")
+
+
+def check_part11(settings: Settings, runtime: RuntimeSettings) -> None:
+    """Production keeps its Part 11 records in PostgreSQL (the owner's decision, 2026-10-15), and that database must
+    answer before the API serves anything."""
+    if runtime.production and settings.part11_store != "postgres":
+        raise ConfigurationError("production deployment refused: MODELER_PART11_STORE is not 'postgres'; the audit trail "
+                                 "and signatures must also be kept in PostgreSQL (deploy/server/postgres.sh env)")
+    if settings.part11_store == "postgres":
+        from modeler_api.part11 import part11_store
+
+        store = part11_store(settings)
+        if store is not None:
+            store.ping()
 
 
 @lru_cache

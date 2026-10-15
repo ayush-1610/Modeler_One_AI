@@ -13,6 +13,7 @@ from fastapi import Depends, HTTPException
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep, get_settings
+from modeler_api.part11 import audit_mirror
 from modeler_project import ArtifactKind, ArtifactVersion, FileProjectStore, ProjectStore, Workspace
 from modeler_project import blinding as blind
 
@@ -26,7 +27,7 @@ MiddLead = Annotated[Principal, Depends(require_role("modeler-reviewer"))]
 def get_project_store(settings: SettingsDep) -> ProjectStore:
     if not settings.read_root:
         raise HTTPException(status_code=503, detail="Project storage is not configured. Set MODELER_READ_ROOT.")
-    return FileProjectStore(settings.read_root)
+    return FileProjectStore(settings.read_root, audit_mirror=audit_mirror(settings))
 
 
 StoreDep = Annotated[ProjectStore, Depends(get_project_store)]

@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from modeler_api.brief_api import router as brief_router
 from modeler_api.campaign_api import router as campaign_router
 from modeler_api.client_api import router as client_router
-from modeler_api.config import check_auth, get_settings
+from modeler_api.config import check_auth, check_part11, get_settings
 from modeler_api.escalations import router as escalations_router
 from modeler_api.evidence_api import router as evidence_router
 from modeler_api.inputs_api import router as inputs_router
@@ -38,6 +38,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     runtime = runtime_env()
     runtime.check_production()
     check_auth(get_settings(), runtime)
+    check_part11(get_settings(), runtime)
     yield
 
 

@@ -11,23 +11,6 @@ from modeler_contracts.runtime import ConfigurationError
 pytestmark = pytest.mark.req("T-25")
 
 
-def test_production_without_its_settings_does_not_start(monkeypatch):
-    monkeypatch.setenv("MODELER_DEPLOYMENT", "production")
-    for name in ("MODELER_OBJECT_STORE_URI", "MODELER_ENGINE_COMMAND", "MODELER_IMAGE_DIGEST"):
-        monkeypatch.delenv(name, raising=False)
-    with pytest.raises(ConfigurationError, match="MODELER_ENGINE_COMMAND"), TestClient(app):
-        pass
-
-
-def test_production_with_its_settings_starts(monkeypatch):
-    monkeypatch.setenv("MODELER_DEPLOYMENT", "production")
-    monkeypatch.setenv("MODELER_OBJECT_STORE_URI", "file:///tmp/objstore")
-    monkeypatch.setenv("MODELER_ENGINE_COMMAND", "Rscript run_job.R")
-    monkeypatch.setenv("MODELER_IMAGE_DIGEST", "catalog:sha256:" + "a" * 64)
-    with TestClient(app) as client:
-        assert client.get("/health").status_code == 200
-
-
 def _engine_settings(monkeypatch, deployment: str) -> None:
     monkeypatch.setenv("MODELER_DEPLOYMENT", deployment)
     monkeypatch.setenv("MODELER_OBJECT_STORE_URI", "file:///tmp/objstore")
@@ -42,6 +25,42 @@ def fresh_settings():
     reload_settings()
     yield
     reload_settings()
+
+
+def test_production_without_its_settings_does_not_start(monkeypatch):
+    monkeypatch.setenv("MODELER_DEPLOYMENT", "production")
+    for name in ("MODELER_OBJECT_STORE_URI", "MODELER_ENGINE_COMMAND", "MODELER_IMAGE_DIGEST"):
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(ConfigurationError, match="MODELER_ENGINE_COMMAND"), TestClient(app):
+        pass
+
+
+class _AnsweringPart11Store:
+    """The Part 11 database as the API's startup check sees it when it answers (no database in unit tests)."""
+
+    pinged = False
+
+    def ping(self) -> None:
+        type(self).pinged = True
+
+
+def test_production_with_its_settings_starts(monkeypatch, fresh_settings):
+    from modeler_api import part11
+
+    _engine_settings(monkeypatch, "production")
+    monkeypatch.setenv("MODELER_PART11_STORE", "postgres")
+    monkeypatch.setattr(part11, "_store", lambda url: _AnsweringPart11Store())
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
+    assert _AnsweringPart11Store.pinged  # the database was asked before the API served anything
+
+
+def test_production_refuses_to_keep_its_part11_records_in_files_only(monkeypatch, fresh_settings):
+    # the owner's decision, 2026-10-15 (P2): audit events and signatures are also kept in PostgreSQL
+    _engine_settings(monkeypatch, "production")
+    monkeypatch.delenv("MODELER_PART11_STORE", raising=False)
+    with pytest.raises(ConfigurationError, match="MODELER_PART11_STORE"), TestClient(app):
+        pass
 
 
 def test_production_refuses_the_dev_verifier(monkeypatch, fresh_settings):

@@ -29,6 +29,7 @@ from modeler_api.compliance.signatures import (
 )
 from modeler_api.config import SettingsDep
 from modeler_api.execution import RunnerDep
+from modeler_api.part11 import record_signature
 from modeler_api.responses import answers_without_envelope
 from modeler_api.views.escalations import DecisionOptions, DeviationRecorded, EscalationDecided, EscalationResolved
 from modeler_contracts.runs import DeviationRecord, EscalationDecision
@@ -276,6 +277,7 @@ def resolve_escalation_decision(
         else hashlib.sha256(f"{campaign_id}:{stage}:{request.action}".encode()).hexdigest(),
         acr=principal.acr or "",
     )
+    record_signature(settings, principal.tenant_id, signature)
 
     try:
         result = runner.resolve(
