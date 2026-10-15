@@ -21,4 +21,6 @@ pkill -f "next-server" 2>/dev/null || true
 pkill -f "apps/web/server.mjs" 2>/dev/null || true
 # Keycloak, when it was started with the stack
 [ -f "$LOGS/keycloak.pid" ] && bash "$REPO/deploy/server/keycloak.sh" stop
+# PostgreSQL last, once nothing uses it
+postgres_installed && bash "$REPO/deploy/server/postgres.sh" stop
 echo "stopped (marked as intentionally down)"

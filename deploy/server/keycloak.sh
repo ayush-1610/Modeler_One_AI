@@ -7,12 +7,15 @@
 #   keycloak.sh admin     create the first Keycloak administrator (Keycloak prompts for the password; stops it first)
 #   keycloak.sh start     start it (idempotent)          keycloak.sh stop     stop it
 #   keycloak.sh status    is it up, and where             keycloak.sh env      the lines for ~/.modeler-secrets.env
+#   keycloak.sh migrate-db   move every realm, user and authenticator enrolment from the file database to PostgreSQL
 #
 # Settings (environment, default in brackets):
 #   MODELER_KEYCLOAK_HOST   the name or address browsers use for this server [this server's first address]
 #   MODELER_KEYCLOAK_CERT, MODELER_KEYCLOAK_KEY   a PEM certificate and key to serve (e.g. from `tailscale cert`);
 #                           unset: a self-signed certificate for MODELER_KEYCLOAK_HOST, made once by `install`
 #   MODELER_KEYCLOAK_HOME   [~/modeler-keycloak]   MODELER_KEYCLOAK_HTTP_PORT [8080]   MODELER_KEYCLOAK_HTTPS_PORT [8443]
+#   MODELER_KEYCLOAK_DB     [dev-file] or postgres: the `keycloak` database of deploy/server/postgres.sh, whose
+#                           password file it reads (MODELER_POSTGRES_HOME, MODELER_POSTGRES_PORT as there)
 #
 # Browsers reach Keycloak only over HTTPS (it marks its cookies Secure, so plain HTTP sign-in fails off localhost).
 # HTTP serves the local back channel: the API's key set (JWKS) and the web server's code exchange, on 127.0.0.1.
@@ -59,6 +62,20 @@ tls_options() {
   else
     [ -f "$TLS/keycloak.p12" ] || die "no certificate: run 'keycloak.sh install' (or set MODELER_KEYCLOAK_CERT and _KEY)"
     TLS_OPTIONS=("--https-key-store-file=$TLS/keycloak.p12")
+  fi
+}
+
+# Keycloak's database options (into DB_OPTIONS): its embedded file database, or PostgreSQL with the password by
+# environment (KC_DB_PASSWORD), never on the command line.
+db_options() {
+  if [ "${1:-${MODELER_KEYCLOAK_DB:-dev-file}}" = postgres ]; then
+    local pass="${MODELER_POSTGRES_HOME:-$HOME/modeler-postgres}/secrets/keycloak.pass"
+    [ -r "$pass" ] || die "MODELER_KEYCLOAK_DB=postgres but $pass is missing: run 'postgres.sh install' first"
+    DB_OPTIONS=(--db=postgres "--db-url=jdbc:postgresql://127.0.0.1:${MODELER_POSTGRES_PORT:-5432}/keycloak" --db-username=keycloak)
+    KC_DB_PASSWORD="$(cat "$pass")"
+    export KC_DB_PASSWORD
+  else
+    DB_OPTIONS=(--db=dev-file)
   fi
 }
 
@@ -110,14 +127,16 @@ cmd_install() {
   make_certificate
   running && die "stop Keycloak before importing the realm ('keycloak.sh stop')"
   # --override false: a realm that already exists (its users, their TOTP) is kept, never replaced by the file.
-  kc import --db=dev-file --file="$REALM_FILE" --override=false
+  db_options
+  kc import "${DB_OPTIONS[@]}" --file="$REALM_FILE" --override=false
   echo "installed. Next: 'keycloak.sh admin' (first time only), then 'keycloak.sh start'"
 }
 
 cmd_admin() {
   running && cmd_stop
   echo "Create the first Keycloak administrator. Keycloak asks for the password; it is never stored by this script."
-  kc bootstrap-admin user --db=dev-file --username="${1:-admin}"
+  db_options
+  kc bootstrap-admin user "${DB_OPTIONS[@]}" --username="${1:-admin}"
 }
 
 cmd_start() {
@@ -125,11 +144,12 @@ cmd_start() {
   [ -x "$KC_HOME/bin/kc.sh" ] || die "not installed: run 'keycloak.sh install'"
   local home; home="$(java_home)" || die "no Java 21: run 'keycloak.sh install' first"
   tls_options
+  db_options
   local pass=""; [ -f "$TLS/keystore.pass" ] && pass="$(cat "$TLS/keystore.pass")"
   echo "starting Keycloak: $PUBLIC (back channel http://127.0.0.1:$HTTP_PORT)"
   # The keystore password goes by environment (KC_HTTPS_KEY_STORE_PASSWORD), so it never shows in the process list.
   KC_HTTPS_KEY_STORE_PASSWORD="$pass" JAVA_HOME="$home" PATH="$home/bin:$PATH" nohup "$KC_HOME/bin/kc.sh" start \
-    --db=dev-file --hostname="$PUBLIC" --hostname-backchannel-dynamic=true \
+    "${DB_OPTIONS[@]}" --hostname="$PUBLIC" --hostname-backchannel-dynamic=true \
     --http-enabled=true --http-port="$HTTP_PORT" --https-port="$HTTPS_PORT" "${TLS_OPTIONS[@]}" \
     > "$LOGS/keycloak.log" 2>&1 &
   echo $! > "$PID_FILE"
@@ -141,6 +161,23 @@ cmd_start() {
     sleep 3
   done
   die "Keycloak did not answer within 3 minutes; see $LOGS/keycloak.log"
+}
+
+# Every realm (master's administrators included), with its users and their credentials (password hashes, TOTP
+# secrets), exported from the file database and imported into an empty PostgreSQL one. The export is written for this
+# account only and deleted afterwards; the file database is left as it was, as the way back.
+cmd_migrate_db() {
+  [ "${MODELER_KEYCLOAK_DB:-}" = postgres ] || die "set MODELER_KEYCLOAK_DB=postgres (postgres.sh env prints it) first"
+  running && cmd_stop
+  local dir; dir="$KC_ROOT/migrate-$(date -u +%Y%m%dT%H%M%S)"
+  ( umask 077; mkdir -p "$dir" )
+  # shellcheck disable=SC2064 # the path is fixed now: the export is removed however this ends
+  trap "rm -rf '$dir'" EXIT
+  db_options dev-file
+  kc export "${DB_OPTIONS[@]}" --dir="$dir" --users=realm_file
+  db_options postgres
+  kc import "${DB_OPTIONS[@]}" --dir="$dir" --override=false
+  echo "Keycloak's realms, users and enrolments are in PostgreSQL. Start it: 'keycloak.sh start'"
 }
 
 cmd_stop() {
@@ -184,5 +221,6 @@ case "${1:-}" in
   stop) cmd_stop ;;
   status) cmd_status ;;
   env) cmd_env ;;
+  migrate-db) cmd_migrate_db ;;
   *) sed -n '2,20p' "$0"; exit 2 ;;
 esac

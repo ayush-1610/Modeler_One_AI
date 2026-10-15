@@ -28,7 +28,11 @@ rm -f "$STOPPED_FLAG"
 
 cd "$REPO"
 
-# Keycloak first when sign-in goes through it: the web sends people there and the API reads its keys.
+# PostgreSQL first once it is installed (Keycloak's database, the platform's records), then Keycloak when sign-in goes
+# through it: the web sends people there and the API reads its keys.
+if postgres_installed && ! port_open "$POSTGRES_PORT"; then
+  bash "$REPO/deploy/server/postgres.sh" start || echo "PostgreSQL did not start; see $LOGS/postgres.log" >&2
+fi
 if keycloak_needed && ! port_open "$KEYCLOAK_HTTP_PORT"; then
   bash "$REPO/deploy/server/keycloak.sh" start || echo "Keycloak did not start; see $LOGS/keycloak.log" >&2
 fi
@@ -66,5 +70,6 @@ else
   port_open "$API_PORT" || echo "  API (:$API_PORT) is not answering" >&2
   port_open "$WEB_PORT" || echo "  web (:$WEB_PORT) is not answering" >&2
   keycloak_needed && ! port_open "$KEYCLOAK_HTTP_PORT" && echo "  Keycloak (:$KEYCLOAK_HTTP_PORT) is not answering" >&2
+  postgres_installed && ! port_open "$POSTGRES_PORT" && echo "  PostgreSQL (:$POSTGRES_PORT) is not answering" >&2
   exit 1
 fi
