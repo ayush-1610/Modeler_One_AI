@@ -349,7 +349,7 @@
     },
     {
       "path": "services/api/src/modeler_api/auth.py",
-      "sha256": "c3b0b6cf1e240ad402fbb8542f8bdd80a3b1f41c72d1fa207a721216a7093c5a"
+      "sha256": "3ec36b91518827d2465ece0497eab9230a6c1f3254f0134b6a320aceb38f71af"
     },
     {
       "path": "services/api/src/modeler_api/compliance/signatures.py",

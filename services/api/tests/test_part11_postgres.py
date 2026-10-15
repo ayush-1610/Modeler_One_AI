@@ -115,11 +115,9 @@ def test_a_rewritten_file_line_is_reported_and_a_shortened_chain_stops(database_
 
 
 def test_a_signature_through_the_api_is_a_row_once(database_url, tmp_path, api_settings):
-    from modeler_api.auth import _configured_verifier
     from modeler_api.main import app
 
     api_settings(read_root=str(tmp_path), dev_auth=True, part11_store="postgres", database_url=database_url)
-    _configured_verifier.cache_clear()
     body = {"meaning": "Approved", "record_type": "map", "record_id": "p1/plan-v1", "record_sha256": "c" * 64}
     with TestClient(app) as client:
         answer = client.post("/api/v1/projects/p1/signatures", json=body, headers={"Authorization": "Bearer dev"})

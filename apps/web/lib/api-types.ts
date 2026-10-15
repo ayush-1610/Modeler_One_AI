@@ -1091,6 +1091,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Members */
+        get: operations["list_members_api_v1_projects__project_id__members_get"];
+        put?: never;
+        /** Add Member */
+        post: operations["add_member_api_v1_projects__project_id__members_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/members:remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove Member */
+        post: operations["remove_member_api_v1_projects__project_id__members_remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/phases": {
         parameters: {
             query?: never;
@@ -3243,6 +3278,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[MembersPage] */
+        Envelope_MembersPage_: {
+            data: components["schemas"]["MembersPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[ObservedDataset] */
         Envelope_ObservedDataset_: {
             data: components["schemas"]["ObservedDataset"];
@@ -4723,6 +4765,47 @@ export interface components {
             /** Value */
             value: number;
         };
+        /** MemberAdd */
+        MemberAdd: {
+            /**
+             * Reason
+             * @default
+             */
+            reason?: string;
+            /** Subject */
+            subject: string;
+        };
+        /** MemberRemove */
+        MemberRemove: {
+            /** Reason */
+            reason: string;
+            /** Subject */
+            subject: string;
+        };
+        /** MemberView */
+        MemberView: {
+            /** Added At */
+            added_at: string;
+            /** Added By */
+            added_by: string;
+            /** Name */
+            name: string;
+            /** Subject */
+            subject: string;
+        };
+        /**
+         * MembersPage
+         * @description The project's members, and the people who signed in to this workspace and are not members yet. `managed` is
+         *     false where the principal's access comes from the deployment rather than memberships (the DEV sign-in's `*`).
+         */
+        MembersPage: {
+            /** Managed */
+            managed: boolean;
+            /** Members */
+            members: components["schemas"]["MemberView"][];
+            /** People */
+            people: components["schemas"]["PersonView"][];
+        };
         /** Meta */
         Meta: {
             /** Api Version */
@@ -5195,6 +5278,13 @@ export interface components {
             parameters: components["schemas"]["ParamNode"][];
             /** Process */
             process: string;
+        };
+        /** PersonView */
+        PersonView: {
+            /** Name */
+            name: string;
+            /** Subject */
+            subject: string;
         };
         /** PhaseRow */
         PhaseRow: {
@@ -9490,6 +9580,113 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_InputsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_members_api_v1_projects__project_id__members_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_MembersPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_member_api_v1_projects__project_id__members_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_MembersPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_member_api_v1_projects__project_id__members_remove_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberRemove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_MembersPage_"];
                 };
             };
             /** @description Validation Error */

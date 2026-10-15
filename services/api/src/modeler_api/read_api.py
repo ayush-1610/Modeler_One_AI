@@ -47,7 +47,11 @@ StoreDep = Annotated[ReadStore, Depends(get_read_store)]
 
 @router.get("/projects", **answers(Projects))
 def list_projects(principal: PrincipalDep, store: StoreDep):
-    return envelope({"projects": store.list_projects(principal.tenant_id)})
+    # only the projects this person may open (their token's and their platform memberships, P3)
+    projects = store.list_projects(principal.tenant_id)
+    if "*" not in principal.projects:
+        projects = [p for p in projects if p.get("id") in principal.projects]
+    return envelope({"projects": projects})
 
 
 @router.get("/projects/{project_id}", **answers(ProjectRecord))

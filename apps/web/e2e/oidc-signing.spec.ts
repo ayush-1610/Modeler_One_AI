@@ -1,7 +1,7 @@
-// T-06: sign-in through Keycloak and the signing step-up, end to end in the browser. Runs only against a test Keycloak
-// with deploy/keycloak/realm-modeler.json imported (playwright.config.ts: E2E_OIDC_ISSUER, E2E_OIDC_BACKCHANNEL, and
-// the test Keycloak's own administrator in E2E_OIDC_ADMIN_USER / E2E_OIDC_ADMIN_PASSWORD, which creates the test
-// person). The decision signed is seeded campaign state (software test data, no engine run), as in feedback.spec.ts.
+// T-06: sign-in through Keycloak and the signing step-up, end to end in the browser, and P3's project members. Runs
+// only against a test Keycloak with deploy/keycloak/realm-modeler.json imported (playwright.config.ts: E2E_OIDC_ISSUER,
+// E2E_OIDC_BACKCHANNEL, and the test Keycloak's own administrator in E2E_OIDC_ADMIN_USER / E2E_OIDC_ADMIN_PASSWORD,
+// which creates the test people). The decision signed is seeded campaign state (software test data, no engine run), as in feedback.spec.ts.
 import { createHmac, randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,7 +14,11 @@ const ADMIN = BACK.replace(/\/realms\/.*$/, "");
 const TENANT = "e2e-oidc";
 const PROJECT = "p-oidc";
 const ID = "camp-oidc-e2e";
-const PERSON = { username: `signer-${randomBytes(3).toString("hex")}`, password: `Pw-${randomBytes(9).toString("hex")}` };
+type Person = { username: string; password: string };
+const person = (prefix: string): Person => ({ username: `${prefix}-${randomBytes(3).toString("hex")}`,
+                                              password: `Pw-${randomBytes(9).toString("hex")}` });
+const PERSON = person("signer");
+const COLLEAGUE = person("colleague");  // no `projects` in their sign-in: a project opens to them once a member adds them
 let totpKey = "";
 
 /** RFC 6238 with Keycloak's settings (HmacSHA1, 6 digits, 30 s); Keycloak's totpSecret is the raw key. */
@@ -46,13 +50,17 @@ test.beforeAll(async () => {
   if (!web.redirectUris.includes(here)) {
     await admin(`/clients/${web.id}`, { method: "PUT", body: JSON.stringify({ ...web, redirectUris: [...web.redirectUris, here] }) });
   }
-  await admin("/users", { method: "POST", body: JSON.stringify({
-    username: PERSON.username, enabled: true, firstName: "Oidc", lastName: "Signer", email: `${PERSON.username}@example.test`,
-    emailVerified: true, attributes: { tenant_id: [TENANT], projects: [PROJECT] },
-    credentials: [{ type: "password", value: PERSON.password, temporary: false }] }) });
-  const [user] = await (await admin(`/users?username=${PERSON.username}&exact=true`)).json();
-  const reviewer = await (await admin("/roles/modeler-reviewer")).json();
-  await admin(`/users/${user.id}/role-mappings/realm`, { method: "POST", body: JSON.stringify([reviewer]) });
+  async function create(who: Person, lastName: string, projects: string[], role: string) {
+    await admin("/users", { method: "POST", body: JSON.stringify({
+      username: who.username, enabled: true, firstName: "Oidc", lastName, email: `${who.username}@example.test`,
+      emailVerified: true, attributes: { tenant_id: [TENANT], projects },
+      credentials: [{ type: "password", value: who.password, temporary: false }] }) });
+    const [user] = await (await admin(`/users?username=${who.username}&exact=true`)).json();
+    const granted = await (await admin(`/roles/${role}`)).json();
+    await admin(`/users/${user.id}/role-mappings/realm`, { method: "POST", body: JSON.stringify([granted]) });
+  }
+  await create(PERSON, "Signer", [PROJECT], "modeler-reviewer");
+  await create(COLLEAGUE, "Colleague", [], "modeler-viewer");
 
   // an escalated campaign of that person's project, waiting for a signed decision
   const root = join(process.env.E2E_DATA_DIR!, "read-root", TENANT);
@@ -74,11 +82,11 @@ test.beforeAll(async () => {
   }] }));
 });
 
-async function signIn(page: Page) {
+async function signIn(page: Page, who: Person = PERSON) {
   await page.goto("/review");
   await expect(page).toHaveURL(new RegExp(`^${ISSUER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/protocol/openid-connect/auth`));
-  await page.locator("#username").fill(PERSON.username);
-  await page.locator("#password").fill(PERSON.password);
+  await page.locator("#username").fill(who.username);
+  await page.locator("#password").fill(who.password);
   await page.locator("#kc-login").click();
   await expect(page).toHaveURL(/\/review$/);
 }
@@ -147,4 +155,34 @@ test("sign-out ends the session here and at Keycloak", async ({ page }) => {
   // no session is left in the browser (the new sign-in's own request cookie is all there is)
   const names = (await page.context().cookies()).map((c) => c.name);
   expect(names.filter((n) => ["modeler_at", "modeler_rt", "modeler_idt"].includes(n))).toHaveLength(0);
+});
+
+test("a new project opens to its creator, who adds a colleague; the colleague can then open it", async ({ page, browser }) => {
+  await signIn(page);
+  const created = await page.evaluate(async () => (await fetch("/api/v1/projects", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: `Members ${Date.now()}`, compound: "Memberol" }),
+  })).json());
+  const projectId = created.data.id as string;
+
+  const other = await browser.newContext({ baseURL: test.info().project.use.baseURL, ignoreHTTPSErrors: true });
+  const colleague = await other.newPage();
+  await signIn(colleague, COLLEAGUE);  // signing in once lets members add them
+  const status = () => colleague.evaluate(async (id) => (await fetch(`/api/v1/projects/${id}`)).status, projectId);
+  expect(await status()).toBe(403);
+
+  await page.goto(`/projects/${projectId}`);
+  const panel = page.getByTestId("members-panel");
+  await expect(panel.locator("tbody tr")).toHaveCount(1);
+  await expect(panel.locator("tbody tr").first()).toContainText("Oidc Signer");
+  await panel.getByLabel("Person to add").selectOption({ label: "Oidc Colleague" });
+  await panel.getByLabel("Reason").fill("reviews the fits");
+  await panel.getByRole("button", { name: "Add member" }).click();
+  await expect(panel.locator("tbody tr")).toHaveCount(2);
+  await expect(panel.locator("tbody tr").nth(1)).toContainText("Oidc Colleague");
+
+  expect(await status()).toBe(200);
+  await colleague.goto(`/projects/${projectId}`);
+  await expect(colleague.getByTestId("members-panel")).toContainText("Oidc Colleague");
+  await other.close();
 });
