@@ -6,7 +6,7 @@
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
-  "resetPasswordAllowed": true,
+  "resetPasswordAllowed": false,
   "editUsernameAllowed": false,
   "bruteForceProtected": true,
   "otpPolicyType": "totp",
@@ -18,43 +18,31 @@
   "attributes": {
     "acr.loa.map": "{\"loa1\":1,\"loa2\":2}"
   },
+  "browserFlow": "modeler browser",
   "roles": {
     "realm": [
-      {"name": "modeler-viewer", "description": "Read-only access to projects the user is a member of."},
-      {"name": "modeler-curator", "description": "Propose parameter values; edit CPFs before signing."},
-      {"name": "modeler-reviewer", "description": "Review and sign MAPs, escalation decisions and CPF acceptance."},
-      {"name": "modeler-qa", "description": "QA release of the submission bundle."},
-      {"name": "modeler-admin", "description": "Tenant administration."}
+      {
+        "name": "modeler-viewer",
+        "description": "Read-only access to projects the user is a member of."
+      },
+      {
+        "name": "modeler-curator",
+        "description": "Propose parameter values; edit CPFs before signing."
+      },
+      {
+        "name": "modeler-reviewer",
+        "description": "Review and sign MAPs, escalation decisions and CPF acceptance."
+      },
+      {
+        "name": "modeler-qa",
+        "description": "QA release of the submission bundle."
+      },
+      {
+        "name": "modeler-admin",
+        "description": "Tenant administration."
+      }
     ]
   },
-  "clientScopes": [
-    {
-      "name": "modeler-claims",
-      "description": "Adds the tenant and project-membership claims to Modeler tokens.",
-      "protocol": "openid-connect",
-      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"},
-      "protocolMappers": [
-        {
-          "name": "tenant_id",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "config": {
-            "user.attribute": "tenant_id", "claim.name": "tenant_id", "jsonType.label": "String",
-            "id.token.claim": "true", "access.token.claim": "true", "userinfo.token.claim": "true"
-          }
-        },
-        {
-          "name": "projects",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "config": {
-            "user.attribute": "projects", "claim.name": "projects", "jsonType.label": "String",
-            "multivalued": "true", "id.token.claim": "true", "access.token.claim": "true", "userinfo.token.claim": "true"
-          }
-        }
-      ]
-    }
-  ],
   "clients": [
     {
       "clientId": "modeler-web",
@@ -62,11 +50,61 @@
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
-      "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "+"},
-      "redirectUris": ["https://app.modeler.local/*", "http://localhost:3000/*"],
-      "webOrigins": ["+"],
-      "defaultClientScopes": ["openid", "profile", "email", "modeler-claims"]
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*",
+        "http://192.168.1.10:3000/*",
+        "https://192.168.1.10:3000/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "description": "The web app (Authorization Code + PKCE). Its tokens carry the tenant, the project memberships and the API as an audience; Keycloak's built-in scopes (basic, acr, roles, profile, email) add sub, auth_time, acr and the realm roles.",
+      "protocolMappers": [
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "projects",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "projects",
+            "claim.name": "projects",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "modeler-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "modeler-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
     },
     {
       "clientId": "modeler-api",
@@ -74,22 +112,139 @@
       "enabled": true,
       "bearerOnly": true,
       "standardFlowEnabled": false,
-      "publicClient": false,
-      "defaultClientScopes": ["modeler-claims"]
+      "publicClient": false
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "modeler loa1",
+      "config": {
+        "loa-condition-level": "1",
+        "loa-max-age": "36000"
+      }
+    },
+    {
+      "alias": "modeler loa2",
+      "config": {
+        "loa-condition-level": "2",
+        "loa-max-age": "0"
+      }
     }
   ],
   "authenticationFlows": [
     {
-      "alias": "signing",
-      "description": "Step-up for electronic signatures: re-enter password and TOTP to obtain acr=loa2 (D10).",
+      "alias": "modeler browser",
+      "description": "Sign-in with step-up (D10): loa1 is the password; loa2, asked for at every electronic signature, re-verifies the password and the TOTP.",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
       "authenticationExecutions": [
-        {"authenticator": "auth-username-password-form", "requirement": "REQUIRED", "priority": 10, "userSetupAllowed": false},
-        {"authenticator": "auth-otp-form", "requirement": "REQUIRED", "priority": 20, "userSetupAllowed": false}
+        {
+          "authenticator": "auth-cookie",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "authenticatorFlow": true,
+          "flowAlias": "modeler browser forms",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "modeler browser forms",
+      "description": "The levels of authentication, each asked for only when the request needs it.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 10,
+          "authenticatorFlow": true,
+          "flowAlias": "modeler loa1 password",
+          "userSetupAllowed": false
+        },
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "authenticatorFlow": true,
+          "flowAlias": "modeler loa2 signing",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "modeler loa1 password",
+      "description": "Level 1: username and password.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-level-of-authentication",
+          "authenticatorConfig": "modeler loa1",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-username-password-form",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "modeler loa2 signing",
+      "description": "Level 2, the electronic-signature step-up (21 CFR 11.200): the password and the TOTP again, never reused (max age 0).",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-level-of-authentication",
+          "authenticatorConfig": "modeler loa2",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-password-form",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        }
       ]
     }
   ],
-  "__comment": "The signing flow is referenced by the web app as the acr-values request for loa2 (Authorization Code + PKCE). The realm attribute acr.loa.map binds acr=loa2 to LoA 2; API step-up checks require acr=loa2 and auth_time within 300 s. Passwords/TOTP are managed in Keycloak; the platform never sees them."
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"tenant_id\",\"displayName\":\"Tenant\",\"validations\":{\"length\":{\"min\":1,\"max\":64}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":false},{\"name\":\"projects\",\"displayName\":\"Project memberships\",\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":true}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+          ]
+        }
+      }
+    ]
+  }
 }
