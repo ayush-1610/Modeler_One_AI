@@ -82,10 +82,28 @@ With `MODELER_OIDC_ISSUER` in the secrets file, `deploy/server/_env.sh` runs the
 
 To go back to the pilot, remove those lines and restart. A pilot's DEV signatures stay marked as not Part 11.
 
+### Keycloak's database: PostgreSQL (`deploy/server/postgres.sh`)
+Keycloak starts on its embedded file database. Keycloak calls that deprecated for production, so move it to
+PostgreSQL, which the same server runs without sudo:
+```bash
+bash deploy/server/postgres.sh install        # PostgreSQL 16 (conda-forge), roles, databases, the platform's schema
+echo 'export MODELER_KEYCLOAK_DB=postgres' >> ~/.modeler-secrets.env
+source ~/.modeler-secrets.env
+bash deploy/server/keycloak.sh migrate-db     # realms, users and their authenticators, from the file database
+bash deploy/server/stop_modeler.sh && bash deploy/server/run_modeler.sh
+bash deploy/server/install_autostart.sh       # once: adds the nightly backup and its restore check (02:17)
+```
+- **On a new server,** install PostgreSQL and set `MODELER_KEYCLOAK_DB=postgres` before `keycloak.sh install`; then
+  there is nothing to migrate.
+- **What `postgres.sh` sets up:**
+  - it listens on `127.0.0.1` only;
+  - every password is random, kept in a mode-600 file under `~/modeler-postgres/secrets`, and typed by nobody;
+  - the API's login cannot change or remove a row of the Part 11 tables (audit events, signatures);
+  - each migration runs once, recorded with its sha256.
+- **Backups** go to `~/modeler-backups/<date>`; set `MODELER_BACKUP_DIR` to put them on another disk. Each is restored
+  into scratch databases every night to prove it is complete (`~/modeler-logs/backup.log`).
+
 ## Limits, recorded
-- **Keycloak's database** is its embedded file database (`--db=dev-file`; Keycloak calls it deprecated for
-  production). It holds the users and their authenticator enrolments. Back up
-  `~/modeler-keycloak/keycloak-26.7.5/data/` while Keycloak is stopped. Moving to PostgreSQL is a follow-up.
 - **Re-running `install` keeps the existing realm** (`--override=false`), so users and their TOTP survive. A later
   change to `realm-modeler.json` therefore does not reach a running realm. Apply it in the admin console, or with a
   partial import.

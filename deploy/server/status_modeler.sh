@@ -6,6 +6,9 @@ set -uo pipefail
 ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 port_open "$API_PORT" && echo "API  :$API_PORT  UP" || echo "API  :$API_PORT  DOWN"
 port_open "$WEB_PORT" && echo "web  :$WEB_PORT  UP ($(web_scheme))" || echo "web  :$WEB_PORT  DOWN"
+if postgres_installed; then
+  port_open "$POSTGRES_PORT" && echo "postgres :$POSTGRES_PORT  UP" || echo "postgres :$POSTGRES_PORT  DOWN"
+fi
 if keycloak_needed; then
   port_open "$KEYCLOAK_HTTP_PORT" && echo "keycloak :$KEYCLOAK_HTTP_PORT  UP" || echo "keycloak :$KEYCLOAK_HTTP_PORT  DOWN"
 fi

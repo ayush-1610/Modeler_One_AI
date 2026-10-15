@@ -39,6 +39,9 @@ else
   export MODELER_DEV_AUTH=1
 fi
 KEYCLOAK_HTTP_PORT="${MODELER_KEYCLOAK_HTTP_PORT:-8080}"
+POSTGRES_PORT="${MODELER_POSTGRES_PORT:-5432}"
+# PostgreSQL runs with the stack once it is installed here (deploy/server/postgres.sh).
+postgres_installed() { [ -f "${MODELER_POSTGRES_HOME:-$HOME/modeler-postgres}/data/PG_VERSION" ]; }
 # The web over HTTPS when a certificate is configured (keycloak.sh env prints it; apps/web/server.mjs serves it).
 web_tls() { [ -n "${MODELER_WEB_TLS_PFX:-}${MODELER_WEB_TLS_CERT:-}" ]; }
 web_scheme() { web_tls && echo https || echo http; }
@@ -72,8 +75,9 @@ export NVM_DIR="$HOME/.nvm"
 # True when something is listening on a port (bash's /dev/tcp needs no extra tooling).
 port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") >/dev/null 2>&1; }
 
-# The stack is healthy only when both halves answer, and Keycloak too once sign-in goes through it.
+# The stack is healthy only when both halves answer, and Keycloak and PostgreSQL too once they are part of it.
 keycloak_needed() { [ -n "${MODELER_OIDC_ISSUER:-}" ]; }
 stack_healthy() {
-  port_open "$API_PORT" && port_open "$WEB_PORT" && { ! keycloak_needed || port_open "$KEYCLOAK_HTTP_PORT"; }
+  port_open "$API_PORT" && port_open "$WEB_PORT" && { ! keycloak_needed || port_open "$KEYCLOAK_HTTP_PORT"; } \
+    && { ! postgres_installed || port_open "$POSTGRES_PORT"; }
 }

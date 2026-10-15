@@ -6,6 +6,7 @@
 #
 #   @reboot        start the stack (after a short delay so the network and filesystems are ready)
 #   every 5 min    watchdog: start it again if it is down AND was not stopped on purpose
+#   02:17 nightly  PostgreSQL backup and its restore check, once PostgreSQL is installed (postgres.sh)
 #
 # stop_modeler.sh leaves a flag that the watchdog honours, so a deliberate stop stays stopped.
 # Re-running this script is safe: entries are replaced, not duplicated.
@@ -19,14 +20,16 @@ MARKER="# modeler-one autostart"
 
 reboot_line="@reboot sleep 30 && $RUN --watchdog >> \$HOME/modeler-logs/autostart.log 2>&1 $MARKER"
 watchdog_line="*/5 * * * * $RUN --watchdog >> \$HOME/modeler-logs/autostart.log 2>&1 $MARKER"
+backup_line="17 2 * * * { bash $HERE/postgres.sh backup && bash $HERE/postgres.sh restore-check; } >> \$HOME/modeler-logs/backup.log 2>&1 $MARKER"
 
 # Keep every unrelated crontab entry; replace only ours.
 existing="$(crontab -l 2>/dev/null | grep -vF "$MARKER" || true)"
-printf '%s\n%s\n%s\n' "$existing" "$reboot_line" "$watchdog_line" | sed '/^$/d' | crontab -
+printf '%s\n%s\n%s\n%s\n' "$existing" "$reboot_line" "$watchdog_line" "$backup_line" | sed '/^$/d' | crontab -
 
 echo "autostart installed:"
 crontab -l 2>/dev/null | grep -F "$MARKER" | sed 's/^/  /'
 echo
 echo "  on reboot      -> the stack starts by itself"
 echo "  every 5 min    -> restarted if it died (unless stopped with stop_modeler.sh)"
+echo "  02:17 nightly  -> PostgreSQL backup + restore check, once PostgreSQL is installed (log ~/modeler-logs/backup.log)"
 echo "  to remove      -> crontab -l | grep -vF '$MARKER' | crontab -"

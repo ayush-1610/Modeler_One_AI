@@ -15,6 +15,48 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — PostgreSQL on the server without sudo; Keycloak on it; nightly backups with a restore check (T-05, P1)
+- **What:** `deploy/server/postgres.sh` (`install`, `migrate`, `start`, `stop`, `status`, `backup`, `restore-check`):
+  - **Install:** PostgreSQL 16 from conda-forge (it publishes `postgresql` 16 for linux-64), under
+    `~/modeler-postgres`.
+  - **Network:** it listens on `127.0.0.1` and its own socket only, with scram-sha-256 authentication.
+  - **Passwords:** random, in mode-600 files, and passed by environment or standard input, never in a process's
+    arguments.
+  - **Roles:**
+    - `modeler_owner` owns the schema and only runs migrations;
+    - `modeler` is the API's login. Its privileges exclude UPDATE, DELETE and TRUNCATE on every table guarded by
+      the `reject_mutation` trigger, and it cannot disable those triggers or drop the tables;
+    - `keycloak` owns Keycloak's database.
+  - **Migrations:** `services/api/migrations` are applied once each, in a transaction, recorded with their sha256.
+    A migration that changes after it was applied stops `migrate`.
+  - **Backups:** of both databases, mode 600, kept 14 days. `restore-check` restores the latest into scratch
+    databases and compares every table.
+- **Keycloak:** `keycloak.sh` uses PostgreSQL when `MODELER_KEYCLOAK_DB=postgres`, with its password by environment.
+  `keycloak.sh migrate-db` moves every realm, user and authenticator enrolment from the file database. The export
+  is private and deleted afterwards, and the file database is kept as the way back.
+- **The stack:**
+  - `run_modeler.sh`, `stop_modeler.sh` and `status_modeler.sh` run PostgreSQL with the stack once it is installed;
+  - the watchdog's health check includes it;
+  - `install_autostart.sh` adds the nightly backup and restore check (02:17).
+- **Why:** the owner approved the production-readiness plan, including PostgreSQL, on 2026-10-15. Keycloak's
+  `dev-file` database is deprecated for production, and the Part 11 records need a database that refuses changes.
+- **Verified:**
+  - **`packages/storage/tests/test_postgres_deploy.py`** (4 tests, run as an ordinary account against PostgreSQL 16):
+    - each migration is applied once, and a re-run applies none;
+    - the secrets are mode 600, and the server listens on `127.0.0.1` only;
+    - the API's login is refused UPDATE, DELETE and TRUNCATE on `audit_events` and `signatures`, and cannot disable
+      the trigger or drop the table;
+    - a changed migration stops `migrate`;
+    - a backup restores completely.
+
+    The tests are skipped where there is no PostgreSQL 16 or under root.
+  - **`keycloak.sh migrate-db`** moved this session's test Keycloak: all realms, 10 users, and a user's password and
+    TOTP. `e2e/oidc-signing.spec.ts` then passed against Keycloak on PostgreSQL.
+- **Impact:** nothing changes on a server until `postgres.sh install` is run. The platform's own records still live in
+  the file stores until P2.
+- **Found for P2:** the schema keys every row on a UUID `tenant_id`, while the platform's tenants are names (`dev`). P2
+  maps them through the `tenants` table (`slug`).
+
 ### Changed — the server runs as production once Keycloak is configured, with the web over HTTPS (T-06, K3)
 - **What:**
   - **`deploy/server/_env.sh`** reads `~/.modeler-secrets.env` first.
