@@ -15,6 +15,17 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — production readiness recorded: the two new seams and the go-live order (P4)
+- **What:**
+  - `docs/ARCHITECTURE_BOUNDARIES.md` §7 records the audit mirror (P2) and project memberships (P3): who owns each,
+    which way it points, and the rule that keeps it safe. Neither adds a boundary exception.
+  - `docs/CONTINUATION_PACKAGE.md` §4 is dated 2026-10-15. §4.3 gains a production-readiness row (K1–K3, P1–P3,
+    PRs #60–#65). §4.4 gains the ordered go-live steps (merge, deploy, PostgreSQL, Keycloak, users, secrets,
+    restart, checks), pointing to `deploy/keycloak/README.md` for the details.
+- **Why:** the approved production-readiness plan ends with the records. The next session, or the owner, should
+  find the go-live order in one place.
+- **Impact:** documentation only.
+
 ### Added — a project opens to its creator and the people they add, recorded and audited (T-06, P3)
 - **What** (plan `docs/plans/2026-10-15-project-members.md`; owner-approved 2026-10-15, including the locked
   `auth.py`):
