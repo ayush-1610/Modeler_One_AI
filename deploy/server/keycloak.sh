@@ -165,8 +165,16 @@ cmd_env() {
 export MODELER_OIDC_ISSUER=$PUBLIC/realms/modeler
 export MODELER_OIDC_JWKS_URL=http://127.0.0.1:$HTTP_PORT/realms/modeler/protocol/openid-connect/certs
 export MODELER_OIDC_BACKCHANNEL=http://127.0.0.1:$HTTP_PORT/realms/modeler
-export MODELER_WEB_URL=http://$HOST:$WEB_PORT
+# the web over HTTPS with the same certificate (apps/web/server.mjs), so its sign-in cookies are Secure
+export MODELER_WEB_URL=https://$HOST:$WEB_PORT
 EOF
+  if [ -n "${MODELER_KEYCLOAK_CERT:-}" ]; then
+    echo "export MODELER_WEB_TLS_CERT=$MODELER_KEYCLOAK_CERT"
+    echo "export MODELER_WEB_TLS_KEY=$MODELER_KEYCLOAK_KEY"
+  else
+    echo "export MODELER_WEB_TLS_PFX=$TLS/keycloak.p12"
+    echo "export MODELER_WEB_TLS_PFX_PASSFILE=$TLS/keystore.pass"
+  fi
 }
 
 case "${1:-}" in

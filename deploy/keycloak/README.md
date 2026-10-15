@@ -61,13 +61,26 @@ With `MODELER_OIDC_ISSUER` set, the web signs people in through Keycloak:
 
 Unset, the web keeps the DEV sign-in.
 
-### Then point the stack at it
-Run `bash deploy/server/keycloak.sh env`. It prints the lines for `~/.modeler-secrets.env`:
-- `MODELER_OIDC_ISSUER`;
-- `MODELER_OIDC_JWKS_URL`;
-- `MODELER_OIDC_BACKCHANNEL`.
+### Then switch the server to production
+`bash deploy/server/keycloak.sh env` prints the lines that turn Keycloak sign-in on:
+- the realm: `MODELER_OIDC_ISSUER`, `MODELER_OIDC_JWKS_URL` and `MODELER_OIDC_BACKCHANNEL`;
+- the web's address: `MODELER_WEB_URL`, over HTTPS;
+- its certificate: `MODELER_WEB_TLS_*`, the same one Keycloak serves.
 
-The web app's sign-in and the switch from `pilot` to `production` use them (`deploy/server/_env.sh`).
+```bash
+bash deploy/server/keycloak.sh env >> ~/.modeler-secrets.env    # once; check the file afterwards (chmod 600)
+bash deploy/server/stop_modeler.sh && bash deploy/server/run_modeler.sh
+bash deploy/server/status_modeler.sh   # deployment: production (Keycloak sign-in); keycloak UP; web UP (https)
+curl -s localhost:8000/health          # {"status":"ok","deployment":"production","verifier":"oidc"}
+```
+
+With `MODELER_OIDC_ISSUER` in the secrets file, `deploy/server/_env.sh` runs the stack as **production**:
+- the API refuses the DEV verifier;
+- every signature is a Part 11 signature;
+- `run_modeler.sh` starts Keycloak with the stack, and `apps/web/server.mjs` serves the web over HTTPS at
+  `https://<server>:3000`.
+
+To go back to the pilot, remove those lines and restart. A pilot's DEV signatures stay marked as not Part 11.
 
 ## Limits, recorded
 - **Keycloak's database** is its embedded file database (`--db=dev-file`; Keycloak calls it deprecated for

@@ -15,6 +15,38 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the server runs as production once Keycloak is configured, with the web over HTTPS (T-06, K3)
+- **What:**
+  - **`deploy/server/_env.sh`** reads `~/.modeler-secrets.env` first.
+    - With `MODELER_OIDC_ISSUER` there, it runs `MODELER_DEPLOYMENT=production` without `MODELER_DEV_AUTH`. The API
+      then refuses the DEV verifier, and every signature is a Part 11 signature.
+    - Otherwise it stays a **pilot** with the DEV sign-in, which is not Part 11, as before.
+  - **`deploy/server/keycloak.sh env`** prints every line the switch needs:
+    - the realm;
+    - `MODELER_WEB_URL` over HTTPS;
+    - the web's certificate (`MODELER_WEB_TLS_*`), the one Keycloak serves.
+  - **`apps/web/server.mjs`** serves Next's own request handler behind `node:https`, because `next start` has no
+    HTTPS. So the sign-in cookies are Secure, and no password or token crosses the network in clear.
+  - **`run_modeler.sh`, `stop_modeler.sh` and `status_modeler.sh`:**
+    - they start, stop and report Keycloak with the stack;
+    - the watchdog's health check includes Keycloak once it is needed;
+    - they print the deployment and the web's scheme.
+- **Why:** the owner's item 5 (2026-10-12): Keycloak before production. The pilot's DEV sign-in is not Part 11.
+- **Verified:**
+  - `tests/architecture/test_engine_identity.py` now sources `_env.sh` both ways: pilot with the DEV sign-in over HTTP,
+    and production without it over HTTPS. It replaces the check that only read the pilot line.
+  - `e2e/oidc-signing.spec.ts` passes in a real browser against the HTTPS web (`server.mjs`, the keytool PKCS#12 from
+    `keycloak.sh`) and HTTPS Keycloak 26.7.5: sign-in, a refused signature, the step-up with TOTP enrolment, the retry
+    accepted, a second step-up, and sign-out.
+- **Impact:**
+  - nothing changes on the server until the owner adds the lines and restarts;
+  - existing pilot records keep their DEV signatures, marked as not Part 11;
+  - new Part 11 work is best kept in its own tenant (the Keycloak users' `tenant_id`), because the pilot's projects are
+    under `dev`.
+- **Known gap (an owner decision, not changed):** the API admits a person only to the projects listed in their
+  `projects` attribute (`require_project`, locked `auth.py`). A project created in the web is not reachable until an
+  administrator adds its id in Keycloak.
+
 ### Added — the web app signs in through Keycloak, and every signature asks for the password and the code again (T-06, K2)
 - **What:** with `MODELER_OIDC_ISSUER` set, the web uses the Authorization Code flow with PKCE (S256) against the
   `modeler` realm. Nothing new is installed: Web Crypto and `fetch` only.
