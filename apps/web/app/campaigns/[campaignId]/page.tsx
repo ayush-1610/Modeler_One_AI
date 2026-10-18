@@ -6,6 +6,7 @@ import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
 import { FeedbackDiagnosisView, FeedbackTimeline } from "@/components/campaign/Feedback";
 import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
 import { VbeCard } from "@/components/campaign/Vbe";
+import { EscalationPopup } from "@/components/campaign/EscalationPopup";
 import { getCampaign } from "@/lib/reads";
 
 function mmss(s: number) {
@@ -51,6 +52,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
 
   return (
     <main>
+      <EscalationPopup campaignIds={[campaignId]} />
       <div className="spread">
         <div style={{ minWidth: 0 }}>
           <h1>{c.compound}</h1>

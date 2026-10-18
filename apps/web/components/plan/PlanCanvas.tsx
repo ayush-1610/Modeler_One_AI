@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { D3Dag, STUDY_MIME, StudyChip } from "@/components/plan/D3Dag";
 import { D1Disposition, D2Absorption } from "@/components/plan/Diagrams";
+import { RiskAndBudget } from "@/components/plan/RiskAndBudget";
 import { Card } from "@/components/ui";
 import type { Envelope, Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
@@ -219,8 +220,9 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
             </div>
           )}
           <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>
-            {view.plan.structure.objective} · {view.plan.structure.context_of_use} · model risk {view.plan.structure.model_risk}
+            {view.plan.structure.objective} · {view.plan.structure.context_of_use}
           </p>
+          <RiskAndBudget projectId={projectId} view={view} apply={apply} />
           <div className="row">
             <button className="btn" disabled={!view.agents.enabled || view.running || signed}
                     onClick={async () => setMessage(await apply(() => planApi.draft(projectId)) ?? "A5 is drafting the rationale; proposals appear in the diff.")}>

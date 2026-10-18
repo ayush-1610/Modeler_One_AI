@@ -9,7 +9,7 @@ project member (T-06). Starting a campaign runs it through the configured execut
 from __future__ import annotations
 
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -18,6 +18,7 @@ from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
 from modeler_api.execution import RunnerDep
 from modeler_api.responses import answers_without_envelope
+from modeler_api.run_guard import require_signed_map
 from modeler_api.views.campaigns import CampaignStarted, MapGenerated
 from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
@@ -66,7 +67,7 @@ class CampaignStartRequest(BaseModel):
     system_uri: str = ""      # a model system staged by campaign:prepare ("" for a single compound)
     system_sha256: str = ""
     question: str = ""
-    model_risk: str = "medium"
+    model_risk: Literal["low", "medium", "high"]  # the signed MAP's ICH M15 tier: required, never assumed
     stages: list[str] | None = None
     stage_budgets_seconds: dict[str, int] = Field(default_factory=dict)
 
@@ -74,8 +75,10 @@ class CampaignStartRequest(BaseModel):
 @router.post("/projects/{project_id}/campaigns", status_code=202, **answers_without_envelope(CampaignStarted))
 async def start_campaign(project_id: str, request: CampaignStartRequest, principal: Author,
                          settings: SettingsDep, runner: RunnerDep) -> dict[str, Any]:
-    """Start a modeling campaign through the configured execution backend (local single-node, or Temporal)."""
+    """Start a modeling campaign through the configured execution backend (local single-node, or Temporal). Outside
+    development, only on a MAP a person signed (`modeler_api.run_guard`)."""
     require_project(project_id, principal)
+    require_signed_map(settings, principal.tenant_id, request.map_uri)
 
     from modeler_contracts.runs import CAMPAIGN_STAGES, CampaignRequest
 

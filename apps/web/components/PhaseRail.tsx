@@ -9,6 +9,9 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
   STALE: "stale",
 };
 
+// P6 is the campaign itself: it is running (or waiting for a decision) until it completes
+const RUN_LABEL: Record<PhaseStatus, string> = { ...STATUS_LABEL, IN_REVIEW: "running", APPROVED: "completed" };
+
 /** The project's phases P0–P6 with their status (plan §15.4). A stale phase links to the reason it is stale. */
 export async function PhaseRail({ projectId, current }: { projectId: string; current?: string }) {
   const live = await getPhases(projectId);
@@ -19,10 +22,10 @@ export async function PhaseRail({ projectId, current }: { projectId: string; cur
       {live.data.phases.map((p) => (
         <Link key={p.phase} href={PHASE_ROUTES[p.phase](projectId)}
               className={`phase ${p.status.toLowerCase()}${current === p.phase ? " current" : ""}`}
-              title={`${p.phase} ${p.label}: ${STATUS_LABEL[p.status]}`}>
+              title={`${p.phase} ${p.label}: ${(p.phase === "P6" ? RUN_LABEL : STATUS_LABEL)[p.status]}`}>
           <span className="ph-id">{p.phase}</span>
           <span className="ph-name">{p.label}</span>
-          <span className="ph-status">{STATUS_LABEL[p.status]}</span>
+          <span className="ph-status">{p.phase === "P6" ? RUN_LABEL[p.status] : STATUS_LABEL[p.status]}</span>
         </Link>
       ))}
       <Link href={`/projects/${projectId}/history`} className={`phase history${staleCount ? " has-stale" : ""}`}>

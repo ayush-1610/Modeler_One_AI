@@ -83,7 +83,8 @@ def test_guided_flow_stages_inputs_that_the_runner_completes(tmp_path):
                  "formulation": "solution", "food_state": "fasted", "profile": PROFILE}
         c.post("/api/v1/projects/renal-demo/studies", json={"studies": [study]}, headers=auth)
         prep = c.post("/api/v1/projects/renal-demo/questions/qoi-1/campaign:prepare",
-                      json={"compound": "Renaldrug", "stages": ["S0", "S1"]}, headers=auth).json()["data"]
+                      json={"compound": "Renaldrug", "stages": ["S0", "S1"], "model_risk": "medium"},
+                      headers=auth).json()["data"]
     finally:
         app.dependency_overrides.clear()
 

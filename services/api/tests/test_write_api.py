@@ -69,7 +69,8 @@ def test_full_guided_write_flow(tmp_path):
     c = client_with(tmp_path)
 
     # 1. create the project
-    r = c.post("/api/v1/projects", json={"name": "Renal Demo", "compound": "Renaldrug", "question": "FIH dose"},
+    r = c.post("/api/v1/projects", json={"name": "Renal Demo", "compound": "Renaldrug", "question": "FIH dose",
+                                         "model_risk": "medium"},
                headers=_auth())
     assert r.status_code == 201
     project = r.json()["data"]
@@ -89,7 +90,7 @@ def test_full_guided_write_flow(tmp_path):
 
     # 4. prepare the campaign inputs (CPF + MAP + observed)
     r = c.post("/api/v1/projects/renal-demo/questions/qoi-1/campaign:prepare",
-               json={"compound": "Renaldrug", "stages": ["S0", "S1"]}, headers=_auth())
+               json={"compound": "Renaldrug", "stages": ["S0", "S1"], "model_risk": "medium"}, headers=_auth())
     assert r.status_code == 200
     prep = r.json()["data"]
     assert prep["cpf_uri"].endswith("prep/qoi-1/cpf.json")
@@ -114,8 +115,8 @@ def _prepared(tmp_path, study: dict, body: dict | None = None):
     c.post("/api/v1/projects", json={"name": "Renal Demo", "compound": "Renaldrug"}, headers=_auth())
     c.put("/api/v1/projects/renal-demo/compounds/Renaldrug/cpf", json=_renal_cpf(), headers=_auth())
     c.post("/api/v1/projects/renal-demo/studies", json={"studies": [study]}, headers=_auth())
-    r = c.post("/api/v1/projects/renal-demo/questions/q/campaign:prepare", json=body or {"compound": "Renaldrug"},
-               headers=_auth())
+    r = c.post("/api/v1/projects/renal-demo/questions/q/campaign:prepare",
+               json={"model_risk": "medium", **(body or {"compound": "Renaldrug"})}, headers=_auth())
     if r.status_code != 200:
         return r, None, None
     prep = r.json()["data"]
@@ -228,3 +229,25 @@ def test_prepare_carries_the_applications_and_names_what_they_still_need(tmp_pat
     assert r.status_code == 422 and "no analysis template" in r.json()["detail"]
     _, plain, _ = _prepared(tmp_path / "plain", _study())
     assert "application_problems" not in plain or plain["application_problems"] is None
+
+
+@pytest.mark.req("T-17")
+def test_prepare_never_assumes_the_model_risk(tmp_path):
+    # ICH M15: the tier decides the acceptance criteria. Prepare takes the one given, else the question's own (set when
+    # it was asked); with neither it refuses instead of assuming medium.
+    c = client_with(tmp_path)
+    created = c.post("/api/v1/projects", json={"name": "Renal Demo", "compound": "Renaldrug", "question": "FIH dose",
+                                               "model_risk": "high"}, headers=_auth()).json()["data"]
+    c.put("/api/v1/projects/renal-demo/compounds/Renaldrug/cpf", json=_renal_cpf(), headers=_auth())
+    c.post("/api/v1/projects/renal-demo/studies", json={"studies": [_study()]}, headers=_auth())
+    qid = created["questions"][0]["id"]
+    asked = c.post(f"/api/v1/projects/renal-demo/questions/{qid}/campaign:prepare", json={"compound": "Renaldrug"},
+                   headers=_auth())
+    assert asked.status_code == 200 and asked.json()["data"]["tier"] == "high"
+    unknown = c.post("/api/v1/projects/renal-demo/questions/nope/campaign:prepare", json={"compound": "Renaldrug"},
+                     headers=_auth())
+    assert unknown.status_code == 422 and "model risk" in unknown.json()["detail"]
+    # a question is asked with its model risk, or not at all
+    unrated = c.post("/api/v1/projects", json={"name": "Unrated", "compound": "X", "question": "FIH dose"}, headers=_auth())
+    assert unrated.status_code == 422 and "never assumed" in unrated.json()["detail"]
+    assert c.post("/api/v1/projects", json={"name": "No question yet", "compound": "X"}, headers=_auth()).status_code == 201

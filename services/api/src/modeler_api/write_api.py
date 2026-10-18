@@ -13,7 +13,7 @@ import hashlib
 import json
 import re
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError
@@ -27,6 +27,7 @@ from modeler_api.studies import StudiesUpload, observed_from_studies
 from modeler_api.views.read import CpfView
 from modeler_api.views.write import CampaignInputs, StudiesStored, SystemView
 from modeler_contracts.runs import CAMPAIGN_STAGES
+from modeler_project.plan import DEFAULT_CAMPAIGN_BUDGET_S
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord, QuestionRecord
 from pbpk_domain.cpf.models import CPF
@@ -58,7 +59,8 @@ class ProjectCreate(BaseModel):
     risk: str = "medium"
     question: str = ""
     application: str = ""
-    model_risk: str = "medium"
+    # The question's ICH M15 model risk: required with a question, never assumed (it decides the acceptance criteria).
+    model_risk: Literal["low", "medium", "high"] | None = None
     # A project that may sign verdicts judged on synthetic or illustrative data (machinery tests, demos). Its verdicts
     # stay labelled TEST ONLY; any other project needs real observed data to sign S4/S5 (plan §9.4, D-19).
     exploratory: bool = False
@@ -73,6 +75,9 @@ def create_project(body: ProjectCreate, principal: Author, stores: StoresDep, se
         project_id = f"{project_id}-{uuid.uuid4().hex[:4]}"  # another team's same-named project is neither overwritten nor joined
         existing = False
     questions = []
+    if body.question and body.model_risk is None:
+        raise HTTPException(status_code=422, detail="Say the question's model risk (low, medium or high): it decides the "
+                                                    "acceptance criteria, and it is never assumed.")
     if body.question:
         questions.append(QuestionRecord(id=f"qoi-{uuid.uuid4().hex[:6]}", question=body.question,
                                         application=body.application or "PBPK", modelRisk=body.model_risk,
@@ -160,7 +165,9 @@ class PrepareRequest(BaseModel):
     objective: str = "Predict exposure for the question of interest"
     context_of_use: str = "Model-informed decision"
     food_effect_in_question: bool = False
-    model_risk: str = "medium"
+    # the ICH M15 tier; when omitted, the question's own (set when it was asked), never an assumed medium
+    model_risk: Literal["low", "medium", "high"] | None = None
+    campaign_budget_seconds: int = Field(DEFAULT_CAMPAIGN_BUDGET_S, ge=600, le=48 * 3600)
     stages: list[str] | None = None
     applications: list[ApplicationRequest] = Field(default_factory=list)
 
@@ -185,6 +192,7 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
     rows = read.list_studies(principal.tenant_id, project_id)
     if not rows:
         raise HTTPException(status_code=422, detail="no observed studies uploaded for this project")
+    project = read.get_project(principal.tenant_id, project_id)
 
     from pbpk_domain.campaign.map import MapApplication, generate_map
     from pbpk_domain.campaign.split import QuestionOfInterest, split_studies
@@ -227,10 +235,12 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
     sampling_end_h = {sid: max(o["profile"]["times"]) / 60.0 for sid, o in observed.items() if o["profile"]["times"]}
 
     studies = [_study_record(r) for r in rows]
-    try:
-        risk = Rating(body.model_risk)
-    except ValueError:
-        risk = Rating.MEDIUM
+    question_risk = next((q.get("modelRisk") for q in (project or {}).get("questions", []) if q.get("id") == question_id),
+                         None)
+    if (body.model_risk or question_risk) not in ("low", "medium", "high"):
+        raise HTTPException(status_code=422, detail="Say the model risk (low, medium or high): it decides the acceptance "
+                                                    "criteria, and it is never assumed.")
+    risk = Rating(body.model_risk or question_risk)
     question = QuestionOfInterest(food_effect=body.food_effect_in_question)
     try:  # each pinned at the registry's current version of its template
         applications = tuple(MapApplication.pinned(a.template, a.inputs) for a in body.applications)
@@ -242,6 +252,7 @@ def prepare_campaign(project_id: str, question_id: str, body: PrepareRequest, pr
         food_effect_in_question=body.food_effect_in_question, model_risk=risk,
         engine_image_digest=settings.image_digest, software_versions={"ospsuite": "12.4.4"},
         sampling_end_h=sampling_end_h, system=system, applications=applications,
+        campaign_budget_seconds=body.campaign_budget_seconds,
     )
 
     # Stage a self-contained input set the single-node runner reads (build_round_snapshot writes its

@@ -85,7 +85,7 @@ STAGE_LABELS = {
 _STOP_STATUSES = ("ESCALATED", "ABORTED", "FAILED")
 # Why a validation stage escalates (MS-01 §4 S4, §6.6).
 _VALIDATION_FAILURE = {"S4": "internal_validation_failed", "S5": "external_validation_failed"}
-_DEFAULT_STAGE_BUDGET_S = 1800
+_DEFAULT_STAGE_BUDGET_S = 1800  # only when neither the request nor the signed MAP sets a stage's time budget
 # The decision options MS-01 §4 offers on any stage escalation (mirrors the escalations API / review inbox).
 # Every one of them resumes or ends the stage, so every one is an approval and carries a Part 11 signature —
 # matching `escalations.decision_options()`, which requires the "Approved" meaning for all three.
@@ -425,6 +425,7 @@ class LocalExecutor:
     engine_key: str = ""                                    # what the engine is (command, image digest): model sets
     _last: dict[str, dict] = field(default_factory=dict)   # stage -> its judged round (metrics, snapshot, outputs)
     _passed: set[str] = field(default_factory=set)         # fit stages that passed their gate (no-regression baseline)
+    _stage_plans: dict[str, dict[str, dict]] = field(default_factory=dict)  # map uri -> its stage plan, by stage
 
     def run(
         self, request: CampaignRequest, *,
@@ -579,8 +580,31 @@ class LocalExecutor:
             final_cpf_uri=cpf_uri, final_cpf_sha256=cpf_sha,
         )
 
+    def _limits(self, request: CampaignRequest, stage: str) -> tuple[float, int, str]:
+        """A stage's time budget and round limit, and where they came from: the request when it sets the budget
+        explicitly (tests, the reference runs), else the signed MAP's stage plan, else the runner's defaults. The run
+        follows what was signed; the source is a stage note, so the record shows which applied."""
+        if request.map_uri not in self._stage_plans:
+            map_doc = _local_json(request.map_uri) if request.map_uri else None
+            self._stage_plans[request.map_uri] = {p["stage"]: p for p in (map_doc or {}).get("stage_plan", [])}
+        planned = self._stage_plans[request.map_uri].get(stage, {})
+        if stage in request.stage_budgets_seconds:
+            budget, budget_source = float(request.stage_budgets_seconds[stage]), "set at the start"
+        elif planned.get("budget_seconds"):
+            budget, budget_source = float(planned["budget_seconds"]), "the signed MAP"
+        else:
+            budget, budget_source = float(_DEFAULT_STAGE_BUDGET_S), "the runner's default (the MAP plans none)"
+        if planned.get("max_rounds"):
+            rounds, rounds_source = int(planned["max_rounds"]), "the signed MAP"
+        else:
+            rounds, rounds_source = request.max_rounds_per_stage, "the runner's default (the MAP plans none)"
+        note = (f"Limits: {budget / 60:g} min ({budget_source}), at most {rounds} round(s) ({rounds_source})")
+        return budget, rounds, note
+
     def _run_stage(self, request: CampaignRequest, stage: str, cpf_uri: str, cpf_sha: str) -> StageOutcome:
-        budget = request.stage_budgets_seconds.get(stage, 0 if stage == "S0" else _DEFAULT_STAGE_BUDGET_S)
+        budget, max_rounds, note = self._limits(request, stage)
+        if self.writer:
+            self.writer.stage_notes(stage, [note])
         started = time.monotonic()
         best_uri, best_sha = cpf_uri, cpf_sha
         actions_tried: list[str] = []
@@ -588,7 +612,7 @@ class LocalExecutor:
         pending_bounds: dict[str, list[float]] | None = None
         rounds_run = 0
 
-        for round_index in range(1, request.max_rounds_per_stage + 1):
+        for round_index in range(1, max_rounds + 1):
             remaining = budget - (time.monotonic() - started)
             if remaining <= 0:
                 return StageOutcome(stage=stage, status="ESCALATED", rounds_run=rounds_run, cpf_uri=best_uri,
@@ -647,7 +671,9 @@ class LocalExecutor:
 
         A failure escalates instead of refitting: at S4 it means a stage passed on stale values or stages
         interact; at S5 the modeler chooses a §6.6 path (limitation and continue, or stop)."""
-        budget = request.stage_budgets_seconds.get(stage, _DEFAULT_STAGE_BUDGET_S)
+        budget, _rounds, note = self._limits(request, stage)
+        if self.writer:
+            self.writer.stage_notes(stage, [note])
         ctx = RoundContext(
             campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=stage, round_index=1,
             cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, deadline_seconds=float(budget), seed=request.seed,
@@ -701,7 +727,7 @@ class LocalExecutor:
         ctx = RoundContext(
             campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage="S6", round_index=1,
             cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, seed=request.seed,
-            deadline_seconds=float(request.stage_budgets_seconds.get("S6", _DEFAULT_STAGE_BUDGET_S)),
+            deadline_seconds=self._limits(request, "S6")[0],
             map_uri=request.map_uri, map_sha256=request.map_sha256,
             observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
             system_uri=request.system_uri, system_sha256=request.system_sha256, cycle=request.cycle,
@@ -805,7 +831,7 @@ class LocalExecutor:
             ctx = RoundContext(
                 campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=earlier, round_index=1,
                 cpf_uri=cpf_uri, cpf_sha256=cpf_sha, pending_action=None, seed=request.seed,
-                deadline_seconds=float(request.stage_budgets_seconds.get(earlier, _DEFAULT_STAGE_BUDGET_S)),
+                deadline_seconds=self._limits(request, earlier)[0],
                 map_uri=request.map_uri, map_sha256=request.map_sha256,
                 observed_uri=request.observed_uri, observed_sha256=request.observed_sha256,
                 system_uri=request.system_uri, system_sha256=request.system_sha256, cycle=request.cycle, phase=f"after-{stage}",
@@ -856,7 +882,7 @@ class LocalExecutor:
                                 cpf_uri=cpf_uri, cpf_sha256=cpf_sha, findings=[why])
         map_uri, map_sha, studies = self._joint_map(request, stages, tag=f"{request.campaign_id}-{stages[-1]}"
                                                     + (f"-c{request.cycle}" if request.cycle > 1 else ""))
-        budget = float(request.stage_budgets_seconds.get(JOINT, _DEFAULT_STAGE_BUDGET_S))
+        budget = self._limits(request, JOINT)[0]
         base_ctx = RoundContext(
             campaign_id=request.campaign_id, tenant_id=request.tenant_id, stage=JOINT, round_index=1, cpf_uri=cpf_uri,
             cpf_sha256=cpf_sha, pending_action=None, deadline_seconds=budget, seed=request.seed,

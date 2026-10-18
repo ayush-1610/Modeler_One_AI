@@ -69,7 +69,8 @@ def _seed_campaign(tmp_path: Path, observed: dict, *, exploratory: bool = True) 
     map_doc = generate_map(compound="Renaldrug", cpf=cpf, studies=studies,
                            split=split_studies(studies, QuestionOfInterest()), objective="renal FIH",
                            context_of_use="starting dose", food_effect_in_question=False, model_risk=Rating.MEDIUM,
-                           engine_image_digest="sha256:abcd", software_versions={"ospsuite": "12.4.4"})
+                           engine_image_digest="sha256:abcd", software_versions={"ospsuite": "12.4.4"},
+                           campaign_budget_seconds=8 * 3600)  # the platform's default (modeler_project.plan)
     map_path = tenant_dir / "map.json"
     map_path.write_text(map_doc.model_dump_json(), encoding="utf-8")
     obs_path = tenant_dir / "observed.json"
@@ -707,3 +708,21 @@ def test_sj_runs_through_the_real_build_and_evaluation_path(tmp_path: Path, monk
     assert {s["stage"] for s in derived["scenarios"]} == {"SJ"} and [s["study_id"] for s in derived["scenarios"]] == ["iv"]
     rounds = next(s for s in FileReadStore(root).get_campaign("t1", "camp-loc")["stages"] if s["stage"] == "SJ")["rounds"]
     assert [r["action"] for r in rounds] == ["joint baseline (sequential estimates)", "joint fit of phys.logp"]
+
+
+@pytest.mark.req("T-13")
+def test_each_stage_runs_within_the_signed_maps_limits_and_says_where_they_came_from(tmp_path: Path) -> None:
+    # The MAP is the signed contract: its stage plan sets each stage's time and round limits (MS-01 §7). A budget set
+    # explicitly at the start (here S1's, as the reference runs do) wins; with no MAP the runner's defaults apply.
+    from dataclasses import replace
+
+    request, root = _seed_campaign(tmp_path, observed={"iv": {"auc": GOLDEN_AUC * 10, "cmax": GOLDEN_CMAX * 10}})
+    run_campaign(request, read_root=root, project="renal-demo", engine=StubEngine())
+    s1 = next(s for s in FileReadStore(root).get_campaign("t1", "camp-loc")["stages"] if s["stage"] == "S1")
+    assert "Limits: 10 min (set at the start), at most 4 round(s) (the signed MAP)" in s1["notes"]
+
+    executor = LocalExecutor(engine=StubEngine(), writer=None)
+    budget, rounds, note = executor._limits(replace(request, stage_budgets_seconds={}), "S3")
+    assert (budget, rounds) == (2016.0, 2)  # S3: 7 % of 8 h, and MS-01's 2 rounds
+    assert note == "Limits: 33.6 min (the signed MAP), at most 2 round(s) (the signed MAP)"
+    assert executor._limits(replace(request, map_uri="", stage_budgets_seconds={}), "S3")[:2] == (1800.0, 4)

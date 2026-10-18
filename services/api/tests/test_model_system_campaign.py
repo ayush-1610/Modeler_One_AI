@@ -48,7 +48,7 @@ def test_a_verapamil_campaign_is_planned_built_and_judged_per_analyte(client, tm
     chosen = [by_analyte["R-Verapamil"], by_analyte["Sum-Verapamil Plasma (Peripheral Venous Blood)"],
               by_analyte["R-Norverapamil"]]
 
-    assert client.post("/api/v1/projects", json={"name": "Verapamil", "compound": "R-Verapamil", "question": "q"},
+    assert client.post("/api/v1/projects", json={"name": "Verapamil", "compound": "R-Verapamil", "question": "q", "model_risk": "medium"},
                        headers=AUTH).status_code == 201
     # the system is refused until every compound's CPF is there
     links = links_of(system).model_dump(mode="json")
@@ -62,10 +62,10 @@ def test_a_verapamil_campaign_is_planned_built_and_judged_per_analyte(client, tm
     assert client.post("/api/v1/projects/verapamil/studies", json={"studies": chosen}, headers=AUTH).status_code == 201
 
     # a metabolite is not a parent: the campaign fits a parent
-    r = client.post("/api/v1/projects/verapamil/questions/q/campaign:prepare", json={"compound": "R-Norverapamil"},
+    r = client.post("/api/v1/projects/verapamil/questions/q/campaign:prepare", json={"compound": "R-Norverapamil", "model_risk": "medium"},
                     headers=AUTH)
     assert r.status_code == 422 and "not a parent" in r.json()["detail"]
-    r = client.post("/api/v1/projects/verapamil/questions/q/campaign:prepare", json={"compound": "R-Verapamil"},
+    r = client.post("/api/v1/projects/verapamil/questions/q/campaign:prepare", json={"compound": "R-Verapamil", "model_risk": "medium"},
                     headers=AUTH)
     assert r.status_code == 200
     prep = r.json()["data"]
@@ -139,12 +139,12 @@ def test_a_racemic_sum_is_judged_at_the_parent_stages():
 def test_a_system_with_metabolite_data_schedules_sm(client, tmp_path):
     imported = import_osp_system(json.loads((FIXTURES / "Verapamil-Model.json").read_text(encoding="utf-8")))
     system = imported.system
-    client.post("/api/v1/projects", json={"name": "Verapamil", "compound": "R-Verapamil", "question": "q"}, headers=AUTH)
+    client.post("/api/v1/projects", json={"name": "Verapamil", "compound": "R-Verapamil", "question": "q", "model_risk": "medium"}, headers=AUTH)
     for cpf in system.compounds:
         client.put(f"/api/v1/projects/verapamil/compounds/{cpf.compound}/cpf", json=cpf.model_dump(mode="json"), headers=AUTH)
     client.put("/api/v1/projects/verapamil/system", json=links_of(system).model_dump(mode="json"), headers=AUTH)
     client.post("/api/v1/projects/verapamil/studies", json={"studies": imported.studies}, headers=AUTH).raise_for_status()
-    prep = client.post("/api/v1/projects/verapamil/questions/q/campaign:prepare", json={"compound": "R-Verapamil"},
+    prep = client.post("/api/v1/projects/verapamil/questions/q/campaign:prepare", json={"compound": "R-Verapamil", "model_risk": "medium"},
                        headers=AUTH).json()["data"]
     assert prep["stages"] == ["S0", "S1", "S2", "S3", "SM", "SJ", "S4", "S5", "S6", "S7"]
 
@@ -154,7 +154,7 @@ def test_the_system_panel_reads_compounds_formation_products_and_where_each_anal
     app.dependency_overrides[get_read_store] = lambda: FileReadStore(str(tmp_path))
     imported = import_osp_system(json.loads((FIXTURES / "Verapamil-Model.json").read_text(encoding="utf-8")))
     system = imported.system
-    client.post("/api/v1/projects", json={"name": "Verapamil", "compound": "R-Verapamil", "question": "q"}, headers=AUTH)
+    client.post("/api/v1/projects", json={"name": "Verapamil", "compound": "R-Verapamil", "question": "q", "model_risk": "medium"}, headers=AUTH)
     assert client.get("/api/v1/projects/verapamil/system", headers=AUTH).json()["data"] == {"system": None, "links": None}
     for cpf in system.compounds:
         client.put(f"/api/v1/projects/verapamil/compounds/{cpf.compound}/cpf", json=cpf.model_dump(mode="json"), headers=AUTH)

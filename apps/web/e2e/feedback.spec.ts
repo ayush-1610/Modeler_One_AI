@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const ID = "camp-feedback-e2e";
 
@@ -57,8 +57,15 @@ test.beforeAll(() => {
   });
 });
 
+// The campaign page opens a waiting decision as a dialog (escalation-popup.spec.ts); this flow decides in the inbox.
+async function decideLater(page: Page) {
+  await page.getByTestId("escalation-popup").getByTestId("escalation-later").click();
+  await expect(page.getByTestId("escalation-popup")).toHaveCount(0);
+}
+
 test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", async ({ page }) => {
   await page.goto(`/campaigns/${ID}`);
+  await decideLater(page);
   await expect(page.getByTestId("feedback-pending")).toBeVisible();
   await expect(page.getByTestId("feedback-diagnosis")).toContainText("fed, and no fed study trains the model");
 
@@ -80,6 +87,7 @@ test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", 
   await expect(page.getByRole("heading", { name: `Escalation — campaign ${ID}, stage S5` })).toHaveCount(0);
 
   await page.goto(`/campaigns/${ID}`);
+  await decideLater(page);                                                  // the S4/S5 signature now waits
   await expect(page.getByTestId("feedback-timeline")).toContainText("limitation");
   await expect(page.getByTestId("feedback-pending")).toHaveCount(0);
   await expect(page.locator(".spread .chip").first()).toHaveText(/awaiting_signature/, { timeout: 30_000 });
