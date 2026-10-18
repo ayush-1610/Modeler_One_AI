@@ -11,6 +11,8 @@ import "./styles/evidence.css";
 import "./styles/client-data.css";
 import "./styles/plan.css";
 import "./styles/inputs.css";
+import "./styles/kit.css";
+import { THEME_BOOT } from "@/components/kit/ThemeToggle";
 import { Nav } from "@/components/Nav";
 import { Providers } from "@/components/Providers";
 import { signedInName } from "@/lib/session";
@@ -39,7 +41,9 @@ export const metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await signedInName();
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    // the saved theme is applied before the first paint (THEME_BOOT), so <html> may differ from the server's render
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} /></head>
       <body>
         <div className="app">
           <Nav user={user} />

@@ -1,4 +1,4 @@
-"""Answers of `project_api`: phases, artifacts and their history, impact, the audit trail, blinding (D-15)."""
+"""Answers of `project_api`: phases, the redesign's steps, artifacts and their history, impact, the audit trail, blinding (D-15)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from typing import Any
 
 from modeler_api.views.common import ApprovalView, ChangeView, PhaseId, Ref, VersionView, View
 from modeler_project.artifacts import ArtifactStatus
+from modeler_project.steps import StepId, StepState
 from modeler_project.workspace import PhaseStatus
 
 
@@ -23,6 +24,19 @@ class StaleArtifact(View):
 class Phases(View):
     phases: list[PhaseRow]
     stale: list[StaleArtifact]
+
+
+class StepRow(View):
+    """One step of the redesigned flow (Start, Inputs, Review & sign, Run) and what it waits on."""
+
+    step: StepId
+    label: str
+    state: StepState
+    reasons: list[str]
+
+
+class Steps(View):
+    steps: list[StepRow]
 
 
 class Artifacts(View):

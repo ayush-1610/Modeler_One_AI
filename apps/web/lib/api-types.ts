@@ -1511,6 +1511,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Steps
+         * @description Start, Inputs, Review & sign and Run, each done, waiting on the person, running or not started, from what is
+         *     filled and what is missing (the redesign, D-27), never from an approval.
+         */
+        get: operations["get_steps_api_v1_projects__project_id__steps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/studies": {
         parameters: {
             query?: never;
@@ -3387,6 +3408,13 @@ export interface components {
         /** Envelope[SnapshotPreview] */
         Envelope_SnapshotPreview_: {
             data: components["schemas"]["SnapshotPreview"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[Steps] */
+        Envelope_Steps_: {
+            data: components["schemas"]["Steps"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -6519,6 +6547,31 @@ export interface components {
          * @enum {string}
          */
         Statistic: "individual" | "mean_sd" | "mean";
+        /**
+         * StepRow
+         * @description One step of the redesigned flow (Start, Inputs, Review & sign, Run) and what it waits on.
+         */
+        StepRow: {
+            /** Label */
+            label: string;
+            /** Reasons */
+            reasons: string[];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "done" | "needs_you" | "running" | "not_started";
+            /**
+             * Step
+             * @enum {string}
+             */
+            step: "start" | "inputs" | "review" | "run";
+        };
+        /** Steps */
+        Steps: {
+            /** Steps */
+            steps: components["schemas"]["StepRow"][];
+        };
         /** Structure */
         Structure: {
             /**
@@ -10444,6 +10497,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignatureCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_steps_api_v1_projects__project_id__steps_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_Steps_"];
                 };
             };
             /** @description Validation Error */

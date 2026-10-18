@@ -1,0 +1,82 @@
+/* The redesign's kit (components/kit): the step bar, page shell, side panel, empty state, inline issue, table box and
+ * the theme toggle. Built only from the theme tokens in globals.css, so every piece works in light and dark. */
+
+/* ---- the four steps ---- */
+.stepper-wrap { margin: 2px 0 22px; }
+.stepper { display: flex; align-items: stretch; gap: 10px; }
+.stepper ol { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)); counter-reset: step; position: relative; }
+.stepper .step { position: relative; min-width: 0; }
+/* the line that joins one step to the next */
+.stepper .step + .step::before { content: ""; position: absolute; top: 19px; left: -8px; width: 16px; height: 2px;
+  background: var(--line); }
+.stepper .step.done + .step::before { background: var(--pass); }
+.stepper .step a { display: flex; gap: 10px; align-items: center; padding: 9px 12px; margin: 0 8px 0 0; min-width: 0;
+  border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  text-decoration: none; transition: border-color 120ms var(--ease), background 120ms var(--ease); }
+.stepper .step a:hover { border-color: color-mix(in srgb, var(--sim) 45%, var(--line)); }
+.stepper .step-n { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  font: 600 12px/1 var(--font-mono, ui-monospace, monospace); border: 1.5px solid var(--ink-faint); color: var(--ink-dim); }
+.stepper .step-text { display: grid; min-width: 0; }
+.stepper .step-label { font-weight: 600; font-size: 13.5px; letter-spacing: -0.01em; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.stepper .step-state { font-size: 12px; color: var(--ink-dim); }
+.stepper .step.done .step-n { background: var(--pass); border-color: var(--pass); color: var(--surface); }
+.stepper .step.done .step-state { color: var(--pass); }
+.stepper .step.needs_you .step-n { border-color: var(--warn); color: var(--warn); }
+.stepper .step.needs_you .step-state { color: var(--warn); font-weight: 600; }
+.stepper .step.running .step-n { border-color: var(--sim); color: var(--sim); }
+.stepper .step.running .step-state { color: var(--brand-ink); font-weight: 600; }
+.stepper .step.current a { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 8%, var(--surface));
+  box-shadow: inset 0 -2px 0 var(--sim); }
+.stepper .step-history { align-self: center; flex-shrink: 0; font-size: 12.5px; color: var(--ink-dim); text-decoration: none;
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.stepper .step-history:hover { color: var(--ink); border-color: var(--ink-faint); }
+.step-pages { display: flex; gap: 4px; margin-top: 10px; flex-wrap: wrap; }
+.step-pages a { font-size: 13px; padding: 5px 11px; border-radius: 999px; color: var(--ink-dim); text-decoration: none;
+  border: 1px solid var(--line); background: var(--surface); }
+.step-pages a:hover { color: var(--ink); }
+.step-pages a.active { color: var(--brand-ink); border-color: var(--sim); background: color-mix(in srgb, var(--sim) 10%, var(--surface)); font-weight: 600; }
+.step-waiting { margin: 10px 0 0; font-size: 13px; color: var(--ink-dim); max-width: none; }
+.step-waiting strong { color: var(--warn); font-weight: 600; }
+@media (max-width: 760px) {
+  .stepper { flex-direction: column; }
+  .stepper ol { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 8px; }
+  .stepper .step + .step::before { display: none; }
+}
+
+/* ---- a step's page ---- */
+.eyebrow { display: block; font: 500 11.5px/1.2 var(--font-mono, ui-monospace, monospace); letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-faint); margin-bottom: 6px; }
+.shell-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.shell-title { min-width: 0; }
+.shell-title .lede { color: var(--ink-dim); margin: 4px 0 0; font-size: 15px; }
+.shell-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.shell-body.with-side { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.shell-main { min-width: 0; display: grid; gap: 16px; align-content: start; }
+.shell-side { display: grid; gap: 12px; position: sticky; top: 16px; }
+@media (max-width: 1000px) { .shell-body.with-side { grid-template-columns: minmax(0, 1fr); } .shell-side { position: static; } }
+
+.side-panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); padding: 12px 14px; display: grid; gap: 8px; }
+.side-panel h3 { margin: 0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
+.side-panel.warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+.side-panel.ok { border-color: color-mix(in srgb, var(--pass) 45%, var(--line)); background: color-mix(in srgb, var(--pass) 7%, var(--surface)); }
+
+.empty-state { display: grid; gap: 6px; justify-items: start; padding: 18px; border: 1.5px dashed var(--line);
+  border-radius: var(--radius); color: var(--ink-dim); }
+.empty-state strong { color: var(--ink); }
+.empty-state p { margin: 0; }
+
+.inline-issue { margin: 4px 0; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; max-width: none;
+  border-left: 3px solid var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); color: var(--ink); }
+.inline-issue.error { border-left-color: var(--fail); background: color-mix(in srgb, var(--fail) 9%, transparent); }
+.inline-issue.note { border-left-color: var(--ink-faint); background: var(--raised); }
+
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.table-scroll table { min-width: 560px; }
+
+/* ---- the theme toggle (sidebar) ---- */
+.theme-toggle { display: inline-flex; margin-top: 18px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.theme-toggle button { font: inherit; font-size: 12px; padding: 5px 10px; border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; }
+.theme-toggle button + button { border-left: 1px solid var(--line); }
+.theme-toggle button[aria-pressed="true"] { background: color-mix(in srgb, var(--sim) 14%, transparent); color: var(--brand-ink); font-weight: 600; }

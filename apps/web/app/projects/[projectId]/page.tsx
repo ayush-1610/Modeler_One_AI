@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { PhaseRail } from "@/components/PhaseRail";
+import { Stepper } from "@/components/kit/Stepper";
 import { RunCampaignButton } from "@/components/RunCampaignButton";
 import { EscalationPopup } from "@/components/campaign/EscalationPopup";
 import { MembersPanel } from "@/components/members/MembersPanel";
@@ -41,7 +41,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
         <h1>{project.name}</h1>
         <RiskChip rating={project.risk} />
       </div>
-      <PhaseRail projectId={project.id} current="P6" />
+      <Stepper projectId={project.id} current="run" />
       <EscalationPopup campaignIds={(campaigns ?? []).map((c) => c.id)} />
       <p className="muted">Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table.</p>
       {(liveStudies.problem || liveCampaigns.problem) && (
