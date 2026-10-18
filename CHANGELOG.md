@@ -15,6 +15,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Infra — the API image's base comes from Google's mirror instead of AWS ECR Public
+- **What:** `services/api/Dockerfile` now starts from `mirror.gcr.io/library/python:3.12-slim` instead of
+  `public.ecr.aws/docker/library/python:3.12-slim`. Both serve the same official image: the same digest for this tag,
+  `sha256:a6e34c59…`, on 2026-10-18.
+- **Why:** AWS ECR Public answered `429 Too Many Requests - Data limit exceeded` to GitHub's runners four times on
+  2026-10-18 (#67, #68, #70, #71). Each time, the "API image" check failed before any of our code was built, and the
+  job had to be re-run.
+- **Impact:**
+  - **Nothing changes in the image:** the same Python base, and still nothing pulled from Docker Hub. `ci.yml` is
+    unchanged and no locked file is touched.
+  - **Checked here:** the new base pulls with the same digest and runs (Python 3.12.15). The full build is checked by
+    CI, because this container cannot reach GHCR's blob host for the `uv` layer.
+
 ### Changed (science) — a campaign runs within its signed MAP, starts only when it is signed, and never assumes the model risk (R0)
 - **What** (plan `docs/plans/2026-10-18-run-integrity.md`; the owner's order of 2026-10-18: "fix them first", with the
   time budget "set at signing"):

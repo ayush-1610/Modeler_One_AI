@@ -6,8 +6,10 @@
 #
 # Nothing here is pulled from Docker Hub (its outages and pull limits stopped CI on 2026-10-09): the builtin
 # Dockerfile frontend replaces `# syntax=docker/dockerfile:1.7` (no feature of 1.7 is used), and the base is the
-# Docker official python image as AWS ECR Public mirrors it (the same image digest).
-FROM public.ecr.aws/docker/library/python:3.12-slim
+# Docker official python image as Google's mirror serves it. AWS ECR Public, used before, answered "429 Data limit
+# exceeded" to GitHub's runners four times on 2026-10-18; both mirrors serve the same image digest for this tag
+# (sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 on that day).
+FROM mirror.gcr.io/library/python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 \
