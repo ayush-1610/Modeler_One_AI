@@ -5,9 +5,11 @@
 
 import type { ReactNode } from "react";
 
-/** A step's page: what it is for, the actions it offers, and its content beside an optional side panel. */
-export function PageShell({ eyebrow, title, lede, actions, side, children }: {
-  eyebrow?: string; title: ReactNode; lede?: ReactNode; actions?: ReactNode; side?: ReactNode; children: ReactNode;
+/** A step's page: what it is for, the actions it offers, and its content beside an optional side panel (`wide` when
+ *  the side holds a document to read). */
+export function PageShell({ eyebrow, title, lede, actions, side, wide, children }: {
+  eyebrow?: string; title: ReactNode; lede?: ReactNode; actions?: ReactNode; side?: ReactNode; wide?: boolean;
+  children: ReactNode;
 }) {
   return (
     <div className="shell">
@@ -19,7 +21,7 @@ export function PageShell({ eyebrow, title, lede, actions, side, children }: {
         </div>
         {actions && <div className="shell-actions">{actions}</div>}
       </header>
-      <div className={side ? "shell-body with-side" : "shell-body"}>
+      <div className={side ? `shell-body with-side${wide ? " wide" : ""}` : "shell-body"}>
         <div className="shell-main">{children}</div>
         {side && <aside className="shell-side">{side}</aside>}
       </div>

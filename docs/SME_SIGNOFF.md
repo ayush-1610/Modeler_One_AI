@@ -10,7 +10,7 @@ none is code. Until it is signed it stays `UNVERIFIED` / `DRAFT`, and every repo
    and add a CHANGELOG entry naming the reviewer and the date.
 3. Refresh the locked hashes: `UPDATE_LOCKED=1 uv run pytest tests/architecture/test_locked_files.py`.
 
-Last brought up to date: 2026-10-09.
+Last brought up to date: 2026-10-19.
 
 ## 1. The modelling standard and its rulesets
 
@@ -30,6 +30,7 @@ Last brought up to date: 2026-10-09.
 | Core small molecule | `requirements/core_small_molecule.yaml` | 2026.1-draft | The items, their criticality and default providers |
 | Food effect, DDI, FIH, special populations | `requirements/app_food_effect.yaml`, `app_ddi.yaml`, `app_fih.yaml`, `app_special_populations.yaml` | 2026.1-draft | The same |
 | Virtual bioequivalence | `requirements/app_vbe.yaml` | 2026.2-draft | The intra-subject variability (`REQ-vbe.variability`) has no default provider; the data plan names who gives it (D-26) |
+| Start's scope gates (D-28) | `modeler_project/start.py`, `SUPPORTED` (code that follows the builder, not a locked data file) | R2b, 2026-10-19 | Which products Start admits: small molecules, full PBPK, systemic site of action; IV and oral solutions, oral suspensions, IR solids and **ER solids** (Weibull or particle release fitted to dissolution, which the feasibility check calls "limited"). Delayed-release (enteric) and other products are refused "not supported yet". **Open:** is ER admitted as it is, or only with a measured dissolution profile? |
 
 ## 3. Analysis templates (T-31)
 

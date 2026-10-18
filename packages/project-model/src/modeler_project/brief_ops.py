@@ -4,6 +4,10 @@ and storing the brief (BRIEF/main): this module is the kind's one writer (phase 
 Human decisions are never overwritten by an agent pass: a field a person entered, edited, confirmed or marked not
 applicable is *locked* (the same convention as `userLocked` on the planning canvas). An agent may fill or refresh
 only fields that are missing or that an agent or a database filled before.
+
+A person's edit asks no "why" (redesign map row `p1-why`: the audit trail records who changed what), except the model
+risk, which is confirmed with its reasons (ICH M15). Every stored brief re-derives the data checklist at once (D-27:
+no approval in between).
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from typing import Any
 
 from modeler_project.artifacts import ArtifactKind, ArtifactRef, ArtifactVersion
 from modeler_project.brief import (
+    RATINGS,
     Citation,
     FieldRecord,
     FieldStatus,
@@ -26,12 +31,15 @@ from modeler_project.brief import (
 )
 from modeler_project.identity import IdentityError, PubChemRecord, fetch_pubchem, from_smiles, mw_agrees
 from modeler_project.workspace import Workspace
+from pbpk_domain.m15 import Rating, allowed_model_risk
 
 BRIEF_ID = "main"
 
 HUMAN_STATUSES = frozenset({FieldStatus.ENTERED, FieldStatus.EDITED, FieldStatus.CONFIRMED, FieldStatus.NOT_APPLICABLE})
-# Fields only a person may set (ICH M15 ratings are human-only; the tier is confirmed by a person).
-HUMAN_ONLY = frozenset({"acceptance.tier"})
+# Fields only a person may set: the ICH M15 ratings and the model risk they bound.
+HUMAN_ONLY = frozenset({"m15.influence_rating", "m15.consequence_rating", "acceptance.tier"})
+# Fields a person sets with the reasons (the model risk decides the acceptance criteria every round is judged by).
+REASON_REQUIRED = frozenset({"acceptance.tier"})
 
 
 def locked(brief: ProjectBrief, path: str) -> bool:
@@ -42,14 +50,33 @@ class EditError(ValueError):
     pass
 
 
+def allowed_risks(brief: ProjectBrief) -> tuple[str, ...]:
+    """The model risks ICH M15 §2.1.5 admits for the brief's two ratings (`pbpk_domain.m15`), or () until both are
+    rated. Equal ratings give that risk; different ones admit any risk between them, chosen with a reason."""
+    influence, consequence = brief.value("m15.influence_rating"), brief.value("m15.consequence_rating")
+    if influence not in RATINGS or consequence not in RATINGS:
+        return ()
+    return tuple(r.value for r in allowed_model_risk(Rating(influence), Rating(consequence)))
+
+
+def risk_problem(brief: ProjectBrief, tier: Any) -> str | None:
+    """Why `tier` cannot be the model risk with the brief's ratings, or None."""
+    allowed = allowed_risks(brief)
+    if not allowed or tier in allowed:
+        return None
+    influence, consequence = brief.value("m15.influence_rating"), brief.value("m15.consequence_rating")
+    return (f"with model influence {influence} and decision consequence {consequence}, ICH M15 admits a model risk of "
+            f"{' or '.join(allowed)}, not {tier}")
+
+
 def edit_field(brief: ProjectBrief, path: str, *, value: Any = None, unit: str | None = None, status: FieldStatus,
-               note: str, by: str, citations: tuple[Citation, ...] = ()) -> ProjectBrief:
+               note: str = "", by: str, citations: tuple[Citation, ...] = ()) -> ProjectBrief:
     """A person's change to one field: EDITED (new value), CONFIRMED (kept), NOT_APPLICABLE or MISSING (cleared).
-    Every change carries a note: what was changed and why is part of the record."""
+    No reason is asked, except for the model risk; the version records who changed what."""
     if status not in (FieldStatus.EDITED, FieldStatus.CONFIRMED, FieldStatus.NOT_APPLICABLE, FieldStatus.MISSING):
         raise EditError(f"{path}: a person sets EDITED, CONFIRMED, NOT_APPLICABLE or MISSING, not {status}")
-    if not note.strip() and status is not FieldStatus.CONFIRMED:
-        raise EditError(f"{path}: say why (a note is required)")
+    if path in REASON_REQUIRED and status is FieldStatus.EDITED and not note.strip():
+        raise EditError(f"{path}: give the reasons (model influence and decision consequence)")
     definition = definition_of(path)
     current = brief.get(path)
     now = datetime.now(UTC)
@@ -65,6 +92,8 @@ def edit_field(brief: ProjectBrief, path: str, *, value: Any = None, unit: str |
             raise EditError(str(exc)) from exc
         if coerced in (None, "", []):
             raise EditError(f"{path}: an edit needs a value (use MISSING to clear it)")
+        if path == "acceptance.tier" and (problem := risk_problem(brief, coerced)):
+            raise EditError(f"{path}: {problem}")
         record = FieldRecord(value=coerced, unit=unit or definition.unit, status=FieldStatus.EDITED,
                              citations=citations or current.citations, confidence=None, note=note, by=by, at=now)
     else:
@@ -146,12 +175,14 @@ def check_structure(brief: ProjectBrief, *, by: str) -> tuple[ProjectBrief, list
 def resolve_identity(brief: ProjectBrief, *, store_record: Callable[[PubChemRecord], str], by: str,
                      fetch: Callable[[str], PubChemRecord] = fetch_pubchem) -> tuple[ProjectBrief, list[str]]:
     """PubChem lookup by drug name (stored as a retrieved record via `store_record`, which returns its sha), then the
-    structure check. A lookup that fails is a note, not an error: the identity can be entered by hand."""
+    structure check. A lookup that fails is a question on the CID, not an error: the identity can be entered by hand."""
     notes: list[str] = []
     try:
         record = fetch(brief.drug_name)
     except IdentityError as exc:
         notes.append(str(exc))
+        brief = add_question(brief, "drug.pubchem_cid", f"PubChem could not give the identity ({exc}): check the drug "
+                             "name, or enter the CID or the SMILES by hand.", raised_by=by)
     else:
         brief, more = apply_pubchem(brief, record, doc_sha256=store_record(record), by=by)
         notes.extend(more)
@@ -170,9 +201,14 @@ def summary(brief: ProjectBrief) -> dict[str, Any]:
 
 def save_brief(ws: Workspace, brief: ProjectBrief, *, actor: str, reason: str,
                derived_from: Iterable[ArtifactRef] | None = None) -> ArtifactVersion:
-    """Store `brief` as the brief's next version. It keeps the current version's provenance (the documents it was read
-    from) unless `derived_from` names it anew."""
+    """Store `brief` as the brief's next version, then re-derive the data checklist from it. It keeps the current
+    version's provenance (the documents it was read from) unless `derived_from` names it anew."""
+    from modeler_project.data_plan import derive_data_plan
+
     if derived_from is None:
         latest = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
         derived_from = latest.derived_from if latest else ()
-    return ws.commit(ArtifactKind.BRIEF, BRIEF_ID, brief.to_content(), derived_from=derived_from, actor=actor, reason=reason)
+    version = ws.commit(ArtifactKind.BRIEF, BRIEF_ID, brief.to_content(), derived_from=derived_from, actor=actor,
+                        reason=reason)
+    derive_data_plan(ws, actor="system", reason=f"derived from brief v{version.version} ({reason})")
+    return version

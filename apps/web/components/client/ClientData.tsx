@@ -47,11 +47,12 @@ function Progress({ view, projectId, sheetsTodo, sheetsDone, onApprove, note, se
   const recon = view.reconciliation;
   const required = recon.rows.filter((r) => r.criticality === "REQUIRED" && r.applies === "yes");
   const covered = required.filter((r) => !recon.blocking.includes(r.req_id)).length;
-  const planOk = view.data_plan.status === "APPROVED";
+  // the data checklist is derived from the brief at Start, never approved (D-27): it only has to be current
+  const planOk = view.data_plan.status !== "STALE";
   const approved = view.register?.status === "APPROVED";
   const steps: [string, string, boolean, ReactNode?][] = [
-    ["Data plan", planOk ? "approved" : `version ${view.data_plan.version} not approved`, planOk,
-     planOk ? undefined : <>your decisions below change it; <Link href={`/projects/${projectId}/brief`}>approve it on the Brief page</Link></>],
+    ["Data checklist", planOk ? `version ${view.data_plan.version}, from Start` : `version ${view.data_plan.version} is behind the brief`,
+     planOk, planOk ? undefined : <><Link href={`/projects/${projectId}/start`}>bring it up to date on Start</Link></>],
     ["Files", plural(view.files.length, "file"), view.files.length > 0],
     ["Sheets read", sheetsTodo + sheetsDone ? `${sheetsDone} of ${sheetsTodo + sheetsDone} data sheets` : "none to read", sheetsTodo === 0],
     ["Plan items", `${covered} of ${required.length} required items settled`, recon.blocking.length === 0],

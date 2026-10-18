@@ -56,6 +56,15 @@ compound's parameters (CPF: physchem, binding, permeability, clearance processes
 campaign**. The tool generates the analysis plan from your studies (the MS-01 data split), you sign it, and the
 campaign runs S0 → S7 on PK-Sim.
 
+**From a proposal (Step 1 · Start):** **+ Start from proposal** → name the drug and drop the proposal, its annexes and
+the client's data files in one upload (each file says what it is; the client's go straight to Inputs) → the Start page
+fills the drug's identity from PubChem and, with an agent configured, the short brief from the documents, each value
+with its quote. Fill what they do not say and correct what is wrong; no "why" is asked, except for the model risk:
+rate model influence and decision consequence, then set the risk ICH M15 admits for them, with your reasons. The scope
+questions (modality, model type, site of action, formulation types, the scenarios' routes) refuse what the builder
+cannot model yet. The data checklist below follows the brief as it changes. Nothing on Start is approved: you review
+everything once, when you sign the plan.
+
 ## 5. Checks against the published models
 
 `bash deploy/reference/run_all.sh roundtrip -j 8` on the server (or the GitHub Actions workflow "Reference models
@@ -64,7 +73,7 @@ PK-Sim: identical inputs must give identical curves (1e-6 of the peak). Results:
 
 ## 6. Client data (P3): reading the client's spreadsheets
 
-The Client data page shows five steps at the top: data plan, files, sheets read, plan items, approval. The approve
+The Client data page shows five steps at the top: data checklist, files, sheets read, plan items, approval. The approve
 button opens when every **required** plan item is delivered or decided.
 
 1. **Upload** every file (drop zone). Workbooks are split into sheets; PDF, Word and Markdown are kept as citable
@@ -85,8 +94,8 @@ button opens when every **required** plan item is delivered or decided.
    - Read a sheet again to correct it: the new reading replaces the earlier one (its datasets are rejected).
 3. **Settle what the client cannot send** ("What stops approval"): with a reason, either **Not from the client** (the
    gap is recorded) or **Get it from the literature instead** (P2 takes it over). The literature cross-check counts only
-   once a literature value is accepted. These decisions change the data plan: approve its new version on the Brief
-   page.
+   once a literature value is accepted. These decisions change the data checklist, which is re-derived at once (Start
+   shows it); it is never approved.
 4. **Approve the client data.** Then accept the new datasets and release-model values on the Literature page.
 
 ## 7. Model inputs (P4): from evidence to a ready CPF

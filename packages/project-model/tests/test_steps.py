@@ -28,18 +28,32 @@ def test_a_new_project_has_every_step_ahead_of_it(tmp_path):
         ("review", "Review & sign", "not_started"), ("run", "Run", "not_started")]
 
 
-def test_start_is_done_when_the_question_and_the_model_risk_are_set_with_no_approval(tmp_path):
+# What Start needs (redesign §3.1): the question, the ICH M15 ratings and risk, the scope gates and the routes.
+START = (("qoi.text", "exposure after 10 mg"), ("qoi.context_of_use", "support a biowaiver"),
+         ("qoi.applications", ["APP-01"]), ("m15.influence_rating", "medium"), ("m15.consequence_rating", "medium"),
+         ("acceptance.tier", "medium"), ("drug.modality", "small_molecule"), ("scope.model_structure", "full_pbpk"),
+         ("scope.site_of_action", "systemic"), ("scope.formulation_types", ["ir_solid"]), ("scenarios[0].route", "oral"),
+         ("scenarios[0].food_state", "fasted"))
+
+
+def test_start_is_done_when_the_short_brief_is_filled_with_no_approval(tmp_path):
     ws = _ws(tmp_path)
     brief = empty_brief("Drugol", by="u")
     ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), actor="u", reason="start")
     start = project_steps(ws, [])[0]
     assert start.state == "needs_you"
-    assert any("Model risk" in r for r in start.reasons)                 # never assumed: it is asked for
-    for path, value in (("qoi.text", "exposure after 10 mg"), ("qoi.context_of_use", "support a biowaiver"),
-                        ("acceptance.tier", "medium")):
-        brief = edit_field(brief, path, value=value, status=FieldStatus.EDITED, note="from the proposal", by="u")
+    assert "Model risk: not set yet" in start.reasons                    # never assumed: it is asked for
+    assert "Model type: not set yet" in start.reasons                    # a scope gate of D-28
+    for path, value in START:
+        brief = edit_field(brief, path, value=value, status=FieldStatus.EDITED, by="u",
+                           note="medium influence and consequence" if path == "acceptance.tier" else "")
     ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), actor="u", reason="filled")
     assert _states(ws)["start"] == "done"                                 # the brief was never approved
+    refused = edit_field(brief, "scope.model_structure", value="minimal_pbpk", status=FieldStatus.EDITED, by="u")
+    ws.commit(ArtifactKind.BRIEF, "main", refused.to_content(), actor="u", reason="minimal PBPK")
+    start = project_steps(ws, [])[0]
+    assert start.state == "needs_you" and start.reasons == (
+        "Not supported yet: Minimal PBPK (the builder makes full (whole-body) PBPK models)",)
 
 
 def test_inputs_follow_the_latest_readiness_check(tmp_path):

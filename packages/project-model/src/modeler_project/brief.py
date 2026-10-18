@@ -4,6 +4,10 @@ Every field is a record, not a bare value: the value (and unit), its status, the
 confidence grade and who changed it. What a document does not state is MISSING with a question, never inferred.
 Lists of things (products, scenarios, populations, data-plan statements) are groups whose items carry the same
 records per sub-field. Paths address both: ``drug.salt_form``, ``products[0].role``.
+
+`required` marks what Step 1 · Start needs (docs/plans/2026-10-19-p0-p5-redesign.md §3.1, `modeler_project.start`):
+the question, its context of use and applications, the ICH M15 ratings and model risk, and the scope gates of D-28.
+Everything else the proposal says is kept as proposal notes, never required. Nothing here is approved (D-27).
 """
 
 from __future__ import annotations
@@ -105,13 +109,20 @@ DATA_CATEGORIES = (
     "urine_feces", "formulation", "other",
 )
 ROUTES = ("iv_bolus", "iv_infusion", "oral", "subcutaneous", "intramuscular", "dermal", "inhalation", "other")
+RATINGS = ("low", "medium", "high")
+# The scope gates of D-28 (which of these the builder makes is `modeler_project.start.SUPPORTED`)
+MODEL_STRUCTURES = ("full_pbpk", "minimal_pbpk", "other")
+SITES_OF_ACTION = ("systemic", "local")
+FORMULATION_TYPES = ("iv_solution", "oral_solution", "oral_suspension", "ir_solid", "er_solid", "dr_solid", "other")
+PATHWAYS = ("hepatic_metabolism", "gut_wall_metabolism", "renal_filtration", "renal_secretion", "biliary_excretion",
+            "transporter_mediated", "other")
 
 FIELDS: tuple[FieldDef, ...] = (
     # A · project
-    FieldDef("proj.title", "A", "Project title", required=True),
+    FieldDef("proj.title", "A", "Project title"),
     FieldDef("proj.client", "A", "Client / sponsor", help="confidential"),
-    FieldDef("proj.type", "A", "Project type", "enum", True,
-             ("new_drug_ind", "nda", "505b2", "generic_anda", "biowaiver", "lifecycle_change", "research", "other")),
+    FieldDef("proj.type", "A", "Project type", "enum", options=(
+        "new_drug_ind", "nda", "505b2", "generic_anda", "biowaiver", "lifecycle_change", "research", "other")),
     FieldDef("proj.agencies", "A", "Regulatory agencies", "multi",
              options=("FDA", "EMA", "PMDA", "CDSCO", "Health Canada", "TGA", "NMPA", "MHRA", "other")),
     FieldDef("proj.deliverables", "A", "Deliverables", "list"),
@@ -137,17 +148,26 @@ FIELDS: tuple[FieldDef, ...] = (
     FieldDef("qoi.context_of_use", "D", "Context of use", required=True),
     FieldDef("qoi.decision", "D", "Decision the model informs"),
     FieldDef("qoi.applications", "D", "Applications", "multi", True, APPLICATIONS),
-    FieldDef("m15.influence", "D", "Model influence (description; rating is human-only)"),
-    FieldDef("m15.consequence", "D", "Consequence of a wrong decision (description; rating is human-only)"),
+    FieldDef("m15.influence", "D", "Model influence (as described)"),
+    FieldDef("m15.influence_rating", "D", "Model influence (ICH M15 rating)", "enum", True, RATINGS,
+             help="how much the model's answer weighs in the decision, against the other evidence; rated by a person"),
+    FieldDef("m15.consequence", "D", "Decision consequence (as described)"),
+    FieldDef("m15.consequence_rating", "D", "Decision consequence (ICH M15 rating)", "enum", True, RATINGS,
+             help="what a wrong decision would mean for the patient; rated by a person"),
     FieldDef("acceptance.stated", "D", "Acceptance criteria as written in the proposal"),
-    FieldDef("acceptance.tier", "D", "Model risk tier (human-confirmed)", "enum", options=("low", "medium", "high")),
+    FieldDef("acceptance.tier", "D", "Model risk (ICH M15)", "enum", True, RATINGS,
+             help="set by a person, with the reasons; the two ratings bound it (M15 §2.1.5)"),
     FieldDef("acceptance.internal_target_pe", "D", "Internal target: absolute prediction error at most", "number",
              unit="%", help="optional, stricter than the tier (MS-01 §8), e.g. 10"),
     # G · model scope
     FieldDef("scope.platform", "G", "Platform and version", help="e.g. PK-Sim 12.3 (OSP Suite)"),
-    FieldDef("scope.model_type", "G", "Model type", "enum", options=("small_molecule", "large_molecule")),
+    FieldDef("scope.model_structure", "G", "Model type", "enum", True, MODEL_STRUCTURES),
+    FieldDef("scope.site_of_action", "G", "Site of action", "enum", True, SITES_OF_ACTION),
+    FieldDef("scope.formulation_types", "G", "Formulation types", "multi", True, FORMULATION_TYPES),
     FieldDef("scope.parent_metabolite", "G", "Analytes modeled", "enum", options=("parent_only", "parent_and_metabolites")),
-    FieldDef("scope.pathways_stated", "G", "Elimination / transport pathways stated", "list"),
+    FieldDef("scope.pathways", "G", "Elimination and transport pathways", "multi", options=PATHWAYS,
+             help="shapes the data checklist; which parameters S1–S3 may fit is the SME's (diag_rules.yaml)"),
+    FieldDef("scope.pathways_stated", "G", "Enzymes, transporters and pathways as stated", "list"),
     FieldDef("scope.nonlinearity", "G", "Nonlinearity stated (saturation, auto-induction)"),
     FieldDef("scope.ddi", "G", "DDI role and partners"),
     FieldDef("scope.ehc", "G", "Enterohepatic recycling stated", "bool"),
@@ -168,11 +188,11 @@ GROUPS: tuple[GroupDef, ...] = (
         FieldDef("manufacturer", "C", "Manufacturer"),
         FieldDef("batches", "C", "Batches / lots"),
         FieldDef("attributes", "C", "Stated attributes (particle size, polymorph, excipients)"),
-    ), required=True),
+    )),
     GroupDef("scenarios", "E", "Scenarios", (
-        FieldDef("population", "E", "Population", required=True),
+        FieldDef("population", "E", "Population"),
         FieldDef("route", "E", "Route", "enum", True, ROUTES),
-        FieldDef("dose", "E", "Dose", "number", True, unit="mg"),
+        FieldDef("dose", "E", "Dose", "number", unit="mg"),
         FieldDef("regimen", "E", "Regimen (SD / MD)"),
         FieldDef("dosing_interval_h", "E", "Dosing interval", "number", unit="h"),
         FieldDef("n_doses", "E", "Number of doses", "number"),
@@ -202,7 +222,7 @@ GROUPS: tuple[GroupDef, ...] = (
         FieldDef("purpose", "H", "Purpose", "enum", options=PURPOSES),
         FieldDef("due_date", "H", "Due date"),
         FieldDef("format", "H", "Format"),
-    ), required=True),
+    )),
 )
 
 FIELD_BY_ID = {f.id: f for f in FIELDS}
@@ -364,7 +384,8 @@ class BriefIssue:
 
 
 def validate_brief(brief: ProjectBrief) -> list[BriefIssue]:
-    """What blocks approval of the brief: required fields still missing, records that contradict their status."""
+    """What the brief still lacks or gets wrong: required fields missing (what Start needs), records that contradict
+    their status. Nothing is approved (D-27): `modeler_project.start` turns these into what Start still needs."""
     issues: list[BriefIssue] = []
 
     def check(path: str, definition: FieldDef, record: FieldRecord) -> None:
@@ -372,11 +393,9 @@ def validate_brief(brief: ProjectBrief) -> list[BriefIssue]:
             issues.append(BriefIssue("MISSING_WITH_VALUE", path, "a missing field carries a value"))
         if record.status in (FieldStatus.EXTRACTED, FieldStatus.RETRIEVED) and not record.citations:
             issues.append(BriefIssue("NO_CITATION", path, "an extracted value must cite its source"))
-        if record.status is FieldStatus.EDITED and not record.note.strip():
-            issues.append(BriefIssue("NO_REASON", path, "an edit must say why"))
         if definition.required and record.status is FieldStatus.MISSING:
             issues.append(BriefIssue("REQUIRED_MISSING", path, f"{definition.label} is required "
-                                     "(fill it, or mark it not applicable with a reason)"))
+                                     "(fill it, or mark it not applicable)"))
         if record.status in VALUED and record.value not in (None, "", []):
             try:
                 coerce(definition, record.value)

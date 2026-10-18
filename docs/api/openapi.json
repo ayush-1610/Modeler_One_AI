@@ -175,17 +175,6 @@
         "title": "ApplicationRequest",
         "type": "object"
       },
-      "Approval": {
-        "properties": {
-          "note": {
-            "default": "",
-            "title": "Note",
-            "type": "string"
-          }
-        },
-        "title": "Approval",
-        "type": "object"
-      },
       "ApprovalView": {
         "additionalProperties": false,
         "properties": {
@@ -239,17 +228,6 @@
           "note"
         ],
         "title": "ApprovalView",
-        "type": "object"
-      },
-      "ApproveRequest": {
-        "properties": {
-          "note": {
-            "default": "",
-            "title": "Note",
-            "type": "string"
-          }
-        },
-        "title": "ApproveRequest",
         "type": "object"
       },
       "ArtifactKind": {
@@ -603,6 +581,15 @@
       },
       "Body_initiate_project_api_v1_projects_initiate_post": {
         "properties": {
+          "client_files": {
+            "default": [],
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "title": "Client Files",
+            "type": "array"
+          },
           "context": {
             "default": "",
             "title": "Context",
@@ -1624,6 +1611,143 @@
         "title": "ChangeView",
         "type": "object"
       },
+      "ChecklistItemView": {
+        "additionalProperties": false,
+        "properties": {
+          "applies": {
+            "title": "Applies",
+            "type": "string"
+          },
+          "condition": {
+            "title": "Condition",
+            "type": "string"
+          },
+          "criticality": {
+            "title": "Criticality",
+            "type": "string"
+          },
+          "cross_check": {
+            "title": "Cross Check",
+            "type": "boolean"
+          },
+          "delivered": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Delivered",
+            "type": "array"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "needed_for": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Needed For",
+            "type": "array"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_source": {
+            "title": "Provider Source",
+            "type": "string"
+          },
+          "provider_statement": {
+            "title": "Provider Statement",
+            "type": "string"
+          },
+          "req_id": {
+            "title": "Req Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "req_id",
+          "label",
+          "group",
+          "criticality",
+          "applies",
+          "condition",
+          "provider",
+          "provider_source",
+          "provider_statement",
+          "cross_check",
+          "needed_for",
+          "status",
+          "delivered",
+          "detail"
+        ],
+        "title": "ChecklistItemView",
+        "type": "object"
+      },
+      "ChecklistView": {
+        "additionalProperties": false,
+        "properties": {
+          "delivered_by_client": {
+            "title": "Delivered By Client",
+            "type": "integer"
+          },
+          "expected_from_client": {
+            "title": "Expected From Client",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemView"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "templates": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Templates",
+            "type": "array"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "version",
+          "stale",
+          "templates",
+          "items",
+          "expected_from_client",
+          "delivered_by_client"
+        ],
+        "title": "ChecklistView",
+        "type": "object"
+      },
       "ChoiceRequest": {
         "properties": {
           "key": {
@@ -1677,6 +1801,40 @@
           "reason"
         ],
         "title": "ChooseRequest",
+        "type": "object"
+      },
+      "CitationView": {
+        "additionalProperties": false,
+        "properties": {
+          "doc_sha256": {
+            "title": "Doc Sha256",
+            "type": "string"
+          },
+          "locator": {
+            "title": "Locator",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_sha256",
+          "page",
+          "quote",
+          "locator",
+          "source"
+        ],
+        "title": "CitationView",
         "type": "object"
       },
       "Classification": {
@@ -1750,6 +1908,74 @@
           "running"
         ],
         "title": "ClientDataPage",
+        "type": "object"
+      },
+      "ClientFileStarted": {
+        "additionalProperties": false,
+        "description": "A client file given at project start: read at once (a filled template), triaged, or refused with the reason.",
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "template": {
+            "title": "Template",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file",
+          "id",
+          "template",
+          "problem"
+        ],
+        "title": "ClientFileStarted",
+        "type": "object"
+      },
+      "ClientFileView": {
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "template": {
+            "title": "Template",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "file",
+          "template"
+        ],
+        "title": "ClientFileView",
         "type": "object"
       },
       "ClientUpload": {
@@ -4665,6 +4891,31 @@
         "title": "Envelope[SnapshotPreview]",
         "type": "object"
       },
+      "Envelope_StartPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StartPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[StartPage]",
+        "type": "object"
+      },
       "Envelope_Steps_": {
         "additionalProperties": false,
         "properties": {
@@ -5976,6 +6227,86 @@
         "title": "FieldChange",
         "type": "object"
       },
+      "FieldRecordView": {
+        "additionalProperties": false,
+        "description": "One brief field's record (`modeler_project.brief.FieldRecord`).",
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationView"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "unit",
+          "status",
+          "citations",
+          "confidence",
+          "note",
+          "by",
+          "at"
+        ],
+        "title": "FieldRecordView",
+        "type": "object"
+      },
       "FirstOrderMetabolism": {
         "additionalProperties": false,
         "properties": {
@@ -6164,6 +6495,35 @@
         ],
         "title": "FormulationKind",
         "type": "string"
+      },
+      "GateView": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "state",
+          "message"
+        ],
+        "title": "GateView",
+        "type": "object"
       },
       "GlomerularFiltration": {
         "additionalProperties": false,
@@ -8917,6 +9277,53 @@
         "title": "ModelPlan",
         "type": "object"
       },
+      "NoteGroup": {
+        "additionalProperties": false,
+        "description": "A list of things the proposal names (products, populations, data-plan statements, scenario details).",
+        "properties": {
+          "blank": {
+            "items": {
+              "$ref": "#/components/schemas/StartField"
+            },
+            "title": "Blank",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/StartField"
+              },
+              "type": "array"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "items",
+          "blank",
+          "warnings"
+        ],
+        "title": "NoteGroup",
+        "type": "object"
+      },
       "ObservedDataset": {
         "additionalProperties": false,
         "properties": {
@@ -9151,6 +9558,37 @@
           "values"
         ],
         "title": "ObservedProfile",
+        "type": "object"
+      },
+      "OptionView": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "supported": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supported"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label",
+          "supported"
+        ],
+        "title": "OptionView",
         "type": "object"
       },
       "OralProtocolSpec": {
@@ -10470,6 +10908,13 @@
             "title": "Brief Version",
             "type": "integer"
           },
+          "client_files": {
+            "items": {
+              "$ref": "#/components/schemas/ClientFileStarted"
+            },
+            "title": "Client Files",
+            "type": "array"
+          },
           "documents": {
             "items": {
               "$ref": "#/components/schemas/DocumentView"
@@ -10500,6 +10945,7 @@
           "project_id",
           "name",
           "documents",
+          "client_files",
           "brief_version",
           "extraction"
         ],
@@ -10912,6 +11358,45 @@
           "failingCriteria"
         ],
         "title": "QuestionRecord",
+        "type": "object"
+      },
+      "QuestionView": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "raised_by": {
+            "title": "Raised By",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "field",
+          "question",
+          "answer",
+          "status",
+          "raised_by"
+        ],
+        "title": "QuestionView",
         "type": "object"
       },
       "RatedElement": {
@@ -11399,17 +11884,6 @@
           "artifact": {
             "$ref": "#/components/schemas/VersionView"
           },
-          "brief_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Brief Status"
-          },
           "counts": {
             "$ref": "#/components/schemas/RequirementCounts"
           },
@@ -11428,8 +11902,7 @@
           "artifact",
           "matrix",
           "counts",
-          "feasibility",
-          "brief_status"
+          "feasibility"
         ],
         "title": "RequirementsPage",
         "type": "object"
@@ -11518,6 +11991,88 @@
           "reason"
         ],
         "title": "RevealRequest",
+        "type": "object"
+      },
+      "RiskView": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed",
+            "type": "array"
+          },
+          "consequence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consequence"
+          },
+          "influence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Influence"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "reasons": {
+            "title": "Reasons",
+            "type": "string"
+          },
+          "suggested": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          }
+        },
+        "required": [
+          "influence",
+          "consequence",
+          "allowed",
+          "suggested",
+          "tier",
+          "reasons",
+          "problem"
+        ],
+        "title": "RiskView",
         "type": "object"
       },
       "RoundRecord": {
@@ -12983,6 +13538,273 @@
           "reasons"
         ],
         "title": "StaleArtifact",
+        "type": "object"
+      },
+      "StartField": {
+        "additionalProperties": false,
+        "properties": {
+          "help": {
+            "title": "Help",
+            "type": "string"
+          },
+          "human_only": {
+            "title": "Human Only",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/OptionView"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "record": {
+            "$ref": "#/components/schemas/FieldRecordView"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "path",
+          "label",
+          "kind",
+          "required",
+          "options",
+          "unit",
+          "help",
+          "human_only",
+          "record",
+          "warnings"
+        ],
+        "title": "StartField",
+        "type": "object"
+      },
+      "StartPage": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "artifact": {
+            "$ref": "#/components/schemas/VersionView"
+          },
+          "checklist": {
+            "$ref": "#/components/schemas/ChecklistView"
+          },
+          "client_files": {
+            "items": {
+              "$ref": "#/components/schemas/ClientFileView"
+            },
+            "title": "Client Files",
+            "type": "array"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentView"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "drug_name": {
+            "title": "Drug Name",
+            "type": "string"
+          },
+          "extraction_running": {
+            "title": "Extraction Running",
+            "type": "boolean"
+          },
+          "gate_fields": {
+            "items": {
+              "$ref": "#/components/schemas/StartField"
+            },
+            "title": "Gate Fields",
+            "type": "array"
+          },
+          "gates": {
+            "items": {
+              "$ref": "#/components/schemas/GateView"
+            },
+            "title": "Gates",
+            "type": "array"
+          },
+          "identity": {
+            "items": {
+              "$ref": "#/components/schemas/StartField"
+            },
+            "title": "Identity",
+            "type": "array"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "new_scenario": {
+            "$ref": "#/components/schemas/StartScenario"
+          },
+          "note_groups": {
+            "items": {
+              "$ref": "#/components/schemas/NoteGroup"
+            },
+            "title": "Note Groups",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/StartField"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "question": {
+            "items": {
+              "$ref": "#/components/schemas/StartField"
+            },
+            "title": "Question",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionView"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/RiskView"
+          },
+          "risk_fields": {
+            "items": {
+              "$ref": "#/components/schemas/StartField"
+            },
+            "title": "Risk Fields",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "scenario_warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenario Warnings",
+            "type": "array"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/StartScenario"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "scope": {
+            "items": {
+              "$ref": "#/components/schemas/StartField"
+            },
+            "title": "Scope",
+            "type": "array"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "drug_name",
+          "artifact",
+          "state",
+          "missing",
+          "identity",
+          "question",
+          "risk_fields",
+          "risk",
+          "gates",
+          "gate_fields",
+          "scope",
+          "scenarios",
+          "new_scenario",
+          "scenario_warnings",
+          "questions",
+          "notes",
+          "note_groups",
+          "checklist",
+          "documents",
+          "client_files",
+          "agents",
+          "extraction_running",
+          "runs"
+        ],
+        "title": "StartPage",
+        "type": "object"
+      },
+      "StartScenario": {
+        "additionalProperties": false,
+        "properties": {
+          "food_state": {
+            "$ref": "#/components/schemas/StartField"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "string"
+          },
+          "route": {
+            "$ref": "#/components/schemas/StartField"
+          }
+        },
+        "required": [
+          "index",
+          "route",
+          "food_state",
+          "notes"
+        ],
+        "title": "StartScenario",
         "type": "object"
       },
       "Statistic": {
@@ -16825,75 +17647,6 @@
           }
         },
         "summary": "Answer Question",
-        "tags": [
-          "brief"
-        ]
-      }
-    },
-    "/api/v1/projects/{project_id}/brief:approve": {
-      "post": {
-        "description": "L1 gate (D-07: a named approval, meaning \"Reviewed\"): refused while anything blocks the brief.",
-        "operationId": "approve_brief_api_v1_projects__project_id__brief_approve_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Approval"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_BriefPage_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Approve Brief",
         "tags": [
           "brief"
         ]
@@ -20768,75 +21521,6 @@
         ]
       }
     },
-    "/api/v1/projects/{project_id}/requirements:approve": {
-      "post": {
-        "description": "Closes P1 with the brief (D-07: named approval). The brief must be approved first and the plan up to date.",
-        "operationId": "approve_requirements_api_v1_projects__project_id__requirements_approve_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApproveRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_RequirementsPage_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Approve Requirements",
-        "tags": [
-          "requirements"
-        ]
-      }
-    },
     "/api/v1/projects/{project_id}/requirements:derive": {
       "post": {
         "operationId": "derive_requirements_api_v1_projects__project_id__requirements_derive_post",
@@ -20960,6 +21644,65 @@
         "summary": "Create Signature",
         "tags": [
           "signatures"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/start": {
+      "get": {
+        "description": "Step 1 · Start: the short brief with its sources, the scope gates, the model risk, the proposal notes, the data\nchecklist and what Start still needs. Nothing on it is approved (D-27).",
+        "operationId": "get_start_api_v1_projects__project_id__start_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_StartPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Start",
+        "tags": [
+          "brief"
         ]
       }
     },
@@ -21278,7 +22021,7 @@
     },
     "/api/v1/projects:initiate": {
       "post": {
-        "description": "P0: create the project from the drug name and the technical proposal, then start the extraction.",
+        "description": "Start: create the project from the drug name, the technical proposal and the client's files (one upload), then\nstart the extraction. A client file that cannot be read is reported with the reason; the project still starts.",
         "operationId": "initiate_project_api_v1_projects_initiate_post",
         "parameters": [
           {

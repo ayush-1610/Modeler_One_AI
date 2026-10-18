@@ -17,8 +17,8 @@ export type AuditEventView = Schema<"AuditEventView">;
 
 /** Where each phase is reviewed. */
 export const PHASE_ROUTES: Record<PhaseId, (projectId: string) => string> = {
-  P0: (p) => `/projects/${p}/brief`,
-  P1: (p) => `/projects/${p}/brief`,
+  P0: (p) => `/projects/${p}/start`,
+  P1: (p) => `/projects/${p}/start`,
   P2: (p) => `/projects/${p}/evidence`,
   P3: (p) => `/projects/${p}/client-data`,
   P4: (p) => `/projects/${p}/inputs`,
@@ -33,7 +33,7 @@ export type StepRow = Schema<"StepRow">;
 
 /** Where each step is worked on. Inputs still spans three pages until they become one workspace (R3). */
 export const STEP_ROUTES: Record<StepId, (projectId: string) => string> = {
-  start: (p) => `/projects/${p}/brief`,
+  start: (p) => `/projects/${p}/start`,
   inputs: (p) => `/projects/${p}/inputs`,
   review: (p) => `/projects/${p}/plan`,
   run: (p) => `/projects/${p}`,

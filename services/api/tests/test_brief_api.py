@@ -74,7 +74,7 @@ def test_unsupported_upload_is_refused(client):
     assert r.status_code == 422 and "unsupported" in r.json()["detail"]
 
 
-def test_extraction_with_a_scripted_agent_then_edit_preview_answer_and_approve(client):
+def test_extraction_with_a_scripted_agent_then_edit_and_preview(client):
     c, store = client
     pid = _initiate(c)
     sha = next(d["sha256"] for d in c.get(f"/api/v1/projects/{pid}/documents", headers=H).json()["data"]["documents"]
@@ -111,9 +111,8 @@ def test_extraction_with_a_scripted_agent_then_edit_preview_answer_and_approve(c
     assert c.get(f"/api/v1/projects/{pid}/artifacts/brief/main", headers=H).json()["data"]["version"] == 2
     saved = c.put(f"/api/v1/projects/{pid}/brief", headers=H, json=edit).json()["data"]
     assert saved["artifact"]["version"] == 3 and saved["artifact"]["reason"] == "client amended the dose"
-
-    refused = c.post(f"/api/v1/projects/{pid}/brief:approve", headers=H, json={})
-    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "BRIEF_NOT_READY"
+    # nothing is approved (D-27): the brief's approval is gone, the one review is the MAP signature
+    assert c.post(f"/api/v1/projects/{pid}/brief:approve", headers=H, json={}).status_code == 404
 
     bad = c.put(f"/api/v1/projects/{pid}/brief", headers=H,
                 json={"changes": [{"path": "drug.modality", "status": "EDITED", "value": "pill", "note": "x"}], "reason": "r"})
@@ -121,34 +120,19 @@ def test_extraction_with_a_scripted_agent_then_edit_preview_answer_and_approve(c
 
 
 @pytest.mark.req("T-42")
-def test_approved_brief_derives_the_data_plan_which_takes_overrides_and_closes_p1(client):
-    c, store = client
+def test_the_data_checklist_follows_every_brief_change_and_keeps_a_persons_override(client):
+    c, _ = client
     pid = _initiate(c)
-    sha = next(d["sha256"] for d in c.get(f"/api/v1/projects/{pid}/documents", headers=H).json()["data"]["documents"]
-               if d["role"] == "proposal")
-    from modeler_project import ArtifactKind, Workspace
-    from modeler_project.brief import Citation, FieldStatus, ProjectBrief
-    from modeler_project.brief_ops import agent_set
-
-    ws = Workspace(store, "t1", pid)
-    brief = ProjectBrief.from_content(ws.latest(ArtifactKind.BRIEF, "main").content)
-    cite = (Citation(doc_sha256=sha, page=1, quote="single oral dose of 50 mg"),)
-    for path, value in [("proj.title", "Exampleamide PBPK"), ("proj.type", "research"), ("drug.modality", "small_molecule"),
-                        ("qoi.text", "exposure after 50 mg"), ("qoi.context_of_use", "internal decision"),
-                        ("qoi.applications", ["APP-01"]), ("products[0].name", "50 mg tablet"), ("products[0].role", "TEST"),
-                        ("scenarios[0].population", "healthy adults"), ("scenarios[0].route", "oral"),
-                        ("scenarios[0].dose", 50), ("data_plan[0].item", "clinical PK of EX-101"),
-                        ("data_plan[0].category", "clinical_pk_oral"), ("data_plan[0].provider", "CLIENT")]:
-        brief = agent_set(brief, path, value=value, unit=None, citations=cite, status=FieldStatus.EXTRACTED, confidence="A",
-                          by="agent:t")
-    ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), derived_from=ws.latest(ArtifactKind.BRIEF, "main").derived_from,
-              actor="agent:t", reason="filled")
-    assert c.post(f"/api/v1/projects/{pid}/requirements:approve", headers=H, json={}).status_code == 409
-
-    approved = c.post(f"/api/v1/projects/{pid}/brief:approve", headers=H, json={"note": "checked against the PDF"})
-    assert approved.status_code == 200, approved.text
+    first = c.get(f"/api/v1/projects/{pid}/requirements", headers=H).json()["data"]
+    assert first["artifact"]["version"] == 1 and first["artifact"]["status"] == "DRAFT"    # derived at project start
+    changes = [{"path": path, "status": "EDITED", "value": value} for path, value in (
+        ("drug.modality", "small_molecule"), ("qoi.applications", ["APP-01"]), ("scenarios[0].route", "oral"),
+        ("data_plan[0].item", "clinical PK of EX-101"), ("data_plan[0].category", "clinical_pk_oral"),
+        ("data_plan[0].provider", "CLIENT"))]
+    edited = c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": changes, "reason": "from the proposal"})
+    assert edited.status_code == 200, edited.text                                         # no "why" asked per field
     plan = c.get(f"/api/v1/projects/{pid}/requirements", headers=H).json()["data"]
-    assert plan["brief_status"] == "APPROVED" and plan["counts"]["applicable"] > 10
+    assert plan["artifact"]["version"] == 2 and plan["artifact"]["stale_reasons"] == [] and plan["counts"]["applicable"] > 10
     po = next(i for i in plan["matrix"]["items"] if i["req_id"] == "REQ-obs.po_fasted_range")
     assert po["provider"] == "CLIENT" and po["provider_statement"] == "clinical PK of EX-101"
 
@@ -156,9 +140,11 @@ def test_approved_brief_derives_the_data_plan_which_takes_overrides_and_closes_p
                     json={"provider": "CLIENT", "reason": "the client measured logD7.4"}).json()["data"]
     logp = next(i for i in changed["matrix"]["items"] if i["req_id"] == "REQ-phys.logp")
     assert logp["provider"] == "CLIENT" and logp["provider_source"] == "override"
-    assert c.post(f"/api/v1/projects/{pid}/requirements:approve", headers=H, json={}).status_code == 200
-    phases = {p["phase"]: p["status"] for p in c.get(f"/api/v1/projects/{pid}/phases", headers=H).json()["data"]["phases"]}
-    assert phases["P1"] == "APPROVED"
+    c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
+        {"path": "drug.bcs_class", "status": "EDITED", "value": "II"}], "reason": "BCS class from the proposal"})
+    kept = c.get(f"/api/v1/projects/{pid}/requirements", headers=H).json()["data"]
+    assert next(i for i in kept["matrix"]["items"] if i["req_id"] == "REQ-phys.logp")["provider_source"] == "override"
+    assert c.post(f"/api/v1/projects/{pid}/requirements:approve", headers=H, json={}).status_code == 404
 
 
 def test_documents_extraction_items_and_questions_answer_through_their_typed_models(client, monkeypatch):

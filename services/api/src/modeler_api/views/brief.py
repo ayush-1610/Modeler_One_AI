@@ -1,4 +1,5 @@
-"""P0/P1 answers of `brief_api`: project start, documents, the brief page, an extraction start, an agent run."""
+"""Start answers of `brief_api`: project start, documents, the brief page, an extraction start, an agent run (the Start
+page itself is `views.start`)."""
 
 from __future__ import annotations
 
@@ -7,6 +8,7 @@ from typing import Any
 from pydantic import Field
 
 from modeler_api.views.common import AgentsStatus, DocumentView, ImpactView, RunSummary, VersionView, View
+from modeler_api.views.start import ClientFileStarted
 
 
 class ExtractionStart(View):
@@ -19,6 +21,7 @@ class ProjectStarted(View):
     project_id: str
     name: str
     documents: list[DocumentView]
+    client_files: list[ClientFileStarted]
     brief_version: int
     extraction: ExtractionStart | None
 

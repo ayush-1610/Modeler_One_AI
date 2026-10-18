@@ -481,26 +481,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/brief:approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve Brief
-         * @description L1 gate (D-07: a named approval, meaning "Reviewed"): refused while anything blocks the brief.
-         */
-        post: operations["approve_brief_api_v1_projects__project_id__brief_approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/brief:extract": {
         parameters: {
             query?: never;
@@ -1457,26 +1437,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/requirements:approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve Requirements
-         * @description Closes P1 with the brief (D-07: named approval). The brief must be approved first and the plan up to date.
-         */
-        post: operations["approve_requirements_api_v1_projects__project_id__requirements_approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/requirements:derive": {
         parameters: {
             query?: never;
@@ -1505,6 +1465,27 @@ export interface paths {
         put?: never;
         /** Create Signature */
         post: operations["create_signature_api_v1_projects__project_id__signatures_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Start
+         * @description Step 1 · Start: the short brief with its sources, the scope gates, the model risk, the proposal notes, the data
+         *     checklist and what Start still needs. Nothing on it is approved (D-27).
+         */
+        get: operations["get_start_api_v1_projects__project_id__start_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1594,7 +1575,8 @@ export interface paths {
         put?: never;
         /**
          * Initiate Project
-         * @description P0: create the project from the drug name and the technical proposal, then start the extraction.
+         * @description Start: create the project from the drug name, the technical proposal and the client's files (one upload), then
+         *     start the extraction. A client file that cannot be read is reported with the reason; the project still starts.
          */
         post: operations["initiate_project_api_v1_projects_initiate_post"];
         delete?: never;
@@ -1788,14 +1770,6 @@ export interface components {
             /** Template */
             template: string;
         };
-        /** Approval */
-        Approval: {
-            /**
-             * Note
-             * @default
-             */
-            note?: string;
-        };
         /** ApprovalView */
         ApprovalView: {
             /** At */
@@ -1813,14 +1787,6 @@ export interface components {
             ref: components["schemas"]["Ref"];
             /** Signature Id */
             signature_id: string | null;
-        };
-        /** ApproveRequest */
-        ApproveRequest: {
-            /**
-             * Note
-             * @default
-             */
-            note?: string;
         };
         /**
          * ArtifactKind
@@ -1970,6 +1936,11 @@ export interface components {
         };
         /** Body_initiate_project_api_v1_projects_initiate_post */
         Body_initiate_project_api_v1_projects_initiate_post: {
+            /**
+             * Client Files
+             * @default []
+             */
+            client_files?: string[];
             /**
              * Context
              * @default
@@ -2362,6 +2333,52 @@ export interface components {
             /** Path */
             path: string;
         };
+        /** ChecklistItemView */
+        ChecklistItemView: {
+            /** Applies */
+            applies: string;
+            /** Condition */
+            condition: string;
+            /** Criticality */
+            criticality: string;
+            /** Cross Check */
+            cross_check: boolean;
+            /** Delivered */
+            delivered: string[];
+            /** Detail */
+            detail: string;
+            /** Group */
+            group: string;
+            /** Label */
+            label: string;
+            /** Needed For */
+            needed_for: string[];
+            /** Provider */
+            provider: string;
+            /** Provider Source */
+            provider_source: string;
+            /** Provider Statement */
+            provider_statement: string;
+            /** Req Id */
+            req_id: string;
+            /** Status */
+            status: string;
+        };
+        /** ChecklistView */
+        ChecklistView: {
+            /** Delivered By Client */
+            delivered_by_client: number;
+            /** Expected From Client */
+            expected_from_client: number;
+            /** Items */
+            items: components["schemas"]["ChecklistItemView"][];
+            /** Stale */
+            stale: boolean;
+            /** Templates */
+            templates: string[];
+            /** Version */
+            version: number | null;
+        };
         /** ChoiceRequest */
         ChoiceRequest: {
             /** Key */
@@ -2380,6 +2397,19 @@ export interface components {
         ChooseRequest: {
             /** Reason */
             reason: string;
+        };
+        /** CitationView */
+        CitationView: {
+            /** Doc Sha256 */
+            doc_sha256: string;
+            /** Locator */
+            locator: string;
+            /** Page */
+            page: number;
+            /** Quote */
+            quote: string;
+            /** Source */
+            source: string;
         };
         /** Classification */
         Classification: {
@@ -2402,6 +2432,29 @@ export interface components {
             running: boolean;
             /** Template */
             template: string;
+        };
+        /**
+         * ClientFileStarted
+         * @description A client file given at project start: read at once (a filled template), triaged, or refused with the reason.
+         */
+        ClientFileStarted: {
+            /** File */
+            file: string;
+            /** Id */
+            id: string | null;
+            /** Problem */
+            problem: string | null;
+            /** Template */
+            template: boolean;
+        };
+        /** ClientFileView */
+        ClientFileView: {
+            /** File */
+            file: string;
+            /** Id */
+            id: string;
+            /** Template */
+            template: boolean;
         };
         /**
          * ClientUpload
@@ -3412,6 +3465,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[StartPage] */
+        Envelope_StartPage_: {
+            data: components["schemas"]["StartPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[Steps] */
         Envelope_Steps_: {
             data: components["schemas"]["Steps"];
@@ -3874,6 +3934,28 @@ export interface components {
             /** Value */
             value?: unknown;
         };
+        /**
+         * FieldRecordView
+         * @description One brief field's record (`modeler_project.brief.FieldRecord`).
+         */
+        FieldRecordView: {
+            /** At */
+            at: string | null;
+            /** By */
+            by: string | null;
+            /** Citations */
+            citations: components["schemas"]["CitationView"][];
+            /** Confidence */
+            confidence: string | null;
+            /** Note */
+            note: string;
+            /** Status */
+            status: string;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: unknown;
+        };
         /** FirstOrderMetabolism */
         FirstOrderMetabolism: {
             clearance_per_enzyme: components["schemas"]["Measured"];
@@ -3954,6 +4036,17 @@ export interface components {
          * @enum {string}
          */
         FormulationKind: "solution" | "suspension" | "ir_tablet" | "ir_capsule" | "mr" | "other";
+        /** GateView */
+        GateView: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Message */
+            message: string;
+            /** State */
+            state: string;
+        };
         /** GlomerularFiltration */
         GlomerularFiltration: {
             /** Data Source */
@@ -4972,6 +5065,22 @@ export interface components {
             /** Studies */
             studies: components["schemas"]["StudyView"][];
         };
+        /**
+         * NoteGroup
+         * @description A list of things the proposal names (products, populations, data-plan statements, scenario details).
+         */
+        NoteGroup: {
+            /** Blank */
+            blank: components["schemas"]["StartField"][];
+            /** Id */
+            id: string;
+            /** Items */
+            items: components["schemas"]["StartField"][][];
+            /** Label */
+            label: string;
+            /** Warnings */
+            warnings: string[];
+        };
         /** ObservedDataset */
         ObservedDataset: {
             /**
@@ -5090,6 +5199,15 @@ export interface components {
             unit?: string;
             /** Values */
             values: number[];
+        };
+        /** OptionView */
+        OptionView: {
+            /** Label */
+            label: string;
+            /** Supported */
+            supported: boolean | null;
+            /** Value */
+            value: string;
         };
         /** OralProtocolSpec */
         OralProtocolSpec: {
@@ -5557,6 +5675,8 @@ export interface components {
         ProjectStarted: {
             /** Brief Version */
             brief_version: number;
+            /** Client Files */
+            client_files: components["schemas"]["ClientFileStarted"][];
             /** Documents */
             documents: components["schemas"]["DocumentView"][];
             extraction: components["schemas"]["ExtractionStart"] | null;
@@ -5736,6 +5856,21 @@ export interface components {
             question: string;
             /** Stage */
             stage: string;
+        };
+        /** QuestionView */
+        QuestionView: {
+            /** Answer */
+            answer: string;
+            /** Field */
+            field: string;
+            /** Id */
+            id: string;
+            /** Question */
+            question: string;
+            /** Raised By */
+            raised_by: string;
+            /** Status */
+            status: string;
         };
         /** RatedElement */
         RatedElement: {
@@ -5925,8 +6060,6 @@ export interface components {
         /** RequirementsPage */
         RequirementsPage: {
             artifact: components["schemas"]["VersionView"];
-            /** Brief Status */
-            brief_status: string | null;
             counts: components["schemas"]["RequirementCounts"];
             /** Feasibility */
             feasibility: {
@@ -5971,6 +6104,23 @@ export interface components {
         RevealRequest: {
             /** Reason */
             reason: string;
+        };
+        /** RiskView */
+        RiskView: {
+            /** Allowed */
+            allowed: string[];
+            /** Consequence */
+            consequence: string | null;
+            /** Influence */
+            influence: string | null;
+            /** Problem */
+            problem: string | null;
+            /** Reasons */
+            reasons: string;
+            /** Suggested */
+            suggested: string | null;
+            /** Tier */
+            tier: string | null;
         };
         /** RoundRecord */
         RoundRecord: {
@@ -6541,6 +6691,83 @@ export interface components {
             /** Reasons */
             reasons: string[];
             ref: components["schemas"]["Ref"];
+        };
+        /** StartField */
+        StartField: {
+            /** Help */
+            help: string;
+            /** Human Only */
+            human_only: boolean;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Options */
+            options: components["schemas"]["OptionView"][];
+            /** Path */
+            path: string;
+            record: components["schemas"]["FieldRecordView"];
+            /** Required */
+            required: boolean;
+            /** Unit */
+            unit: string | null;
+            /** Warnings */
+            warnings: string[];
+        };
+        /** StartPage */
+        StartPage: {
+            agents: components["schemas"]["AgentsStatus"];
+            artifact: components["schemas"]["VersionView"];
+            checklist: components["schemas"]["ChecklistView"];
+            /** Client Files */
+            client_files: components["schemas"]["ClientFileView"][];
+            /** Documents */
+            documents: components["schemas"]["DocumentView"][];
+            /** Drug Name */
+            drug_name: string;
+            /** Extraction Running */
+            extraction_running: boolean;
+            /** Gate Fields */
+            gate_fields: components["schemas"]["StartField"][];
+            /** Gates */
+            gates: components["schemas"]["GateView"][];
+            /** Identity */
+            identity: components["schemas"]["StartField"][];
+            /** Missing */
+            missing: string[];
+            new_scenario: components["schemas"]["StartScenario"];
+            /** Note Groups */
+            note_groups: components["schemas"]["NoteGroup"][];
+            /** Notes */
+            notes: components["schemas"]["StartField"][];
+            /** Project Id */
+            project_id: string;
+            /** Question */
+            question: components["schemas"]["StartField"][];
+            /** Questions */
+            questions: components["schemas"]["QuestionView"][];
+            risk: components["schemas"]["RiskView"];
+            /** Risk Fields */
+            risk_fields: components["schemas"]["StartField"][];
+            /** Runs */
+            runs: components["schemas"]["RunSummary"][];
+            /** Scenario Warnings */
+            scenario_warnings: string[];
+            /** Scenarios */
+            scenarios: components["schemas"]["StartScenario"][];
+            /** Scope */
+            scope: components["schemas"]["StartField"][];
+            /** State */
+            state: string;
+        };
+        /** StartScenario */
+        StartScenario: {
+            food_state: components["schemas"]["StartField"];
+            /** Index */
+            index: number;
+            /** Notes */
+            notes: string;
+            route: components["schemas"]["StartField"];
         };
         /**
          * Statistic
@@ -8328,43 +8555,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["QuestionAnswer"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_BriefPage_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    approve_brief_api_v1_projects__project_id__brief_approve_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Approval"];
             };
         };
         responses: {
@@ -10403,43 +10593,6 @@ export interface operations {
             };
         };
     };
-    approve_requirements_api_v1_projects__project_id__requirements_approve_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ApproveRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_RequirementsPage_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     derive_requirements_api_v1_projects__project_id__requirements_derive_post: {
         parameters: {
             query?: never;
@@ -10497,6 +10650,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignatureCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_start_api_v1_projects__project_id__start_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_StartPage_"];
                 };
             };
             /** @description Validation Error */

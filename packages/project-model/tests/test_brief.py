@@ -45,12 +45,17 @@ def test_paths_and_coercion():
         coerce(definition_of("drug.modality"), "peptide-ish")
 
 
-def test_empty_brief_needs_the_required_fields_before_approval():
+def test_empty_brief_lacks_what_start_needs_and_nothing_of_the_proposal_notes():
     brief = empty_brief("Dapagliflozin", by="u1")
     assert brief.get("drug.name").status is FieldStatus.ENTERED
     codes = {(i.code, i.path) for i in validate_brief(brief)}
-    assert ("REQUIRED_MISSING", "qoi.text") in codes and ("REQUIRED_MISSING", "products") in codes
-    assert ("REQUIRED_MISSING", "drug.name") not in codes
+    for path in ("qoi.text", "qoi.context_of_use", "qoi.applications", "m15.influence_rating", "m15.consequence_rating",
+                 "acceptance.tier", "drug.modality", "scope.model_structure", "scope.site_of_action",
+                 "scope.formulation_types", "scenarios"):
+        assert ("REQUIRED_MISSING", path) in codes, path
+    # the proposal notes are kept for the report and never required (redesign §3.1)
+    for path in ("drug.name", "proj.title", "proj.type", "products", "data_plan"):
+        assert ("REQUIRED_MISSING", path) not in codes, path
 
 
 def test_people_lock_fields_and_agents_cannot_overwrite_them():
@@ -63,11 +68,16 @@ def test_people_lock_fields_and_agents_cannot_overwrite_them():
     with pytest.raises(EditError, match="does not overwrite|do not overwrite"):
         agent_set(brief, "scenarios[0].dose", value="50", unit="mg", citations=_cite(), status=FieldStatus.EXTRACTED,
                   confidence="A", by="agent:a1")
-    with pytest.raises(EditError, match="person only"):
-        agent_set(brief, "acceptance.tier", value="high", unit=None, citations=_cite(), status=FieldStatus.EXTRACTED,
-                  confidence="A", by="agent:a1")
-    with pytest.raises(EditError, match="say why"):
-        edit_field(brief, "drug.cas", value="461432-26-8", status=FieldStatus.EDITED, note="", by="u1")
+    for path in ("acceptance.tier", "m15.influence_rating", "m15.consequence_rating"):
+        with pytest.raises(EditError, match="person only"):
+            agent_set(brief, path, value="high", unit=None, citations=_cite(), status=FieldStatus.EXTRACTED,
+                      confidence="A", by="agent:a1")
+    # a person's edit asks no "why" (map row p1-why): the version records who changed what
+    cas = edit_field(brief, "drug.cas", value="461432-26-8", status=FieldStatus.EDITED, by="u1")
+    assert cas.get("drug.cas").status is FieldStatus.EDITED and validate_brief(cas) == validate_brief(brief)
+    # except the model risk, set with its reasons (ICH M15)
+    with pytest.raises(EditError, match="give the reasons"):
+        edit_field(brief, "acceptance.tier", value="high", status=FieldStatus.EDITED, by="u1")
 
 
 def test_group_items_append_in_order():
@@ -118,6 +128,8 @@ def test_pubchem_unreachable_is_a_note_not_a_failure():
 
     brief, notes = resolve_identity(empty_brief("X", by="u"), store_record=lambda r: SHA, by="s", fetch=boom)
     assert "not reachable" in notes[0] and brief.get("drug.smiles").status is FieldStatus.MISSING
+    # the person sees why at Start, as a question on the identity
+    assert [(q.field, "not reachable" in q.question) for q in brief.questions] == [("drug.pubchem_cid", True)]
 
 
 def test_library_stores_documents_once_and_searches_pages(tmp_path):

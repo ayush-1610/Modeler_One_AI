@@ -41,9 +41,10 @@ class DocumentSource(Protocol):
 
 
 def _catalog_text() -> str:
+    """The fields the agent may fill: every field but the ones only a person sets (the ICH M15 ratings and risk)."""
     lines = []
     for code, title in SECTIONS.items():
-        scalar = [f for f in FIELDS if f.section == code]
+        scalar = [f for f in FIELDS if f.section == code and f.id not in HUMAN_ONLY]
         groups = [g for g in GROUPS if g.section == code]
         if not scalar and not groups:
             continue

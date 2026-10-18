@@ -1,43 +1,7 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { BriefReview } from "@/components/brief/BriefReview";
-import { DataPlan } from "@/components/brief/DataPlan";
-import { Stepper } from "@/components/kit/Stepper";
-
-const TABS = [
-  { id: "brief", label: "Brief" },
-  { id: "data-plan", label: "Data plan" },
-  { id: "feasibility", label: "Feasibility" },
-] as const;
-
-/** P1 · Brief & data plan — review layer L1. */
-export default async function BriefPage({
-  params, searchParams,
-}: {
-  params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ tab?: string }>;
-}) {
+/** The brief and the data plan are part of Start since R2b (redesign §3.1): an old link lands there. */
+export default async function BriefPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const { tab = "brief" } = await searchParams;
-  return (
-    <main>
-      <h1>Brief &amp; data plan</h1>
-      <Stepper projectId={projectId} current="start" />
-      <p className="muted" style={{ maxWidth: "var(--measure)" }}>
-        <strong>Review layer 1.</strong> Only what matters for the PBPK / popPK model, in the same structure for every
-        project. Click a source chip to see the exact words on the page. Any change says why; approval is possible once
-        nothing required is missing and every question is answered or accepted. The data plan follows from the approved
-        brief: every PK-Sim input and observed dataset, who provides it, and for what.
-      </p>
-      <nav className="tabs" aria-label="Review layer 1">
-        {TABS.map((t) => (
-          <Link key={t.id} href={`/projects/${projectId}/brief?tab=${t.id}`} className={tab === t.id ? "active" : ""}
-                data-testid={`tab-${t.id}`}>{t.label}</Link>
-        ))}
-      </nav>
-      {tab === "brief" && <BriefReview projectId={projectId} />}
-      {tab === "data-plan" && <DataPlan projectId={projectId} view="plan" />}
-      {tab === "feasibility" && <DataPlan projectId={projectId} view="feasibility" />}
-    </main>
-  );
+  redirect(`/projects/${projectId}/start`);
 }

@@ -1,14 +1,17 @@
-"""P0 initiate and P1 Project Brief (plan §5.2, review layer L1; task T-41).
+"""Step 1 · Start: the project from its proposal, and the Project Brief (redesign §3.1; plan §5.2, task T-41).
 
-P0: ``POST /projects:initiate`` takes the drug name, optional context and the technical proposal (any number of PDF,
-Word, Markdown, text, CSV or Excel files), creates the project, stores every file as a DOCUMENT artifact with
-quotable pages, writes the brief's first version (the drug name as entered, everything else missing) and starts
-the extraction. Extraction resolves the drug's identity (PubChem, RDKit cross-check) and, when an LLM provider is
-configured (D-16), runs agent A1, whose every value is checked by code before it enters the brief. Without a
-provider the brief is filled by hand on the same page: every step has a manual path.
+``POST /projects:initiate`` takes the drug name, optional context, the technical proposal (any number of PDF, Word,
+Markdown, text, CSV or Excel files) and the client's data files, in one upload. It creates the project, stores every
+proposal file as a DOCUMENT artifact with quotable pages, writes the brief's first version (the drug name as entered,
+everything else missing), which derives the data checklist, reads the client files into Inputs (a filled template at
+once, any other workbook triaged), and starts the extraction. Extraction resolves the drug's identity (PubChem, RDKit
+cross-check) and, when an LLM provider is configured (D-16), runs agent A1, whose every value is checked by code before
+it enters the brief. Without a provider the brief is filled by hand on the same page: every step has a manual path.
 
-P1: the brief is edited field by field (each change says why), questions are answered or accepted as limitations,
-and the brief is approved by a named reviewer (D-07: a simple approval, "Reviewed") once nothing blocks it.
+``GET /projects/{id}/start`` is the Start page (`modeler_project.start`): the short brief, the scope gates, the model
+risk, the proposal notes and the checklist. A person edits only what is wrong and no "why" is asked, except for the
+model risk; questions are answered or accepted as limitations. Nothing is approved (D-27): the one review is the MAP
+signature in Review & sign.
 """
 
 from __future__ import annotations
@@ -36,19 +39,34 @@ from modeler_api.views.brief import (
     ExtractionStart,
     ProjectStarted,
 )
+from modeler_api.views.start import StartPage
 from modeler_intake.documents import DocumentError
-from modeler_project import ArtifactKind, ProjectStore, Workspace
+from modeler_project import ArtifactKind, ProjectStore, Workspace, start
 from modeler_project.brief import (
+    GROUP_BY_ID,
     BriefPathError,
     FieldStatus,
     ProjectBrief,
     catalog,
+    definition_of,
     empty_brief,
     remove_item,
     validate_brief,
 )
-from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, resolve_identity, save_brief, summary
+from modeler_project.brief_ops import (
+    BRIEF_ID,
+    HUMAN_ONLY,
+    EditError,
+    edit_field,
+    locked,
+    resolve_identity,
+    save_brief,
+    summary,
+)
+from modeler_project.client_data import ingest, submissions
 from modeler_project.documents import DocumentLibrary, document_record
+from modeler_project.feasibility import BUILDER_ROUTES
+from modeler_project.requirements import RequirementMatrix
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord
 
@@ -168,17 +186,20 @@ async def initiate_project(
     principal: Writer, store: StoreDep, projects: ProjectsDep, settings: SettingsDep,
     drug_name: Annotated[str, Form(min_length=1)],
     files: Annotated[list[UploadFile], File()] = [],  # noqa: B006 - FastAPI's form-file default
+    client_files: Annotated[list[UploadFile], File()] = [],  # noqa: B006
     name: Annotated[str, Form()] = "",
     context: Annotated[str, Form()] = "",
     extract: Annotated[bool, Form()] = True,
 ) -> dict[str, Any]:
-    """P0: create the project from the drug name and the technical proposal, then start the extraction."""
+    """Start: create the project from the drug name, the technical proposal and the client's files (one upload), then
+    start the extraction. A client file that cannot be read is reported with the reason; the project still starts."""
     read, write = projects
     title = name.strip() or f"{drug_name.strip()} PBPK"
     project_id = _slug(title)
     if read.get_project(principal.tenant_id, project_id) is not None:
         project_id = f"{project_id}-{uuid.uuid4().hex[:4]}"
     payloads = [(f.filename or "upload", await f.read()) for f in files]
+    client_payloads = [(f.filename or "client-file", await f.read()) for f in client_files]
     if not payloads and not context.strip():
         raise HTTPException(status_code=422, detail="upload the technical proposal (or at least describe the project)")
     ws = Workspace(store, principal.tenant_id, project_id)
@@ -198,9 +219,23 @@ async def initiate_project(
     brief = empty_brief(drug_name, by=principal.user_id)
     version = save_brief(ws, brief, actor=principal.user_id, reason="project started",
                          derived_from=[d.ref for d in documents])
+    started = [_read_client_file(ws, library, brief, filename, data, by=principal.user_id)
+               for filename, data in client_payloads]
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     return envelope({"project_id": project_id, "name": title, "documents": [_document_view(d) for d in documents],
-                     "brief_version": version.version, "extraction": extraction})
+                     "client_files": started, "brief_version": version.version, "extraction": extraction})
+
+
+def _read_client_file(ws: Workspace, library: DocumentLibrary, brief: ProjectBrief, filename: str, data: bytes, *,
+                      by: str) -> dict[str, Any]:
+    """One client file given at Start, read into Inputs like an upload there (`client_data.ingest`)."""
+    version = ws.latest(ArtifactKind.REQUIREMENTS, "main")
+    matrix = RequirementMatrix.from_content(version.content) if version else None
+    try:
+        read = ingest(ws, library, data, filename, by=by, matrix=matrix, brief=brief)
+    except (DocumentError, ValueError) as exc:
+        return {"file": filename, "id": None, "template": False, "problem": str(exc)}
+    return {"file": read["file"], "id": read["id"], "template": read["template"], "problem": None}
 
 
 # --- documents -----------------------------------------------------------------------------------------------
@@ -366,31 +401,107 @@ def answer_question(project_id: str, question_id: str, body: QuestionAnswer, pri
     return envelope(_brief_view(ws))
 
 
-class Approval(BaseModel):
-    note: str = ""
+# --- Step 1 · Start ------------------------------------------------------------------------------------------
 
 
-@router.post("/projects/{project_id}/brief:approve", **answers(BriefPage))
-def approve_brief(project_id: str, body: Approval, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """L1 gate (D-07: a named approval, meaning "Reviewed"): refused while anything blocks the brief."""
-    ws = workspace_for(project_id, principal, store)
+def _shown(value: Any, unit: str | None) -> str:
+    if isinstance(value, list):
+        return "; ".join(map(str, value))
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    text = f"{value:g}" if isinstance(value, float) else str(value)
+    return f"{text} {unit}" if unit else text
+
+
+def _start_field(brief: ProjectBrief, path: str, warnings: dict[str, list[str]]) -> dict[str, Any]:
+    definition = definition_of(path)
+    supported = start.SUPPORTED.get(path)
+    if path.startswith("scenarios[") and path.endswith("].route"):
+        supported = BUILDER_ROUTES  # a scenario's route is a scope gate too
+    labels = start.OPTION_LABELS.get(path, {})
+    return {
+        "path": path, "label": definition.label, "kind": definition.kind, "required": definition.required,
+        "options": [{"value": o, "label": labels.get(o, o.replace("_", " ")),
+                     "supported": (o in supported) if supported is not None else None} for o in definition.options],
+        "unit": definition.unit, "help": definition.help, "human_only": path in HUMAN_ONLY,
+        "record": brief.get(path).model_dump(mode="json"), "warnings": warnings.get(path, []),
+    }
+
+
+def _scenario_notes(brief: ProjectBrief, index: int) -> str:
+    """What the proposal says of a scenario besides its route and food state, as one line."""
+    group = GROUP_BY_ID["scenarios"]
+    parts = []
+    for definition in group.fields:
+        if definition.id in start.SCENARIO_FIELDS:
+            continue
+        value = brief.value(f"scenarios[{index}].{definition.id}")
+        if value not in (None, "", []):
+            parts.append(f"{definition.label.lower()} {_shown(value, brief.get(f'scenarios[{index}].{definition.id}').unit)}")
+    return " · ".join(parts)
+
+
+def _note_group(brief: ProjectBrief, group_id: str, warnings: dict[str, list[str]], *, skip=()) -> dict[str, Any]:
+    group = GROUP_BY_ID[group_id]
+    count = len(brief.groups.get(group_id, ()))
+
+    def item(index: int) -> list[dict[str, Any]]:
+        return [_start_field(brief, f"{group_id}[{index}].{f.id}", warnings) for f in group.fields if f.id not in skip]
+
+    return {"id": group_id, "label": group.label, "items": [item(i) for i in range(count)], "blank": item(count),
+            "warnings": warnings.get(group_id, [])}
+
+
+def _scenario(brief: ProjectBrief, index: int, warnings: dict[str, list[str]]) -> dict[str, Any]:
+    return {"index": index, "route": _start_field(brief, f"scenarios[{index}].route", warnings),
+            "food_state": _start_field(brief, f"scenarios[{index}].food_state", warnings),
+            "notes": _scenario_notes(brief, index)}
+
+
+def _start_view(ws: Workspace) -> dict[str, Any]:
     version = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
     if version is None:
-        raise HTTPException(status_code=404, detail="no brief")
-    issues = validate_brief(ProjectBrief.from_content(version.content))
-    if issues:
-        raise HTTPException(status_code=409, detail={"code": "BRIEF_NOT_READY", "issues": [
-            {"code": i.code, "path": i.path, "message": i.message} for i in issues]})
-    try:
-        ws.approve(version.ref, by=principal.user_id, printed_name=principal.printed_name, meaning="Reviewed",
-                   note=body.note)
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    # The data plan follows from the approved brief (plan §5.2 P1): derived at once, reviewed on the next tab.
-    from modeler_project.data_plan import derive_data_plan
+        raise HTTPException(status_code=404, detail="this project has no brief yet (start it from a technical proposal)")
+    brief = ProjectBrief.from_content(version.content)
+    warnings = start.warnings(brief)
+    needs = start.missing(brief)
 
-    derive_data_plan(ws, actor="system", reason="derived from the approved brief")
-    return envelope(_brief_view(ws))
+    def fields(paths: tuple[str, ...]) -> list[dict[str, Any]]:
+        return [_start_field(brief, p, warnings) for p in paths]
+
+    checklist = start.checklist(ws)
+    runs = agent_jobs.project_runs(getattr(ws.store, "root", None), ws.tenant_id, ws.project_id)
+    return {
+        "project_id": ws.project_id, "drug_name": brief.drug_name,
+        "artifact": version_view(ws, version, with_content=False),
+        "state": "needs_you" if needs else "done", "missing": needs,
+        "identity": fields(start.IDENTITY), "question": fields(start.QUESTION), "risk_fields": fields(start.RISK),
+        "risk": start.risk(brief).model_dump(mode="json"),
+        "gates": [g.model_dump(mode="json") for g in start.gates(brief)], "gate_fields": fields(start.GATES),
+        "scope": fields(start.SCOPE),
+        "scenarios": [_scenario(brief, i, warnings) for i in range(start.scenario_count(brief))],
+        "new_scenario": _scenario(brief, start.scenario_count(brief), warnings),
+        "scenario_warnings": warnings.get("scenarios", []),
+        "questions": [q.model_dump(mode="json") for q in brief.questions],
+        "notes": fields(start.NOTES),
+        # a scenario's route and food state are asked in the short brief, with its warnings; the rest is a note
+        "note_groups": [_note_group(brief, g, warnings) for g in start.NOTE_GROUPS]
+                       + [_note_group(brief, "scenarios", {}, skip=start.SCENARIO_FIELDS)],
+        "checklist": checklist.model_dump(mode="json"),
+        "documents": [_document_view(d) for d in DocumentLibrary(ws).documents()],
+        "client_files": [{"id": f["id"], "file": f["file"], "template": f["template"]} for f in submissions(ws)],
+        "agents": agent_jobs.agents_status(),
+        "extraction_running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "extraction"),
+        "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "provider", "model", "started_at", "finished_at",
+                                         "summary")} for r in runs[:5]],
+    }
+
+
+@router.get("/projects/{project_id}/start", **answers(StartPage))
+def get_start(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """Step 1 · Start: the short brief with its sources, the scope gates, the model risk, the proposal notes, the data
+    checklist and what Start still needs. Nothing on it is approved (D-27)."""
+    return envelope(_start_view(workspace_for(project_id, principal, store)))
 
 
 # --- agent runs ----------------------------------------------------------------------------------------------

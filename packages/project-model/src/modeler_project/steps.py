@@ -12,8 +12,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from modeler_project.artifacts import ArtifactKind, ArtifactStatus
-from modeler_project.brief import ProjectBrief, definition_of
+from modeler_project.brief import ProjectBrief
 from modeler_project.map_artifact import latest_map
+from modeler_project.start import missing
 from modeler_project.workspace import Workspace
 
 MAIN = "main"
@@ -22,10 +23,6 @@ StepId = Literal["start", "inputs", "review", "run"]
 StepState = Literal["done", "needs_you", "running", "not_started"]
 
 STEP_LABELS: dict[str, str] = {"start": "Start", "inputs": "Inputs", "review": "Review & sign", "run": "Run"}
-
-# What Start needs before the inputs are worth gathering: the drug, the question, its context of use and the ICH M15
-# model risk (never assumed). The short brief and the scope gates of D-28 replace this list when Start is rebuilt.
-START_FIELDS = ("drug.name", "qoi.text", "qoi.context_of_use", "acceptance.tier")
 
 
 class Step(BaseModel):
@@ -42,14 +39,12 @@ def _step(step: StepId, state: StepState, *reasons: str) -> Step:
 
 
 def start_step(ws: Workspace) -> Step:
+    """Start: the short brief, the ICH M15 model risk (never assumed) and the scope gates of D-28 (`modeler_project.start`)."""
     version = ws.latest(ArtifactKind.BRIEF, MAIN)
     if version is None:
         return _step("start", "not_started", "Start the project from its proposal")
-    brief = ProjectBrief.from_content(version.content)
-    missing = [definition_of(path).label for path in START_FIELDS if brief.value(path) in (None, "", [])]
-    if missing:
-        return _step("start", "needs_you", *(f"{label}: not set yet" for label in missing))
-    return _step("start", "done")
+    needs = missing(ProjectBrief.from_content(version.content))
+    return _step("start", "needs_you", *needs) if needs else _step("start", "done")
 
 
 def inputs_step(ws: Workspace) -> Step:

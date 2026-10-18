@@ -15,6 +15,88 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Step 1 · Start replaces P0 and P1: one upload, the short brief, scope gates, the model risk, no approval (R2b)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.1, D-27, D-28; the owner found P0–P5 "near to impossible" to
+  get through on real data):
+  - **One screen in three blocks:** `/projects/start` before the project exists, `/projects/{id}/start` after it
+    (`GET /projects/{id}/start`, `modeler_project.start`). `/projects/{id}/brief` redirects there.
+    1. **The drug and the files.**
+       - One upload for the proposal, its annexes and the client's data files. Each file says what it is, guessed
+         from its type and changeable.
+       - The client's files are read into Inputs at once: `POST /projects:initiate` takes `client_files`. A file that
+         cannot be read is reported with the reason, and the project still starts.
+       - The PubChem identity with the structure check, and one molecular weight (the free base's). A failed lookup is
+         now a question on the CID.
+    2. **The short brief**, each value with its quote in the document viewer:
+       - the question, its context of use and the applications;
+       - **the ICH M15 ratings** of model influence and decision consequence (new, person-only fields). They bound
+         **the model risk** by M15 §2.1.5 as `pbpk_domain.m15` encodes it: equal ratings give that risk, different ones
+         admit any risk between them, chosen with reasons;
+       - **the scope gates of D-28:** modality, model type, site of action, formulation types, and the scenarios'
+         routes. What the builder cannot model is marked "not supported yet" and refused here;
+       - each scenario's route and food state;
+       - BCS class, pathways (a new multi-select, which also decides the checklist's `pathway` items), nonlinearity and
+         EHC;
+       - the open questions, and the proposal notes (collapsed, never required).
+    3. **The data checklist**, re-derived at every brief change (`brief_ops.save_brief`):
+       - each item's provider and literature cross-check;
+       - what the client is expected to send, ticked off as their files arrive;
+       - feasibility warnings beside the brief field they concern. The PK-Sim columns are not shown.
+  - **No "why" is asked for an edit** (map row `p1-why`: the version records who changed what), except for the model
+    risk, which is set with its reasons. A model risk outside what the ratings admit is refused (422).
+  - **What Start needs drives the step bar** (`modeler_project.start.missing`): the question, context of use and
+    applications; both ratings and the model risk; the four gates set and supported; every scenario routed, an oral one
+    with its food state. Open questions are shown, not counted.
+  - **Removed:**
+    - `POST /projects/{id}/brief:approve` and `POST /projects/{id}/requirements:approve`;
+    - the brief page's Brief, Data plan and Feasibility tabs (`BriefReview.tsx`, `DataPlan.tsx`);
+    - `RequirementsPage.brief_status`.
+  - **Brief schema:**
+    - new fields `m15.influence_rating`, `m15.consequence_rating`, `scope.model_structure`, `scope.site_of_action`,
+      `scope.formulation_types` and `scope.pathways`;
+    - `scope.model_structure` replaces `scope.model_type`, which repeated the modality;
+    - `required` now marks what Start needs: `acceptance.tier` is required, and the project title and type, the
+      products and the data-plan statements are proposal notes.
+  - **A1** is no longer shown the person-only fields (the ratings and the risk), which it was refused on anyway.
+- **Why:** D-27 (agents and code fill; a person reviews everything once, at the MAP signature) and D-28 (products the
+  builder cannot model are refused at Start, before any data work).
+- **Impact:**
+  - **Science: nothing changes in the model.** The CPF, the builder, the MAP and split, S0–S7, the rulesets and the
+    requirement templates are unchanged. The checklist is the same matrix, now derived at every brief change instead of
+    at the brief's approval.
+  - **The T-56 kit:** its checklist is identical with and without its new brief fields (checked), and the kit's test
+    passes.
+  - **Projects started before R2b** keep their brief: Start lists what it now needs (the ratings and the gates). If
+    their checklist was derived from an older brief, Start says so and offers "Bring it up to date".
+  - **Callers:** `deploy/proof/run_t56.py` sets the ratings and the gates, checks that Start is done, and no longer
+    approves anything; its README says so.
+  - **API contract:** `GET /projects/{id}/start` added, the two approvals removed, and `ProjectStarted.client_files`
+    added. `docs/api/openapi.json` and the web types are regenerated.
+  - **Tests:**
+    - new: `packages/project-model/tests/test_start.py` (11) and `services/api/tests/test_start_api.py` (3);
+    - rewritten: the brief, steps and data-plan tests;
+    - `start-project.spec.ts` rewritten for the new screen, plus a redirect flow.
+    - Here: 1367 passed, 23 skipped. 14 failed only because this sandbox cannot download Temporal's test server
+      (`test_campaign_workflows.py`, untouched). Ruff, the web typecheck and the web build pass.
+- **Known gap:**
+  - **Playwright has not run the two Start browser flows:** this session's sandbox can bind no port and start no
+    browser. Their steps were walked through in the running app instead (web :3000, API :8000 on the stub engine):
+    - a project from a proposal and a client CSV;
+    - Start filled by hand to "done";
+    - a minimal-PBPK refusal, and back;
+    - a product added, and its dissolution item appearing in the checklist.
+
+    Run `npm --prefix apps/web run e2e` before merging.
+  - **A1 still fills the whole brief**, proposal notes included, field by field. Narrowing it waits for its evaluation
+    set (T-21, plan §4).
+  - **Once a plan exists, the plan's own model risk wins** (`deps.model_risk`, R0): Start's sets the risk a new plan
+    starts from. Review & sign joins the two (R4).
+  - **The molecular weight:** Start shows one, the free base's (from the structure, cross-checked against PubChem).
+    P4 still proposes `phys.mw` from the PubChem record; Inputs takes Start's in R3.
+  - **Products, populations and assumptions** stay with the proposal notes until Inputs (R3) and Review & sign (R4).
+  - **Whether ER solids pass the formulation gate** (Weibull or particle release fitted to dissolution) is listed for
+    the SME (`docs/SME_SIGNOFF.md` §2).
+
 ### Added — the redesign's foundation: light and dark themes, four steps instead of seven phases (R2a)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3 and §7; the owner found the screens dull and hard to move
   through):
@@ -3372,3 +3454,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-06 (worktree `claude/vbe-template`) | Claude Opus 5.5 | Atomic writes for every file the API reads during a campaign; first campaign record written before the id is returned (T-56 kit test flake); T-31 VBE template |
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
+| 2026-10-19 (desktop session, branch `r2b-start`) | Claude Opus 5.5 (1M context) | The PR #72 merge conflict (`CHANGELOG.md`) resolved on `api-image-mirror`; R2b: Step 1 · Start replaces P0 and P1 (one upload, the short brief with the scope gates of D-28 and the ICH M15 model risk, the data checklist re-derived at every change, no approval). No GitHub access from this sandbox: the owner pushes |

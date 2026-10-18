@@ -1,0 +1,129 @@
+/* Step 1 · Start (components/start): the drug and its files, the short brief, the data checklist. Built only from the
+ * theme tokens in globals.css and the kit's shell, so it reads the same in light and dark. */
+
+/* a wide side panel: the document a quote is read from */
+.shell-body.with-side.wide { grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); }
+.shell-body.with-side.wide .doc-page { max-height: 62vh; }
+@media (max-width: 1100px) { .shell-body.with-side.wide { grid-template-columns: minmax(0, 1fr); } }
+
+.start-block h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font-size: 17px; letter-spacing: -0.01em; }
+.block-n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+  font: 600 12px/1 var(--font-mono, ui-monospace, monospace); color: var(--brand-ink);
+  background: color-mix(in srgb, var(--sim) 14%, transparent); }
+.start-block h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-dim); }
+.brief-part { padding: 14px 0; border-top: 1px solid var(--line-soft); }
+.brief-part:first-of-type { border-top: 0; padding-top: 0; }
+.part-lede { margin: -2px 0 12px; font-size: 13px; max-width: none; }
+.hint { margin: 4px 0 0; font-size: 12.5px; }
+.link-btn { all: unset; cursor: pointer; font-size: 13px; color: var(--brand-ink); text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--sim) 45%, transparent); text-underline-offset: 2px; }
+.link-btn:hover:not(:disabled) { text-decoration-color: currentColor; }
+.link-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.link-btn:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; border-radius: 3px; }
+
+/* one field: label, where it came from, the quote, and its value */
+.field-row, .choice-field { padding: 8px 0; }
+.field-row + .field-row, .choice-field + .field-row, .field-row + .choice-field, .choice-field + .choice-field {
+  border-top: 1px dashed var(--line-soft); }
+.field-row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 22px; }
+.field-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.field-label .req { color: var(--warn); }
+.quotes { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: 8px; vertical-align: 1px; }
+.field-row-head .link-btn { margin-left: auto; }
+.field-value { margin-top: 3px; font-size: 14.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.field-row.empty .field-value { font-size: 13.5px; }
+.field-note { margin-top: 2px; font-size: 12px; color: var(--ink-faint); }
+.field-editor { margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--raised); }
+.field-editor input, .field-editor select, .field-editor textarea, .select-field select, .risk-tier select, .risk-tier input,
+.checklist select, .picked select { font: inherit; font-size: 14px; padding: 6px 9px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); }
+.field-editor input:not([type=checkbox]), .field-editor textarea { width: 100%; box-sizing: border-box; }
+.field-editor .unit { width: 90px; }
+
+/* choices: one click saves */
+.segmented { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.segmented button { font: inherit; font-size: 13.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: inline-flex; align-items: center; gap: 6px;
+  transition: border-color 120ms var(--ease), background 120ms var(--ease); }
+.segmented button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--sim) 45%, var(--line)); }
+.segmented button.on { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 14%, var(--surface));
+  color: var(--brand-ink); font-weight: 600; }
+.segmented button.unsupported:not(.on) { color: var(--ink-dim); }
+.segmented button.unsupported.on { border-color: var(--fail); background: color-mix(in srgb, var(--fail) 10%, var(--surface)); color: var(--fail); }
+.segmented button:disabled { cursor: wait; }
+.segmented button:focus-visible, .choice-grid label:focus-within { outline: 2px solid var(--sim); outline-offset: 2px; }
+.tag { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fail);
+  padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--fail) 10%, transparent); }
+.choice-field.compact .segmented button { padding: 4px 10px; font-size: 13px; }
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; margin-top: 6px; }
+.choice-grid label { display: flex; gap: 8px; align-items: flex-start; padding: 7px 10px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); background: var(--surface); font-size: 13.5px; cursor: pointer; }
+.choice-grid label.on { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 10%, var(--surface)); }
+.choice-grid label.unsupported.on { border-color: var(--fail); background: color-mix(in srgb, var(--fail) 8%, var(--surface)); }
+.choice-grid label span { display: grid; gap: 3px; justify-items: start; }
+.choice-grid input { margin-top: 3px; accent-color: var(--sim); }
+.select-field { display: inline-grid; gap: 4px; }
+
+/* the model risk */
+.risk-ratings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+.risk-ratings > div { min-width: 0; }
+@media (max-width: 720px) { .risk-ratings { grid-template-columns: minmax(0, 1fr); } }
+.risk-tier { margin-top: 10px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--raised); }
+.risk-bound { margin: 4px 0 8px; font-size: 13px; max-width: none; }
+.risk-reasons { font-size: 14px; }
+
+/* scenarios: route and food state */
+.scenarios { display: grid; gap: 8px; }
+.scenario { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); background: var(--surface); }
+.scenario.adding { border-style: dashed; }
+.scenario-n { font: 600 12px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-faint); min-width: 14px; }
+.scenario-notes { flex: 1; min-width: 120px; font-size: 12.5px; }
+
+/* the files */
+.drug-files { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 0 24px; }
+@media (max-width: 900px) { .drug-files { grid-template-columns: minmax(0, 1fr); } }
+.identity .field-value { font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; }
+.files h3 { margin-top: 8px; }
+.doc-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
+.doc-list li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.add-files summary, .proposal-notes > summary, .note-item > summary { cursor: pointer; }
+.add-files summary { font-size: 13px; color: var(--brand-ink); margin-bottom: 8px; }
+.file-picker { display: grid; gap: 10px; }
+.picked { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.picked li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 10px; border-radius: var(--radius-sm);
+  background: var(--raised); font-size: 13.5px; }
+.picked-name { font-weight: 600; overflow-wrap: anywhere; }
+
+/* proposal notes and questions */
+.proposal-notes { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); }
+.proposal-notes[open] > summary { margin-bottom: 8px; }
+.notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 20px; }
+.notes-grid .field-row + .field-row { border-top: 0; }
+.unstated { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin: 8px 0 0; font-size: 13px; max-width: none; }
+.note-group { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.note-item { margin: 6px 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.note-item > summary { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.questions { padding: 14px 0 0; border-top: 1px solid var(--line-soft); }
+.questions .question p { margin: 0 0 6px; max-width: none; }
+.questions input { font: inherit; font-size: 14px; padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); }
+
+/* the data checklist */
+.checklist-summary { margin: 0 0 10px; font-size: 13.5px; max-width: none; }
+.checklist-client { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--obs) 35%, var(--line)); background: color-mix(in srgb, var(--obs) 6%, var(--surface)); }
+.checklist-client ul, .checklist-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.checklist-client li { font-size: 13.5px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.checklist-group { margin-bottom: 12px; }
+.checklist-group li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 0;
+  border-bottom: 1px solid var(--line-soft); font-size: 13.5px; }
+.checklist-group li.maybe { opacity: 0.75; }
+.checklist .item-label { flex: 1; min-width: 200px; }
+.checklist select { font-size: 13px; padding: 3px 6px; }
+.cross-check { font-size: 12.5px; color: var(--ink-dim); display: inline-flex; gap: 4px; align-items: center; }
+.stages { font: 500 11.5px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-faint); }
+
+/* the side panel */
+.missing-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+.run-line { margin: 4px 0 0; font-size: 12px; }

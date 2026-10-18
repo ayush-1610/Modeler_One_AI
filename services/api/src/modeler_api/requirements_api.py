@@ -1,9 +1,10 @@
-"""P1 data plan and feasibility (plan §7, T-42 / T-43): derived from the brief, overridable item by item, approved.
+"""The data checklist and feasibility (plan §7, T-42 / T-43; redesign §3.1): derived from the brief, overridable item
+by item, never approved.
 
-The requirement matrix is a deterministic derivation of the brief (REQUIREMENTS/main, derived from BRIEF/main), so a
-brief edit makes it stale and re-deriving brings it up to date; a person's overrides (provider, purpose, the literature
-cross-check of a client item) are kept across re-derivations. The feasibility report (FEASIBILITY/main) is derived
-the same way. The P1 gate closes when the brief and the data plan are both approved.
+The requirement matrix is a deterministic derivation of the brief (REQUIREMENTS/main, derived from BRIEF/main), re-derived
+each time the brief is stored (`brief_ops.save_brief`); a person's overrides (provider, purpose, the literature
+cross-check of a client item) are kept across re-derivations. The feasibility report (FEASIBILITY/main) is derived the
+same way. Start shows both (`GET /projects/{id}/start`); there is no approval (D-27).
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from pydantic import BaseModel, Field
 from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
 from modeler_api.responses import answers, envelope
 from modeler_api.views.requirements import RequirementsPage
-from modeler_project import ArtifactKind, ArtifactStatus, Workspace
+from modeler_project import ArtifactKind, Workspace
 from modeler_project.data_plan import NoBriefError, derive_data_plan
 from modeler_project.requirements import Provider, RequirementMatrix, RequirementOverride
 
@@ -36,7 +37,6 @@ def _view(ws: Workspace) -> dict[str, Any]:
     if version is None:
         raise HTTPException(status_code=404, detail="no data plan yet: derive it from the brief")
     feasibility = ws.latest(ArtifactKind.FEASIBILITY, MAIN)
-    brief_version = ws.latest(ArtifactKind.BRIEF, MAIN)
     matrix = RequirementMatrix.from_content(version.content)
     applicable = [i for i in matrix.items if i.applies != "no"]
     return {
@@ -50,7 +50,6 @@ def _view(ws: Workspace) -> dict[str, Any]:
         },
         "feasibility": {**(feasibility.content if feasibility else {"lines": []}),
                         "status": ws.status(feasibility).value if feasibility else None},
-        "brief_status": ws.status(brief_version).value if brief_version else None,
     }
 
 
@@ -88,26 +87,4 @@ def override_requirement(project_id: str, req_id: str, body: OverrideRequest, pr
                                    cross_check=body.cross_check, status=body.status, reason=body.reason,
                                    by=principal.user_id)
     _derive(ws, actor=principal.user_id, reason=f"{req_id}: {body.reason}", extra=override)
-    return envelope(_view(ws))
-
-
-class ApproveRequest(BaseModel):
-    note: str = ""
-
-
-@router.post("/projects/{project_id}/requirements:approve", **answers(RequirementsPage))
-def approve_requirements(project_id: str, body: ApproveRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """Closes P1 with the brief (D-07: named approval). The brief must be approved first and the plan up to date."""
-    ws = workspace_for(project_id, principal, store)
-    brief = ws.latest(ArtifactKind.BRIEF, MAIN)
-    if brief is None or ws.status(brief) is not ArtifactStatus.APPROVED:
-        raise HTTPException(status_code=409, detail="approve the brief first: the data plan is derived from it")
-    version = ws.latest(ArtifactKind.REQUIREMENTS, MAIN)
-    if version is None:
-        raise HTTPException(status_code=404, detail="no data plan")
-    try:
-        ws.approve(version.ref, by=principal.user_id, printed_name=principal.printed_name, meaning="Reviewed",
-                   note=body.note)
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return envelope(_view(ws))
