@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { BriefReview } from "@/components/brief/BriefReview";
 import { DataPlan } from "@/components/brief/DataPlan";
-import { PhaseRail } from "@/components/PhaseRail";
+import { Stepper } from "@/components/kit/Stepper";
 
 const TABS = [
   { id: "brief", label: "Brief" },
@@ -22,7 +22,7 @@ export default async function BriefPage({
   return (
     <main>
       <h1>Brief &amp; data plan</h1>
-      <PhaseRail projectId={projectId} current="P1" />
+      <Stepper projectId={projectId} current="start" />
       <p className="muted" style={{ maxWidth: "var(--measure)" }}>
         <strong>Review layer 1.</strong> Only what matters for the PBPK / popPK model, in the same structure for every
         project. Click a source chip to see the exact words on the page. Any change says why; approval is possible once

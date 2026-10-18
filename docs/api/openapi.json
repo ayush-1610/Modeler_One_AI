@@ -4665,6 +4665,31 @@
         "title": "Envelope[SnapshotPreview]",
         "type": "object"
       },
+      "Envelope_Steps_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Steps"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Steps]",
+        "type": "object"
+      },
       "Envelope_StudiesStored_": {
         "additionalProperties": false,
         "properties": {
@@ -12969,6 +12994,68 @@
         "title": "Statistic",
         "type": "string"
       },
+      "StepRow": {
+        "additionalProperties": false,
+        "description": "One step of the redesigned flow (Start, Inputs, Review & sign, Run) and what it waits on.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "needs_you",
+              "running",
+              "not_started"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "step": {
+            "enum": [
+              "start",
+              "inputs",
+              "review",
+              "run"
+            ],
+            "title": "Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "label",
+          "state",
+          "reasons"
+        ],
+        "title": "StepRow",
+        "type": "object"
+      },
+      "Steps": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepRow"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "steps"
+        ],
+        "title": "Steps",
+        "type": "object"
+      },
       "Structure": {
         "additionalProperties": false,
         "properties": {
@@ -20873,6 +20960,65 @@
         "summary": "Create Signature",
         "tags": [
           "signatures"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/steps": {
+      "get": {
+        "description": "Start, Inputs, Review & sign and Run, each done, waiting on the person, running or not started, from what is\nfilled and what is missing (the redesign, D-27), never from an approval.",
+        "operationId": "get_steps_api_v1_projects__project_id__steps_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_Steps_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Steps",
+        "tags": [
+          "project-pipeline"
         ]
       }
     },

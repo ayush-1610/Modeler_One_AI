@@ -15,6 +15,34 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the redesign's foundation: light and dark themes, four steps instead of seven phases (R2a)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3 and §7; the owner found the screens dull and hard to move
+  through):
+  - **Light by default, dark on request.**
+    - `globals.css` defines every colour as a token: light on `:root`, dark under `prefers-color-scheme` and under
+      `[data-theme="dark"]`. The teal (predicted) / amber (observed) pair keeps its meaning in both.
+    - A new `--on-sim` keeps the primary button readable on teal in both themes.
+    - A theme toggle in the sidebar (Auto / Light / Dark) is remembered in the browser and applied before the first
+      paint.
+  - **The step bar replaces the P0–P6 rail on every project page.** Start, Inputs, Review & sign and Run each show
+    done, needs you, running or not started, and the step the page belongs to says what it is waiting on. While the
+    Inputs step still spans three pages (until R3), they are linked under it.
+  - **`GET /projects/{id}/steps`** (`modeler_project.steps`) reads each step from content, never from an approval
+    (D-27):
+    - **Start:** the drug, the question, its context of use and the model risk are set;
+    - **Inputs:** the latest readiness check passed and is current;
+    - **Review & sign:** the MAP is signed and current;
+    - **Run:** from the project's campaigns.
+
+    `/phases` stays for the T-56 kit and the history page.
+  - **A small kit** (`components/kit`, `app/styles/kit.css`): PageShell, SidePanel, EmptyState, InlineIssue,
+    DataTable and Stepper, in plain CSS on the tokens, with no new dependency. The rebuilt screens use it, starting
+    with Start (R2b).
+- **Impact:**
+  - Pages look the same apart from the theme and the step bar; no flow changes.
+  - API contract: one new route. `docs/api/openapi.json` and the web types are regenerated.
+  - Tests: `test_steps.py` (10), `test_steps_api.py`, `start-project.spec.ts` on the step bar. Dev e2e 18/18.
+
 ### Docs — the P0–P5 redesign on paper: four steps, one review (R1)
 - **What:**
   - `docs/plans/2026-10-19-p0-p5-redesign.md` turns the owner's 104 field-map decisions (2026-10-17) and answers

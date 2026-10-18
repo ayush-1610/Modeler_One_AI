@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { PhaseRail } from "@/components/PhaseRail";
+import { Stepper } from "@/components/kit/Stepper";
 import { ApiProblem, Card, StatusChip } from "@/components/ui";
 import { getArtifacts, getAudit, getHistory, getPhases, type Change } from "@/lib/pipeline";
 
@@ -40,7 +40,7 @@ export default async function HistoryPage({
   return (
     <main>
       <h1>History</h1>
-      <PhaseRail projectId={projectId} />
+      <Stepper projectId={projectId} />
       <p className="muted">
         Every phase output is a version that names the exact inputs it was made from. An edit creates a new version;
         anything made from the old one is marked <strong>stale</strong> with its reason, never deleted or silently redone.

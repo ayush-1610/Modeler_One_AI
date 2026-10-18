@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { ThemeToggle } from "@/components/kit/ThemeToggle";
+
 const LINKS = [
   { href: "/", label: "Projects" },
   { href: "/projects/start", label: "+ Start from proposal" },
@@ -27,6 +29,7 @@ export function Nav({ user }: { user?: string | null }) {
           </Link>
         ))}
       </nav>
+      <ThemeToggle />
       {user && (
         <div className="nav-user" data-testid="signed-in">
           Signed in as <strong>{user}</strong>

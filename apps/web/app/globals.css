@@ -1,7 +1,7 @@
 /* Modeler One — an instrument for building models a regulator will scrutinise.
  *
- * Governing idea: the interface recedes, the data advances. Chrome is a deep blue-slate so that the only
- * saturated things on screen are the ones carrying scientific meaning. The two accents are not decoration —
+ * Governing idea: the interface recedes, the data advances. Chrome stays neutral (a cool bench in light, a deep
+ * blue-slate in dark) so that the only saturated things on screen are the ones carrying scientific meaning. The two accents are not decoration —
  * teal is the predicted profile, amber the observed one, the pair every PBPK judgement is made on — so the
  * palette itself teaches the comparison.
  *
@@ -9,36 +9,39 @@
  * hue alone, and every verdict is also written out in words.
  */
 
+/* Light by default (the redesign, 2026-10-18: "the UI is boring"); dark follows the system, or the viewer's choice
+ * (the toggle in the sidebar sets data-theme on <html>). Every colour is a token defined in all three blocks below. */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* surfaces: a lab screen, not a black page */
-  --bg: #0b1116;
-  --surface: #121b22;
-  --raised: #18242f;
-  --line: #223040;
-  --line-soft: #1a2631;
+  /* surfaces: a bright bench with a faint cool cast, so the two series below carry the colour */
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --raised: #eef2f5;
+  --line: #d9e0e7;
+  --line-soft: #e6ebf0;
 
   /* ink */
-  --ink: #dce7ef;
-  --ink-dim: #8ea3b3;
-  --ink-faint: #5d7284;
+  --ink: #12202b;
+  --ink-dim: #566876;
+  --ink-faint: #8497a5;
 
   /* the two series under comparison */
-  --sim: #5bd1c4;      /* predicted — the model */
-  --obs: #f2a65a;      /* observed — the clinic */
+  --sim: #10897d;      /* predicted — the model */
+  --obs: #b96a15;      /* observed — the clinic */
+  --on-sim: #ffffff;   /* text on a --sim fill */
 
   /* verdicts */
-  --pass: #57c98a;
-  --warn: #e8b84b;
-  --fail: #e8705a;
+  --pass: #17794a;
+  --warn: #9a7112;
+  --fail: #b8402c;
+  --brand-ink: #0c5f57;
 
-  /* risk ratings (ICH M15) */
+  /* risk ratings (ICH M15) and aliases */
   --low: var(--pass);
   --medium: var(--warn);
   --high: var(--fail);
   --brand: var(--sim);
-  --brand-ink: #9ae8de;
   --accent: var(--sim);
   --text: var(--ink);
   --text-muted: var(--ink-dim);
@@ -52,23 +55,22 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* The instrument is dark by default. Light is available for printing an appendix or a bright bench. */
-:root[data-theme="light"] {
-  color-scheme: light;
-  --bg: #f4f6f8;
-  --surface: #ffffff;
-  --raised: #eef2f5;
-  --line: #d9e0e7;
-  --line-soft: #e6ebf0;
-  --ink: #12202b;
-  --ink-dim: #566876;
-  --ink-faint: #8497a5;
-  --sim: #10897d;
-  --obs: #b96a15;
-  --pass: #17794a;
-  --warn: #9a7112;
-  --fail: #b8402c;
-  --brand-ink: #0c5f57;
+/* The instrument's dark screen: a deep blue-slate, so the only saturated things are the ones carrying meaning. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b1116; --surface: #121b22; --raised: #18242f; --line: #223040; --line-soft: #1a2631;
+    --ink: #dce7ef; --ink-dim: #8ea3b3; --ink-faint: #5d7284;
+    --sim: #5bd1c4; --obs: #f2a65a; --on-sim: #04191c;
+    --pass: #57c98a; --warn: #e8b84b; --fail: #e8705a; --brand-ink: #9ae8de;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1116; --surface: #121b22; --raised: #18242f; --line: #223040; --line-soft: #1a2631;
+  --ink: #dce7ef; --ink-dim: #8ea3b3; --ink-faint: #5d7284;
+  --sim: #5bd1c4; --obs: #f2a65a; --on-sim: #04191c;
+  --pass: #57c98a; --warn: #e8b84b; --fail: #e8705a; --brand-ink: #9ae8de;
 }
 
 * { box-sizing: border-box; }
@@ -182,7 +184,7 @@ tbody tr:last-child td { border-bottom: none; }
        transition: background 120ms var(--ease), border-color 120ms var(--ease), transform 80ms var(--ease); }
 .btn:hover:not(:disabled) { background: color-mix(in srgb, var(--sim) 10%, var(--raised)); border-color: color-mix(in srgb, var(--sim) 40%, var(--line)); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
-.btn.primary { background: var(--sim); border-color: var(--sim); color: #04191c; }
+.btn.primary { background: var(--sim); border-color: var(--sim); color: var(--on-sim); }
 .btn.primary:hover:not(:disabled) { background: var(--brand-ink); border-color: var(--brand-ink); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
