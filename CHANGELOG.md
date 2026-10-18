@@ -15,6 +15,22 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — the P0–P5 redesign on paper: four steps, one review (R1)
+- **What:**
+  - `docs/plans/2026-10-19-p0-p5-redesign.md` turns the owner's 104 field-map decisions (2026-10-17) and answers
+    (2026-10-18) into four steps: **Start** (P0 + P1), **Inputs** (P2 + P3 + P4, three tabs), **Review & sign** (P5),
+    and **Run**. For each screen it gives the map rows it carries, what moves or is removed (route, page, tests,
+    replacement, PR), the agents' roles, the open SME items, and the acceptance targets (under 30 person decisions on
+    the owner's project; the T-56 kit reaching the same CPF and study roles).
+  - Decisions **D-27** (no per-item review; one review at the MAP signature, superseding §14.1 rule 2 of the start-up
+    plan step by step), **D-28** (out-of-scope products refused at Start), **D-29** (demographics entered or an
+    explicit healthy-adult default, recorded as a limitation) and **D-30** (SME thresholds advisory until signed),
+    recorded in `2026-09-25-project-startup-pipeline.md` §21.
+  - Wireframes for the owner's approval: a private page with Approve / Change per screen.
+- **Why:** the owner found P0–P5 "near to impossible" to get through on real data (2026-10-15) and asked for the flow
+  to be redesigned on paper before anything is rebuilt.
+- **Impact:** documentation only. The rebuild (R2–R5) starts once the owner approves the screens.
+
 ### Changed (science) — a campaign runs within its signed MAP, starts only when it is signed, and never assumes the model risk (R0)
 - **What** (plan `docs/plans/2026-10-18-run-integrity.md`; the owner's order of 2026-10-18: "fix them first", with the
   time budget "set at signing"):
