@@ -18,7 +18,7 @@ from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
 from modeler_api.execution import RunnerDep
 from modeler_api.responses import answers_without_envelope
-from modeler_api.run_guard import require_signed_map
+from modeler_api.run_guard import require_signed_limits, require_signed_map
 from modeler_api.views.campaigns import CampaignStarted, MapGenerated
 from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
@@ -69,7 +69,7 @@ class CampaignStartRequest(BaseModel):
     question: str = ""
     model_risk: Literal["low", "medium", "high"]  # the signed MAP's ICH M15 tier: required, never assumed
     stages: list[str] | None = None
-    stage_budgets_seconds: dict[str, int] = Field(default_factory=dict)
+    stage_budgets_seconds: dict[str, int] = Field(default_factory=dict)  # development only: the signed MAP decides
 
 
 @router.post("/projects/{project_id}/campaigns", status_code=202, **answers_without_envelope(CampaignStarted))
@@ -79,6 +79,7 @@ async def start_campaign(project_id: str, request: CampaignStartRequest, princip
     development, only on a MAP a person signed (`modeler_api.run_guard`)."""
     require_project(project_id, principal)
     require_signed_map(settings, principal.tenant_id, request.map_uri)
+    require_signed_limits(request.stage_budgets_seconds)
 
     from modeler_contracts.runs import CAMPAIGN_STAGES, CampaignRequest
 
