@@ -55,7 +55,7 @@ def test_every_template_runs_through_the_wizards_write_path(client, template_id)
     """What the wizard does with a template: create → CPF → studies → MAP. Each must reach a ready MAP."""
     t = client.get(f"/api/v1/templates/{template_id}", headers=AUTH).json()["data"]
     r = client.post("/api/v1/projects", json={"name": f"T {template_id}", "compound": t["compound"],
-                                              "question": t["question"]}, headers=AUTH)
+                                              "question": t["question"], "model_risk": t["model_risk"]}, headers=AUTH)
     project = r.json()["data"]
     pid, qid = project["id"], project["questions"][0]["id"]
     r = client.put(f"/api/v1/projects/{pid}/compounds/{t['compound']}/cpf", json=t["cpf"], headers=AUTH)

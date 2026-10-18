@@ -47,6 +47,15 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await page.getByRole("button", { name: "D3 · development and validation" }).click();
   await expect(page.getByTestId("node-S1")).toContainText("elim.renal.gfr_fraction");
 
+  // the ICH M15 model risk is the person's, never assumed: until it is set the plan cannot be signed
+  await expect(page.getByTestId("violation-risk:model_risk")).toContainText("never assumed");
+  const settings = page.getByTestId("risk-and-budget");
+  await settings.getByLabel("Model risk (ICH M15)").selectOption("medium");
+  await settings.getByLabel("Why this risk").fill("medium model influence, medium decision consequence");
+  await settings.getByRole("button", { name: "Set risk" }).click();
+  await expect(page.getByTestId("violation-risk:model_risk")).toHaveCount(0);
+  await expect(settings.getByLabel("Time budget (hours)")).toHaveValue("8");    // the platform default, split by MS-01
+
   // warnings are acknowledged with a reason; then the validator is green and Approve and Sign is enabled
   const sign = page.getByTestId("approve-and-sign");
   for (let i = 0; i < 6 && !(await page.getByTestId("validator-green").isVisible()); i++) {

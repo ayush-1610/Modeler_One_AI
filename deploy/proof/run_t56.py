@@ -68,6 +68,9 @@ BRIEF = (
     ("qoi.context_of_use", ("Predict fed versus fasted exposure of the 10 mg IR tablet in healthy adults to support the "
                             "food-effect discussion; it does not replace a clinical food-effect study"), "§2"),
     ("qoi.applications", ["APP-01 model build and verification", "APP-12 food effect"], "§1–2"),
+    # the ICH M15 model risk is the person's rating, never assumed (a plan without one cannot be signed): a food-effect
+    # discussion that does not replace the clinical study is medium influence, medium consequence
+    ("acceptance.tier", "medium", "the person's ICH M15 rating (§2: supports, does not replace, the clinical study)"),
     ("scope.platform", "PK-Sim (Open Systems Pharmacology Suite)", "§1"),
     ("scope.pathways_stated", ["UGT1A9 glucuronidation", "renal (glomerular filtration)"], "§6"),
     ("products[0].name", "Dapagliflozin 10 mg IR tablet", "§3"),

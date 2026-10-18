@@ -26,6 +26,7 @@ from modeler_project.artifacts import ArtifactKind, ArtifactVersion
 from modeler_project.brief import ProjectBrief
 from modeler_project.workspace import Workspace
 from pbpk_domain.campaign.map import (
+    BUDGET_FRACTION,
     FIT_STAGES,
     S5_CLASSES,
     STAGE_PLAN,
@@ -57,6 +58,13 @@ TRAINING = ("S1", "S2", "S3")
 _ASSIGNMENT = {"S1": Assignment.INTERNAL, "S2": Assignment.INTERNAL, "S3": Assignment.INTERNAL,
                "S5": Assignment.EXTERNAL, "S6": Assignment.EXTERNAL, "SUPPORTIVE": Assignment.SUPPORTIVE}
 ENGINE_DIGEST = "sha256:" + "0" * 64
+# The campaign's time budget when the person sets none. MS-01's fractions split it across the stages (`generate_map`);
+# 8 h gives every fit stage at least the 30 min a stage had before the MAP's budgets were honoured (S3, the smallest
+# share at 7 %, gets 34 min; a fit keeps 15 min of that in reserve). A maximum: a stage ends when it passes.
+DEFAULT_CAMPAIGN_BUDGET_S = 8 * 3600
+# What a fit keeps of its stage's time for the validation runs, the report and a margin
+# (`modeler_contracts.runs.FitRoundRequest.reserved_seconds`; equal by test_run_integrity.py).
+FIT_RESERVE_S = 900
 
 
 class PlanError(ValueError):
@@ -115,7 +123,9 @@ class Structure(BaseModel):
 
     objective: str = "Predict exposure for the question of interest"
     context_of_use: str = "Model-informed decision"
-    model_risk: Literal["low", "medium", "high"] = "medium"
+    # ICH M15 model risk: set from the brief or by a person, never assumed (an unset tier blocks the signature)
+    model_risk: Literal["low", "medium", "high"] | None = None
+    campaign_budget_seconds: int = Field(DEFAULT_CAMPAIGN_BUDGET_S, ge=600, le=48 * 3600)
     food_effect_in_question: bool = False
     measured_fed_solubility: bool = False
     planned_applications: tuple[str, ...] = ()   # flagged classes with a planned S6 application (MS-01 rule 4)
@@ -219,7 +229,7 @@ def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility:
     tier = brief.value("acceptance.tier") if brief else None
     return Structure(objective=str((brief.value("qoi.text") if brief else None) or Structure().objective),
                      context_of_use=str((brief.value("qoi.context_of_use") if brief else None) or Structure().context_of_use),
-                     model_risk=tier if tier in ("low", "medium", "high") else "medium",
+                     model_risk=tier if tier in ("low", "medium", "high") else None,
                      food_effect_in_question="APP-12" in apps, measured_fed_solubility=measured_fed_solubility,
                      planned_applications=tuple(sorted({_APPLICATION_CLASSES[a] for a in apps if a in _APPLICATION_CLASSES})),
                      applications=tuple(MapApplication.pinned(_RUNNABLE_TEMPLATES[a]) for a in sorted(apps)
@@ -254,16 +264,18 @@ def _sampling_end_h(rows: list[dict[str, Any]]) -> dict[str, float]:
             for r in rows if r.get("profile") and r["profile"]["time_unit"] in hours}
 
 
-def default_map(cpf: CPF, rows: list[dict[str, Any]], structure: Structure, *, split: SplitResult | None = None,
-                campaign_budget_seconds: int = 3600) -> tuple[MapDocument, SplitResult]:
-    """The MAP exactly as `generate_map` makes it today (the split computed by MS-01 unless one is given)."""
+def default_map(cpf: CPF, rows: list[dict[str, Any]], structure: Structure, *,
+                split: SplitResult | None = None) -> tuple[MapDocument, SplitResult]:
+    """The MAP exactly as `generate_map` makes it (the split computed by MS-01 unless one is given), with the
+    structure's campaign budget split across the stages. An unset model risk drafts at medium only to compute the
+    default split, which the tier does not change; `map_from_plan` refuses to sign without one."""
     records = _records(rows)
     split = split or split_studies(records, _question(structure))
     doc = generate_map(compound=cpf.compound, cpf=cpf, studies=records, split=split, objective=structure.objective,
                        context_of_use=structure.context_of_use, food_effect_in_question=structure.food_effect_in_question,
-                       model_risk=Rating(structure.model_risk), engine_image_digest=ENGINE_DIGEST,
+                       model_risk=Rating(structure.model_risk or "medium"), engine_image_digest=ENGINE_DIGEST,
                        software_versions={"ospsuite": "12.4.4"}, sampling_end_h=_sampling_end_h(rows),
-                       campaign_budget_seconds=campaign_budget_seconds, applications=structure.applications)
+                       campaign_budget_seconds=structure.campaign_budget_seconds, applications=structure.applications)
     return doc, split
 
 
@@ -415,9 +427,21 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
         trained = [st for st in fit.stages if any(r == st for r in roles.values())]
         if not trained:
             add("warning", "fit-data", pid, f"{pid}: no study trains {', '.join(fit.stages)}, so nothing will fit it")
+    budget = plan.structure.campaign_budget_seconds
+    for stage in FIT_STAGES:  # each stage's share of the budget (MS-01), and what a fit at that stage keeps in reserve
+        share = budget * BUDGET_FRACTION[stage]
+        fitted = any(stage in fit.stages for fit in plan.fits.values()) and stage in roles.values()
+        if fitted and share <= FIT_RESERVE_S:
+            add("warning", "budget", stage, f"{stage} gets {share / 60:.0f} min of the {budget / 3600:g} h budget (MS-01: "
+                                            f"{BUDGET_FRACTION[stage]:.0%}), and a fit keeps {FIT_RESERVE_S // 60} min of it in "
+                                            f"reserve: its fit cannot run, so the stage escalates. More than "
+                                            f"{FIT_RESERVE_S / BUDGET_FRACTION[stage] / 3600:.1f} h leaves it time")
     for application in plan.structure.applications:
         for line in application.problems(cpf):
             add("error", "application", application.template, line)
+    if plan.structure.model_risk is None:
+        add("error", "risk", "model_risk", "Set the model risk (low, medium or high): it decides the acceptance criteria "
+                                           "every round is judged by (ICH M15), and it is never assumed")
     return out
 
 

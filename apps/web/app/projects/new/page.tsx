@@ -32,7 +32,7 @@ export default function NewProjectWizard() {
   const [name, setName] = useState("");
   const [compound, setCompound] = useState("");
   const [question, setQuestion] = useState("");
-  const [modelRisk, setModelRisk] = useState("medium");
+  const [modelRisk, setModelRisk] = useState<"low" | "medium" | "high">("medium");
   const [projectId, setProjectId] = useState("");
   const [questionId, setQuestionId] = useState("");
   const [cpfText, setCpfText] = useState("");
@@ -61,7 +61,7 @@ export default function NewProjectWizard() {
     setName(`${data.compound} ${new Date().toISOString().slice(0, 16).replace("T", " ")}`);
     setCompound(data.compound);
     setQuestion(data.question);
-    setModelRisk(data.model_risk);
+    setModelRisk(data.model_risk as typeof modelRisk);
     setCpfText(JSON.stringify(data.cpf, null, 2));
     setStudiesText(JSON.stringify(data.studies, null, 2));
     setStep(1);
@@ -197,7 +197,7 @@ export default function NewProjectWizard() {
           <div className="field"><label>Question of interest</label>
             <textarea rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} /></div>
           <div className="field"><label>Model risk (ICH M15: sets the acceptance tier)</label>
-            <select value={modelRisk} onChange={(e) => setModelRisk(e.target.value)}>
+            <select value={modelRisk} onChange={(e) => setModelRisk(e.target.value as typeof modelRisk)}>
               <option value="low">low: 2-fold, ≥ 80 % of studies</option>
               <option value="medium">medium: 1.5-fold, ≥ 80 % of studies</option>
               <option value="high">high: 1.25-fold, every study</option>

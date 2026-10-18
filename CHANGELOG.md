@@ -15,6 +15,71 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed (science) — a campaign runs within its signed MAP, starts only when it is signed, and never assumes the model risk (R0)
+- **What** (plan `docs/plans/2026-10-18-run-integrity.md`; the owner's order of 2026-10-18: "fix them first", with the
+  time budget "set at signing"):
+  - **Each stage runs within the signed MAP's limits** (`local_runner.LocalExecutor._limits`). The stage's time is the
+    budget set at the start (`stage_budgets_seconds`, as the reference runs do), else the MAP's `stage_plan` budget,
+    else 30 min as before. Its rounds are the MAP's `max_rounds` (MS-01), else the request's. Every stage's notes
+    say which limits it ran with and where they came from ("Limits: 34 min (the signed MAP), at most 2 round(s) (the
+    signed MAP)"). Before this the runner ignored the MAP: 30 min and 4 rounds for every stage.
+    - **Science impact:** **S3 now runs at most 2 rounds** (MS-01's stage plan; it ran 4). S1, S2 and SM keep 4. Stage
+      times are MS-01's fractions of the campaign budget: S1 and S2 20 %, SJ 15 %, S3 7 %, S4 and S5 5 %, S6 20 %.
+  - **The campaign's time budget is the person's, set in the plan** (P5 "Time budget (hours)", structure key
+    `campaign_budget_seconds`, 10 min to 48 h). **Default 8 h**, so that the smallest fit stage (S3, 7 %) gets 34 min,
+    more than the 30 min every stage had before. `campaign:prepare` takes it too. It is a maximum: a stage ends when it
+    passes. The plan warns at signing when a stage with a fit gets no more than a fit's 15-min reserve
+    (`plan.FIT_RESERVE_S`, equal to the runner's by test), instead of the stage escalating at run time.
+  - **No campaign starts on an unsigned MAP outside development** (`modeler_api.run_guard`): in pilot and production
+    `POST /campaigns` answers 409 unless the MAP is SIGNED, or a `map_approval` signature is recorded on its exact
+    bytes. Development (tests, the reference runs) still starts unsigned MAPs.
+  - **No per-stage budget overrides outside development** (the owner's decision on the screens, 2026-10-18: "keep the
+    guardrails strict"). In pilot and production, a `POST /campaigns` that sets `stage_budgets_seconds` answers 422.
+    Each stage gets its MS-01 share of the signed budget; a campaign that needs more time gets a larger budget in the
+    plan, signed again. The reference runs, which are development, still set their own.
+  - **The model risk is never assumed** (ICH M15: it decides the acceptance criteria):
+    - the plan takes it only from the brief's `acceptance.tier`. Unset, the validator blocks the signature ("Set the
+      model risk…"), and it is set in the plan with a reason (new `RiskAndBudget` control);
+    - `POST /campaigns` requires `model_risk`; `campaign:prepare` takes it from the body or the question, else 422;
+    - `POST /projects` with a question requires the question's `model_risk` (422 otherwise); a project without a
+      question needs none;
+    - the web's run button passes the prepared tier, not a fixed "medium".
+  - **Every e-signature is an audit event** (`part11.record_signature`: `signature.create` with the record's sha256,
+    meaning and method), so a `map_approval` signature is found in pilot's file mode too, not only in PostgreSQL.
+  - **The P6 rail shows the run:** "running" while a campaign of the project exists, "completed" once one completes,
+    read from the runner's campaign store (no artifact is written; the CAMPAIGN kind has no owner in the locked
+    `boundaries.toml`).
+  - **A waiting decision opens on the project and campaign pages** (`EscalationPopup`, the owner's map note on
+    2026-10-17): the same signed decision as in the review inbox, with "Decide later". The inbox still lists them all.
+- **Why:** the owner's map review (2026-10-17) and guide (4A.1–4A.3, 1.4, 3.7, 3.8) found that the runner ignored the
+  signed MAP, a campaign could start unsigned, the model risk silently defaulted to medium in four places, and the P6
+  rail never moved.
+- **Impact:**
+  - S3 fits stop after 2 rounds instead of 4 and escalate sooner.
+  - **Verified on PK-Sim (2026-10-18, engine 12.4.4, Actions runs 39131983498 and 39132704379 on 2ab39c9): nothing
+    else moved.** Each Dapagliflozin reference task gives the same result as run 37922984864 before R0:
+    - round trip: 25 of 34 identical within 1e-6 of the peak, 3 within 1e-3, 6 labelled by design;
+    - as-is: S1 escalates on the Boulton 2013 IV microdose Cmax, 0.52× (AUC / Cmax GMFE 1.391 / 1.92). The stage
+      now notes "Limits: 90 min (set at the start), at most 4 round(s) (the signed MAP)";
+    - refit: S1 escalates after the clearance fit, with UGT1A9 clspec at its lower bound (GMFE 2.478 / 2.516 at
+      baseline, 1.412 / 2.291 after the fit).
+  - **S3's 2-round limit is not yet exercised on PK-Sim:** none of these campaigns reaches S3. It is covered by
+    `test_each_stage_runs_within_the_signed_maps_limits_and_says_where_they_came_from`. Reaching S3 on the published
+    models waits on the S1 IV Cmax question (`docs/SME_SIGNOFF.md` §1).
+  - Callers must state the model risk: `deploy/proof/run_t56.py` now puts `acceptance.tier` "medium" in its brief
+    (the person's rating for T-56); the reference runs, case studies and showcase seeders already passed one.
+  - API contract: `CampaignStartRequest.model_risk` required; `PrepareRequest` gains `model_risk` (optional) and
+    `campaign_budget_seconds`; `ProjectCreate.model_risk` has no default. `docs/api/openapi.json` and the web types
+    are regenerated.
+  - Tests: `services/api/tests/test_run_integrity.py` (6), plan and runner tests, and two browser flows
+    (`escalation-popup.spec.ts`, the model plan setting the risk). Dev e2e 18/18.
+- **Known gap:**
+  - **The 1-hour goal does not fit MS-01's fractions.** S3's 7 % of 1 h is 4 min, under a fit's 15-min reserve, so
+    S3 cannot fit within an hour. A fitting S3 needs a budget of more than 3.6 h (4 h with a metabolite stage). Either
+    the SME changes the fractions or the reserve, or the goal is restated. Listed for the SME and the owner.
+  - **The Temporal path** (`modeler_orchestrator.campaign`, built, not deployed) still uses 30 min and the request's
+    rounds per stage. It is brought in line when Temporal is deployed.
+
 ### Docs — production readiness recorded: the two new seams and the go-live order (P4)
 - **What:**
   - `docs/ARCHITECTURE_BOUNDARIES.md` §7 records the audit mirror (P2) and project memberships (P3): who owns each,

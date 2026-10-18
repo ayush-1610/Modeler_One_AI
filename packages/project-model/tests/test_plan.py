@@ -52,11 +52,11 @@ ROWS = [_row("iv-1", "iv_infusion", 250), _row("iv-2", "iv_infusion", 500), _row
 
 
 def test_the_default_plan_is_ms01_and_its_map_equals_generate_map():
-    cpf, structure = _cpf(), Structure()
+    cpf, structure = _cpf(), Structure(model_risk="medium")
     plan = build_default(cpf, ROWS, structure)
     roles = {s: p.role for s, p in plan.placements.items()}
     assert roles["iv-1"] == "S1" and roles["iv-2"] == "S5" and roles["po-10"] == "S2" and roles["po-100"] in ("S2", "S5")
-    assert sum(r == "S3" for r in roles.values()) == 1 and plan.fit_candidates["S1"] and plan.budgets["S1"] == 720 and plan.budgets["SJ"] == 540
+    assert sum(r == "S3" for r in roles.values()) == 1 and plan.fit_candidates["S1"] and plan.budgets["S1"] == 5760 and plan.budgets["SJ"] == 4320  # 20 % and 15 % of 8 h
     assert not blocking(validate(plan, cpf, ROWS))
     expected, _ = default_map(cpf, ROWS, structure)
     assert map_from_plan(plan, cpf, ROWS).content_sha256() == expected.content_sha256()
@@ -65,7 +65,7 @@ def test_the_default_plan_is_ms01_and_its_map_equals_generate_map():
 def test_every_ms01_rule_is_enforced_on_the_canvas():
     cpf = _cpf()
     rows = [*ROWS, _row("ddi-itra", dose=50, co_medication="itraconazole"), _row("nca-only", dose=50, profile=False)]
-    plan = build_default(cpf, rows, Structure())
+    plan = build_default(cpf, rows, Structure(model_risk="medium"))
 
     def errors(p):
         return {(v.rule, v.target) for v in validate(p, cpf, rows) if v.severity == "error"}
@@ -76,7 +76,7 @@ def test_every_ms01_rule_is_enforced_on_the_canvas():
     assert ("stage", "iv-2") in errors(place(plan, "iv-2", "S2", by="u", reason="try"))               # IV trains S1
     assert ("profile", "nca-only") in errors(place(plan, "nca-only", "S2", by="u", reason="try"))     # NCA only
     assert ("rule-4", "po-50") in errors(place(plan, "po-50", "S6", by="u", reason="try"))            # core study in S6
-    food = build_default(cpf, rows, Structure(food_effect_in_question=True))
+    food = build_default(cpf, rows, Structure(model_risk="medium", food_effect_in_question=True))
     assert ("rule-5", "fed-50") in errors(place(food, "fed-50", "S3", by="u", reason="try"))           # rule 5
     # removing the only trained IV study asks for an acknowledged consequence (rule 1, decision tree §6.1)
     no_iv = place(place(plan, "iv-1", "S5", by="u", reason="keep both IV external"), "iv-2", "S5", by="u", reason="same")
@@ -102,7 +102,7 @@ def test_every_ms01_rule_is_enforced_on_the_canvas():
 
 def test_a_persons_choices_are_locked_against_agent_passes_and_rebases():
     cpf = _cpf()
-    plan = place(build_default(cpf, ROWS, Structure()), "po-10", "S5", by="u", reason="keep the low dose external")
+    plan = place(build_default(cpf, ROWS, Structure(model_risk="medium")), "po-10", "S5", by="u", reason="keep the low dose external")
     assert plan.placements["po-10"].userLocked and plan.study("po-10").default_role == "S2"
     plan, answer = add_proposal(plan, "role", "po-10", {"role": "S2"}, reason="more training data", by="agent:a5")
     assert answer.startswith("REFUSED") and "placed by a person" in answer
@@ -115,7 +115,7 @@ def test_a_persons_choices_are_locked_against_agent_passes_and_rebases():
     assert applied == [{"kind": "role", "target": "po-10", "from": "S2", "to": "S5", "by": "u",
                         "reason": "keep the low dose external", "status": "APPLIED"}]
     # new data: the default is recomputed, the locked choice kept, the new study marked
-    fresh = build_default(cpf, [*ROWS, _row("po-25", dose=25)], Structure())
+    fresh = build_default(cpf, [*ROWS, _row("po-25", dose=25)], Structure(model_risk="medium"))
     rebased = rebase(plan, fresh)
     assert rebased.placements["po-10"].role == "S5" and rebased.study("po-25").new
     assert unlock(rebased, "po-10").placements["po-10"].role == rebased.study("po-10").default_role
@@ -123,7 +123,7 @@ def test_a_persons_choices_are_locked_against_agent_passes_and_rebases():
 
 def test_fit_choices_become_fit_policies_of_the_campaign_cpf():
     cpf = _cpf()
-    plan = set_fit(build_default(cpf, ROWS, Structure()), "elim.renal.gfr_fraction",
+    plan = set_fit(build_default(cpf, ROWS, Structure(model_risk="medium")), "elim.renal.gfr_fraction",
                    {"stages": ("S1",), "lower": 0.1, "upper": 10.0, "scale": "log"}, by="u", reason="renal clearance uncertain")
     assert not blocking(validate(plan, cpf, ROWS))
     doc = map_from_plan(plan, cpf, ROWS)
@@ -138,9 +138,9 @@ def test_the_briefs_vbe_application_waits_for_the_persons_inputs_before_the_map(
     from modeler_project.plan import set_structure, structure_from_brief
     from pbpk_domain.campaign.map import MapApplication
 
-    class Brief:  # the one brief field the structure reads here
+    class Brief:  # the brief fields the structure reads here
         def value(self, key):
-            return ["APP-14 virtual bioequivalence"] if key == "qoi.applications" else None
+            return {"qoi.applications": ["APP-14 virtual bioequivalence"], "acceptance.tier": "medium"}.get(key)
 
     structure = structure_from_brief(Brief())  # type: ignore[arg-type]
     assert structure.applications == (MapApplication.pinned("vbe-crossover"),)  # started with no inputs, none invented
@@ -168,3 +168,25 @@ def test_the_briefs_vbe_application_waits_for_the_persons_inputs_before_the_map(
     assert row["to"] == [f"vbe-crossover {structure.applications[0].template_version}"]
     with pytest.raises(PlanError, match="known analysis template"):
         set_structure(plan, "applications", [{"template": "no-such"}], by="u1", reason="x")
+
+
+def test_the_model_risk_is_never_assumed_and_the_budget_is_the_persons():
+    # ICH M15: the tier decides the acceptance criteria, so an unset one blocks the signature instead of defaulting to
+    # medium. The campaign's time budget is a structure choice; MS-01's fractions split it across the stages.
+    cpf = _cpf()
+    unrated = build_default(cpf, ROWS, Structure())
+    assert [v.rule for v in blocking(validate(unrated, cpf, ROWS))] == ["risk"]
+    with pytest.raises(PlanError, match="model risk"):
+        map_from_plan(unrated, cpf, ROWS)
+    two_hours = build_default(cpf, ROWS, Structure(model_risk="high", campaign_budget_seconds=2 * 3600))
+    doc = map_from_plan(two_hours, cpf, ROWS)
+    assert doc.model_risk.value == "high"
+    assert {p.stage: p.budget_seconds for p in doc.stage_plan}["S1"] == 1440  # 20 % of 2 h
+    # a fit keeps 15 min of its stage's share in reserve: a budget that leaves S3 less is said at signing, not at run time
+    fit = {"stages": ("S3",), "lower": 0.1, "upper": 10.0, "scale": "log"}
+    short = set_fit(two_hours, "elim.renal.gfr_fraction", fit, by="u", reason="the tablet's exposure is uncertain")
+    (warning,) = [v for v in validate(short, cpf, ROWS) if v.rule == "budget"]
+    assert warning.target == "S3" and warning.severity == "warning" and "8 min of the 2 h budget" in warning.message
+    assert "More than 3.6 h" in warning.message
+    roomy = set_fit(build_default(cpf, ROWS, Structure(model_risk="high")), "elim.renal.gfr_fraction", fit, by="u", reason="x")
+    assert not [v for v in validate(roomy, cpf, ROWS) if v.rule == "budget"]  # 8 h: S3 has 34 min

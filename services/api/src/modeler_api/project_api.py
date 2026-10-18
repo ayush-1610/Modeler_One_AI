@@ -27,6 +27,7 @@ from modeler_api.deps import (  # noqa: F401 - re-exported: tests override proje
     impact_view,
     model_risk,
     parse_kind,
+    project_campaigns,
     project_record,
     redact,
     version_view,
@@ -38,7 +39,7 @@ from modeler_api.views.project import Artifacts, AuditTrail, BlindingView, Histo
 from modeler_project import ArtifactKind, ArtifactRef
 from modeler_project import blinding as blind
 from modeler_project.datasets import ObservedDataset
-from modeler_project.workspace import PHASE_LABELS
+from modeler_project.workspace import PHASE_LABELS, PhaseStatus
 from modeler_storage.records import BlindingChoice, ProjectRecord
 
 router = APIRouter(prefix="/api/v1", tags=["project-pipeline"])
@@ -49,6 +50,11 @@ router = APIRouter(prefix="/api/v1", tags=["project-pipeline"])
 def get_phases(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     phases = ws.phases()
+    # P6 from the project's campaigns: started (running, waiting for a decision or a signature) or completed
+    campaigns = project_campaigns(ws)
+    if campaigns and phases.get("P6") is PhaseStatus.NOT_STARTED:
+        done = any(c.get("status") == "COMPLETED" for c in campaigns)
+        phases["P6"] = PhaseStatus.APPROVED if done else PhaseStatus.IN_REVIEW
     return envelope({
         "phases": [{"phase": p, "label": PHASE_LABELS[p], "status": s.value} for p, s in phases.items()],
         "stale": [{"ref": item.ref.model_dump(mode="json"), "reasons": list(item.reasons)} for item in ws.stale()],

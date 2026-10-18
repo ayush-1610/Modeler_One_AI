@@ -1395,7 +1395,11 @@
             "type": "string"
           },
           "model_risk": {
-            "default": "medium",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
             "title": "Model Risk",
             "type": "string"
           },
@@ -1445,7 +1449,8 @@
           "compound",
           "map_id",
           "cpf_uri",
-          "cpf_sha256"
+          "cpf_sha256",
+          "model_risk"
         ],
         "title": "CampaignStartRequest",
         "type": "object"
@@ -10230,6 +10235,13 @@
             "title": "Applications",
             "type": "array"
           },
+          "campaign_budget_seconds": {
+            "default": 28800,
+            "maximum": 172800.0,
+            "minimum": 600.0,
+            "title": "Campaign Budget Seconds",
+            "type": "integer"
+          },
           "compound": {
             "minLength": 1,
             "title": "Compound",
@@ -10246,9 +10258,20 @@
             "type": "boolean"
           },
           "model_risk": {
-            "default": "medium",
-            "title": "Model Risk",
-            "type": "string"
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Risk"
           },
           "objective": {
             "default": "Predict exposure for the question of interest",
@@ -10313,9 +10336,20 @@
             "type": "boolean"
           },
           "model_risk": {
-            "default": "medium",
-            "title": "Model Risk",
-            "type": "string"
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Risk"
           },
           "name": {
             "minLength": 1,
@@ -12946,6 +12980,13 @@
             "title": "Applications",
             "type": "array"
           },
+          "campaign_budget_seconds": {
+            "default": 28800,
+            "maximum": 172800.0,
+            "minimum": 600.0,
+            "title": "Campaign Budget Seconds",
+            "type": "integer"
+          },
           "context_of_use": {
             "default": "Model-informed decision",
             "title": "Context Of Use",
@@ -12970,14 +13011,20 @@
             "type": "boolean"
           },
           "model_risk": {
-            "default": "medium",
-            "enum": [
-              "low",
-              "medium",
-              "high"
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Model Risk",
-            "type": "string"
+            "title": "Model Risk"
           },
           "objective": {
             "default": "Predict exposure for the question of interest",
@@ -13004,6 +13051,7 @@
           "objective",
           "context_of_use",
           "model_risk",
+          "campaign_budget_seconds",
           "food_effect_in_question",
           "measured_fed_solubility",
           "planned_applications",
@@ -13021,6 +13069,7 @@
               "objective",
               "context_of_use",
               "model_risk",
+              "campaign_budget_seconds",
               "food_effect_in_question",
               "measured_fed_solubility",
               "planned_applications",
@@ -16833,7 +16882,7 @@
     },
     "/api/v1/projects/{project_id}/campaigns": {
       "post": {
-        "description": "Start a modeling campaign through the configured execution backend (local single-node, or Temporal).",
+        "description": "Start a modeling campaign through the configured execution backend (local single-node, or Temporal). Outside\ndevelopment, only on a MAP a person signed (`modeler_api.run_guard`).",
         "operationId": "start_campaign_api_v1_projects__project_id__campaigns_post",
         "parameters": [
           {

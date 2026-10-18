@@ -14,7 +14,8 @@ from modeler_api import project_api
 from modeler_api.auth import get_verifier
 from modeler_api.main import app
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
-from modeler_project.brief import empty_brief
+from modeler_project.brief import FieldStatus, empty_brief
+from modeler_project.brief_ops import edit_field
 from modeler_project.dataset_register import decide_dataset, propose_dataset
 from modeler_project.datasets import ObservedDataset, Origin, Series, new_dataset_id
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceRef, SourceType, new_id
@@ -62,7 +63,9 @@ def setup(tmp_path, monkeypatch, api_settings):
     FileWriteStore(str(read_root)).put_project("t1", {"id": "p1", "name": "P1", "compounds": ["Renaldrug"], "openQuestions": 0,
                                                        "risk": "medium", "questions": [], "pipeline": True})
     ws = Workspace(store, "t1", "p1")
-    brief = empty_brief("Renaldrug", by="u1")
+    # the person's ICH M15 tier (never assumed: a plan without one cannot be signed)
+    brief = edit_field(empty_brief("Renaldrug", by="u1"), "acceptance.tier", value="medium", status=FieldStatus.EDITED,
+                       note="influence medium, consequence medium", by="u1")
     b = ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), actor="u1", reason="start")
     ws.commit(ArtifactKind.REQUIREMENTS, "main", derive(brief).to_content(), derived_from=[b.ref], actor="u1", reason="derived")
     for target, value, conditions in (("phys.mw", 225.2, {}), ("phys.logp", -1.56, {}), ("bind.fu", 0.85, {}),

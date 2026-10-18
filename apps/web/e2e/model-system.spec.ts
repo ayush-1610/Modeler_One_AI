@@ -8,7 +8,7 @@ const AUTH = { Authorization: "Bearer dev" };
 test("a model system is shown, its dose fractions are edited, and a study names its analyte", async ({ page, request }) => {
   const name = `Systemamide ${Date.now()}`;
   const created = await request.post("/api/v1/projects", {
-    headers: AUTH, data: { name, compound: "Parentamide", question: "Exposure of the parent and its metabolite" },
+    headers: AUTH, data: { name, compound: "Parentamide", question: "Exposure of the parent and its metabolite", model_risk: "medium" },
   });
   expect(created.ok()).toBeTruthy();
   const projectId = (await created.json()).data.id as string;

@@ -49,7 +49,8 @@ export function RunCampaignButton({
         cpf_sha256: prep.data.cpf_sha256,
         map_uri: prep.data.map_uri,
         observed_uri: prep.data.observed_uri,
-        model_risk: "medium",
+        // the tier prepare resolved: the one the question was asked with, never an assumed medium
+        model_risk: prep.data.tier as "low" | "medium" | "high",
         stages: prep.data.stages,
       });
       if (started.campaign_id) window.location.assign(`/campaigns/${started.campaign_id}`);

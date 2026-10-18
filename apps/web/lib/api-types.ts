@@ -529,7 +529,8 @@ export interface paths {
         put?: never;
         /**
          * Start Campaign
-         * @description Start a modeling campaign through the configured execution backend (local single-node, or Temporal).
+         * @description Start a modeling campaign through the configured execution backend (local single-node, or Temporal). Outside
+         *     development, only on a MAP a person signed (`modeler_api.run_guard`).
          */
         post: operations["start_campaign_api_v1_projects__project_id__campaigns_post"];
         delete?: never;
@@ -2250,9 +2251,9 @@ export interface components {
             map_uri?: string;
             /**
              * Model Risk
-             * @default medium
+             * @enum {string}
              */
-            model_risk?: string;
+            model_risk: "low" | "medium" | "high";
             /**
              * Observed Uri
              * @default
@@ -5435,6 +5436,11 @@ export interface components {
         PrepareRequest: {
             /** Applications */
             applications?: components["schemas"]["ApplicationRequest"][];
+            /**
+             * Campaign Budget Seconds
+             * @default 28800
+             */
+            campaign_budget_seconds?: number;
             /** Compound */
             compound: string;
             /**
@@ -5447,11 +5453,8 @@ export interface components {
              * @default false
              */
             food_effect_in_question?: boolean;
-            /**
-             * Model Risk
-             * @default medium
-             */
-            model_risk?: string;
+            /** Model Risk */
+            model_risk?: ("low" | "medium" | "high") | null;
             /**
              * Objective
              * @default Predict exposure for the question of interest
@@ -5481,11 +5484,8 @@ export interface components {
              * @default false
              */
             exploratory?: boolean;
-            /**
-             * Model Risk
-             * @default medium
-             */
-            model_risk?: string;
+            /** Model Risk */
+            model_risk?: ("low" | "medium" | "high") | null;
             /** Name */
             name: string;
             /**
@@ -6527,6 +6527,11 @@ export interface components {
              */
             applications: components["schemas"]["MapApplication"][];
             /**
+             * Campaign Budget Seconds
+             * @default 28800
+             */
+            campaign_budget_seconds: number;
+            /**
              * Context Of Use
              * @default Model-informed decision
              */
@@ -6546,12 +6551,8 @@ export interface components {
              * @default false
              */
             measured_fed_solubility: boolean;
-            /**
-             * Model Risk
-             * @default medium
-             * @enum {string}
-             */
-            model_risk: "low" | "medium" | "high";
+            /** Model Risk */
+            model_risk: ("low" | "medium" | "high") | null;
             /**
              * Objective
              * @default Predict exposure for the question of interest
@@ -6573,7 +6574,7 @@ export interface components {
              * Key
              * @enum {string}
              */
-            key: "objective" | "context_of_use" | "model_risk" | "food_effect_in_question" | "measured_fed_solubility" | "planned_applications" | "applications";
+            key: "objective" | "context_of_use" | "model_risk" | "campaign_budget_seconds" | "food_effect_in_question" | "measured_fed_solubility" | "planned_applications" | "applications";
             /** Reason */
             reason: string;
             /** Value */

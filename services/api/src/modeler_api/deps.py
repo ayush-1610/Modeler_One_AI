@@ -69,6 +69,17 @@ def impact_view(report) -> dict[str, Any]:
     }
 
 
+def project_campaigns(ws: Workspace) -> list[dict[str, Any]]:
+    """The project's campaigns from the runner's store: P6 lives there and is linked by reference, not as an
+    artifact (`[owners]` campaign in boundaries.toml)."""
+    settings = get_settings()
+    if not settings.read_root:
+        return []
+    from modeler_storage.filestore import FileReadStore
+
+    return [c for c in FileReadStore(settings.read_root).list_campaigns(ws.tenant_id) if c.get("project") == ws.project_id]
+
+
 def project_record(ws: Workspace) -> dict[str, Any] | None:
     settings = get_settings()
     if not settings.read_root:

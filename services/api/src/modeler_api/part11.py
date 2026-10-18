@@ -37,8 +37,18 @@ def audit_mirror(settings: Settings) -> AuditMirror | None:
 
 
 def record_signature(settings: Settings, tenant_id: str, signature: Signature) -> None:
-    """The signature as a Part 11 row (no-op without the database). Called right after the signature is taken and
-    before the record it signs is applied, so a refusal here stops the action."""
+    """The signature as an audit event (the hash-chained trail, mirrored to the database in production) and, in
+    production, as a Part 11 row. Called right after the signature is taken and before the record it signs is
+    applied, so a refusal here stops the action. The audit event is also how a campaign start finds the approval of a
+    MAP signed apart from its document (`modeler_api.run_guard`)."""
+    if settings.read_root:
+        from modeler_project import FileProjectStore
+
+        FileProjectStore(settings.read_root, audit_mirror=audit_mirror(settings)).audit(tenant_id).append(
+            actor=signature.signer_id, action="signature.create", resource_type=signature.record_type,
+            resource_id=signature.record_id, reason=signature.manifestation(),
+            after={"signature_id": signature.signature_id, "record_sha256": signature.record_sha256,
+                   "meaning": str(signature.meaning), "auth_method": signature.auth_method})
     store = part11_store(settings)
     if store is None:
         return
