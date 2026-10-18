@@ -12,6 +12,7 @@ import "./styles/client-data.css";
 import "./styles/plan.css";
 import "./styles/inputs.css";
 import "./styles/kit.css";
+import "./styles/start.css";
 import { THEME_BOOT } from "@/components/kit/ThemeToggle";
 import { Nav } from "@/components/Nav";
 import { Providers } from "@/components/Providers";

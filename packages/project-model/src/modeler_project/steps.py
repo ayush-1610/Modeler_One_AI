@@ -12,7 +12,15 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from modeler_project.artifacts import ArtifactKind, ArtifactStatus
-from modeler_project.brief import ProjectBrief, definition_of
+from modeler_project.brief import (
+    SHORT_BRIEF,
+    START_REQUIRED,
+    FieldStatus,
+    ProjectBrief,
+    definition_of,
+    risk_check,
+)
+from modeler_project.feasibility import scope_gates
 from modeler_project.map_artifact import latest_map
 from modeler_project.workspace import Workspace
 
@@ -22,10 +30,6 @@ StepId = Literal["start", "inputs", "review", "run"]
 StepState = Literal["done", "needs_you", "running", "not_started"]
 
 STEP_LABELS: dict[str, str] = {"start": "Start", "inputs": "Inputs", "review": "Review & sign", "run": "Run"}
-
-# What Start needs before the inputs are worth gathering: the drug, the question, its context of use and the ICH M15
-# model risk (never assumed). The short brief and the scope gates of D-28 replace this list when Start is rebuilt.
-START_FIELDS = ("drug.name", "qoi.text", "qoi.context_of_use", "acceptance.tier")
 
 
 class Step(BaseModel):
@@ -41,15 +45,30 @@ def _step(step: StepId, state: StepState, *reasons: str) -> Step:
     return Step(step=step, label=STEP_LABELS[step], state=state, reasons=tuple(reasons))
 
 
+def start_problems(brief: ProjectBrief) -> list[str]:
+    """What Start still needs (redesign §3.1): the question and its applications, the model risk (ICH M15, never
+    assumed), the scope gates (D-28: anything the builder cannot model is refused here), and the open questions on the
+    short brief. Proposal notes never hold Start up."""
+    reasons = [f"{definition_of(path).label}: not set yet" for path in START_REQUIRED
+               if brief.value(path) in (None, "", []) and brief.get(path).status is not FieldStatus.NOT_APPLICABLE]
+    reasons += risk_check(brief).problems
+    for gate in scope_gates(brief):
+        if gate.state == "not_set":
+            reasons.append(f"{gate.label}: not set yet")
+        elif gate.state == "not_supported":
+            reasons.append(f"{gate.label}: {gate.message}")
+    short = set(SHORT_BRIEF)
+    reasons += [f"Open question on {definition_of(q.field).label}: {q.question}" for q in brief.questions
+                if q.status == "open" and q.field in short]
+    return reasons
+
+
 def start_step(ws: Workspace) -> Step:
     version = ws.latest(ArtifactKind.BRIEF, MAIN)
     if version is None:
         return _step("start", "not_started", "Start the project from its proposal")
-    brief = ProjectBrief.from_content(version.content)
-    missing = [definition_of(path).label for path in START_FIELDS if brief.value(path) in (None, "", [])]
-    if missing:
-        return _step("start", "needs_you", *(f"{label}: not set yet" for label in missing))
-    return _step("start", "done")
+    reasons = start_problems(ProjectBrief.from_content(version.content))
+    return _step("start", "needs_you", *reasons) if reasons else _step("start", "done")
 
 
 def inputs_step(ws: Workspace) -> Step:

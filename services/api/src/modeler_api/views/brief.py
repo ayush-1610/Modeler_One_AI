@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -54,6 +54,7 @@ class CatalogField(View):
     kind: str
     required: bool
     options: list[str]
+    option_labels: dict[str, str]
     unit: str | None
     help: str
 
@@ -71,8 +72,37 @@ class BriefCatalog(View):
 
     schema_: str = Field(alias="schema")
     sections: dict[str, str]
+    short_brief: list[str]                       # the Start screen's fields; the rest are proposal notes
+    short_group_fields: dict[str, list[str]]
     fields: list[CatalogField]
     groups: list[CatalogGroup]
+
+
+class ScopeGateView(View):
+    """One scope question of Start (D-28, `feasibility.ScopeGate`)."""
+
+    gate: Literal["modality", "pbpk_model", "site_of_action", "formulation_types", "routes"]
+    label: str
+    path: str
+    state: Literal["supported", "limited", "not_supported", "not_set"]
+    values: list[str]
+    message: str
+    supported: str
+
+
+class RiskView(View):
+    allowed: list[str] | None      # the tiers ICH M15 §2.1.5 admits for the two ratings; None until both are rated
+    problems: list[str]
+    admitted: dict[str, list[str]]  # "influence/consequence" -> the tiers admitted, for the picker
+
+
+class StartBlock(View):
+    """What Start still needs (`steps.start_problems`), and the parts the screen draws from."""
+
+    problems: list[str]
+    gates: list[ScopeGateView]
+    risk: RiskView
+    pathway_suggestions: list[str]
 
 
 class BriefPage(View):
@@ -85,6 +115,7 @@ class BriefPage(View):
     agents: AgentsStatus
     extraction_running: bool
     runs: list[RunSummary]
+    start: StartBlock
 
 
 class BriefImpact(View):

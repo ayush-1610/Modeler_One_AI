@@ -236,6 +236,13 @@ def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility:
                                         if a in _RUNNABLE_TEMPLATES))
 
 
+def keep_locked(previous: Structure, fresh: Structure) -> Structure:
+    """`fresh` (read again from the brief) with every key a person set in `previous` kept, with its reason. So a brief
+    edit reaches the plan and the MAP on the next rebase, and a person's choice is never overwritten."""
+    kept = {key: getattr(previous, key) for key in previous.locked}
+    return fresh.model_copy(update={**kept, "locked": previous.locked, "reasons": previous.reasons})
+
+
 # --- the default (MS-01, exactly as generate_map) --------------------------------------------------------------
 
 
@@ -319,11 +326,8 @@ def rebase(previous: ModelPlan | None, fresh: ModelPlan) -> ModelPlan:
     placements = {sid: (previous.placements[sid] if sid in previous.placements and previous.placements[sid].userLocked else p)
                   for sid, p in fresh.placements.items()}
     candidates = {i for ids_ in fresh.fit_candidates.values() for i in ids_}
-    structure = fresh.structure
-    if previous.structure.locked:
-        structure = previous.structure
     return fresh.model_copy(update={
-        "studies": studies, "placements": placements, "structure": structure,
+        "studies": studies, "placements": placements, "structure": keep_locked(previous.structure, fresh.structure),
         "fits": {k: v for k, v in previous.fits.items() if k in candidates or v.userLocked},
         "rationale": {k: v for k, v in previous.rationale.items() if k in ids or "." in k or k.startswith("structure")},
         "proposals": tuple(p for p in previous.proposals if p.target in ids or p.kind == "fit"),

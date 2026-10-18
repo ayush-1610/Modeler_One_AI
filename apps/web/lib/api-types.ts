@@ -437,7 +437,8 @@ export interface paths {
         get: operations["get_brief_api_v1_projects__project_id__brief_get"];
         /**
          * Edit Brief
-         * @description Change fields (each change says why). With ``preview`` the impact is returned and nothing is saved.
+         * @description Change fields (no reason asked, D-27). A model risk outside what its ICH M15 ratings admit is refused. With
+         *     ``preview`` the impact is returned and nothing is saved; otherwise the data plan follows the new brief.
          */
         put: operations["edit_brief_api_v1_projects__project_id__brief_put"];
         post?: never;
@@ -1331,7 +1332,8 @@ export interface paths {
         put?: never;
         /**
          * Rebase Plan
-         * @description New inputs (P4 changed): the default is recomputed, a person's choices are kept, new studies are marked.
+         * @description New inputs (P4 changed) or a brief edit: the default is recomputed and the structure read again from the brief,
+         *     a person's choices are kept, new studies are marked.
          */
         post: operations["rebase_plan_api_v1_projects__project_id__plan_rebase_post"];
         delete?: never;
@@ -2023,6 +2025,12 @@ export interface components {
             sections: {
                 [key: string]: string;
             };
+            /** Short Brief */
+            short_brief: string[];
+            /** Short Group Fields */
+            short_group_fields: {
+                [key: string]: string[];
+            };
         };
         /** BriefEdit */
         BriefEdit: {
@@ -2033,8 +2041,11 @@ export interface components {
              * @default false
              */
             preview?: boolean;
-            /** Reason */
-            reason: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason?: string;
         };
         /**
          * BriefImpact
@@ -2069,6 +2080,7 @@ export interface components {
             issues: components["schemas"]["BriefIssue"][];
             /** Runs */
             runs: components["schemas"]["RunSummary"][];
+            start: components["schemas"]["StartBlock"];
             summary: components["schemas"]["BriefSummary"];
         };
         /** BriefSummary */
@@ -2326,6 +2338,10 @@ export interface components {
             kind: string;
             /** Label */
             label: string;
+            /** Option Labels */
+            option_labels: {
+                [key: string]: string;
+            };
             /** Options */
             options: string[];
             /** Required */
@@ -5972,6 +5988,17 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** RiskView */
+        RiskView: {
+            /** Admitted */
+            admitted: {
+                [key: string]: string[];
+            };
+            /** Allowed */
+            allowed: string[] | null;
+            /** Problems */
+            problems: string[];
+        };
         /** RoundRecord */
         RoundRecord: {
             /** Action */
@@ -6125,6 +6152,32 @@ export interface components {
          * @enum {string}
          */
         Scale: "linear" | "log";
+        /**
+         * ScopeGateView
+         * @description One scope question of Start (D-28, `feasibility.ScopeGate`).
+         */
+        ScopeGateView: {
+            /**
+             * Gate
+             * @enum {string}
+             */
+            gate: "modality" | "pbpk_model" | "site_of_action" | "formulation_types" | "routes";
+            /** Label */
+            label: string;
+            /** Message */
+            message: string;
+            /** Path */
+            path: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "supported" | "limited" | "not_supported" | "not_set";
+            /** Supported */
+            supported: string;
+            /** Values */
+            values: string[];
+        };
         /** Series */
         Series: {
             /** Error */
@@ -6541,6 +6594,19 @@ export interface components {
             /** Reasons */
             reasons: string[];
             ref: components["schemas"]["Ref"];
+        };
+        /**
+         * StartBlock
+         * @description What Start still needs (`steps.start_problems`), and the parts the screen draws from.
+         */
+        StartBlock: {
+            /** Gates */
+            gates: components["schemas"]["ScopeGateView"][];
+            /** Pathway Suggestions */
+            pathway_suggestions: string[];
+            /** Problems */
+            problems: string[];
+            risk: components["schemas"]["RiskView"];
         };
         /**
          * Statistic

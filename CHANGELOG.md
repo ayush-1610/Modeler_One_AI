@@ -15,6 +15,68 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Start, the first step of the new flow: one screen, no approvals (R2b)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.1; D-27, D-28):
+  - **A new Start screen** (`/projects/{id}/start`; the create flow now lands there). Six blocks on one page, built
+    from the kit:
+    1. the drug, its PubChem identity with one molecular weight, and the files, with an upload that sends workbooks
+       to client data and the rest to the documents;
+    2. the short brief: question, context of use and applications, plus BCS class, pathways (suggested from the
+       harvested expression library), nonlinearity and recycling;
+    3. the ICH M15 model risk;
+    4. the scope gates;
+    5. the data checklist;
+    6. the proposal notes, collapsed and never required.
+
+    Every value shows the words it was read from, opened on its page beside. A side panel lists what Start still
+    waits on. There is no approve button: the one review is at the MAP signature (D-27). The old brief page and its
+    approval routes stay for the T-56 kit until R5.
+  - **No reason is asked for a brief edit** (`p1-why` dropped). `edit_field` takes an optional note; the record keeps
+    who and when, and the audit trail the value before and after. `PUT /brief` takes an optional `reason`; without
+    one, the version records the fields changed. An edit answers the open question on its field.
+  - **The model risk, from its two ratings.** New human-only fields `m15.influence_rating`, `m15.consequence_rating`
+    and `m15.risk_justification`, which the intake agent may not set.
+    - The tier must lie in the range `pbpk_domain.m15.allowed_model_risk` admits (locked module, only read): an edit
+      outside it is refused with 422.
+    - When the ratings differ, Start waits on a justification.
+    - The picker reads the admitted tiers from the API (`start.risk.admitted`), so the rule is written once.
+  - **Scope gates (D-28)**, `feasibility.scope_gates`: modality, PBPK model (new `scope.pbpk_model`: full or
+    minimal), site of action (new `scope.site_of_action`), formulation types (new `scope.formulation_types`: the MS-01
+    split's kinds, then liposome, amorphous solid dispersion, long-acting injectable, inhaled, dermal and other) and
+    the scenarios' routes.
+    - A minimal model, a local site of action, a product type outside the split's kinds, or a route the builder does
+      not make is "not supported yet" at Start.
+    - Modified release is "limited", in the words the feasibility check already used.
+    - The same lines reach the feasibility report.
+  - **Start's state** (`steps.start_problems`) reads all of it. Start is done when the question, its context of use
+    and applications are set, the risk is rated, set and justified, every gate is set and supported, and no question
+    on the short brief is open. Proposal notes never hold it up.
+  - **The data checklist follows the brief.** `data_plan.refresh_data_plan` re-derives the requirement matrix and the
+    feasibility report whenever a saved brief makes them stale: at start, after extraction and after each edit. No
+    derive button and no approval.
+  - **The plan reads the brief on every rebase.** `plan:rebase` rebuilds the structure from the latest brief
+    (`structure_from_brief`) and keeps the keys a person set on the canvas (`plan.keep_locked`). So a changed
+    question, context of use, applications or model risk now reaches the plan and the MAP, where before it was read
+    only once.
+  - **The brief answer** gains `start` (problems, gates, risk, pathway suggestions), and its catalog gains
+    `short_brief`, `short_group_fields` and `option_labels`. The OpenAPI snapshot and `api-types.ts` are regenerated.
+- **Why:** the owner found P0–P1 too slow. A field-by-field review with a reason for each edit and two approvals is
+  replaced by one screen that asks only what the model, the MAP and the scope need.
+- **Impact:**
+  - **Existing briefs keep working:** the new fields are optional. A tier set without ratings is not range-checked,
+    but Start shows "needs you" until both ratings are given.
+  - **No science module changed:** the M15 rule and the split's formulation kinds are read from their locked modules,
+    nothing in S0–S7 changes, and no PK-Sim result is affected.
+  - **The intake agent's prompt** lists the new fields (its prompt is built from the catalog). The three M15 fields
+    are refused to it, like the tier.
+- **Tests:**
+  - `test_steps.py`: Start done with no approval; the refusals; the M15 range; open questions;
+  - `test_brief.py`: an edit with no reason answers its question;
+  - `test_brief_api.py`: no-reason edits, the refused tier, the checklist kept current;
+  - `test_plan_api.py`: a brief edit reaches the plan on rebase while a person's choice stays;
+  - e2e `start-step.spec.ts`: the manual path, with a liposome refused and Start done. `start-project.spec.ts`
+    follows the new redirect.
+
 ### Added — the redesign's foundation: light and dark themes, four steps instead of seven phases (R2a)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3 and §7; the owner found the screens dull and hard to move
   through):

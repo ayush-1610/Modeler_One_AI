@@ -31,7 +31,7 @@ BRIEF_ID = "main"
 
 HUMAN_STATUSES = frozenset({FieldStatus.ENTERED, FieldStatus.EDITED, FieldStatus.CONFIRMED, FieldStatus.NOT_APPLICABLE})
 # Fields only a person may set (ICH M15 ratings are human-only; the tier is confirmed by a person).
-HUMAN_ONLY = frozenset({"acceptance.tier"})
+HUMAN_ONLY = frozenset({"acceptance.tier", "m15.influence_rating", "m15.consequence_rating", "m15.risk_justification"})
 
 
 def locked(brief: ProjectBrief, path: str) -> bool:
@@ -43,13 +43,13 @@ class EditError(ValueError):
 
 
 def edit_field(brief: ProjectBrief, path: str, *, value: Any = None, unit: str | None = None, status: FieldStatus,
-               note: str, by: str, citations: tuple[Citation, ...] = ()) -> ProjectBrief:
+               note: str = "", by: str, citations: tuple[Citation, ...] = ()) -> ProjectBrief:
     """A person's change to one field: EDITED (new value), CONFIRMED (kept), NOT_APPLICABLE or MISSING (cleared).
-    Every change carries a note: what was changed and why is part of the record."""
+    No reason is asked (D-27, `p1-why` dropped): the record keeps who changed it and when, and the audit trail the
+    value before and after; a note, when given, is kept with the value. Open questions on the field are answered by
+    the change, except by clearing it."""
     if status not in (FieldStatus.EDITED, FieldStatus.CONFIRMED, FieldStatus.NOT_APPLICABLE, FieldStatus.MISSING):
         raise EditError(f"{path}: a person sets EDITED, CONFIRMED, NOT_APPLICABLE or MISSING, not {status}")
-    if not note.strip() and status is not FieldStatus.CONFIRMED:
-        raise EditError(f"{path}: say why (a note is required)")
     definition = definition_of(path)
     current = brief.get(path)
     now = datetime.now(UTC)
@@ -69,7 +69,14 @@ def edit_field(brief: ProjectBrief, path: str, *, value: Any = None, unit: str |
                              citations=citations or current.citations, confidence=None, note=note, by=by, at=now)
     else:
         record = FieldRecord(status=status, note=note, by=by, at=now)
-    return set_record(brief, path, record)
+    brief = set_record(brief, path, record)
+    if status is FieldStatus.MISSING:
+        return brief
+    answer = {FieldStatus.EDITED: f"set to {record.value} by {by}", FieldStatus.CONFIRMED: f"confirmed by {by}",
+              FieldStatus.NOT_APPLICABLE: f"marked not applicable by {by}"}[status]
+    questions = tuple(q.model_copy(update={"status": "answered", "answer": answer})
+                      if q.field == path and q.status == "open" else q for q in brief.questions)
+    return brief.model_copy(update={"questions": questions})
 
 
 def agent_set(brief: ProjectBrief, path: str, *, value: Any, unit: str | None, citations: tuple[Citation, ...],

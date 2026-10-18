@@ -284,3 +284,29 @@ def test_every_canvas_route_answers_the_typed_page(setup, monkeypatch):
     monkeypatch.setattr(plan_api, "run_planning_job", lambda *a, **k: None)
     draft = c.post("/api/v1/projects/p1/plan:draft", headers=H)
     assert draft.status_code == 202 and draft.json()["data"] == {"status": "RUNNING"}
+
+
+def test_a_brief_edit_makes_the_plan_stale_and_the_rebase_reads_it_while_a_persons_choice_stays(setup):
+    """Redesign §3.1 (the "read once" gap): the structure follows the brief on every rebase, except the keys a person
+    set on the canvas."""
+    c, ws, _root = setup
+    c.get("/api/v1/projects/p1/plan", headers=H)
+    chosen = c.put("/api/v1/projects/p1/plan/structure", headers=H,
+                   json={"key": "context_of_use", "value": "internal go / no-go", "reason": "agreed at kick-off"})
+    assert chosen.status_code == 200, chosen.text
+    edit = c.put("/api/v1/projects/p1/brief", headers=H, json={"changes": [
+        {"path": "qoi.text", "status": "EDITED", "value": "exposure after 100 mg"},
+        {"path": "qoi.context_of_use", "status": "EDITED", "value": "support a dose change"},
+        {"path": "m15.influence_rating", "status": "EDITED", "value": "high"},
+        {"path": "m15.consequence_rating", "status": "EDITED", "value": "high"},
+        {"path": "acceptance.tier", "status": "EDITED", "value": "high"}]})
+    assert edit.status_code == 200, edit.text
+    assemble(ws, by="u1")                     # the CPF derives from the brief: the inputs are put together again
+    accept_inputs(ws, by="u1")
+    stale = c.put("/api/v1/projects/p1/plan/placements/po-50", headers=H, json={"role": "S5", "reason": "validation"})
+    assert stale.status_code == 409 and "the brief changed" in stale.json()["detail"]
+    structure = c.post("/api/v1/projects/p1/plan:rebase", headers=H).json()["data"]["plan"]["structure"]
+    assert structure["objective"] == "exposure after 100 mg" and structure["model_risk"] == "high"
+    assert structure["context_of_use"] == "internal go / no-go" and structure["locked"] == ["context_of_use"]
+    assert c.put("/api/v1/projects/p1/plan/placements/po-50", headers=H,
+                 json={"role": "S5", "reason": "validation"}).status_code == 200

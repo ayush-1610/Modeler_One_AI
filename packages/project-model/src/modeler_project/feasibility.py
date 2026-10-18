@@ -17,9 +17,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from modeler_project.brief import ProjectBrief
+from modeler_project.brief import FORMULATIONS_BUILT, OPTION_LABELS, FieldStatus, ProjectBrief, definition_of
 
 Status = Literal["SUPPORTED", "LIMITED", "NEEDS_HARVEST", "NOT_SUPPORTED", "UNDETERMINED"]
+GateState = Literal["supported", "limited", "not_supported", "not_set"]
 
 # What the builder emits today (pbpk_domain.snapshot.builder spec types), as PK-Sim structures harvested from the
 # OSP reference snapshots. Updated with the builder, never by guesswork.
@@ -50,6 +51,80 @@ class FeasibilityReport(BaseModel):
                 "blocking": len(self.blocking), "undetermined": sum(line.status == "UNDETERMINED" for line in self.lines)}
 
 
+class ScopeGate(BaseModel):
+    """One question Start asks before any data work (D-28): what the builder can model, and what it cannot yet."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    gate: Literal["modality", "pbpk_model", "site_of_action", "formulation_types", "routes"]
+    label: str
+    path: str                      # the brief field it reads ("scenarios" for the routes of the scenarios)
+    state: GateState
+    values: tuple[str, ...] = ()
+    message: str = ""              # what is not supported yet (or limited), in words; empty when supported
+    supported: str                 # what the builder makes today
+
+
+_LIMITED_FORMULATION = ("extended release through a Weibull fitted to dissolution; delayed (enteric) release needs a "
+                        "harvested lag / pH-dependent model before a regulatory claim")
+_ORDER: dict[GateState, int] = {"supported": 0, "limited": 1, "not_supported": 2}
+
+
+def _gate(gate: str, path: str, supported: str, values: list[str], judge, *, applicable: bool = True) -> ScopeGate:
+    """`judge(value)` gives each value's state and, when not supported, why; the gate takes the worst of them."""
+    label = "Routes" if gate == "routes" else definition_of(path).label
+    if not applicable:
+        return ScopeGate(gate=gate, label=label, path=path, state="supported", message="not applicable", supported=supported)  # type: ignore[arg-type]
+    if not values:
+        return ScopeGate(gate=gate, label=label, path=path, state="not_set", supported=supported)  # type: ignore[arg-type]
+    judged = [(v, *judge(v)) for v in values]
+    state = max((s for _, s, _ in judged), key=_ORDER.__getitem__)
+    names = OPTION_LABELS.get(path, {})
+    notes = [f"{names.get(v, v.replace('_', ' '))}: {why}" for v, s, why in judged if s != "supported"]
+    return ScopeGate(gate=gate, label=label, path=path, state=state, values=tuple(values),  # type: ignore[arg-type]
+                     message="; ".join(notes), supported=supported)
+
+
+_NOT_YET = "not supported yet"
+_LOCAL = f"{_NOT_YET}: a local site of action needs a site model the builder does not make"
+
+
+def _only(supported_value: str, why: str = _NOT_YET):
+    return lambda v: ("supported", "") if v == supported_value else ("not_supported", why)
+
+
+def _formulation(value: str) -> tuple[GateState, str]:
+    if value == "mr":
+        return "limited", _LIMITED_FORMULATION
+    return ("supported", "") if value in FORMULATIONS_BUILT else ("not_supported", _NOT_YET)
+
+
+def _route(value: str) -> tuple[GateState, str]:
+    return ("supported", "") if value in BUILDER_ROUTES else ("not_supported", _NOT_YET)
+
+
+def scope_gates(brief: ProjectBrief) -> tuple[ScopeGate, ...]:
+    """Modality, PBPK model, site of action, formulation types and routes (D-28). Anything the builder cannot model
+    is "not supported yet" at Start, before any data work, instead of a failure at S0 or S3."""
+    def one(path: str) -> list[str]:
+        value = brief.value(path)
+        return [str(value)] if value not in (None, "") else []
+
+    formulations = [str(v) for v in (brief.value("scope.formulation_types") or [])]
+    routes = sorted({str(r) for r in _values(brief, "scenarios", "route") if r})
+    return (
+        _gate("modality", "drug.modality", "small molecules", one("drug.modality"), _only("small_molecule")),
+        _gate("pbpk_model", "scope.pbpk_model", "full (whole-body) PK-Sim models", one("scope.pbpk_model"), _only("full")),
+        _gate("site_of_action", "scope.site_of_action", "systemic action (plasma and tissue exposure)",
+              one("scope.site_of_action"), _only("systemic", _LOCAL)),
+        _gate("formulation_types", "scope.formulation_types",
+              "solutions, suspensions, immediate-release tablets and capsules (dissolved, Weibull or particle release); "
+              "modified release is limited", formulations, _formulation,
+              applicable=brief.get("scope.formulation_types").status is not FieldStatus.NOT_APPLICABLE),
+        _gate("routes", "scenarios", "intravenous (bolus, infusion) and oral", routes, _route),
+    )
+
+
 @lru_cache
 def expression_proteins() -> frozenset[str]:
     text = resources.files("pbpk_domain.data").joinpath("expression_library.json").read_text(encoding="utf-8")
@@ -58,6 +133,12 @@ def expression_proteins() -> frozenset[str]:
 
 _PROTEIN = re.compile(r"\b(CYP\d[A-Z]\d{1,2}|UGT\d[A-Z]\d{1,2}|OATP\d[A-Z]\d|P-gp|BCRP|ABC[A-Z]\d|OCT\d|MATE\d|OAT\d|MRP\d|"
                       r"AADAC|CES\d|FMO\d|SLC\w+)\b", re.IGNORECASE)
+
+
+def pathway_suggestions() -> list[str]:
+    """The enzymes and transporters the harvested expression library has a profile for: offered when the pathways are
+    picked at Start (a typed name is kept too; one without a profile is flagged NEEDS_HARVEST)."""
+    return [p for p in sorted(expression_proteins()) if _PROTEIN.fullmatch(p)]
 
 
 def _values(brief: ProjectBrief, group: str, field: str) -> list[Any]:
@@ -87,6 +168,13 @@ def check(brief: ProjectBrief) -> FeasibilityReport:
                             status="SUPPORTED" if supported else "NOT_SUPPORTED",
                             route="" if supported else "not built: needs a harvested PK-Sim protocol of that application "
                             "type, or a MoBi extension for routes PK-Sim does not model"))
+
+    for gate in scope_gates(brief):
+        if gate.gate in ("pbpk_model", "site_of_action", "formulation_types") and gate.state in ("limited", "not_supported"):
+            add(FeasibilityLine(feature=f"{gate.label}: {gate.message}", needed_because=gate.path,
+                                status="LIMITED" if gate.state == "limited" else "NOT_SUPPORTED",
+                                route=f"the builder makes {gate.supported}; support is added one product type at a "
+                                "time, with the SME (D-28)"))
 
     for index in range(len(brief.groups.get("products", ()))):
         name = brief.value(f"products[{index}].name") or f"product {index + 1}"
