@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { EvidenceReview } from "@/components/evidence/EvidenceReview";
 import { ObservedData } from "@/components/evidence/ObservedData";
-import { PhaseRail } from "@/components/PhaseRail";
+import { Stepper } from "@/components/kit/Stepper";
 
 /** P2 · Literature and public data — review layer L2a. */
 export default async function EvidencePage({
@@ -16,7 +16,7 @@ export default async function EvidencePage({
   return (
     <main>
       <h1>Literature &amp; public data</h1>
-      <PhaseRail projectId={projectId} current="P2" />
+      <Stepper projectId={projectId} current="inputs" page="evidence" />
       <p className="muted" style={{ maxWidth: "var(--measure)" }}>
         <strong>Review layer 2a.</strong> For every input the data plan expects from the literature: the values found,
         side by side, each with its source, the exact quote, the conditions, the value converted to the PK-Sim unit and a

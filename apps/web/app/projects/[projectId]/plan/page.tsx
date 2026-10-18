@@ -1,4 +1,4 @@
-import { PhaseRail } from "@/components/PhaseRail";
+import { Stepper } from "@/components/kit/Stepper";
 import { PlanCanvas } from "@/components/plan/PlanCanvas";
 
 /** P5 · Model plan — review layer L3. */
@@ -7,7 +7,7 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
   return (
     <main className="wide">
       <h1>Model plan</h1>
-      <PhaseRail projectId={projectId} current="P5" />
+      <Stepper projectId={projectId} current="review" />
       <p className="muted" style={{ maxWidth: "var(--measure)" }}>
         <strong>Review layer 3.</strong> The plan starts as the MS-01 default, computed exactly as the MAP is generated. Move a
         dataset by dragging it onto a stage of the development and validation graph; each move needs a reason and is kept

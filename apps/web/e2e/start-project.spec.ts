@@ -18,7 +18,8 @@ test("a project starts from its technical proposal and the brief is edited with 
 
   await page.waitForURL(/\/projects\/[^/]+\/brief$/);
   await expect(page.getByTestId("brief-title")).toHaveText("Project Brief · Dapagliflozin");
-  await expect(page.getByTestId("phase-rail")).toBeVisible();
+  await expect(page.getByTestId("stepper")).toBeVisible();
+  await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");   // the question and risk come next
   await expect(page.locator(".doc-page")).toContainText("single oral dose of 10 mg");
   await expect(page.getByTestId("field-drug.name")).toContainText("entered");
 
