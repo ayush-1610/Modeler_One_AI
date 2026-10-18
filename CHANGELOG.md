@@ -67,9 +67,17 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   signed MAP, a campaign could start unsigned, the model risk silently defaulted to medium in four places, and the P6
   rail never moved.
 - **Impact:**
-  - S3 fits stop after 2 rounds instead of 4 and escalate sooner. **To confirm on PK-Sim:** the
-    `dapagliflozin-roundtrip` and `dapagliflozin-asis` reference tasks (Actions) should change nothing but S3's
-    round count. Not run yet.
+  - S3 fits stop after 2 rounds instead of 4 and escalate sooner.
+  - **Verified on PK-Sim (2026-10-18, engine 12.4.4, Actions runs 39131983498 and 39132704379 on 2ab39c9): nothing
+    else moved.** Each Dapagliflozin reference task gives the same result as run 37922984864 before R0:
+    - round trip: 25 of 34 identical within 1e-6 of the peak, 3 within 1e-3, 6 labelled by design;
+    - as-is: S1 escalates on the Boulton 2013 IV microdose Cmax, 0.52× (AUC / Cmax GMFE 1.391 / 1.92). The stage
+      now notes "Limits: 90 min (set at the start), at most 4 round(s) (the signed MAP)";
+    - refit: S1 escalates after the clearance fit, with UGT1A9 clspec at its lower bound (GMFE 2.478 / 2.516 at
+      baseline, 1.412 / 2.291 after the fit).
+  - **S3's 2-round limit is not yet exercised on PK-Sim:** none of these campaigns reaches S3. It is covered by
+    `test_each_stage_runs_within_the_signed_maps_limits_and_says_where_they_came_from`. Reaching S3 on the published
+    models waits on the S1 IV Cmax question (`docs/SME_SIGNOFF.md` §1).
   - Callers must state the model risk: `deploy/proof/run_t56.py` now puts `acceptance.tier` "medium" in its brief
     (the person's rating for T-56); the reference runs, case studies and showcase seeders already passed one.
   - API contract: `CampaignStartRequest.model_risk` required; `PrepareRequest` gains `model_risk` (optional) and

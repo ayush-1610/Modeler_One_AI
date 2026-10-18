@@ -50,5 +50,5 @@ worst, and the UI is dull. The agreed way forward:
 ## Verification
 - `make test` (only the 15 known container-only failures), `make lint`, `tests/architecture`, the web typecheck and
   build, dev e2e 18/18.
-- **Still to run:** the `dapagliflozin-roundtrip` and `dapagliflozin-asis` reference tasks on PK-Sim (Actions), to
-  confirm the change moves nothing but S3's round count.
+- **PK-Sim (Actions runs 39131983498 and 39132704379):** the Dapagliflozin round trip, as-is and refit give the
+  same results as before R0 (CHANGELOG). None reaches S3, so its 2-round limit is unit-tested only.
