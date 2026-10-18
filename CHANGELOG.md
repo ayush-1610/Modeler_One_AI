@@ -33,6 +33,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - **No campaign starts on an unsigned MAP outside development** (`modeler_api.run_guard`): in pilot and production
     `POST /campaigns` answers 409 unless the MAP is SIGNED, or a `map_approval` signature is recorded on its exact
     bytes. Development (tests, the reference runs) still starts unsigned MAPs.
+  - **No per-stage budget overrides outside development** (the owner's decision on the screens, 2026-10-18: "keep the
+    guardrails strict"). In pilot and production, a `POST /campaigns` that sets `stage_budgets_seconds` answers 422.
+    Each stage gets its MS-01 share of the signed budget; a campaign that needs more time gets a larger budget in the
+    plan, signed again. The reference runs, which are development, still set their own.
   - **The model risk is never assumed** (ICH M15: it decides the acceptance criteria):
     - the plan takes it only from the brief's `acceptance.tier`. Unset, the validator blocks the signature ("Set the
       model risk…"), and it is set in the plan with a reason (new `RiskAndBudget` control);

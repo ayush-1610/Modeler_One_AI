@@ -67,6 +67,20 @@ def test_a_pilot_starts_only_on_a_map_a_person_signed(client, tmp_path, monkeypa
     assert len(runner.started) == 2
 
 
+def test_a_pilot_start_cannot_override_the_signed_stage_budgets(client, tmp_path, monkeypatch):
+    # the owner's decision (2026-10-18): MS-01's fixed shares of the signed budget; more time = a larger budget, re-signed
+    http, runner = client
+    monkeypatch.setenv("MODELER_DEPLOYMENT", "pilot")
+    signed_uri, _ = _map(tmp_path, signed=True)
+    body = {"compound": "Drug-A", "map_id": "map-1", "cpf_uri": "file:///x/cpf.json", "cpf_sha256": "a" * 64,
+            "map_uri": signed_uri, "model_risk": "medium", "stage_budgets_seconds": {"S1": 7200}}
+    refused = http.post("/api/v1/projects/p1/campaigns", json=body, headers=DEV)
+    assert refused.status_code == 422 and "raise its budget in the model plan" in refused.json()["detail"]
+    assert not runner.started
+    monkeypatch.delenv("MODELER_DEPLOYMENT", raising=False)       # development: the reference runs set their own
+    assert http.post("/api/v1/projects/p1/campaigns", json=body, headers=DEV).status_code == 202
+
+
 def test_development_may_start_an_unsigned_map(client, tmp_path, monkeypatch):
     http, runner = client
     monkeypatch.delenv("MODELER_DEPLOYMENT", raising=False)

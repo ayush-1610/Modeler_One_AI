@@ -5,6 +5,10 @@ campaign only on a MAP a person signed: the MAP document itself (Approve and Sig
 approval signature recorded on its exact bytes (`campaign:prepare` followed by a `map_approval` signature; every
 signature is an audit event, `modeler_api.part11.record_signature`). A development deployment (tests, the reference
 runs in CI) may start an unsigned one: its DEV verifier signs nothing that counts.
+
+The signed MAP also fixes each stage's time: MS-01's share of the campaign budget the person set in the plan. Outside
+development a start cannot override it stage by stage (the owner's decision, 2026-10-18); a campaign that needs more
+time gets a larger budget in the plan, signed again.
 """
 
 from __future__ import annotations
@@ -60,3 +64,11 @@ def require_signed_map(settings: Settings, tenant_id: str, map_uri: str) -> None
     if not map_signed(settings, tenant_id, map_uri):
         raise HTTPException(status_code=409, detail="This campaign's MAP is not signed. Approve and sign it in the model "
                                                     "plan before the campaign can start.")
+
+
+def require_signed_limits(stage_budgets_seconds: dict[str, int]) -> None:
+    """422 when a pilot or production start overrides the signed MAP's stage budgets."""
+    if stage_budgets_seconds and runtime_env().deployment_kind != "development":
+        raise HTTPException(status_code=422, detail="Each stage's time is its MS-01 share of the budget in the signed MAP, "
+                                                    "and a start cannot change it. To give the campaign more time, raise "
+                                                    "its budget in the model plan and sign again.")
