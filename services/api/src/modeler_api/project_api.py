@@ -35,10 +35,11 @@ from modeler_api.deps import (  # noqa: F401 - re-exported: tests override proje
 )
 from modeler_api.responses import answers, envelope
 from modeler_api.views.common import ImpactView, VersionView
-from modeler_api.views.project import Artifacts, AuditTrail, BlindingView, History, Phases
+from modeler_api.views.project import Artifacts, AuditTrail, BlindingView, History, Phases, Steps
 from modeler_project import ArtifactKind, ArtifactRef
 from modeler_project import blinding as blind
 from modeler_project.datasets import ObservedDataset
+from modeler_project.steps import project_steps
 from modeler_project.workspace import PHASE_LABELS, PhaseStatus
 from modeler_storage.records import BlindingChoice, ProjectRecord
 
@@ -59,6 +60,15 @@ def get_phases(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
         "phases": [{"phase": p, "label": PHASE_LABELS[p], "status": s.value} for p, s in phases.items()],
         "stale": [{"ref": item.ref.model_dump(mode="json"), "reasons": list(item.reasons)} for item in ws.stale()],
     })
+
+
+@router.get("/projects/{project_id}/steps", **answers(Steps))
+def get_steps(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """Start, Inputs, Review & sign and Run, each done, waiting on the person, running or not started, from what is
+    filled and what is missing (the redesign, D-27), never from an approval."""
+    ws = workspace_for(project_id, principal, store)
+    statuses = [str(c.get("status", "")) for c in project_campaigns(ws)]
+    return envelope({"steps": [s.model_dump(mode="json") for s in project_steps(ws, statuses)]})
 
 
 @router.get("/projects/{project_id}/artifacts", **answers(Artifacts))

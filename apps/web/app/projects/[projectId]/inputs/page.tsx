@@ -1,5 +1,5 @@
 import { ModelInputs } from "@/components/inputs/ModelInputs";
-import { PhaseRail } from "@/components/PhaseRail";
+import { Stepper } from "@/components/kit/Stepper";
 
 /** P4 · Model inputs — the PK-Sim input pages. */
 export default async function InputsPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -7,7 +7,7 @@ export default async function InputsPage({ params }: { params: Promise<{ project
   return (
     <main>
       <h1>Model inputs</h1>
-      <PhaseRail projectId={projectId} current="P4" />
+      <Stepper projectId={projectId} current="inputs" page="inputs" />
       <p className="muted" style={{ maxWidth: "var(--measure)" }}>
         CPF v1 is assembled from the accepted evidence, never typed: each value in its PK-Sim unit, with the source that
         goes into PK-Sim&apos;s value origin. The studies come from the accepted datasets. Choices the evidence does not
