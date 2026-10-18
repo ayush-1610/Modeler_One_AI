@@ -1,0 +1,92 @@
+/* Step 1 · Start (components/start): numbered blocks of field rows, the model-risk picker, the scope gates and the data
+ * checklist. Built only from the theme tokens in globals.css, so it works in light and dark. */
+
+.start-block { display: grid; gap: 12px; }
+.card + .start-block, .start-block + .card { margin-top: 0; }
+.start-block-head { display: flex; gap: 12px; align-items: flex-start; }
+.start-block-head h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
+.start-block-head p { margin: 3px 0 0; font-size: 13.5px; }
+.start-block-n { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font: 600 12.5px/1 var(--font-mono, ui-monospace, monospace); color: var(--brand-ink);
+  background: color-mix(in srgb, var(--sim) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--sim) 35%, var(--line)); }
+.start-sub { margin: 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+.start-hint { font-size: 12.5px; margin: 0; }
+
+/* a field: label, value with its source, and the change button */
+.sb-rows { display: grid; }
+.sb-row { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; gap: 12px; align-items: baseline;
+  padding: 9px 0; border-bottom: 1px solid var(--line); }
+.sb-rows > .sb-row:last-child { border-bottom: 0; }
+.sb-label { font-size: 13px; font-weight: 600; color: var(--ink-dim); }
+.sb-value { min-width: 0; display: grid; gap: 4px; }
+.sb-text { overflow-wrap: anywhere; }
+.sb-missing { color: var(--warn); font-size: 13px; font-weight: 500; }
+.sb-row.missing .sb-label { color: var(--ink); }
+.sb-source { display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; font-size: 12px; }
+.sb-quote { color: var(--ink-dim); font-style: italic; font-size: 12.5px; overflow-wrap: anywhere; }
+.sb-change { padding: 5px 11px; font-size: 13px; }
+.sb-editor { display: grid; gap: 8px; }
+.sb-editor input, .sb-editor select, .sb-editor textarea, .chip-list input, .route-row select, .start-question input,
+.risk-row textarea, .start-block .row > select {
+  font: inherit; font-size: 14px; padding: 7px 9px; border-radius: var(--radius-sm); border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); min-width: 0; }
+.sb-editor textarea, .risk-row textarea { width: 100%; resize: vertical; }
+@media (max-width: 700px) {
+  .sb-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .sb-row .sb-value { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* choices */
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden;
+  max-width: 100%; }
+.seg button { font: inherit; font-size: 13px; padding: 6px 12px; border: 0; background: var(--surface); color: var(--ink-dim);
+  cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--sim) 14%, var(--surface)); color: var(--brand-ink);
+  font-weight: 600; }
+.seg button:disabled { cursor: default; opacity: 0.55; }
+.choice-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.choice-grid label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; padding: 5px 10px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); cursor: pointer; }
+.choice-grid label.on { border-color: color-mix(in srgb, var(--sim) 50%, var(--line));
+  background: color-mix(in srgb, var(--sim) 10%, var(--surface)); }
+.chip-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip-list .chip button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 0 0 2px; font: inherit; }
+.chip-list input { width: 160px; }
+
+/* files */
+.file-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.file-list li { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--raised); }
+.file-list li span:first-child { overflow-wrap: anywhere; min-width: 0; }
+.file-list li span:last-child { flex-shrink: 0; }
+
+/* the model risk */
+.risk-grid { display: grid; gap: 10px; margin-top: 4px; }
+.risk-row { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 12px; align-items: center; }
+@media (max-width: 700px) { .risk-row { grid-template-columns: minmax(0, 1fr); gap: 6px; } }
+
+/* the scope gates */
+.gates { display: grid; gap: 10px; }
+.gate { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; display: grid; gap: 8px;
+  background: var(--surface); }
+.gate.not_supported { border-color: color-mix(in srgb, var(--fail) 45%, var(--line)); }
+.gate.limited { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.gate-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.gate-body { display: grid; gap: 6px; }
+.gate-supported { margin: 0; font-size: 12.5px; }
+.gate-na { font-size: 13px; color: var(--ink-dim); }
+.route-rows { display: grid; gap: 6px; justify-items: start; }
+.route-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.route-dose { font-size: 12.5px; }
+
+/* questions and notes */
+.start-questions { display: grid; gap: 8px; }
+.start-question { border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; display: grid; gap: 6px; }
+.start-question p { margin: 0; font-size: 14px; }
+.start-question input { flex: 1; min-width: 180px; }
+.start-notes summary { display: flex; gap: 12px; align-items: center; cursor: pointer; list-style: none; }
+.start-notes summary::-webkit-details-marker { display: none; }
+.start-notes[open] summary { margin-bottom: 12px; }
+.note-group ul { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px; }
+.start-waiting { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }

@@ -44,6 +44,7 @@ from modeler_project.plan import (
     current,
     decide_proposal,
     diff,
+    keep_locked,
     map_from_plan,
     place,
     rebase,
@@ -219,7 +220,7 @@ def _change(ws: Workspace, principal: Principal, fn, reason: str, *, dry_run: bo
     (D-14); None for a view-only change (the layout), which never deviates."""
     version, plan, cpf, rows = _ensure(ws, principal.user_id)
     if ws.status(version).value == "STALE":
-        raise HTTPException(status_code=409, detail="the inputs changed since this plan: bring it up to date (rebase) first")
+        raise HTTPException(status_code=409, detail="the inputs or the brief changed since this plan: bring it up to date (rebase) first")
     try:
         changed = fn(plan)
     except (PlanError, ValueError) as exc:
@@ -342,14 +343,16 @@ def put_layout(project_id: str, body: LayoutRequest, principal: Writer, store: S
 
 @router.post("/projects/{project_id}/plan:rebase", **answers(PlanPage))
 def rebase_plan(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """New inputs (P4 changed): the default is recomputed, a person's choices are kept, new studies are marked."""
+    """New inputs (P4 changed) or a brief edit: the default is recomputed and the structure read again from the brief,
+    a person's choices are kept, new studies are marked."""
     ws = workspace_for(project_id, principal, store)
     version, plan, _cpf, _rows = _ensure(ws, principal.user_id)
     cpf, rows, refs = _inputs(ws)
-    fresh = build_default(cpf, rows, plan.structure)
+    from_brief = structure_from_brief(_brief(ws), measured_fed_solubility=cpf.get("food.fed_solubility_factor") is not None)
+    fresh = build_default(cpf, rows, keep_locked(plan.structure, from_brief))
     rebased = _deviation(ws, rebase(plan, fresh), kind="rebase", target="inputs", by=principal.user_id,
                          change="re-placed on the current inputs (a person's choices kept, new studies placed by default)",
-                         reason="the model inputs changed after the MAP was signed")
+                         reason="the model inputs or the brief changed after the MAP was signed")
     version = save(ws, rebased, by=principal.user_id, reason="rebased on the current inputs", derived_from=refs)
     return envelope(_view(ws, version, ModelPlan.from_content(version.content), cpf, rows))
 
@@ -413,7 +416,7 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
     ws = workspace_for(project_id, principal, store)
     version, plan, cpf, rows = _ensure(ws, principal.user_id)
     if ws.status(version).value == "STALE":
-        raise HTTPException(status_code=409, detail="the inputs changed since this plan: rebase it first")
+        raise HTTPException(status_code=409, detail="the inputs or the brief changed since this plan: rebase it first")
     previous = _signed_map(ws)
     pending = plan.pending_deviations()
     if previous is not None and not pending:

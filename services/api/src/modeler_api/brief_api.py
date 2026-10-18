@@ -7,8 +7,12 @@ the extraction. Extraction resolves the drug's identity (PubChem, RDKit cross-ch
 configured (D-16), runs agent A1, whose every value is checked by code before it enters the brief. Without a
 provider the brief is filled by hand on the same page: every step has a manual path.
 
-P1: the brief is edited field by field (each change says why), questions are answered or accepted as limitations,
-and the brief is approved by a named reviewer (D-07: a simple approval, "Reviewed") once nothing blocks it.
+P1: the brief is edited field by field, questions are answered or accepted as limitations, and the brief is approved by
+a named reviewer (D-07: a simple approval, "Reviewed") once nothing blocks it.
+
+Start (redesign §3.1, D-27): no edit asks why (the record keeps who and when, the audit the value before and after),
+the data plan follows every saved brief with no button, and the answer carries what Start still needs: the scope gates
+(D-28) and the ICH M15 model risk, whose tier must lie in the range its two ratings admit.
 """
 
 from __future__ import annotations
@@ -42,13 +46,18 @@ from modeler_project.brief import (
     BriefPathError,
     FieldStatus,
     ProjectBrief,
+    admitted_tiers,
     catalog,
     empty_brief,
     remove_item,
+    risk_check,
     validate_brief,
 )
 from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, resolve_identity, save_brief, summary
+from modeler_project.data_plan import refresh_data_plan
 from modeler_project.documents import DocumentLibrary, document_record
+from modeler_project.feasibility import pathway_suggestions, scope_gates
+from modeler_project.steps import start_problems
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord
 
@@ -142,6 +151,7 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
     reason = (f"extracted by A1 ({result.get('accepted', 0)} fields accepted, {result.get('rejected', 0)} rejected)"
               if model is not None else "drug identity resolved")
     version = save_brief(ws, merged, actor=actor, reason=reason, derived_from=_document_refs(ws))
+    refresh_data_plan(ws, actor=actor, reason="derived from the brief")
     result["brief_version"] = version.version
     return result
 
@@ -198,6 +208,7 @@ async def initiate_project(
     brief = empty_brief(drug_name, by=principal.user_id)
     version = save_brief(ws, brief, actor=principal.user_id, reason="project started",
                          derived_from=[d.ref for d in documents])
+    refresh_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     return envelope({"project_id": project_id, "name": title, "documents": [_document_view(d) for d in documents],
                      "brief_version": version.version, "extraction": extraction})
@@ -262,6 +273,7 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
     brief = ProjectBrief.from_content(version.content)
     issues = validate_brief(brief)
     runs = agent_jobs.project_runs(getattr(ws.store, "root", None), ws.tenant_id, ws.project_id)
+    risk = risk_check(brief)
     return {
         "artifact": version_view(ws, version, with_content=False), "brief": brief.to_content(),
         "issues": [{"code": i.code, "path": i.path, "message": i.message} for i in issues],
@@ -269,6 +281,10 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
         "agents": agent_jobs.agents_status(), "extraction_running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "extraction"),
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "provider", "model", "started_at", "finished_at",
                                          "summary")} for r in runs[:5]],
+        "start": {"problems": start_problems(brief), "gates": [g.model_dump() for g in scope_gates(brief)],
+                  "risk": {"allowed": list(risk.allowed) if risk.allowed else None, "problems": list(risk.problems),
+                           "admitted": admitted_tiers()},
+                  "pathway_suggestions": pathway_suggestions()},
     }
 
 
@@ -299,7 +315,7 @@ class FieldChange(BaseModel):
 
 class BriefEdit(BaseModel):
     changes: list[FieldChange] = Field(min_length=1)
-    reason: str = Field(min_length=1)
+    reason: str = ""     # optional (D-27): the version records the fields changed when none is given
     preview: bool = False
 
 
@@ -315,15 +331,21 @@ def _apply_changes(brief: ProjectBrief, changes: list[FieldChange], by: str) -> 
 
 @router.put("/projects/{project_id}/brief", **answers(BriefPage | BriefImpact))
 def edit_brief(project_id: str, body: BriefEdit, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """Change fields (each change says why). With ``preview`` the impact is returned and nothing is saved."""
+    """Change fields (no reason asked, D-27). A model risk outside what its ICH M15 ratings admit is refused. With
+    ``preview`` the impact is returned and nothing is saved; otherwise the data plan follows the new brief."""
     ws = workspace_for(project_id, principal, store)
     current = _brief(ws)
     if current is None:
         raise HTTPException(status_code=404, detail="no brief")
     updated = _apply_changes(current, body.changes, principal.user_id)
+    refused = risk_check(updated).refused
+    if refused:
+        raise HTTPException(status_code=422, detail=f"acceptance.tier: {refused}")
     if body.preview:
         return envelope({"impact": impact_view(ws.impact(ArtifactKind.BRIEF, BRIEF_ID, updated.to_content()))})
-    save_brief(ws, updated, actor=principal.user_id, reason=body.reason)
+    reason = body.reason.strip() or "edited: " + ", ".join(dict.fromkeys(c.path for c in body.changes))
+    save_brief(ws, updated, actor=principal.user_id, reason=reason)
+    refresh_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
     return envelope(_brief_view(ws))
 
 
@@ -342,6 +364,7 @@ def remove_brief_item(project_id: str, body: ItemRemoval, principal: Writer, sto
     except BriefPathError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     save_brief(ws, updated, actor=principal.user_id, reason=body.reason)
+    refresh_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
     return envelope(_brief_view(ws))
 
 
@@ -363,6 +386,7 @@ def answer_question(project_id: str, question_id: str, body: QuestionAnswer, pri
                       if q.id == question_id else q for q in current.questions)
     updated = current.model_copy(update={"questions": questions})
     save_brief(ws, updated, actor=principal.user_id, reason=f"question {question_id} {body.status.replace('_', ' ')}")
+    refresh_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
     return envelope(_brief_view(ws))
 
 

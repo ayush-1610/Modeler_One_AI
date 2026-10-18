@@ -3,44 +3,9 @@
 import { Fragment, useMemo, useState } from "react";
 
 import { Card } from "@/components/ui";
-import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
+import { narrow, send, type Envelope, type Schema } from "@/lib/api";
+import type { Item, PlanView } from "@/lib/data-plan";
 import { useMutation, useResource } from "@/lib/hooks";
-
-type Item = {
-  req_id: string;
-  label: string;
-  kind: string;
-  target: string;
-  group: string;
-  template: string;
-  pksim: Record<string, string> | null;
-  pksim_status: "HARVESTED" | "TO_HARVEST" | "NOT_APPLICABLE";
-  unit: string | null;
-  criticality: "REQUIRED" | "CONDITIONAL" | "OPTIONAL";
-  applies: "yes" | "no" | "undetermined";
-  condition_text: string;
-  needed_for: string[];
-  data_category: string;
-  provider: string;
-  provider_source: string;
-  provider_statement: string;
-  purpose: string | null;
-  due_date: string | null;
-  cross_check: boolean;
-  conditions: string[];
-  plausibility: string;
-  product: string | null;
-  note: string;
-  status: string;
-};
-
-type FeasibilityLine = { feature: string; needed_because: string; status: string; route: string };
-
-// GET /projects/{id}/requirements (RequirementsPage); the stored matrix and feasibility report are typed here
-type PlanView = Narrow<Schema<"RequirementsPage">, {
-  matrix: { templates: string[]; items: Item[]; overrides: { req_id: string; reason: string; by: string }[]; notes: string[] };
-  feasibility: { lines: FeasibilityLine[]; blocking?: number; undetermined?: number; status: string | null };
-}>;
 
 type Provider = NonNullable<Schema<"OverrideRequest">["provider"]>;
 const PROVIDERS: Provider[] = ["CLIENT", "LITERATURE", "SPONSOR_TO_MEASURE", "PREDICT", "STRUCTURE", "LIBRARY", "STUDY", "PROPOSAL",

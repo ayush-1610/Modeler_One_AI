@@ -12,6 +12,7 @@ from modeler_project.brief import (
     Citation,
     FieldStatus,
     ProjectBrief,
+    add_question,
     coerce,
     definition_of,
     empty_brief,
@@ -66,8 +67,23 @@ def test_people_lock_fields_and_agents_cannot_overwrite_them():
     with pytest.raises(EditError, match="person only"):
         agent_set(brief, "acceptance.tier", value="high", unit=None, citations=_cite(), status=FieldStatus.EXTRACTED,
                   confidence="A", by="agent:a1")
-    with pytest.raises(EditError, match="say why"):
-        edit_field(brief, "drug.cas", value="461432-26-8", status=FieldStatus.EDITED, note="", by="u1")
+    for path in ("m15.influence_rating", "m15.consequence_rating", "m15.risk_justification"):
+        with pytest.raises(EditError, match="person only"):
+            agent_set(brief, path, value="high", unit=None, citations=_cite(), status=FieldStatus.EXTRACTED,
+                      confidence="A", by="agent:a1")
+
+
+def test_an_edit_needs_no_reason_and_answers_the_fields_open_question():
+    """D-27 (`p1-why` dropped): the record keeps who and when; the field's open question is answered by the edit."""
+    brief = add_question(empty_brief("X", by="u1"), "drug.cas", "Which CAS number?", raised_by="agent:a1")
+    brief = edit_field(brief, "drug.cas", value="461432-26-8", status=FieldStatus.EDITED, by="u1")
+    record = brief.get("drug.cas")
+    assert (record.value, record.status, record.by, record.note) == ("461432-26-8", FieldStatus.EDITED, "u1", "")
+    assert record.at is not None and not [i for i in validate_brief(brief) if i.path == "drug.cas"]
+    assert [(q.status, q.answer) for q in brief.questions] == [("answered", "set to 461432-26-8 by u1")]
+    cleared = edit_field(add_question(brief, "drug.code", "Which code?", raised_by="a"), "drug.code",
+                         status=FieldStatus.MISSING, by="u1")
+    assert cleared.questions[-1].status == "open"                         # clearing a field answers nothing
 
 
 def test_group_items_append_in_order():

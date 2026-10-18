@@ -1,5 +1,6 @@
-// P0 → P1: start a project from a technical proposal, land on the brief, edit a field with a reason. Agents are off in
-// this run (no provider key), so the brief starts from the drug name and is filled by hand: the manual path.
+// P0 → P1: start a project from a technical proposal, land on Start, then edit a field with a reason on the full brief
+// page, which stays until R5 removes it. Agents are off in this run (no provider key), so the brief starts from the drug
+// name and is filled by hand: the manual path.
 import { expect, test } from "@playwright/test";
 
 const PROPOSAL = [
@@ -16,7 +17,9 @@ test("a project starts from its technical proposal and the brief is edited with 
   });
   await page.getByTestId("start-project").click();
 
-  await page.waitForURL(/\/projects\/[^/]+\/brief$/);
+  await page.waitForURL(/\/projects\/[^/]+\/start$/);
+  await expect(page.getByTestId("start-title")).toHaveText("Dapagliflozin");
+  await page.goto(page.url().replace(/\/start$/, "/brief"));
   await expect(page.getByTestId("brief-title")).toHaveText("Project Brief · Dapagliflozin");
   await expect(page.getByTestId("stepper")).toBeVisible();
   await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");   // the question and risk come next
@@ -32,10 +35,9 @@ test("a project starts from its technical proposal and the brief is edited with 
   await expect(page.getByTestId("brief-version")).toContainText("title from the proposal header");
   await page.screenshot({ path: test.info().outputPath("brief.png"), fullPage: true });
 
-  // The data plan is derived from the brief (a draft until the brief is approved), with the feasibility beside it.
+  // The data plan follows every saved brief (a draft until the brief is approved), with the feasibility beside it.
   const briefUrl = page.url();
   await page.getByTestId("tab-data-plan").click();
-  await page.getByRole("button", { name: "Derive from the brief" }).click();
   await expect(page.getByTestId("req-REQ-phys.logp")).toContainText("Lipophilicity");
   await expect(page.getByRole("button", { name: "Approve data plan" })).toBeDisabled();
   await page.getByTestId("tab-feasibility").click();
