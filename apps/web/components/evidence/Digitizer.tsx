@@ -42,6 +42,7 @@ export function Digitizer({ projectId, documents, onSaved }: {
   const [corner, setCorner] = useState<[number, number] | null>(null);
   const { run } = useMutation();
   const canvas = useRef<HTMLCanvasElement | null>(null);
+  const drawing = useRef(0);   // the latest render: an older one still in flight never draws over it
   const doc = figures.find((d) => d.sha256 === sha);
   const placed = useResource("/api/v1/projects/{project_id}/documents/{sha256}/figures", { project_id: projectId, sha256: sha },
                              { enabled: doc?.kind === "pdf" });
@@ -65,6 +66,7 @@ export function Digitizer({ projectId, documents, onSaved }: {
 
   const render = useCallback(async () => {
     if (!doc || !canvas.current) return;
+    const turn = ++drawing.current;
     const url = `/api/v1/projects/${projectId}/documents/${doc.sha256}/raw`;
     try {
       if (doc.kind === "pdf") {
@@ -79,6 +81,7 @@ export function Digitizer({ projectId, documents, onSaved }: {
         const ctx = off.getContext("2d");
         if (!ctx) return;
         await p.render({ canvasContext: ctx, viewport }).promise;
+        if (turn !== drawing.current) return;
         show(off, viewport.width, viewport.height);
       } else {
         const { file, problem } = await apiFile(url);
@@ -88,10 +91,12 @@ export function Digitizer({ projectId, documents, onSaved }: {
         off.width = img.width * zoom;
         off.height = img.height * zoom;
         off.getContext("2d")?.drawImage(img, 0, 0, off.width, off.height);
+        if (turn !== drawing.current) return;
         show(off, off.width, off.height);
       }
       setError(null);
     } catch (e) {
+      if (turn !== drawing.current) return;
       setError(`The figure could not be drawn: ${(e as Error).message}`);
     }
   }, [doc, page, projectId, scale, zoom, crop]); // eslint-disable-line react-hooks/exhaustive-deps

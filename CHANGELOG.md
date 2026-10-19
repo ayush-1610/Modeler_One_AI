@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a figure picked from a PDF's figure list keeps its crop (R3d)
+- **What:** the digitizer draws each view (document, page, zoom, crop) asynchronously, and an older drawing still in
+  flight could land last. Opening the digitizer starts drawing the whole page; picking a figure at once starts the
+  cropped drawing; when the whole page finished second, it was drawn over the figure, and the canvas showed the whole
+  page while the crop stayed set. Now only the latest drawing reaches the canvas (`Digitizer.tsx`).
+- **Why:** CI's browser flow `digitize-pdf-figure.spec.ts` failed on PR #82 (the canvas stayed 1200 × 1600 instead
+  of the figure's 800 × 600). It was reproduced locally by holding the whole-page drawing until the crop was drawn,
+  and passes with the fix under the same hold.
+- **Impact:** web only; no API or science change. The digitized values were never affected: the axes and the points
+  are picked in the frame shown, and calibration maps them within it. What could be wrong is the recorded crop, which
+  then named the figure while the person had worked on the whole page.
+
 ### Changed (science) — Review & sign gains the estimation plan, the validation plan and the tier's acceptance criteria; fit bounds are proposed from MS-01 §2.2 (R4b, D-34)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3; D-34, owner decision 2026-10-19):
   - **The estimation plan** (map rows `p5-fit`, `m-bounds`): one table of every numeric parameter, fixed or estimated,
