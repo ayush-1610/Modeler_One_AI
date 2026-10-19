@@ -3,9 +3,6 @@ signature while a never-defaulted input is missing."""
 
 from __future__ import annotations
 
-import hashlib
-import json
-
 import pytest
 
 from pbpk_domain.analysis_templates import load_template
@@ -32,10 +29,10 @@ def _with_tablets() -> CPF:
 
 
 def test_a_map_with_no_application_hashes_as_before():
-    # signatures given before applications existed bind a hash without the field: it stays the same
+    # signatures given before applications existed bind a hash without the field: it stays the same (the MAPs signed
+    # on main before R4d are checked in test_map); an application is part of the hash
     m = _map()
-    before = m.model_dump(mode="json", exclude={"status", "signature", "applications"})
-    assert m.content_sha256() == hashlib.sha256(json.dumps(before, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    assert m.content_sha256() == m.model_copy(update={"applications": ()}).content_sha256()
     assert _map(applications=(MapApplication.pinned("vbe-crossover", COMPLETE),)).content_sha256() != m.content_sha256()
 
 

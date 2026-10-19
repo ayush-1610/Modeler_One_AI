@@ -1,6 +1,6 @@
 import pytest
 
-from pbpk_domain.acceptance import Comparison, evaluate, load_acceptance_ruleset, prediction_error_pct
+from pbpk_domain.acceptance import Comparison, evaluate, load_acceptance_ruleset, loosest_internal_target, prediction_error_pct
 from pbpk_domain.m15 import Rating
 
 
@@ -42,3 +42,18 @@ def test_ruleset_is_flagged_for_sme_review_and_unknown_quantities_rejected():
     assert load_acceptance_ruleset()["status"] == "UNVERIFIED"
     with pytest.raises(ValueError, match="no acceptance rule"):
         evaluate([Comparison("S", "tmax", 1, 1, "fitting")], Rating.LOW)
+
+
+def test_an_internal_target_is_applied_to_internal_auc_and_cmax_only_and_never_looser_than_the_tier():
+    # MS-01 §8: stricter MAP criteria for internal groups, never looser than the tier
+    comparisons = [Comparison("fit-a", "AUC", 1.3, 1.0, "fitting"), Comparison("fit-b", "Cmax", 0.85, 1.0, "fitting"),
+                   Comparison("ext", "AUC", 1.3, 1.0, "validation")]
+    plain = evaluate(comparisons, Rating.MEDIUM)
+    assert [v.passes for v in plain.verdicts] == [True, True, True] and plain.internal_target_pe is None
+    strict = evaluate(comparisons, Rating.MEDIUM, internal_target_pe=20)
+    assert [v.passes for v in strict.verdicts] == [False, True, True]          # +30 % fails; -15 % passes; external: tier only
+    assert strict.verdicts[0].limit == "0.67-1.5-fold and |PE| ≤ 20 %" and strict.verdicts[2].limit == "0.67-1.5-fold"
+    assert strict.internal_target_pe == 20
+    assert [round(loosest_internal_target(t), 1) for t in ("high", "medium", "low")] == [20.0, 33.3, 50.0]
+    with pytest.raises(ValueError, match="looser than the medium tier"):
+        evaluate(comparisons, Rating.MEDIUM, internal_target_pe=40)

@@ -18,7 +18,7 @@ from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
 from modeler_api.execution import RunnerDep
 from modeler_api.responses import answers_without_envelope
-from modeler_api.run_guard import require_signed_limits, require_signed_map
+from modeler_api.run_guard import require_cpf_matches_map, require_signed_limits, require_signed_map
 from modeler_api.views.campaigns import CampaignStarted, MapGenerated
 from pbpk_domain.campaign.map import generate_map
 from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
@@ -76,10 +76,11 @@ class CampaignStartRequest(BaseModel):
 async def start_campaign(project_id: str, request: CampaignStartRequest, principal: Author,
                          settings: SettingsDep, runner: RunnerDep) -> dict[str, Any]:
     """Start a modeling campaign through the configured execution backend (local single-node, or Temporal). Outside
-    development, only on a MAP a person signed (`modeler_api.run_guard`)."""
+    development, only on a MAP a person signed and on the CPF it signed (`modeler_api.run_guard`)."""
     require_project(project_id, principal)
     require_signed_map(settings, principal.tenant_id, request.map_uri)
     require_signed_limits(request.stage_budgets_seconds)
+    require_cpf_matches_map(request.cpf_uri, request.map_uri)
 
     from modeler_contracts.runs import CAMPAIGN_STAGES, CampaignRequest
 

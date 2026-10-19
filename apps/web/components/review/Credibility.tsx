@@ -19,7 +19,7 @@ type Run = ReturnType<typeof useMutation>["run"];
 
 /** The limits every round is judged by at the chosen tier, as the MAP records them (the ruleset, provisional until the
  *  SME signs), and a stricter internal target: MS-01 §8 allows a project to judge more strictly than its tier, never
- *  more loosely. The target is stated in the plan and among the MAP's limitations; the verdicts do not apply it yet. */
+ *  more loosely. The MAP records the target, and the verdicts apply it to the internal groups' AUC and Cmax (S1–S4). */
 function AcceptanceCriteria({ projectId, review, apply }: { projectId: string; review: ReviewPage; apply: Apply }) {
   const a = review.acceptance;
   const [target, setTarget] = useState(a.internal_target_pe === null ? "" : String(a.internal_target_pe));
@@ -68,8 +68,9 @@ function AcceptanceCriteria({ projectId, review, apply }: { projectId: string; r
                   }}>Set</button>
         </div>
         {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
-        <p className="muted credibility-lede" style={{ marginTop: 6 }}>Stated in the plan and named among the MAP&apos;s
-          limitations. The verdicts do not apply it yet: that changes locked files, in its own change with the owner&apos;s approval.</p>
+        <p className="muted credibility-lede" style={{ marginTop: 6 }} data-testid="target-applied">The MAP records it, and every
+          round judges the internal groups&apos; AUC and Cmax (S1–S4) by it on top of the tier&apos;s limit; external
+          validation (S5) is judged by the tier alone (MS-01 §8).</p>
       </div>
     </section>
   );

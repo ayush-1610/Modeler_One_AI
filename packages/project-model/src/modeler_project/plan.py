@@ -26,7 +26,7 @@ from modeler_project.artifacts import ArtifactKind, ArtifactVersion
 from modeler_project.brief import ProjectBrief
 from modeler_project.estimation import fit_findings
 from modeler_project.workspace import Workspace
-from pbpk_domain.acceptance import load_acceptance_ruleset
+from pbpk_domain.acceptance import loosest_internal_target
 from pbpk_domain.campaign.map import (
     BUDGET_FRACTION,
     FIT_STAGES,
@@ -135,7 +135,7 @@ class Structure(BaseModel):
     # the assumptions the brief states (map row p1-assump): limitations of the analysis, named in the MAP
     assumptions: tuple[str, ...] = ()
     # a stricter project target than the tier, |prediction error| at most this % (MS-01 §8; brief
-    # acceptance.internal_target_pe). Stated in the plan and the MAP's limitations; the verdicts do not apply it yet (R4d)
+    # acceptance.internal_target_pe). The MAP records it, and the verdicts apply it to the internal groups (R4d)
     internal_target_pe: float | None = Field(default=None, gt=0, lt=100)
     locked: tuple[str, ...] = ()                  # structure keys a person set (userLocked)
     reasons: dict[str, str] = Field(default_factory=dict)
@@ -260,11 +260,8 @@ def map_limitations(plan: ModelPlan, violations: list[Violation]) -> tuple[str, 
     default (`default_limitations`), the assumptions the brief states, and every warning a person accepted, with why."""
     accepted = [f"{v.message} — acknowledged: {v.acknowledged}" for v in violations
                 if v.severity == "warning" and v.acknowledged]
-    target = plan.structure.internal_target_pe
-    note = "Internal target |prediction error| ≤ {:g} % (MS-01 §8): stated in the plan; the verdicts do not apply it yet"
-    stated = [note.format(target)] if target is not None else []
     return (*plan.default_limitations, *(f"Assumption stated in the brief: {a}" for a in plan.structure.assumptions),
-            *stated, *accepted)
+            *accepted)
 
 
 def keep_locked(previous: Structure, fresh: Structure) -> Structure:
@@ -303,17 +300,19 @@ def _sampling_end_h(rows: list[dict[str, Any]]) -> dict[str, float]:
 
 
 def default_map(cpf: CPF, rows: list[dict[str, Any]], structure: Structure, *,
-                split: SplitResult | None = None) -> tuple[MapDocument, SplitResult]:
+                split: SplitResult | None = None, internal_target_pe: float | None = None) -> tuple[MapDocument, SplitResult]:
     """The MAP exactly as `generate_map` makes it (the split computed by MS-01 unless one is given), with the
     structure's campaign budget split across the stages. An unset model risk drafts at medium only to compute the
-    default split, which the tier does not change; `map_from_plan` refuses to sign without one."""
+    default split, which the tier does not change; `map_from_plan` refuses to sign without one, and passes the
+    internal target once the validator has checked it against the tier."""
     records = _records(rows)
     split = split or split_studies(records, _question(structure))
     doc = generate_map(compound=cpf.compound, cpf=cpf, studies=records, split=split, objective=structure.objective,
                        context_of_use=structure.context_of_use, food_effect_in_question=structure.food_effect_in_question,
                        model_risk=Rating(structure.model_risk or "medium"), engine_image_digest=ENGINE_DIGEST,
                        software_versions={"ospsuite": "12.4.4"}, sampling_end_h=_sampling_end_h(rows),
-                       campaign_budget_seconds=structure.campaign_budget_seconds, applications=structure.applications)
+                       campaign_budget_seconds=structure.campaign_budget_seconds, applications=structure.applications,
+                       internal_target_pe=internal_target_pe)
     return doc, split
 
 
@@ -492,22 +491,13 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
         add("error", "risk", "model_risk", "Set the model risk (low, medium or high): it decides the acceptance criteria "
                                            "every round is judged by (ICH M15), and it is never assumed")
     elif plan.structure.internal_target_pe is not None:
-        widest = loosest_target(plan.structure.model_risk)
+        widest = loosest_internal_target(plan.structure.model_risk)
         if plan.structure.internal_target_pe > widest + 1e-9:
             add("error", "target", "internal_target_pe",
                 f"The internal target |prediction error| ≤ {plan.structure.internal_target_pe:g} % is looser than the "
                 f"{plan.structure.model_risk} tier, which allows at most {widest:.1f} %: MS-01 §8 allows a stricter "
                 "target only")
     return out
-
-
-def loosest_target(tier: str) -> float:
-    """The largest internal target (|prediction error| %, MS-01 §8) no looser than the tier: with f the tier's tightest
-    fold limit on PK parameters (pbpk_acceptance_criteria), a ratio within ±t % stays within [1/f, f] only when
-    t ≤ (1 − 1/f) × 100 (medium, 1.5-fold: 33.3 %)."""
-    criteria = load_acceptance_ruleset()["tiers"][tier]["pk_parameters"]
-    fold = min(float(c["max_fold"]) for c in criteria.values() if "max_fold" in c)
-    return (1 - 1 / fold) * 100
 
 
 def blocking(violations: list[Violation]) -> list[Violation]:
@@ -661,7 +651,8 @@ def map_from_plan(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, expl
     split = plan_split(plan)
     limits = map_limitations(plan, violations if acknowledged_limitations else [])
     split = split.model_copy(update={"limitations": limits})
-    doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=split)
+    doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=split,
+                         internal_target_pe=plan.structure.internal_target_pe)
     return doc
 
 

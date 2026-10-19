@@ -331,6 +331,33 @@ def test_s0_refuses_a_process_whose_protein_has_no_expression_profile(tmp_path: 
     assert any("no expression profile for CYP2C99" in f for f in readiness.findings)
 
 
+def test_s0_says_when_a_development_run_s_cpf_departs_from_its_map(tmp_path: Path) -> None:
+    """D-36: outside development the start refuses such a CPF; a development run (tests, the reference runs) says so."""
+    from modeler_contracts.runs import CampaignRequest as _Req
+    from modeler_orchestrator.campaign_activities import plan_campaign
+
+    cpf = _renal_cpf()
+    studies = [StudyRecord(study_id="iv", n=12, design="SD", route=Route.IV_BOLUS, dose_mg=5.0, infusion_time_min=5.0,
+                           formulation=FormulationKind.SOLUTION, food_state=FoodState.FASTED, n_timepoints=15)]
+    map_doc = generate_map(compound="Renaldrug", cpf=cpf, studies=studies, split=split_studies(studies, QuestionOfInterest()),
+                           objective="renal FIH", context_of_use="starting dose", food_effect_in_question=False,
+                           model_risk=Rating.MEDIUM, engine_image_digest="sha256:abcd", software_versions={"ospsuite": "12.4.4"})
+    (tmp_path / "map.json").write_text(map_doc.model_dump_json(), encoding="utf-8")
+    changed = cpf.model_copy(update={"parameters": tuple(p.model_copy(update={"value": 0.5}) if p.id == "bind.fu" else p
+                                                       for p in cpf.parameters)})
+    for name, doc in (("same.json", cpf), ("changed.json", changed)):
+        (tmp_path / name).write_text(doc.model_dump_json(), encoding="utf-8")
+
+    def readiness(name):
+        return plan_campaign(_Req(campaign_id="c", tenant_id="t1", compound="Renaldrug", map_id="m", cpf_sha256="a" * 64,
+                                  cpf_uri=(tmp_path / name).as_uri(), map_uri=(tmp_path / "map.json").as_uri()))
+
+    assert not any("differs from its MAP" in f for f in readiness("same.json").findings)
+    departed = readiness("changed.json")
+    assert departed.ready and any(f.startswith("the CPF differs from its MAP (development run): bind.fu: value 0.5")
+                                  for f in departed.findings)
+
+
 def test_fit_starts_run_in_parallel_as_planned(monkeypatch) -> None:
     """The multistart plan assumes parallel starts; running them one by one multiplied the fit time by up to 32."""
     import threading

@@ -1661,6 +1661,20 @@
             ],
             "title": "Influence"
           },
+          "internalTargetPe": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internaltargetpe"
+          },
           "ledger": {
             "anyOf": [
               {
@@ -8595,6 +8609,17 @@
             "title": "Criteria",
             "type": "object"
           },
+          "internal_target_pe": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Target Pe"
+          },
           "ruleset": {
             "title": "Ruleset",
             "type": "string"
@@ -8635,6 +8660,30 @@
           "template_version"
         ],
         "title": "MapApplication",
+        "type": "object"
+      },
+      "MapBounds": {
+        "description": "A fitted parameter's bounds as the plan set them (the CPF's fit policy).",
+        "properties": {
+          "lower": {
+            "title": "Lower",
+            "type": "number"
+          },
+          "scale": {
+            "default": "linear",
+            "title": "Scale",
+            "type": "string"
+          },
+          "upper": {
+            "title": "Upper",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lower",
+          "upper"
+        ],
+        "title": "MapBounds",
         "type": "object"
       },
       "MapDocument": {
@@ -8927,6 +8976,16 @@
       },
       "MapParameter": {
         "properties": {
+          "bounds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapBounds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "fittable_stages": {
             "default": [],
             "items": {
@@ -8938,6 +8997,27 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "plausibility": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plausibility"
           },
           "source": {
             "anyOf": [
@@ -19203,7 +19283,7 @@
     },
     "/api/v1/projects/{project_id}/campaigns": {
       "post": {
-        "description": "Start a modeling campaign through the configured execution backend (local single-node, or Temporal). Outside\ndevelopment, only on a MAP a person signed (`modeler_api.run_guard`).",
+        "description": "Start a modeling campaign through the configured execution backend (local single-node, or Temporal). Outside\ndevelopment, only on a MAP a person signed and on the CPF it signed (`modeler_api.run_guard`).",
         "operationId": "start_campaign_api_v1_projects__project_id__campaigns_post",
         "parameters": [
           {

@@ -15,6 +15,71 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the review inbox shows the next escalation of a campaign it just resumed
+- **What:** a signed decision in the review inbox resumes its campaign in the background, and the campaign may escalate
+  again (an S5 decision is followed by the S4/S5 signature). The inbox read the escalations once, right after the
+  decision, so a campaign slower than that read never showed its next decision until the page was reloaded. The inbox
+  now reads again every 4 s (`AutoRefresh`, as the campaign monitor does); a decision being typed keeps its state.
+- **Why:** the browser flow `feedback.spec.ts` failed on this race three times in CI (#60, #76, #84). It was reproduced
+  locally by pausing the resumed campaign 4 s before it continues, and passes with the fix under the same pause.
+- **Impact:** web only; no API or science change.
+
+### Changed (science) — the signed MAP binds the fit bounds and the internal target, and the verdicts follow it (R4d, D-35, D-36)
+- **What** (locked files `campaign/map.py` and `acceptance.py`, changed with the owner's approval of 2026-10-19):
+  - **The MAP's parameter table carries what the run may fit within.** Each parameter now records its fit policy's
+    bounds (`MapParameter.bounds`: lower, upper, scale) and the plausibility range the run falls back on
+    (`MapParameter.plausibility`), the two sources `fit_spec` takes bounds from. Both are under the signature.
+  - **The MAP records the internal target** (`MapAcceptance.internal_target_pe`). `generate_map` refuses one looser
+    than the tier: at most (1 − 1/f) × 100 with f the tier's tightest AUC/Cmax fold limit, i.e. 33.3 % at medium,
+    20 % at high and 50 % at low (`acceptance.loosest_internal_target`, now the plan's validator's rule as well).
+  - **The verdicts apply it** (MS-01 §8: "Stricter MAP criteria (e.g. |PE| ≤ 10 %) are allowed for internal groups;
+    they must never be looser than the tier").
+    - An internal (`fitting`) AUC or Cmax passes only within the tier's limit **and** |PE| ≤ t %. The limit reads,
+      e.g., "0.67-1.5-fold and |PE| ≤ 20 %".
+    - Validation (external, S5) comparisons and DDI ratios are judged by the tier alone. The group fractions are
+      unchanged.
+  - **D-35: a campaign is judged by the criteria its MAP was signed with** (`MapAcceptance.as_ruleset`), no longer by
+    the ruleset file at run time. A ruleset change applies from the next MAP version.
+  - **D-36: a campaign runs on the parameters its MAP signed.** The start compares the CPF with the MAP's parameter
+    table (`map.cpf_differences`: a parameter on one side only, or a different value, unit, status, fit stages,
+    bounds or plausibility). Pilot and production refuse a departing or unreadable CPF with 409, naming the
+    differences (`run_guard.require_cpf_matches_map`). A development run starts and says so in its S0 notes.
+  - **The plan follows:** `map_from_plan` passes the plan's target into the MAP. The limitation "the verdicts do not
+    apply it yet" is gone: the target is a criterion now.
+  - **The reports show it:** the review page says the target is applied; the MAR's conclusion and its M15 table
+    (technical criteria) name it; the campaign monitor shows it (`CampaignRecord.internalTargetPe`).
+- **Correction to R4b's record:** R4b said "the signed MAP does not carry the fit bounds". They were in fact under the
+  signature, but only as text: every fit is a plan change written into `split_rationale` ("fitted in S1 [lo, hi]
+  scale"). What was missing was a structured record of them and any check that the run's CPF matches the MAP. R4d
+  adds both.
+- **Why:** the owner's decision of 2026-10-19: the Part 11 signature must cover the bounds the run fits within, and a
+  stricter target the person sets must change the verdicts, not only be stated.
+- **Impact:**
+  - **Signatures already given stay valid.** Each new field is left out of the content hash while unset, as empty
+    `applications` already were. Two MAPs signed by the code on `main` before this change (with and without a fit,
+    `packages/pbpk-domain/tests/fixtures/`) read back with their signed hash. A MAP signed before R4d is compared, at
+    the start, on what it recorded: its fits' bounds are not checked (they are in its rationale text only).
+  - **Verdicts:** unchanged without a target, and unchanged with the criteria recorded today (both 2026.2-draft).
+    With a target, internal studies are judged more strictly. Still UNVERIFIED, like the ruleset; the application to
+    AUC and Cmax of internal groups only is listed for the SME (`docs/SME_SIGNOFF.md`).
+  - **A new MAP hash** for any MAP that records bounds, plausibility or a target. The reference runs' refit MAPs are
+    unsigned development MAPs.
+  - **Verified on PK-Sim** (`dapagliflozin-refit`, Actions run 39286267822, engine 12.4.4, on this branch): identical to
+    the recorded refit. S0 passes with no departure note. S1 escalates after the clearance fit, with UGT1A9 clspec at
+    its lower bound (0.0399). The GMFE is 2.478 / 2.516 at baseline and 1.412 / 2.291 after the fit.
+  - **API contract:** `MapParameter`, `MapAcceptance` and `CampaignRecord` gain fields; the OpenAPI snapshot and web
+    types are regenerated.
+  - **Locked files:** `campaign/map.py` and `acceptance.py`, hashes refreshed in `docs/architecture/locked-files.json`.
+  - Tests:
+    - `test_map.py`: the signed-on-main fixtures, bounds and plausibility under the hash, the target's range, the
+      recorded criteria judging as the ruleset;
+    - `test_acceptance.py`: the target on internal AUC/Cmax only;
+    - `test_evaluate_round_activity.py`: the MAP's target and its signed criteria judge the round;
+    - `test_run_integrity.py`: a pilot refuses a CPF with other bounds, or none to read;
+    - `test_local_runner.py`: S0 notes a development departure;
+    - `test_plan*.py`: the MAP carries the target, and the staged CPF matches the signed MAP;
+    - `review-sign.spec.ts`: the target is shown as applied.
+
 ### Fixed — a figure picked from a PDF's figure list keeps its crop (R3d)
 - **What:** the digitizer draws each view (document, page, zoom, crop) asynchronously, and an older drawing still in
   flight could land last. Opening the digitizer starts drawing the whole page; picking a figure at once starts the

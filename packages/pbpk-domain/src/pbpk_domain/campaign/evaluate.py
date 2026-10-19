@@ -127,9 +127,13 @@ def assess_round(
     model_risk: Rating,
     auc_kind: AucKind = "last",
     reported: frozenset[str] = frozenset(),
+    ruleset: dict[str, Any] | None = None,
+    internal_target_pe: float | None = None,
 ) -> RoundAssessment:
     """Reduce each simulated profile to PK, compare with the observed PK, and judge the tier gate.
 
+    ``ruleset`` is the criteria the signed MAP recorded (`MapAcceptance.as_ruleset`, D-35) and ``internal_target_pe``
+    its stricter target for internal groups (MS-01 §8); without them, the ruleset file's tier alone.
     ``reported`` studies (a model system's analyte the stage does not judge: a metabolite at a parent stage, a mass
     sum) are reduced and reported but take no part in the gate. Each analyte is judged as its own group."""
     studies: list[StudyPK] = []
@@ -188,7 +192,7 @@ def assess_round(
             metrics=_metrics(studies, report=None, reported=reported),
         )
 
-    report = evaluate(comparisons, model_risk)
+    report = evaluate(comparisons, model_risk, ruleset, internal_target_pe=internal_target_pe)
     if not report.passes:
         for v in report.failures():
             group = "".join(f", {x}" for x in (v.comparison.analyte, v.comparison.group) if x)
@@ -268,6 +272,8 @@ def _metrics(studies: Sequence[StudyPK], *, report: AcceptanceReport | None,
     if report is not None:
         metrics["tier"] = report.tier
         metrics["ruleset"] = report.ruleset
+        if report.internal_target_pe is not None:
+            metrics["internal_target_pe"] = report.internal_target_pe
         metrics["groups"] = [
             {"role": g.role, "group": g.group, "analyte": g.analyte, "quantity": g.quantity, "n": g.n,
              "fraction_within": g.fraction_within, "required_fraction": g.required_fraction, "passes": g.passes}

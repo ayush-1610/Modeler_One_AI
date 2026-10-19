@@ -315,7 +315,7 @@ class AcceptanceView(View):
     internal_target_pe: Number | None
     target_set_here: bool
     loosest_target_pe: Number | None       # the largest target no looser than the tier
-    target_applied: bool                   # False until the verdicts apply it (R4d)
+    target_applied: bool                   # the verdicts apply it to the internal groups (since R4d)
 
 
 class ReviewPage(View):

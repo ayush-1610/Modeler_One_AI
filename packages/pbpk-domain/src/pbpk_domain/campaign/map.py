@@ -21,7 +21,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pbpk_domain.acceptance import load_acceptance_ruleset
+from pbpk_domain.acceptance import load_acceptance_ruleset, loosest_internal_target
 from pbpk_domain.campaign.split import (
     DEFAULT_DEMOGRAPHICS,
     Assignment,
@@ -133,6 +133,15 @@ class MapStatus(str, Enum):
     SIGNED = "SIGNED"
 
 
+class MapBounds(BaseModel):
+    """A fitted parameter's bounds as the plan set them (the CPF's fit policy)."""
+
+    model_config = ConfigDict(frozen=True)
+    lower: float
+    upper: float
+    scale: str = "linear"
+
+
 class MapParameter(BaseModel):
     model_config = ConfigDict(frozen=True)
     id: str
@@ -141,6 +150,14 @@ class MapParameter(BaseModel):
     status: str
     source: str | None
     fittable_stages: tuple[str, ...] = ()
+    # what the run may fit within (R4d): the fit policy's bounds, and the plausibility range the run falls back on
+    # (fit_spec). Left out of the content hash when unset, so a MAP without them hashes as it did before.
+    bounds: MapBounds | None = None
+    plausibility: tuple[float, float] | None = None
+
+
+# MapParameter fields left out of the content hash when unset (signatures given before they existed stay valid)
+_HASHED_WHEN_SET = ("bounds", "plausibility")
 
 
 class MapStudy(BaseModel):
@@ -215,6 +232,15 @@ class MapAcceptance(BaseModel):
     tier: str
     ruleset: str
     criteria: dict
+    # a stricter target than the tier, |prediction error| ≤ this % for the internal groups' AUC and Cmax (MS-01 §8),
+    # never looser than the tier. Left out of the content hash when unset.
+    internal_target_pe: float | None = None
+
+    def as_ruleset(self) -> dict[str, Any]:
+        """The criteria this MAP recorded, as `acceptance.evaluate` takes them: a campaign is judged by the criteria
+        that were signed, not by the ruleset file at run time (D-35)."""
+        ruleset_id, _, version = self.ruleset.partition("@")
+        return {"id": ruleset_id, "version": version, "tiers": {self.tier: self.criteria}}
 
 
 class MapSignature(BaseModel):
@@ -300,9 +326,16 @@ class MapDocument(BaseModel):
 
     def content_sha256(self) -> str:
         """Hash of the plan's substance (everything except its status, signature and this hash). A MAP with no
-        application hashes as it did before applications existed, so the signatures already given stay valid."""
+        application, no parameter bounds or plausibility, and no internal target hashes as it did before those
+        existed, so the signatures already given stay valid."""
         exclude = {"status", "signature"} | (set() if self.applications else {"applications"})
         content = self.model_dump(mode="json", exclude=exclude)
+        for parameter in content["cpf_parameters"]:
+            for key in _HASHED_WHEN_SET:
+                if parameter.get(key) is None:
+                    parameter.pop(key, None)
+        if content["acceptance"].get("internal_target_pe") is None:
+            content["acceptance"].pop("internal_target_pe", None)
         return hashlib.sha256(json.dumps(content, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     def application_problems(self, cpf: CPF | None = None) -> list[str]:
@@ -336,10 +369,60 @@ class MapDocument(BaseModel):
         return self.supersedes_sha256 is not None
 
 
-def _acceptance(model_risk: Rating) -> MapAcceptance:
+def map_parameters(cpf: CPF) -> tuple[MapParameter, ...]:
+    """The MAP's parameter table: each CPF parameter with its source, the stages it may be fitted at, and the bounds
+    the run may fit it within."""
+    return tuple(
+        MapParameter(
+            id=p.id, value=p.value, unit=p.unit, status=p.status.value,
+            source=p.provenance.source_type if p.provenance else None,
+            fittable_stages=p.fit_policy.stage if p.fit_policy else (),
+            bounds=MapBounds(lower=p.fit_policy.lower, upper=p.fit_policy.upper, scale=p.fit_policy.scale.value)
+            if p.fit_policy else None,
+            plausibility=(p.plausibility.lower, p.plausibility.upper) if p.plausibility else None,
+        )
+        for p in cpf.parameters
+    )
+
+
+_COMPARED = ("value", "unit", "status", "fittable_stages")
+
+
+def _shown(value: Any) -> str:
+    if isinstance(value, MapBounds):
+        return f"[{value.lower:g}, {value.upper:g}] {value.scale}"
+    if isinstance(value, tuple) and len(value) == 2 and all(isinstance(x, float | int) for x in value):
+        return f"[{value[0]:g}, {value[1]:g}]"
+    return "none" if value is None or value == () else str(value)
+
+
+def cpf_differences(doc: MapDocument, cpf: CPF) -> list[str]:
+    """Where a campaign's CPF departs from the parameter table its MAP signed (D-36): a parameter on one side only,
+    or a different value, unit, status, fit stages, bounds or plausibility range. A MAP signed before the bounds were
+    recorded is compared on what it recorded."""
+    signed = {p.id: p for p in doc.cpf_parameters}
+    run = {p.id: p for p in map_parameters(cpf)}
+    out = [f"{pid}: in the signed MAP, not in the campaign's CPF" for pid in sorted(signed.keys() - run.keys())]
+    out += [f"{pid}: in the campaign's CPF, not in the signed MAP" for pid in sorted(run.keys() - signed.keys())]
+    for pid in sorted(signed.keys() & run.keys()):
+        mine, theirs = signed[pid], run[pid]
+        fields = [*_COMPARED, *(f for f in _HASHED_WHEN_SET if f in mine.model_fields_set)]
+        changed = [f for f in fields if getattr(mine, f) != getattr(theirs, f)]
+        out += [f"{pid}: {f} {_shown(getattr(theirs, f))} in the campaign's CPF, {_shown(getattr(mine, f))} in the "
+                "signed MAP" for f in changed]
+    return out
+
+
+def _acceptance(model_risk: Rating, internal_target_pe: float | None = None) -> MapAcceptance:
     ruleset = load_acceptance_ruleset()
     tier = ruleset["tiers"][str(model_risk)]
-    return MapAcceptance(tier=str(model_risk), ruleset=f"{ruleset['id']}@{ruleset['version']}", criteria=tier)
+    if internal_target_pe is not None:
+        widest = loosest_internal_target(model_risk, ruleset)
+        if not 0 < internal_target_pe <= widest + 1e-9:
+            raise ValueError(f"the internal target |prediction error| ≤ {internal_target_pe:g} % must be above 0 and no "
+                             f"looser than the {model_risk} tier ({widest:.1f} %, MS-01 §8)")
+    return MapAcceptance(tier=str(model_risk), ruleset=f"{ruleset['id']}@{ruleset['version']}", criteria=tier,
+                         internal_target_pe=internal_target_pe)
 
 
 def _training_stage(study: StudyRecord, study_class: StudyClass, cpf: CPF, have_solution: bool) -> str | None:
@@ -502,6 +585,7 @@ def generate_map(
     sampling_end_h: Mapping[str, float] | None = None,
     system: ModelSystem | None = None,
     applications: tuple[MapApplication, ...] = (),
+    internal_target_pe: float | None = None,
 ) -> MapDocument:
     """Produce the MAP (version 1, DRAFT) from the standard and the campaign's inputs (MS-01 §9).
 
@@ -511,14 +595,7 @@ def generate_map(
         from pbpk_domain.diagnostics import diag_ruleset_version
 
         diagnostics_ruleset_version = diag_ruleset_version()
-    parameters = tuple(
-        MapParameter(
-            id=p.id, value=p.value, unit=p.unit, status=p.status.value,
-            source=p.provenance.source_type if p.provenance else None,
-            fittable_stages=p.fit_policy.stage if p.fit_policy else (),
-        )
-        for p in cpf.parameters
-    )
+    parameters = map_parameters(cpf)
     study_rows = tuple(
         MapStudy(study_id=s.study_id, study_class=s.study_class.value, score=round(s.score, 3), assignment=s.assignment.value)
         for s in split.splits
@@ -551,7 +628,7 @@ def generate_map(
         model_system_sha256=system.sha256 if system is not None else None,
         applications=tuple(applications),
         diagnostics_ruleset_version=diagnostics_ruleset_version,
-        acceptance=_acceptance(model_risk),
+        acceptance=_acceptance(model_risk, internal_target_pe),
         engine_image_digest=engine_image_digest,
         software_versions=dict(software_versions),
         seeds={"campaign": seed},

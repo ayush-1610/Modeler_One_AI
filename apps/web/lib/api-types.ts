@@ -511,7 +511,7 @@ export interface paths {
         /**
          * Start Campaign
          * @description Start a modeling campaign through the configured execution backend (local single-node, or Temporal). Outside
-         *     development, only on a MAP a person signed (`modeler_api.run_guard`).
+         *     development, only on a MAP a person signed and on the CPF it signed (`modeler_api.run_guard`).
          */
         post: operations["start_campaign_api_v1_projects__project_id__campaigns_post"];
         delete?: never;
@@ -2381,6 +2381,8 @@ export interface components {
             influence?: {
                 [key: string]: unknown;
             } | null;
+            /** Internaltargetpe */
+            internalTargetPe?: number | null;
             /** Ledger */
             ledger?: {
                 [key: string]: unknown;
@@ -4780,6 +4782,8 @@ export interface components {
             criteria: {
                 [key: string]: unknown;
             };
+            /** Internal Target Pe */
+            internal_target_pe?: number | null;
             /** Ruleset */
             ruleset: string;
             /** Tier */
@@ -4800,6 +4804,21 @@ export interface components {
             template: string;
             /** Template Version */
             template_version: string;
+        };
+        /**
+         * MapBounds
+         * @description A fitted parameter's bounds as the plan set them (the CPF's fit policy).
+         */
+        MapBounds: {
+            /** Lower */
+            lower: number;
+            /**
+             * Scale
+             * @default linear
+             */
+            scale?: string;
+            /** Upper */
+            upper: number;
         };
         /** MapDocument */
         MapDocument: {
@@ -4918,6 +4937,7 @@ export interface components {
         };
         /** MapParameter */
         MapParameter: {
+            bounds?: components["schemas"]["MapBounds"] | null;
             /**
              * Fittable Stages
              * @default []
@@ -4925,6 +4945,11 @@ export interface components {
             fittable_stages?: string[];
             /** Id */
             id: string;
+            /** Plausibility */
+            plausibility?: [
+                number,
+                number
+            ] | null;
             /** Source */
             source: string | null;
             /** Status */

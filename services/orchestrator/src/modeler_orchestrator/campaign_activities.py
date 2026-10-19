@@ -120,13 +120,26 @@ def plan_campaign(request: CampaignRequest) -> S0Readiness:
     from pbpk_domain.cpf import CPF
 
     cpf = CPF.model_validate_json(text)
+    departures = _map_departures(request, cpf)
     system = _round_system(request, cpf)
     if system is not None:
         # every compound of the system is simulated, so each must be ready (MS-01 §2.2 per compound)
         outcomes = [(c.compound, plan_campaign_cpf(c)) for c in system.compounds]
         return S0Readiness(ready=all(r.ready for _n, r in outcomes),
-                           findings=[f"{name}: {f}" for name, r in outcomes for f in r.findings])
-    return plan_campaign_cpf(cpf)
+                           findings=[*departures, *(f"{name}: {f}" for name, r in outcomes for f in r.findings)])
+    readiness = plan_campaign_cpf(cpf)
+    return S0Readiness(ready=readiness.ready, findings=[*departures, *readiness.findings]) if departures else readiness
+
+
+def _map_departures(request: CampaignRequest, cpf) -> list[str]:
+    """Where the CPF departs from the parameter table its MAP signed (D-36). Outside development the start refused
+    such a run; a development run says so here."""
+    map_text = _load_local_text(request.map_uri) if request.map_uri else None
+    if map_text is None:
+        return []
+    from pbpk_domain.campaign.map import MapDocument, cpf_differences
+
+    return [f"the CPF differs from its MAP (development run): {d}" for d in cpf_differences(MapDocument.model_validate_json(map_text), cpf)]
 
 
 def plan_campaign_cpf(cpf) -> S0Readiness:
@@ -678,7 +691,10 @@ def evaluate_round(ctx: RoundContext, run_result: RoundRunResult) -> RoundEvalua
                                         sample_values=tuple(float(v) for v in values) if values else None,
                                         infusion_time=infusion.get(study_id))
 
-    assessment = assess_round(simulated, observed, model_risk=map_doc.model_risk, reported=frozenset(reported))
+    # judged by the criteria the MAP was signed with and its internal target (D-35), not the ruleset file of today
+    assessment = assess_round(simulated, observed, model_risk=map_doc.model_risk, reported=frozenset(reported),
+                              ruleset=map_doc.acceptance.as_ruleset(),
+                              internal_target_pe=map_doc.acceptance.internal_target_pe)
     activity.logger.info(
         "evaluate_round %s %s round %d: gate=%s studies=%d",
         ctx.campaign_id, ctx.stage, ctx.round_index, assessment.gate_passed, len(assessment.studies),

@@ -9,6 +9,10 @@ runs in CI) may start an unsigned one: its DEV verifier signs nothing that count
 The signed MAP also fixes each stage's time: MS-01's share of the campaign budget the person set in the plan. Outside
 development a start cannot override it stage by stage (the owner's decision, 2026-10-18); a campaign that needs more
 time gets a larger budget in the plan, signed again.
+
+And the campaign runs on the parameters its MAP signed (D-36, 2026-10-19): the CPF handed to the run has the values,
+units, fit stages, bounds and plausibility ranges the MAP's parameter table records. Outside development a CPF that
+departs from it is refused; a development run records the differences at S0.
 """
 
 from __future__ import annotations
@@ -28,7 +32,11 @@ if TYPE_CHECKING:
 
 
 def _map_bytes(map_uri: str) -> bytes | None:
-    parsed = urlparse(map_uri)
+    return _file_bytes(map_uri)
+
+
+def _file_bytes(uri: str) -> bytes | None:
+    parsed = urlparse(uri)
     if parsed.scheme != "file":
         return None
     path = Path(unquote(parsed.path))
@@ -72,3 +80,26 @@ def require_signed_limits(stage_budgets_seconds: dict[str, int]) -> None:
         raise HTTPException(status_code=422, detail="Each stage's time is its MS-01 share of the budget in the signed MAP, "
                                                     "and a start cannot change it. To give the campaign more time, raise "
                                                     "its budget in the model plan and sign again.")
+
+
+def require_cpf_matches_map(cpf_uri: str, map_uri: str) -> None:
+    """409 when a pilot or production campaign's CPF departs from its signed MAP's parameter table (D-36), or cannot be
+    read to check it."""
+    if runtime_env().deployment_kind == "development":
+        return
+    from pbpk_domain.campaign.map import MapDocument, cpf_differences
+    from pbpk_domain.cpf import CPF
+
+    cpf_bytes, map_bytes = _file_bytes(cpf_uri), _file_bytes(map_uri) if map_uri else None
+    if cpf_bytes is None or map_bytes is None:
+        raise HTTPException(status_code=409, detail="The campaign's CPF or MAP could not be read to check that the run uses "
+                                                    "the parameters the MAP signed.")
+    try:
+        differences = cpf_differences(MapDocument.model_validate_json(map_bytes), CPF.model_validate_json(cpf_bytes))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=f"The campaign's CPF or MAP does not read: {exc}") from exc
+    if differences:
+        shown = "; ".join(differences[:5]) + (f"; and {len(differences) - 5} more" if len(differences) > 5 else "")
+        raise HTTPException(status_code=409, detail="The campaign's CPF is not the one its MAP signed: " + shown + ". Bring "
+                                                    "the plan up to date and sign it again, or start the campaign from the "
+                                                    "signed MAP's own CPF.")

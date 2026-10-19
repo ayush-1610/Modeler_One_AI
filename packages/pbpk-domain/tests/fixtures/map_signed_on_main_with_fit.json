@@ -1,0 +1,458 @@
+{
+  "version": 1,
+  "compound": "Example-A",
+  "objective": "Predict oral exposure across doses",
+  "context_of_use": "MIDD dose selection",
+  "food_effect_in_question": false,
+  "model_risk": "medium",
+  "cpf_parameters": [
+    {
+      "id": "phys.mw",
+      "value": 408.5,
+      "unit": "g/mol",
+      "status": "FIXED",
+      "source": "measured",
+      "fittable_stages": []
+    },
+    {
+      "id": "phys.logp",
+      "value": 2.6,
+      "unit": "Log Units",
+      "status": "PREDICTED",
+      "source": "measured",
+      "fittable_stages": [
+        "S1"
+      ]
+    },
+    {
+      "id": "bind.fu",
+      "value": 0.02,
+      "unit": null,
+      "status": "FIXED",
+      "source": "measured",
+      "fittable_stages": []
+    },
+    {
+      "id": "phys.solubility.ref",
+      "value": 0.1,
+      "unit": "mg/ml",
+      "status": "FIXED",
+      "source": "measured",
+      "fittable_stages": []
+    },
+    {
+      "id": "phys.pka.base.0",
+      "value": 6.4,
+      "unit": null,
+      "status": "FIXED",
+      "source": "measured",
+      "fittable_stages": []
+    },
+    {
+      "id": "elim.hepatic.CYP3A4.clspec",
+      "value": 0.8,
+      "unit": "l/µmol/min",
+      "status": "FITTED",
+      "source": "measured",
+      "fittable_stages": []
+    }
+  ],
+  "studies": [
+    {
+      "study_id": "iv",
+      "study_class": "IV-SD",
+      "score": 108.0,
+      "assignment": "INTERNAL"
+    },
+    {
+      "study_id": "po_low",
+      "study_class": "PO-SOL-FASTED",
+      "score": 180.0,
+      "assignment": "EXTERNAL"
+    },
+    {
+      "study_id": "po_high",
+      "study_class": "PO-SOL-FASTED",
+      "score": 180.0,
+      "assignment": "INTERNAL"
+    },
+    {
+      "study_id": "fed",
+      "study_class": "PO-FED",
+      "score": 162.0,
+      "assignment": "EXTERNAL"
+    }
+  ],
+  "split_rationale": [
+    "S1 (IV): iv is the highest-scoring IV-SD study and trains distribution and elimination.",
+    "S2 (oral fasted): po_high, po_low train absorption across the lowest (5 mg) and highest (50 mg) fasted single doses.",
+    "Measured fed solubility is available: no fed parameter is fitted and all fed studies are external (rule 5).",
+    "Moved po_low from internal to external so the fasted oral category has external validation (rule 3)."
+  ],
+  "split_limitations": [
+    "Only one IV-SD study: external validation of the IV model is not achievable (documented limitation)."
+  ],
+  "stage_plan": [
+    {
+      "stage": "S0",
+      "budget_seconds": 36,
+      "fit_candidates": [],
+      "branches": [],
+      "max_rounds": 1
+    },
+    {
+      "stage": "S1",
+      "budget_seconds": 720,
+      "fit_candidates": [
+        "elim.hepatic.{enzyme}.clspec",
+        "elim.hepatic.{enzyme}.kcat",
+        "transp.{name}.kcat",
+        "phys.logp",
+        "elim.renal.gfr_fraction",
+        "elim.renal.ts_clspec",
+        "perm.cellular",
+        "bind.fu"
+      ],
+      "branches": [
+        "dist.partition_method",
+        "dist.permeability_method"
+      ],
+      "max_rounds": 4
+    },
+    {
+      "stage": "S2",
+      "budget_seconds": 720,
+      "fit_candidates": [
+        "perm.intestinal",
+        "phys.solubility.ref",
+        "elim.ehc_fraction",
+        "elim.hepatic.{enzyme}.km",
+        "elim.hepatic.{enzyme}.vmax",
+        "elim.hepatic.{enzyme}.clspec",
+        "elim.hepatic.{enzyme}.kcat",
+        "transp.{name}.kcat"
+      ],
+      "branches": [],
+      "max_rounds": 4
+    },
+    {
+      "stage": "S3",
+      "budget_seconds": 252,
+      "fit_candidates": [
+        "form.{name}.weibull.t50",
+        "form.{name}.weibull.shape",
+        "food.fed_solubility_factor"
+      ],
+      "branches": [],
+      "max_rounds": 2
+    },
+    {
+      "stage": "SJ",
+      "budget_seconds": 540,
+      "fit_candidates": [
+        "fitted in S1–S3"
+      ],
+      "branches": [],
+      "max_rounds": 1
+    },
+    {
+      "stage": "S4",
+      "budget_seconds": 180,
+      "fit_candidates": [],
+      "branches": [],
+      "max_rounds": 1
+    },
+    {
+      "stage": "S5",
+      "budget_seconds": 180,
+      "fit_candidates": [],
+      "branches": [],
+      "max_rounds": 1
+    },
+    {
+      "stage": "S6",
+      "budget_seconds": 720,
+      "fit_candidates": [],
+      "branches": [],
+      "max_rounds": 1
+    },
+    {
+      "stage": "S7",
+      "budget_seconds": 252,
+      "fit_candidates": [],
+      "branches": [],
+      "max_rounds": 1
+    }
+  ],
+  "scenarios": [
+    {
+      "study_id": "iv",
+      "stage": "S1",
+      "route": "iv_bolus",
+      "dose_mg": 5.0,
+      "dose_per_kg": false,
+      "infusion_time_min": null,
+      "formulation": "solution",
+      "food_state": "fasted",
+      "meal_template": null,
+      "meals": [],
+      "inactive_processes": {},
+      "default_simulation_values": [],
+      "solver": {},
+      "water_ml_per_kg": null,
+      "n_subjects": 12,
+      "population": "European_ICRP_2002",
+      "sex": "MALE",
+      "age_years": 30.0,
+      "weight_kg": null,
+      "height_cm": null,
+      "study_class": "IV-SD",
+      "formulation_name": null,
+      "dosing_interval_h": null,
+      "n_doses": null,
+      "dose_phases": [],
+      "sim_end_time_h": null,
+      "published_individual": null,
+      "analyte": null,
+      "product": null,
+      "analyte_output": null,
+      "gated": true,
+      "vpc_age_min": 20.0,
+      "vpc_age_max": 40.0
+    },
+    {
+      "study_id": "iv",
+      "stage": "S4",
+      "route": "iv_bolus",
+      "dose_mg": 5.0,
+      "dose_per_kg": false,
+      "infusion_time_min": null,
+      "formulation": "solution",
+      "food_state": "fasted",
+      "meal_template": null,
+      "meals": [],
+      "inactive_processes": {},
+      "default_simulation_values": [],
+      "solver": {},
+      "water_ml_per_kg": null,
+      "n_subjects": 12,
+      "population": "European_ICRP_2002",
+      "sex": "MALE",
+      "age_years": 30.0,
+      "weight_kg": null,
+      "height_cm": null,
+      "study_class": "IV-SD",
+      "formulation_name": null,
+      "dosing_interval_h": null,
+      "n_doses": null,
+      "dose_phases": [],
+      "sim_end_time_h": null,
+      "published_individual": null,
+      "analyte": null,
+      "product": null,
+      "analyte_output": null,
+      "gated": true,
+      "vpc_age_min": 20.0,
+      "vpc_age_max": 40.0
+    },
+    {
+      "study_id": "po_low",
+      "stage": "S5",
+      "route": "oral",
+      "dose_mg": 5.0,
+      "dose_per_kg": false,
+      "infusion_time_min": null,
+      "formulation": "solution",
+      "food_state": "fasted",
+      "meal_template": null,
+      "meals": [],
+      "inactive_processes": {},
+      "default_simulation_values": [],
+      "solver": {},
+      "water_ml_per_kg": null,
+      "n_subjects": 20,
+      "population": "European_ICRP_2002",
+      "sex": "MALE",
+      "age_years": 30.0,
+      "weight_kg": null,
+      "height_cm": null,
+      "study_class": "PO-SOL-FASTED",
+      "formulation_name": null,
+      "dosing_interval_h": null,
+      "n_doses": null,
+      "dose_phases": [],
+      "sim_end_time_h": null,
+      "published_individual": null,
+      "analyte": null,
+      "product": null,
+      "analyte_output": null,
+      "gated": true,
+      "vpc_age_min": 20.0,
+      "vpc_age_max": 40.0
+    },
+    {
+      "study_id": "po_high",
+      "stage": "S2",
+      "route": "oral",
+      "dose_mg": 50.0,
+      "dose_per_kg": false,
+      "infusion_time_min": null,
+      "formulation": "solution",
+      "food_state": "fasted",
+      "meal_template": null,
+      "meals": [],
+      "inactive_processes": {},
+      "default_simulation_values": [],
+      "solver": {},
+      "water_ml_per_kg": null,
+      "n_subjects": 20,
+      "population": "European_ICRP_2002",
+      "sex": "MALE",
+      "age_years": 30.0,
+      "weight_kg": null,
+      "height_cm": null,
+      "study_class": "PO-SOL-FASTED",
+      "formulation_name": null,
+      "dosing_interval_h": null,
+      "n_doses": null,
+      "dose_phases": [],
+      "sim_end_time_h": null,
+      "published_individual": null,
+      "analyte": null,
+      "product": null,
+      "analyte_output": null,
+      "gated": true,
+      "vpc_age_min": 20.0,
+      "vpc_age_max": 40.0
+    },
+    {
+      "study_id": "po_high",
+      "stage": "S4",
+      "route": "oral",
+      "dose_mg": 50.0,
+      "dose_per_kg": false,
+      "infusion_time_min": null,
+      "formulation": "solution",
+      "food_state": "fasted",
+      "meal_template": null,
+      "meals": [],
+      "inactive_processes": {},
+      "default_simulation_values": [],
+      "solver": {},
+      "water_ml_per_kg": null,
+      "n_subjects": 20,
+      "population": "European_ICRP_2002",
+      "sex": "MALE",
+      "age_years": 30.0,
+      "weight_kg": null,
+      "height_cm": null,
+      "study_class": "PO-SOL-FASTED",
+      "formulation_name": null,
+      "dosing_interval_h": null,
+      "n_doses": null,
+      "dose_phases": [],
+      "sim_end_time_h": null,
+      "published_individual": null,
+      "analyte": null,
+      "product": null,
+      "analyte_output": null,
+      "gated": true,
+      "vpc_age_min": 20.0,
+      "vpc_age_max": 40.0
+    },
+    {
+      "study_id": "fed",
+      "stage": "S5",
+      "route": "oral",
+      "dose_mg": 10.0,
+      "dose_per_kg": false,
+      "infusion_time_min": null,
+      "formulation": "solution",
+      "food_state": "fed",
+      "meal_template": "Meal: High-fat breakfast (Human)",
+      "meals": [],
+      "inactive_processes": {},
+      "default_simulation_values": [],
+      "solver": {},
+      "water_ml_per_kg": null,
+      "n_subjects": 18,
+      "population": "European_ICRP_2002",
+      "sex": "MALE",
+      "age_years": 30.0,
+      "weight_kg": null,
+      "height_cm": null,
+      "study_class": "PO-FED",
+      "formulation_name": null,
+      "dosing_interval_h": null,
+      "n_doses": null,
+      "dose_phases": [],
+      "sim_end_time_h": null,
+      "published_individual": null,
+      "analyte": null,
+      "product": null,
+      "analyte_output": null,
+      "gated": true,
+      "vpc_age_min": 20.0,
+      "vpc_age_max": 40.0
+    }
+  ],
+  "diagnostics_ruleset_version": "diag-rules@0.6-UNVERIFIED",
+  "acceptance": {
+    "tier": "medium",
+    "ruleset": "pbpk-acceptance-criteria@2026.2-draft",
+    "criteria": {
+      "description": "PBPK supports a decision together with substantial clinical evidence",
+      "pk_parameters": {
+        "AUC": {
+          "max_fold": 1.5,
+          "source": "ema_pbpk_reporting"
+        },
+        "Cmax": {
+          "max_fold": 1.5,
+          "source": "ema_pbpk_reporting"
+        }
+      },
+      "ddi_ratios": {
+        "AUCR": {
+          "guest_delta": 2,
+          "source": "guest_2011"
+        },
+        "CmaxR": {
+          "guest_delta": 2,
+          "source": "guest_2011"
+        }
+      },
+      "min_fraction_within": 0.8
+    }
+  },
+  "engine_image_digest": "sha256:abcd",
+  "software_versions": {
+    "ospsuite": "12.4.4",
+    "pksim": "12.3.173",
+    "dotnet": "8"
+  },
+  "seeds": {
+    "campaign": 42
+  },
+  "escalation_triggers": [
+    "maximum rounds reached without passing the gate",
+    "stage time budget exhausted",
+    "a fitted parameter sits at its bound",
+    "two fitted parameters correlate > 0.95 after fixing one",
+    "CV > 50% on a parameter the question of interest depends on",
+    "no permitted diagnostic action left to try",
+    "multiple-dose accumulation mismatch (possible time-dependent clearance)",
+    "external validation fails (decision tree §6.6)"
+  ],
+  "status": "SIGNED",
+  "signature": {
+    "printed_name": "Test Signer",
+    "meaning": "Approved",
+    "signed_at": "2026-10-19T16:00:00Z",
+    "signature_id": "sig-test",
+    "content_sha256": "4c241baa6f0f77f114d1e8c09aec0025559f6c913bab13afa46a621ce87e6262"
+  },
+  "supersedes_sha256": null,
+  "model_system_sha256": null,
+  "applications": []
+}
