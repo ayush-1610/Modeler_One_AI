@@ -124,8 +124,11 @@ def test_a_persons_choices_are_locked_against_agent_passes_and_rebases():
 def test_fit_choices_become_fit_policies_of_the_campaign_cpf():
     cpf = _cpf()
     plan = set_fit(build_default(cpf, ROWS, Structure(model_risk="medium")), "elim.renal.gfr_fraction",
-                   {"stages": ("S1",), "lower": 0.1, "upper": 10.0, "scale": "log"}, by="u", reason="renal clearance uncertain")
+                   {"stages": ("S1",), "lower": 0.1, "upper": 3.0, "scale": "log"}, by="u", reason="renal clearance uncertain")
     assert not blocking(validate(plan, cpf, ROWS))
+    wider = set_fit(plan, "elim.renal.gfr_fraction", {"stages": ("S1",), "lower": 0.1, "upper": 10.0, "scale": "log"},
+                    by="u", reason="wider")      # beyond MS-01 §2.2's default [0, 3]: said, and acknowledged to sign
+    assert [v.rule for v in blocking(validate(wider, cpf, ROWS))] == ["fit-default"]
     doc = map_from_plan(plan, cpf, ROWS)
     gfr = next(p for p in doc.cpf_parameters if p.id == "elim.renal.gfr_fraction")
     assert gfr.fittable_stages == ("S1",)
@@ -190,3 +193,42 @@ def test_the_model_risk_is_never_assumed_and_the_budget_is_the_persons():
     assert "More than 3.6 h" in warning.message
     roomy = set_fit(build_default(cpf, ROWS, Structure(model_risk="high")), "elim.renal.gfr_fraction", fit, by="u", reason="x")
     assert not [v for v in validate(roomy, cpf, ROWS) if v.rule == "budget"]  # 8 h: S3 has 34 min
+
+
+def test_a_fit_s_bounds_are_checked_against_ms01_and_plausibility_and_inverted_bounds_are_refused():
+    """R4b (D-34): MS-01 §2.2's defaults may be narrowed, never widened beyond plausibility; a start value on a bound is
+    inside the bounds; a measured fu, which MS-01 keeps fixed, is said when estimated."""
+    cpf = _cpf()
+    plan = build_default(cpf, ROWS, Structure(model_risk="medium"))
+    fit = {"stages": ("S1",), "scale": "linear"}
+    with pytest.raises(PlanError, match="must be below the upper bound"):
+        set_fit(plan, "elim.renal.gfr_fraction", {**fit, "lower": 2.0, "upper": 0.5}, by="u", reason="r")
+    on_bound = set_fit(plan, "elim.renal.gfr_fraction", {**fit, "lower": 0.0, "upper": 1.0}, by="u", reason="r")
+    assert not [v for v in validate(on_bound, cpf, ROWS) if v.target == "elim.renal.gfr_fraction"]
+    beyond = set_fit(plan, "elim.renal.gfr_fraction", {**fit, "lower": 0.0, "upper": 12.0}, by="u", reason="r")
+    assert {v.rule for v in validate(beyond, cpf, ROWS) if v.target == "elim.renal.gfr_fraction"} == {"fit-plausible", "fit-default"}
+    fu = set_fit(plan, "bind.fu", {**fit, "lower": 0.5, "upper": 1.0}, by="u", reason="r")
+    assert [v.rule for v in validate(fu, cpf, ROWS) if v.target == "bind.fu"] == ["fit-fixed"]
+
+
+def test_an_internal_target_must_be_stricter_than_the_tier_and_is_named_among_the_limitations():
+    """MS-01 §8: a project may judge more strictly than its tier, never more loosely. At medium (1.5-fold) a ratio within
+    ±t % stays inside [1/1.5, 1.5] only for t ≤ 33.3 %. The verdicts do not apply the target yet (R4d), and the MAP says so."""
+    from modeler_project.plan import loosest_target, map_limitations, set_structure, structure_from_brief
+
+    class Brief:
+        def value(self, key):
+            return {"acceptance.tier": "medium", "acceptance.internal_target_pe": 20}.get(key)
+
+    structure = structure_from_brief(Brief())  # type: ignore[arg-type]
+    assert structure.internal_target_pe == 20 and loosest_target("medium") == pytest.approx(100 / 3)
+    cpf = _cpf()
+    plan = build_default(cpf, ROWS, structure)
+    assert not [v for v in validate(plan, cpf, ROWS) if v.rule == "target"]
+    assert any(line.startswith("Internal target |prediction error| ≤ 20 %") and "do not apply it yet" in line
+               for line in map_limitations(plan, []))
+    loose = set_structure(plan, "internal_target_pe", 40, by="u", reason="r")
+    [target] = [v for v in validate(loose, cpf, ROWS) if v.rule == "target"]
+    assert target.severity == "error" and "at most 33.3 %" in target.message
+    high = set_structure(loose, "model_risk", "high", by="u", reason="r")
+    assert "at most 20.0 %" in next(v.message for v in validate(high, cpf, ROWS) if v.rule == "target")

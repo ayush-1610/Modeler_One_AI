@@ -351,3 +351,67 @@ def test_the_review_shows_every_input_with_its_source_and_the_split_and_limitati
     assert data["limitations"] == list(doc.split_limitations)
     assert any("healthy adult default" in limitation for limitation in data["limitations"])
     assert c.get("/api/v1/projects/nope/plan/review", headers=H).status_code in (403, 404)
+
+
+def test_the_review_shows_the_estimation_plan_the_validation_plan_and_the_tiers_criteria(setup):
+    """R4b (redesign §3.3, D-34): each numeric parameter fixed or estimated with MS-01 §2.2's proposed bounds; what S4
+    and S5 judge under the MAP and what follows a failure; the tier's limits and a stricter internal target only."""
+    from modeler_project.inputs import catalog_rows, current_cpf
+    from modeler_project.plan import ModelPlan, map_from_plan
+    from pbpk_domain.campaign.map import stage_coverage
+
+    c, ws, _root = setup
+    view = c.get("/api/v1/projects/p1/plan", headers=H).json()["data"]
+    for v in [v for v in view["violations"] if v["severity"] == "warning" and not v["acknowledged"]]:
+        c.post(f"/api/v1/projects/p1/plan/violations/{v['id']}:acknowledge", headers=H, json={"reason": "accepted limitation"})
+    data = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]
+    estimation = {r["id"]: r for r in data["estimation"]}
+    fu, logp = estimation["bind.fu"], estimation["phys.logp"]
+    assert fu["estimated"] is None and fu["proposal"]["fixed"] and fu["grade"] and fu["source"]   # measured: MS-01 keeps it
+    assert logp["proposal"]["basis"] == "MS-01 §2.2, measured: the start value ± 1.5" and logp["proposal"]["scale"] == "linear"
+    assert data["bounds_rule"] == {"version": "0.1", "status": "UNVERIFIED", "source": 'MS-01 v1.3 §2.2 "Default bounds"'}
+
+    # the validation plan and the criteria are the MAP's own
+    plan = ModelPlan.from_content(ws.latest(ArtifactKind.MODEL_PLAN, "main").content)
+    doc = map_from_plan(plan, current_cpf(ws), catalog_rows(ws))
+    validation = {v["stage"]: v for v in data["validation"]}
+    for stage in ("S4", "S5"):
+        coverage = stage_coverage(doc, stage)
+        assert [s["study_id"] for s in validation[stage]["studies"]] == list(coverage.studies)
+        assert validation[stage]["skip_reason"] == coverage.skip_reason
+    assert "MS-01 §6.6" in validation["S5"]["on_failure"] and "never refitted" in validation["S4"]["on_failure"]
+    criteria = data["acceptance"]
+    assert criteria["tier"] == "medium" and criteria["ruleset"] == doc.acceptance.ruleset and criteria["status"] == "UNVERIFIED"
+    assert {q["quantity"]: q["max_fold"] for q in criteria["pk_parameters"]} == {"AUC": 1.5, "Cmax": 1.5}
+    assert {q["quantity"]: q["guest_delta"] for q in criteria["ddi_ratios"]} == {"AUCR": 2, "CmaxR": 2}
+    assert (criteria["min_fraction_within"], criteria["loosest_target_pe"], criteria["internal_target_pe"]) == (0.8, 33.3, None)
+    assert criteria["target_applied"] is False
+
+    # estimating logP with the proposed bounds: the estimated come first, with nothing to say
+    proposal = logp["proposal"]
+    fitted = c.put("/api/v1/projects/p1/plan/fits/phys.logp", headers=H, json={
+        "stages": ["S1"], "lower": proposal["lower"], "upper": proposal["upper"], "scale": proposal["scale"],
+        "reason": "lipophilicity drives the partition coefficients"})
+    assert fitted.status_code == 200, fitted.text
+    first = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]["estimation"][0]
+    assert first["id"] == "phys.logp" and first["estimated"]["stages"] == ["S1"] and first["findings"] == []
+    inverted = c.put("/api/v1/projects/p1/plan/fits/phys.logp", headers=H, json={
+        "stages": ["S1"], "lower": 3, "upper": 1, "scale": "linear", "reason": "x"})
+    assert inverted.status_code == 422 and "must be below the upper bound" in inverted.json()["detail"]
+    fu_fit = c.put("/api/v1/projects/p1/plan/fits/bind.fu", headers=H, json={
+        "stages": ["S1"], "lower": 0.05, "upper": 0.9, "scale": "log", "reason": "binding uncertain"})
+    assert [f["rule"] for f in next(r for r in fu_fit.json()["data"]["violations"] if r["target"] == "bind.fu") and
+            next(r for r in c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]["estimation"]
+                 if r["id"] == "bind.fu")["findings"]] == ["fit-fixed"]
+
+    # a stricter internal target is stated in the MAP's limitations; a looser one blocks the signature
+    c.put("/api/v1/projects/p1/plan/structure", headers=H, json={"key": "internal_target_pe", "value": 20, "reason": "tighter"})
+    review = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]
+    assert review["acceptance"]["internal_target_pe"] == 20 and review["acceptance"]["target_set_here"]
+    assert any(line.startswith("Internal target |prediction error| ≤ 20 %") for line in review["limitations"])
+    loose = c.put("/api/v1/projects/p1/plan/structure", headers=H, json={"key": "internal_target_pe", "value": 40, "reason": "x"})
+    assert any(v["rule"] == "target" and v["severity"] == "error" for v in loose.json()["data"]["violations"])
+    budget = c.put("/api/v1/projects/p1/plan/structure", headers=H,
+                   json={"key": "campaign_budget_seconds", "value": 36000, "reason": "a larger budget"})
+    assert budget.status_code == 200, budget.text                     # a number in the changes list is shown as text
+    assert {d["target"]: d["to"] for d in budget.json()["data"]["diff"]}["campaign_budget_seconds"] == "36000"

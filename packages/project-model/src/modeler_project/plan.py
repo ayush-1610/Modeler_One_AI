@@ -24,7 +24,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
 from modeler_project.brief import ProjectBrief
+from modeler_project.estimation import fit_findings
 from modeler_project.workspace import Workspace
+from pbpk_domain.acceptance import load_acceptance_ruleset
 from pbpk_domain.campaign.map import (
     BUDGET_FRACTION,
     FIT_STAGES,
@@ -132,6 +134,9 @@ class Structure(BaseModel):
     applications: tuple[MapApplication, ...] = ()  # the analysis templates S6 runs (T-31), with the person's inputs
     # the assumptions the brief states (map row p1-assump): limitations of the analysis, named in the MAP
     assumptions: tuple[str, ...] = ()
+    # a stricter project target than the tier, |prediction error| at most this % (MS-01 §8; brief
+    # acceptance.internal_target_pe). Stated in the plan and the MAP's limitations; the verdicts do not apply it yet (R4d)
+    internal_target_pe: float | None = Field(default=None, gt=0, lt=100)
     locked: tuple[str, ...] = ()                  # structure keys a person set (userLocked)
     reasons: dict[str, str] = Field(default_factory=dict)
 
@@ -225,10 +230,20 @@ def applications(brief: ProjectBrief | None) -> set[str]:
     return {str(a).split(" ", 1)[0] for a in ((brief.value("qoi.applications") if brief else None) or [])}
 
 
+def _target(value: Any) -> float | None:
+    """The brief's internal target as a percentage (None unless a positive number below 100)."""
+    try:
+        target = float(value)
+    except (TypeError, ValueError):
+        return None
+    return target if 0 < target < 100 else None
+
+
 def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility: bool = False) -> Structure:
     """The plan's structure as the brief states it (each a default a person may change with a reason)."""
     apps = applications(brief)
     tier = brief.value("acceptance.tier") if brief else None
+    target = brief.value("acceptance.internal_target_pe") if brief else None
     return Structure(objective=str((brief.value("qoi.text") if brief else None) or Structure().objective),
                      context_of_use=str((brief.value("qoi.context_of_use") if brief else None) or Structure().context_of_use),
                      model_risk=tier if tier in ("low", "medium", "high") else None,
@@ -236,7 +251,8 @@ def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility:
                      planned_applications=tuple(sorted({_APPLICATION_CLASSES[a] for a in apps if a in _APPLICATION_CLASSES})),
                      applications=tuple(MapApplication.pinned(_RUNNABLE_TEMPLATES[a]) for a in sorted(apps)
                                         if a in _RUNNABLE_TEMPLATES),
-                     assumptions=tuple(str(a) for a in ((brief.value("notes.assumptions") if brief else None) or ())))
+                     assumptions=tuple(str(a) for a in ((brief.value("notes.assumptions") if brief else None) or ())),
+                     internal_target_pe=_target(target))
 
 
 def map_limitations(plan: ModelPlan, violations: list[Violation]) -> tuple[str, ...]:
@@ -244,8 +260,11 @@ def map_limitations(plan: ModelPlan, violations: list[Violation]) -> tuple[str, 
     default (`default_limitations`), the assumptions the brief states, and every warning a person accepted, with why."""
     accepted = [f"{v.message} — acknowledged: {v.acknowledged}" for v in violations
                 if v.severity == "warning" and v.acknowledged]
+    target = plan.structure.internal_target_pe
+    note = "Internal target |prediction error| ≤ {:g} % (MS-01 §8): stated in the plan; the verdicts do not apply it yet"
+    stated = [note.format(target)] if target is not None else []
     return (*plan.default_limitations, *(f"Assumption stated in the brief: {a}" for a in plan.structure.assumptions),
-            *accepted)
+            *stated, *accepted)
 
 
 def keep_locked(previous: Structure, fresh: Structure) -> Structure:
@@ -443,10 +462,14 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
             continue
         if not set(fit.stages) <= set(FIT_STAGES):
             add("error", "fit", pid, f"{pid}: fitted only in S1–S3 (MS-01 §4), not {', '.join(fit.stages)}")
-        if not fit.lower < float(record.value) < fit.upper:
+        if not fit.lower < fit.upper:
+            add("error", "fit", pid, f"{pid}: the lower bound {fit.lower:g} is not below the upper bound {fit.upper:g}")
+        elif not fit.lower <= float(record.value) <= fit.upper:
             add("error", "fit", pid, f"{pid}: the start value {record.value:g} lies outside [{fit.lower:g}, {fit.upper:g}]")
         if fit.scale == "log" and fit.lower <= 0:
             add("error", "fit", pid, f"{pid}: a log-scaled fit needs a positive lower bound")
+        for severity, rule, message in fit_findings(record, fit.lower, fit.upper):
+            add(severity, rule, pid, message)
         off = [st for st in fit.stages if pid not in plan.fit_candidates.get(st, ())]
         if off:
             add("warning", "fit-candidate", pid, f"{pid} is not an MS-01 fit candidate at {', '.join(off)} (MS-01 §4 stage plan)")
@@ -468,7 +491,23 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
     if plan.structure.model_risk is None:
         add("error", "risk", "model_risk", "Set the model risk (low, medium or high): it decides the acceptance criteria "
                                            "every round is judged by (ICH M15), and it is never assumed")
+    elif plan.structure.internal_target_pe is not None:
+        widest = loosest_target(plan.structure.model_risk)
+        if plan.structure.internal_target_pe > widest + 1e-9:
+            add("error", "target", "internal_target_pe",
+                f"The internal target |prediction error| ≤ {plan.structure.internal_target_pe:g} % is looser than the "
+                f"{plan.structure.model_risk} tier, which allows at most {widest:.1f} %: MS-01 §8 allows a stricter "
+                "target only")
     return out
+
+
+def loosest_target(tier: str) -> float:
+    """The largest internal target (|prediction error| %, MS-01 §8) no looser than the tier: with f the tier's tightest
+    fold limit on PK parameters (pbpk_acceptance_criteria), a ratio within ±t % stays within [1/f, f] only when
+    t ≤ (1 − 1/f) × 100 (medium, 1.5-fold: 33.3 %)."""
+    criteria = load_acceptance_ruleset()["tiers"][tier]["pk_parameters"]
+    fold = min(float(c["max_fold"]) for c in criteria.values() if "max_fold" in c)
+    return (1 - 1 / fold) * 100
 
 
 def blocking(violations: list[Violation]) -> list[Violation]:
@@ -500,6 +539,8 @@ def set_fit(plan: ModelPlan, parameter: str, fit: dict[str, Any] | None, *, by: 
     if fit is None:
         fits.pop(parameter, None)
     else:
+        if not float(fit["lower"]) < float(fit["upper"]):
+            raise PlanError(f"{parameter}: the lower bound {fit['lower']:g} must be below the upper bound {fit['upper']:g}")
         fits[parameter] = FitChoice(**fit, by=by, userLocked=True, reason=reason)
     return plan.model_copy(update={"fits": fits})
 
@@ -575,6 +616,8 @@ def diff(plan: ModelPlan) -> list[dict[str, Any]]:
         to = getattr(plan.structure, key)
         if key == "applications":
             to = [f"{a.template} {a.template_version}" for a in to]
+        elif isinstance(to, int | float) and not isinstance(to, bool):   # the budget, the internal target: as text
+            to = f"{to:g}"
         out.append({"kind": "structure", "target": key, "from": "brief / default", "to": to,
                     "by": "person", "reason": plan.structure.reasons.get(key, ""), "status": "APPLIED"})
     for pr in plan.proposals:

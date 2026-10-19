@@ -11,11 +11,69 @@ import { InlineIssue } from "@/components/kit";
 import { RiskAndBudget } from "@/components/plan/RiskAndBudget";
 import type { Envelope } from "@/lib/api";
 import type { useMutation } from "@/lib/hooks";
-import { ROLE_LABEL, type PlanView } from "@/lib/plan";
+import { planApi, ROLE_LABEL, type PlanView } from "@/lib/plan";
 import { minutes, reviewApi, type ReviewPage, type ReviewStudy } from "@/lib/review";
 
 type Apply = <T>(call: () => Promise<Envelope<T>>, ok?: string) => Promise<string | null>;
 type Run = ReturnType<typeof useMutation>["run"];
+
+/** The limits every round is judged by at the chosen tier, as the MAP records them (the ruleset, provisional until the
+ *  SME signs), and a stricter internal target: MS-01 §8 allows a project to judge more strictly than its tier, never
+ *  more loosely. The target is stated in the plan and among the MAP's limitations; the verdicts do not apply it yet. */
+function AcceptanceCriteria({ projectId, review, apply }: { projectId: string; review: ReviewPage; apply: Apply }) {
+  const a = review.acceptance;
+  const [target, setTarget] = useState(a.internal_target_pe === null ? "" : String(a.internal_target_pe));
+  const [reason, setReason] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const limit = (c: (typeof a.pk_parameters)[number]) =>
+    c.max_fold !== null ? `within ${c.max_fold}-fold` : c.guest_delta !== null ? `Guest et al. limits, δ = ${c.guest_delta}` : "—";
+  return (
+    <section data-testid="acceptance-criteria">
+      <h3>The acceptance criteria <span className="chip medium" title={`ruleset ${a.ruleset}`}>provisional (SME)</span></h3>
+      {!a.tier ? <p className="muted credibility-lede">No tier yet: the criteria follow the model risk, which is never assumed.</p> : <>
+        <p className="muted credibility-lede">At the <strong>{a.tier}</strong> tier ({a.description}), every round is judged by
+          these limits; at least {Math.round(Number(a.min_fraction_within) * 100)} % of the comparisons in each group must fall
+          within them. Ruleset {a.ruleset}, {a.status === "UNVERIFIED" ? "UNVERIFIED until the SME signs" : a.status}.</p>
+        <div className="table-scroll">
+          <table className="stage-split">
+            <thead><tr><th>Quantity</th><th>Limit</th><th>Source</th></tr></thead>
+            <tbody>
+              {[...a.pk_parameters, ...a.ddi_ratios].map((c) => (
+                <tr key={c.quantity} data-testid={`criterion-${c.quantity}`}>
+                  <td>{c.quantity}</td><td className="nowrap">{limit(c)}</td><td className="muted">{c.citation ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>}
+      <div className="internal-target" data-testid="internal-target">
+        <strong>Internal target</strong>{" "}
+        {a.internal_target_pe !== null
+          ? <>|prediction error| ≤ {a.internal_target_pe} %{a.target_set_here ? ", set here" : ", from the brief"}.</>
+          : "none: the tier's limits apply."}
+        {a.loosest_target_pe !== null && <span className="muted"> A target may be stricter than the tier, at most {a.loosest_target_pe} % here.</span>}
+        <div className="row" style={{ gap: 6, marginTop: 6 }}>
+          <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="% (empty: none)" aria-label="internal target, %"
+                 data-testid="target-input" style={{ width: 110 }} />
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why (required)" aria-label="why this target"
+                 data-testid="target-reason" style={{ flex: 1, minWidth: 180 }} />
+          <button type="button" className="btn tiny" disabled={!reason.trim()} data-testid="target-save"
+                  onClick={async () => {
+                    const value = target.trim() === "" ? null : Number(target);
+                    const failed = await apply(() => planApi.structure(projectId, "internal_target_pe", value, reason.trim()),
+                                               value === null ? "No internal target." : `Internal target ${value} %.`);
+                    setProblem(failed);
+                    if (!failed) setReason("");
+                  }}>Set</button>
+        </div>
+        {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
+        <p className="muted credibility-lede" style={{ marginTop: 6 }}>Stated in the plan and named among the MAP&apos;s
+          limitations. The verdicts do not apply it yet: that changes locked files, in its own change with the owner&apos;s approval.</p>
+      </div>
+    </section>
+  );
+}
 
 export function Credibility({ projectId, view, review, apply }: {
   projectId: string; view: PlanView; review: ReviewPage; apply: Apply;
@@ -33,6 +91,7 @@ export function Credibility({ projectId, view, review, apply }: {
         </p>
         <RiskAndBudget projectId={projectId} view={view} apply={apply} />
       </section>
+      <AcceptanceCriteria projectId={projectId} review={review} apply={apply} />
       <section>
         <h3>The time budget, stage by stage</h3>
         <p className="muted credibility-lede">MS-01&apos;s fixed shares of the {minutes(review.budget_seconds)} budget, as the MAP

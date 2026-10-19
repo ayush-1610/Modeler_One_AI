@@ -152,9 +152,21 @@ The Review & sign page (`/projects/{id}/plan`) is where everything is reviewed o
   it, and how many other sources agree. Filter it (flagged, changed by a person, from an agent, waiting on you).
   **Exclude** a value with a reason: the next source takes its place, and the plan asks to be brought up to date. The
   confidence shown sums up the grade, the flags and the agreement; it decides nothing.
-- **Credibility (ICH M15).** The model risk, as set at Start or changed here with a reason; the campaign's time budget
-  and MS-01's fixed share of it for each stage, as the MAP signs them (more time means a larger budget, signed again);
-  and the limitations the MAP will name, the brief's stated assumptions among them.
+- **The estimation plan.** Every numeric parameter, fixed or estimated: its start value and source, the stages MS-01
+  lets it be fitted at, and its bounds. **Estimate** opens a form filled with the bounds MS-01 §2.2 proposes (relative
+  bounds around the start value, absolute ones in MS-01's unit, kept within the physical bounds; 0.1–10× where MS-01
+  gives none); choose the stages and give a reason. MS-01 keeps a measured fu fixed. Bounds wider than MS-01's
+  default are said and must be acknowledged; bounds beyond the physical range, or a lower bound not below the upper,
+  are refused. The rule is provisional until the SME signs it.
+- **The validation plan.** What S4 (internal) and S5 (external) judge under this MAP, which studies (a blinded one
+  marked), and what happens when validation fails: S4 escalates and is never refitted; at S5 you choose an MS-01 §6.6
+  path, signed as a deviation.
+- **Credibility (ICH M15).** The model risk, as set at Start or changed here with a reason; the **acceptance
+  criteria** of that tier (the limits every round is judged by, provisional until the SME signs the ruleset) and an
+  optional **internal target**, stricter than the tier only (the validator refuses a looser one; the verdicts do not
+  apply it yet, and the MAP says so among its limitations); the campaign's time budget and MS-01's fixed share of it
+  for each stage, as the MAP signs them (more time means a larger budget, signed again); and the limitations the MAP
+  will name, the brief's stated assumptions among them.
 - **The live validator** lists what is still open; acknowledge a warning with a reason and it becomes a limitation.
   **Approve and Sign** generates the MAP from the plan and signs it (MIDD lead, step-up). After the signature a change
   is a deviation, signed into a new MAP version before it applies.

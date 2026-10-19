@@ -42,3 +42,22 @@
 .stage-split { min-width: 0; }
 .stage-split td, .stage-split th { font-size: 13px; }
 .limitations { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; }
+
+/* the estimation plan and the validation plan (R4b) */
+.estimation-table td { font-size: 13px; }
+.estimate-row td { background: color-mix(in srgb, var(--sim) 5%, var(--surface)); }
+.estimate-form input, .estimate-form select, .internal-target input { font: inherit; font-size: 13px; padding: 4px 8px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); }
+.estimate-form input[aria-label^="lower"], .estimate-form input[aria-label^="upper"] { width: 96px; }
+.estimate-stage { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.estimate-hint { font-size: 12px; margin: 6px 0 0; }
+.review-flag.error { color: var(--fail); }
+.validation-plan { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.validation-plan section { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.validation-plan h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-dim); }
+.validation-plan > .review-hint { grid-column: 1 / -1; }
+.validation-studies { margin: 0 0 8px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.validation-studies li { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; }
+.validation-failure { font-size: 13px; margin: 8px 0 0; }
+.internal-target { margin-top: 12px; font-size: 13.5px; }
+.credibility td.nowrap { white-space: nowrap; }

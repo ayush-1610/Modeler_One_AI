@@ -7,17 +7,38 @@
 - **Credibility (ICH M15):** the campaign's time budget split across the stages exactly as the MAP signs it (MS-01's
   fractions; D-31: no per-stage overrides, more time is a larger budget signed again), and the limitations the MAP
   names (`plan.map_limitations`).
+- **The estimation plan (R4b):** every numeric parameter fixed or estimated, its source, its bounds, the bounds MS-01
+  §2.2 proposes (`estimation.proposed_bounds`, D-34) and what the validator says of them.
+- **The validation plan (R4b):** what S4 and S5 judge under this MAP (`map.stage_coverage`), and what happens when
+  validation fails (MS-01 §4, §6.6).
+- **The acceptance criteria (R4b):** the limits of the chosen tier, as the MAP records them (`MapAcceptance`), from
+  the ruleset UNVERIFIED until the SME signs; and the stricter internal target, if any (MS-01 §8), which the verdicts
+  do not apply yet (R4d).
+
+Each part reads the MAP this plan generates now (`campaign_map`), so the page shows what the signature would carry.
 """
 
 from __future__ import annotations
 
 from typing import Any, Literal
 
+from modeler_project.estimation import fit_findings, proposed_bounds
+from modeler_project.estimation import rule as bounds_rule
 from modeler_project.inputs import todo
 from modeler_project.inputs_view import compound_rows
-from modeler_project.plan import ModelPlan, Violation, campaign_cpf, default_map, map_limitations, plan_split
+from modeler_project.plan import (
+    ModelPlan,
+    Violation,
+    campaign_cpf,
+    default_map,
+    loosest_target,
+    map_limitations,
+    plan_split,
+)
 from modeler_project.workspace import Workspace
-from pbpk_domain.cpf.models import CPF
+from pbpk_domain.acceptance import load_acceptance_ruleset
+from pbpk_domain.campaign.map import MapDocument, stage_coverage
+from pbpk_domain.cpf.models import CPF, ParameterStatus
 
 Confidence = Literal["low", "medium", "high"]
 Supplier = Literal["agent", "client file", "person", "system"]
@@ -80,10 +101,15 @@ def counts(rows: list[dict[str, Any]]) -> dict[str, int]:
             "open": sum(r["state"] != "kept" for r in rows)}
 
 
-def stage_budgets(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def campaign_map(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]]) -> MapDocument:
+    """The MAP this plan generates now (as `map_from_plan`, but answering while the validator still blocks)."""
+    doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=plan_split(plan))
+    return doc
+
+
+def stage_budgets(plan: ModelPlan, doc: MapDocument) -> list[dict[str, Any]]:
     """Each stage's share of the campaign budget, as the MAP generated from this plan signs it (with a metabolite
     stage, SM takes its share and the rest scale down)."""
-    doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=plan_split(plan))
     total = plan.structure.campaign_budget_seconds
     return [{"stage": s.stage, "budget_seconds": s.budget_seconds, "fraction": round(s.budget_seconds / total, 4),
              "max_rounds": s.max_rounds} for s in doc.stage_plan]
@@ -91,3 +117,109 @@ def stage_budgets(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]]) -> list
 
 def limitations(plan: ModelPlan, violations: list[Violation]) -> list[str]:
     return list(map_limitations(plan, violations))
+
+
+# --- the estimation plan (R4b) ------------------------------------------------------------------------------------
+
+
+def _source(row: dict[str, Any] | None, record: Any) -> tuple[str | None, str | None]:
+    """The start value's source as the review table names it (citation and grade), else the CPF's provenance."""
+    if row and row.get("source"):
+        source = row["source"]
+        title = source.get("title") or str(source.get("type", "")).lower().replace("_", " ")
+        year = f" · {source['year']}" if source.get("year") else ""
+        return f"{title}{year}", row.get("grade")
+    provenance = record.provenance
+    return ((provenance.reference or provenance.source_type) if provenance else None), None
+
+
+def estimation_rows(plan: ModelPlan, cpf: CPF, table: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every numeric parameter of the CPF, fixed or estimated: its start value and source, the plan's fit (stages,
+    bounds, scale, who and why), the MS-01 stages it is a candidate at, the bounds MS-01 §2.2 proposes and what the
+    validator says of the fit's bounds. The estimated first, then the MS-01 candidates, then the rest."""
+    by_id = {r["id"]: r for r in table}
+    candidates: dict[str, list[str]] = {}
+    for stage, ids in plan.fit_candidates.items():
+        for pid in ids:
+            candidates.setdefault(pid, []).append(stage)
+    out = []
+    for record in cpf.parameters:
+        if record.status is ParameterStatus.MISSING or not isinstance(record.value, int | float) or isinstance(record.value, bool):
+            continue
+        fit = plan.fits.get(record.id)
+        source, grade = _source(by_id.get(record.id), record)
+        findings = fit_findings(record, fit.lower, fit.upper) if fit else []
+        out.append({
+            "id": record.id, "value": record.value, "unit": record.unit, "status": record.status.value,
+            "source": source, "grade": grade,
+            "estimated": ({"stages": list(fit.stages), "lower": fit.lower, "upper": fit.upper, "scale": fit.scale,
+                           "by": fit.by, "reason": fit.reason} if fit else None),
+            "candidate_at": sorted(candidates.get(record.id, [])),
+            "proposal": proposed_bounds(record).to_content(),
+            "findings": [{"severity": sev, "rule": rule, "message": message} for sev, rule, message in findings],
+        })
+    return sorted(out, key=lambda r: (r["estimated"] is None, not r["candidate_at"], r["id"]))
+
+
+def bounds_rule_view() -> dict[str, str]:
+    current = bounds_rule()
+    return {"version": current.version, "status": current.status, "source": current.source}
+
+
+# --- the validation plan and the acceptance criteria (R4b) -------------------------------------------------------
+
+JUDGES = {
+    "S4": "Internal validation: the final model, simulated once against every study it was fitted to, each group judged "
+          "against the tier's limits (MS-01 §4 S4). Never refitted.",
+    "S5": "External validation: the studies kept out of fitting, judged against the tier's limits, fasted and fed as "
+          "separate groups (MS-01 §4 S5, §8).",
+}
+ON_FAILURE = {
+    "S4": "The campaign stops and asks you (an escalation): a failure here means a stage passed on stale values or the "
+          "stages interact, so it is never refitted (MS-01 §4 S4).",
+    "S5": "The campaign stops and you choose a path (MS-01 §6.6), signed as a deviation from the MAP: record a limitation "
+          "and narrow the context of use; learn, moving the study to internal validation and refitting, once per class "
+          "and only when another external study of its class exists; bring new evidence; or stop. With no other study "
+          "of its class, external validation of that class is not achievable, and the MAP says so.",
+}
+
+
+def validation_plan(doc: MapDocument, studies: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """What S4 and S5 judge under this MAP, which studies, and what happens when a validation fails."""
+    by_id = {s["study_id"]: s for s in studies}
+    out = []
+    for stage in ("S4", "S5"):
+        coverage = stage_coverage(doc, stage)
+        out.append({
+            "stage": stage, "judges": JUDGES[stage], "on_failure": ON_FAILURE[stage],
+            "studies": [{"study_id": sid, "blinded": bool(by_id.get(sid, {}).get("blinded")),
+                         "role": by_id.get(sid, {}).get("role")} for sid in coverage.studies],
+            "skip_reason": coverage.skip_reason, "notes": list(coverage.notes),
+        })
+    return out
+
+
+def _criteria(block: dict[str, Any], ruleset: dict[str, Any]) -> list[dict[str, Any]]:
+    """Each quantity's limit (a fold, or Guest's δ for DDI ratios) and the source the ruleset cites for it."""
+    sources = ruleset.get("sources", {})
+    return [{"quantity": quantity, "max_fold": c.get("max_fold"), "guest_delta": c.get("guest_delta"),
+             "citation": sources.get(c.get("source", ""), c.get("source"))} for quantity, c in block.items()]
+
+
+def acceptance(plan: ModelPlan, doc: MapDocument) -> dict[str, Any]:
+    """The limits every round is judged by at the chosen tier, as the MAP records them, and the internal target. With
+    no tier set there are no criteria: the tier is never assumed."""
+    tier = plan.structure.model_risk
+    ruleset = load_acceptance_ruleset()
+    criteria = doc.acceptance.criteria if tier else None
+    target = plan.structure.internal_target_pe
+    return {
+        "tier": tier, "ruleset": doc.acceptance.ruleset, "status": str(ruleset.get("status", "")),
+        "description": criteria.get("description") if criteria else None,
+        "pk_parameters": _criteria((criteria or {}).get("pk_parameters", {}), ruleset),
+        "ddi_ratios": _criteria((criteria or {}).get("ddi_ratios", {}), ruleset),
+        "min_fraction_within": criteria.get("min_fraction_within") if criteria else None,
+        "internal_target_pe": target, "target_set_here": "internal_target_pe" in plan.structure.locked,
+        "loosest_target_pe": round(loosest_target(tier), 1) if tier else None,
+        "target_applied": False,
+    }

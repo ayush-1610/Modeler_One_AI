@@ -56,6 +56,126 @@
         "title": "AcceptRequest",
         "type": "object"
       },
+      "AcceptanceView": {
+        "additionalProperties": false,
+        "description": "The limits of the chosen tier as the MAP records them (UNVERIFIED ruleset), and the internal target (MS-01 §8).",
+        "properties": {
+          "ddi_ratios": {
+            "items": {
+              "$ref": "#/components/schemas/Criterion"
+            },
+            "title": "Ddi Ratios",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "internal_target_pe": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Target Pe"
+          },
+          "loosest_target_pe": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loosest Target Pe"
+          },
+          "min_fraction_within": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Fraction Within"
+          },
+          "pk_parameters": {
+            "items": {
+              "$ref": "#/components/schemas/Criterion"
+            },
+            "title": "Pk Parameters",
+            "type": "array"
+          },
+          "ruleset": {
+            "title": "Ruleset",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_applied": {
+            "title": "Target Applied",
+            "type": "boolean"
+          },
+          "target_set_here": {
+            "title": "Target Set Here",
+            "type": "boolean"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          }
+        },
+        "required": [
+          "tier",
+          "ruleset",
+          "status",
+          "description",
+          "pk_parameters",
+          "ddi_ratios",
+          "min_fraction_within",
+          "internal_target_pe",
+          "target_set_here",
+          "loosest_target_pe",
+          "target_applied"
+        ],
+        "title": "AcceptanceView",
+        "type": "object"
+      },
       "AffectedView": {
         "additionalProperties": false,
         "properties": {
@@ -832,6 +952,110 @@
           "files"
         ],
         "title": "Body_upload_documents_api_v1_projects__project_id__documents_post",
+        "type": "object"
+      },
+      "BoundsFinding": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "severity",
+          "rule",
+          "message"
+        ],
+        "title": "BoundsFinding",
+        "type": "object"
+      },
+      "BoundsProposalView": {
+        "additionalProperties": false,
+        "description": "The bounds MS-01 §2.2 proposes for a parameter (`estimation.proposed_bounds`, D-34), or why none.",
+        "properties": {
+          "basis": {
+            "title": "Basis",
+            "type": "string"
+          },
+          "fixed": {
+            "title": "Fixed",
+            "type": "boolean"
+          },
+          "from_ms01": {
+            "title": "From Ms01",
+            "type": "boolean"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "enum": [
+                  "linear",
+                  "log"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scale"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          }
+        },
+        "required": [
+          "lower",
+          "upper",
+          "scale",
+          "basis",
+          "note",
+          "fixed",
+          "from_ms01"
+        ],
+        "title": "BoundsProposalView",
         "type": "object"
       },
       "BriefCatalog": {
@@ -2867,6 +3091,62 @@
           "parameters"
         ],
         "title": "CpfView",
+        "type": "object"
+      },
+      "Criterion": {
+        "additionalProperties": false,
+        "properties": {
+          "citation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citation"
+          },
+          "guest_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guest Delta"
+          },
+          "max_fold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Fold"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "quantity",
+          "max_fold",
+          "guest_delta",
+          "citation"
+        ],
+        "title": "Criterion",
         "type": "object"
       },
       "DataOrigin": {
@@ -5747,6 +6027,165 @@
           "escalations"
         ],
         "title": "Escalations",
+        "type": "object"
+      },
+      "EstimatedFit": {
+        "additionalProperties": false,
+        "properties": {
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Lower"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "scale": {
+            "enum": [
+              "linear",
+              "log"
+            ],
+            "title": "Scale",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Upper"
+          }
+        },
+        "required": [
+          "stages",
+          "lower",
+          "upper",
+          "scale",
+          "by",
+          "reason"
+        ],
+        "title": "EstimatedFit",
+        "type": "object"
+      },
+      "EstimationRow": {
+        "additionalProperties": false,
+        "description": "One numeric parameter of the estimation plan (`review.estimation_rows`): fixed (no fit) or estimated.",
+        "properties": {
+          "candidate_at": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Candidate At",
+            "type": "array"
+          },
+          "estimated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EstimatedFit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/BoundsFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/BoundsProposalView"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "value",
+          "unit",
+          "status",
+          "source",
+          "grade",
+          "estimated",
+          "candidate_at",
+          "proposal",
+          "findings"
+        ],
+        "title": "EstimationRow",
         "type": "object"
       },
       "Evidence": {
@@ -12522,12 +12961,25 @@
       "ReviewPage": {
         "additionalProperties": false,
         "properties": {
+          "acceptance": {
+            "$ref": "#/components/schemas/AcceptanceView"
+          },
+          "bounds_rule": {
+            "$ref": "#/components/schemas/RuleVersion"
+          },
           "budget_seconds": {
             "title": "Budget Seconds",
             "type": "integer"
           },
           "counts": {
             "$ref": "#/components/schemas/ReviewCounts"
+          },
+          "estimation": {
+            "items": {
+              "$ref": "#/components/schemas/EstimationRow"
+            },
+            "title": "Estimation",
+            "type": "array"
           },
           "limitations": {
             "items": {
@@ -12559,6 +13011,13 @@
             },
             "title": "Studies",
             "type": "array"
+          },
+          "validation": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationStage"
+            },
+            "title": "Validation",
+            "type": "array"
           }
         },
         "required": [
@@ -12568,7 +13027,11 @@
           "risk",
           "budget_seconds",
           "stages",
-          "limitations"
+          "limitations",
+          "estimation",
+          "bounds_rule",
+          "validation",
+          "acceptance"
         ],
         "title": "ReviewPage",
         "type": "object"
@@ -13157,6 +13620,30 @@
         ],
         "title": "Route",
         "type": "string"
+      },
+      "RuleVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "status",
+          "source"
+        ],
+        "title": "RuleVersion",
+        "type": "object"
       },
       "RunAccepted": {
         "additionalProperties": false,
@@ -14762,6 +15249,19 @@
             "title": "Food Effect In Question",
             "type": "boolean"
           },
+          "internal_target_pe": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 100.0,
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Target Pe"
+          },
           "locked": {
             "default": [],
             "items": {
@@ -14822,6 +15322,7 @@
           "planned_applications",
           "applications",
           "assumptions",
+          "internal_target_pe",
           "locked",
           "reasons"
         ],
@@ -14839,7 +15340,8 @@
               "food_effect_in_question",
               "measured_fed_solubility",
               "planned_applications",
-              "applications"
+              "applications",
+              "internal_target_pe"
             ],
             "title": "Key",
             "type": "string"
@@ -16566,6 +17068,102 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "ValidationStage": {
+        "additionalProperties": false,
+        "description": "What S4 or S5 judges under the MAP this plan generates, and what happens when it fails (MS-01 §4, §6.6).",
+        "properties": {
+          "judges": {
+            "title": "Judges",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "on_failure": {
+            "title": "On Failure",
+            "type": "string"
+          },
+          "skip_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Reason"
+          },
+          "stage": {
+            "enum": [
+              "S4",
+              "S5"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationStudy"
+            },
+            "title": "Studies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stage",
+          "judges",
+          "on_failure",
+          "studies",
+          "skip_reason",
+          "notes"
+        ],
+        "title": "ValidationStage",
+        "type": "object"
+      },
+      "ValidationStudy": {
+        "additionalProperties": false,
+        "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "S1",
+                  "S2",
+                  "S3",
+                  "S5",
+                  "S6",
+                  "SUPPORTIVE"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_id",
+          "blinded",
+          "role"
+        ],
+        "title": "ValidationStudy",
         "type": "object"
       },
       "ValueOrigin": {
@@ -21954,7 +22552,7 @@
     },
     "/api/v1/projects/{project_id}/plan/review": {
       "get": {
-        "description": "Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied\nit; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them.\nRead only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas.",
+        "description": "Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied\nit; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them;\nthe estimation plan with MS-01's proposed bounds, the validation plan and the tier's acceptance criteria (R4b).\nRead only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas.",
         "operationId": "get_review_api_v1_projects__project_id__plan_review_get",
         "parameters": [
           {
