@@ -52,6 +52,7 @@ def setup(tmp_path, api_settings):
         extra = {"value_pksim": value, "unit_pksim": unit} if target.endswith("clspec") else {}
         decide(ws, item.id, state=EvidenceState.ACCEPTED, reason="checked", by="u1", **extra)
     ds = ObservedDataset(id=new_dataset_id(), kind="profile", origin=Origin.CLIENT, provider="CLIENT", time_unit="h", unit="µmol/l",
+                         demographics_choice="healthy_adult_default",
                          study={"study_id": "cl-iv", "n": 12, "route": "iv_infusion", "dose_mg": 250, "infusion_time_min": 60,
                                 "formulation": "solution", "food_state": "fasted", "n_timepoints": 5},
                          series=(Series(times=(0.5, 1, 2, 4, 8), values=(20.0, 35.0, 21.0, 9.0, 2.0), n=12),))
@@ -108,7 +109,7 @@ def test_open_items_are_listed_and_settled_from_the_page(setup):
     c, ws, _read_root = setup
     source = SourceRef(title="Second review", year=2020, locator="Table 4")
     extra = []
-    for target, value in (("bind.fu", 0.80), ("elim", 0.5)):
+    for target, value in (("bind.fu", 0.30), ("elim", 0.5)):          # fu 0.30 against the review's 0.85: beyond 2-fold
         item = propose(ws, EvidenceItem(id=new_id(), target=target, value=value, source=source, quote=f"{target} {value}",
                                         source_type=SourceType.REGULATORY_REVIEW), actor="u1")
         decide(ws, item.id, state=EvidenceState.ACCEPTED, reason="checked", by="u1", value_pksim=value)
@@ -151,3 +152,40 @@ def test_the_molecular_weight_is_proposed_from_the_briefs_pubchem_record(setup):
     assert proposed.status_code == 201, proposed.text
     data = proposed.json()["data"]
     assert data["evidence"] and data["todo"] is not None
+
+
+def test_a_studys_facts_are_set_with_no_reason_and_the_default_individual_is_explicit(setup):
+    """D-27 and D-29: the multiple-dose regimen and the demographics are set in place; the healthy adult default is a
+    person's explicit choice, never applied silently."""
+    c, _ws, _read_root = setup
+    ds = next(d for d in c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["datasets"])
+    url = f"/api/v1/projects/p1/datasets/{ds['id']}:study"
+    assert c.post(url, headers=H, json={}).status_code == 422
+    regimen = c.post(url, headers=H, json={"changes": {"design": "MD", "n_doses": 7, "dosing_interval_h": 24}})
+    assert regimen.status_code == 200, regimen.text
+    assert regimen.json()["data"]["study"]["n_doses"] == 7
+    entered = c.post(url, headers=H, json={"changes": {"demographics": {"population": "Japanese_Population", "sex": "FEMALE",
+                                                                         "age_years": 35}}}).json()["data"]
+    assert entered["demographics_choice"] == "entered" and entered["study"]["demographics"]["sex"] == "FEMALE"
+    back = c.post(url, headers=H, json={"demographics_choice": "healthy_adult_default"}).json()["data"]
+    assert back["demographics_choice"] == "healthy_adult_default" and "demographics" not in back["study"]
+    refused = c.post(url, headers=H, json={"changes": {"study_id": "other"}})
+    assert refused.status_code == 422 and "study id" in refused.json()["detail"]
+
+
+def test_the_inputs_assemble_after_each_change_and_the_plan_reads_them_without_an_acceptance(setup):
+    """Redesign §3.2 and D-27: the CPF is assembled after every change, not on a button, and the plan reads ready,
+    current inputs; the inputs need no acceptance."""
+    c, ws, _read_root = setup
+    assert ws.latest(ArtifactKind.READINESS, "main") is None
+    refused = c.get("/api/v1/projects/p1/plan", headers=H)
+    assert refused.status_code == 409 and "not assembled yet" in refused.json()["detail"]
+    ds = next(d for d in c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["datasets"])
+    assert c.post(f"/api/v1/projects/p1/datasets/{ds['id']}:study", headers=H, json={"changes": {"n": 14}}).status_code == 200
+    assert ws.latest(ArtifactKind.READINESS, "main") is not None                      # assembled by the change itself
+    waiting = c.get("/api/v1/projects/p1/plan", headers=H)
+    assert waiting.status_code == 409 and "not ready: assembly" in waiting.json()["detail"]
+    c.put("/api/v1/projects/p1/inputs/choices", headers=H, json={"kind": "process", "key": "elim.hepatic.CYP3A4",
+                                                                "value": "MetabolizationSpecific_FirstOrder", "reason": "x"})
+    plan = c.get("/api/v1/projects/p1/plan", headers=H)
+    assert plan.status_code == 200, plan.text                                          # no inputs:accept

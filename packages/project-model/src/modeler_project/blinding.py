@@ -1,8 +1,8 @@
 """External-validation data blinded until the MAP is signed (ICH M15 §4.1; plan §11.4, D-15; ARCHITECTURE_PACK §2.5).
 
 ICH M15 asks for the analysis plan to be fixed before the data it will be judged on are looked at. With blinding on, the
-**values** of every external dataset — placed in S5 or S6 on the plan, or entered for external validation — are left out
-of every view until a MAP is signed; their metadata (route, dose, food, design, n, sampling times) stays, because the
+**values** of every external dataset — placed in S5 or S6 on the plan, proposed there by the MS-01 split before a plan
+exists (D-33), or entered for external validation — are left out of every view until a MAP is signed; their metadata (route, dose, food, design, n, sampling times) stays, because the
 split is decided on it. A curator who must check a blinded dataset (digitization, acceptance) reveals it for that one
 request with a reason, and the reveal is an event on the audit chain.
 
@@ -37,14 +37,13 @@ def map_signed(ws: Workspace) -> bool:
 
 
 def external_studies(ws: Workspace) -> set[str]:
-    """Study ids judged externally: the plan's S5 / S6 placements, and datasets entered for external validation."""
+    """Study ids judged externally: the plan's S5 / S6 placements or, before a plan exists, the roles the MS-01 split
+    proposes (D-33: blinding follows the S5 role from the moment a study is read), and datasets entered for external
+    validation."""
     from modeler_project.dataset_register import datasets
-    from modeler_project.plan import current
+    from modeler_project.roles import proposed_roles
 
-    out: set[str] = set()
-    _version, plan = current(ws)
-    if plan is not None:
-        out |= {sid for sid, p in plan.placements.items() if p.role in EXTERNAL_ROLES}
+    out = {sid for sid, role in proposed_roles(ws).items() if role in EXTERNAL_ROLES}
     for dataset in datasets(ws):
         if dataset.purpose in EXTERNAL_PURPOSES:
             out.add(str(dataset.study.get("study_id")))

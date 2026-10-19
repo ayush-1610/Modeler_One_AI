@@ -2567,6 +2567,21 @@
             "title": "Analyte",
             "type": "string"
           },
+          "demographics_choice": {
+            "anyOf": [
+              {
+                "enum": [
+                  "entered",
+                  "healthy_adult_default"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demographics Choice"
+          },
           "kind": {
             "default": "profile",
             "enum": [
@@ -9002,6 +9017,21 @@
             "title": "Decision Reason",
             "type": "string"
           },
+          "demographics_choice": {
+            "anyOf": [
+              {
+                "enum": [
+                  "entered",
+                  "healthy_adult_default"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demographics Choice"
+          },
           "digitization": {
             "anyOf": [
               {
@@ -9142,6 +9172,7 @@
           "digitization",
           "purpose",
           "provider",
+          "demographics_choice",
           "flags",
           "state",
           "proposed_by",
@@ -13469,6 +13500,32 @@
         ],
         "title": "StudyClass",
         "type": "string"
+      },
+      "StudyFacts": {
+        "properties": {
+          "changes": {
+            "additionalProperties": true,
+            "title": "Changes",
+            "type": "object"
+          },
+          "demographics_choice": {
+            "anyOf": [
+              {
+                "enum": [
+                  "entered",
+                  "healthy_adult_default"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demographics Choice"
+          }
+        },
+        "title": "StudyFacts",
+        "type": "object"
       },
       "StudyRecord": {
         "additionalProperties": false,
@@ -18099,6 +18156,84 @@
         "summary": "Reveal Dataset",
         "tags": [
           "project-pipeline"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/datasets/{dataset_id}:study": {
+      "post": {
+        "description": "A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), with\nno reason asked (D-27; the audit keeps before and after). The inputs are assembled again.",
+        "operationId": "set_dataset_study_api_v1_projects__project_id__datasets__dataset_id__study_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudyFacts"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ObservedDataset_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Dataset Study",
+        "tags": [
+          "evidence"
         ]
       }
     },

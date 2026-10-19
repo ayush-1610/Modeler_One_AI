@@ -50,6 +50,7 @@ from modeler_project.datasets import DatasetError
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceState
+from modeler_project.inputs import refresh_inputs
 from modeler_project.requirements import RequirementMatrix
 
 router = APIRouter(prefix="/api/v1", tags=["client-data"])
@@ -110,6 +111,7 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
                                matrix=matrix, brief=brief))
         except (DocumentError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=f"{upload.filename}: {exc}") from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({"read": [{k: r[k] for k in ("id", "file", "template")} for r in read], **_view(ws)})
 
 
@@ -286,6 +288,7 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
         if old is not None and old.state is not EvidenceState.REJECTED:
             decide_dataset(ws, old_id, state=EvidenceState.REJECTED, by=principal.user_id,
                            reason=f"replaced: {', '.join(sorted(sheets))} read again (recipe {review.recipe.recipe_id})")
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({**preview, "datasets": ids, **_view(ws)})
 
 
@@ -303,6 +306,7 @@ def propose_release(project_id: str, profile_id: str, body: ReleaseModelRequest,
         proposed = propose_release_model(ws, profile_id, formulation=body.formulation, by=principal.user_id)
     except DissolutionRegisterError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({"evidence": [e.id for e in proposed], **_view(ws)})
 
 

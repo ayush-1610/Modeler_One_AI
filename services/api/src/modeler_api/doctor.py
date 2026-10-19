@@ -5,7 +5,7 @@
     uv run python -m modeler_api.doctor <project_id>   # the report, also written to $MODELER_LOGS/doctor-<id>.md
 
 For each phase it says where the project stands and what stops it: the brief and data plan, the client files (sheets
-read or not, the reconciliation), the evidence register (accepted values per parameter, conflicts, names the model does
+read or not, the reconciliation), the evidence register (values per parameter, agreement or conflict, names the model does
 not use), the datasets (metadata only), the CPF and the P4 readiness with its to-do list, the last audit events and the
 API log's recent errors. It never prints observed concentrations or dissolution values, keys or passwords; the client's
 file and study names do appear, so share the report only with people who may see the project.
@@ -23,6 +23,7 @@ from modeler_api.config import get_settings
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
 from modeler_project.evidence import EvidenceState
+from modeler_project.sources import held, included, select
 
 _ERROR = re.compile(r"Traceback|ERROR|Exception|\b5\d\d\b")
 
@@ -98,13 +99,18 @@ def report(ws: Workspace, *, logs: Path | None = None) -> str:
     w("## P2 evidence register\n")
     evidence = items(ws)
     w(f"- {len(evidence)} items: " + ", ".join(f"{n} {s.lower()}" for s, n in Counter(e.state.value for e in evidence).items()))
-    accepted: dict[str, list] = defaultdict(list)
+    counted: dict[str, list] = defaultdict(list)   # every value not excluded counts (D-27)
     for e in evidence:
-        if e.state is EvidenceState.ACCEPTED:
-            accepted[e.target].append(e)
-    for target, values in sorted(accepted.items()):
+        if included(e):
+            counted[e.target].append(e)
+    for target, values in sorted(counted.items()):
         where = placement(target) if target not in ("phys.pka",) else "model"
-        note = " ⚠ several accepted (keep one)" if len(values) > 1 and target != "phys.pka" else ""
+        note = ""
+        if len(values) > 1 and target != "phys.pka":
+            chosen = select([v for v in values if not held(v)])     # D-32: agree, best source, or a person's call
+            note = (" ⚠ conflict (keep one)" if chosen.conflict else
+                    f" · {1 + len(chosen.agreeing)} sources agree (one value)" if chosen.agreeing else
+                    " · the best source is kept, the others listed")
         note += " ⚠ not a parameter the model uses" if where is None and "{" not in target else ""
         note += " ⚠ template target" if "{" in target or "<" in target else ""
         shown = ", ".join(f"{e.value}{' ' + e.unit if e.unit else ''} [{e.id}, grade {e.confidence}, {e.source.title[:40] or e.source_type.value.lower()}]"

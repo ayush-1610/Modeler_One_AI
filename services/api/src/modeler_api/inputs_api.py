@@ -112,11 +112,11 @@ def put_choice(project_id: str, body: ChoiceRequest, principal: Writer, store: S
     """A structure choice with its reason; the inputs are re-assembled with it."""
     ws = workspace_for(project_id, principal, store)
     if body.kind == "process" and body.value is not None:
-        # the process types that can carry the pathway's parameters: from the assembled CPF, or from the accepted
-        # evidence when nothing is assembled yet (the choice may come first)
+        # the process types that can carry the pathway's parameters: from the assembled CPF, or from the evidence not
+        # excluded when nothing is assembled yet (the choice may come first)
         cpf = current_cpf(ws)
         targets = {r.id for r in (cpf.parameters if cpf else ())}
-        targets |= {e.target for e in items(ws) if e.state is EvidenceState.ACCEPTED}
+        targets |= {e.target for e in items(ws) if e.state is not EvidenceState.REJECTED}
         offered = {c.process for t in targets if t.startswith(body.key + ".") for c in binding_candidates(t)}
         if body.value not in offered:
             raise HTTPException(status_code=422, detail=f"{body.value} is not a harvested process for {body.key} "
@@ -143,9 +143,13 @@ def accept(project_id: str, body: AcceptRequest, principal: Writer, store: Store
     return envelope(_view(ws))
 
 
-_UPLOAD_FIELDS = ("study_id", "reference", "n", "design", "dosing_interval_h", "n_doses", "route", "dose_mg", "dose_per_kg",
-                  "infusion_time_min", "formulation", "formulation_name", "food_state", "population_type",
-                  "special_population", "co_medication", "n_timepoints", "lloq", "profile", "origin")
+# every study fact the campaign path takes (StudyUpload): before R3a, demographics, meals, dose phases, solver settings
+# and the rest were dropped here, so a published study ran in the default individual with no meal
+_UPLOAD_FIELDS = ("study_id", "reference", "n", "design", "dosing_interval_h", "n_doses", "dose_phases", "route", "dose_mg",
+                  "dose_per_kg", "infusion_time_min", "formulation", "formulation_name", "food_state", "meals",
+                  "inactive_processes", "default_simulation_values", "solver", "water_ml_per_kg", "population_type",
+                  "special_population", "co_medication", "demographics", "published_individual", "analyte", "product",
+                  "n_timepoints", "lloq", "profile", "origin")
 
 
 @router.post("/projects/{project_id}/inputs:publish", **answers(InputsPage))

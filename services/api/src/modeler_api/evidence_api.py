@@ -20,7 +20,14 @@ from modeler_api.views.evidence import EvidenceChoice, EvidenceCorrection, Evide
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
-from modeler_project.dataset_register import approve_overlay, datasets, decide_dataset, digitized_dataset, propose_dataset
+from modeler_project.dataset_register import (
+    approve_overlay,
+    datasets,
+    decide_dataset,
+    digitized_dataset,
+    propose_dataset,
+    set_study_facts,
+)
 from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, new_dataset_id
 from modeler_project.documents import DocumentLibrary, document_record
 from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, new_id, review_flags
@@ -38,6 +45,7 @@ from modeler_project.evidence_register import (
     items,
     propose,
 )
+from modeler_project.inputs import refresh_inputs
 from modeler_project.requirements import RequirementMatrix, literature_items
 
 router = APIRouter(prefix="/api/v1", tags=["evidence"])
@@ -102,6 +110,7 @@ def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
     summary = {"proposed": len(outcome.proposed), "rejected": len(outcome.rejected), "not_found": outcome.not_found,
                "access_requests": len(outcome.access_requests), "summary": outcome.summary[:4000], "error": outcome.error}
     run.finish(outcome, summary)
+    refresh_inputs(ws, by=run.actor)   # what the agent found flows into the inputs (D-27)
     return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 
@@ -174,6 +183,7 @@ def add_evidence(project_id: str, body: ManualEvidence, principal: Writer, store
         purpose=requirement.purpose or "model_building", provider="CLIENT" if requirement.provider == "CLIENT" else "LITERATURE",
         note=body.note)
     stored = propose(ws, item, actor=principal.user_id, requirement=requirement, value_in_quote=stated)
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope(_evidence_view(stored))
 
 
@@ -192,6 +202,7 @@ def decide_evidence(project_id: str, evidence_id: str, body: Decision, principal
                value_pksim=body.value_pksim, unit_pksim=body.unit_pksim)
     except EvidenceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope(_view(ws))
 
 
@@ -207,6 +218,7 @@ def choose_evidence(project_id: str, evidence_id: str, body: ChooseRequest, prin
         rejected = choose(ws, evidence_id, reason=body.reason, by=principal.user_id)
     except EvidenceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({"rejected": rejected, **_view(ws)})
 
 
@@ -229,6 +241,7 @@ def correct_evidence(project_id: str, evidence_id: str, body: CorrectionRequest,
                             conditions=body.conditions, value=body.value, unit=body.unit)
     except EvidenceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({"corrected": _evidence_view(corrected), **_view(ws)})
 
 
@@ -279,6 +292,8 @@ class DatasetBody(BaseModel):
     quote: str = ""
     purpose: str = "model_building"
     note: str = ""
+    # D-29: demographics in `study`, or the explicit choice of the healthy adult default
+    demographics_choice: Literal["entered", "healthy_adult_default"] | None = None
 
 
 def _mol_weight(ws: Workspace) -> float | None:
@@ -301,11 +316,13 @@ def add_dataset(project_id: str, body: DatasetBody, principal: Writer, store: St
         id=new_dataset_id(), kind=body.kind, study=body.study, analyte=body.analyte, matrix=body.matrix,
         time_unit=body.time_unit, unit=body.unit, series=tuple(body.series), reported=tuple(body.reported),
         origin=Origin(body.origin), extraction="MANUAL", source=body.source, quote=body.quote, purpose=body.purpose,
-        provider="CLIENT" if body.origin == "CLIENT" else "LITERATURE", note=body.note)
+        provider="CLIENT" if body.origin == "CLIENT" else "LITERATURE", note=body.note,
+        demographics_choice=body.demographics_choice or ("entered" if body.study.get("demographics") else None))
     try:
         stored = propose_dataset(ws, dataset, actor=principal.user_id, mol_weight=_mol_weight(ws))
     except (DatasetError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope(stored.to_content())
 
 
@@ -343,7 +360,29 @@ def digitize_dataset(project_id: str, body: DigitizeBody, principal: Writer, sto
         stored = propose_dataset(ws, dataset, actor=principal.user_id, mol_weight=_mol_weight(ws))
     except (CalibrationError, DatasetError, ValueError, TypeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope(stored.to_content())
+
+
+class StudyFacts(BaseModel):
+    changes: dict[str, Any] = Field(default_factory=dict)   # study facts to set (None clears one); the id stays
+    demographics_choice: Literal["entered", "healthy_adult_default"] | None = None
+
+
+@router.post("/projects/{project_id}/datasets/{dataset_id}:study", **answers(ObservedDataset))
+def set_dataset_study(project_id: str, dataset_id: str, body: StudyFacts, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), with
+    no reason asked (D-27; the audit keeps before and after). The inputs are assembled again."""
+    ws = workspace_for(project_id, principal, store)
+    if not body.changes and body.demographics_choice is None:
+        raise HTTPException(status_code=422, detail="give the facts to change, or the demographics choice")
+    try:
+        updated = set_study_facts(ws, dataset_id, changes=body.changes, demographics_choice=body.demographics_choice,
+                                  by=principal.user_id)
+    except DatasetError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
+    return envelope(updated.to_content())
 
 
 @router.post("/projects/{project_id}/datasets/{dataset_id}:overlay", **answers(ObservedDataset))
@@ -353,6 +392,7 @@ def approve_dataset_overlay(project_id: str, dataset_id: str, principal: Writer,
         updated = approve_overlay(ws, dataset_id, by=principal.user_id)
     except DatasetError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope(updated.to_content())
 
 
@@ -363,4 +403,5 @@ def decide_on_dataset(project_id: str, dataset_id: str, body: Decision, principa
         decide_dataset(ws, dataset_id, state=EvidenceState(body.state), reason=body.reason, by=principal.user_id)
     except DatasetError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope(_view(ws))

@@ -64,6 +64,29 @@ def decide_dataset(ws: Workspace, dataset_id: str, *, state: EvidenceState, reas
     return decided
 
 
+def set_study_facts(ws: Workspace, dataset_id: str, *, changes: dict[str, Any], by: str,
+                    demographics_choice: str | None = None) -> ObservedDataset:
+    """A person's change to a study's facts, such as the multiple-dose regimen or the demographics (D-29), with no
+    reason asked (D-27; the audit keeps the facts before and after). A None value clears a fact. The study id stays.
+    Choosing the healthy adult default removes any demographics; giving demographics records them as entered."""
+    dataset = _latest(ws, dataset_id)
+    if "study_id" in changes and changes["study_id"] != dataset.study.get("study_id"):
+        raise DatasetError("the study id is not changed here")
+    study = {k: v for k, v in {**dataset.study, **changes}.items() if v is not None}
+    choice = dataset.demographics_choice
+    if changes.get("demographics"):
+        choice = "entered"
+    if demographics_choice == "healthy_adult_default":
+        study.pop("demographics", None)
+        choice = demographics_choice
+    elif demographics_choice == "entered" and not study.get("demographics"):
+        raise DatasetError("give the demographics (population, sex, age …), or choose the healthy adult default")
+    updated = check_dataset(dataset.model_copy(update={"study": study, "demographics_choice": choice}))
+    what = ", ".join(sorted(changes)) or f"demographics: {choice}"
+    ws.commit(ArtifactKind.DATASET, dataset_id, updated.to_content(), actor=by, reason=f"study facts set: {what}")
+    return updated
+
+
 def approve_overlay(ws: Workspace, dataset_id: str, *, by: str) -> ObservedDataset:
     dataset = _latest(ws, dataset_id)
     if dataset.digitization is None:

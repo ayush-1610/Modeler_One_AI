@@ -15,6 +15,81 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed (science) — values flow into the model inputs without a per-item decision; one rule picks the value a parameter takes (R3a, D-32, D-33)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.2 and §4; D-27: "agents and code fill; a person reviews
+  everything once at the MAP signature"):
+  - **Every value counts unless a person excluded it** (REJECTED, always with a reason). The CPF assembly, the study
+    catalog and the to-do list read every evidence item and dataset that is not excluded (`sources.included`), not
+    only ACCEPTED ones. A digitized dataset still needs its overlay approved. ACCEPTED stays a valid state, so
+    `:decide` and the T-56 kit keep working. Coverage, blocking and the P2/P3/P4 approvals are unchanged until R4/R5.
+  - **Source selection, D-32** (`modeler_project/sources.py`, `source_selection.yaml` **version 0.1, UNVERIFIED** until
+    the SME signs, T-30; the owner's decisions of 2026-10-18). Per CPF id, after conversion to the PK-Sim unit:
+    - values within **10 %** of the kept value agree: one value, every source listed in its provenance ("agreed by N
+      other source(s)") and in the assembly report;
+    - values within **2-fold**: the **best source wins** (client report, client file, regulatory review, publication,
+      database, OSP library, proposal, predicted, assumption; within a source the higher grade A–D, then the value more
+      sources agree with, then the earlier). The others are listed as alternatives "differs by N %" for the review;
+    - values **beyond 2-fold** conflict: the parameter stays out of the CPF until a person keeps one (`:choose`);
+    - **never averaged:** the kept number is always one source's own. A value a person accepted outranks values only
+      proposed; two accepted values in conflict still wait on a person. Words agree only when equal.
+  - **Held values:** a value carrying `needs_conversion`, `outside_physical_range`, `species_mismatch`, `check:`,
+    `statement:` or `refiled:` enters only once a person accepts or corrects it. These are non-blocking "review" items
+    on the to-do list. `refiled:` is new: `:correct` adds it when the correction moves a value to another parameter.
+  - **Two acid (or two base) pKa values from different sources** wait on a person as a "pka" item, instead of becoming
+    two ionisable groups.
+  - **A2 misfiling rules in code** (`evidence.file_check`, called by `evidence_agent.propose_value`, which refuses with
+    "MISFILED" and the reason; the cases found on the owner's real project, 2026-10-06):
+    - a quote stating protein binding with a "%" unit on `bind.fu` is stored as "% bound" (code computes fu = 1 − bound);
+      any other unit is refused;
+    - a fraction excreted unchanged in urine is refused as `elim.renal.gfr_fraction` and pointed to `elim.fe_urine`;
+    - a sentence is refused as the value of a numeric parameter;
+    - the target check is `target_problem`, not a prefix match.
+  - **Study facts:**
+    - **demographics are never silent (D-29):** `ObservedDataset.demographics_choice` ("entered" or
+      "healthy_adult_default"). Readiness adds "demographics stated (D-29)", and the to-do list shows one
+      "demographics" item per study with neither demographics, nor a published individual, nor the default chosen.
+      A chosen default becomes a plan limitation that reaches the MAP: "simulated with the healthy adult default
+      (European_ICRP_2002, male, 30 years), chosen by a person (D-29)";
+    - **a multiple-dose study needs its regimen:** readiness adds "multiple-dose regimens", with a "regimen" to-do per
+      study missing its number of doses or interval. Before, such a study was run as a single dose;
+    - new `POST /projects/{id}/datasets/{dataset_id}:study` sets a study's facts and the demographics choice, and
+      re-checks the dataset.
+  - **Roles before the plan, and blinding by them (D-33):** `roles.proposed_roles` gives each study the role the MS-01
+    split proposes (S1–S3, S5, S6 or supportive) as soon as the inputs are assembled, and the plan's placements once a
+    plan exists. Blinding (D-15) hides a study proposed for S5 or S6 from that moment, not only after the plan.
+  - **The inputs assemble themselves** (`inputs.refresh_inputs`): every route that changes evidence, datasets, client
+    data or choices re-assembles a missing or stale readiness. The plan needs **ready and current** inputs
+    (`inputs.inputs_ready`; 409 with the reason), no longer the P4 approval.
+  - **The Model inputs page keeps up until R3b replaces it:** its to-do list shows the new items (a held value with
+    Accept / Reject, "Use the healthy adult default", a multiple-dose study's doses and interval; each study item names
+    its `dataset_id`), and its text no longer says values come only from accepted evidence.
+- **Fixed** (science):
+  - **`inputs:publish` dropped study facts:** `dose_phases`, `meals`, `inactive_processes`,
+    `default_simulation_values`, `solver`, `water_ml_per_kg`, `demographics`, `published_individual`, `analyte` and
+    `product` never reached a campaign. They do now.
+  - **A client mg/kg dose was read as mg:** the client mapping now sets `dose_per_kg` when the dose unit is mg/kg.
+- **Why:** the owner's map (2026-10-17) dropped per-item Accept/Reject, and asked that agreeing sources become one
+  value with all of them as sources (the "Conflicts (P4)" note). A2 misfiled values on the real project, and the model
+  needed MD regimens and demographics that no screen captured.
+- **Impact:**
+  - Fewer decisions: agreeing values no longer conflict (0.70 vs 0.73 is one value with two sources), and a proposed
+    value reaches the CPF without being accepted. What a person must still decide is on the to-do list: conflicts,
+    held values, pKa kinds, demographics and regimens.
+  - The T-56 kit chooses the healthy adult default, in the owner's name, for each study the proposal gives no
+    demographics for.
+  - **No PK-Sim run is needed for this change:** the reference runs (`deploy/reference/run_reference.py`) start their
+    campaigns from the OSP snapshot through `POST /projects` and `campaign:prepare`. They never pass through the CPF
+    assembly or `inputs:publish`, so the published templates' results cannot move.
+  - API contract: `DatasetBody.demographics_choice`, the `:study` route, and `ObservedDataset.demographics_choice`.
+    `docs/api/openapi.json` and the web types are regenerated.
+  - Tests: `test_sources.py`, `test_roles.py` and the misfiling test are new; the inputs, to-do, doctor, inputs-API and
+    plan-API tests and the D-29 browser fixture are updated. `inputs-todo.spec.ts` now settles a 2-fold conflict
+    (0.70 vs 0.30), shows two agreeing logP values taken without a decision, and checks the held refiled value.
+- **Deviation from the plan:** the typed `GET /projects/{id}/inputs` view (compound and study rows, the missing list)
+  moves to R3b, where the Inputs page that reads it is built.
+- **Known gap:** D-32's thresholds and order, and the D-29 default, are listed for the SME (`docs/SME_SIGNOFF.md` §2).
+  Values are compared within one PK-Sim unit, so a value with no conversion is held.
+
 ### Changed — Start, completed: one upload with the client's files, no approval left, pathway kinds, the viewer on the proposal (R2b follow-up)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.1 and §5; what #73 left for later, or missed):
   - **One upload for the proposal and the client's files** (map rows `p0-files`, `p3-upload`):

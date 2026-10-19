@@ -34,7 +34,8 @@ test("model inputs are assembled from evidence, checked, accepted and handed to 
     study: { study_id: "doe-iv-250", reference: "Doe 2019", n: 12, route: "iv_infusion", dose_mg: 250, infusion_time_min: 60,
              formulation: "solution", food_state: "fasted", n_timepoints: 5 },
     time_unit: "h", unit: "µmol/l", origin: "LITERATURE", source: { doi: "10.1/review", locator: "Table 3" },
-    series: [{ name: "mean", statistic: "arithmetic_mean", times: [0.5, 1, 2, 4, 8], values: [20, 35, 21, 9, 2], n: 12 }] } });
+    series: [{ name: "mean", statistic: "arithmetic_mean", times: [0.5, 1, 2, 4, 8], values: [20, 35, 21, 9, 2], n: 12 }],
+    demographics_choice: "healthy_adult_default" } });   // D-29: never silent
   expect(ds.ok(), await ds.text()).toBeTruthy();
   const dsId = (await ds.json()).data.id as string;
   expect((await request.post(`/api/v1/projects/${projectId}/datasets/${dsId}:decide`, {

@@ -31,7 +31,7 @@ from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
 from modeler_project.dissolution_register import profiles as dissolution_profiles
 from modeler_project.inputs import MAIN as INPUTS_MAIN
-from modeler_project.inputs import catalog_rows, current_cpf
+from modeler_project.inputs import catalog_rows, current_cpf, inputs_ready
 from modeler_project.map_artifact import MapArtifact, MapSignature, latest_map, record_signed_map, signed_map
 from modeler_project.plan import (
     Deviation,
@@ -63,9 +63,10 @@ MiddLead = Annotated[Principal, Depends(require_role("modeler-reviewer"))]
 
 
 def _inputs(ws: Workspace) -> tuple[CPF, list[dict[str, Any]], list[Any]]:
+    ok, why = inputs_ready(ws)   # ready and current; no acceptance needed (D-27, redesign §3.2)
+    if not ok:
+        raise HTTPException(status_code=409, detail=why)
     ready = ws.latest(ArtifactKind.READINESS, INPUTS_MAIN)
-    if ready is None or ws.status(ready).value != "APPROVED":
-        raise HTTPException(status_code=409, detail="accept the model inputs (P4) before planning")
     cpf = current_cpf(ws)
     catalog = ws.latest(ArtifactKind.STUDY_CATALOG, INPUTS_MAIN)
     rows = catalog_rows(ws)

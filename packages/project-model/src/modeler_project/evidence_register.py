@@ -27,9 +27,11 @@ class EvidenceError(ValueError):
 
 
 def items(ws: Workspace) -> list[EvidenceItem]:
-    """Latest version of every evidence item, with conflicts flagged."""
+    """Latest version of every evidence item, with conflicts flagged (the fold of the source-selection rule, D-32)."""
+    from modeler_project.sources import rule
+
     loaded = [EvidenceItem.from_content(v.content) for v in ws.list(ArtifactKind.EVIDENCE) if v.id.startswith("ev-")]
-    return flag_conflicts(sorted(loaded, key=lambda i: (i.target, i.proposed_at)))
+    return flag_conflicts(sorted(loaded, key=lambda i: (i.target, i.proposed_at)), fold=rule().conflict_fold)
 
 
 def propose(ws: Workspace, item: EvidenceItem, *, actor: str, requirement: RequirementItem | None = None,
@@ -67,9 +69,9 @@ def decide(ws: Workspace, evidence_id: str, *, state: EvidenceState, reason: str
 
 
 def choose(ws: Workspace, evidence_id: str, *, reason: str, by: str) -> list[str]:
-    """Keep one value for its parameter: every other accepted value of the same target is rejected, each with the
-    person's reason and the value kept (code never chooses between values; this is the person's choice, recorded).
-    The kept item is accepted if it was only proposed. Returns the ids rejected."""
+    """Keep one value for its parameter: every other value of the same target not yet excluded is rejected, each with
+    the person's reason and the value kept (the person's choice, recorded; it settles a conflict `sources.select`
+    leaves to a person). The kept item is accepted if it was only proposed. Returns the ids rejected."""
     if not reason.strip():
         raise EvidenceError("say why this value is the one to keep")
     version = ws.latest(ArtifactKind.EVIDENCE, evidence_id)
@@ -80,7 +82,7 @@ def choose(ws: Workspace, evidence_id: str, *, reason: str, by: str) -> list[str
         raise EvidenceError(f"{evidence_id} was rejected; reopen it on the Literature page first")
     if kept.state is EvidenceState.PROPOSED:
         decide(ws, evidence_id, state=EvidenceState.ACCEPTED, reason=reason, by=by)
-    others = [e for e in items(ws) if e.target == kept.target and e.id != kept.id and e.state is EvidenceState.ACCEPTED]
+    others = [e for e in items(ws) if e.target == kept.target and e.id != kept.id and e.state is not EvidenceState.REJECTED]
     for other in others:
         decide(ws, other.id, state=EvidenceState.REJECTED, reason=f"{kept.target}: {evidence_id} kept ({reason})", by=by)
     return [o.id for o in others]
@@ -100,9 +102,10 @@ def correct(ws: Workspace, evidence_id: str, *, reason: str, by: str, target: st
     """A person corrects what a value is for: the parameter it fills (a template or placeholder target, a name the
     model does not use) or the conditions it was measured under (a pKa's acid / base). Nothing changes in place: the
     item is rejected, pointing at its correction, and a corrected copy with the same source and quote takes its place.
-    A copy with new conditions only keeps the acceptance. A copy filed under another parameter is only proposed: its
-    value is converted for the new parameter and must be accepted again, because a new name can change what the number
-    means (30 % "plasma protein binding" is bound, not unbound: as bind.fu it would read 0.30 instead of 0.70).
+    A copy with new conditions only keeps the acceptance. A copy filed under another parameter is only proposed and held
+    (a `refiled` flag): its value is converted for the new parameter and enters the model only once a person accepts it,
+    because a new name can change what the number means (30 % "plasma protein binding" is bound, not unbound: as bind.fu
+    it would read 0.30 instead of 0.70).
     A sentence filed as a value ("Km = 290 µM (NODV) and …") becomes a number only by naming one the quote states
     (`value`, with its `unit`)."""
     from modeler_project.inputs import target_problem
@@ -129,10 +132,12 @@ def correct(ws: Workspace, evidence_id: str, *, reason: str, by: str, target: st
         raise EvidenceError(f"{new_value[:80]!r} is a description, not a value: give the number the quote states, or reject it")
     if new_target == item.target and merged == item.conditions and new_value == item.value and new_unit == item.unit:
         raise EvidenceError("nothing changes: give a new target, new conditions or the number the quote states")
+    note = f"refiled: from {item.target}; a new name can change what the number means, so a person confirms the converted value"
+    refiled = (note,) if new_target != item.target else ()
     copy = item.model_copy(update={
         "id": new_id(), "target": new_target, "conditions": merged, "value": new_value, "unit": new_unit,
         "value_pksim": None, "unit_pksim": None, "conversion": "",
-        "flags": tuple(f for f in item.flags if f.startswith("unconfirmed")), "state": EvidenceState.PROPOSED,
+        "flags": tuple(f for f in item.flags if f.startswith("unconfirmed")) + refiled, "state": EvidenceState.PROPOSED,
         "decided_by": None, "decided_at": None, "decision_reason": "",
         "note": f"corrected from {evidence_id} by {by}: {reason}" + (f" · {item.note}" if item.note else "")})
     corrected = propose(ws, copy, actor=by)

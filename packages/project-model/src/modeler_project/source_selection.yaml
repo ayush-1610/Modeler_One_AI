@@ -1,0 +1,37 @@
+# Which value a model input takes when several sources give one (D-32, owner decision 2026-10-18; redesign §3.2, §6.1).
+#
+# PROVISIONAL: UNVERIFIED until the SME signs (T-30). Read by modeler_project.sources; a change here is a science change
+# (CHANGELOG entry, version bump). Values are never averaged: the kept number is always one source's own.
+version: "0.1"
+status: UNVERIFIED
+
+# Values within this fraction of the kept value, after conversion to the PK-Sim unit, agree: one value, every source
+# listed, the agreement shown as raised confidence.
+agreement_relative: 0.10
+
+# Values further apart than this ratio conflict: the parameter waits until a person keeps one (as flag_conflicts marks
+# them). Between agreement and this, the best source wins and the others are listed as alternatives for the review.
+conflict_fold: 2.0
+
+# The best source first (the owner's order: the client, then the literature, then PubChem, then the published model).
+# Within a source, the higher grade (A–D, evidence.assess) wins, then the value more sources agree with, then the
+# earlier one. A value a person accepted outranks any value only proposed.
+source_order:
+  - CLIENT_REPORT
+  - CLIENT_FILE
+  - REGULATORY_REVIEW
+  - PUBLICATION
+  - DATABASE
+  - OSP_LIBRARY
+  - PROPOSAL
+  - PREDICTED
+  - ASSUMPTION
+
+# A value carrying one of these flags is held: it enters the model only once a person accepts or corrects it.
+hold_flags:
+  - "needs_conversion"          # no value in the PK-Sim unit
+  - "outside_physical_range"    # cannot be right whatever the source
+  - "species_mismatch"          # measured in another species
+  - "check:"                    # filed where a mistake is likely (a % bound as fu, fe as the GFR fraction)
+  - "statement:"                # a description, not a value
+  - "refiled:"                  # filed under another parameter by a correction: the converted value is confirmed first
