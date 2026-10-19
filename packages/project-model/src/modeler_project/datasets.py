@@ -66,6 +66,10 @@ class Digitization(BaseModel):
     pixels: dict[str, list[tuple[float, float]]]   # series name -> picked pixels
     resolution: dict[str, float]          # max data units per pixel, x and y
     overlay_approved_by: str | None = None
+    # the frame the pixels are in: the page region shown (left, top, right, bottom as fractions of the page; None for
+    # the whole page or an image) and the render scale, so the overlay can be drawn again where it was picked
+    crop: tuple[float, float, float, float] | None = None
+    scale: float | None = None
 
 
 class ObservedDataset(BaseModel):

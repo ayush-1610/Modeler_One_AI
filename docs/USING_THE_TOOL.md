@@ -125,6 +125,10 @@ is approved here: the one review is at the MAP signature.
 - **Studies.** Each study's facts, the role the MS-01 split proposes (changed only on Review & sign), whether it is
   blinded, a multiple-dose study's number of doses and interval, and **Leave out** with a reason. Add data by reading
   the client's sheets, filling the client-data template, digitizing a published figure, or typing a table in.
+  - **Digitizing a figure in a PDF:** open the digitizer on the Literature page. A PDF's figures (images placed on
+    its pages) are listed: pick one and the page is cropped to it. A figure drawn as lines is cropped by hand
+    (**Crop to a region**, then two corners). **Zoom** enlarges the view. Calibrate the axes and pick the points in
+    that view; changing the crop, the page or the zoom starts the calibration again. The dataset keeps the crop.
 - **Formulations and Simulation settings.** The formulation of each solid study, the dissolution profiles with their
   Weibull fit ("Propose as release model") and f2, the calculation methods, the values set on the simulation, and each
   study's solver settings.

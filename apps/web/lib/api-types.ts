@@ -813,6 +813,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/documents/{sha256}/figures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Document Figures
+         * @description The images placed in a PDF, page by page, where each sits (the digitizer crops the page to one); [] for a file
+         *     that is not a PDF.
+         */
+        get: operations["document_figures_api_v1_projects__project_id__documents__sha256__figures_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/documents/{sha256}/pages/{page}": {
         parameters: {
             query?: never;
@@ -2960,6 +2981,13 @@ export interface components {
             calibration: {
                 [key: string]: unknown;
             };
+            /** Crop */
+            crop: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
             /** Overlay Approved By */
             overlay_approved_by: string | null;
             /** Page */
@@ -2975,6 +3003,8 @@ export interface components {
             resolution: {
                 [key: string]: number;
             };
+            /** Scale */
+            scale: number | null;
         };
         /** DigitizeBody */
         DigitizeBody: {
@@ -2984,6 +3014,13 @@ export interface components {
                     [key: string]: unknown;
                 };
             };
+            /** Crop */
+            crop?: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
             /** Doc Sha256 */
             doc_sha256: string;
             /** Doi */
@@ -3009,6 +3046,8 @@ export interface components {
              * @default model_building
              */
             purpose?: string;
+            /** Scale */
+            scale?: number | null;
             /**
              * Statistic
              * @default arithmetic_mean
@@ -3080,6 +3119,13 @@ export interface components {
             kind: "dissolved";
             /** Name */
             name: string;
+        };
+        /** DocumentFigures */
+        DocumentFigures: {
+            /** Figures */
+            figures: components["schemas"]["FigureView"][];
+            /** Sha256 */
+            sha256: string;
         };
         /** DocumentPage */
         DocumentPage: {
@@ -3288,6 +3334,13 @@ export interface components {
         /** Envelope[CpfView] */
         Envelope_CpfView_: {
             data: components["schemas"]["CpfView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DocumentFigures] */
+        Envelope_DocumentFigures_: {
+            data: components["schemas"]["DocumentFigures"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -4001,6 +4054,22 @@ export interface components {
             unit?: string | null;
             /** Value */
             value?: unknown;
+        };
+        /**
+         * FigureView
+         * @description An image placed on a PDF page (`modeler_intake.documents.PdfFigure`): its box as fractions of the page as shown.
+         */
+        FigureView: {
+            /** Box */
+            box: number[];
+            /** Height */
+            height: number;
+            /** Name */
+            name: string;
+            /** Page */
+            page: number;
+            /** Width */
+            width: number;
         };
         /** FirstOrderMetabolism */
         FirstOrderMetabolism: {
@@ -9314,6 +9383,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_Documents_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    document_figures_api_v1_projects__project_id__documents__sha256__figures_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                sha256: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DocumentFigures_"];
                 };
             };
             /** @description Validation Error */

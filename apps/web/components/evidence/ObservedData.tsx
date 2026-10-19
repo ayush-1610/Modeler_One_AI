@@ -70,7 +70,7 @@ function DatasetCard({ d: listed, onDecide, onOverlay, onReveal }: {
       {!d.blinded && d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${r.parameter} ${r.value} ${r.unit}`).join(" · ")}</div>}
       {d.digitization && (
         <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
-          digitized from p.{d.digitization.page}; resolution ±{(d.digitization.resolution.x / 2).toPrecision(2)} {d.time_unit},
+          digitized from p.{d.digitization.page}{d.digitization.crop ? ", cropped to the figure" : ""}; resolution ±{(d.digitization.resolution.x / 2).toPrecision(2)} {d.time_unit},
           ±{(d.digitization.resolution.y / 2).toPrecision(2)} {d.unit}; overlay {d.digitization.overlay_approved_by ? `approved by ${d.digitization.overlay_approved_by}` : "not approved"}
         </p>
       )}
