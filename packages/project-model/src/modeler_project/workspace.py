@@ -56,7 +56,7 @@ _NO_APPROVAL = {ArtifactKind.DOCUMENT, ArtifactKind.CAMPAIGN}
 # What a change upstream means for each kind of dependent (plan §13.3).
 _EFFECT = {
     ArtifactKind.BRIEF: "re-review the brief",
-    ArtifactKind.REQUIREMENTS: "re-derive the data plan (automatic), then re-approve",
+    ArtifactKind.REQUIREMENTS: "the data checklist is re-derived (automatic)",
     ArtifactKind.FEASIBILITY: "re-run the feasibility check (automatic)",
     ArtifactKind.EVIDENCE: "re-review the evidence",
     ArtifactKind.ACCESS_REQUEST: "none (a request for a paper)",

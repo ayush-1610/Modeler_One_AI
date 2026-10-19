@@ -30,8 +30,8 @@ uv run python deploy/proof/run_t56.py prepare --api http://localhost:8000 --toke
 
 uv run python deploy/proof/run_t56.py accept --api http://localhost:8000 --token dev --out ~/modeler-data/t56 \
     --project <id> --as "Your Name"
-#   Your decisions, recorded under your name: every proposed item accepted with its reason, P1–P4 approved, the P5
-#   plan drafted from the MS-01 default. It stops before the MAP signature.
+#   Your decisions, recorded under your name: every proposed item accepted with its reason, P2–P4 approved (Start
+#   has no approval, D-27), the P5 plan drafted from the MS-01 default. It stops before the MAP signature.
 
 #   In the web app: /projects/<id>/plan — review the placements and fits (any move or freed parameter is yours, with
 #   its reason), then "Approve and Sign" (MIDD lead, step-up).

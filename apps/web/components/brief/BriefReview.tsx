@@ -85,7 +85,6 @@ function FieldEditor({
   const [impact, setImpact] = useState<Impact | null>(null);
   const [error, setError] = useState<string | null>(null);
   const change: Change = { path, status, value: status === "EDITED" ? value : undefined, unit: unit || null, note };
-  const needsNote = status !== "CONFIRMED";
 
   return (
     <div className="editor" data-testid="field-editor">
@@ -113,7 +112,7 @@ function FieldEditor({
         )}
       </div>
       <div className="field">
-        <label>Why {needsNote ? "*" : "(optional)"}</label>
+        <label>Note (optional: no "why" is asked, the version records who changed what)</label>
         <input data-testid="edit-note" value={note} onChange={(e) => setNote(e.target.value)}
                placeholder="e.g. corrected from the signed protocol, section 4.2" />
       </div>
@@ -126,11 +125,11 @@ function FieldEditor({
         </div>
       )}
       <div className="row">
-        <button className="btn" disabled={needsNote && !note.trim()} onClick={async () => {
+        <button className="btn" onClick={async () => {
           const r = await onPreview(change);
           if (typeof r === "string") setError(r); else { setError(null); setImpact(r); }
         }}>Preview impact</button>
-        <button className="btn primary" data-testid="edit-save" disabled={needsNote && !note.trim()} onClick={async () => {
+        <button className="btn primary" data-testid="edit-save" onClick={async () => {
           const r = await onSave(change);
           if (r) setError(r);
         }}>Save</button>
@@ -195,11 +194,6 @@ export function BriefReview({ projectId }: { projectId: string }) {
         : (data?.problem ?? "Identity resolved; fill the brief by hand.")));
   }
 
-  async function approve() {
-    const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief:approve", { project_id: projectId }, { note: "" }));
-    setNotice(problem ?? "Brief approved.");
-  }
-
   async function answer(questionId: string, text: string, status: "answered" | "accepted_as_limitation") {
     const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/questions/{question_id}",
       { project_id: projectId, question_id: questionId }, { answer: text, status }));
@@ -214,7 +208,6 @@ export function BriefReview({ projectId }: { projectId: string }) {
     if (problem) setNotice(problem);
   }
 
-  const approved = view.artifact.status === "APPROVED";
   const editor = (path: string, def: FieldDef, record: FieldRecord) => editing === path && (
     <tr><td colSpan={5}><FieldEditor path={path} def={def} record={record} onSave={save} onPreview={preview}
                                       onCancel={() => setEditing(null)} /></td></tr>
@@ -238,10 +231,6 @@ export function BriefReview({ projectId }: { projectId: string }) {
             </span>
             <button className="btn" disabled={busy || view.extraction_running} onClick={extract}>
               {view.extraction_running ? "Extracting…" : "Run extraction"}
-            </button>
-            <button className="btn primary" disabled={busy || view.blocking > 0 || approved} onClick={approve}
-                    title={view.blocking > 0 ? `${view.blocking} item(s) block approval` : ""}>
-              {approved ? "Approved" : `Approve brief${view.blocking ? ` (${view.blocking} open)` : ""}`}
             </button>
           </div>
         </div>
@@ -347,7 +336,7 @@ export function BriefReview({ projectId }: { projectId: string }) {
             );
           })}
           {view.issues.length > 0 && (
-            <Card title={`What blocks approval (${view.issues.length})`}>
+            <Card title={`What the brief still lacks (${view.issues.length})`}>
               <ul className="issues">
                 {view.issues.map((i, n) => <li key={n}><code>{i.path}</code> {i.message}</li>)}
               </ul>

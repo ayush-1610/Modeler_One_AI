@@ -121,14 +121,22 @@ OPTION_LABELS: dict[str, dict[str, str]] = {
         "amorphous_solid_dispersion": "amorphous solid dispersion", "long_acting_injectable": "long-acting injectable",
         "inhaled": "inhaled product", "dermal": "dermal product", "other": "other"},
     "scope.pbpk_model": {"full": "full PBPK (whole body)", "minimal": "minimal PBPK"},
+    "scope.pathways": {
+        "hepatic_metabolism": "hepatic metabolism", "gut_wall_metabolism": "gut-wall metabolism",
+        "renal_filtration": "renal filtration", "renal_secretion": "renal tubular secretion",
+        "biliary_excretion": "biliary excretion", "transporter_mediated": "transporter uptake or efflux", "other": "other"},
 }
+# The kinds of elimination and transport the data checklist's `pathway` conditions read (requirements._PATHWAY_CLASSES);
+# the enzymes and transporters themselves are named in `scope.pathways_stated`.
+PATHWAYS = ("hepatic_metabolism", "gut_wall_metabolism", "renal_filtration", "renal_secretion", "biliary_excretion",
+            "transporter_mediated", "other")
 
 FIELDS: tuple[FieldDef, ...] = (
     # A · project
-    FieldDef("proj.title", "A", "Project title", required=True),
+    FieldDef("proj.title", "A", "Project title"),
     FieldDef("proj.client", "A", "Client / sponsor", help="confidential"),
-    FieldDef("proj.type", "A", "Project type", "enum", True,
-             ("new_drug_ind", "nda", "505b2", "generic_anda", "biowaiver", "lifecycle_change", "research", "other")),
+    FieldDef("proj.type", "A", "Project type", "enum", options=(
+        "new_drug_ind", "nda", "505b2", "generic_anda", "biowaiver", "lifecycle_change", "research", "other")),
     FieldDef("proj.agencies", "A", "Regulatory agencies", "multi",
              options=("FDA", "EMA", "PMDA", "CDSCO", "Health Canada", "TGA", "NMPA", "MHRA", "other")),
     FieldDef("proj.deliverables", "A", "Deliverables", "list"),
@@ -174,6 +182,8 @@ FIELDS: tuple[FieldDef, ...] = (
     FieldDef("scope.site_of_action", "G", "Site of action", "enum", options=("systemic", "local")),
     FieldDef("scope.formulation_types", "G", "Formulation types", "multi", options=FORMULATION_TYPES),
     FieldDef("scope.parent_metabolite", "G", "Analytes modeled", "enum", options=("parent_only", "parent_and_metabolites")),
+    FieldDef("scope.pathways", "G", "Elimination and transport pathways", "multi", options=PATHWAYS,
+             help="the kinds the data checklist asks data for; which parameters S1–S3 may fit is the SME's (diag_rules)"),
     FieldDef("scope.pathways_stated", "G", "Elimination / transport pathways stated", "list"),
     FieldDef("scope.nonlinearity", "G", "Nonlinearity stated (saturation, auto-induction)"),
     FieldDef("scope.ddi", "G", "DDI role and partners"),
@@ -195,11 +205,11 @@ GROUPS: tuple[GroupDef, ...] = (
         FieldDef("manufacturer", "C", "Manufacturer"),
         FieldDef("batches", "C", "Batches / lots"),
         FieldDef("attributes", "C", "Stated attributes (particle size, polymorph, excipients)"),
-    ), required=True),
+    )),
     GroupDef("scenarios", "E", "Scenarios", (
-        FieldDef("population", "E", "Population", required=True),
+        FieldDef("population", "E", "Population"),
         FieldDef("route", "E", "Route", "enum", True, ROUTES),
-        FieldDef("dose", "E", "Dose", "number", True, unit="mg"),
+        FieldDef("dose", "E", "Dose", "number", unit="mg"),
         FieldDef("regimen", "E", "Regimen (SD / MD)"),
         FieldDef("dosing_interval_h", "E", "Dosing interval", "number", unit="h"),
         FieldDef("n_doses", "E", "Number of doses", "number"),
@@ -229,7 +239,7 @@ GROUPS: tuple[GroupDef, ...] = (
         FieldDef("purpose", "H", "Purpose", "enum", options=PURPOSES),
         FieldDef("due_date", "H", "Due date"),
         FieldDef("format", "H", "Format"),
-    ), required=True),
+    )),
 )
 
 FIELD_BY_ID = {f.id: f for f in FIELDS}
@@ -242,7 +252,7 @@ SHORT_BRIEF = (
     "m15.influence", "m15.influence_rating", "m15.consequence", "m15.consequence_rating", "acceptance.tier",
     "m15.risk_justification",
     "drug.modality", "scope.pbpk_model", "scope.site_of_action", "scope.formulation_types", "drug.bcs_class",
-    "scope.pathways_stated", "scope.nonlinearity", "scope.ehc",
+    "scope.pathways", "scope.pathways_stated", "scope.nonlinearity", "scope.ehc",
 )
 SHORT_GROUP_FIELDS = {"scenarios": ("route", "food_state")}
 # What Start needs before the inputs are worth gathering. The model risk (RISK_FIELDS) and the scope gates

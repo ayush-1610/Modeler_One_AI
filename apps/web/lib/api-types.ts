@@ -482,26 +482,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/brief:approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve Brief
-         * @description L1 gate (D-07: a named approval, meaning "Reviewed"): refused while anything blocks the brief.
-         */
-        post: operations["approve_brief_api_v1_projects__project_id__brief_approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/brief:extract": {
         parameters: {
             query?: never;
@@ -1459,26 +1439,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/requirements:approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve Requirements
-         * @description Closes P1 with the brief (D-07: named approval). The brief must be approved first and the plan up to date.
-         */
-        post: operations["approve_requirements_api_v1_projects__project_id__requirements_approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/requirements:derive": {
         parameters: {
             query?: never;
@@ -1596,7 +1556,9 @@ export interface paths {
         put?: never;
         /**
          * Initiate Project
-         * @description P0: create the project from the drug name and the technical proposal, then start the extraction.
+         * @description P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows
+         *     p0-files and p3-upload), then start the extraction. A client file that cannot be read is answered with the reason;
+         *     the project still starts.
          */
         post: operations["initiate_project_api_v1_projects_initiate_post"];
         delete?: never;
@@ -1790,14 +1752,6 @@ export interface components {
             /** Template */
             template: string;
         };
-        /** Approval */
-        Approval: {
-            /**
-             * Note
-             * @default
-             */
-            note?: string;
-        };
         /** ApprovalView */
         ApprovalView: {
             /** At */
@@ -1815,14 +1769,6 @@ export interface components {
             ref: components["schemas"]["Ref"];
             /** Signature Id */
             signature_id: string | null;
-        };
-        /** ApproveRequest */
-        ApproveRequest: {
-            /**
-             * Note
-             * @default
-             */
-            note?: string;
         };
         /**
          * ArtifactKind
@@ -1972,6 +1918,11 @@ export interface components {
         };
         /** Body_initiate_project_api_v1_projects_initiate_post */
         Body_initiate_project_api_v1_projects_initiate_post: {
+            /**
+             * Client Files
+             * @default []
+             */
+            client_files?: string[];
             /**
              * Context
              * @default
@@ -2418,6 +2369,21 @@ export interface components {
             running: boolean;
             /** Template */
             template: string;
+        };
+        /**
+         * ClientFileStarted
+         * @description A client file given at project start: read into Inputs at once (a filled template), triaged, or refused with the
+         *     reason.
+         */
+        ClientFileStarted: {
+            /** File */
+            file: string;
+            /** Id */
+            id: string | null;
+            /** Problem */
+            problem: string | null;
+            /** Template */
+            template: boolean;
         };
         /**
          * ClientUpload
@@ -5573,6 +5539,8 @@ export interface components {
         ProjectStarted: {
             /** Brief Version */
             brief_version: number;
+            /** Client Files */
+            client_files: components["schemas"]["ClientFileStarted"][];
             /** Documents */
             documents: components["schemas"]["DocumentView"][];
             extraction: components["schemas"]["ExtractionStart"] | null;
@@ -5941,8 +5909,6 @@ export interface components {
         /** RequirementsPage */
         RequirementsPage: {
             artifact: components["schemas"]["VersionView"];
-            /** Brief Status */
-            brief_status: string | null;
             counts: components["schemas"]["RequirementCounts"];
             /** Feasibility */
             feasibility: {
@@ -8417,43 +8383,6 @@ export interface operations {
             };
         };
     };
-    approve_brief_api_v1_projects__project_id__brief_approve_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Approval"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_BriefPage_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     extract_brief_api_v1_projects__project_id__brief_extract_post: {
         parameters: {
             query?: never;
@@ -10446,43 +10375,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OverrideRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_RequirementsPage_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    approve_requirements_api_v1_projects__project_id__requirements_approve_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ApproveRequest"];
             };
         };
         responses: {

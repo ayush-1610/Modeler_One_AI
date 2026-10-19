@@ -5,7 +5,7 @@ import type { BriefView } from "@/lib/brief";
 import type { Open, Save } from "@/lib/start";
 
 const QUESTION = ["qoi.text", "qoi.context_of_use", "qoi.applications"];
-const DRUG = ["drug.bcs_class", "scope.pathways_stated", "scope.nonlinearity", "scope.ehc"];
+const DRUG = ["drug.bcs_class", "scope.pathways", "scope.pathways_stated", "scope.nonlinearity", "scope.ehc"];
 
 /** Block 2: the short brief, filled by the intake agent from the documents. Every value shows the words it was read
  *  from (opened on its page beside); the person changes only what is wrong. */
@@ -21,7 +21,8 @@ export function ShortBrief({ view, save, open, onAnswer }: {
       <Fields view={view} paths={DRUG} save={save} open={open} notApplicable={["scope.nonlinearity"]}
               suggestions={{ "scope.pathways_stated": view.start.pathway_suggestions }} />
       <p className="muted start-hint">
-        Pathways shape the checklist and the review. Which parameters S1–S3 may fit stays with the SME rules.
+        The kinds of pathway decide the checklist's items (a renal pathway asks for urine data); the enzymes and
+        transporters named shape the review. Which parameters S1–S3 may fit stays with the SME rules.
       </p>
       <OpenQuestions view={view} fields={new Set(view.catalog.short_brief)} onAnswer={onAnswer} />
     </Block>

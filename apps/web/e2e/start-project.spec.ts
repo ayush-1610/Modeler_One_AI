@@ -1,6 +1,7 @@
-// P0 → P1: start a project from a technical proposal, land on Start, then edit a field with a reason on the full brief
-// page, which stays until R5 removes it. Agents are off in this run (no provider key), so the brief starts from the drug
-// name and is filled by hand: the manual path.
+// One upload (map rows p0-files, p3-upload): a project starts from its proposal and the client's file, and lands on
+// Start with the viewer on the proposal. The checklist's provider is changed in place, the full brief takes an edit with
+// no "why", and nothing is approved anywhere (D-27). Then the P2 manual path and the history. Agents are off in this run
+// (no provider key), so the brief starts from the drug name: the manual path.
 import { expect, test } from "@playwright/test";
 
 const PROPOSAL = [
@@ -8,40 +9,41 @@ const PROPOSAL = [
   "Objective: predict exposure after a single oral dose of 10 mg in healthy adults.",
   "The client will provide the dissolution profiles in three media.",
 ].join("\n");
+// stored by content hash, this file sorts before the proposal: the viewer must still open on the proposal
+const CLIENT_CSV = "study_id,time_h,conc_ng_ml\nEX-101,1,30.4\n";
 
-test("a project starts from its technical proposal and the brief is edited with a reason", async ({ page }) => {
+test("a project starts from its proposal and the client's file in one upload, with no approval", async ({ page }) => {
   await page.goto("/projects/start");
   await page.getByTestId("drug-name").fill("Dapagliflozin");
-  await page.getByTestId("proposal-files").setInputFiles({
-    name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL),
-  });
+  await page.getByTestId("proposal-files").setInputFiles([
+    { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
+    { name: "client-pk.csv", mimeType: "text/csv", buffer: Buffer.from(CLIENT_CSV) },
+  ]);
+  await expect(page.getByLabel("What client-pk.csv is")).toHaveValue("client");
   await page.getByTestId("start-project").click();
 
   await page.waitForURL(/\/projects\/[^/]+\/start$/);
   await expect(page.getByTestId("start-title")).toHaveText("Dapagliflozin");
-  await page.goto(page.url().replace(/\/start$/, "/brief"));
-  await expect(page.getByTestId("brief-title")).toHaveText("Project Brief · Dapagliflozin");
-  await expect(page.getByTestId("stepper")).toBeVisible();
-  await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");   // the question and risk come next
   await expect(page.locator(".doc-page")).toContainText("single oral dose of 10 mg");
-  await expect(page.getByTestId("field-drug.name")).toContainText("entered");
+  await expect(page.getByTestId("start-files")).toContainText("client-pk.csv");
+  await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");
+  await expect(page.getByRole("button", { name: /approve/i })).toHaveCount(0);
+  await page.getByTestId("provider-REQ-phys.logp").selectOption("CLIENT");
+  await expect(page.getByTestId("cross-check-REQ-phys.logp")).toBeVisible();
 
+  // the full brief keeps every field: an edit with no "why", and nothing to approve
+  const startUrl = page.url();
+  await page.goto(startUrl.replace(/\/start$/, "/brief"));
+  await expect(page.getByTestId("brief-title")).toHaveText("Project Brief · Dapagliflozin");
+  await expect(page.getByRole("button", { name: /approve/i })).toHaveCount(0);
+  await expect(page.getByTestId("tab-data-plan")).toHaveCount(0);
   await page.getByTestId("edit-proj.title").click();
   await page.getByTestId("field-editor").locator("input[type=text]").first().fill("Dapagliflozin food-effect PBPK");
-  await page.getByTestId("edit-note").fill("title from the proposal header");
   await page.getByTestId("edit-save").click();
   await expect(page.getByTestId("field-proj.title")).toContainText("Dapagliflozin food-effect PBPK");
   await expect(page.getByTestId("field-proj.title")).toContainText("edited");
-  await expect(page.getByTestId("brief-version")).toContainText("title from the proposal header");
   await page.screenshot({ path: test.info().outputPath("brief.png"), fullPage: true });
-
-  // The data plan follows every saved brief (a draft until the brief is approved), with the feasibility beside it.
   const briefUrl = page.url();
-  await page.getByTestId("tab-data-plan").click();
-  await expect(page.getByTestId("req-REQ-phys.logp")).toContainText("Lipophilicity");
-  await expect(page.getByRole("button", { name: "Approve data plan" })).toBeDisabled();
-  await page.getByTestId("tab-feasibility").click();
-  await expect(page.getByTestId("feasibility")).toContainText("undetermined");
 
   // P2, manual path: a value entered with its source, graded by code, accepted with a reason.
   await page.goto(briefUrl.replace(/\/brief.*$/, "/evidence"));

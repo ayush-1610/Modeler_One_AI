@@ -17,8 +17,8 @@ export type AuditEventView = Schema<"AuditEventView">;
 
 /** Where each phase is reviewed. */
 export const PHASE_ROUTES: Record<PhaseId, (projectId: string) => string> = {
-  P0: (p) => `/projects/${p}/brief`,
-  P1: (p) => `/projects/${p}/brief`,
+  P0: (p) => `/projects/${p}/start`,
+  P1: (p) => `/projects/${p}/start`,
   P2: (p) => `/projects/${p}/evidence`,
   P3: (p) => `/projects/${p}/client-data`,
   P4: (p) => `/projects/${p}/inputs`,

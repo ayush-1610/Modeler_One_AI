@@ -90,3 +90,22 @@
 .start-notes[open] summary { margin-bottom: 12px; }
 .note-group ul { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px; }
 .start-waiting { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+
+/* one upload for the proposal and the client's files (components/start/FilePicker): each file says what it is */
+.file-picker { display: grid; gap: 10px; }
+.picked { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.picked li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 10px; border-radius: var(--radius-sm);
+  background: var(--raised); font-size: 13.5px; }
+.picked-name { font-weight: 600; overflow-wrap: anywhere; }
+.picked select { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); }
+.link-btn { all: unset; cursor: pointer; font-size: 13px; color: var(--brand-ink); text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--sim) 45%, transparent); text-underline-offset: 2px; }
+.link-btn:hover { text-decoration-color: currentColor; }
+.link-btn:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; border-radius: 3px; }
+
+/* the checklist's provider and cross-check, changed in place */
+.check-from { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.check-from select { font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); }
+.check-from label { font-size: 12.5px; color: var(--ink-dim); display: inline-flex; gap: 4px; align-items: center; }

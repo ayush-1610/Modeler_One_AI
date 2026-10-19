@@ -50,8 +50,10 @@ def test_empty_brief_needs_the_required_fields_before_approval():
     brief = empty_brief("Dapagliflozin", by="u1")
     assert brief.get("drug.name").status is FieldStatus.ENTERED
     codes = {(i.code, i.path) for i in validate_brief(brief)}
-    assert ("REQUIRED_MISSING", "qoi.text") in codes and ("REQUIRED_MISSING", "products") in codes
-    assert ("REQUIRED_MISSING", "drug.name") not in codes
+    assert ("REQUIRED_MISSING", "qoi.text") in codes and ("REQUIRED_MISSING", "scenarios") in codes
+    # the proposal notes are kept for the report and never required (redesign §3.1)
+    for path in ("drug.name", "proj.title", "proj.type", "products", "data_plan"):
+        assert ("REQUIRED_MISSING", path) not in codes, path
 
 
 def test_people_lock_fields_and_agents_cannot_overwrite_them():
