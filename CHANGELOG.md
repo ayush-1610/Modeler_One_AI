@@ -77,6 +77,19 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - e2e `start-step.spec.ts`: the manual path, with a liposome refused and Start done. `start-project.spec.ts`
     follows the new redirect.
 
+### Infra — the API image's base comes from Google's mirror instead of AWS ECR Public
+- **What:** `services/api/Dockerfile` now starts from `mirror.gcr.io/library/python:3.12-slim` instead of
+  `public.ecr.aws/docker/library/python:3.12-slim`. Both serve the same official image: the same digest for this tag,
+  `sha256:a6e34c59…`, on 2026-10-18.
+- **Why:** AWS ECR Public answered `429 Too Many Requests - Data limit exceeded` to GitHub's runners four times on
+  2026-10-18 (#67, #68, #70, #71). Each time, the "API image" check failed before any of our code was built, and the
+  job had to be re-run.
+- **Impact:**
+  - **Nothing changes in the image:** the same Python base, and still nothing pulled from Docker Hub. `ci.yml` is
+    unchanged and no locked file is touched.
+  - **Checked here:** the new base pulls with the same digest and runs (Python 3.12.15). The full build is checked by
+    CI, because this container cannot reach GHCR's blob host for the `uv` layer.
+
 ### Added — the redesign's foundation: light and dark themes, four steps instead of seven phases (R2a)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3 and §7; the owner found the screens dull and hard to move
   through):
