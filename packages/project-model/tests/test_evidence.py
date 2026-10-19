@@ -109,3 +109,20 @@ def test_access_requests_are_deduplicated(tmp_path):
                                           needed_for="fu", by="a")
     assert created and not created_again and first == again
     assert RequirementOverride(req_id="r", status="NOT_AVAILABLE", reason="no data", by="u").status == "NOT_AVAILABLE"
+
+
+def test_an_agent_cannot_file_a_value_where_a_real_project_saw_it_go_wrong():
+    """Redesign §4: with no per-item review (D-27), code stops the misfilings of the 2026-10-06 project: a binding
+    percentage read as fu, fe filed as PK-Sim's GFR fraction, a sentence filed as a value."""
+    from modeler_project.evidence import Misfiling, file_check
+
+    assert file_check("bind.fu", 30, "%", "30 % bound to plasma proteins")[0] == "% bound"
+    assert file_check("bind.fu", 0.7, None, "the unbound fraction (fu) was 0.7") == (None, "")
+    with pytest.raises(Misfiling, match="bound share"):
+        file_check("bind.fu", 0.3, None, "plasma protein binding 0.3")
+    with pytest.raises(Misfiling, match="elim.fe_urine"):
+        file_check("elim.renal.gfr_fraction", 0.45, None, "45 % of the dose was excreted unchanged in urine")
+    with pytest.raises(Misfiling, match="description, not a value"):
+        file_check("phys.logp", "lipophilic, moderately", None, "the drug is lipophilic, moderately")
+    with pytest.raises(Misfiling, match="template"):
+        file_check("elim.hepatic.{enzyme}.km/vmax", 120, "µmol/l", "Km 120 µM")

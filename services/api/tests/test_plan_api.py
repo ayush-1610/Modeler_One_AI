@@ -42,7 +42,7 @@ class FakeVerifier:
 
 
 def _dataset(ws, sid, route, dose, food="fasted", **extra):
-    ds = ObservedDataset(id=new_dataset_id(), kind="profile", origin=Origin.LITERATURE, time_unit="h", unit="µmol/l",
+    ds = ObservedDataset(id=new_dataset_id(), kind="profile", demographics_choice="healthy_adult_default", origin=Origin.LITERATURE, time_unit="h", unit="µmol/l",
                          study={"study_id": sid, "n": 12, "route": route, "dose_mg": dose, "formulation": "solution",
                                 "food_state": food, "n_timepoints": 5, **({"infusion_time_min": 60} if route == "iv_infusion" else {}),
                                 **extra},
@@ -310,3 +310,11 @@ def test_a_brief_edit_makes_the_plan_stale_and_the_rebase_reads_it_while_a_perso
     assert structure["context_of_use"] == "internal go / no-go" and structure["locked"] == ["context_of_use"]
     assert c.put("/api/v1/projects/p1/plan/placements/po-50", headers=H,
                  json={"role": "S5", "reason": "validation"}).status_code == 200
+
+
+def test_a_study_on_the_healthy_adult_default_is_a_limitation_of_the_plan(setup):
+    """D-29: the person's explicit choice of the default individual is named in the plan, so the MAP and its report
+    name it."""
+    c, _ws, _root = setup
+    limits = c.get("/api/v1/projects/p1/plan", headers=H).json()["data"]["plan"]["default_limitations"]
+    assert any(l.startswith("iv-250: demographics not reported; simulated with the healthy adult default") for l in limits)

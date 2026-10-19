@@ -1,8 +1,8 @@
 """T-49: what keeps P4 from ready is listed with what settles it, and a person settles each without leaving the page.
 
-Reproduces the state of a real project (2026-10-06): several accepted values for one parameter, a value filed under a
-name the model does not use ("plasma protein binding"), values under the data plan's placeholder ("elim"), a pKa
-without acid / base, and a template target (elim.hepatic.{enzyme}.km/vmax).
+Reproduces the state of a real project (2026-10-06): several values for one parameter (which agree, so they are one
+value since D-32), a value filed under a name the model does not use ("plasma protein binding"), values under the data
+plan's placeholder ("elim"), a pKa without acid / base, and a template target (elim.hepatic.{enzyme}.km/vmax).
 """
 
 from __future__ import annotations
@@ -59,10 +59,12 @@ def test_each_open_item_is_listed_with_what_settles_it_and_settled_in_place(ws):
     _accept(ws, "phys.logp", 2.29)
     assemble(ws, by="u")
     cpf = current_cpf(ws)
-    assert cpf.get("plasma protein binding") is None and cpf.get("elim") is None and cpf.get("bind.fu") is None
+    assert cpf.get("plasma protein binding") is None and cpf.get("elim") is None
+    # 0.70 and 0.73 agree within 10 % (D-32): one value, the earlier source kept, the other listed as agreeing
+    assert cpf.get("bind.fu").value == pytest.approx(0.70) and f"agreed by 1 other source(s): {fu[1].id}" in (
+        cpf.get("bind.fu").provenance.reference)
     listed = {(t["kind"], t["target"]): t for t in todo(ws)}
-    conflict = listed[("conflict", "bind.fu")]
-    assert [i["id"] for i in conflict["items"]] == [f.id for f in fu] and conflict["items"][0]["source"]["title"] == PAPER.title
+    assert ("conflict", "bind.fu") not in listed
     assert "not a parameter the model uses" in listed[("correct", "plasma protein binding")]["message"]
     assert "elim.renal.gfr_fraction" in listed[("correct", "elim")]["suggestions"]["targets"]
     assert listed[("correct", "elim.hepatic.{enzyme}.km/vmax")]["suggestions"]["targets"] == [
@@ -87,7 +89,11 @@ def test_each_open_item_is_listed_with_what_settles_it_and_settled_in_place(ws):
     assert km.value_pksim == 120 and km.unit_pksim == "µmol/l" and renal.value_pksim == 0.45
     assert "corrected from" in renal.note and renal.quote == elim.quote
     listed = {(t["kind"], t["target"]): t for t in (assemble(ws, by="u"), todo(ws))[1]}
-    assert {i["id"] for i in listed[("missing", "elim")]["items"]} == {renal.id, km.id}   # waiting, on the same list
+    # refiled under another parameter: held until a person confirms the converted value, on the same list
+    assert [i["id"] for i in listed[("review", "elim.renal.gfr_fraction")]["items"]] == [renal.id]
+    assert [i["id"] for i in listed[("review", "elim.hepatic.CYP3A4.km")]["items"]] == [km.id]
+    assert not listed[("review", "elim.renal.gfr_fraction")]["blocking"]
+    assert current_cpf(ws).get("elim.renal.gfr_fraction") is None
     decide(ws, renal.id, state=EvidenceState.ACCEPTED, reason="fraction of GFR", by="u")
     decide(ws, km.id, state=EvidenceState.ACCEPTED, reason="CYP3A4 Km, recombinant", by="u")
     mw_item = propose_identity_mw(ws, by="u")
@@ -98,7 +104,7 @@ def test_each_open_item_is_listed_with_what_settles_it_and_settled_in_place(ws):
     assert cpf.get("elim.renal.gfr_fraction").engine_binding.process == "GlomerularFiltration"
     assert cpf.get("phys.mw").provenance.source_type == "Database"
     left = {(t["kind"], t["target"]) for t in todo(ws)}
-    assert not {k for k in left if k[0] in ("conflict", "correct", "pka")}
+    assert not {k for k in left if k[0] in ("conflict", "correct", "pka", "review")}
     assert ("missing", "phys.solubility.ref") in left
 
 

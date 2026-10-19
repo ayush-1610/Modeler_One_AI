@@ -35,7 +35,8 @@ export async function projectWithInputs(request: APIRequestContext, drug: string
                food_state: s.food_state ?? "fasted", n_timepoints: 5, ...(s.route === "iv_infusion" ? { infusion_time_min: 60 } : {}),
                ...(s.co_medication ? { co_medication: s.co_medication } : {}) },
       time_unit: "h", unit: "µmol/l", origin: "LITERATURE", source: { doi: "10.1/review", locator: "Table 3" },
-      series: [{ name: "mean", statistic: "arithmetic_mean", times: [0.5, 1, 2, 4, 8], values: [20, 35, 21, 9, 2], n: 12 }] } });
+      series: [{ name: "mean", statistic: "arithmetic_mean", times: [0.5, 1, 2, 4, 8], values: [20, 35, 21, 9, 2], n: 12 }],
+      demographics_choice: "healthy_adult_default" } });   // D-29: never silent
     expect(ds.ok(), await ds.text()).toBeTruthy();
     const id = (await ds.json()).data.id as string;
     await request.post(`/api/v1/projects/${projectId}/datasets/${id}:decide`, { headers: AUTH, data: { state: "ACCEPTED", reason: "checked" } });

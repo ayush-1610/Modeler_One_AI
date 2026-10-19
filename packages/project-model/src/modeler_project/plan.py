@@ -295,6 +295,16 @@ def _candidates(cpf: CPF) -> dict[str, tuple[str, ...]]:
     return out
 
 
+def default_individuals(rows: list[dict[str, Any]]) -> tuple[str, ...]:
+    """A limitation for each study a person chose to simulate with the healthy adult default (D-29): the MAP names it,
+    so the report does too."""
+    from pbpk_domain.campaign.split import DEFAULT_DEMOGRAPHICS as d
+
+    who = f"{d.population}, {d.sex.value.lower()}, {d.age_years:g} years"
+    return tuple(f"{r['study_id']}: demographics not reported; simulated with the healthy adult default ({who}), chosen "
+                 "by a person (D-29)" for r in rows if r.get("demographics_choice") == "healthy_adult_default")
+
+
 def build_default(cpf: CPF, rows: list[dict[str, Any]], structure: Structure) -> ModelPlan:
     map_doc, split = default_map(cpf, rows, structure)
     train = training_stages(_records(rows), split, cpf)
@@ -311,7 +321,7 @@ def build_default(cpf: CPF, rows: list[dict[str, Any]], structure: Structure) ->
                                  default_role=role))
         placements[s.study_id] = Placement(role=role)
     return ModelPlan(compound=cpf.compound, studies=tuple(studies), placements=placements, structure=structure,
-                     default_rationale=split.rationale, default_limitations=split.limitations,
+                     default_rationale=split.rationale, default_limitations=(*split.limitations, *default_individuals(rows)),
                      fit_candidates=_candidates(cpf), budgets={p.stage: p.budget_seconds for p in map_doc.stage_plan})
 
 

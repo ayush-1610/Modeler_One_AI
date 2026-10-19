@@ -733,6 +733,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/datasets/{dataset_id}:study": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Dataset Study
+         * @description A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), with
+         *     no reason asked (D-27; the audit keeps before and after). The inputs are assembled again.
+         */
+        post: operations["set_dataset_study_api_v1_projects__project_id__datasets__dataset_id__study_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/datasets:digitize": {
         parameters: {
             query?: never;
@@ -2647,6 +2668,8 @@ export interface components {
              * @default parent
              */
             analyte?: string;
+            /** Demographics Choice */
+            demographics_choice?: ("entered" | "healthy_adult_default") | null;
             /**
              * Kind
              * @default profile
@@ -4968,6 +4991,8 @@ export interface components {
              * @default
              */
             decision_reason: string;
+            /** Demographics Choice */
+            demographics_choice: ("entered" | "healthy_adult_default") | null;
             digitization: components["schemas"]["Digitization"] | null;
             /**
              * Extraction
@@ -6694,6 +6719,15 @@ export interface components {
          * @enum {string}
          */
         StudyClass: "IV-SD" | "PO-SOL-FASTED" | "PO-IR-FASTED" | "PO-FED" | "PO-MD" | "PO-MR" | "PO-OTHER" | "DDI" | "PGX" | "SPECIAL" | "PRECLINICAL";
+        /** StudyFacts */
+        StudyFacts: {
+            /** Changes */
+            changes?: {
+                [key: string]: unknown;
+            };
+            /** Demographics Choice */
+            demographics_choice?: ("entered" | "healthy_adult_default") | null;
+        };
         /**
          * StudyRecord
          * @description A clinical study as it arrives from intake (MS-01 §3.1), reduced to the fields the split needs.
@@ -8906,6 +8940,44 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RevealRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ObservedDataset_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_dataset_study_api_v1_projects__project_id__datasets__dataset_id__study_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudyFacts"];
             };
         };
         responses: {

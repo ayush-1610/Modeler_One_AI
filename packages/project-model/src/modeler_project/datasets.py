@@ -82,6 +82,9 @@ class ObservedDataset(BaseModel):
     digitization: Digitization | None = None
     purpose: str = "model_building"
     provider: Literal["CLIENT", "LITERATURE"] = "LITERATURE"
+    # D-29: never a silent default. "entered": the study's demographics are given; "healthy_adult_default": a person
+    # chose the OSP reference individual (pbpk_domain.campaign.split.DEFAULT_DEMOGRAPHICS), a MAP limitation
+    demographics_choice: Literal["entered", "healthy_adult_default"] | None = None
     flags: tuple[str, ...] = ()
     state: EvidenceState = EvidenceState.PROPOSED
     proposed_by: str = ""

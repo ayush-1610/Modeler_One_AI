@@ -9,8 +9,9 @@ export default async function InputsPage({ params }: { params: Promise<{ project
       <h1>Model inputs</h1>
       <Stepper projectId={projectId} current="inputs" page="inputs" />
       <p className="muted" style={{ maxWidth: "var(--measure)" }}>
-        CPF v1 is assembled from the accepted evidence, never typed: each value in its PK-Sim unit, with the source that
-        goes into PK-Sim&apos;s value origin. The studies come from the accepted datasets. Choices the evidence does not
+        CPF v1 is assembled from the evidence, never typed, after every change: every value not excluded counts, each in its
+        PK-Sim unit, with the source that goes into PK-Sim&apos;s value origin. The studies come from the datasets not
+        excluded. Choices the evidence does not
         decide (which PK-Sim process carries a pathway, which formulation a tablet study used) are yours, with a reason.
         Readiness is the S0 check plus a build of every planned simulation.
       </p>

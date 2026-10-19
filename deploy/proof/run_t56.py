@@ -308,6 +308,16 @@ def accept(api: Api, pid: str, prepared: dict[str, Any], *, name: str, log=print
                         json={"kind": "formulation", "key": CLIENT_ID, "value": client_formulation,
                               "reason": f"the fed arm's tablet release is not reported; simulated as the published model "
                                         f"simulates its tablet studies ({client_formulation})"})
+    # D-29: a study the published model simulates in its default individual gets the healthy adult default explicitly
+    # (never silently); the MAP lists each as a limitation
+    register = api.get(f"/api/v1/projects/{pid}/evidence", "P2 register")
+    by_study = {d["study"]["study_id"]: d["id"] for d in register.get("datasets", []) if d.get("state") != "REJECTED"}
+    unstated = [t["target"] for t in assembled.get("todo", []) if t["kind"] == "demographics" and t["target"] in by_study]
+    for sid in unstated:
+        api.post(f"/api/v1/projects/{pid}/datasets/{by_study[sid]}:study", f"P4 demographics of {sid}",
+                 json={"demographics_choice": "healthy_adult_default"})
+    if unstated:
+        assembled = api.post(f"/api/v1/projects/{pid}/inputs:assemble", "P4 assemble")
     readiness = assembled["readiness"]["content"]
     if not readiness.get("ready"):
         raise RuntimeError("P4 readiness: " + json.dumps(readiness, default=str)[:1500])

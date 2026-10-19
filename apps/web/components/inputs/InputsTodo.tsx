@@ -14,19 +14,23 @@ export type Ev = {
 type DatasetRow = { id: string; study_id: string; purpose: string; origin: string; provider: string; state: string; kind: string;
                     statistics: string[]; series: number };
 export type TodoItem = {
-  kind: "conflict" | "correct" | "pka" | "missing" | "datasets" | "formulation" | "process" | "unit" | "check";
+  kind: "conflict" | "correct" | "pka" | "missing" | "datasets" | "formulation" | "process" | "unit" | "check" | "review"
+    | "regimen" | "demographics";
   target: string; message: string; items: (Ev | DatasetRow)[]; evidence?: string[];
   suggestions?: { targets: string[]; molecules: string[] };
   identity?: { value: number; unit: string; quote: string; cid: string; name: string } | null;
   warnings?: string[];
+  dataset_id?: string | null;
 };
 type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string) => Promise<string | null>;
 
-const ORDER = ["conflict", "correct", "pka", "missing", "datasets", "formulation", "process", "unit", "check"];
+const ORDER = ["conflict", "correct", "pka", "missing", "review", "regimen", "demographics", "datasets", "formulation", "process",
+               "unit", "check"];
 const TITLE: Record<string, string> = {
-  conflict: "Several accepted values: keep one", correct: "Filed under the wrong parameter", pka: "pKa: acidic or basic?",
+  conflict: "Values more than 2-fold apart: keep one", correct: "Filed under the wrong parameter", pka: "pKa: acidic or basic?",
   missing: "Missing for S0", datasets: "Observed data to judge the model on", formulation: "Formulation of the tablet studies",
   process: "Which PK-Sim process carries the pathway", unit: "Unit to convert", check: "Software build",
+  review: "Held until you check it", regimen: "Multiple-dose regimen", demographics: "Demographics (D-29)",
 };
 const LABEL: Record<string, string> = {
   "phys.mw": "Molecular weight", "phys.logp": "Lipophilicity", "bind.fu": "Fraction unbound in plasma",
@@ -176,6 +180,35 @@ function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: Run }) {
   );
 }
 
+// A study fact the model needs (D-29 demographics, a multiple-dose regimen), set on the study's dataset. The Studies tab
+// of the Inputs page (R3b) replaces this with the full study form.
+function StudyFix({ t, projectId, run }: { t: TodoItem; projectId: string; run: Run }) {
+  const [doses, setDoses] = useState("");
+  const [every, setEvery] = useState("");
+  const path = "/api/v1/projects/{project_id}/datasets/{dataset_id}:study" as const;
+  const params = { project_id: projectId, dataset_id: t.dataset_id ?? "" };
+  return (
+    <>
+      <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>{t.message}</p>
+      {t.dataset_id && t.kind === "demographics" && (
+        <button className="btn" onClick={() => void run(() => send("post", path, params, { demographics_choice: "healthy_adult_default" }),
+                                                        `${t.target}: the healthy adult default, listed as a limitation of the MAP.`)}>
+          Use the healthy adult default
+        </button>
+      )}
+      {t.dataset_id && t.kind === "regimen" && (
+        <div className="row" style={{ gap: 6 }}>
+          <input placeholder="number of doses" value={doses} onChange={(x) => setDoses(x.target.value)} aria-label={`doses for ${t.target}`} />
+          <input placeholder="interval (h)" value={every} onChange={(x) => setEvery(x.target.value)} aria-label={`interval for ${t.target}`} />
+          <button className="btn primary" disabled={!(Number(doses) > 0 && Number(every) > 0)}
+                  onClick={() => void run(() => send("post", path, params, { changes: { n_doses: Number(doses), dosing_interval_h: Number(every) } }),
+                                          `${t.target}: ${doses} doses every ${every} h.`)}>Save</button>
+        </div>
+      )}
+    </>
+  );
+}
+
 function Datasets({ t, projectId, run }: { t: TodoItem; projectId: string; run: Run }) {
   const [reason, setReason] = useState("");
   const rows = t.items as DatasetRow[];
@@ -239,8 +272,9 @@ export function InputsTodo({ projectId, todo, run }: { projectId: string; todo: 
         </button>
       </div>
       <p className="muted" style={{ margin: "4px 0 10px", fontSize: 13 }}>
-        Each decision is yours and is recorded with its reason; the inputs are re-assembled after each one. Values are never averaged or
-        chosen by code.
+        Each decision is yours and is recorded with its reason; the inputs are re-assembled after each one. Values are never averaged:
+        sources within 10 % are one value, within 2-fold the best source is kept and the others listed, and beyond that you keep
+        one (source selection 0.1, provisional until the SME signs).
       </p>
       {researching && researching !== "started" && <div className="banner err">{researching}</div>}
       {sorted.map((t, i) => (
@@ -273,6 +307,13 @@ export function InputsTodo({ projectId, todo, run }: { projectId: string; todo: 
                     <Link href={`/projects/${projectId}/evidence`}>Literature page</Link>.</p>}
             </>
           )}
+          {t.kind === "review" && (
+            <>
+              <p className="muted" style={{ margin: "2px 0 4px", fontSize: 13 }}>{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
+              {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
+            </>
+          )}
+          {(t.kind === "regimen" || t.kind === "demographics") && <StudyFix t={t} projectId={projectId} run={run} />}
           {t.kind === "datasets" && <Datasets t={t} projectId={projectId} run={run} />}
           {t.kind === "formulation" && (
             <>

@@ -1,4 +1,4 @@
-"""T-49: CPF v1 assembled from accepted evidence, the study catalog from accepted datasets, and readiness."""
+"""T-49: CPF v1 assembled from the evidence, the study catalog from the datasets, and readiness."""
 
 from __future__ import annotations
 
@@ -41,7 +41,8 @@ def _project(tmp_path):
         study={"study_id": "doe-iv-250", "reference": "Doe 2019", "n": 12, "route": "iv_infusion", "dose_mg": 250,
                "infusion_time_min": 60, "formulation": "solution", "food_state": "fasted", "n_timepoints": 6},
         series=(Series(name="mean", statistic="arithmetic_mean", times=(0.5, 1, 2, 4, 8, 12),
-                       values=(20.1, 35.2, 21.0, 9.1, 2.0, 0.5), n=12),))
+                       values=(20.1, 35.2, 21.0, 9.1, 2.0, 0.5), n=12),),
+        demographics_choice="healthy_adult_default")
     propose_dataset(ws, dataset, actor="u")
     decide_dataset(ws, dataset.id, state=EvidenceState.ACCEPTED, reason="table 3 checked", by="u")
     return ws
@@ -72,12 +73,12 @@ def test_a_complete_compound_assembles_builds_and_is_accepted(tmp_path):
 
 def test_conflicts_and_open_structure_choices_are_named_never_resolved_by_code(tmp_path):
     ws = _project(tmp_path)
-    _accept(ws, "bind.fu", 0.9, None, conditions={"species": "human"})                 # a second accepted fu
+    _accept(ws, "bind.fu", 0.3, None, conditions={"species": "human"})        # a second accepted fu, 2.8-fold apart
     _accept(ws, "elim.hepatic.CYP3A4.clspec", 0.5, "l/µmol/min", pksim={"value_pksim": 0.5, "unit_pksim": "l/µmol/min"})
     ready = assemble(ws, by="u")["readiness"].content
     assembly = next(c for c in ready["checks"] if c["check"] == "assembly")
     assert not ready["ready"]
-    assert any(d.startswith("bind.fu: 2 accepted values") for d in assembly["detail"])
+    assert any(d.startswith("bind.fu: values more than 2-fold apart") and "never averaged" in d for d in assembly["detail"])
     assert any("choose the process type for elim.hepatic.CYP3A4" in d and "rCYP450_FirstOrder" in d for d in assembly["detail"])
     set_choice(ws, kind="process", key="elim.hepatic.CYP3A4", value="MetabolizationSpecific_FirstOrder",
                reason="OSP standard first-order specific clearance", by="u")
@@ -118,3 +119,31 @@ def test_an_ehc_fraction_is_set_on_the_individual_at_its_harvested_path(tmp_path
         "Individual", "Organism|Liver|EHC continuous fraction")
     assert individual_parameters(current_cpf(ws))["Organism|Liver|EHC continuous fraction"].value == 0.5
     assert not [i for i in report["issues"] if i["target"] == "elim.ehc_fraction"]
+
+
+def test_demographics_are_never_defaulted_silently_and_a_multiple_dose_study_names_its_regimen(tmp_path):
+    """D-29: a study without demographics waits until a person enters them or chooses the healthy adult default; an
+    MD study without its number of doses and interval is not run as a single dose."""
+    from modeler_project.dataset_register import datasets, set_study_facts
+    from modeler_project.inputs import todo
+
+    ws = _project(tmp_path)
+    ds = datasets(ws)[0]
+    set_study_facts(ws, ds.id, changes={"design": "MD"}, by="u")
+    ws.commit(ArtifactKind.DATASET, ds.id, {**ws.latest(ArtifactKind.DATASET, ds.id).content, "demographics_choice": None},
+              actor="u", reason="as an older dataset, with no choice")
+    ready = assemble(ws, by="u")["readiness"].content
+    failing = {c["check"]: c["detail"] for c in ready["checks"] if not c["ok"]}
+    assert not ready["ready"] and failing["demographics stated (D-29)"] == [
+        "doe-iv-250: give the demographics, or choose the healthy adult default"]
+    assert failing["multiple-dose regimens"] == ["doe-iv-250: a multiple-dose study needs its number of doses and dosing interval"]
+    assert {(t["kind"], t["target"], t["tab"], t["dataset_id"]) for t in todo(ws) if t["kind"] in ("demographics", "regimen")} == {
+        ("demographics", "doe-iv-250", "studies", ds.id), ("regimen", "doe-iv-250", "studies", ds.id)}   # where the fix goes
+    with pytest.raises(ValueError, match="give the demographics"):
+        set_study_facts(ws, ds.id, changes={}, demographics_choice="entered", by="u")
+    set_study_facts(ws, ds.id, changes={"n_doses": 7, "dosing_interval_h": 24}, demographics_choice="healthy_adult_default",
+                    by="u")
+    assert assemble(ws, by="u")["readiness"].content["ready"]
+    entered = set_study_facts(ws, ds.id, changes={"demographics": {"population": "European_ICRP_2002", "sex": "FEMALE",
+                                                                   "age_years": 42}}, by="u")
+    assert entered.demographics_choice == "entered" and entered.study["demographics"]["sex"] == "FEMALE"

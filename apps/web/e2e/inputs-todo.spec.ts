@@ -1,6 +1,7 @@
 // T-49: what keeps P4 from ready is listed on the Model inputs page with what settles it, and settled there: one of
-// several accepted values kept, a placeholder target corrected, a pKa called acidic or basic, the corrected value
-// accepted. Reproduces the evidence of a real project (2026-10-06); the values are test entries, never a model.
+// two values more than 2-fold apart kept (values within 10 % are one value, D-32), a placeholder target corrected, a pKa
+// called acidic or basic, the refiled value checked. Reproduces the evidence of a real project (2026-10-06); the values
+// are test entries, never a model.
 import { expect, type Page, test } from "@playwright/test";
 
 const AUTH = { Authorization: "Bearer dev" };
@@ -28,10 +29,11 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
     expect(decided.ok(), await decided.text()).toBeTruthy();
   };
   await add("REQ-bind.fu", "bind.fu", 0.70);
-  await add("REQ-bind.fu", "bind.fu", 0.73);
+  await add("REQ-bind.fu", "bind.fu", 0.30);
   await add("REQ-elim.pathway", "elim", 0.45, {}, 0.45);
   await add("REQ-phys.pka", "phys.pka", 10.11);
   await add("REQ-phys.logp", "phys.logp", 2.29);
+  await add("REQ-phys.logp", "phys.logp", 2.35);       // within 10 %: one value with two sources, no decision (D-32)
 
   await page.goto(`/projects/${projectId}/inputs`);
   await page.getByTestId("assemble").click();
@@ -39,7 +41,8 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   await expect(todo).toContainText("What stops readiness");
   await shot(page, "1-todo");
 
-  // two fu values: keep one, the other is rejected with the reason
+  await expect(page.getByTestId("todo-conflict-phys.logp")).toHaveCount(0);
+  // two fu values more than 2-fold apart: keep one, the other is rejected with the reason
   const fu = page.getByTestId("todo-conflict-bind.fu");
   await fu.getByRole("radio").first().check();
   await fu.getByLabel("reason for bind.fu").fill("equilibrium dialysis, human plasma");
@@ -47,16 +50,16 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   await expect(page.getByText("bind.fu: one value kept")).toBeVisible();
   await expect(page.getByTestId("todo-conflict-bind.fu")).toHaveCount(0);
 
-  // "elim" is the data plan's placeholder: file the value under the pathway, then accept the copy
+  // "elim" is the data plan's placeholder: file the value under the pathway; the refiled copy is held until checked
   const elim = page.getByTestId("todo-correct-elim");
   await elim.locator("select").first().selectOption("elim.renal.gfr_fraction");
   await elim.locator("input[placeholder='why']").fill("renal filtration is the main route");
   await elim.getByRole("button", { name: "Correct" }).click();
   await expect(page.getByText(/Filed as elim.renal.gfr_fraction/)).toBeVisible();
-  const waiting = page.getByTestId("todo-missing-elim");
-  await waiting.locator("input[placeholder='why']").fill("fraction of GFR, from the review");
-  await waiting.getByRole("button", { name: "Accept" }).click();
-  await expect(page.getByTestId("todo-missing-elim")).toHaveCount(0);
+  const held = page.getByTestId("todo-review-elim.renal.gfr_fraction");
+  await held.locator("input[placeholder='why']").fill("fraction of GFR, from the review");
+  await held.getByRole("button", { name: "Accept" }).click();
+  await expect(page.getByTestId("todo-review-elim.renal.gfr_fraction")).toHaveCount(0);
 
   // the pKa says neither acid nor base
   const pka = page.getByTestId("todo-pka-phys.pka");
@@ -71,5 +74,6 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   await page.getByRole("button", { name: "Compound" }).click();
   await expect(page.getByTestId("record-bind.fu")).toContainText("0.7");
   await expect(page.getByTestId("record-phys.pka.base.0")).toContainText("10.11");
+  await expect(page.getByTestId("record-phys.logp")).toContainText("2.29");
   await shot(page, "2-settled");
 });

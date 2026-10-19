@@ -383,6 +383,8 @@ def datasets_from_observations(observations: list[Any], *, study: dict[str, Any]
                            ("food_state", first.food_state), ("lloq", first.lloq)):
             if value is not None:
                 record[key] = value
+        if (first.dose_unit or "").replace(" ", "").lower() == "mg/kg":   # a dose per kg body weight stays per kg
+            record["dose_per_kg"] = True
         sheet, _, cell = first.source.cells["value"].partition("!")
         row = int("".join(ch for ch in cell if ch.isdigit()) or 0)
         page, line = _row_line(library, sha, sheet, row)

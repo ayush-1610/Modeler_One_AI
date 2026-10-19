@@ -144,6 +144,34 @@ def review_flags(item: EvidenceItem) -> list[str]:
     return flags
 
 
+class Misfiling(ValueError):
+    """A value an agent would file where it is known to go wrong; the message says where it belongs."""
+
+
+def file_check(target: str, value: float | str | None, unit: str | None, quote: str) -> tuple[str | None, str]:
+    """Code rules on where an agent files a value (redesign §4, from the misfilings on a real project). Returns the unit
+    to store it with and a note; raises `Misfiling` for a value that does not belong under `target`:
+    - a protein-binding percentage stated as binding is stored as '% bound', so code computes fu = 1 − bound;
+    - a fraction excreted unchanged in urine is not PK-Sim's GFR fraction;
+    - a sentence is not a value for a numeric parameter."""
+    from modeler_project.inputs import target_problem
+
+    if problem := target_problem(target):
+        raise Misfiling(problem)
+    if not isinstance(value, int | float) and numeric_target(target):
+        raise Misfiling(f"{str(value)[:80]!r} is a description, not a value for {target}: propose the number it states")
+    compact = (unit or "").replace(" ", "").lower()
+    if target == "bind.fu" and _BINDING_WORDS.search(quote) and not _UNBOUND_WORDS.search(quote) and "bound" not in compact:
+        if compact in ("%", "percent"):
+            return "% bound", "the quote states protein binding: the unit is read as % bound (fu = 1 − bound)"
+        raise Misfiling("the quote states protein binding (the bound share): give the unit '% bound', or file the unbound "
+                        "fraction the source states")
+    if target == "elim.renal.gfr_fraction" and _URINE_WORDS.search(quote):
+        raise Misfiling("a fraction excreted unchanged in urine is elim.fe_urine (REQ-elim.pathway), not PK-Sim's GFR "
+                        "fraction (a multiplier on filtration)")
+    return unit, ""
+
+
 _STOP = {"or", "and", "of", "the", "per", "vs", "a", "an"}
 
 
@@ -160,9 +188,9 @@ def _missing_conditions(required: tuple[str, ...], given: dict[str, str]) -> lis
 
 def assess(item: EvidenceItem, *, required_conditions: tuple[str, ...] = (), value_in_quote: bool | None = None) -> EvidenceItem:
     """Convert to the storage unit, grade (plan §8.4) and flag. Returns the item with these fields set."""
-    # recomputed here, except conflicts (set when read) and what the proposer knows is unconfirmed (e.g. an equation
-    # not yet compared with the engine's own curve)
-    flags: list[str] = [f for f in item.flags if f.startswith(("conflict", "unconfirmed"))]
+    # recomputed here, except conflicts (set when read), what the proposer knows is unconfirmed (e.g. an equation not
+    # yet compared with the engine's own curve) and a correction's refiling (held until a person confirms it)
+    flags: list[str] = [f for f in item.flags if f.startswith(("conflict", "unconfirmed", "refiled"))]
     value_pksim, unit_pksim, how = item.value_pksim, item.unit_pksim, item.conversion
     if isinstance(item.value, int | float) and value_pksim is None:
         try:

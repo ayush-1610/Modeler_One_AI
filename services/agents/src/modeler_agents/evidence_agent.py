@@ -3,8 +3,9 @@
 Works like a literature-review scientist: searches open literature (Europe PMC), reads abstracts and open-access full
 texts, and the documents the team uploaded, and proposes values with the exact quote, page and conditions. Every text
 it reads is stored as a document first, so every proposal is checked by code against exactly that text (quote found
-verbatim; numbers stated; requirement and target known). Code converts units and grades confidence; a person accepts
-or rejects each proposal. A paper that is not open access becomes an access request, never an unofficial copy.
+verbatim; numbers stated; requirement and target known; the misfiling rules of `evidence.file_check`). Code converts
+units and grades confidence; values flow in without a per-item decision (D-27) and a person excludes what is wrong. A
+paper that is not open access becomes an access request, never an unofficial copy.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from modeler_agents.sources import EuropePMC, SourceError
 from modeler_agents.web_search import search_tool
 from modeler_intake.citations import quote_appears_in, value_stated_in_quote
 from modeler_project.documents import DocumentLibrary, document_record
-from modeler_project.evidence import EvidenceItem, Extraction, SourceRef, SourceType, new_id
+from modeler_project.evidence import EvidenceItem, Extraction, Misfiling, SourceRef, SourceType, file_check, new_id
 from modeler_project.evidence_register import propose, request_access
 from modeler_project.requirements import RequirementItem
 from modeler_project.workspace import Workspace
@@ -97,6 +98,11 @@ def propose_value(ctx: ResearchContext, *, req_id: str, target: str, value: Any,
         number = float(str(value).replace(",", "").split()[0])
     except (ValueError, IndexError):
         number = None
+    try:   # code rules on where a value is filed (redesign §4): values flow in without a per-item review (D-27)
+        unit, filing_note = file_check(target, number if number is not None else str(value), unit or None, quote)
+    except Misfiling as exc:
+        return _reject(ctx, "MISFILED", str(exc), req_id=req_id, target=target)
+    note = "; ".join(x for x in (note, filing_note) if x)
     doc = ctx.library.by_sha(doc_sha256)
     record = document_record(doc) if doc else None
     meta = record.note if record else ""

@@ -81,8 +81,8 @@ export function ModelInputs({ projectId }: { projectId: string }) {
       <Card title="CPF v1 and readiness">
         <div className="row">
           <button className="btn primary" data-testid="assemble" onClick={() => act(() => send("post", "/api/v1/projects/{project_id}/inputs:assemble", { project_id: projectId }),
-                                                                            "Assembled from the accepted evidence and datasets.")}>
-            Assemble from the accepted evidence
+                                                                            "Assembled from the evidence and datasets not excluded.")}>
+            Assemble again
           </button>
           <button className="btn" data-testid="accept-inputs" disabled={!readiness?.ready || view.readiness?.status === "APPROVED"}
                   onClick={() => act(() => send("post", "/api/v1/projects/{project_id}/inputs:accept", { project_id: projectId }), "Inputs accepted (P4).")}>

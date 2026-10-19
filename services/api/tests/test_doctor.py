@@ -39,9 +39,9 @@ def test_the_report_names_what_stops_each_phase_and_holds_no_observed_values(tmp
     ws = _project(tmp_path)
     text = report(ws)
     assert "drug: **desvenlafaxine**" in text and "P4 " in text
-    assert "`bind.fu`" in text and "several accepted (keep one)" in text
+    assert "`bind.fu`" in text and "2 sources agree (one value)" in text          # 0.70 and 0.73 (D-32)
     assert "`plasma protein binding`" in text and "not a parameter the model uses" in text
-    assert "230-23-REF · proposed · external_validation" in text and "conflict bind.fu" in text
+    assert "230-23-REF · proposed · external_validation" in text and "conflict bind.fu" not in text
     assert not any(v in text for v in ("41.23", "87.65", "95.43"))
 
 
