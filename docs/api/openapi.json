@@ -155,6 +155,153 @@
         "title": "AgentsStatus",
         "type": "object"
       },
+      "AlternativeView": {
+        "additionalProperties": false,
+        "description": "A source the selection did not keep (D-32): how far it stands from the kept value.",
+        "properties": {
+          "conditions": {
+            "additionalProperties": true,
+            "title": "Conditions",
+            "type": "object"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "differs_pct": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Differs Pct"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "relation": {
+            "enum": [
+              "agrees",
+              "differs",
+              "conflicts"
+            ],
+            "title": "Relation",
+            "type": "string"
+          },
+          "source": {
+            "additionalProperties": true,
+            "title": "Source",
+            "type": "object"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "unit_pksim": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Pksim"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "value_pksim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Pksim"
+          }
+        },
+        "required": [
+          "id",
+          "target",
+          "value",
+          "unit",
+          "value_pksim",
+          "unit_pksim",
+          "state",
+          "confidence",
+          "flags",
+          "provider",
+          "source_type",
+          "conditions",
+          "source",
+          "quote",
+          "relation",
+          "differs_pct"
+        ],
+        "title": "AlternativeView",
+        "type": "object"
+      },
       "ApplicationRequest": {
         "description": "An application the campaign runs at S6 (T-31): an analysis template and the person's inputs to it.",
         "properties": {
@@ -1964,6 +2111,168 @@
           "ki"
         ],
         "title": "CompetitiveInhibition",
+        "type": "object"
+      },
+      "CompoundRow": {
+        "additionalProperties": false,
+        "description": "One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, or missing.",
+        "properties": {
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/AlternativeView"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "binding": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Binding"
+          },
+          "candidates": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "placement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement"
+          },
+          "req_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Req Id"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceView"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "kept",
+              "conflict",
+              "held",
+              "missing"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tab": {
+            "enum": [
+              "compound",
+              "formulations",
+              "individuals",
+              "settings",
+              "studies"
+            ],
+            "title": "Tab",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "tab",
+          "state",
+          "req_id",
+          "value",
+          "unit",
+          "status",
+          "placement",
+          "binding",
+          "candidates",
+          "sources",
+          "alternatives",
+          "message"
+        ],
+        "title": "CompoundRow",
         "type": "object"
       },
       "CompoundSpec": {
@@ -5780,6 +6089,128 @@
         "title": "EvidenceState",
         "type": "string"
       },
+      "EvidenceView": {
+        "additionalProperties": false,
+        "description": "An evidence item as the page shows it (`inputs.evidence_view`): the value in both units, its source and grade.",
+        "properties": {
+          "conditions": {
+            "additionalProperties": true,
+            "title": "Conditions",
+            "type": "object"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "source": {
+            "additionalProperties": true,
+            "title": "Source",
+            "type": "object"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "unit_pksim": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Pksim"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "value_pksim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Pksim"
+          }
+        },
+        "required": [
+          "id",
+          "target",
+          "value",
+          "unit",
+          "value_pksim",
+          "unit_pksim",
+          "state",
+          "confidence",
+          "flags",
+          "provider",
+          "source_type",
+          "conditions",
+          "source",
+          "quote"
+        ],
+        "title": "EvidenceView",
+        "type": "object"
+      },
       "ExpressionSpec": {
         "additionalProperties": false,
         "description": "An enzyme, transporter or other-protein expression profile. Real OSP transporter profiles carry no\nLocalization (PK-Sim supplies it for the named transporter), so it is emitted only when set; enzymes keep\nthe standard intracellular localization by default.\n\n``harvested`` is a profile copied verbatim from an OSP reference snapshot (`pbpk_domain.expression`): its\nper-organ relative expressions, half-lives, transport directions and ontogeny. Without those every organ's\nrelative expression is zero and the protein's processes do nothing, so a campaign build always uses a\nharvested profile; the bare form (molecule and reference concentration only) exists for builder tests.",
@@ -6487,6 +6918,13 @@
             "title": "Choices",
             "type": "object"
           },
+          "compound": {
+            "items": {
+              "$ref": "#/components/schemas/CompoundRow"
+            },
+            "title": "Compound",
+            "type": "array"
+          },
           "cpf": {
             "anyOf": [
               {
@@ -6531,6 +6969,27 @@
             "title": "Records",
             "type": "array"
           },
+          "selection_rule": {
+            "title": "Selection Rule",
+            "type": "string"
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/InputStudyRow"
+            },
+            "title": "Studies",
+            "type": "array"
+          },
+          "study_options": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Study Options",
+            "type": "object"
+          },
           "todo": {
             "items": {
               "additionalProperties": true,
@@ -6548,6 +7007,10 @@
           "choices",
           "published",
           "todo",
+          "compound",
+          "studies",
+          "study_options",
+          "selection_rule",
           "evidence"
         ],
         "title": "IdentityProposal",
@@ -6663,6 +7126,122 @@
         "title": "Induction",
         "type": "object"
       },
+      "InputStudyRow": {
+        "additionalProperties": false,
+        "description": "One study (`inputs_view.study_rows`): its facts without observed values, proposed role, blinding, demographics.",
+        "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
+          },
+          "demographics": {
+            "enum": [
+              "entered",
+              "published",
+              "default",
+              "missing"
+            ],
+            "title": "Demographics",
+            "type": "string"
+          },
+          "evaluable": {
+            "title": "Evaluable",
+            "type": "boolean"
+          },
+          "excluded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded"
+          },
+          "facts": {
+            "additionalProperties": true,
+            "title": "Facts",
+            "type": "object"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "regimen_missing": {
+            "title": "Regimen Missing",
+            "type": "boolean"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "role_source": {
+            "enum": [
+              "proposed",
+              "plan"
+            ],
+            "title": "Role Source",
+            "type": "string"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_id",
+          "dataset_id",
+          "origin",
+          "purpose",
+          "evaluable",
+          "facts",
+          "role",
+          "role_source",
+          "blinded",
+          "excluded",
+          "demographics",
+          "regimen_missing"
+        ],
+        "title": "InputStudyRow",
+        "type": "object"
+      },
       "InputsPage": {
         "additionalProperties": false,
         "properties": {
@@ -6680,6 +7259,13 @@
             "additionalProperties": true,
             "title": "Choices",
             "type": "object"
+          },
+          "compound": {
+            "items": {
+              "$ref": "#/components/schemas/CompoundRow"
+            },
+            "title": "Compound",
+            "type": "array"
           },
           "cpf": {
             "anyOf": [
@@ -6721,6 +7307,27 @@
             "title": "Records",
             "type": "array"
           },
+          "selection_rule": {
+            "title": "Selection Rule",
+            "type": "string"
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/InputStudyRow"
+            },
+            "title": "Studies",
+            "type": "array"
+          },
+          "study_options": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Study Options",
+            "type": "object"
+          },
           "todo": {
             "items": {
               "additionalProperties": true,
@@ -6737,7 +7344,11 @@
           "readiness",
           "choices",
           "published",
-          "todo"
+          "todo",
+          "compound",
+          "studies",
+          "study_options",
+          "selection_rule"
         ],
         "title": "InputsPage",
         "type": "object"

@@ -1762,6 +1762,51 @@ export interface components {
             provider?: string | null;
         };
         /**
+         * AlternativeView
+         * @description A source the selection did not keep (D-32): how far it stands from the kept value.
+         */
+        AlternativeView: {
+            /** Conditions */
+            conditions: {
+                [key: string]: unknown;
+            };
+            /** Confidence */
+            confidence: string;
+            /** Differs Pct */
+            differs_pct: number | null;
+            /** Flags */
+            flags: string[];
+            /** Id */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Quote */
+            quote: string;
+            /**
+             * Relation
+             * @enum {string}
+             */
+            relation: "agrees" | "differs" | "conflicts";
+            /** Source */
+            source: {
+                [key: string]: unknown;
+            };
+            /** Source Type */
+            source_type: string;
+            /** State */
+            state: string;
+            /** Target */
+            target: string;
+            /** Unit */
+            unit: string | null;
+            /** Unit Pksim */
+            unit_pksim: string | null;
+            /** Value */
+            value: number | string | null;
+            /** Value Pksim */
+            value_pksim: number | null;
+        };
+        /**
          * ApplicationRequest
          * @description An application the campaign runs at S6 (T-31): an analysis template and the person's inputs to it.
          */
@@ -2468,6 +2513,46 @@ export interface components {
             kind: "CompetitiveInhibition";
             /** Molecule */
             molecule: string;
+        };
+        /**
+         * CompoundRow
+         * @description One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, or missing.
+         */
+        CompoundRow: {
+            /** Alternatives */
+            alternatives: components["schemas"]["AlternativeView"][];
+            /** Binding */
+            binding: {
+                [key: string]: string | null;
+            } | null;
+            /** Candidates */
+            candidates: string[];
+            /** Id */
+            id: string;
+            /** Message */
+            message: string | null;
+            /** Placement */
+            placement: string | null;
+            /** Req Id */
+            req_id: string | null;
+            /** Sources */
+            sources: components["schemas"]["EvidenceView"][];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "kept" | "conflict" | "held" | "missing";
+            /** Status */
+            status: string | null;
+            /**
+             * Tab
+             * @enum {string}
+             */
+            tab: "compound" | "formulations" | "individuals" | "settings" | "studies";
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: number | string | null;
         };
         /** CompoundSpec */
         CompoundSpec: {
@@ -3762,6 +3847,44 @@ export interface components {
          */
         EvidenceState: "PROPOSED" | "ACCEPTED" | "REJECTED";
         /**
+         * EvidenceView
+         * @description An evidence item as the page shows it (`inputs.evidence_view`): the value in both units, its source and grade.
+         */
+        EvidenceView: {
+            /** Conditions */
+            conditions: {
+                [key: string]: unknown;
+            };
+            /** Confidence */
+            confidence: string;
+            /** Flags */
+            flags: string[];
+            /** Id */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Quote */
+            quote: string;
+            /** Source */
+            source: {
+                [key: string]: unknown;
+            };
+            /** Source Type */
+            source_type: string;
+            /** State */
+            state: string;
+            /** Target */
+            target: string;
+            /** Unit */
+            unit: string | null;
+            /** Unit Pksim */
+            unit_pksim: string | null;
+            /** Value */
+            value: number | string | null;
+            /** Value Pksim */
+            value_pksim: number | null;
+        };
+        /**
          * ExpressionSpec
          * @description An enzyme, transporter or other-protein expression profile. Real OSP transporter profiles carry no
          *     Localization (PK-Sim supplies it for the named transporter), so it is emitted only when set; enzymes keep
@@ -4068,6 +4191,8 @@ export interface components {
             choices: {
                 [key: string]: unknown;
             };
+            /** Compound */
+            compound: components["schemas"]["CompoundRow"][];
             cpf: components["schemas"]["CpfVersion"] | null;
             /** Evidence */
             evidence: string;
@@ -4080,6 +4205,14 @@ export interface components {
             records: {
                 [key: string]: unknown;
             }[];
+            /** Selection Rule */
+            selection_rule: string;
+            /** Studies */
+            studies: components["schemas"]["InputStudyRow"][];
+            /** Study Options */
+            study_options: {
+                [key: string]: string[];
+            };
             /** Todo */
             todo: {
                 [key: string]: unknown;
@@ -4127,6 +4260,44 @@ export interface components {
             /** Molecule */
             molecule: string;
         };
+        /**
+         * InputStudyRow
+         * @description One study (`inputs_view.study_rows`): its facts without observed values, proposed role, blinding, demographics.
+         */
+        InputStudyRow: {
+            /** Blinded */
+            blinded: boolean;
+            /** Dataset Id */
+            dataset_id: string | null;
+            /**
+             * Demographics
+             * @enum {string}
+             */
+            demographics: "entered" | "published" | "default" | "missing";
+            /** Evaluable */
+            evaluable: boolean;
+            /** Excluded */
+            excluded: string | null;
+            /** Facts */
+            facts: {
+                [key: string]: unknown;
+            };
+            /** Origin */
+            origin: string | null;
+            /** Purpose */
+            purpose: string | null;
+            /** Regimen Missing */
+            regimen_missing: boolean;
+            /** Role */
+            role: string | null;
+            /**
+             * Role Source
+             * @enum {string}
+             */
+            role_source: "proposed" | "plan";
+            /** Study Id */
+            study_id: string;
+        };
         /** InputsPage */
         InputsPage: {
             catalog: components["schemas"]["VersionView"] | null;
@@ -4134,6 +4305,8 @@ export interface components {
             choices: {
                 [key: string]: unknown;
             };
+            /** Compound */
+            compound: components["schemas"]["CompoundRow"][];
             cpf: components["schemas"]["CpfVersion"] | null;
             /** Published */
             published: {
@@ -4144,6 +4317,14 @@ export interface components {
             records: {
                 [key: string]: unknown;
             }[];
+            /** Selection Rule */
+            selection_rule: string;
+            /** Studies */
+            studies: components["schemas"]["InputStudyRow"][];
+            /** Study Options */
+            study_options: {
+                [key: string]: string[];
+            };
             /** Todo */
             todo: {
                 [key: string]: unknown;

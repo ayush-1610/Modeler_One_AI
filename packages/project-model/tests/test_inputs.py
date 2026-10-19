@@ -138,7 +138,7 @@ def test_demographics_are_never_defaulted_silently_and_a_multiple_dose_study_nam
         "doe-iv-250: give the demographics, or choose the healthy adult default"]
     assert failing["multiple-dose regimens"] == ["doe-iv-250: a multiple-dose study needs its number of doses and dosing interval"]
     assert {(t["kind"], t["target"], t["tab"], t["dataset_id"]) for t in todo(ws) if t["kind"] in ("demographics", "regimen")} == {
-        ("demographics", "doe-iv-250", "studies", ds.id), ("regimen", "doe-iv-250", "studies", ds.id)}   # where the fix goes
+        ("demographics", "doe-iv-250", "individuals", ds.id), ("regimen", "doe-iv-250", "studies", ds.id)}   # where the fix goes
     with pytest.raises(ValueError, match="give the demographics"):
         set_study_facts(ws, ds.id, changes={}, demographics_choice="entered", by="u")
     set_study_facts(ws, ds.id, changes={"n_doses": 7, "dosing_interval_h": 24}, demographics_choice="healthy_adult_default",

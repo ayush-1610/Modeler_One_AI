@@ -11,6 +11,7 @@ from typing import Any
 
 from modeler_project.artifacts import ArtifactKind
 from modeler_project.datasets import (
+    HUMAN_POPULATIONS,
     DatasetError,
     Digitization,
     ObservedDataset,
@@ -72,6 +73,9 @@ def set_study_facts(ws: Workspace, dataset_id: str, *, changes: dict[str, Any], 
     dataset = _latest(ws, dataset_id)
     if "study_id" in changes and changes["study_id"] != dataset.study.get("study_id"):
         raise DatasetError("the study id is not changed here")
+    population = (changes.get("demographics") or {}).get("population")
+    if population is not None and population not in HUMAN_POPULATIONS:
+        raise DatasetError(f"population {population!r} is not a PK-Sim population database ({', '.join(HUMAN_POPULATIONS)})")
     study = {k: v for k, v in {**dataset.study, **changes}.items() if v is not None}
     choice = dataset.demographics_choice
     if changes.get("demographics"):

@@ -12,7 +12,7 @@ import {
   CATEGORY_LABEL, type ClientFile, DATA_SHEETS, type Profile, type Reconciled, type SheetForm, type Triage, type View, readSheets,
 } from "./types";
 
-type Act = <T>(fn: () => Promise<Envelope<T>>) => Promise<string | null>;
+export type Act = <T>(fn: () => Promise<Envelope<T>>) => Promise<string | null>;
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const STATUS: Record<string, [string, string]> = {
@@ -276,7 +276,8 @@ function ProfileRow({ p, onPropose }: { p: Profile; onPropose: (formulation: str
   );
 }
 
-function Dissolution({ projectId, d, act }: {
+/** The dissolution profiles, their Weibull fits and f2 (also on the Inputs step's Formulations tab). */
+export function Dissolution({ projectId, d, act }: {
   projectId: string; d: View["dissolution"];
   act: Act;
 }) {

@@ -15,6 +15,60 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Inputs, the second step of the new flow: one workspace, five tabs, "Still missing to run" (R3b)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.2; it builds on R3a):
+  - **`/projects/{id}/inputs` is rebuilt as one workspace** on the kit (`InputsWorkspace`), in PK-Sim's building blocks:
+    Compound, Formulations, Individuals, Simulation settings and Studies.
+    - The side list **Still missing to run** shows the live to-do list; each item opens its tab and scrolls to where it
+      is settled. Readiness is shown beside it.
+    - The page assembles the inputs once when they are missing or stale (an upstream change such as the brief).
+      Every change made on it reassembles them on the server.
+    - **No Accept, Approve or "Hand to the model plan" button** (D-27): when nothing is missing, the panel links to
+      Review & sign. The API routes stay for the T-56 kit until R5.
+  - **Compound** (and the value rows of the other tabs):
+    - one row per model input: the kept value in its PK-Sim unit, the kept source with its grade, "+N agree" for
+      sources within 10 %, and the state (in the model, keep one, check it, missing);
+    - the sources and alternatives open under the row; a source can be excluded with a reason;
+    - what waits on a person is settled in the row: keep one, check a held value, correct, pKa, the process;
+    - **Add a value** types a value into the row with its unit, source and quote, filed under the row's checklist
+      item (`req_id`).
+  - **Formulations:** the formulation of each solid study, and the dissolution profiles with their Weibull fit and f2
+    (the Client data page's card, reused).
+  - **Individuals:** each study's individual, entered or **Use the healthy adult default** (D-29), and the values set
+    on the individual.
+    - The population is chosen from the six harvested PK-Sim human databases. Pregnant and Preterm are left out
+      because they need gestational inputs a study does not carry.
+    - `:study` now refuses a population that is not one of them.
+  - **Simulation settings:** the calculation methods (`dist.partition_method`, `dist.permeability_method`), the values
+    set on the simulation, and each study's solver settings.
+  - **Studies:**
+    - each study with its facts, the role the MS-01 split proposes (read-only, D-33), blinded, demographics, the
+      multiple-dose regimen editor, and **Leave out** / **Include again** with a reason;
+    - **Add observed data:** the client's sheets (the reader until R3c), the client-data template, the digitizer, or
+      a table typed in by hand (`POST /datasets`).
+  - **API, `GET /projects/{id}/inputs`** (`modeler_project.inputs_view`, typed in `views/inputs.py`):
+    - `compound` rows (`CompoundRow`, with `EvidenceView` sources and `AlternativeView` alternatives);
+    - `studies` rows (`InputStudyRow`);
+    - `study_options`: the study record's enums and the harvested populations;
+    - `selection_rule`;
+    - every to-do item names its `tab` (`inputs.tab_of`);
+    - the records' `block` is the tab id.
+- **Why:** the approved Inputs screen (R1). It is the typed view R3a deferred, and the one place where values from
+  every source meet.
+- **Impact:**
+  - **No science change:** the page shows what R3a assembles.
+  - The old `ModelInputs` page is gone. The Literature and Client data pages stay reachable from the step bar until
+    R5.
+  - API contract: the `InputsPage` fields above. `docs/api/openapi.json` and the web types are regenerated.
+  - Tests: `test_inputs_view.py` (rows, tabs, studies, the population guard, the harvested list).
+  - Browser flows:
+    - new `inputs-workspace.spec.ts`;
+    - `model-inputs.spec.ts` now reaches ready inputs and Review & sign with no acceptance;
+    - `inputs-todo.spec.ts` opens items from the side list;
+    - a light and a dark screenshot.
+- **Found while building it, and fixed in R3a (#76):** a value proposed after an assembly reached the CPF only on the
+  next manual assembly (`inputs_key`).
+
 ### Changed (science) — values flow into the model inputs without a per-item decision; one rule picks the value a parameter takes (R3a, D-32, D-33)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.2 and §4; D-27: "agents and code fill; a person reviews
   everything once at the MAP signature"):

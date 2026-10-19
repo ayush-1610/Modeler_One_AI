@@ -36,9 +36,9 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   await add("REQ-phys.logp", "phys.logp", 2.35);       // within 10 %: one value with two sources, no decision (D-32)
 
   await page.goto(`/projects/${projectId}/inputs`);
-  await page.getByTestId("assemble").click();
-  const todo = page.getByTestId("inputs-todo");
-  await expect(todo).toContainText("What stops readiness");
+  const missing = page.getByTestId("still-missing");
+  await expect(missing).toContainText("Still missing to run");
+  await expect(missing.getByTestId("missing-conflict-bind.fu")).toBeVisible();
   await shot(page, "1-todo");
 
   await expect(page.getByTestId("todo-conflict-phys.logp")).toHaveCount(0);
@@ -68,10 +68,12 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   await pka.getByRole("button", { name: "Save" }).click();
   await expect(page.getByTestId("todo-pka-phys.pka")).toHaveCount(0);
 
-  // what is left: values nobody has proposed yet, and data to judge the model on
+  // what is left: values nobody has proposed yet, and data to judge the model on (opened from the side list)
   await expect(page.getByTestId("todo-missing-phys.mw")).toBeVisible();
+  await missing.getByTestId("missing-datasets-observed data").click();
+  await expect(page.getByTestId("tab-studies")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("todo-datasets-observed data")).toBeVisible();
-  await page.getByRole("button", { name: "Compound" }).click();
+  await page.getByTestId("tab-compound").click();
   await expect(page.getByTestId("record-bind.fu")).toContainText("0.7");
   await expect(page.getByTestId("record-phys.pka.base.0")).toContainText("10.11");
   await expect(page.getByTestId("record-phys.logp")).toContainText("2.29");

@@ -1,11 +1,11 @@
-// T-49: CPF v1 is assembled from accepted evidence, the studies from accepted datasets; readiness builds every planned
-// simulation (software); the inputs are accepted and handed to the plan. Values and data here are software test data
-// entered through the API, the way a curator would enter them by hand.
+// T-49, redesign §3.2: the values and data flow in with no acceptance (D-27): CPF v1 is assembled from the evidence and
+// the studies from the datasets, readiness builds every planned simulation (software), and the step hands over to Review
+// & sign. Values and data here are software test data entered through the API, the way a curator would enter them.
 import { expect, test } from "@playwright/test";
 
 const AUTH = { Authorization: "Bearer dev" };
 
-test("model inputs are assembled from evidence, checked, accepted and handed to the plan", async ({ page, request }) => {
+test("model inputs flow in from the evidence, are checked, and hand over to Review & sign with no acceptance", async ({ page, request }) => {
   const started = await request.post("/api/v1/projects:initiate", {
     headers: AUTH,
     multipart: { drug_name: "Inputamide", extract: "false",
@@ -25,10 +25,7 @@ test("model inputs are assembled from evidence, checked, accepted and handed to 
   for (const [req_id, target, value, unit, conditions] of values) {
     const r = await request.post(`/api/v1/projects/${projectId}/evidence`, {
       headers: AUTH, data: { req_id, target, value, unit, conditions, source_type: "REGULATORY_REVIEW", doi: "10.1/review", year: 2019 } });
-    expect(r.ok(), await r.text()).toBeTruthy();
-    const id = (await r.json()).data.id as string;
-    expect((await request.post(`/api/v1/projects/${projectId}/evidence/${id}:decide`, {
-      headers: AUTH, data: { state: "ACCEPTED", reason: "checked against the review" } })).ok()).toBeTruthy();
+    expect(r.ok(), await r.text()).toBeTruthy();                      // proposed, never accepted one by one
   }
   const ds = await request.post(`/api/v1/projects/${projectId}/datasets`, { headers: AUTH, data: {
     study: { study_id: "doe-iv-250", reference: "Doe 2019", n: 12, route: "iv_infusion", dose_mg: 250, infusion_time_min: 60,
@@ -37,26 +34,19 @@ test("model inputs are assembled from evidence, checked, accepted and handed to 
     series: [{ name: "mean", statistic: "arithmetic_mean", times: [0.5, 1, 2, 4, 8], values: [20, 35, 21, 9, 2], n: 12 }],
     demographics_choice: "healthy_adult_default" } });   // D-29: never silent
   expect(ds.ok(), await ds.text()).toBeTruthy();
-  const dsId = (await ds.json()).data.id as string;
-  expect((await request.post(`/api/v1/projects/${projectId}/datasets/${dsId}:decide`, {
-    headers: AUTH, data: { state: "ACCEPTED", reason: "table 3 checked" } })).ok()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/inputs`);
-  await page.getByTestId("assemble").click();
-  await expect(page.getByTestId("ready-chip")).toHaveText("ready");
+  await expect(page.getByTestId("inputs-ready")).toBeVisible();              // nothing still missing, nothing to accept
   const logp = page.getByTestId("record-phys.logp");
   await expect(logp).toContainText("Log Units");
-  await expect(logp).toContainText("Publication · InVitro");
+  await expect(logp).toContainText("regulatory review");
   await expect(page.getByTestId("record-elim.renal.gfr_fraction")).toContainText("GlomerularFiltration");
-  await page.getByRole("button", { name: "Readiness" }).click();
   await expect(page.getByTestId("check-every planned simulation builds (software)")).toContainText("ok");
-  await page.getByRole("button", { name: "Studies" }).click();
+  await page.getByTestId("tab-studies").click();
   await expect(page.getByTestId("study-doe-iv-250")).toContainText("literature");
-  await page.getByTestId("accept-inputs").click();
-  await expect(page.getByText("Inputs accepted (P4).")).toBeVisible();
-  await page.getByTestId("publish-inputs").click();
-  await expect(page.getByText("handed to the plan (1 study)")).toBeVisible();
+  await expect(page.getByTestId("study-doe-iv-250")).toContainText("S1");               // the role the MS-01 split proposes
+  await expect(page.getByRole("button", { name: /Accept|Approve|Hand to/ })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("inputs.png"), fullPage: true });
-  const studies = await request.get(`/api/v1/projects/${projectId}/studies`, { headers: AUTH });
-  expect((await studies.json()).data.studies[0].origin).toBe("LITERATURE");
+  await page.getByRole("link", { name: "Go to Review & sign" }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/plan`));
 });

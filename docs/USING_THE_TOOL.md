@@ -98,26 +98,38 @@ button opens when every **required** plan item is delivered or decided.
    shows it); it is never approved.
 4. **Approve the client data.** Then accept the new datasets and release-model values on the Literature page.
 
-## 7. Model inputs (P4): from evidence to a ready CPF
+## 7. Inputs (step 2): from every source to a ready CPF
 
-Press **Assemble from the accepted evidence**. Under it, **What stops readiness** lists each open item with what
-settles it; every decision asks for a reason and the inputs are assembled again after it:
+The Inputs page (`/projects/{id}/inputs`) is one workspace in PK-Sim's building blocks: **Compound**, **Formulations**,
+**Individuals**, **Simulation settings** and **Studies**. Values flow in from the client's files, the literature agent,
+PubChem and the published OSP model with no per-item acceptance (D-27). The inputs are put together again after
+every change. The side list **Still missing to run** names each open item; clicking one opens it on its tab. Nothing
+is approved here: the one review is at the MAP signature.
 
-- **Several accepted values: keep one.** Pick the value (source, grade and quote are shown) and give the reason; the
-  others are rejected with it. Code never averages or chooses.
+- **One value per input (source selection 0.1, provisional until the SME signs).** Sources within 10 % of each other
+  are one value with all of them listed ("+N agree"). Within 2-fold, the best source is kept (the client, then the
+  literature by grade, then databases, then the published model) and the others are listed under the row for the
+  review. Beyond 2-fold, **keep one** with a reason. Values are never averaged.
+- **Exclude a source** from a row's sources, with a reason; the next best source takes over.
+- **Add a value** in any row: the value, its unit, the source (DOI or URL) and the sentence that states it.
+- **Held until you check it:** a value filed where a mistake is likely (a % bound as fu, fe as the GFR fraction), one
+  with no conversion to the PK-Sim unit, or one moved to another parameter by a correction. Accept or reject it.
 - **Filed under the wrong parameter.** `elim` (the data plan's "an elimination pathway"), a template such as
-  `elim.hepatic.{enzyme}.km/vmax`, or a name the model does not use (e.g. "plasma protein binding") never reaches PK-Sim.
-  Choose the real parameter (and the enzyme) and **Correct**, or **Reject**. A value filed under another parameter is
-  proposed again with its converted value: check the number still means the same (30 % *bound* is fu 0.70, not 0.30).
-- **pKa: acidic or basic?** Choose and save (a database page usually labels them "strongest acidic / basic").
-- **Fractions, not parameters:** the fraction excreted unchanged in urine goes under `elim.fe_urine` and a fraction
-  metabolised by one enzyme under `elim.fm.<enzyme>`; they constrain the elimination fitted in S1 but are not a
-  pathway. PK-Sim's GFR fraction is a multiplier on filtration, not fe. A protein-binding percentage is entered with
-  the unit "% bound" (fu = 1 − bound is computed).
-- **Missing for S0.** Accept a proposal shown there, propose the molecular weight from the brief's PubChem record
-  (check it is the free base), or **Ask the literature agent for what is missing**.
-- **Observed data.** Accept the datasets read on the Client data page. Studies with individual subjects only are kept
-  for the population evaluation; the campaign judges mean profiles (e.g. published mean data).
+  `elim.hepatic.{enzyme}.km/vmax`, or a name the model does not use never reaches PK-Sim. Choose the real parameter
+  (and the enzyme) and **Correct**, or **Reject**. The fraction excreted unchanged in urine goes under
+  `elim.fe_urine`; PK-Sim's GFR fraction is a multiplier on filtration, not fe.
+- **pKa: acidic or basic?** Choose and save. Two acidic (or two basic) values from different sources wait on you.
+- **Individuals.** Each study's individual: the PK-Sim population database, sex and age (with the age range, weight and
+  height when reported), or **Use the healthy adult default**, which the MAP lists as a limitation. It is never
+  applied silently.
+- **Studies.** Each study's facts, the role the MS-01 split proposes (changed only on Review & sign), whether it is
+  blinded, a multiple-dose study's number of doses and interval, and **Leave out** with a reason. Add data by reading
+  the client's sheets, filling the client-data template, digitizing a published figure, or typing a table in.
+- **Formulations and Simulation settings.** The formulation of each solid study, the dissolution profiles with their
+  Weibull fit ("Propose as release model") and f2, the calculation methods, the values set on the simulation, and each
+  study's solver settings.
+
+When the list is empty, **Go to Review & sign**.
 
 ## 8. When something looks wrong: the project doctor
 
