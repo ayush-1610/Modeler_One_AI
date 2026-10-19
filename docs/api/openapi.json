@@ -1903,6 +1903,10 @@
             "title": "Files",
             "type": "array"
           },
+          "reading": {
+            "title": "Reading",
+            "type": "boolean"
+          },
           "reconciliation": {
             "$ref": "#/components/schemas/Reconciliation"
           },
@@ -1933,7 +1937,8 @@
           "dissolution",
           "register",
           "agents",
-          "running"
+          "running",
+          "reading"
         ],
         "title": "ClientDataPage",
         "type": "object"
@@ -2010,6 +2015,10 @@
             "title": "Read",
             "type": "array"
           },
+          "reading": {
+            "title": "Reading",
+            "type": "boolean"
+          },
           "reconciliation": {
             "$ref": "#/components/schemas/Reconciliation"
           },
@@ -2041,6 +2050,7 @@
           "register",
           "agents",
           "running",
+          "reading",
           "read"
         ],
         "title": "ClientUpload",
@@ -8652,6 +8662,10 @@
             "title": "Questions",
             "type": "array"
           },
+          "reading": {
+            "title": "Reading",
+            "type": "boolean"
+          },
           "ready": {
             "title": "Ready",
             "type": "boolean"
@@ -8709,6 +8723,7 @@
           "register",
           "agents",
           "running",
+          "reading",
           "ready",
           "issues",
           "questions",
@@ -11946,6 +11961,19 @@
         "title": "ReadFile",
         "type": "object"
       },
+      "ReadingRequest": {
+        "properties": {
+          "sheets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sheets",
+            "type": "array"
+          }
+        },
+        "title": "ReadingRequest",
+        "type": "object"
+      },
       "RealDataSummary": {
         "additionalProperties": false,
         "description": "What a round's verdict rests on (`pbpk_domain.data_origin.real_data_summary`, plan §9.4).",
@@ -12196,6 +12224,10 @@
             "title": "Files",
             "type": "array"
           },
+          "reading": {
+            "title": "Reading",
+            "type": "boolean"
+          },
           "reconciliation": {
             "$ref": "#/components/schemas/Reconciliation"
           },
@@ -12227,6 +12259,7 @@
           "register",
           "agents",
           "running",
+          "reading",
           "evidence"
         ],
         "title": "ReleaseProposal",
@@ -13927,6 +13960,10 @@
             "title": "Products",
             "type": "array"
           },
+          "proposed_by": {
+            "title": "Proposed By",
+            "type": "string"
+          },
           "read_before": {
             "items": {
               "$ref": "#/components/schemas/ReadBefore"
@@ -13944,6 +13981,17 @@
             "title": "Rows",
             "type": "array"
           },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
           "sheet": {
             "title": "Sheet",
             "type": "string"
@@ -13958,7 +14006,8 @@
           "form",
           "notes",
           "products",
-          "read_before"
+          "read_before",
+          "proposed_by"
         ],
         "title": "SheetView",
         "type": "object"
@@ -18750,7 +18799,7 @@
     },
     "/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}": {
       "get": {
-        "description": "One sheet as text, with a first filling of the reading form found in it (units, dose and LLOQ quoted from their\ncells; what the sheet does not say left for the person) and the notes that say what was found and what was not.",
+        "description": "One sheet as text, with the reading form to check: the reading agent's checked proposal when there is one, else\ncode's first filling (units, dose and LLOQ quoted from their cells; what the sheet does not say left for the\nperson), and the notes that say what was found and what was not.",
         "operationId": "read_sheet_api_v1_projects__project_id__client_data__sid__sheets__sheet__get",
         "parameters": [
           {
@@ -18985,6 +19034,91 @@
           }
         },
         "summary": "Map Sheets",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/client-data/{sid}:read": {
+      "post": {
+        "description": "A4 proposes how to read the file's data sheets, in the background; each proposal is checked by code and waits on\nits sheet for the person to check and save (nothing is read into the project until then).",
+        "operationId": "start_reading_api_v1_projects__project_id__client_data__sid__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sid",
+            "required": true,
+            "schema": {
+              "title": "Sid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReadingRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TriageStart_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Reading",
         "tags": [
           "client-data"
         ]

@@ -92,6 +92,11 @@ button opens when every **required** plan item is delivered or decided.
    - "Same layout as the last sheet" copies columns, units, LLOQ and cell texts to the next file; the rows and the
      study (id, dose, route, formulation, food, subjects, purpose) stay this sheet's own.
    - Read a sheet again to correct it: the new reading replaces the earlier one (its datasets are rejected).
+   - With agents on, **Read the data sheets (agent)** lets the reading agent read the file's data sheets first. Code
+     checks every reading it proposes: each quote is in its cell and states its value, a unit, LLOQ, dose or n stands on
+     a quote (never guessed), and the reading applies without a problem. A sheet with a proposal shows **reading
+     proposed** and opens on the agent's reading, marked as the agent's, with its notes. Check it against the sheet,
+     correct anything wrong and save: nothing is read in until you save.
 3. **Settle what the client cannot send** ("What stops approval"): with a reason, either **Not from the client** (the
    gap is recorded) or **Get it from the literature instead** (P2 takes it over). The literature cross-check counts only
    once a literature value is accepted. These decisions change the data checklist, which follows them at once (Start
@@ -123,8 +128,9 @@ is approved here: the one review is at the MAP signature.
   height when reported), or **Use the healthy adult default**, which the MAP lists as a limitation. It is never
   applied silently.
 - **Studies.** Each study's facts, the role the MS-01 split proposes (changed only on Review & sign), whether it is
-  blinded, a multiple-dose study's number of doses and interval, and **Leave out** with a reason. Add data by reading
-  the client's sheets, filling the client-data template, digitizing a published figure, or typing a table in.
+  blinded, a multiple-dose study's number of doses and interval, and **Leave out** with a reason. The client's sheets
+  are listed on the tab itself: open a sheet, check the reading agent's (or code's) reading, and save. Add data also by
+  filling the client-data template, digitizing a published figure, or typing a table in.
   - **Digitizing a figure in a PDF:** open the digitizer on the Literature page. A PDF's figures (images placed on
     its pages) are listed: pick one and the page is cropped to it. A figure drawn as lines is cropped by hand
     (**Crop to a region**, then two corners). **Zoom** enlarges the view. Calibrate the axes and pick the points in

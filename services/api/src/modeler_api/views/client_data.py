@@ -46,7 +46,8 @@ class ClientDataPage(View):
     dissolution: Dissolution
     register_: VersionView | None = Field(alias="register")  # "register" would shadow the class method
     agents: AgentsStatus
-    running: bool
+    running: bool                         # an agent job on the project's client files: sorting or reading
+    reading: bool                         # the reading agent is reading sheets
 
 
 class ReadFile(View):
@@ -87,6 +88,8 @@ class SheetView(View):
     notes: list[str]
     products: list[Product]
     read_before: list[ReadBefore]
+    proposed_by: str                      # "code" (the first filling), or the reading agent's run ("agent:<run id>")
+    run_id: str | None = None             # the agent run that proposed the form, when the agent did
 
 
 class MapIssue(View):

@@ -550,8 +550,9 @@ export interface paths {
         };
         /**
          * Read Sheet
-         * @description One sheet as text, with a first filling of the reading form found in it (units, dose and LLOQ quoted from their
-         *     cells; what the sheet does not say left for the person) and the notes that say what was found and what was not.
+         * @description One sheet as text, with the reading form to check: the reading agent's checked proposal when there is one, else
+         *     code's first filling (units, dose and LLOQ quoted from their cells; what the sheet does not say left for the
+         *     person), and the notes that say what was found and what was not.
          */
         get: operations["read_sheet_api_v1_projects__project_id__client_data__sid__sheets__sheet__get"];
         put?: never;
@@ -597,6 +598,27 @@ export interface paths {
          *     recipe with none of them creates the datasets (origin CLIENT) and keeps the recipe on the file's record.
          */
         post: operations["map_sheets_api_v1_projects__project_id__client_data__sid__map_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/client-data/{sid}:read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Reading
+         * @description A4 proposes how to read the file's data sheets, in the background; each proposal is checked by code and waits on
+         *     its sheet for the person to check and save (nothing is read into the project until then).
+         */
+        post: operations["start_reading_api_v1_projects__project_id__client_data__sid__read_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2478,6 +2500,8 @@ export interface components {
             files: {
                 [key: string]: unknown;
             }[];
+            /** Reading */
+            reading: boolean;
             reconciliation: components["schemas"]["Reconciliation"];
             register: components["schemas"]["VersionView"] | null;
             /** Running */
@@ -2514,6 +2538,8 @@ export interface components {
             }[];
             /** Read */
             read: components["schemas"]["ReadFile"][];
+            /** Reading */
+            reading: boolean;
             reconciliation: components["schemas"]["Reconciliation"];
             register: components["schemas"]["VersionView"] | null;
             /** Running */
@@ -4836,6 +4862,8 @@ export interface components {
             issues: components["schemas"]["MapIssue"][];
             /** Questions */
             questions: string[];
+            /** Reading */
+            reading: boolean;
             /** Ready */
             ready: boolean;
             /** Recipe */
@@ -6072,6 +6100,11 @@ export interface components {
             /** Template */
             template: boolean;
         };
+        /** ReadingRequest */
+        ReadingRequest: {
+            /** Sheets */
+            sheets?: string[];
+        };
         /**
          * RealDataSummary
          * @description What a round's verdict rests on (`pbpk_domain.data_origin.real_data_summary`, plan §9.4).
@@ -6166,6 +6199,8 @@ export interface components {
             files: {
                 [key: string]: unknown;
             }[];
+            /** Reading */
+            reading: boolean;
             reconciliation: components["schemas"]["Reconciliation"];
             register: components["schemas"]["VersionView"] | null;
             /** Running */
@@ -6747,10 +6782,14 @@ export interface components {
             notes: string[];
             /** Products */
             products: components["schemas"]["Product"][];
+            /** Proposed By */
+            proposed_by: string;
             /** Read Before */
             read_before: components["schemas"]["ReadBefore"][];
             /** Rows */
             rows: string[][];
+            /** Run Id */
+            run_id?: string | null;
             /** Sheet */
             sheet: string;
         };
@@ -9094,6 +9133,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_Union_MapReading__MapPreview__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_reading_api_v1_projects__project_id__client_data__sid__read_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReadingRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TriageStart_"];
                 };
             };
             /** @description Validation Error */

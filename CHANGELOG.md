@@ -15,6 +15,63 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the reading agent proposes how to read each client sheet, checked by code; an evaluation set scores it (R3c)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.2 and §4):
+  - **The reading agent** (A4's second job, `modeler_agents.sheet_reader`) starts from code's first filling of the
+    reading form (`sheet_form.suggest`, kept as the starting point and the fallback) and proposes the reading with
+    `propose_reading`. It can see more rows with `read_rows`.
+  - **Code checks every proposal before it is kept:**
+    - the form is valid;
+    - each quote is in the cell it cites and states the value it is cited for;
+    - the units, LLOQ, dose, n and strength each stand on a quote. Only a unit may be declared unstated (the person
+      is told); an LLOQ, a dose, an n or a strength is never guessed;
+    - the reading applies to the sheet without a problem (`to_proposal`, `review_proposal`), exactly as a confirmed
+      reading would.
+
+    The agent hears what code read, or what to fix, and proposes again.
+  - **Nothing is read into the project by the agent.** An accepted reading is kept on the client file
+    (`client_data.record_reading`). The sheet then opens on it, marked as the agent's, and the person checks,
+    corrects and saves it once (`:map`), as before.
+  - **API:**
+    - `POST /projects/{id}/client-data/{sid}:read` runs the agent in the background over the file's data sheets not
+      yet read, or the sheets named. It is one agent run per sheet (`A4-sheet-reading`), each in the run log.
+    - `GET …/sheets/{sheet}` answers the agent's form when there is one, with `proposed_by` and `run_id`.
+    - The page view gains `reading`.
+  - **Web:**
+    - the client's sheets are listed and read on the Inputs **Studies** tab (`ClientFiles`, shared with the Client
+      data page);
+    - **Read the data sheets (agent)** on each workbook, and **reading proposed** on a sheet waiting for the person;
+    - the reader says who filled the form in.
+  - **Evaluation set** (`modeler_intake.reading_eval`, T-21): 11 client sheets in the layouts real files use. They
+    cover times down and across, long and wide subjects, Mean / SD rows, BLQ and no-sample tokens, units in titles and
+    notes, a report table with a source line, geometric means with a CV column, decimal commas, and twelve dissolution
+    vessels.
+    - Each sheet is written from its known answer, so the answer is known by construction; software test data, never
+      observed data.
+    - A reader is scored on reading without a problem, the values at their times, the units, the statistic, the LLOQ
+      and the dose.
+    - The person's reading kept with each case scores 11/11, which checks the cases and the scorer agree.
+    - `uv run python -m modeler_agents.evals.sheet_reading [--reader agent]` prints the table.
+  - **One lock helper:** `Workspace.editing(kind, id)`. The client file's writers (triage, readings, confirmed
+    mappings) take it, so the agent's run and a person's save on the same file never drop each other's change. The
+    brief's lock from the lost-update fix moves onto it.
+  - Saving a sheet no longer says to accept the datasets on the Literature page; under D-27 they flow into the inputs.
+- **Why:** the owner found reading client sheets the hardest part of P0–P5: about 30 fields per sheet, filled by a
+  regex guess. The reading agent fills them, and code keeps it honest. The evaluation set makes "better" measurable
+  before and after each change, for code and agent alike.
+- **Code's baseline** (`suggest`, unchanged): 5 of 11 sheets read exactly.
+  - Two more read without a problem but with the wrong values: a decimal-comma export read its N column as
+    concentrations, and a report table's "SD (ng/mL)" column was dropped. A person must catch these today.
+  - Four fail to read: a no-sample token, an n stated only in a note, "Subj 1" headers taken as a subject column, and
+    numeric time headers taken as data.
+  - `test_code_alone_reads_these_sheets_today` pins this list, so a change to `suggest` shows here.
+- **The agent's score is not taken here:** the build container reaches no model. It is to be run on the server's model,
+  where the owner's real files are scored too (never committed). Whether the unwired mapping agent (`data_mapping.py`)
+  is rewired or retired follows that score.
+- **Impact:** no science change. The reading rules, the checks a confirmed reading passes, and what reaches the
+  project are unchanged; the agent only fills the form a person still checks and saves. Agents stay off unless a
+  provider is configured (D-16), and with them off the page works as before.
+
 ### Added — the digitizer reads figures inside a PDF: a figure list, crop and zoom (R3d)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.2; the owner's note: the digitizer must also read "figures
   that are images inside a PDF", with zoom and crop):

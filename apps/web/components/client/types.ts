@@ -12,6 +12,8 @@ export type ClientFile = {
   id: string; file: string; sha256: string; kind: string; template: boolean; triage: Triage[]; datasets: string[];
   evidence: string[]; dissolution: KeptRow[]; products: KeptRow[]; urine_feces: KeptRow[]; issues: IssueRow[];
   brief_mismatches: string[]; other_sheets: string[]; mappings?: Mapping[];
+  // the reading agent's checked proposals, by sheet, waiting for a person to check and save (R3c)
+  readings?: Record<string, { form: unknown; notes: string[]; by: string; run_id: string | null }>;
 };
 export type Reconciled = Schema<"ReconciledRow">;
 export type Fit = { t50_min: number | null; shape: number | null; lag_min: number; se_t50: number | null; se_shape: number | null;
@@ -66,6 +68,8 @@ export type ReadPreview = Schema<"MapPreview"> & { datasets?: string[] };
 
 /** Sheet kinds a reading turns into data (the others are kept as they are). */
 export const DATA_SHEETS = new Set(["PK_INDIVIDUAL", "PK_SUMMARY", "DISSOLUTION", "URINE_FECES"]);
+// the sheets the reading agent reads (modeler_api.client_api.READABLE)
+export const READABLE = new Set(["PK_INDIVIDUAL", "PK_SUMMARY", "DISSOLUTION"]);
 
 export const CATEGORY_LABEL: Record<string, string> = {
   PK_INDIVIDUAL: "PK, individual", PK_SUMMARY: "PK, mean", PK_PARAMETERS: "PK parameters", DISSOLUTION: "dissolution",

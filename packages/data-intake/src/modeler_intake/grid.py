@@ -50,11 +50,12 @@ class SheetGrid:
     def row_is_empty(self, row: int) -> bool:
         return all(self.cell(row, c).value in (None, "") for c in range(1, self.max_column + 1))
 
-    def preview(self, max_rows: int = 40, max_columns: int = 20) -> str:
-        """Compact text view with row numbers and column letters, used when asking AI to propose a mapping."""
+    def preview(self, max_rows: int = 40, max_columns: int = 20, first_row: int = 1) -> str:
+        """Compact text view with row numbers and column letters, used when asking AI to propose a mapping: `max_rows`
+        rows from `first_row`."""
         columns = range(1, min(self.max_column, max_columns) + 1)
         lines = ["row\t" + "\t".join(get_column_letter(c) for c in columns)]
-        for row in range(1, min(self.max_row, max_rows) + 1):
+        for row in range(max(first_row, 1), min(self.max_row, first_row + max_rows - 1) + 1):
             values = ["" if self.cell(row, c).value is None else str(self.cell(row, c).value) for c in columns]
             lines.append(f"{row}\t" + "\t".join(values))
         return "\n".join(lines)

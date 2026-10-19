@@ -279,3 +279,81 @@ def test_a_triage_start_answers_through_its_typed_model(setup, monkeypatch):
             break
         time.sleep(0.01)
     assert calls and calls[0][3] == sub["id"]
+
+
+@pytest.mark.req("T-21")
+def test_the_reading_agent_proposes_each_unread_data_sheet_and_the_page_shows_its_checked_proposal(setup):
+    """R3c: A4 corrects code's first filling of each data sheet; code checks it, and the sheet then opens on the agent's
+    reading, marked as the agent's, for the person to check and save. Nothing is read into the project by the agent."""
+    from modeler_agents.llm import ChatResult, ToolCall
+    from modeler_api.client_api import run_reading_job
+
+    c, ws = setup
+    sub = c.post("/api/v1/projects/p1/client-data", headers=H,
+                 files=[("files", ("230-23_Fasting_Reference.xlsx", _be_workbook(), XLSX))]).json()["data"]["files"][0]
+    first = c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Reference", headers=H).json()["data"]
+    assert first["proposed_by"] == "code" and first["run_id"] is None
+    corrected = {**first["form"], "missing_tokens": ["NS"], "mean_n": 2}     # what code's filling left for a person
+    guessed = {**corrected, "constants": {**corrected["constants"], "n": "24"}}  # an n the sheet never states
+
+    class Scripted:
+        provider, model = "test", "scripted"
+
+        def __init__(self):
+            self.turns = [[("propose_reading", {"form": guessed})], [("propose_reading", {"form": corrected})], []]
+
+        def complete(self, messages, tools):
+            calls = self.turns.pop(0)
+            return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
+                              tool_calls=tuple(ToolCall(id=str(i), name=n, arguments=a) for i, (n, a) in enumerate(calls)))
+
+    result = run_reading_job(ws.store, "t1", "p1", sub["id"], model=Scripted())
+    assert [(s["sheet"], s["proposed"], s["refused"]) for s in result["sheets"]] == [("Reference", True, 1)]
+    assert c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["datasets"] == []    # nothing read yet
+    sheet = c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Reference", headers=H).json()["data"]
+    assert sheet["proposed_by"] == f"agent:{result['sheets'][0]['run_id']}" and sheet["run_id"] == result["sheets"][0]["run_id"]
+    assert sheet["form"]["missing_tokens"] == ["NS"] and "n" not in sheet["form"]["constants"]
+    run = c.get(f"/api/v1/projects/p1/agent-runs/{sheet['run_id']}", headers=H).json()["data"]
+    assert run["run"]["agent"] == "A4-sheet-reading" and run["run"]["status"] == "COMPLETED"
+    assert any(s["kind"] == "tool_result" and "REJECTED" in str(s["content"]) for s in run["steps"])   # the refusal is kept
+
+    # the person saves the agent's reading once; the sheet is then read, and nothing is left for the agent
+    study = {"n": 2, "design": "SD", "purpose": "model_building"}
+    saved = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H,
+                   json={"form": sheet["form"], "study": study, "confirm": True})
+    assert saved.status_code == 200, saved.text
+    assert len(saved.json()["data"]["datasets"]) == 1
+    left = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H)
+    assert left.status_code == 409 and "no data sheet is left to read" in left.json()["detail"]
+
+
+@pytest.mark.req("T-21")
+def test_a_reading_start_runs_in_the_background_and_refuses_the_template_and_unknown_sheets(setup, monkeypatch):
+    from modeler_api import agent_jobs, client_api, jobs
+    from modeler_intake.client_template import build_template
+
+    c, ws = setup
+    sub = c.post("/api/v1/projects/p1/client-data", headers=H,
+                 files=[("files", ("230-23_Fasting_Reference.xlsx", _be_workbook(), XLSX))]).json()["data"]["files"][0]
+    off = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H)
+    assert off.status_code == 409 and "agents are off" in off.json()["detail"]
+
+    class Configured:
+        provider, model = "test", "scripted"
+
+    calls = []
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(client_api, "run_reading_job", lambda *args, **kwargs: calls.append((args, kwargs)))
+    assert c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H, json={"sheets": ["Nope"]}).status_code == 404
+    started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H, json={"sheets": ["Reference"]})
+    assert started.status_code == 202 and started.json()["data"] == {"status": "RUNNING"}
+    for _ in range(200):
+        if not jobs.running(ws.store, "t1", "p1", "reading"):
+            break
+        time.sleep(0.01)
+    assert calls and calls[0][0][3] == sub["id"] and calls[0][1]["sheets"] == ["Reference"]
+    template = c.post("/api/v1/projects/p1/client-data", headers=H,
+                      files=[("files", ("filled.xlsx", build_template(), XLSX))]).json()["data"]["files"]
+    tid = next(f["id"] for f in template if f["file"] == "filled.xlsx")
+    refused = c.post(f"/api/v1/projects/p1/client-data/{tid}:read", headers=H)
+    assert refused.status_code == 409 and "cell by cell" in refused.json()["detail"]

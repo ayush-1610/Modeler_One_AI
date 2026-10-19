@@ -50,7 +50,7 @@ function FormulationChoice({ study, options, projectId, run }: { study: string; 
 export function InputsWorkspace({ projectId }: { projectId: string }) {
   const page = useResource("/api/v1/projects/{project_id}/inputs", { project_id: projectId }, { select: (d) => narrow<View>(d) });
   const client = useResource("/api/v1/projects/{project_id}/client-data", { project_id: projectId },
-    { select: (d) => narrow<ClientView>(d) });
+    { select: (d) => narrow<ClientView>(d), poll: (d) => d.running });
   const mutation = useMutation();
   const [tab, setTab] = useState<Tab>("compound");
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -228,7 +228,8 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
 
       {tab === "studies" && (
         <StudiesTab studies={studies} todo={forTab("studies")} projectId={projectId} run={run} options={options}
-                    onIndividuals={() => setTab("individuals")} />
+                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined}
+                    onSaved={(m) => setNotice({ ok: true, text: m })} />
       )}
     </PageShell>
   );

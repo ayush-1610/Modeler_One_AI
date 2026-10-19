@@ -20,9 +20,6 @@ from __future__ import annotations
 
 import re
 import uuid
-from collections.abc import Iterator
-from contextlib import contextmanager
-from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -67,7 +64,6 @@ from modeler_project.requirements import RequirementMatrix
 from modeler_project.steps import start_problems
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord
-from pbpk_domain.atomic_io import file_lock
 
 router = APIRouter(prefix="/api/v1", tags=["brief"])
 
@@ -122,19 +118,6 @@ def _merge_agent_result(latest: ProjectBrief, produced: ProjectBrief, paths: lis
     return merged.model_copy(update={"questions": (*merged.questions, *extra)})
 
 
-@contextmanager
-def _brief_edits(store: ProjectStore, tenant_id: str, project_id: str) -> Iterator[None]:
-    """One edit of a project's brief at a time, across threads and workers: each reads, changes and commits the latest
-    brief under this lock, the person's edits and A1's merge alike. Without it two quick edits (the Start screen saves
-    each pick at once) both read one version, and the later commit, built on it, silently drops the other's change."""
-    root = getattr(store, "root", None)
-    if root is None:
-        yield
-        return
-    with file_lock(Path(root) / tenant_id / "projects" / project_id / "brief-edits"):
-        yield
-
-
 def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: str, context_note: str = "",
                    model=None, fetch_identity=None, max_turns: int = 80) -> dict[str, Any]:
     """Resolve identity and (with a model) run A1; commit the result as the brief's next version. Returns a summary."""
@@ -169,7 +152,7 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
                       rejected=len(outcome.rejected))
     reason = (f"extracted by A1 ({result.get('accepted', 0)} fields accepted, {result.get('rejected', 0)} rejected)"
               if model is not None else "drug identity resolved")
-    with _brief_edits(store, tenant_id, project_id):  # the person may have edited the brief while A1 read
+    with ws.editing(ArtifactKind.BRIEF, BRIEF_ID):  # the person may have edited the brief while A1 read
         merged = _merge_agent_result(_brief(ws) or start, brief, accepted_paths)
         version = save_brief(ws, merged, actor=actor, reason=reason, derived_from=_document_refs(ws))
         refresh_data_plan(ws, actor=actor, reason="derived from the brief")
@@ -394,7 +377,7 @@ def edit_brief(project_id: str, body: BriefEdit, principal: Writer, store: Store
     """Change fields (no reason asked, D-27). A model risk outside what its ICH M15 ratings admit is refused. With
     ``preview`` the impact is returned and nothing is saved; otherwise the data plan follows the new brief."""
     ws = workspace_for(project_id, principal, store)
-    with _brief_edits(store, principal.tenant_id, project_id):
+    with ws.editing(ArtifactKind.BRIEF, BRIEF_ID):
         current = _brief(ws)
         if current is None:
             raise HTTPException(status_code=404, detail="no brief")
@@ -419,7 +402,7 @@ class ItemRemoval(BaseModel):
 @router.post("/projects/{project_id}/brief/items:remove", **answers(BriefPage))
 def remove_brief_item(project_id: str, body: ItemRemoval, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
-    with _brief_edits(store, principal.tenant_id, project_id):
+    with ws.editing(ArtifactKind.BRIEF, BRIEF_ID):
         current = _brief(ws)
         try:
             updated = remove_item(current, body.group, body.index)
@@ -439,7 +422,7 @@ class QuestionAnswer(BaseModel):
 def answer_question(project_id: str, question_id: str, body: QuestionAnswer, principal: Writer,
                     store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
-    with _brief_edits(store, principal.tenant_id, project_id):
+    with ws.editing(ArtifactKind.BRIEF, BRIEF_ID):
         current = _brief(ws)
         if current is None or not any(q.id == question_id for q in current.questions):
             raise HTTPException(status_code=404, detail="no such question")

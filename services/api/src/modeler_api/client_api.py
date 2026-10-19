@@ -1,8 +1,8 @@
 """P3 client data (plan §10, review layer L2b; T-47).
 
 The client-data template is downloaded, filled and uploaded; it is read with no AI into CLIENT datasets and evidence.
-Any other workbook is triaged sheet by sheet (by code, then agent A4 for the sheets code cannot decide) and read once a
-person confirms a mapping recipe for a sheet. PDF, Word, CSV and Markdown files are stored as citable documents. The
+Any other workbook is triaged sheet by sheet (by code, then agent A4 for the sheets code cannot decide); A4 then proposes
+how to read each data sheet (checked by code), and a sheet is read once a person checks and confirms its reading. PDF, Word, CSV and Markdown files are stored as citable documents. The
 view reconciles what arrived with what the data plan says the client provides; the phase closes when every required
 client item is delivered, skipped as not available, or covered by an accepted literature cross-check (owner, R-07).
 """
@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from modeler_api import agent_jobs, jobs
 from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
@@ -41,6 +41,7 @@ from modeler_project.client_data import (
     ingest,
     reconcile,
     record_mapping,
+    record_reading,
     set_triage,
     submission,
     submissions,
@@ -74,6 +75,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
     matrix_version, matrix = _matrix(ws)
     recon = reconcile(ws, matrix)
     register = ws.latest(ArtifactKind.CLIENT_SUBMISSION, REGISTER)
+    reading = jobs.running(ws.store, ws.tenant_id, ws.project_id, "reading")
     return {
         "template": TEMPLATE_ID,
         "data_plan": {"version": matrix_version.version, "status": ws.status(matrix_version).value},
@@ -81,7 +83,8 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "reconciliation": recon.to_content(),
         "dissolution": {"profiles": profiles(ws), **comparisons(ws)},
         "register": version_view(ws, register, with_content=False) if register else None,
-        "agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "triage"),
+        "agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "triage") or reading,
+        "reading": reading,
     }
 
 
@@ -178,10 +181,74 @@ def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) 
     return envelope({"status": "RUNNING"})
 
 
+READABLE = (SheetCategory.PK_INDIVIDUAL.value, SheetCategory.PK_SUMMARY.value, SheetCategory.DISSOLUTION.value)
+
+
+def _unread_sheets(content: dict[str, Any]) -> list[str]:
+    """The file's data sheets that no confirmed reading has read yet."""
+    read = {t.get("sheet") for m in content.get("mappings", []) if not m.get("replaced_by") for t in m["recipe"].get("tables", [])}
+    return [t["sheet"] for t in content.get("triage", []) if t["category"] in READABLE and t["sheet"] not in read]
+
+
+def run_reading_job(store: ProjectStore, tenant_id: str, project_id: str, sid: str, *, model, sheets: list[str] | None = None,
+                    max_turns: int = 8) -> dict[str, Any]:
+    """A4 proposes how to read each data sheet not read yet (or the sheets named), one agent run per sheet. A reading
+    code accepted is kept on the file for the person to check, correct and save; nothing is read into the project here."""
+    ws = Workspace(store, tenant_id, project_id)
+    content, workbook = _workbook(ws, sid)
+    brief = _brief(ws)
+    products = [{"name": str(p.get("name") or ""), "role": str(p.get("role") or "")} for p in _brief_products(brief)]
+    categories = {t["sheet"]: t["category"] for t in content.get("triage", [])}
+    results = []
+    for sheet in [s for s in (sheets or _unread_sheets(content)) if s in workbook.sheets]:
+        run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
+                                  agent="A4-sheet-reading", model=model, max_turns=max_turns)
+        reading = agent_jobs.sheet_reading(model, workbook=workbook, sheet=sheet, drug=brief.drug_name if brief else "",
+                                           actor=run.actor, category=categories.get(sheet, ""), products=products,
+                                           max_turns=max_turns, log_step=run.log_step)
+        if reading.form is not None:
+            record_reading(ws, sid, sheet=sheet, form=reading.form.model_dump(mode="json"), notes=reading.notes, by=run.actor,
+                           run_id=run.run_id)
+        summary = {"sheet": sheet, "proposed": reading.form is not None, "refused": len(reading.rejected),
+                   "summary": reading.outcome.final_text[:2000], "error": reading.outcome.error}
+        run.finish(reading.outcome, summary)
+        results.append({"run_id": run.run_id, "status": reading.outcome.status, **summary})
+    return {"status": "COMPLETED", "sheets": results}
+
+
+class ReadingRequest(BaseModel):
+    sheets: list[str] = Field(default_factory=list)       # none named: every data sheet not read yet
+
+
+@router.post("/projects/{project_id}/client-data/{sid}:read", status_code=202, **answers(TriageStart))
+def start_reading(project_id: str, sid: str, principal: Writer, store: StoreDep, body: ReadingRequest | None = None) -> dict[str, Any]:
+    """A4 proposes how to read the file's data sheets, in the background; each proposal is checked by code and waits on
+    its sheet for the person to check and save (nothing is read into the project until then)."""
+    ws = workspace_for(project_id, principal, store)
+    content, workbook = _workbook(ws, sid)
+    sheets = body.sheets if body else []
+    if content.get("template"):
+        raise HTTPException(status_code=409, detail="the client-data template is read cell by cell, with no agent")
+    unknown = [s for s in sheets if s not in workbook.sheets]
+    if unknown:
+        raise HTTPException(status_code=404, detail=f"no sheet {', '.join(map(repr, unknown))} in this file")
+    if not (sheets or _unread_sheets(content)):
+        raise HTTPException(status_code=409, detail="no data sheet is left to read in this file; open a sheet to read it again")
+    model = agent_jobs.require_chat_model("agents are off: read each sheet with the form")
+
+    def job() -> None:
+        run_reading_job(store, principal.tenant_id, project_id, sid, model=model, sheets=sheets or None)
+
+    jobs.start(store, principal.tenant_id, project_id, "reading", job, busy="a reading run is already in progress",
+               name=f"reading-{project_id}")
+    return envelope({"status": "RUNNING"})
+
+
 @router.get("/projects/{project_id}/client-data/{sid}/sheets/{sheet}", **answers(SheetView))
 def read_sheet(project_id: str, sid: str, sheet: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
-    """One sheet as text, with a first filling of the reading form found in it (units, dose and LLOQ quoted from their
-    cells; what the sheet does not say left for the person) and the notes that say what was found and what was not."""
+    """One sheet as text, with the reading form to check: the reading agent's checked proposal when there is one, else
+    code's first filling (units, dose and LLOQ quoted from their cells; what the sheet does not say left for the
+    person), and the notes that say what was found and what was not."""
     ws = workspace_for(project_id, principal, store)
     content, workbook = _workbook(ws, sid)
     if sheet not in workbook.sheets:
@@ -190,14 +257,30 @@ def read_sheet(project_id: str, sid: str, sheet: str, principal: Reader, store: 
     brief = _brief(ws)
     products = [{"name": str(p.get("name") or ""), "role": str(p.get("role") or "")} for p in _brief_products(brief)]
     category = next((t["category"] for t in content.get("triage", []) if t["sheet"] == sheet), "")
-    form, notes = suggest(grid, category=category, filename=content["file"], drug=brief.drug_name if brief else "",
-                          products=products)
+    proposed = _proposed_reading(content, sheet)
+    if proposed is not None:
+        form, notes, by, run_id = proposed
+    else:
+        form, notes = suggest(grid, category=category, filename=content["file"], drug=brief.drug_name if brief else "",
+                              products=products)
+        by, run_id = "code", None
     read = [m for m in content.get("mappings", []) if not m.get("replaced_by")
             and any(t.get("sheet") == sheet for t in m["recipe"].get("tables", []))]
     return envelope({"sheet": sheet, "rows": preview_rows(grid), "max_row": grid.max_row, "max_column": grid.max_column,
                      "category": category, "form": form.model_dump(mode="json"), "notes": notes, "products": products,
                      "read_before": [{"recipe_id": m["recipe"].get("recipe_id"), "datasets": m.get("datasets", [])}
-                                     for m in read]})
+                                     for m in read], "proposed_by": by, "run_id": run_id})
+
+
+def _proposed_reading(content: dict[str, Any], sheet: str) -> tuple[SheetForm, list[str], str, str | None] | None:
+    """The reading agent's checked reading of the sheet, when there is one (else code fills the form first)."""
+    proposed = (content.get("readings") or {}).get(sheet)
+    if not proposed:
+        return None
+    try:
+        return SheetForm.model_validate(proposed["form"]), list(proposed.get("notes", [])), proposed["by"], proposed.get("run_id")
+    except (ValidationError, KeyError):
+        return None
 
 
 def _brief_products(brief: ProjectBrief | None) -> list[dict[str, Any]]:
