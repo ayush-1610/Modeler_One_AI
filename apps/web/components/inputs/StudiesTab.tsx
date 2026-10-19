@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { type Act, ClientFiles } from "@/components/client/ClientData";
+import type { View as ClientView } from "@/components/client/types";
 import { EmptyState, InlineIssue } from "@/components/kit";
 import { apiFile, send, type Schema } from "@/lib/api";
 
@@ -104,10 +106,14 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
 }
 
 /** The Studies tab (redesign §3.2): each study with its facts, the role the MS-01 split proposes (changed only on Review
- *  & sign), whether it is blinded (D-15), its regimen and whether it is used; then the ways to add observed data. */
-export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals }: {
+ *  & sign), whether it is blinded (D-15), its regimen and whether it is used; then the client's files, each data sheet
+ *  read by the reading agent for the person to check and save (R3c), and the other ways to add observed data. */
+export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client, onSaved }: {
   studies: StudyRow[]; todo: TodoItem[]; projectId: string; run: Run; options: Options; onIndividuals: () => void;
+  client: ClientView | undefined; onSaved: (message: string) => void;
 }) {
+  const act: Act = (fn) => run(fn, "");
+  const workbooks = client?.files.filter((f) => f.triage.length > 0 && !f.template) ?? [];
   const [typing, setTyping] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   async function template() {
@@ -153,12 +159,23 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
           </table>
         </div>
       )}
+      {client && workbooks.length > 0 && (
+        <section className="client-files" data-testid="studies-client-files">
+          <h3>The client&apos;s sheets</h3>
+          <p className="muted" style={{ fontSize: 13, margin: "0 0 8px" }}>
+            The reading agent proposes how to read each data sheet, and code checks every proposal: each quote is in its cell and the
+            reading applies without a problem. Open a sheet, check what it reads against the sheet, correct anything wrong and save.
+            {!client.agents.enabled && " Agents are off: the form is filled in first by code."}
+          </p>
+          <ClientFiles projectId={projectId} view={{ ...client, files: workbooks }} act={act} onSaved={async (m) => onSaved(m)} />
+        </section>
+      )}
       <section className="add-data" data-testid="add-data">
         <h3>Add observed data</h3>
         <ul>
-          <li><Link href={`/projects/${projectId}/client-data`}>Read the client&apos;s sheets</Link> (the reader until the reading
-            agent arrives), or fill the <button type="button" className="link-btn" onClick={template}>client-data template</button>,
-            which is read cell by cell with no AI.</li>
+          <li>Add the client&apos;s files on <Link href={`/projects/${projectId}/client-data`}>Client data</Link>, or fill the{" "}
+            <button type="button" className="link-btn" onClick={template}>client-data template</button>, which is read cell by cell
+            with no AI.</li>
           <li><Link href={`/projects/${projectId}/evidence`}>Digitize a published figure</Link> against calibrated axes.</li>
           <li><button type="button" className="link-btn" onClick={() => setTyping(!typing)} data-testid="type-table">
             {typing ? "Close the typed table" : "Type a table in by hand"}</button></li>

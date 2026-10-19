@@ -236,7 +236,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
     remember({ form: { ...form!, below_lloq_tokens: list(blq), missing_tokens: list(missing) }, study });
     // the saved response carries the page's view (whose "dissolution" is the profiles), so the count is the check's
     const made = pk ? `${saved.datasets?.length ?? 0} dataset(s) for ${saved.studies.join(", ")}` : `${result?.dissolution ?? 0} dissolution values`;
-    await onSaved(`${sheet}: ${made} saved. Accept them on the Literature page when you have checked them.`);
+    await onSaved(`${sheet}: ${made} saved. They flow into the inputs; leave a study out there, with a reason, if it should not count.`);
   }
 
   function useLast() {
@@ -275,9 +275,15 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
           </label>
         </div>
       )}
+      <p className="muted" data-testid="reading-source" style={{ margin: "4px 0", fontSize: 13 }}>
+        {view.proposed_by === "code"
+          ? "Filled in first by code from what the sheet states."
+          : "Proposed by the reading agent and checked by code: every quote is in its cell and the reading applies without a "
+            + "problem. Check what it reads against the sheet, correct anything wrong, then save."}
+      </p>
       {view.notes.length > 0 && (
         <div className="found">
-          <strong>Found in the sheet</strong>
+          <strong>{view.proposed_by === "code" ? "Found in the sheet" : "The agent's notes"}</strong>
           <ul>{view.notes.map((n) => <li key={n}>{n}</li>)}</ul>
         </div>
       )}

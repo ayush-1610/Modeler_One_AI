@@ -339,12 +339,29 @@ def ingest(ws: Workspace, library: DocumentLibrary, data: bytes, filename: str, 
 
 def set_triage(ws: Workspace, sid: str, triaged: SheetTriage, *, by: str, reason: str) -> dict[str, Any]:
     """A person's (or agent A4's checked) classification of one sheet replaces the earlier one."""
-    version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
-    if version is None:
-        raise ClientDataError(f"no client file {sid}")
-    rows = [t for t in version.content["triage"] if t["sheet"] != triaged.sheet] + [triaged.to_content()]
-    content = {**version.content, "triage": sorted(rows, key=lambda t: t["sheet"])}
-    ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by, reason=f"{triaged.sheet}: {triaged.category.value} ({reason})")
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, sid):
+        version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
+        if version is None:
+            raise ClientDataError(f"no client file {sid}")
+        rows = [t for t in version.content["triage"] if t["sheet"] != triaged.sheet] + [triaged.to_content()]
+        content = {**version.content, "triage": sorted(rows, key=lambda t: t["sheet"])}
+        ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,
+                  reason=f"{triaged.sheet}: {triaged.category.value} ({reason})")
+    return content | {"id": sid}
+
+
+def record_reading(ws: Workspace, sid: str, *, sheet: str, form: dict[str, Any], notes: list[str], by: str,
+                   run_id: str | None = None) -> dict[str, Any]:
+    """The reading agent's checked reading of one sheet (a `SheetForm`), kept for the person to check, correct and save;
+    it replaces the agent's earlier reading of that sheet. Nothing enters the project until the person saves the
+    reading (`record_mapping`)."""
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, sid):
+        version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
+        if version is None:
+            raise ClientDataError(f"no client file {sid}")
+        readings = {**version.content.get("readings", {}), sheet: {"form": form, "notes": notes, "by": by, "run_id": run_id}}
+        content = {**version.content, "readings": readings}
+        ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by, reason=f"{sheet}: reading proposed by {by}")
     return content | {"id": sid}
 
 
@@ -402,18 +419,20 @@ def record_mapping(ws: Workspace, sid: str, *, recipe: dict[str, Any], dataset_i
     """Keep the confirmed recipe (re-used for the same layout) and what it produced on the client file's record.
     `replaces`: earlier recipes of the same sheet this reading replaces (marked so, their dissolution records dropped;
     their datasets are rejected by the caller, with the reason)."""
-    version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
-    if version is None:
-        raise ClientDataError(f"no client file {sid}")
-    content = dict(version.content)
-    new_id = recipe.get("recipe_id")
-    mappings = [{**m, "replaced_by": new_id} if m["recipe"].get("recipe_id") in replaces else m for m in content.get("mappings", [])]
-    content["mappings"] = [*mappings, {"recipe": recipe, "datasets": dataset_ids, "dissolution_records": len(dissolution)}]
-    content["datasets"] = [*content.get("datasets", []), *dataset_ids]
-    kept = [r for r in content.get("dissolution_records", []) if (r.get("source") or {}).get("recipe_id") not in replaces]
-    content["dissolution_records"] = [*kept, *dissolution]
-    ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,
-              reason=f"mapping recipe {recipe.get('recipe_id')} confirmed: {len(dataset_ids)} datasets")
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, sid):
+        version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
+        if version is None:
+            raise ClientDataError(f"no client file {sid}")
+        content = dict(version.content)
+        new_id = recipe.get("recipe_id")
+        mappings = [{**m, "replaced_by": new_id} if m["recipe"].get("recipe_id") in replaces else m
+                    for m in content.get("mappings", [])]
+        content["mappings"] = [*mappings, {"recipe": recipe, "datasets": dataset_ids, "dissolution_records": len(dissolution)}]
+        content["datasets"] = [*content.get("datasets", []), *dataset_ids]
+        kept = [r for r in content.get("dissolution_records", []) if (r.get("source") or {}).get("recipe_id") not in replaces]
+        content["dissolution_records"] = [*kept, *dissolution]
+        ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,
+                  reason=f"mapping recipe {recipe.get('recipe_id')} confirmed: {len(dataset_ids)} datasets")
     if dissolution or replaces:
         from modeler_project.dissolution_register import rebuild
 

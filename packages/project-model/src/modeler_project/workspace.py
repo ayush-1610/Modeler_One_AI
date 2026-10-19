@@ -11,9 +11,11 @@ Rules:
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from modeler_project.artifacts import (
@@ -27,6 +29,7 @@ from modeler_project.artifacts import (
 )
 from modeler_project.diff import Change, diff
 from modeler_project.store import ProjectStore
+from pbpk_domain.atomic_io import file_lock
 
 
 class PhaseStatus(StrEnum):
@@ -133,6 +136,20 @@ class Workspace:
         return [a for a in self.store.approvals(self.tenant_id, self.project_id) if a.ref == ref]
 
     # --- commit and approve -----------------------------------------------------------------------------------
+
+    @contextmanager
+    def editing(self, kind: ArtifactKind, artifact_id: str) -> Iterator[None]:
+        """One read-modify-write of an artifact at a time, across threads and workers. A change that reads the latest
+        version, changes it and commits the next one holds this for the whole of it; without it two changes a moment
+        apart both read one version and the later commit silently drops the other's change. A store with no file root
+        (in memory) is used by one process, and is not locked. Not reentrant."""
+        root = getattr(self.store, "root", None)
+        if root is None:
+            yield
+            return
+        with file_lock(Path(root) / self.tenant_id / "projects" / self.project_id / "edits" / f"{kind.value}-{artifact_id}"):
+            yield
+
 
     def commit(self, kind: ArtifactKind, artifact_id: str, content: dict[str, Any], *,
                derived_from: Iterable[ArtifactRef] = (), actor: str, reason: str,

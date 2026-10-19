@@ -129,6 +129,16 @@ def sheet_triage(model, *, workbook, sheets, actor: str, max_turns: int, log_ste
     return ctx, run_triage(model, ctx, max_turns=max_turns, log_step=log_step)
 
 
+def sheet_reading(model, *, workbook, sheet: str, drug: str, actor: str, category: str, products, max_turns: int,
+                  log_step):
+    """A4 reading one sheet: the reading code accepted (None when it accepted none), the agent's notes, what code
+    refused and the outcome."""
+    from modeler_agents.sheet_reader import read_sheet
+
+    return read_sheet(model, workbook=workbook, sheet=sheet, drug=drug, actor=actor, category=category, products=products,
+                      max_turns=max_turns, log_step=log_step)
+
+
 def planning(model, *, plan, cpf, rows, actor: str, exploratory: bool, drug: str, max_turns: int, log_step):
     """A5 on the model plan: (context with the plan it drafted and its counts, outcome)."""
     from modeler_agents.planning_agent import PlanningContext, run_planning
