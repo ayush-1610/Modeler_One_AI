@@ -163,8 +163,9 @@ The Review & sign page (`/projects/{id}/plan`) is where everything is reviewed o
   path, signed as a deviation.
 - **Credibility (ICH M15).** The model risk, as set at Start or changed here with a reason; the **acceptance
   criteria** of that tier (the limits every round is judged by, provisional until the SME signs the ruleset) and an
-  optional **internal target**, stricter than the tier only (the validator refuses a looser one; the verdicts do not
-  apply it yet, and the MAP says so among its limitations); the campaign's time budget and MS-01's fixed share of it
+  optional **internal target**, stricter than the tier only (the validator refuses a looser one). The signed MAP
+  records it, and every round judges the internal studies' AUC and Cmax by it on top of the tier's limit (S5's
+  external studies by the tier alone; MS-01 §8). The campaign monitor and the report name it. The campaign's time budget and MS-01's fixed share of it
   for each stage, as the MAP signs them (more time means a larger budget, signed again); and the limitations the MAP
   will name, the brief's stated assumptions among them.
 - **The live validator** lists what is still open; acknowledge a warning with a reason and it becomes a limitation.

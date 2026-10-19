@@ -43,7 +43,8 @@ test("the review table, an exclusion with a reason, and the credibility the MAP 
 
 // R4b (redesign §3.3, D-34): the estimation plan proposes MS-01 §2.2's default bounds and a parameter is estimated with
 // them and a reason; the validation plan names what S4 and S5 judge and what follows a failure; the tier's criteria are
-// shown, and an internal target stricter than the tier is stated while a looser one is refused by the validator.
+// shown, and an internal target stricter than the tier is set (the MAP records it and the verdicts apply it, R4d)
+// while a looser one is refused by the validator.
 test("the estimation plan, the validation plan and the tier's acceptance criteria", async ({ page, request }) => {
   const projectId = await projectWithInputs(request, "Estimamide", [
     { study_id: "iv-250", route: "iv_infusion", dose_mg: 250 }, { study_id: "po-10", route: "oral", dose_mg: 10 },
@@ -82,7 +83,9 @@ test("the estimation plan, the validation plan and the tier's acceptance criteri
   await criteria.getByTestId("target-input").fill("20");
   await criteria.getByTestId("target-reason").fill("the client asks for a tighter check");
   await criteria.getByTestId("target-save").click();
-  await expect(page.getByTestId("limitations")).toContainText("Internal target |prediction error| ≤ 20 %");
+  await expect(criteria.getByTestId("internal-target")).toContainText("|prediction error| ≤ 20 %, set here");
+  await expect(criteria.getByTestId("target-applied")).toContainText("judges the internal groups");
+  await expect(page.getByTestId("limitations")).not.toContainText("Internal target");
   await expect(page.getByText(/looser than the medium tier/)).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("estimation.png"), fullPage: true });
 });

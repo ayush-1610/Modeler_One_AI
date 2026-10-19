@@ -65,6 +65,9 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
       </div>
       <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
         Campaign <code>{c.id}</code> · acceptance within {foldLimit}-fold at {c.modelRisk} model risk
+        {c.internalTargetPe != null && (
+          <span data-testid="internal-target"> and, for the internal studies, |prediction error| ≤ {c.internalTargetPe} % (the signed MAP)</span>
+        )}
       </p>
       {c.engine && c.engine.kind !== "pksim" && (
         <div className="banner err" data-testid="engine-warning" style={{ marginBottom: 14 }}>

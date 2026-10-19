@@ -162,6 +162,11 @@ def test_approve_and_sign_generates_the_map_signs_it_and_stages_the_campaign(set
     assert map_doc["status"] == "SIGNED" and map_doc["signature"]["printed_name"] == "Dr MIDD Lead"
     observed = json.loads(Path(unquote(urlparse(campaign["observed_uri"]).path)).read_text())
     assert observed["iv-250"]["origin"] == "LITERATURE"
+    from pbpk_domain.campaign.map import MapDocument, cpf_differences
+    from pbpk_domain.cpf import CPF
+
+    staged = CPF.model_validate_json(Path(unquote(urlparse(campaign["cpf_uri"]).path)).read_text())
+    assert cpf_differences(MapDocument.model_validate(map_doc), staged) == []   # D-36: a pilot starts on the staged pair
     assert ws.phases()["P5"] == "APPROVED"
     # D-14: after the signature a change is a MAP deviation, pending until the MIDD lead signs it
     after = c.put("/api/v1/projects/p1/plan/placements/po-10", headers=H, json={"role": "S5", "reason": "late change"})
@@ -385,7 +390,7 @@ def test_the_review_shows_the_estimation_plan_the_validation_plan_and_the_tiers_
     assert {q["quantity"]: q["max_fold"] for q in criteria["pk_parameters"]} == {"AUC": 1.5, "Cmax": 1.5}
     assert {q["quantity"]: q["guest_delta"] for q in criteria["ddi_ratios"]} == {"AUCR": 2, "CmaxR": 2}
     assert (criteria["min_fraction_within"], criteria["loosest_target_pe"], criteria["internal_target_pe"]) == (0.8, 33.3, None)
-    assert criteria["target_applied"] is False
+    assert criteria["target_applied"] is True
 
     # estimating logP with the proposed bounds: the estimated come first, with nothing to say
     proposal = logp["proposal"]
@@ -404,11 +409,11 @@ def test_the_review_shows_the_estimation_plan_the_validation_plan_and_the_tiers_
             next(r for r in c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]["estimation"]
                  if r["id"] == "bind.fu")["findings"]] == ["fit-fixed"]
 
-    # a stricter internal target is stated in the MAP's limitations; a looser one blocks the signature
+    # a stricter internal target is a criterion of the MAP (R4d), no longer a limitation; a looser one blocks the signature
     c.put("/api/v1/projects/p1/plan/structure", headers=H, json={"key": "internal_target_pe", "value": 20, "reason": "tighter"})
     review = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]
     assert review["acceptance"]["internal_target_pe"] == 20 and review["acceptance"]["target_set_here"]
-    assert any(line.startswith("Internal target |prediction error| ≤ 20 %") for line in review["limitations"])
+    assert not any("Internal target" in line for line in review["limitations"])
     loose = c.put("/api/v1/projects/p1/plan/structure", headers=H, json={"key": "internal_target_pe", "value": 40, "reason": "x"})
     assert any(v["rule"] == "target" and v["severity"] == "error" for v in loose.json()["data"]["violations"])
     budget = c.put("/api/v1/projects/p1/plan/structure", headers=H,

@@ -130,6 +130,7 @@ class CampaignRecord(Record):
     compound: str
     question: str
     modelRisk: str
+    internalTargetPe: Number | None = None    # the signed MAP's stricter target for internal groups (MS-01 §8)
     budgetSeconds: int
     elapsedSeconds: int
     currentStage: str

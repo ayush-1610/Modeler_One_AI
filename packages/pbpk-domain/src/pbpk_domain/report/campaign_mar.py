@@ -226,6 +226,9 @@ def assemble_campaign_mar(
     system as of the final CPF (`pbpk_domain.system.ModelSystem`), listed in section 3."""
     values: list[ValueRef] = [ValueRef(id="acceptance_tier", value=map_doc.acceptance.tier,
                                        source=f"acceptance ruleset {map_doc.acceptance.ruleset}")]
+    target = map_doc.acceptance.internal_target_pe
+    if target is not None:   # the MAP's stricter target for internal groups (MS-01 §8), applied by every round's verdict
+        values.append(ValueRef(id="internal_target_pe", value=target, source="the signed MAP (MS-01 §8)"))
     tables: list[TableRef] = [_study_table(map_doc), _cpf_table(final_cpf)]
     model_description = "Every compound parameter, its origin and, when fitted, its precision:\n\n{{table:cpf_final}}"
     if system is not None:
@@ -330,8 +333,10 @@ def assemble_campaign_mar(
     all_passed = all((stage_evidence.get(s) or {}).get("status") in ("PASSED", "ACCEPTED", "SKIPPED")
                      for s in ("S1", "S2", "S3", "S4", "S5", *(("SM",) if "SM" in stage_evidence else ())))
     conclusion = ("Every model development and validation stage passed, was accepted by a signed decision, or was "
-                  "skipped for want of data; the model meets the {{value:acceptance_tier}} acceptance tier for the stated "
-                  "context of use, within the limitations listed." if all_passed else
+                  "skipped for want of data; the model meets the {{value:acceptance_tier}} acceptance tier"
+                  + (" and, for the internal studies, the internal target |prediction error| ≤ "
+                     "{{value:internal_target_pe}} %" if target is not None else "")
+                  + " for the stated context of use, within the limitations listed." if all_passed else
                   "Not every stage passed; the model does not yet support the stated context of use.")
     vbe = (prediction or {}).get("vbe")
     if vbe and (vbe.get("status") != "RUN" or (vbe.get("validation") or {}).get("status") != "PASSED"):
@@ -356,8 +361,10 @@ def assemble_campaign_mar(
         question_of_interest=map_doc.objective, context_of_use=map_doc.context_of_use,
         model_risk=RatedElement(description="from the signed MAP", rating=map_doc.model_risk,
                                 justification="Model influence and decision consequence are recorded by the modeler"),
-        technical_criteria=f"Acceptance ruleset {map_doc.acceptance.ruleset}, tier {map_doc.acceptance.tier}; diagnostics "
-                           f"{map_doc.diagnostics_ruleset_version}",
+        technical_criteria=f"Acceptance ruleset {map_doc.acceptance.ruleset}, tier {map_doc.acceptance.tier}"
+                           + (f", internal target |PE| ≤ {target:g} % for the internal groups (MS-01 §8)"
+                              if target is not None else "")
+                           + f"; diagnostics {map_doc.diagnostics_ruleset_version}",
         evaluation_of_models_and_outcomes="See sections 4 and 5 of this report.",
     )
     m15_tables = (m15,)

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from pbpk_domain.campaign.map import BUDGET_FRACTION, MapStatus, generate_map
+from pbpk_domain.acceptance import Comparison, evaluate, load_acceptance_ruleset
+from pbpk_domain.campaign.map import BUDGET_FRACTION, MapBounds, MapDocument, MapStatus, generate_map
 from pbpk_domain.campaign.split import (
     FoodState,
     FormulationKind,
@@ -11,7 +14,7 @@ from pbpk_domain.campaign.split import (
     StudyRecord,
     split_studies,
 )
-from pbpk_domain.cpf import CPF, FitPolicy, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.cpf import CPF, FitPolicy, ParameterRecord, ParameterStatus, Plausibility, Provenance
 from pbpk_domain.m15 import Rating
 
 
@@ -225,3 +228,57 @@ def test_rapidly_dissolving_tablet_trains_s2_like_a_solution():
     split = split_studies(studies, QuestionOfInterest(measured_fed_solubility=True))
     m = _map(cpf=_tablet_cpf(kind="Dissolved"), studies=studies, split=split)
     assert _stage_of(m, "tab") == {"S2"}
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.mark.req("T-50")
+@pytest.mark.parametrize("name", ["map_signed_on_main_no_fit.json", "map_signed_on_main_with_fit.json"])
+def test_a_map_signed_before_the_bounds_and_target_existed_keeps_its_hash(name):
+    # written and signed by the code on main before R4d (cc9f02b): read again, it hashes as it was signed, so every
+    # signature already given stays valid
+    signed = MapDocument.model_validate_json((FIXTURES / name).read_text(encoding="utf-8"))
+    assert signed.signature is not None and signed.content_sha256() == signed.signature.content_sha256
+    assert all(p.bounds is None and p.plausibility is None for p in signed.cpf_parameters)
+    assert signed.acceptance.internal_target_pe is None
+
+
+@pytest.mark.req("T-50")
+def test_a_fit_s_bounds_and_the_plausibility_range_are_in_the_map_and_under_its_hash():
+    m = _map()
+    logp = next(p for p in m.cpf_parameters if p.id == "phys.logp")
+    assert logp.fittable_stages == ("S1",) and logp.bounds == MapBounds(lower=1.0, upper=4.0, scale="linear")
+    wider = _cpf().model_copy(update={"parameters": tuple(
+        p.model_copy(update={"fit_policy": FitPolicy(stage=("S1",), lower=1.0, upper=5.0)}) if p.id == "phys.logp" else p
+        for p in _cpf().parameters)})
+    assert _map(cpf=wider).content_sha256() != m.content_sha256()
+    plausible = _cpf().model_copy(update={"parameters": tuple(
+        p.model_copy(update={"plausibility": Plausibility(lower=0.001, upper=1.0)}) if p.id == "bind.fu" else p
+        for p in _cpf().parameters)})
+    fu = next(p for p in _map(cpf=plausible).cpf_parameters if p.id == "bind.fu")
+    assert fu.plausibility == (0.001, 1.0) and fu.bounds is None
+    assert _map(cpf=plausible).content_sha256() != m.content_sha256()
+
+
+@pytest.mark.req("T-50")
+def test_the_internal_target_is_recorded_under_the_hash_and_never_looser_than_the_tier():
+    m, strict = _map(), _map(internal_target_pe=20)
+    assert m.acceptance.internal_target_pe is None and strict.acceptance.internal_target_pe == 20
+    assert strict.content_sha256() != m.content_sha256()
+    with pytest.raises(ValueError, match="no looser than the medium tier"):
+        _map(internal_target_pe=40)                     # medium (1.5-fold) allows at most 33.3 %
+    assert _map(model_risk=Rating.HIGH, internal_target_pe=20).acceptance.internal_target_pe == 20
+
+
+@pytest.mark.req("T-50")
+def test_the_recorded_criteria_judge_as_the_ruleset_they_were_taken_from():
+    # D-35: a campaign is judged by the criteria its MAP was signed with
+    m = _map()
+    comparisons = [Comparison("a", "AUC", 1.4, 1.0, "fitting"), Comparison("b", "Cmax", 1.6, 1.0, "validation")]
+    recorded, current = evaluate(comparisons, m.model_risk, m.acceptance.as_ruleset()), evaluate(comparisons, m.model_risk)
+    assert [v.passes for v in recorded.verdicts] == [v.passes for v in current.verdicts] == [True, False]
+    assert recorded.ruleset == current.ruleset == m.acceptance.ruleset
+    ruleset = load_acceptance_ruleset()
+    assert m.acceptance.as_ruleset() == {"id": ruleset["id"], "version": ruleset["version"],
+                                         "tiers": {"medium": ruleset["tiers"]["medium"]}}

@@ -211,22 +211,24 @@ def test_a_fit_s_bounds_are_checked_against_ms01_and_plausibility_and_inverted_b
     assert [v.rule for v in validate(fu, cpf, ROWS) if v.target == "bind.fu"] == ["fit-fixed"]
 
 
-def test_an_internal_target_must_be_stricter_than_the_tier_and_is_named_among_the_limitations():
+def test_an_internal_target_must_be_stricter_than_the_tier_and_the_signed_map_carries_it():
     """MS-01 §8: a project may judge more strictly than its tier, never more loosely. At medium (1.5-fold) a ratio within
-    ±t % stays inside [1/1.5, 1.5] only for t ≤ 33.3 %. The verdicts do not apply the target yet (R4d), and the MAP says so."""
-    from modeler_project.plan import loosest_target, map_limitations, set_structure, structure_from_brief
+    ±t % stays inside [1/1.5, 1.5] only for t ≤ 33.3 %. The MAP records the target and the verdicts apply it (R4d), so it
+    is a criterion, no longer a limitation."""
+    from modeler_project.plan import map_limitations, set_structure, structure_from_brief
+    from pbpk_domain.acceptance import loosest_internal_target
 
     class Brief:
         def value(self, key):
             return {"acceptance.tier": "medium", "acceptance.internal_target_pe": 20}.get(key)
 
     structure = structure_from_brief(Brief())  # type: ignore[arg-type]
-    assert structure.internal_target_pe == 20 and loosest_target("medium") == pytest.approx(100 / 3)
+    assert structure.internal_target_pe == 20 and loosest_internal_target("medium") == pytest.approx(100 / 3)
     cpf = _cpf()
     plan = build_default(cpf, ROWS, structure)
     assert not [v for v in validate(plan, cpf, ROWS) if v.rule == "target"]
-    assert any(line.startswith("Internal target |prediction error| ≤ 20 %") and "do not apply it yet" in line
-               for line in map_limitations(plan, []))
+    assert not any("Internal target" in line for line in map_limitations(plan, []))
+    assert map_from_plan(plan, cpf, ROWS).acceptance.internal_target_pe == 20
     loose = set_structure(plan, "internal_target_pe", 40, by="u", reason="r")
     [target] = [v for v in validate(loose, cpf, ROWS) if v.rule == "target"]
     assert target.severity == "error" and "at most 33.3 %" in target.message

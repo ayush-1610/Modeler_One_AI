@@ -41,7 +41,7 @@ def _cpf() -> CPF:
     ))
 
 
-def _write_map(tmp_path: Path) -> str:
+def _write_map(tmp_path: Path, *, internal_target_pe: float | None = None, recorded_fold: float | None = None) -> str:
     studies = [
         StudyRecord(study_id="iv", n=12, design="SD", route=Route.IV_BOLUS, dose_mg=5.0, infusion_time_min=5.0,
                     formulation=FormulationKind.SOLUTION, food_state=FoodState.FASTED, n_timepoints=15),
@@ -50,8 +50,13 @@ def _write_map(tmp_path: Path) -> str:
     m = generate_map(
         compound="Example-A", cpf=_cpf(), studies=studies, split=split, objective="predict",
         context_of_use="MIDD", food_effect_in_question=False, model_risk=Rating.HIGH,
-        engine_image_digest="sha256:abcd", software_versions={"ospsuite": "12.4.4"},
+        engine_image_digest="sha256:abcd", software_versions={"ospsuite": "12.4.4"}, internal_target_pe=internal_target_pe,
     )
+    if recorded_fold is not None:   # a MAP signed under other criteria than today's ruleset file
+        criteria = json.loads(json.dumps(m.acceptance.criteria))
+        for rule in criteria["pk_parameters"].values():
+            rule["max_fold"] = recorded_fold
+        m = m.model_copy(update={"acceptance": m.acceptance.model_copy(update={"criteria": criteria})})
     p = tmp_path / "map.json"
     p.write_text(m.model_dump_json(), encoding="utf-8")
     return p.as_uri()
@@ -113,3 +118,22 @@ def test_without_results_bundle_cannot_pass(tmp_path: Path) -> None:
     ev = evaluate_round(_ctx(tmp_path, map_uri=map_uri), results)
     assert ev.gate_passed is False
     assert any("no simulated profile" in f for f in ev.findings)
+
+
+def test_the_maps_internal_target_judges_the_internal_study(tmp_path: Path) -> None:
+    # predicted / observed = 1 / 1.15: within the high tier's 1.25-fold, but |PE| = 13 % exceeds a 10 % target (MS-01 §8)
+    results = RoundRunResult(results_uri=_write_profiles(tmp_path), cpf_uri="x", cpf_sha256="b" * 64)
+    observed = _write_observed(tmp_path, GOLDEN_AUC * 1.15, GOLDEN_CMAX * 1.15)
+    assert evaluate_round(_ctx(tmp_path, map_uri=_write_map(tmp_path), observed_uri=observed), results).gate_passed
+    strict = evaluate_round(_ctx(tmp_path, map_uri=_write_map(tmp_path, internal_target_pe=10), observed_uri=observed), results)
+    assert strict.gate_passed is False and strict.metrics["internal_target_pe"] == 10
+    assert any("|PE| ≤ 10 %" in f for f in strict.findings)
+
+
+def test_the_criteria_the_map_was_signed_with_judge_the_round(tmp_path: Path) -> None:
+    # D-35: a 2.5-fold miss fails today's high tier (1.25-fold) but passes the 3-fold criteria this MAP recorded
+    results = RoundRunResult(results_uri=_write_profiles(tmp_path), cpf_uri="x", cpf_sha256="b" * 64)
+    observed = _write_observed(tmp_path, GOLDEN_AUC * 2.5, GOLDEN_CMAX * 2.5)
+    assert not evaluate_round(_ctx(tmp_path, map_uri=_write_map(tmp_path), observed_uri=observed), results).gate_passed
+    recorded = evaluate_round(_ctx(tmp_path, map_uri=_write_map(tmp_path, recorded_fold=3.0), observed_uri=observed), results)
+    assert recorded.gate_passed is True

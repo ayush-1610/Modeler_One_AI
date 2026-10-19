@@ -12,8 +12,8 @@
 - **The validation plan (R4b):** what S4 and S5 judge under this MAP (`map.stage_coverage`), and what happens when
   validation fails (MS-01 §4, §6.6).
 - **The acceptance criteria (R4b):** the limits of the chosen tier, as the MAP records them (`MapAcceptance`), from
-  the ruleset UNVERIFIED until the SME signs; and the stricter internal target, if any (MS-01 §8), which the verdicts
-  do not apply yet (R4d).
+  the ruleset UNVERIFIED until the SME signs; and the stricter internal target, if any (MS-01 §8), which the MAP
+  records and the verdicts apply to the internal groups (R4d).
 
 Each part reads the MAP this plan generates now (`campaign_map`), so the page shows what the signature would carry.
 """
@@ -31,12 +31,11 @@ from modeler_project.plan import (
     Violation,
     campaign_cpf,
     default_map,
-    loosest_target,
     map_limitations,
     plan_split,
 )
 from modeler_project.workspace import Workspace
-from pbpk_domain.acceptance import load_acceptance_ruleset
+from pbpk_domain.acceptance import load_acceptance_ruleset, loosest_internal_target
 from pbpk_domain.campaign.map import MapDocument, stage_coverage
 from pbpk_domain.cpf.models import CPF, ParameterStatus
 
@@ -220,6 +219,6 @@ def acceptance(plan: ModelPlan, doc: MapDocument) -> dict[str, Any]:
         "ddi_ratios": _criteria((criteria or {}).get("ddi_ratios", {}), ruleset),
         "min_fraction_within": criteria.get("min_fraction_within") if criteria else None,
         "internal_target_pe": target, "target_set_here": "internal_target_pe" in plan.structure.locked,
-        "loosest_target_pe": round(loosest_target(tier), 1) if tier else None,
-        "target_applied": False,
+        "loosest_target_pe": round(loosest_internal_target(tier), 1) if tier else None,
+        "target_applied": True,
     }

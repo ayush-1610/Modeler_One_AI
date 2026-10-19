@@ -253,6 +253,7 @@ class CampaignArtifactWriter:
     cycle: int = 1                                  # the external-validation feedback cycle (§12.3 N4)
     feedback: list[dict] = field(default_factory=list)  # every signed feedback decision, in order
     feedback_pending: dict | None = None            # the S5 failure's diagnosis while a decision is awaited
+    internal_target_pe: float | None = None         # the signed MAP's stricter target for internal groups (MS-01 §8)
     _started: float = field(default_factory=time.monotonic)
     _rounds: dict[str, list[dict]] = field(default_factory=dict)
     _status: dict[str, str] = field(default_factory=dict)
@@ -290,6 +291,7 @@ class CampaignArtifactWriter:
         writer.cycle = int(campaign.get("cycle", 1))
         writer.feedback = list(campaign.get("feedback") or [])
         writer.feedback_pending = campaign.get("feedbackPending")
+        writer.internal_target_pe = campaign.get("internalTargetPe")
         writer._started = time.monotonic() - float(campaign.get("elapsedSeconds", 0))
         return writer
 
@@ -353,6 +355,7 @@ class CampaignArtifactWriter:
         self.store.upsert_campaign(self.tenant_id, _checked(CampaignRecord, {
             "id": self.campaign_id, "project": self.project, "compound": self.compound,
             "question": self.question, "modelRisk": self.model_risk,
+            **({"internalTargetPe": self.internal_target_pe} if self.internal_target_pe is not None else {}),
             "budgetSeconds": self.budget_seconds, "elapsedSeconds": self._elapsed(),
             "currentStage": current_stage, "status": status,
             "stages": [
@@ -458,6 +461,8 @@ class LocalExecutor:
             completed.append("S0")
             if self.writer:
                 self.writer.stage_status("S0", "PASSED")
+                if readiness.findings:   # what S0 noted without blocking (e.g. a development run's CPF departing from its MAP)
+                    self.writer.stage_notes("S0", readiness.findings)
                 self.writer.flush(current_stage="S0", status="RUNNING")
 
         for stage in request.stages:
@@ -1079,6 +1084,8 @@ def _campaign_writer(request: CampaignRequest, *, read_root: str, project: str, 
         project=project, compound=request.compound, question=question, model_risk=model_risk,
         budget_seconds=total_budget, stages=_planned_stages(request, request.stages), engine=engine_identity(engine),
         origins=observed_origins(request.observed_uri),
+        internal_target_pe=((_local_json(request.map_uri) or {}).get("acceptance") or {}).get("internal_target_pe")
+        if request.map_uri else None,
     )
 
 
