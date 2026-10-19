@@ -260,3 +260,70 @@ def test_an_extraction_running_on_another_worker_is_shown_and_not_started_twice(
     assert c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]["extraction_running"] is True
     second = c.post(f"/api/v1/projects/{pid}/brief:extract", headers=H, json={"context_note": ""})
     assert second.status_code == 409 and "already running" in second.json()["detail"]
+
+
+def test_two_quick_edits_of_the_brief_both_land(client, monkeypatch):
+    """The Start screen saves each pick at once: two edits a moment apart must both be kept. Each reads, changes and
+    commits the latest brief; the later one, built on the version before the other, used to overwrite it silently."""
+    import threading
+
+    c, _ = client
+    pid = _initiate(c)
+    real = brief_api._apply_changes
+    first = threading.Event()
+
+    def slow(brief, changes, by):              # the first edit reads, then waits while the second one runs
+        if not first.is_set():
+            first.set()
+            time.sleep(0.5)
+        return real(brief, changes, by)
+
+    monkeypatch.setattr(brief_api, "_apply_changes", slow)
+    edits = [{"path": "scope.pbpk_model", "status": "EDITED", "value": "full"},
+             {"path": "scope.site_of_action", "status": "EDITED", "value": "systemic"}]
+    answers: list[int] = []
+
+    def put(change):
+        answers.append(c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [change]}).status_code)
+
+    threads = [threading.Thread(target=put, args=(edits[0],))]
+    threads[0].start()
+    first.wait(5)
+    threads.append(threading.Thread(target=put, args=(edits[1],)))
+    threads[1].start()
+    for t in threads:
+        t.join(10)
+    fields = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]["brief"]["fields"]
+    assert answers == [200, 200]
+    assert (fields["scope.pbpk_model"]["value"], fields["scope.site_of_action"]["value"]) == ("full", "systemic")
+
+
+def test_an_edit_made_while_the_agent_merges_its_reading_is_kept(client, monkeypatch):
+    """A1 runs while the person picks on the Start screen. Its result is merged into the latest brief and committed
+    under the same lock as the person's edits, so an edit landing meanwhile is never overwritten by the merge."""
+    import threading
+
+    c, store = client
+    pid = _initiate(c)
+    real = brief_api._merge_agent_result
+    merging = threading.Event()
+
+    def slow(latest, brief, accepted_paths):     # A1 has read the latest brief and is merging into it
+        merging.set()
+        time.sleep(0.5)
+        return real(latest, brief, accepted_paths)
+
+    def no_pubchem(name):
+        raise IdentityError("PubChem is not reachable from this host")
+
+    monkeypatch.setattr(brief_api, "_merge_agent_result", slow)
+    agent = threading.Thread(target=brief_api.run_extraction, args=(store, "t1", pid),
+                             kwargs={"by": "u1", "fetch_identity": no_pubchem})
+    agent.start()
+    merging.wait(5)
+    edit = c.put(f"/api/v1/projects/{pid}/brief", headers=H,
+                 json={"changes": [{"path": "scope.pbpk_model", "status": "EDITED", "value": "full"}]})
+    agent.join(10)
+    fields = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]["brief"]["fields"]
+    assert edit.status_code == 200
+    assert fields["scope.pbpk_model"]["value"] == "full"
