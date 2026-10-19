@@ -72,6 +72,39 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   project are unchanged; the agent only fills the form a person still checks and saves. Agents stay off unless a
   provider is configured (D-16), and with them off the page works as before.
 
+### Added — the digitizer reads figures inside a PDF: a figure list, crop and zoom (R3d)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.2; the owner's note: the digitizer must also read "figures
+  that are images inside a PDF", with zoom and crop):
+  - **`GET /projects/{id}/documents/{sha256}/figures`** lists the images placed on each page of a PDF, with where each
+    sits, as fractions of the page as shown (`modeler_intake.documents.pdf_figures`). The page's own rotation is
+    applied.
+    - The positions come from the pages' drawing instructions: the transformation matrix through q/Q/cm and nested
+      forms. Nothing is decoded.
+    - Images smaller than 8 % of the page (logos) are left out; a file that is not a PDF lists none.
+  - **The digitizer** (`Digitizer.tsx`):
+    - a **figure list** for a PDF: picking a figure crops the page to it;
+    - **Crop to a region** (two corners) for a figure drawn as lines;
+    - **zoom** 1–4×, in a box that scrolls.
+    - The page is drawn off screen and only the crop is shown. Changing the document, page, crop or zoom starts the
+      calibration again, because the pixels' frame changed.
+  - **The dataset keeps the frame:** `Digitization.crop` (fractions of the page) and `scale` (the render scale). They
+    are optional, so earlier datasets load unchanged. The card says "cropped to the figure".
+- **Why:** published PK figures are usually images inside a paper's PDF. Before, the digitizer showed the whole page
+  at one scale, too small to pick points well.
+- **Impact:**
+  - **No science change:** the calibration maths (`pbpk_domain.digitize`) is unchanged, and a cropped, zoomed view
+    gives the same values as the whole page (test).
+  - **No new dependency:** decoding the images would need Pillow, which only rdkit pulls in.
+  - API contract: the figures route, plus `crop` and `scale` on `DigitizeBody` and `Digitization`. The OpenAPI
+    snapshot and the web types are regenerated.
+  - Tests:
+    - `test_pdf_figures.py`: a placed image, an image inside a form with its matrix, a rotated page, a logo left out;
+    - a cropped-frame test in `test_datasets.py`;
+    - the browser flow `digitize-pdf-figure.spec.ts`, on a PDF written by the test: picked from the list, cropped to
+      exactly the figure's 800 × 600 pixels, digitized within the resolution of the truth, the crop kept.
+- **Order:** R3d came before R3c. The reading agent needs a live model to score its evaluation set, and the model runs
+  on the server.
+
 ### Fixed — two quick edits of the brief both land (Start's pickers no longer drop a choice)
 - **What:** everything that changes the brief now reads, changes and commits it under one per-project lock
   (`brief_api._brief_edits`: a file lock beside the project's artifacts, held across threads and workers). That covers

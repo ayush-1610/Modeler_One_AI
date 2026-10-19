@@ -131,6 +131,10 @@ is approved here: the one review is at the MAP signature.
   blinded, a multiple-dose study's number of doses and interval, and **Leave out** with a reason. The client's sheets
   are listed on the tab itself: open a sheet, check the reading agent's (or code's) reading, and save. Add data also by
   filling the client-data template, digitizing a published figure, or typing a table in.
+  - **Digitizing a figure in a PDF:** open the digitizer on the Literature page. A PDF's figures (images placed on
+    its pages) are listed: pick one and the page is cropped to it. A figure drawn as lines is cropped by hand
+    (**Crop to a region**, then two corners). **Zoom** enlarges the view. Calibrate the axes and pick the points in
+    that view; changing the crop, the page or the zoom starts the calibration again. The dataset keeps the crop.
 - **Formulations and Simulation settings.** The formulation of each solid study, the dissolution profiles with their
   Weibull fit ("Propose as release model") and f2, the calculation methods, the values set on the simulation, and each
   study's solver settings.

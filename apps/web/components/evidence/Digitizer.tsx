@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DocumentView } from "@/lib/brief";
 import { BROWSER_TOKEN, apiFile, send, type Schema } from "@/lib/api";
-import { useMutation } from "@/lib/hooks";
+import { useMutation, useResource } from "@/lib/hooks";
 
-type Mode = "x1" | "x2" | "y1" | "y2" | "points";
+type Mode = "x1" | "x2" | "y1" | "y2" | "points" | "crop";
+type Box = [number, number, number, number];   // left, top, right, bottom as fractions of the page (or image)
+const ZOOMS = [1, 2, 3, 4];
 type Axis = { p1: number | null; v1: string; p2: number | null; v2: string; log: boolean };
 type Study = { study_id: string; reference: string; n: string; route: string; dose_mg: string; infusion_time_min: string;
                formulation: string; food_state: string; statistic: string };
@@ -14,7 +16,9 @@ type Study = { study_id: string; reference: string; n: string; route: string; do
 const EMPTY_AXIS: Axis = { p1: null, v1: "", p2: null, v2: "", log: false };
 
 /** T-19: a person calibrates the axes of a published figure and picks the points; the server maps them to data.
- *  Nothing is detected automatically: which marker is a point, and of which series, is the person's call. */
+ *  Nothing is detected automatically: which marker is a point, and of which series, is the person's call. A figure
+ *  inside a PDF is found from the figure list (an image placed on a page) or cropped by hand (a drawn figure), and
+ *  zoomed; the points are picked in that view, whose frame is kept with the dataset (R3d). */
 export function Digitizer({ projectId, documents, onSaved }: {
   projectId: string;
   documents: DocumentView[];
@@ -33,40 +37,64 @@ export function Digitizer({ projectId, documents, onSaved }: {
                                               formulation: "ir_tablet", food_state: "fasted", statistic: "mean_sd" });
   const [units, setUnits] = useState({ time: "h", conc: "ng/ml", locator: "Figure " });
   const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [crop, setCrop] = useState<Box | null>(null);
+  const [corner, setCorner] = useState<[number, number] | null>(null);
   const { run } = useMutation();
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const doc = figures.find((d) => d.sha256 === sha);
+  const placed = useResource("/api/v1/projects/{project_id}/documents/{sha256}/figures", { project_id: projectId, sha256: sha },
+                             { enabled: doc?.kind === "pdf" });
+  const scale = (doc?.kind === "pdf" ? 2 : 1) * zoom;
+
+  // a new view (document, page, crop or zoom) is a new pixel frame: the axes and points are picked again in it
+  useEffect(() => {
+    setX(EMPTY_AXIS); setY(EMPTY_AXIS); setPoints({ [series]: [] }); setMode("x1"); setCorner(null);
+  }, [sha, page, zoom, crop]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // draws the whole page (or image) off screen, then only the cropped part into the visible canvas
+  function show(source: CanvasImageSource, width: number, height: number) {
+    if (!canvas.current) return;
+    const [l, t, r, b] = crop ?? [0, 0, 1, 1];
+    const w = Math.max(1, Math.round((r - l) * width)), h = Math.max(1, Math.round((b - t) * height));
+    canvas.current.width = w;
+    canvas.current.height = h;
+    canvas.current.getContext("2d")?.drawImage(source, l * width, t * height, w, h, 0, 0, w, h);
+    setSize({ w, h });
+  }
 
   const render = useCallback(async () => {
     if (!doc || !canvas.current) return;
     const url = `/api/v1/projects/${projectId}/documents/${doc.sha256}/raw`;
-    const ctx = canvas.current.getContext("2d");
-    if (!ctx) return;
     try {
       if (doc.kind === "pdf") {
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
         const pdf = await pdfjs.getDocument({ url, httpHeaders: { Authorization: `Bearer ${BROWSER_TOKEN}` } }).promise;
         const p = await pdf.getPage(Math.min(page, pdf.numPages));
-        const viewport = p.getViewport({ scale: 2 });
-        canvas.current.width = viewport.width;
-        canvas.current.height = viewport.height;
+        const viewport = p.getViewport({ scale });
+        const off = document.createElement("canvas");
+        off.width = viewport.width;
+        off.height = viewport.height;
+        const ctx = off.getContext("2d");
+        if (!ctx) return;
         await p.render({ canvasContext: ctx, viewport }).promise;
-        setSize({ w: viewport.width, h: viewport.height });
+        show(off, viewport.width, viewport.height);
       } else {
         const { file, problem } = await apiFile(url);
         if (!file) throw new Error(problem ?? "not readable");
         const img = await createImageBitmap(file);
-        canvas.current.width = img.width;
-        canvas.current.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        setSize({ w: img.width, h: img.height });
+        const off = document.createElement("canvas");
+        off.width = img.width * zoom;
+        off.height = img.height * zoom;
+        off.getContext("2d")?.drawImage(img, 0, 0, off.width, off.height);
+        show(off, off.width, off.height);
       }
       setError(null);
     } catch (e) {
       setError(`The figure could not be drawn: ${(e as Error).message}`);
     }
-  }, [doc, page, projectId]);
+  }, [doc, page, projectId, scale, zoom, crop]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { void render(); }, [render]);
 
   function click(e: React.MouseEvent<HTMLDivElement>) {
@@ -74,6 +102,16 @@ export function Digitizer({ projectId, documents, onSaved }: {
     const rect = canvas.current.getBoundingClientRect();
     const px = ((e.clientX - rect.left) * canvas.current.width) / rect.width;
     const py = ((e.clientY - rect.top) * canvas.current.height) / rect.height;
+    if (mode === "crop") {
+      // a corner of the region, as a fraction of the whole page, then the region once both are set
+      const [l, t, r, b] = crop ?? [0, 0, 1, 1];
+      const u = l + (px / canvas.current.width) * (r - l), v = t + (py / canvas.current.height) * (b - t);
+      if (!corner) { setCorner([u, v]); return; }
+      const box: Box = [Math.min(corner[0], u), Math.min(corner[1], v), Math.max(corner[0], u), Math.max(corner[1], v)];
+      if (box[2] - box[0] > 0.02 && box[3] - box[1] > 0.02) setCrop(box.map((n) => Math.round(n * 10000) / 10000) as Box);
+      setCorner(null);
+      return;
+    }
     if (mode === "x1") { setX({ ...x, p1: px }); setMode("x2"); }
     else if (mode === "x2") { setX({ ...x, p2: px }); setMode("y1"); }
     else if (mode === "y1") { setY({ ...y, p1: py }); setMode("y2"); }
@@ -96,6 +134,7 @@ export function Digitizer({ projectId, documents, onSaved }: {
         y: { p1: y.p1, v1: Number(y.v1), p2: y.p2, v2: Number(y.v2), scale: y.log ? "log" : "linear" },
       },
       pixels: Object.fromEntries(Object.entries(points).filter(([, p]) => p.length > 0)),
+      ...(crop ? { crop } : {}), scale,
     };
     const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/datasets:digitize", { project_id: projectId }, body));
     if (problem || !data) setError(problem ?? "not saved");
@@ -113,12 +152,33 @@ export function Digitizer({ projectId, documents, onSaved }: {
         </select>
         {doc?.kind === "pdf" && (
           <label className="row" style={{ gap: 4 }}>page <input type="number" min={1} max={doc.n_pages} value={page}
-                 onChange={(e) => setPage(Number(e.target.value))} style={{ width: 64 }} /></label>
+                 onChange={(e) => { setPage(Number(e.target.value)); setCrop(null); }} style={{ width: 64 }} /></label>
         )}
-        <span className="muted">{mode === "points" ? `click the points of “${series}”` : `click the ${mode.toUpperCase()} reference`}</span>
+        <label className="row" style={{ gap: 4 }}>zoom
+          <select value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="zoom" data-testid="digitize-zoom">
+            {ZOOMS.map((z) => <option key={z} value={z}>{z}×</option>)}
+          </select>
+        </label>
+        <button type="button" className={`btn${mode === "crop" ? " primary" : ""}`} onClick={() => { setMode("crop"); setCorner(null); }}
+                data-testid="digitize-crop">Crop to a region</button>
+        {crop && <button type="button" className="btn" onClick={() => setCrop(null)} data-testid="digitize-whole">Whole page</button>}
+        <span className="muted">{mode === "crop" ? (corner ? "click the opposite corner" : "click one corner of the figure")
+          : mode === "points" ? `click the points of “${series}”` : `click the ${mode.toUpperCase()} reference`}</span>
       </div>
+      {(placed.data?.figures ?? []).length > 0 && (
+        <div className="row figure-list" style={{ gap: 4, marginTop: 6 }} data-testid="figure-list">
+          <span className="muted" style={{ fontSize: 13 }}>Figures in this PDF:</span>
+          {placed.data!.figures.map((f) => (
+            <button key={`${f.page}-${f.name}`} type="button" className="btn" data-testid={`figure-${f.page}-${f.name}`}
+                    onClick={() => { setPage(f.page); setCrop(f.box as Box); }}>
+              p.{f.page} · {f.name} · {f.width}×{f.height}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="row" style={{ alignItems: "flex-start", marginTop: 8 }}>
-        <div className="figure" onClick={click} style={{ cursor: "crosshair" }}>
+        <div className="figure" data-testid="digitize-figure">
+          <div className="figure-inner" onClick={click} style={{ cursor: "crosshair", width: `${zoom * 100}%` }}>
           <canvas ref={canvas} />
           {size && (
             <svg viewBox={`0 0 ${size.w} ${size.h}`} className="overlay" aria-hidden>
@@ -131,6 +191,7 @@ export function Digitizer({ projectId, documents, onSaved }: {
               )))}
             </svg>
           )}
+          </div>
         </div>
         <div style={{ minWidth: 260 }}>
           <fieldset>

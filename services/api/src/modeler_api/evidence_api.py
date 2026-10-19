@@ -340,6 +340,8 @@ class DigitizeBody(BaseModel):
     purpose: str = "model_building"
     title: str = ""
     doi: str | None = None
+    crop: tuple[float, float, float, float] | None = None    # the page region the figure was digitized in (fractions)
+    scale: float | None = Field(default=None, gt=0)          # the render scale of that view
 
 
 @router.post("/projects/{project_id}/datasets:digitize", status_code=201, **answers(ObservedDataset))
@@ -356,7 +358,8 @@ def digitize_dataset(project_id: str, body: DigitizeBody, principal: Writer, sto
                                     doc_sha256=body.doc_sha256, page=body.page, locator=body.locator,
                                     calibration=body.calibration, pixels=body.pixels, time_unit=body.time_unit,
                                     unit=body.unit, statistic=body.statistic, n=body.n,
-                                    source=SourceRef(title=body.title, doi=body.doi), purpose=body.purpose)
+                                    source=SourceRef(title=body.title, doi=body.doi), purpose=body.purpose,
+                                    crop=body.crop, scale=body.scale)
         stored = propose_dataset(ws, dataset, actor=principal.user_id, mol_weight=_mol_weight(ws))
     except (CalibrationError, DatasetError, ValueError, TypeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
