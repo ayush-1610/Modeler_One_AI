@@ -1,10 +1,74 @@
-"""P4 answers of `inputs_api`: the model inputs page (the CPF assembled from accepted evidence, the studies, readiness)."""
+"""Answers of `inputs_api`: the Inputs step (redesign §3.2) — the CPF assembled from the evidence not excluded, one row
+per model input with its sources, one row per study, readiness and what is still missing to run."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from modeler_api.views.common import StoredContent, VersionView, View
+from modeler_api.views.common import Number, StoredContent, VersionView, View
+
+InputsTab = Literal["compound", "formulations", "individuals", "settings", "studies"]
+
+
+class EvidenceView(View):
+    """An evidence item as the page shows it (`inputs.evidence_view`): the value in both units, its source and grade."""
+
+    id: str
+    target: str
+    value: Number | str | None
+    unit: str | None
+    value_pksim: Number | None
+    unit_pksim: str | None
+    state: str
+    confidence: str
+    flags: list[str]
+    provider: str
+    source_type: str
+    conditions: dict[str, Any]
+    source: dict[str, Any]
+    quote: str
+
+
+class AlternativeView(EvidenceView):
+    """A source the selection did not keep (D-32): how far it stands from the kept value."""
+
+    relation: Literal["agrees", "differs", "conflicts"]
+    differs_pct: Number | None
+
+
+class CompoundRow(View):
+    """One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, or missing."""
+
+    id: str
+    tab: InputsTab
+    state: Literal["kept", "conflict", "held", "missing"]
+    req_id: str | None                            # the data-checklist item a value typed into the row is filed under
+    value: Number | str | None
+    unit: str | None
+    status: str | None
+    placement: str | None
+    binding: dict[str, str | None] | None
+    candidates: list[str]
+    sources: list[EvidenceView]                   # the kept value's source first, then the sources that agree
+    alternatives: list[AlternativeView]
+    message: str | None
+
+
+class InputStudyRow(View):
+    """One study (`inputs_view.study_rows`): its facts without observed values, proposed role, blinding, demographics."""
+
+    study_id: str
+    dataset_id: str | None
+    origin: str | None
+    purpose: str | None
+    evaluable: bool
+    facts: dict[str, Any]
+    role: str | None
+    role_source: Literal["proposed", "plan"]
+    blinded: bool
+    excluded: str | None
+    demographics: Literal["entered", "published", "default", "missing"]
+    regimen_missing: bool
 
 
 class CpfVersion(VersionView):
@@ -20,7 +84,11 @@ class InputsPage(View):
     readiness: VersionView | None
     choices: dict[str, Any]                # modeler_project.inputs.InputChoices
     published: StoredContent | None        # the hand-off record to the campaign path
-    todo: list[dict[str, Any]]             # what stands between the inputs and readiness, by kind (inputs.todo)
+    todo: list[dict[str, Any]]             # what stands between the inputs and readiness, by kind and tab (inputs.todo)
+    compound: list[CompoundRow]            # every model input on its tab
+    studies: list[InputStudyRow]
+    study_options: dict[str, list[str]]    # route, formulation, food state, purpose, sex, PK-Sim population (harvested)
+    selection_rule: str                    # the source-selection rule that picked the values (D-32), with its status
 
 
 class IdentityProposal(InputsPage):

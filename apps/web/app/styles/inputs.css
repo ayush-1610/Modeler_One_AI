@@ -7,3 +7,35 @@
 .todo-table td, .todo-table th { padding: 6px 8px; }
 .todo-table tr { cursor: pointer; }
 .todo-table tr.picked { background: color-mix(in srgb, var(--sim) 10%, transparent); }
+
+/* Step 2 · Inputs (redesign §3.2): one row per model input, the studies and their individuals, what is still missing. */
+.input-row { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface);
+  display: grid; gap: 6px; }
+.input-row + .input-row { margin-top: 8px; }
+.input-row.conflict, .input-row.missing { border-left: 3px solid var(--fail); }
+.input-row.held { border-left: 3px solid var(--warn); }
+.input-head { display: grid; grid-template-columns: minmax(150px, 1.3fr) minmax(90px, 0.8fr) minmax(140px, 1.6fr) auto; gap: 10px;
+  align-items: baseline; }
+.input-name { display: grid; min-width: 0; }
+.input-name code { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.input-value { font-variant-numeric: tabular-nums; }
+.input-source { font-size: 13px; min-width: 0; }
+.input-source .chip { margin-left: 6px; }
+.input-state { text-align: right; }
+.input-fix { border-top: 1px solid var(--line-soft); padding-top: 8px; display: grid; gap: 6px; }
+.input-row .sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.source-line { border-top: 1px solid var(--line-soft); padding-top: 6px; }
+.add-value, .typed-table { border-top: 1px dashed var(--line); padding-top: 8px; }
+.tabs .tab-count { margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; background: var(--warn); color: var(--surface); }
+.missing-list, .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.individual { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); }
+.individual + .individual { margin-top: 8px; }
+.studies-table td { vertical-align: top; }
+.studies-table tr.left-out td { opacity: 0.6; }
+.add-data { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; }
+.add-data h3 { margin: 0 0 6px; }
+.add-data ul { margin: 0 0 6px; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+@media (max-width: 720px) {
+  .input-head { grid-template-columns: 1fr 1fr; }
+  .input-state { text-align: left; }
+}

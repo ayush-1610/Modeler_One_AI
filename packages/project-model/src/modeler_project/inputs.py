@@ -695,9 +695,26 @@ def dataset_warnings(observed: list[ObservedDataset]) -> list[str]:
     return out
 
 
+# The Inputs step's tabs (redesign §3.2): where each CPF id is shown and settled, by PK-Sim building block.
+TABS = ("compound", "formulations", "individuals", "settings", "studies")
+_TAB_PREFIXES = (("form.", "formulations"), ("indiv.", "individuals"), ("expr.", "individuals"),
+                 ("molecule.", "individuals"), ("sim.", "settings"), ("sim[", "settings"),
+                 ("dist.partition_method", "settings"), ("dist.permeability_method", "settings"))
+# what a to-do item is about when its kind says more than its target
+_KIND_TAB = {"formulation": "formulations", "datasets": "studies", "regimen": "studies", "demographics": "individuals",
+             "check": "studies"}
+
+
+def tab_of(cpf_id: str) -> str:
+    """The tab a CPF id is shown on: the calculation methods and simulation values on Simulation settings, the
+    individual's values on Individuals, the formulation's on Formulations, the rest on Compound."""
+    return next((tab for prefix, tab in _TAB_PREFIXES if cpf_id.startswith(prefix)), "compound")
+
+
 def todo(ws: Workspace) -> list[dict[str, Any]]:
-    """What stands between the inputs and readiness, each with what settles it. Computed when read, from the latest
-    assembly and readiness, the evidence register and the datasets; nothing here decides anything."""
+    """What stands between the inputs and readiness, each with what settles it and the tab it is settled on. Computed
+    when read, from the latest assembly and readiness, the evidence register and the datasets; nothing here decides
+    anything."""
     from modeler_project.dataset_register import datasets
     from modeler_project.evidence_register import items
     from pbpk_domain.cpf import check_completeness
@@ -743,8 +760,7 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
         check = checks.get(name)
         for detail in (check or {"detail": []})["detail"] if check and not check["ok"] else []:
             sid = detail.split(":", 1)[0]
-            out.append({"kind": kind, "target": sid, "message": detail, "items": [], "tab": "studies",
-                        "dataset_id": dataset_of.get(sid)})
+            out.append({"kind": kind, "target": sid, "message": detail, "items": [], "dataset_id": dataset_of.get(sid)})
     formulations = checks.get("formulations of solid studies")
     if formulations and not formulations["ok"]:
         proposed = [evidence_view(e) for e in evidence.values() if e.target.startswith("form.") and included(e)]
@@ -752,4 +768,4 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
     build = checks.get("every planned simulation builds (software)")
     if build and not build["ok"] and not out:
         out.append({"kind": "check", "target": "build", "message": "; ".join(build["detail"]), "items": []})
-    return out
+    return [{**entry, "tab": _KIND_TAB.get(entry["kind"]) or tab_of(entry["target"])} for entry in out]

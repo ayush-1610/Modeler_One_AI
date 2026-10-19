@@ -67,7 +67,7 @@ def test_inputs_are_assembled_chosen_accepted_and_handed_to_the_campaign_path(se
     view = c.post("/api/v1/projects/p1/inputs:assemble", headers=H).json()["data"]
     assert view["readiness"]["content"]["ready"] is False
     clspec = next(r for r in view["records"] if r["id"] == "elim.hepatic.CYP3A4.clspec")
-    assert set(clspec["candidates"]) == {"MetabolizationSpecific_FirstOrder", "rCYP450_FirstOrder"} and clspec["block"] == "Compound"
+    assert set(clspec["candidates"]) == {"MetabolizationSpecific_FirstOrder", "rCYP450_FirstOrder"} and clspec["block"] == "compound"
     early = c.post("/api/v1/projects/p1/inputs:accept", headers=H, json={})
     assert early.status_code == 409 and "not ready" in early.json()["detail"]
     bad = c.put("/api/v1/projects/p1/inputs/choices", headers=H,

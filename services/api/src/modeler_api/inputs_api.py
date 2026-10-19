@@ -15,10 +15,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from modeler_api.config import SettingsDep
-from modeler_api.deps import Reader, StoreDep, Writer, redact, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
 from modeler_api.responses import answers, envelope
 from modeler_api.views.inputs import IdentityProposal, InputsPage
 from modeler_project import ArtifactKind, Workspace
+from modeler_project.brief import PURPOSES
+from modeler_project.datasets import HUMAN_POPULATIONS
 from modeler_project.evidence import EvidenceState
 from modeler_project.evidence_register import items
 from modeler_project.inputs import (
@@ -34,20 +36,21 @@ from modeler_project.inputs import (
     publication,
     record_publication,
     set_choice,
+    tab_of,
     todo,
 )
+from modeler_project.inputs_view import compound_rows, study_rows
+from modeler_project.sources import rule
+from pbpk_domain.campaign.split import FoodState, FormulationKind, Route, Sex
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
 
 router = APIRouter(prefix="/api/v1", tags=["inputs"])
 
-# The PK-Sim building block a CPF id belongs to (the page's tabs mirror PK-Sim's).
-_BLOCKS = (("form.", "Formulations"), ("indiv.", "Individuals"), ("expr.", "Individuals"), ("sim", "Simulation settings"),
-           ("alt.", "Compound"), ("molecule.", "Individuals"))
-
-
-def _block(cpf_id: str) -> str:
-    return next((block for prefix, block in _BLOCKS if cpf_id.startswith(prefix)), "Compound")
-
+# What a person may give a study (the Studies and Individuals tabs): the study record's own enums and the harvested
+# PK-Sim population databases, never free text the builder would not know.
+_STUDY_OPTIONS = {"route": [r.value for r in Route], "formulation": [f.value for f in FormulationKind],
+                  "food_state": [f.value for f in FoodState], "purpose": list(PURPOSES), "sex": [s.value for s in Sex],
+                  "population": list(HUMAN_POPULATIONS)}
 
 def _view(ws: Workspace) -> dict[str, Any]:
     cpf_version = ws.latest(ArtifactKind.CPF, MAIN)
@@ -57,11 +60,12 @@ def _view(ws: Workspace) -> dict[str, Any]:
     records = []
     for record in (cpf.parameters if cpf else ()):
         row = record.model_dump(mode="json")
-        row["block"] = _block(record.id)
+        row["block"] = tab_of(record.id)
         row["placement"] = placement(record.id)
         if is_process_id(record.id) and record.engine_binding is None:
             row["candidates"] = [c.process for c in binding_candidates(record.id)]
         records.append(row)
+    open_items = todo(ws)
     return {
         "cpf": version_view(ws, cpf_version, with_content=False) | {"assembly": cpf_assembly(ws)} if cpf_version else None,
         "records": records,
@@ -70,7 +74,11 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "readiness": version_view(ws, ready) if ready else None,
         "choices": choices(ws).model_dump(),
         "published": published.to_content() if (published := publication(ws)) else None,
-        "todo": todo(ws),
+        "todo": open_items,
+        "compound": compound_rows(ws, open_items),
+        "studies": study_rows(ws, blinded_studies(ws)),
+        "study_options": _STUDY_OPTIONS,
+        "selection_rule": f"source selection {rule().version} ({rule().status})",
     }
 
 

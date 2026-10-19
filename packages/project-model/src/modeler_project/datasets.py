@@ -24,6 +24,11 @@ from pbpk_domain.units import UnitError, is_molar, minutes_per, umol_per_l_per
 
 Origin = DataOrigin  # the six origins of the real-data rule, shared with the campaign path (pbpk_domain.data_origin)
 NCA_TOLERANCE = 0.20  # reported vs recomputed NCA [SME]
+# The PK-Sim human population databases a person may give a study's individual (D-29), harvested from the engine
+# (services/engine-worker/golden/catalog.json `populations.Human`; a test keeps them equal). Pregnant and Preterm are
+# left out: they need gestational inputs a study's Demographics does not carry.
+HUMAN_POPULATIONS = ("Asian_Tanaka_1996", "BlackAmerican_NHANES_1997", "European_ICRP_2002", "Japanese_Population",
+                     "MexicanAmericanWhite_NHANES_1997", "WhiteAmerican_NHANES_1997")
 
 # A dataset is always dumped whole (`to_content`), so in the API contract (phase 9e) a field with a default is still
 # always present. `Series`, `ReportedPK` and `SourceRef` are request schemas too, and keep their defaults optional.

@@ -21,18 +21,19 @@ export type TodoItem = {
   identity?: { value: number; unit: string; quote: string; cid: string; name: string } | null;
   warnings?: string[];
   dataset_id?: string | null;
+  tab?: string;
 };
-type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string) => Promise<string | null>;
+export type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string) => Promise<string | null>;
 
-const ORDER = ["conflict", "correct", "pka", "missing", "review", "regimen", "demographics", "datasets", "formulation", "process",
+export const ORDER = ["conflict", "correct", "pka", "missing", "review", "regimen", "demographics", "datasets", "formulation", "process",
                "unit", "check"];
-const TITLE: Record<string, string> = {
+export const TITLE: Record<string, string> = {
   conflict: "Values more than 2-fold apart: keep one", correct: "Filed under the wrong parameter", pka: "pKa: acidic or basic?",
   missing: "Missing for S0", datasets: "Observed data to judge the model on", formulation: "Formulation of the tablet studies",
   process: "Which PK-Sim process carries the pathway", unit: "Unit to convert", check: "Software build",
   review: "Held until you check it", regimen: "Multiple-dose regimen", demographics: "Demographics (D-29)",
 };
-const LABEL: Record<string, string> = {
+export const LABEL: Record<string, string> = {
   "phys.mw": "Molecular weight", "phys.logp": "Lipophilicity", "bind.fu": "Fraction unbound in plasma",
   "phys.solubility.ref": "Reference solubility", "phys.pka": "pKa", elim: "An elimination pathway",
   "perm.intestinal": "Intestinal permeability", "elim.renal.gfr_fraction": "GFR fraction (renal filtration)",
@@ -40,9 +41,9 @@ const LABEL: Record<string, string> = {
   "elim.fe_urine": "Fraction excreted unchanged in urine (fe)", "elim.fm.<enzyme>": "Fraction metabolised by an enzyme (fm)",
 };
 
-const fmt = (v: number | string | null) => (v === null ? "—" : typeof v === "number" ? +v.toPrecision(4) : v);
+export const fmt = (v: number | string | null) => (v === null ? "—" : typeof v === "number" ? +v.toPrecision(4) : v);
 
-function Source({ e }: { e: Ev }) {
+export function Source({ e }: { e: Ev }) {
   const s = e.source;
   const who = [s.authors, s.year].filter(Boolean).join(" ");
   return (
@@ -56,7 +57,7 @@ function Source({ e }: { e: Ev }) {
   );
 }
 
-function Value({ e }: { e: Ev }) {
+export function Value({ e }: { e: Ev }) {
   return (
     <span>
       <strong>{fmt(e.value)}</strong> {e.unit ?? ""}
@@ -157,7 +158,7 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
   );
 }
 
-function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: Run }) {
+export function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: Run }) {
   const [reason, setReason] = useState("");
   return (
     <div className="todo-row">
@@ -209,10 +210,8 @@ function StudyFix({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
   );
 }
 
-function Datasets({ t, projectId, run }: { t: TodoItem; projectId: string; run: Run }) {
-  const [reason, setReason] = useState("");
+function Datasets({ t, projectId }: { t: TodoItem; projectId: string }) {
   const rows = t.items as DatasetRow[];
-  const proposed = rows.filter((d) => d.state === "PROPOSED");
   const meanless = rows.filter((d) => d.state !== "REJECTED" && !d.statistics.some((s) => s !== "individual"));
   return (
     <>
@@ -221,19 +220,8 @@ function Datasets({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
           {t.warnings!.map((w) => <li key={w}>{w}. Re-read the sheet on the <Link href={`/projects/${projectId}/client-data`}>Client data page</Link> (the new reading replaces the old one).</li>)}
         </ul>
       )}
-      {rows.length === 0 ? <p className="muted" style={{ margin: 0 }}>No datasets yet: read the client&apos;s sheets on the Client data page, or add published data on the Literature page.</p> : (
-        <table className="todo-table">
-          <thead><tr><th>Study</th><th>For</th><th>Data</th><th>State</th></tr></thead>
-          <tbody>{rows.map((d) => (
-            <tr key={d.id} data-testid={`todo-dataset-${d.study_id}`}>
-              <td><strong>{d.study_id}</strong><div className="muted" style={{ fontSize: 12 }}>{d.origin.toLowerCase()} · {d.id}</div></td>
-              <td>{d.purpose.replace(/_/g, " ")}</td>
-              <td>{d.series} series · {d.statistics.join(", ").replace(/_/g, " ")}</td>
-              <td><span className={`chip ${d.state === "ACCEPTED" ? "low" : "medium"}`}>{d.state.toLowerCase()}</span></td>
-            </tr>
-          ))}</tbody>
-        </table>
-      )}
+      {rows.length === 0 && <p className="muted" style={{ margin: 0 }}>No datasets yet: add data below (the client&apos;s sheets, a
+        typed table or a digitized figure).</p>}
       {meanless.length > 0 && (
         <p className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
           {meanless.map((d) => d.study_id).join(", ")}: individual subjects only. The campaign judges a mean profile, so these
@@ -241,92 +229,66 @@ function Datasets({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
           (e.g. the published mean data of an IV or oral study).
         </p>
       )}
-      {proposed.length > 0 && (
-        <div className="row" style={{ gap: 6 }}>
-          <input placeholder="why (e.g. checked against the client's report)" value={reason} onChange={(e) => setReason(e.target.value)}
-                 style={{ flex: 1, minWidth: 220 }} aria-label="reason for the datasets" />
-          <button className="btn primary" disabled={!reason.trim()} onClick={async () => {
-            for (const d of proposed) {
-              const err = await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:decide", { project_id: projectId, dataset_id: d.id }, { state: "ACCEPTED", reason }), "");
-              if (err) return;
-            }
-          }}>Accept the {proposed.length} proposed dataset{proposed.length === 1 ? "" : "s"}</button>
-        </div>
+    </>
+  );
+}
+
+/** What settles one open item, shown where the item is (its row or its tab): keep one of values in conflict, correct a
+ *  misfiled value, call a pKa acidic or basic, check a held value, set a study's facts. Every change is recorded. */
+export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: string; run: Run }) {
+  return (
+    <>
+      {t.kind === "conflict" && <Conflict t={t} projectId={projectId} run={run} />}
+      {(t.kind === "correct" || t.kind === "pka") && (
+        <>
+          <p className="muted" style={{ margin: "2px 0 4px", fontSize: 13 }}>{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
+          {(t.items as Ev[]).map((e) => <Correction key={e.id} e={e} t={t} projectId={projectId} run={run} />)}
+        </>
+      )}
+      {t.kind === "missing" && (
+        <>
+          {t.identity && (
+            <div className="row" style={{ gap: 6, margin: "4px 0" }}>
+              <span style={{ fontSize: 13 }}>The brief&apos;s PubChem record ({t.identity.name}, CID {t.identity.cid}) says
+                <strong> {t.identity.value} g/mol</strong>. Check it is the free base, not the salt.</span>
+              <button className="btn" onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/inputs:propose-identity", { project_id: projectId }),
+                                                                "Molecular weight proposed from PubChem.")}>Propose it</button>
+            </div>
+          )}
+          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
+        </>
+      )}
+      {t.kind === "review" && (
+        <>
+          <p className="muted" style={{ margin: "2px 0 4px", fontSize: 13 }}>{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
+          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
+        </>
+      )}
+      {(t.kind === "regimen" || t.kind === "demographics") && <StudyFix t={t} projectId={projectId} run={run} />}
+      {t.kind === "datasets" && <Datasets t={t} projectId={projectId} />}
+      {t.kind === "formulation" && (
+        <>
+          <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>{t.message}. Propose the release model from the test
+            product&apos;s dissolution profile (below), or give the formulation&apos;s values with their source.</p>
+          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
+        </>
+      )}
+      {(t.kind === "process" || t.kind === "unit" || t.kind === "check") && (
+        <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>{t.message}</p>
       )}
     </>
   );
 }
 
-/** What stands between the inputs and readiness, each with what settles it, in the order to do them. */
-export function InputsTodo({ projectId, todo, run }: { projectId: string; todo: TodoItem[]; run: Run }) {
-  const [researching, setResearching] = useState<string | null>(null);
-  if (todo.length === 0) return null;
-  const sorted = [...todo].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
+/** One open item with its title, where it is settled. */
+export function TodoCard({ t, projectId, run }: { t: TodoItem; projectId: string; run: Run }) {
   return (
-    <section className="card todo" aria-label="What stops readiness" data-testid="inputs-todo">
+    <div className="todo-item" data-testid={`todo-${t.kind}-${t.target}`} id={`todo-${t.kind}-${t.target}`}>
       <div className="spread">
-        <h2 style={{ margin: 0 }}>What stops readiness ({todo.length})</h2>
-        <button className="btn" onClick={async () => setResearching(await run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }),
-                                                                              "The literature agent (A2) is searching; its proposals appear here and on the Literature page.") ?? "started")}>
-          Ask the literature agent for what is missing
-        </button>
+        <strong>{TITLE[t.kind]}{t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : ""}</strong>
+        <code className="muted">{t.target}</code>
       </div>
-      <p className="muted" style={{ margin: "4px 0 10px", fontSize: 13 }}>
-        Each decision is yours and is recorded with its reason; the inputs are re-assembled after each one. Values are never averaged:
-        sources within 10 % are one value, within 2-fold the best source is kept and the others listed, and beyond that you keep
-        one (source selection 0.1, provisional until the SME signs).
-      </p>
-      {researching && researching !== "started" && <div className="banner err">{researching}</div>}
-      {sorted.map((t, i) => (
-        <div key={`${t.kind}-${t.target}-${i}`} className="todo-item" data-testid={`todo-${t.kind}-${t.target}`}>
-          <div className="spread">
-            <strong>{TITLE[t.kind]}{t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : ""}</strong>
-            <code className="muted">{t.target}</code>
-          </div>
-          {t.kind === "conflict" && <Conflict t={t} projectId={projectId} run={run} />}
-          {(t.kind === "correct" || t.kind === "pka") && (
-            <>
-              <p className="muted" style={{ margin: "2px 0 4px", fontSize: 13 }}>{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
-              {(t.items as Ev[]).map((e) => <Correction key={e.id} e={e} t={t} projectId={projectId} run={run} />)}
-            </>
-          )}
-          {t.kind === "missing" && (
-            <>
-              {t.identity && (
-                <div className="row" style={{ gap: 6, margin: "4px 0" }}>
-                  <span style={{ fontSize: 13 }}>The brief&apos;s PubChem record ({t.identity.name}, CID {t.identity.cid}) says
-                    <strong> {t.identity.value} g/mol</strong>. Check it is the free base, not the salt.</span>
-                  <button className="btn" onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/inputs:propose-identity", { project_id: projectId }),
-                                                                    "Molecular weight proposed from PubChem: accept it below.")}>Propose it</button>
-                </div>
-              )}
-              {(t.items as Ev[]).length > 0
-                ? (t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)
-                : !t.identity && <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>
-                    No proposal yet: ask the literature agent (button above), or add the value with its source on the{" "}
-                    <Link href={`/projects/${projectId}/evidence`}>Literature page</Link>.</p>}
-            </>
-          )}
-          {t.kind === "review" && (
-            <>
-              <p className="muted" style={{ margin: "2px 0 4px", fontSize: 13 }}>{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
-              {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
-            </>
-          )}
-          {(t.kind === "regimen" || t.kind === "demographics") && <StudyFix t={t} projectId={projectId} run={run} />}
-          {t.kind === "datasets" && <Datasets t={t} projectId={projectId} run={run} />}
-          {t.kind === "formulation" && (
-            <>
-              <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>{t.message}. Propose the release model from the test product&apos;s
-                dissolution profile on the <Link href={`/projects/${projectId}/client-data`}>Client data page</Link>, then accept it here.</p>
-              {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
-            </>
-          )}
-          {(t.kind === "process" || t.kind === "unit" || t.kind === "check") && (
-            <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>{t.message}{t.kind === "process" ? " — choose it on the Compound tab." : ""}</p>
-          )}
-        </div>
-      ))}
-    </section>
+      <TodoAction t={t} projectId={projectId} run={run} />
+    </div>
   );
 }
