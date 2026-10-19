@@ -154,3 +154,87 @@ class PlanSigned(PlanPage):
 class DraftStart(View):
     status: Literal["RUNNING"]
 
+
+
+# --- Step 3 · Review & sign (redesign §3.3): the review table and credibility -------------------------------------
+
+
+class ReviewSource(View):
+    """Where the kept value comes from (the evidence item's source, with its type)."""
+
+    type: str
+    title: str
+    authors: str | None = None
+    year: int | None = None
+    doi: str | None = None
+    page: int | None = None
+    locator: str | None = None
+
+
+class ReviewRow(View):
+    """One model input as the review table shows it (`modeler_project.review.review_rows`)."""
+
+    id: str
+    tab: str
+    state: Literal["kept", "conflict", "held", "missing"]
+    value: Number | str | None
+    unit: str | None
+    status: str | None
+    message: str | None
+    evidence_id: str | None                # the kept source, which "Exclude" sets aside with a reason
+    source: ReviewSource | None
+    quote: str
+    grade: str | None
+    flags: list[str]
+    supplied_by: Literal["agent", "client file", "person", "system"] | None
+    changed_by_person: bool
+    agreeing: int                          # other sources within 10 % of the kept value (D-32)
+    alternatives: int
+    confidence: Literal["low", "medium", "high"] | None   # display only: grade, flags and agreement
+
+
+class ReviewCounts(View):
+    all: int
+    flagged: int
+    by_person: int
+    from_agent: int
+    open: int
+
+
+class ReviewStudy(View):
+    study_id: str
+    role: Role | None
+    role_by: str | None                    # "default", a person's id, or an agent run
+    purpose: str | None
+    origin: str | None
+    blinded: bool
+    excluded: str | None                   # why a person left it out
+    demographics: str
+
+
+class StageBudget(View):
+    stage: str
+    budget_seconds: int
+    fraction: Number
+    max_rounds: int
+
+
+class ReviewRisk(View):
+    """The ICH M15 model risk the MAP will carry, and what Start says of it."""
+
+    tier: Literal["low", "medium", "high"] | None
+    set_here: bool                         # changed on this page (the plan's own, with its reason)
+    reason: str
+    influence: str | None                  # the ratings and justification from Start
+    consequence: str | None
+    justification: str | None
+
+
+class ReviewPage(View):
+    rows: list[ReviewRow]
+    counts: ReviewCounts
+    studies: list[ReviewStudy]
+    risk: ReviewRisk
+    budget_seconds: int
+    stages: list[StageBudget]
+    limitations: list[str]

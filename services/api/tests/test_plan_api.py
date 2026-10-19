@@ -318,3 +318,36 @@ def test_a_study_on_the_healthy_adult_default_is_a_limitation_of_the_plan(setup)
     c, _ws, _root = setup
     limits = c.get("/api/v1/projects/p1/plan", headers=H).json()["data"]["plan"]["default_limitations"]
     assert any(l.startswith("iv-250: demographics not reported; simulated with the healthy adult default") for l in limits)
+
+
+def test_the_review_shows_every_input_with_its_source_and_the_split_and_limitations_the_map_will_carry(setup):
+    """Step 3 · Review & sign (redesign §3.3): read only; the split and limitations are the MAP's own."""
+    from modeler_project.inputs import catalog_rows, current_cpf
+    from modeler_project.plan import ModelPlan, map_from_plan
+
+    c, ws, _root = setup
+    c.get("/api/v1/projects/p1/plan", headers=H)                                   # the plan is built on first read
+    answer = c.get("/api/v1/projects/p1/plan/review", headers=H)
+    assert answer.status_code == 200, answer.text
+    data = answer.json()["data"]
+    rows = {r["id"]: r for r in data["rows"]}
+    mw = rows["phys.mw"]
+    assert mw["state"] == "kept" and mw["value"] == 225.2 and mw["source"]["type"] == "REGULATORY_REVIEW"
+    assert mw["quote"] == "phys.mw 225.2" and mw["supplied_by"] == "person" and mw["changed_by_person"]
+    assert mw["evidence_id"] and mw["confidence"] == "medium"                     # one source: not "high"
+    assert data["counts"] == {"all": len(rows), "flagged": data["counts"]["flagged"], "by_person": len(rows),
+                              "from_agent": 0, "open": data["counts"]["open"]}
+    studies = {s["study_id"]: s for s in data["studies"]}
+    assert studies["iv-250"]["role"] == "S1" and studies["ddi-itra"]["role"] == "SUPPORTIVE"
+    assert studies["iv-250"]["demographics"] == "default"
+    assert data["risk"] == {"tier": "medium", "set_here": False, "reason": "", "influence": None, "consequence": None,
+                            "justification": None}
+    # the budget split and the limitations are the ones the MAP generated from this plan carries
+    plan = ModelPlan.from_content(ws.latest(ArtifactKind.MODEL_PLAN, "main").content)
+    doc = map_from_plan(plan, current_cpf(ws), catalog_rows(ws))
+    assert [(s["stage"], s["budget_seconds"]) for s in data["stages"]] == [(s.stage, s.budget_seconds)
+                                                                         for s in doc.stage_plan]
+    assert {s["stage"]: s["fraction"] for s in data["stages"]}["S3"] == 0.07
+    assert data["limitations"] == list(doc.split_limitations)
+    assert any("healthy adult default" in limitation for limitation in data["limitations"])
+    assert c.get("/api/v1/projects/nope/plan/review", headers=H).status_code in (403, 404)

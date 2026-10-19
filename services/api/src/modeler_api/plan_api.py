@@ -23,15 +23,16 @@ from modeler_api import agent_jobs, jobs
 from modeler_api.auth import Principal, ensure_step_up, require_role
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep, get_settings
-from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, version_view, workspace_for
 from modeler_api.part11 import record_signature
 from modeler_api.responses import answers, envelope
-from modeler_api.views.plan import DraftStart, PlacementPreview, PlanPage, PlanSigned
+from modeler_api.views.plan import DraftStart, PlacementPreview, PlanPage, PlanSigned, ReviewPage
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
 from modeler_project.dissolution_register import profiles as dissolution_profiles
 from modeler_project.inputs import MAIN as INPUTS_MAIN
 from modeler_project.inputs import catalog_rows, current_cpf, inputs_ready
+from modeler_project.inputs_view import study_rows
 from modeler_project.map_artifact import MapArtifact, MapSignature, latest_map, record_signed_map, signed_map
 from modeler_project.plan import (
     Deviation,
@@ -196,6 +197,42 @@ def read_plan(project_id: str, principal: Reader, store: StoreDep) -> dict[str, 
         raise HTTPException(status_code=404, detail="no model plan yet")
     cpf, rows, _refs = _inputs(ws)
     return envelope(_view(ws, version, plan, cpf, rows))
+
+
+@router.get("/projects/{project_id}/plan/review", **answers(ReviewPage))
+def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied
+    it; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them.
+    Read only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas."""
+    from modeler_project import review
+
+    ws = workspace_for(project_id, principal, store)
+    _version, plan = current(ws)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="no model plan yet: it is built once the inputs are ready")
+    cpf, rows, _refs = _inputs(ws)
+    violations = validate(plan, cpf, rows, exploratory=_exploratory(ws))
+    table = review.review_rows(ws)
+    brief = _brief(ws)
+    structure = plan.structure
+    studies = []
+    for row in study_rows(ws, blinded_studies(ws)):
+        placement = plan.placements.get(row["study_id"])
+        studies.append({"study_id": row["study_id"], "role": placement.role if placement else None,
+                        "role_by": placement.by if placement else None, "purpose": row["purpose"],
+                        "origin": row["origin"], "blinded": row["blinded"], "excluded": row["excluded"],
+                        "demographics": row["demographics"]})
+    return envelope({
+        "rows": table, "counts": review.counts(table), "studies": studies,
+        "risk": {"tier": structure.model_risk, "set_here": "model_risk" in structure.locked,
+                 "reason": structure.reasons.get("model_risk", ""),
+                 "influence": brief.value("m15.influence_rating") if brief else None,
+                 "consequence": brief.value("m15.consequence_rating") if brief else None,
+                 "justification": brief.value("m15.risk_justification") if brief else None},
+        "budget_seconds": structure.campaign_budget_seconds,
+        "stages": review.stage_budgets(plan, cpf, rows),
+        "limitations": review.limitations(plan, violations),
+    })
 
 
 def _signed_map(ws: Workspace) -> tuple[Any, MapDocument] | None:

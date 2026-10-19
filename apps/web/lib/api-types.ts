@@ -1289,6 +1289,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/plan/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Review
+         * @description Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied
+         *     it; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them.
+         *     Read only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas.
+         */
+        get: operations["get_review_api_v1_projects__project_id__plan_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/plan/structure": {
         parameters: {
             query?: never;
@@ -1793,12 +1815,18 @@ export interface components {
             };
             /** Confidence */
             confidence: string;
+            /** Decided By */
+            decided_by: string | null;
             /** Differs Pct */
             differs_pct: number | null;
+            /** Extraction */
+            extraction: string;
             /** Flags */
             flags: string[];
             /** Id */
             id: string;
+            /** Proposed By */
+            proposed_by: string;
             /** Provider */
             provider: string;
             /** Quote */
@@ -3534,6 +3562,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[ReviewPage] */
+        Envelope_ReviewPage_: {
+            data: components["schemas"]["ReviewPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[RunAccepted] */
         Envelope_RunAccepted_: {
             data: components["schemas"]["RunAccepted"];
@@ -3910,10 +3945,16 @@ export interface components {
             };
             /** Confidence */
             confidence: string;
+            /** Decided By */
+            decided_by: string | null;
+            /** Extraction */
+            extraction: string;
             /** Flags */
             flags: string[];
             /** Id */
             id: string;
+            /** Proposed By */
+            proposed_by: string;
             /** Provider */
             provider: string;
             /** Quote */
@@ -6229,6 +6270,133 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** ReviewCounts */
+        ReviewCounts: {
+            /** All */
+            all: number;
+            /** By Person */
+            by_person: number;
+            /** Flagged */
+            flagged: number;
+            /** From Agent */
+            from_agent: number;
+            /** Open */
+            open: number;
+        };
+        /** ReviewPage */
+        ReviewPage: {
+            /** Budget Seconds */
+            budget_seconds: number;
+            counts: components["schemas"]["ReviewCounts"];
+            /** Limitations */
+            limitations: string[];
+            risk: components["schemas"]["ReviewRisk"];
+            /** Rows */
+            rows: components["schemas"]["ReviewRow"][];
+            /** Stages */
+            stages: components["schemas"]["StageBudget"][];
+            /** Studies */
+            studies: components["schemas"]["ReviewStudy"][];
+        };
+        /**
+         * ReviewRisk
+         * @description The ICH M15 model risk the MAP will carry, and what Start says of it.
+         */
+        ReviewRisk: {
+            /** Consequence */
+            consequence: string | null;
+            /** Influence */
+            influence: string | null;
+            /** Justification */
+            justification: string | null;
+            /** Reason */
+            reason: string;
+            /** Set Here */
+            set_here: boolean;
+            /** Tier */
+            tier: ("low" | "medium" | "high") | null;
+        };
+        /**
+         * ReviewRow
+         * @description One model input as the review table shows it (`modeler_project.review.review_rows`).
+         */
+        ReviewRow: {
+            /** Agreeing */
+            agreeing: number;
+            /** Alternatives */
+            alternatives: number;
+            /** Changed By Person */
+            changed_by_person: boolean;
+            /** Confidence */
+            confidence: ("low" | "medium" | "high") | null;
+            /** Evidence Id */
+            evidence_id: string | null;
+            /** Flags */
+            flags: string[];
+            /** Grade */
+            grade: string | null;
+            /** Id */
+            id: string;
+            /** Message */
+            message: string | null;
+            /** Quote */
+            quote: string;
+            source: components["schemas"]["ReviewSource"] | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "kept" | "conflict" | "held" | "missing";
+            /** Status */
+            status: string | null;
+            /** Supplied By */
+            supplied_by: ("agent" | "client file" | "person" | "system") | null;
+            /** Tab */
+            tab: string;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: number | string | null;
+        };
+        /**
+         * ReviewSource
+         * @description Where the kept value comes from (the evidence item's source, with its type).
+         */
+        ReviewSource: {
+            /** Authors */
+            authors?: string | null;
+            /** Doi */
+            doi?: string | null;
+            /** Locator */
+            locator?: string | null;
+            /** Page */
+            page?: number | null;
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+            /** Year */
+            year?: number | null;
+        };
+        /** ReviewStudy */
+        ReviewStudy: {
+            /** Blinded */
+            blinded: boolean;
+            /** Demographics */
+            demographics: string;
+            /** Excluded */
+            excluded: string | null;
+            /** Origin */
+            origin: string | null;
+            /** Purpose */
+            purpose: string | null;
+            /** Role */
+            role: ("S1" | "S2" | "S3" | "S5" | "S6" | "SUPPORTIVE") | null;
+            /** Role By */
+            role_by: string | null;
+            /** Study Id */
+            study_id: string;
+        };
         /** RiskView */
         RiskView: {
             /** Admitted */
@@ -6817,6 +6985,17 @@ export interface components {
          * @enum {string}
          */
         Stage: "planning" | "submission";
+        /** StageBudget */
+        StageBudget: {
+            /** Budget Seconds */
+            budget_seconds: number;
+            /** Fraction */
+            fraction: number;
+            /** Max Rounds */
+            max_rounds: number;
+            /** Stage */
+            stage: string;
+        };
         /** StageRecord */
         StageRecord: {
             /** Label */
@@ -6886,6 +7065,11 @@ export interface components {
              * @default []
              */
             applications: components["schemas"]["MapApplication"][];
+            /**
+             * Assumptions
+             * @default []
+             */
+            assumptions: string[];
             /**
              * Campaign Budget Seconds
              * @default 28800
@@ -10383,6 +10567,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_PlanPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_review_api_v1_projects__project_id__plan_review_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ReviewPage_"];
                 };
             };
             /** @description Validation Error */

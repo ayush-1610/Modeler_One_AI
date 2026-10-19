@@ -27,6 +27,9 @@ class EvidenceView(View):
     conditions: dict[str, Any]
     source: dict[str, Any]
     quote: str
+    extraction: str                   # TEXT, TABLE, FIGURE_DIGITIZED or CELL (a client template read by code)
+    proposed_by: str                  # who supplied it: "agent:<run>", a person's id, or the system reading a file
+    decided_by: str | None            # who last accepted, corrected or excluded it
 
 
 class AlternativeView(EvidenceView):
