@@ -26,6 +26,7 @@ export type FieldDef = {
   kind: "text" | "number" | "enum" | "list" | "bool" | "multi";
   required: boolean;
   options: string[];
+  option_labels: Record<string, string>;
   unit: string | null;
   help: string;
 };
@@ -65,12 +66,13 @@ export const EMPTY_RECORD: FieldRecord = {
   value: null, unit: null, status: "MISSING", citations: [], confidence: null, note: "", by: null, at: null,
 };
 
-export function display(record: FieldRecord): string {
+export function display(record: FieldRecord, def?: FieldDef): string {
   const v = record.value;
   if (v === null || v === undefined || v === "") return "";
-  if (Array.isArray(v)) return v.join("; ");
+  const name = (x: unknown) => def?.option_labels[String(x)] ?? String(x);
+  if (Array.isArray(v)) return v.map(name).join("; ");
   if (typeof v === "boolean") return v ? "yes" : "no";
-  return `${String(v)}${record.unit ? ` ${record.unit}` : ""}`;
+  return `${name(v)}${record.unit ? ` ${record.unit}` : ""}`;
 }
 
 export const STATUS_CHIP: Record<FieldStatus, string> = {

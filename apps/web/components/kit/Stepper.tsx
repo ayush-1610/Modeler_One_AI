@@ -12,7 +12,11 @@ const STATE_LABEL: Record<StepState, string> = {
 /** The project's four steps (redesign §3): Start, Inputs, Review & sign, Run, each with where it stands. The step the
  *  page belongs to is marked, and what it waits on is written out under the row. Inputs still spans three pages until
  *  they become one workspace (R3), so its pages are linked while you are in it. */
-export async function Stepper({ projectId, current, page }: { projectId: string; current?: StepId; page?: string }) {
+export async function Stepper({ projectId, current, page, waiting = true }: {
+  projectId: string; current?: StepId; page?: string;
+  /** Write out what the current step waits on (off where the page lists it itself, as Start does). */
+  waiting?: boolean;
+}) {
   const live = await getSteps(projectId);
   if (!live.data) return null; // the stepper is navigation; the page itself reports a read problem
   const here = live.data.find((s) => s.step === current);
@@ -44,7 +48,7 @@ export async function Stepper({ projectId, current, page }: { projectId: string;
           ))}
         </nav>
       )}
-      {here && here.state === "needs_you" && here.reasons.length > 0 && (
+      {waiting && here && here.state === "needs_you" && here.reasons.length > 0 && (
         <p className="step-waiting" data-testid="step-waiting">
           <strong>Waiting on you:</strong> {here.reasons.join(" · ")}
         </p>

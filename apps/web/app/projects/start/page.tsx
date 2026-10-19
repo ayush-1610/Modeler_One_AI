@@ -40,7 +40,7 @@ export default function StartProjectPage() {
       setError(env.errors?.[0]?.message ?? "The project could not be started.");
       return;
     }
-    router.push(`/projects/${env.data.project_id}/brief`);
+    router.push(`/projects/${env.data.project_id}/start`);
   }
 
   const ready = drug.trim().length > 0 && (files.length > 0 || context.trim().length > 0) && !busy;

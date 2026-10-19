@@ -706,11 +706,30 @@
             },
             "title": "Sections",
             "type": "object"
+          },
+          "short_brief": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Short Brief",
+            "type": "array"
+          },
+          "short_group_fields": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Short Group Fields",
+            "type": "object"
           }
         },
         "required": [
           "schema",
           "sections",
+          "short_brief",
+          "short_group_fields",
           "fields",
           "groups"
         ],
@@ -733,14 +752,13 @@
             "type": "boolean"
           },
           "reason": {
-            "minLength": 1,
+            "default": "",
             "title": "Reason",
             "type": "string"
           }
         },
         "required": [
-          "changes",
-          "reason"
+          "changes"
         ],
         "title": "BriefEdit",
         "type": "object"
@@ -822,6 +840,9 @@
             "title": "Runs",
             "type": "array"
           },
+          "start": {
+            "$ref": "#/components/schemas/StartBlock"
+          },
           "summary": {
             "$ref": "#/components/schemas/BriefSummary"
           }
@@ -835,7 +856,8 @@
           "catalog",
           "agents",
           "extraction_running",
-          "runs"
+          "runs",
+          "start"
         ],
         "title": "BriefPage",
         "type": "object"
@@ -1515,6 +1537,13 @@
             "title": "Label",
             "type": "string"
           },
+          "option_labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Option Labels",
+            "type": "object"
+          },
           "options": {
             "items": {
               "type": "string"
@@ -1549,6 +1578,7 @@
           "kind",
           "required",
           "options",
+          "option_labels",
           "unit",
           "help"
         ],
@@ -11520,6 +11550,49 @@
         "title": "RevealRequest",
         "type": "object"
       },
+      "RiskView": {
+        "additionalProperties": false,
+        "properties": {
+          "admitted": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Admitted",
+            "type": "object"
+          },
+          "allowed": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          }
+        },
+        "required": [
+          "allowed",
+          "problems",
+          "admitted"
+        ],
+        "title": "RiskView",
+        "type": "object"
+      },
       "RoundRecord": {
         "additionalProperties": false,
         "properties": {
@@ -11953,6 +12026,67 @@
         ],
         "title": "Scale",
         "type": "string"
+      },
+      "ScopeGateView": {
+        "additionalProperties": false,
+        "description": "One scope question of Start (D-28, `feasibility.ScopeGate`).",
+        "properties": {
+          "gate": {
+            "enum": [
+              "modality",
+              "pbpk_model",
+              "site_of_action",
+              "formulation_types",
+              "routes"
+            ],
+            "title": "Gate",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "supported",
+              "limited",
+              "not_supported",
+              "not_set"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "supported": {
+            "title": "Supported",
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "gate",
+          "label",
+          "path",
+          "state",
+          "values",
+          "message",
+          "supported"
+        ],
+        "title": "ScopeGateView",
+        "type": "object"
       },
       "Series": {
         "additionalProperties": false,
@@ -12983,6 +13117,44 @@
           "reasons"
         ],
         "title": "StaleArtifact",
+        "type": "object"
+      },
+      "StartBlock": {
+        "additionalProperties": false,
+        "description": "What Start still needs (`steps.start_problems`), and the parts the screen draws from.",
+        "properties": {
+          "gates": {
+            "items": {
+              "$ref": "#/components/schemas/ScopeGateView"
+            },
+            "title": "Gates",
+            "type": "array"
+          },
+          "pathway_suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pathway Suggestions",
+            "type": "array"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/RiskView"
+          }
+        },
+        "required": [
+          "problems",
+          "gates",
+          "risk",
+          "pathway_suggestions"
+        ],
+        "title": "StartBlock",
         "type": "object"
       },
       "Statistic": {
@@ -16618,7 +16790,7 @@
         ]
       },
       "put": {
-        "description": "Change fields (each change says why). With ``preview`` the impact is returned and nothing is saved.",
+        "description": "Change fields (no reason asked, D-27). A model risk outside what its ICH M15 ratings admit is refused. With\n``preview`` the impact is returned and nothing is saved; otherwise the data plan follows the new brief.",
         "operationId": "edit_brief_api_v1_projects__project_id__brief_put",
         "parameters": [
           {
@@ -20291,7 +20463,7 @@
     },
     "/api/v1/projects/{project_id}/plan:rebase": {
       "post": {
-        "description": "New inputs (P4 changed): the default is recomputed, a person's choices are kept, new studies are marked.",
+        "description": "New inputs (P4 changed) or a brief edit: the default is recomputed and the structure read again from the brief,\na person's choices are kept, new studies are marked.",
         "operationId": "rebase_plan_api_v1_projects__project_id__plan_rebase_post",
         "parameters": [
           {

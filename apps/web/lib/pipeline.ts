@@ -33,7 +33,7 @@ export type StepRow = Schema<"StepRow">;
 
 /** Where each step is worked on. Inputs still spans three pages until they become one workspace (R3). */
 export const STEP_ROUTES: Record<StepId, (projectId: string) => string> = {
-  start: (p) => `/projects/${p}/brief`,
+  start: (p) => `/projects/${p}/start`,
   inputs: (p) => `/projects/${p}/inputs`,
   review: (p) => `/projects/${p}/plan`,
   run: (p) => `/projects/${p}`,

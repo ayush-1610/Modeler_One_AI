@@ -1,14 +1,16 @@
-"""The four steps of the redesigned flow read from content, not approvals (redesign §3, D-27)."""
+"""The four steps of the redesigned flow read from content, not approvals (redesign §3, D-27); Start's short brief,
+ICH M15 model risk and scope gates (D-28)."""
 
 from __future__ import annotations
 
 import pytest
 
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
-from modeler_project.brief import FieldStatus, empty_brief
+from modeler_project.brief import FieldStatus, add_question, empty_brief, risk_check
 from modeler_project.brief_ops import edit_field
+from modeler_project.feasibility import check, scope_gates
 from modeler_project.map_artifact import MapArtifact, MapSignature
-from modeler_project.steps import project_steps, run_step
+from modeler_project.steps import project_steps, run_step, start_problems
 
 pytestmark = pytest.mark.req("T-50")
 
@@ -28,18 +30,76 @@ def test_a_new_project_has_every_step_ahead_of_it(tmp_path):
         ("review", "Review & sign", "not_started"), ("run", "Run", "not_started")]
 
 
-def test_start_is_done_when_the_question_and_the_model_risk_are_set_with_no_approval(tmp_path):
+def _fill(brief, *pairs):
+    for path, value in pairs:
+        brief = edit_field(brief, path, value=value, status=FieldStatus.EDITED, by="u")
+    return brief
+
+
+SHORT = (("qoi.text", "exposure after 10 mg"), ("qoi.context_of_use", "support a biowaiver"),
+         ("qoi.applications", ["APP-14"]), ("drug.modality", "small_molecule"), ("scope.pbpk_model", "full"),
+         ("scope.site_of_action", "systemic"), ("scope.formulation_types", ["ir_tablet"]), ("scenarios[0].route", "oral"))
+
+
+def test_start_is_done_when_the_short_brief_the_model_risk_and_the_scope_gates_are_set_with_no_approval(tmp_path):
     ws = _ws(tmp_path)
     brief = empty_brief("Drugol", by="u")
     ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), actor="u", reason="start")
     start = project_steps(ws, [])[0]
     assert start.state == "needs_you"
-    assert any("Model risk" in r for r in start.reasons)                 # never assumed: it is asked for
-    for path, value in (("qoi.text", "exposure after 10 mg"), ("qoi.context_of_use", "support a biowaiver"),
-                        ("acceptance.tier", "medium")):
-        brief = edit_field(brief, path, value=value, status=FieldStatus.EDITED, note="from the proposal", by="u")
+    assert {"Question of interest: not set yet", "Model risk: not set yet (it is never assumed)",
+            "Model influence: not rated yet", "PBPK model: not set yet", "Routes: not set yet"} <= set(start.reasons)
+    brief = _fill(brief, *SHORT, ("m15.influence_rating", "medium"), ("m15.consequence_rating", "high"),
+                  ("acceptance.tier", "high"))
+    assert start_problems(brief) == ["Why this model risk: influence and consequence differ, so say why it is high"]
+    brief = _fill(brief, ("m15.risk_justification", "a wrong biowaiver exposes patients to an untested product"))
     ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), actor="u", reason="filled")
     assert _states(ws)["start"] == "done"                                 # the brief was never approved
+
+
+def test_start_refuses_what_the_builder_cannot_model_yet():
+    """D-28: a minimal PBPK model, a local site of action, a liposome, an inhaled route are refused at Start."""
+    brief = _fill(empty_brief("Drugol", by="u"), *SHORT, ("m15.influence_rating", "low"),
+                  ("m15.consequence_rating", "low"), ("acceptance.tier", "low"), ("scope.pbpk_model", "minimal"),
+                  ("scope.site_of_action", "local"), ("scope.formulation_types", ["ir_tablet", "liposome", "mr"]),
+                  ("scenarios[1].route", "inhalation"))
+    gates = {g.gate: g for g in scope_gates(brief)}
+    assert {k: g.state for k, g in gates.items()} == {"modality": "supported", "pbpk_model": "not_supported",
+                                                      "site_of_action": "not_supported",
+                                                      "formulation_types": "not_supported", "routes": "not_supported"}
+    assert gates["formulation_types"].message.startswith("liposome: not supported yet; modified release: extended")
+    assert start_problems(brief) == [
+        "PBPK model: minimal PBPK: not supported yet",
+        "Site of action: local: not supported yet: a local site of action needs a site model the builder does not make",
+        f"Formulation types: {gates['formulation_types'].message}", "Routes: inhalation: not supported yet"]
+    feasibility = {line.needed_because: line.status for line in check(brief).lines}
+    assert feasibility["scope.pbpk_model"] == feasibility["scope.formulation_types"] == "NOT_SUPPORTED"
+    # an IV-only project: no formulation type applies, and modified release alone is limited, not refused
+    iv = edit_field(_fill(brief, ("scope.pbpk_model", "full"), ("scope.site_of_action", "systemic")), "scenarios[1].route",
+                    value="iv_infusion", status=FieldStatus.EDITED, by="u")
+    iv = edit_field(iv, "scope.formulation_types", status=FieldStatus.NOT_APPLICABLE, by="u")
+    assert start_problems(iv) == [] and {g.gate: g.state for g in scope_gates(iv)}["formulation_types"] == "supported"
+    assert {g.gate: g.state for g in scope_gates(_fill(iv, ("scope.formulation_types", ["mr"])))}["formulation_types"] \
+        == "limited"
+
+
+@pytest.mark.parametrize(("influence", "consequence", "tier", "allowed", "refused"), [
+    ("low", "low", "low", ("low",), False), ("high", "high", "medium", ("high",), True),
+    ("low", "high", "medium", ("low", "medium", "high"), False), ("medium", "low", "high", ("low", "medium"), True)])
+def test_the_model_risk_lies_in_the_range_its_m15_ratings_admit(influence, consequence, tier, allowed, refused):
+    brief = _fill(empty_brief("Drugol", by="u"), ("m15.influence_rating", influence),
+                  ("m15.consequence_rating", consequence), ("acceptance.tier", tier))
+    check_ = risk_check(brief)
+    assert check_.allowed == allowed and bool(check_.refused) is refused
+
+
+def test_open_questions_on_the_short_brief_hold_start_up_and_proposal_notes_never_do():
+    brief = _fill(empty_brief("Drugol", by="u"), *SHORT, ("m15.influence_rating", "low"), ("m15.consequence_rating", "low"),
+                  ("acceptance.tier", "low"))
+    brief = add_question(add_question(brief, "drug.mw_free_base", "the stated MW differs from the structure's",
+                                      raised_by="system"), "proj.client", "Who is the sponsor?", raised_by="agent:a1")
+    question = "Open question on Molecular weight (free base): the stated MW differs from the structure's"
+    assert start_problems(brief) == [question]
 
 
 def test_inputs_follow_the_latest_readiness_check(tmp_path):

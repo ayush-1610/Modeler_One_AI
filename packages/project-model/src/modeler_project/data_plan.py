@@ -7,7 +7,7 @@ overrides are kept across re-derivations; `extra` adds or replaces one.
 
 from __future__ import annotations
 
-from modeler_project.artifacts import ArtifactKind
+from modeler_project.artifacts import ArtifactKind, ArtifactStatus
 from modeler_project.brief import ProjectBrief
 from modeler_project.feasibility import check
 from modeler_project.requirements import RequirementMatrix, RequirementOverride, derive
@@ -36,3 +36,15 @@ def derive_data_plan(ws: Workspace, *, actor: str, reason: str, extra: Requireme
               reason=reason)
     ws.commit(ArtifactKind.FEASIBILITY, MAIN, check(brief).to_content(), derived_from=[brief_version.ref], actor=actor,
               reason=reason)
+
+
+def refresh_data_plan(ws: Workspace, *, actor: str, reason: str) -> bool:
+    """Re-derive the data plan when it is missing or the brief changed since (the Start checklist follows the brief
+    with no button and no approval, redesign §3.1). True when a new version was derived."""
+    if ws.latest(ArtifactKind.BRIEF, MAIN) is None:
+        return False
+    current = ws.latest(ArtifactKind.REQUIREMENTS, MAIN)
+    if current is not None and ws.status(current) is not ArtifactStatus.STALE:
+        return False
+    derive_data_plan(ws, actor=actor, reason=reason)
+    return True

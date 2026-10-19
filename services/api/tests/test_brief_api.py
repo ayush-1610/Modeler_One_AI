@@ -120,6 +120,41 @@ def test_extraction_with_a_scripted_agent_then_edit_preview_answer_and_approve(c
     assert bad.status_code == 422 and "not one of" in bad.json()["detail"]
 
 
+@pytest.mark.req("T-50")
+def test_start_edits_ask_no_reason_refuse_a_risk_outside_its_m15_range_and_keep_the_checklist_current(client):
+    """Redesign §3.1: the checklist exists from the start and follows each saved brief; D-28 gates and the ICH M15 risk
+    are in the brief's answer; a tier its two ratings do not admit is refused."""
+    c, _store = client
+    pid = _initiate(c)
+    checklist = c.get(f"/api/v1/projects/{pid}/requirements", headers=H)
+    assert checklist.status_code == 200 and checklist.json()["data"]["artifact"]["status"] != "STALE"
+    first = checklist.json()["data"]["artifact"]["version"]
+    view = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]
+    assert view["catalog"]["short_brief"][0] == "drug.name" and view["catalog"]["short_group_fields"]["scenarios"]
+    assert {g["gate"]: g["state"] for g in view["start"]["gates"]}["pbpk_model"] == "not_set"
+    assert "Model risk: not set yet (it is never assumed)" in view["start"]["problems"]
+    assert "CYP3A4" in view["start"]["pathway_suggestions"]
+
+    def put(*changes, reason=""):
+        return c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={
+            "changes": [{"path": p, "status": "EDITED", "value": v} for p, v in changes], **({"reason": reason} if reason else {})})
+
+    rated = put(("m15.influence_rating", "high"), ("m15.consequence_rating", "high"))
+    assert rated.status_code == 200, rated.text
+    data = rated.json()["data"]
+    assert data["artifact"]["reason"] == "edited: m15.influence_rating, m15.consequence_rating"
+    assert data["start"]["risk"]["allowed"] == ["high"]
+    refused = put(("acceptance.tier", "low"))
+    assert refused.status_code == 422 and "admits a model risk of high, not low" in refused.json()["detail"]
+    saved = put(("acceptance.tier", "high"), ("scope.pbpk_model", "minimal"), ("scenarios[0].route", "oral")).json()["data"]
+    assert not saved["start"]["risk"]["problems"]
+    assert "PBPK model: minimal PBPK: not supported yet" in saved["start"]["problems"]
+    after = c.get(f"/api/v1/projects/{pid}/requirements", headers=H).json()["data"]
+    assert after["artifact"]["version"] > first and after["artifact"]["status"] != "STALE"
+    assert any(line["status"] == "NOT_SUPPORTED" and line["needed_because"] == "scope.pbpk_model"
+               for line in after["feasibility"]["lines"])
+
+
 @pytest.mark.req("T-42")
 def test_approved_brief_derives_the_data_plan_which_takes_overrides_and_closes_p1(client):
     c, store = client
