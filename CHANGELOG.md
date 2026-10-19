@@ -31,6 +31,56 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Known gap:** other read-modify-write routes have the same pattern (the evidence register, datasets, the plan).
   Their edits are rarer and come one at a time from their pages. Not changed here; each is checked in its own change.
 
+### Added — Review & sign, the third step: one review table and the model's credibility around the MS-01 canvas (R4a)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3; D-27: "a person reviews everything once, at the MAP
+  signature"):
+  - **`/projects/{id}/plan` is now Step 3 · Review & sign**, on the kit, full width so the 960-px stage graph keeps its
+    place beside Overall Data:
+    - **the signature on top:** Approve and Sign, the MAP version, deviations to sign (D-14), and running the campaign;
+    - **Studies and roles:** the MS-01 canvas as before (Overall Data, the D3 stage graph dragged with a reason, D1
+      and D2), then each study's role, whether it is blinded (D-15), its demographics, and **Leave out** / **Include
+      again** with a reason;
+    - **The inputs, the review table** (map row `m-exclude`): every model input with its value, the source the CPF
+      keeps and its quote, grade and flags, who or what supplied it (an agent, the client's file read by code, a
+      person, the system), how many other sources agree, and a confidence.
+      - The confidence is **display only**: it sums up the grade, the flags and the agreement, and decides nothing
+        (D-32 picks the value).
+      - Filters: flagged, changed by a person, from an agent, waiting on you.
+      - **Exclude** sets the kept source aside with a reason; the next source takes its place and the plan asks to be
+        brought up to date. Excluding an input's only source says so first.
+    - **Credibility (ICH M15):** the model risk (the R0 control, beside Start's ratings and justification); the time
+      budget split stage by stage **as the MAP signs it** (MS-01's fixed shares, D-31); and the limitations the MAP
+      names;
+    - the live validator and the changes from the MS-01 default, as before.
+  - **`GET /projects/{id}/plan/review`** (`modeler_project.review`, typed `ReviewPage`): the rows, the filter counts, the
+    studies, the risk, the stage budgets and the limitations. It is read only: an input or a study is excluded through
+    the Inputs routes (`evidence/{id}:decide`, `inputs/choices`).
+  - **The evidence view says who supplied and who decided each value** (`proposed_by`, `decided_by`, `extraction`).
+- **Changed (MAP):** **the assumptions the brief states are limitations of the MAP** (map row `p1-assump`): each becomes
+  "Assumption stated in the brief: …" in `split_limitations`, after the MS-01 split's own and before the acknowledged
+  warnings (`plan.map_limitations`). The plan's structure carries them (`Structure.assumptions`), read again from the
+  brief on every rebase. A brief with no assumptions gives the same MAP as before.
+- **Why:** the approved Review & sign screen (R1). It is where D-27's one review happens, so it shows every value with
+  its source.
+- **Impact:**
+  - **No science change** beyond the limitations above: the page shows what the plan and the inputs already hold, and
+    the split and limitations are the MAP's own (checked against `map_from_plan` in the API test).
+  - API contract: the review route and its models; `EvidenceView` gains three fields; `Structure.assumptions`.
+    `docs/api/openapi.json` and the web types are regenerated.
+  - **Fixed in passing:** the OpenAPI enum of a low / medium / high field could come out as high / medium / low,
+    depending on which module was imported first: `typing` caches `Literal[...] | None` as equal whatever the order.
+    Every such field now uses one order.
+  - Tests: `test_review.py` (who supplied a value, the confidence, the filter counts, the MAP's limitations with the
+    brief's assumptions); `test_plan_api.py` (the review route against the MAP the plan generates). New browser flow
+    `review-sign.spec.ts` (the table, a filter, an exclusion with the agreeing source taking over, the stage split and
+    the limitations); `model-plan.spec.ts` keeps its test ids.
+- **Known gap:**
+  - **Not yet on the page** (R4b–R4d): the estimation plan as one table with proposed bounds, the validation plan, the
+    tier's acceptance criteria with a stricter project target, the VBE panel and the other applications, and verdicts
+    applying the stricter target (a locked-file change for the owner's approval).
+  - The browser flows cannot run in this session's sandbox (no port, no browser); the owner's local run passed 21 of
+    21 (Chrome, 2026-10-19), with `review-sign.spec.ts` and `model-plan.spec.ts` among them.
+
 ### Added — Inputs, the second step of the new flow: one workspace, five tabs, "Still missing to run" (R3b)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.2; it builds on R3a):
   - **`/projects/{id}/inputs` is rebuilt as one workspace** on the kit (`InputsWorkspace`), in PK-Sim's building blocks:
@@ -3641,4 +3691,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-06 (worktree `claude/vbe-template`) | Claude Opus 5.5 | Atomic writes for every file the API reads during a campaign; first campaign record written before the id is returned (T-56 kit test flake); T-31 VBE template |
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
-| 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal). No GitHub access from this sandbox: the owner pushes |
+| 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |

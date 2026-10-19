@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 
+import { InlineIssue, PageShell } from "@/components/kit";
 import { D3Dag, STUDY_MIME, StudyChip } from "@/components/plan/D3Dag";
 import { D1Disposition, D2Absorption } from "@/components/plan/Diagrams";
-import { RiskAndBudget } from "@/components/plan/RiskAndBudget";
+import { Credibility, StudiesTable } from "@/components/review/Credibility";
+import { ReviewTable } from "@/components/review/ReviewTable";
 import { Card } from "@/components/ui";
 import type { Envelope, Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
@@ -148,9 +150,12 @@ function BlindingPanel({ projectId }: { projectId: string }) {
   );
 }
 
-/** P5 model plan (plan §11, review layer L3): the three diagrams, "Overall Data", the diff, the validator, the signature. */
+/** Step 3 · Review & sign (redesign §3.3; plan §11): the one review D-27 relies on. The signature on top; the studies and
+ *  their roles on the MS-01 canvas (the three diagrams, "Overall Data"); every input with its source in the review
+ *  table; credibility (the model risk, the budget split, the limitations); the live validator and the diff. */
 export function PlanCanvas({ projectId }: { projectId: string }) {
   const page = useResource("/api/v1/projects/{project_id}/plan", { project_id: projectId }, { poll: (d) => d.running });
+  const review = useResource("/api/v1/projects/{project_id}/plan/review", { project_id: projectId }, { enabled: page.data !== null });
   const mutation = useMutation();
   const [tab, setTab] = useState<(typeof TABS)[number]>(TABS[0]);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -185,112 +190,144 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
   const studies = view.overall_data.studies;
 
   return (
-    <div className="plan-layout">
-      <aside className="overall-data" data-testid="overall-data" aria-label="Overall Data"
-             onDragOver={(e) => { if (e.dataTransfer.types.includes(STUDY_MIME)) e.preventDefault(); }}>
-        <h2>Overall Data</h2>
-        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>CPF v1 and the study catalog. Drag a dataset onto a D3 node, an arrow or the training layer.</p>
-        <h3>Datasets ({studies.length})</h3>
-        {studies.map((s) => (
-          <div key={s.study_id} className="overall-study">
-            <StudyChip s={s} view={view} />
-            <div className="muted" style={{ fontSize: 11 }}>{s.route.replace("_", " ")} · {s.dose_mg} mg · {s.food_state} · {s.design} · n {s.n} → {s.role}</div>
+    <PageShell
+      eyebrow="Step 3 · Review & sign"
+      title={<>Review &amp; sign · {view.plan.compound}</>}
+      lede={<>The one review before the run (D-27): the studies and their roles, every input with its source, and the model&apos;s
+        credibility. The plan starts as the MS-01 default; each change has a reason, and the MAP is generated from the plan
+        and signed only when the validator has nothing open.</>}
+      actions={<span className={`chip ${view.blocking ? "high" : "low"}`} data-testid="blocking-chip">
+        {view.blocking ? `${view.blocking} open violation${view.blocking === 1 ? "" : "s"}` : "validator green"}</span>}
+    >
+      <Card title={`Model plan v${view.artifact.version} · the signature`}>
+        {stale && (
+          <div className="banner warn" data-testid="plan-stale">
+            The inputs changed since this plan ({view.artifact.stale_reasons.join("; ")}).
+            <button className="btn tiny" style={{ marginLeft: 8 }} onClick={() => apply(() => planApi.rebase(projectId), "Plan brought up to date; your choices kept.")}>
+              Bring it up to date</button>
           </div>
-        ))}
-        <BlindingPanel projectId={projectId} />
-        <h3>Dissolution</h3>
-        {view.d2.dissolution.length ? view.d2.dissolution.map((d) => <div key={d.id} className="muted" style={{ fontSize: 12 }}>◆ {d.label}</div>)
-          : <p className="muted" style={{ fontSize: 12 }}>none</p>}
-        <h3>CPF v1 ({view.overall_data.parameters.length})</h3>
-        <ul className="param-list">
-          {view.overall_data.parameters.map((p) => (
-            <li key={p.id}><code>{p.id}</code> {typeof p.value === "number" ? +p.value.toPrecision(4) : String(p.value)} {p.unit ?? ""}</li>
-          ))}
-        </ul>
-      </aside>
-      <section className="plan-main">
-        <Card title={`Model plan v${view.artifact.version} · ${view.plan.compound}`}
-              action={<span className={`chip ${view.blocking ? "high" : "low"}`} data-testid="blocking-chip">
-                {view.blocking ? `${view.blocking} open violation${view.blocking === 1 ? "" : "s"}` : "validator green"}</span>}>
-          {stale && (
-            <div className="banner warn" data-testid="plan-stale">
-              The inputs changed since this plan ({view.artifact.stale_reasons.join("; ")}).
-              <button className="btn tiny" style={{ marginLeft: 8 }} onClick={() => apply(() => planApi.rebase(projectId), "Plan brought up to date; your choices kept.")}>
-                Bring it up to date</button>
-            </div>
+        )}
+        <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>
+          {view.plan.structure.objective} · {view.plan.structure.context_of_use}
+        </p>
+        <div className="row">
+          <button className="btn" disabled={!view.agents.enabled || view.running || signed}
+                  onClick={async () => setMessage(await apply(() => planApi.draft(projectId)) ?? "A5 is drafting the rationale; proposals appear in the diff.")}>
+            Draft with A5</button>
+          <input placeholder="signature note" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
+          <button className="btn primary" disabled={!canSign} data-testid="approve-and-sign"
+                  title={canSign ? "generate the MAP from this plan and sign it (MIDD lead)"
+                    : signed ? "the MAP is signed; a change now is a deviation to sign" : "resolve or acknowledge every violation first"}
+                  onClick={async () => {
+                    const done = pendingDeviations.length
+                      ? `Deviations signed: MAP v${(view.map?.map_version ?? 1) + 1} supersedes v${view.map?.map_version ?? 1}.`
+                      : "MAP generated from the plan and signed.";
+                    const { data, problem } = await mutation.run(() => planApi.sign(projectId, note));
+                    if (data) setSignature(data.signature);
+                    setMessage(problem ?? done);
+                  }}>
+            {signed && pendingDeviations.length ? `Sign the deviation${pendingDeviations.length === 1 ? "" : "s"} (${pendingDeviations.length})` : "Approve and Sign"}</button>
+          {signed && view.map && !pendingDeviations.length && (
+            <button className="btn" data-testid="run-campaign" onClick={async () => {
+              // the MAP artifact's staged campaign inputs (stored content), the body a campaign starts from
+              const started = await startCampaign(projectId, view.map!.campaign as Parameters<typeof startCampaign>[1]);
+              if (started.campaign_id) window.location.assign(`/campaigns/${started.campaign_id}`);
+              else setMessage(`The campaign did not start: ${started.error ?? "no campaign id returned"}`);
+            }}>Run the campaign (P6)</button>
           )}
-          <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>
-            {view.plan.structure.objective} · {view.plan.structure.context_of_use}
-          </p>
-          <RiskAndBudget projectId={projectId} view={view} apply={apply} />
-          <div className="row">
-            <button className="btn" disabled={!view.agents.enabled || view.running || signed}
-                    onClick={async () => setMessage(await apply(() => planApi.draft(projectId)) ?? "A5 is drafting the rationale; proposals appear in the diff.")}>
-              Draft with A5</button>
-            <input placeholder="signature note" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
-            <button className="btn primary" disabled={!canSign} data-testid="approve-and-sign"
-                    title={canSign ? "generate the MAP from this plan and sign it (MIDD lead)"
-                      : signed ? "the MAP is signed; a change now is a deviation to sign" : "resolve or acknowledge every violation first"}
-                    onClick={async () => {
-                      const done = pendingDeviations.length
-                        ? `Deviations signed: MAP v${(view.map?.map_version ?? 1) + 1} supersedes v${view.map?.map_version ?? 1}.`
-                        : "MAP generated from the plan and signed.";
-                      const { data, problem } = await mutation.run(() => planApi.sign(projectId, note));
-                      if (data) setSignature(data.signature);
-                      setMessage(problem ?? done);
-                    }}>
-              {signed && pendingDeviations.length ? `Sign the deviation${pendingDeviations.length === 1 ? "" : "s"} (${pendingDeviations.length})` : "Approve and Sign"}</button>
-            {signed && view.map && !pendingDeviations.length && (
-              <button className="btn" data-testid="run-campaign" onClick={async () => {
-                // the MAP artifact's staged campaign inputs (stored content), the body a campaign starts from
-                const started = await startCampaign(projectId, view.map!.campaign as Parameters<typeof startCampaign>[1]);
-                if (started.campaign_id) window.location.assign(`/campaigns/${started.campaign_id}`);
-                else setMessage(`The campaign did not start: ${started.error ?? "no campaign id returned"}`);
-              }}>Run the campaign (P6)</button>
-            )}
-          </div>
-          {signed && <p className="muted" style={{ fontSize: 13 }} data-testid="map-signed">MAP v{view.map?.map_version ?? view.map?.version} signed{signature ? `: ${signature.manifestation}` : ""} · {view.map?.map_sha256.slice(0, 12)}{view.map?.supersedes ? " · supersedes the earlier version" : ""}</p>}
-          {signed && pendingDeviations.length > 0 && (
-            <div className="banner warn" data-testid="deviations-pending" style={{ marginTop: 8 }}>
-              <strong>MAP deviations pending signature (D-14, ICH M15 §4.2).</strong> They apply to campaigns once the MIDD
-              lead signs them into a new MAP version; until then the signed MAP stands.
-              <ul className="plain" style={{ marginTop: 6 }}>
-                {pendingDeviations.map((d, i) => <li key={i}><code>{d.target}</code> {d.change} — {d.reason}</li>)}
-              </ul>
-            </div>
-          )}
-          {signed && !pendingDeviations.length && (
-            <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>A change now is a MAP deviation: it is recorded and
-              waits for the MIDD lead&apos;s signature.</p>
-          )}
-          {message && <div className="banner ok" style={{ marginTop: 8 }}>{message}</div>}
-        </Card>
-        <nav className="tabs" aria-label="Diagrams">
-          {TABS.map((t) => <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t}</button>)}
-        </nav>
-        <Card title={tab}>
-          {tab === TABS[0] && <D3Dag view={view} onDrop={onDrop}
-                                     onLayout={(layout) => void apply(() => planApi.layout(projectId, layout))} />}
-          {tab === TABS[1] && <D1Disposition view={view} onFit={(pid, fit) => apply(() => planApi.fit(projectId, pid, fit))}
-                                             onUnfit={(pid, reason) => apply(() => planApi.unfit(projectId, pid, reason))} />}
-          {tab === TABS[2] && <D2Absorption view={view} onFit={(pid, fit) => apply(() => planApi.fit(projectId, pid, fit))}
-                                            onUnfit={(pid, reason) => apply(() => planApi.unfit(projectId, pid, reason))}
-                                            onStructure={(key, value, reason) => apply(() => planApi.structure(projectId, key, value, reason))} />}
-        </Card>
-        <div className="cols-2">
-          <Card title="Live validator (MS-01)">
-            <ValidatorPanel view={view} onAcknowledge={(id, reason) => apply(() => planApi.acknowledge(projectId, id, reason))} />
-          </Card>
-          <Card title="Changes from the MS-01 default">
-            <DiffView rows={view.diff} onDecide={(id, accept, reason) => apply(() => planApi.decide(projectId, id, accept, reason))} />
-            {view.plan.default_rationale.length > 0 && (
-              <details style={{ marginTop: 8 }}><summary className="muted">MS-01 split rationale and limitations</summary>
-                <ul className="flags">{[...view.plan.default_rationale, ...view.plan.default_limitations].map((r) => <li key={r}>{r}</li>)}</ul>
-              </details>
-            )}
-          </Card>
         </div>
+        {!canSign && !signed && view.blocking > 0 && (
+          <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+            <a href="#review-validator">The live validator</a> lists what is still open.</p>
+        )}
+        {signed && <p className="muted" style={{ fontSize: 13 }} data-testid="map-signed">MAP v{view.map?.map_version ?? view.map?.version} signed{signature ? `: ${signature.manifestation}` : ""} · {view.map?.map_sha256.slice(0, 12)}{view.map?.supersedes ? " · supersedes the earlier version" : ""}</p>}
+        {signed && pendingDeviations.length > 0 && (
+          <div className="banner warn" data-testid="deviations-pending" style={{ marginTop: 8 }}>
+            <strong>MAP deviations pending signature (D-14, ICH M15 §4.2).</strong> They apply to campaigns once the MIDD
+            lead signs them into a new MAP version; until then the signed MAP stands.
+            <ul className="plain" style={{ marginTop: 6 }}>
+              {pendingDeviations.map((d, i) => <li key={i}><code>{d.target}</code> {d.change} — {d.reason}</li>)}
+            </ul>
+          </div>
+        )}
+        {signed && !pendingDeviations.length && (
+          <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>A change now is a MAP deviation: it is recorded and
+            waits for the MIDD lead&apos;s signature.</p>
+        )}
+        {message && <div className="banner ok" style={{ marginTop: 8 }}>{message}</div>}
+      </Card>
+      <nav className="review-nav" aria-label="Review sections">
+        <a href="#review-studies">Studies and roles</a><a href="#review-inputs">The inputs</a>
+        <a href="#review-credibility">Credibility</a><a href="#review-validator">Validator and changes</a>
+      </nav>
+      <section className="review-block" id="review-studies" aria-labelledby="review-studies-title">
+        <h2 id="review-studies-title">Studies and roles</h2>
+        <div className="plan-layout">
+          <aside className="overall-data" data-testid="overall-data" aria-label="Overall Data"
+                 onDragOver={(e) => { if (e.dataTransfer.types.includes(STUDY_MIME)) e.preventDefault(); }}>
+            <h2>Overall Data</h2>
+            <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>CPF v1 and the study catalog. Drag a dataset onto a D3 node, an arrow or the training layer.</p>
+            <h3>Datasets ({studies.length})</h3>
+            {studies.map((s) => (
+              <div key={s.study_id} className="overall-study">
+                <StudyChip s={s} view={view} />
+                <div className="muted" style={{ fontSize: 11 }}>{s.route.replace("_", " ")} · {s.dose_mg} mg · {s.food_state} · {s.design} · n {s.n} → {s.role}</div>
+              </div>
+            ))}
+            <BlindingPanel projectId={projectId} />
+            <h3>Dissolution</h3>
+            {view.d2.dissolution.length ? view.d2.dissolution.map((d) => <div key={d.id} className="muted" style={{ fontSize: 12 }}>◆ {d.label}</div>)
+              : <p className="muted" style={{ fontSize: 12 }}>none</p>}
+            <h3>CPF v1 ({view.overall_data.parameters.length})</h3>
+            <ul className="param-list">
+              {view.overall_data.parameters.map((p) => (
+                <li key={p.id}><code>{p.id}</code> {typeof p.value === "number" ? +p.value.toPrecision(4) : String(p.value)} {p.unit ?? ""}</li>
+              ))}
+            </ul>
+          </aside>
+          <section className="plan-main">
+            <nav className="tabs" aria-label="Diagrams">
+              {TABS.map((t) => <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t}</button>)}
+            </nav>
+            <Card title={tab}>
+              {tab === TABS[0] && <D3Dag view={view} onDrop={onDrop}
+                                         onLayout={(layout) => void apply(() => planApi.layout(projectId, layout))} />}
+              {tab === TABS[1] && <D1Disposition view={view} onFit={(pid, fit) => apply(() => planApi.fit(projectId, pid, fit))}
+                                                 onUnfit={(pid, reason) => apply(() => planApi.unfit(projectId, pid, reason))} />}
+              {tab === TABS[2] && <D2Absorption view={view} onFit={(pid, fit) => apply(() => planApi.fit(projectId, pid, fit))}
+                                                onUnfit={(pid, reason) => apply(() => planApi.unfit(projectId, pid, reason))}
+                                                onStructure={(key, value, reason) => apply(() => planApi.structure(projectId, key, value, reason))} />}
+            </Card>
+          </section>
+        </div>
+        {review.data && <StudiesTable projectId={projectId} review={review.data} run={mutation.run} busy={mutation.busy} />}
       </section>
+      <section className="review-block" id="review-inputs" aria-labelledby="review-inputs-title">
+        <h2 id="review-inputs-title">The inputs</h2>
+        <p className="muted review-lede">Every value the model takes, with the source the CPF keeps. Exclude a value with a reason:
+          the next source takes its place, and the plan asks to be brought up to date.</p>
+        {review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue>
+          : review.data ? <ReviewTable projectId={projectId} review={review.data} run={mutation.run} busy={mutation.busy} />
+            : <p className="muted">Loading the review…</p>}
+      </section>
+      <section className="review-block" id="review-credibility" aria-labelledby="review-credibility-title">
+        <h2 id="review-credibility-title">Credibility (ICH M15)</h2>
+        {review.data ? <Credibility projectId={projectId} view={view} review={review.data} apply={apply} />
+          : review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue> : <p className="muted">Loading…</p>}
+      </section>
+      <div className="cols-2" id="review-validator">
+        <Card title="Live validator (MS-01)">
+          <ValidatorPanel view={view} onAcknowledge={(id, reason) => apply(() => planApi.acknowledge(projectId, id, reason))} />
+        </Card>
+        <Card title="Changes from the MS-01 default">
+          <DiffView rows={view.diff} onDecide={(id, accept, reason) => apply(() => planApi.decide(projectId, id, accept, reason))} />
+          {view.plan.default_rationale.length > 0 && (
+            <details style={{ marginTop: 8 }}><summary className="muted">MS-01 split rationale and limitations</summary>
+              <ul className="flags">{[...view.plan.default_rationale, ...view.plan.default_limitations].map((r) => <li key={r}>{r}</li>)}</ul>
+            </details>
+          )}
+        </Card>
+      </div>
       {pending && (
         <DropDialog pending={pending} onCancel={() => setPending(null)}
                     onConfirm={async (reason) => {
@@ -299,6 +336,6 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
                       return error;
                     }} />
       )}
-    </div>
+    </PageShell>
   );
 }
