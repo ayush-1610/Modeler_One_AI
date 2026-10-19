@@ -48,7 +48,8 @@ def test_one_upload_starts_the_project_with_its_proposal_and_the_clients_files(h
     assert refused["id"] is None and "unsupported" in refused["problem"]          # reported; the project still starts
     page = http.get(f"/api/v1/projects/{pid}/start", headers=DEV).json()["data"]
     assert [f["file"] for f in page["client_files"]] == ["ModelerOne_ClientData.xlsx"]
-    assert {d["role"] for d in page["documents"]} == {"proposal", "client_file"}
+    # the viewer opens on the first document: the proposal, whatever the files' hashes, and the client's files last
+    assert [d["role"] for d in page["documents"]] == ["proposal", "client_file"]
     client = http.get(f"/api/v1/projects/{pid}/client-data", headers=DEV).json()["data"]   # in Inputs at once
     assert [f["file"] for f in client["files"]] == ["ModelerOne_ClientData.xlsx"]
 
@@ -94,3 +95,15 @@ def test_a_product_the_builder_cannot_model_is_refused_at_start(http):
     assert [g["id"] for g in refused] == ["scope.formulation_types"]
     assert page["state"] == "needs_you" and page["missing"] == [refused[0]["message"]]
     assert refused[0]["message"].startswith("Not supported yet: Delayed-release (enteric-coated)")
+
+
+def test_the_viewer_opens_on_the_proposal_whatever_the_files_hashes(http):
+    import hashlib
+
+    csv = b"study_id,time_h,conc_ng_ml\nEX-101,1,30.4\n"
+    assert hashlib.sha256(csv).hexdigest() < hashlib.sha256(PROPOSAL).hexdigest()   # listed first by id otherwise
+    answer = http.post("/api/v1/projects:initiate", headers=DEV, data={"drug_name": "Exampleamide", "extract": "false"},
+                       files=[("files", ("proposal.txt", PROPOSAL, "text/plain")),
+                              ("client_files", ("client-pk.csv", csv, "text/csv"))])
+    page = http.get(f"/api/v1/projects/{answer.json()['data']['project_id']}/start", headers=DEV).json()["data"]
+    assert [(d["name"], d["role"]) for d in page["documents"]] == [("proposal.txt", "proposal"), ("client-pk.csv", "client_file")]

@@ -458,6 +458,17 @@ def _scenario(brief: ProjectBrief, index: int, warnings: dict[str, list[str]]) -
             "notes": _scenario_notes(brief, index)}
 
 
+# The order Start lists documents in, so its viewer opens on the proposal: the proposal and what was given with it, the
+# records retrieved for the identity, then the client's files (they are read in Inputs).
+_START_ROLES = ("proposal", "annex", "context", "retrieved_record", "paper", "other", "client_file")
+
+
+def _start_documents(ws: Workspace) -> list[dict[str, Any]]:
+    views = [_document_view(d) for d in DocumentLibrary(ws).documents()]
+    rank = {role: i for i, role in enumerate(_START_ROLES)}
+    return sorted(views, key=lambda d: (rank.get(d["role"], len(rank)), d["uploaded_at"]))
+
+
 def _start_view(ws: Workspace) -> dict[str, Any]:
     version = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
     if version is None:
@@ -488,7 +499,7 @@ def _start_view(ws: Workspace) -> dict[str, Any]:
         "note_groups": [_note_group(brief, g, warnings) for g in start.NOTE_GROUPS]
                        + [_note_group(brief, "scenarios", {}, skip=start.SCENARIO_FIELDS)],
         "checklist": checklist.model_dump(mode="json"),
-        "documents": [_document_view(d) for d in DocumentLibrary(ws).documents()],
+        "documents": _start_documents(ws),
         "client_files": [{"id": f["id"], "file": f["file"], "template": f["template"]} for f in submissions(ws)],
         "agents": agent_jobs.agents_status(),
         "extraction_running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "extraction"),

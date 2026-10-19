@@ -27,6 +27,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
          cannot be read is reported with the reason, and the project still starts.
        - The PubChem identity with the structure check, and one molecular weight (the free base's). A failed lookup is
          now a question on the CID.
+       - The document viewer opens on the proposal: Start lists the proposal's documents first and the client's files
+         last, whatever the files' hashes (documents are stored by hash, and a client CSV listed first broke the
+         browser flow in CI).
     2. **The short brief**, each value with its quote in the document viewer:
        - the question, its context of use and the applications;
        - **the ICH M15 ratings** of model influence and decision consequence (new, person-only fields). They bound
@@ -73,7 +76,7 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - **API contract:** `GET /projects/{id}/start` added, the two approvals removed, and `ProjectStarted.client_files`
     added. `docs/api/openapi.json` and the web types are regenerated.
   - **Tests:**
-    - new: `packages/project-model/tests/test_start.py` (11) and `services/api/tests/test_start_api.py` (3);
+    - new: `packages/project-model/tests/test_start.py` (11) and `services/api/tests/test_start_api.py` (4);
     - rewritten: the brief, steps and data-plan tests;
     - `start-project.spec.ts` rewritten for the new screen, plus a redirect flow.
     - Here: 1367 passed, 23 skipped. 14 failed only because this sandbox cannot download Temporal's test server
