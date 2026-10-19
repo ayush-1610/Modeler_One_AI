@@ -1,5 +1,5 @@
 // The P1 data plan (plan §7): the requirement matrix and the feasibility report are stored content the API sends as open
-// objects (`RequirementsPage`); they are typed here once, for the old data-plan page and the Start checklist.
+// objects (`RequirementsPage`); they are typed here once, for the Start checklist.
 
 import type { Narrow, Schema } from "./api";
 

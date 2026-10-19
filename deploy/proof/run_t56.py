@@ -7,15 +7,16 @@
     uv run python deploy/proof/run_t56.py trace   --api … --token … --project <id> --campaign <cid> --out out/t56
 
 **prepare** (P0 → P3 proposals): the project starts from the mock proposal (`dapagliflozin/proposal.md`); the brief is
-filled by hand from it (the manual path, each field citing the proposal's section); the data plan is derived; every
+filled by hand from it (the manual path, each field citing the proposal's section), and the data plan follows it; every
 parameter of the published OSP Dapagliflozin model is proposed as evidence citing the model (`OSP_LIBRARY`, its
 ValueOrigin text as the quote); every clinical dataset the model carries is proposed with its publication and figure;
 the fed study Kasichayanula 2011a is delivered in the client-data template as the "client" study. Nothing is accepted.
 
 **accept** (the owner's decisions, run only by the owner with their own name): every item `prepare` proposed is
-accepted with its reason, the gates P1–P4 are approved, and P5 is drafted: the MS-01 default plan, one fasted dose level
-moved to external validation (Appendix A step 6), the validator's warnings acknowledged. It stops before the MAP
-signature: a Part 11 signature is a person's act in the web app (step-up), never a script's.
+accepted with its reason, the gates P2–P4 are approved (Start has none: the brief and its data checklist are never
+approved, D-27), and P5 is drafted: the MS-01 default plan, one fasted dose level moved to external validation
+(Appendix A step 6), the validator's warnings acknowledged. It stops before the MAP signature: a Part 11 signature is
+a person's act in the web app (step-up), never a script's.
 
 **trace** (the T-56 acceptance, "a reviewer can trace every number in the MAR to its source"): every parameter of the
 campaign's final CPF to its evidence item and source or to the fit that produced it, every judged study to its dataset
@@ -68,10 +69,17 @@ BRIEF = (
     ("qoi.context_of_use", ("Predict fed versus fasted exposure of the 10 mg IR tablet in healthy adults to support the "
                             "food-effect discussion; it does not replace a clinical food-effect study"), "§2"),
     ("qoi.applications", ["APP-01 model build and verification", "APP-12 food effect"], "§1–2"),
-    # the ICH M15 model risk is the person's rating, never assumed (a plan without one cannot be signed): a food-effect
-    # discussion that does not replace the clinical study is medium influence, medium consequence
+    # the ICH M15 ratings and model risk are the person's, never assumed (a plan without a risk cannot be signed): a
+    # food-effect discussion that does not replace the clinical study is medium influence, medium consequence
+    ("m15.influence_rating", "medium", "the person's ICH M15 rating (§2: supports, does not replace, the clinical study)"),
+    ("m15.consequence_rating", "medium", "the person's ICH M15 rating (§2: a label discussion, not a dosing decision)"),
     ("acceptance.tier", "medium", "the person's ICH M15 rating (§2: supports, does not replace, the clinical study)"),
+    # the scope gates of D-28: a full PBPK model of a systemic small molecule, an IR tablet
+    ("scope.pbpk_model", "full", "§1 (a PBPK model in PK-Sim)"),
+    ("scope.site_of_action", "systemic", "§2 (exposure: AUC, Cmax)"),
+    ("scope.formulation_types", ["ir_tablet"], "§3"),
     ("scope.platform", "PK-Sim (Open Systems Pharmacology Suite)", "§1"),
+    ("scope.pathways", ["hepatic_metabolism", "renal_filtration"], "§6"),
     ("scope.pathways_stated", ["UGT1A9 glucuronidation", "renal (glomerular filtration)"], "§6"),
     ("products[0].name", "Dapagliflozin 10 mg IR tablet", "§3"),
     ("products[0].role", "TEST", "§3"),
@@ -238,8 +246,10 @@ def prepare(api: Api, log=print) -> dict[str, Any]:
     changes = [{"path": path, "status": "EDITED", "value": value, "note": f"mock proposal {section}"}
                for path, value, section in BRIEF]
     api.put(f"/api/v1/projects/{pid}/brief", "P1 brief", json={"changes": changes, "reason": "filled by hand from the mock proposal"})
-    api.post(f"/api/v1/projects/{pid}/requirements:derive", "P1 data plan")
-    log(f"P1  brief filled ({len(BRIEF)} fields, each citing the proposal); data plan derived")
+    steps = {s["step"]: s for s in api.get(f"/api/v1/projects/{pid}/steps", "steps")["steps"]}
+    if steps["start"]["state"] != "done":
+        raise RuntimeError("Start still needs: " + "; ".join(steps["start"]["reasons"]))
+    log(f"P1  brief filled ({len(BRIEF)} fields, each citing the proposal); the data plan follows it; Start done")
 
     ids = requirement_ids(api, pid)
     proposed = {"evidence": [], "datasets": [], "processes": {}, "requirements": ids}
@@ -268,12 +278,10 @@ def prepare(api: Api, log=print) -> dict[str, Any]:
 def accept(api: Api, pid: str, prepared: dict[str, Any], *, name: str, log=print) -> dict[str, Any]:
     """The owner's decisions on what `prepare` proposed, up to the MAP signature (which is the owner's, in the UI)."""
     reason = f"accepted by {name} ({KIT_NOTE}): taken verbatim from the published OSP Dapagliflozin model, cited"
-    api.post(f"/api/v1/projects/{pid}/brief:approve", "P1 brief approval", json={"note": f"approved by {name}"})
     release = prepared["proposed"]["requirements"].get("REQ-form.release", "REQ-form.release")
     api.put(f"/api/v1/projects/{pid}/requirements/{release}", "P1 release model from the literature",
             json={"provider": "LITERATURE", "reason": "no measured dissolution profile is public; the tablet's release "
                                                        "(Weibull) is taken from the published model"})
-    api.post(f"/api/v1/projects/{pid}/requirements:approve", "P1 data plan approval", json={"note": f"approved by {name}"})
     for item in prepared["proposed"]["evidence"]:
         numeric = isinstance(item["value"], int | float)
         body = {"state": "ACCEPTED", "reason": reason,

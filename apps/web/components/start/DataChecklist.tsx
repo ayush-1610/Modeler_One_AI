@@ -1,11 +1,18 @@
 "use client";
 
+import { useState } from "react";
+
 import { DataTable, EmptyState, InlineIssue, type Column } from "@/components/kit";
 import { Block } from "@/components/start/Blocks";
-import type { Schema } from "@/lib/api";
+import { send, type Schema } from "@/lib/api";
 import type { FeasibilityLine, Item, PlanView } from "@/lib/data-plan";
+import type { useMutation } from "@/lib/hooks";
 
 type Reconciled = Schema<"ReconciledRow">;
+type Provider = NonNullable<Schema<"OverrideRequest">["provider"]>;
+// who a person may say provides an item (the data plan's override, kept across re-derivations)
+const PROVIDERS: Provider[] = ["CLIENT", "LITERATURE", "SPONSOR_TO_MEASURE", "PREDICT", "STRUCTURE", "LIBRARY", "STUDY",
+                               "PROPOSAL", "NOT_NEEDED"];
 
 const PROVIDER_LABEL: Record<string, string> = {
   CLIENT: "client", LITERATURE: "literature", SPONSOR_TO_MEASURE: "sponsor to measure", PREDICT: "predicted",
@@ -20,11 +27,21 @@ const ARRIVED: Record<string, { label: string; tone: string }> = {
 const GATE_PATHS = new Set(["drug.modality", "scope.pbpk_model", "scope.site_of_action", "scope.formulation_types"]);
 
 /** Block 5: the data checklist, derived from the brief whenever it changes (no button, no approval). Each item says who
- *  provides it; what the client is expected to send is ticked off as their files arrive; what the builder cannot
- *  provide yet is said inline. */
-export function DataChecklist({ plan, planProblem, reconciliation }: {
-  plan: PlanView | null; planProblem: string | null; reconciliation: Reconciled[] | null;
+ *  provides it, changed in place (map rows p1-provider, p1-crosscheck: a person's choice is kept across re-derivations);
+ *  what the client is expected to send is ticked off as their files arrive; what the builder cannot provide yet is
+ *  said inline. */
+export function DataChecklist({ projectId, plan, planProblem, reconciliation, run, busy }: {
+  projectId: string; plan: PlanView | null; planProblem: string | null; reconciliation: Reconciled[] | null;
+  run: ReturnType<typeof useMutation>["run"]; busy: boolean;
 }) {
+  const [problem, setProblem] = useState<string | null>(null);
+  async function change(item: Item, body: { provider?: Provider; cross_check?: boolean }) {
+    const what = body.provider ? `provided by ${PROVIDER_LABEL[body.provider] ?? body.provider.toLowerCase()}`
+      : body.cross_check ? "cross-checked in the literature" : "no literature cross-check";
+    const { problem: refused } = await run(() => send("put", "/api/v1/projects/{project_id}/requirements/{req_id}",
+      { project_id: projectId, req_id: item.req_id }, { ...body, reason: `${item.label}: ${what} (set at Start)` }));
+    setProblem(refused);
+  }
   if (!plan) {
     return (
       <Block n={5} title="The data checklist" testId="start-checklist">
@@ -43,9 +60,19 @@ export function DataChecklist({ plan, planProblem, reconciliation }: {
       <span data-testid={`check-${i.req_id}`}>{i.label}{i.criticality === "REQUIRED" ? "" : <span className="muted"> · {i.criticality.toLowerCase()}</span>}
         {i.applies === "undetermined" && <span className="muted"> · depends on the brief</span>}</span>) },
     { key: "from", label: "From", render: (i) => (
-      <span className="row" style={{ gap: 4 }}>
-        <span className="chip neutral">{PROVIDER_LABEL[i.provider] ?? i.provider.toLowerCase()}</span>
-        {i.cross_check && <span className="chip brand" title="the client's value is checked against the literature">cross-check</span>}
+      <span className="check-from">
+        <select aria-label={`Who provides ${i.label}`} value={i.provider} disabled={busy} data-testid={`provider-${i.req_id}`}
+                title={i.provider_source === "override" ? "set by a person" : i.provider_statement
+                  ? `the proposal: “${i.provider_statement}”` : "the template's default"}
+                onChange={(e) => change(i, { provider: e.target.value as Provider })}>
+          {[...new Set([i.provider, ...PROVIDERS])].map((p) => <option key={p} value={p}>{PROVIDER_LABEL[p] ?? p.toLowerCase()}</option>)}
+        </select>
+        {i.provider === "CLIENT" && (
+          <label title="the client's value is checked against the literature">
+            <input type="checkbox" checked={i.cross_check} disabled={busy} data-testid={`cross-check-${i.req_id}`}
+                   onChange={(e) => change(i, { cross_check: e.target.checked })} /> cross-check
+          </label>
+        )}
       </span>) },
     { key: "arrived", label: "Status", render: (i) => {
       const row = arrived.get(i.req_id);
@@ -58,6 +85,7 @@ export function DataChecklist({ plan, planProblem, reconciliation }: {
   return (
     <Block n={5} title="The data checklist" testId="start-checklist"
            lede={<>Derived from the brief, and kept up to date as it changes: {counts.map(([p, n]) => `${n} ${PROVIDER_LABEL[p] ?? p.toLowerCase()}`).join(" · ")}.</>}>
+      {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
       {warnings.map((l) => (
         <InlineIssue key={l.feature} severity={l.status === "LIMITED" ? "warn" : "error"} testId="checklist-warning">
           <strong>{l.feature}</strong>: {l.route}

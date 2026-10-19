@@ -1,4 +1,4 @@
-"""P1 answers of `requirements_api`: the data plan page."""
+"""Answers of `requirements_api`: the data checklist (the requirement matrix) with its feasibility report."""
 
 from __future__ import annotations
 
@@ -19,4 +19,3 @@ class RequirementsPage(View):
     matrix: dict[str, Any]
     counts: RequirementCounts
     feasibility: dict[str, Any]
-    brief_status: str | None

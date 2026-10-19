@@ -32,6 +32,12 @@ _PATHWAY_WORDS = {
     "hepatic": ("hepatic", "liver", "cyp", "ugt", "metaboli"),
     "transporter": ("transporter", "oatp", "p-gp", "pgp", "bcrp", "oct", "mate"),
 }
+# The pathway classes the templates' `pathway` conditions name, for each kind picked in the brief's `scope.pathways`: a
+# brief that names only enzymes ("UGT1A9") still says whether the drug is cleared renally.
+_PATHWAY_CLASSES = {
+    "hepatic_metabolism": ("hepatic",), "gut_wall_metabolism": ("hepatic",), "renal_filtration": ("renal",),
+    "renal_secretion": ("renal", "secretion"), "biliary_excretion": ("biliary",), "transporter_mediated": ("transporter",),
+}
 
 
 class RequirementOverride(BaseModel):
@@ -152,8 +158,11 @@ def evaluate_when(when: dict[str, Any] | None, brief: ProjectBrief) -> bool | No
             bcs = brief.value("drug.bcs_class")
             results.append(None if bcs in (None, "unknown") else bcs in wanted)
         elif key == "pathway":
+            picked = brief.value("scope.pathways") or []
+            chosen = {c for code in picked for c in _PATHWAY_CLASSES.get(code, ())}
             text = " ".join(map(str, brief.value("scope.pathways_stated") or [])).lower()
-            results.append(any(w in text for p in wanted for w in _PATHWAY_WORDS.get(p, (p,))) if text else None)
+            stated = {p for p in wanted if any(w in text for w in _PATHWAY_WORDS.get(p, (p,)))}
+            results.append(bool((chosen | stated) & set(wanted)) if picked or text else None)
         elif key == "nonlinear":
             text = brief.value("scope.nonlinearity")
             results.append(None if text is None else bool(str(text).strip()) == bool(wanted))

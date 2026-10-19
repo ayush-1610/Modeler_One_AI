@@ -1,14 +1,15 @@
 """P0 initiate and P1 Project Brief (plan §5.2, review layer L1; task T-41).
 
-P0: ``POST /projects:initiate`` takes the drug name, optional context and the technical proposal (any number of PDF,
-Word, Markdown, text, CSV or Excel files), creates the project, stores every file as a DOCUMENT artifact with
-quotable pages, writes the brief's first version (the drug name as entered, everything else missing) and starts
-the extraction. Extraction resolves the drug's identity (PubChem, RDKit cross-check) and, when an LLM provider is
+P0: ``POST /projects:initiate`` takes the drug name, optional context, the technical proposal (any number of PDF,
+Word, Markdown, text, CSV or Excel files) and the client's data files, in one upload. It creates the project, stores
+every proposal file as a DOCUMENT artifact with quotable pages, writes the brief's first version (the drug name as
+entered, everything else missing), reads the client's files into Inputs as an upload there would, and starts the
+extraction. Extraction resolves the drug's identity (PubChem, RDKit cross-check) and, when an LLM provider is
 configured (D-16), runs agent A1, whose every value is checked by code before it enters the brief. Without a
 provider the brief is filled by hand on the same page: every step has a manual path.
 
-P1: the brief is edited field by field, questions are answered or accepted as limitations, and the brief is approved by
-a named reviewer (D-07: a simple approval, "Reviewed") once nothing blocks it.
+P1: the brief is edited field by field, and questions are answered or accepted as limitations. Nothing is approved
+(D-27): the one review is the MAP signature in Review & sign.
 
 Start (redesign §3.1, D-27): no edit asks why (the record keeps who and when, the audit the value before and after),
 the data plan follows every saved brief with no button, and the answer carries what Start still needs: the scope gates
@@ -54,9 +55,11 @@ from modeler_project.brief import (
     validate_brief,
 )
 from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, resolve_identity, save_brief, summary
+from modeler_project.client_data import ingest
 from modeler_project.data_plan import refresh_data_plan
 from modeler_project.documents import DocumentLibrary, document_record
 from modeler_project.feasibility import pathway_suggestions, scope_gates
+from modeler_project.requirements import RequirementMatrix
 from modeler_project.steps import start_problems
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord
@@ -178,17 +181,21 @@ async def initiate_project(
     principal: Writer, store: StoreDep, projects: ProjectsDep, settings: SettingsDep,
     drug_name: Annotated[str, Form(min_length=1)],
     files: Annotated[list[UploadFile], File()] = [],  # noqa: B006 - FastAPI's form-file default
+    client_files: Annotated[list[UploadFile], File()] = [],  # noqa: B006
     name: Annotated[str, Form()] = "",
     context: Annotated[str, Form()] = "",
     extract: Annotated[bool, Form()] = True,
 ) -> dict[str, Any]:
-    """P0: create the project from the drug name and the technical proposal, then start the extraction."""
+    """P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows
+    p0-files and p3-upload), then start the extraction. A client file that cannot be read is answered with the reason;
+    the project still starts."""
     read, write = projects
     title = name.strip() or f"{drug_name.strip()} PBPK"
     project_id = _slug(title)
     if read.get_project(principal.tenant_id, project_id) is not None:
         project_id = f"{project_id}-{uuid.uuid4().hex[:4]}"
     payloads = [(f.filename or "upload", await f.read()) for f in files]
+    client_payloads = [(f.filename or "client-file", await f.read()) for f in client_files]
     if not payloads and not context.strip():
         raise HTTPException(status_code=422, detail="upload the technical proposal (or at least describe the project)")
     ws = Workspace(store, principal.tenant_id, project_id)
@@ -209,9 +216,23 @@ async def initiate_project(
     version = save_brief(ws, brief, actor=principal.user_id, reason="project started",
                          derived_from=[d.ref for d in documents])
     refresh_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
+    read_files = [_read_client_file(ws, library, brief, filename, data, by=principal.user_id)
+                  for filename, data in client_payloads]
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     return envelope({"project_id": project_id, "name": title, "documents": [_document_view(d) for d in documents],
-                     "brief_version": version.version, "extraction": extraction})
+                     "client_files": read_files, "brief_version": version.version, "extraction": extraction})
+
+
+def _read_client_file(ws: Workspace, library: DocumentLibrary, brief: ProjectBrief, filename: str, data: bytes, *,
+                      by: str) -> dict[str, Any]:
+    """One client file given at project start, read into Inputs like an upload there (`client_data.ingest`)."""
+    version = ws.latest(ArtifactKind.REQUIREMENTS, "main")
+    matrix = RequirementMatrix.from_content(version.content) if version else None
+    try:
+        read = ingest(ws, library, data, filename, by=by, matrix=matrix, brief=brief)
+    except (DocumentError, ValueError) as exc:
+        return {"file": filename, "id": None, "template": False, "problem": str(exc)}
+    return {"file": read["file"], "id": read["id"], "template": read["template"], "problem": None}
 
 
 # --- documents -----------------------------------------------------------------------------------------------
@@ -387,33 +408,6 @@ def answer_question(project_id: str, question_id: str, body: QuestionAnswer, pri
     updated = current.model_copy(update={"questions": questions})
     save_brief(ws, updated, actor=principal.user_id, reason=f"question {question_id} {body.status.replace('_', ' ')}")
     refresh_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
-    return envelope(_brief_view(ws))
-
-
-class Approval(BaseModel):
-    note: str = ""
-
-
-@router.post("/projects/{project_id}/brief:approve", **answers(BriefPage))
-def approve_brief(project_id: str, body: Approval, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """L1 gate (D-07: a named approval, meaning "Reviewed"): refused while anything blocks the brief."""
-    ws = workspace_for(project_id, principal, store)
-    version = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
-    if version is None:
-        raise HTTPException(status_code=404, detail="no brief")
-    issues = validate_brief(ProjectBrief.from_content(version.content))
-    if issues:
-        raise HTTPException(status_code=409, detail={"code": "BRIEF_NOT_READY", "issues": [
-            {"code": i.code, "path": i.path, "message": i.message} for i in issues]})
-    try:
-        ws.approve(version.ref, by=principal.user_id, printed_name=principal.printed_name, meaning="Reviewed",
-                   note=body.note)
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    # The data plan follows from the approved brief (plan §5.2 P1): derived at once, reviewed on the next tab.
-    from modeler_project.data_plan import derive_data_plan
-
-    derive_data_plan(ws, actor="system", reason="derived from the approved brief")
     return envelope(_brief_view(ws))
 
 

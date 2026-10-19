@@ -15,10 +15,21 @@ class ExtractionStart(View):
     problem: str | None
 
 
+class ClientFileStarted(View):
+    """A client file given at project start: read into Inputs at once (a filled template), triaged, or refused with the
+    reason."""
+
+    file: str
+    id: str | None
+    template: bool
+    problem: str | None
+
+
 class ProjectStarted(View):
     project_id: str
     name: str
     documents: list[DocumentView]
+    client_files: list[ClientFileStarted]
     brief_version: int
     extraction: ExtractionStart | None
 

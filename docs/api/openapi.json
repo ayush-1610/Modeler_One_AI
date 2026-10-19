@@ -175,17 +175,6 @@
         "title": "ApplicationRequest",
         "type": "object"
       },
-      "Approval": {
-        "properties": {
-          "note": {
-            "default": "",
-            "title": "Note",
-            "type": "string"
-          }
-        },
-        "title": "Approval",
-        "type": "object"
-      },
       "ApprovalView": {
         "additionalProperties": false,
         "properties": {
@@ -239,17 +228,6 @@
           "note"
         ],
         "title": "ApprovalView",
-        "type": "object"
-      },
-      "ApproveRequest": {
-        "properties": {
-          "note": {
-            "default": "",
-            "title": "Note",
-            "type": "string"
-          }
-        },
-        "title": "ApproveRequest",
         "type": "object"
       },
       "ArtifactKind": {
@@ -603,6 +581,15 @@
       },
       "Body_initiate_project_api_v1_projects_initiate_post": {
         "properties": {
+          "client_files": {
+            "default": [],
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "title": "Client Files",
+            "type": "array"
+          },
           "context": {
             "default": "",
             "title": "Context",
@@ -1780,6 +1767,50 @@
           "running"
         ],
         "title": "ClientDataPage",
+        "type": "object"
+      },
+      "ClientFileStarted": {
+        "additionalProperties": false,
+        "description": "A client file given at project start: read into Inputs at once (a filled template), triaged, or refused with the\nreason.",
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "template": {
+            "title": "Template",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file",
+          "id",
+          "template",
+          "problem"
+        ],
+        "title": "ClientFileStarted",
         "type": "object"
       },
       "ClientUpload": {
@@ -10500,6 +10531,13 @@
             "title": "Brief Version",
             "type": "integer"
           },
+          "client_files": {
+            "items": {
+              "$ref": "#/components/schemas/ClientFileStarted"
+            },
+            "title": "Client Files",
+            "type": "array"
+          },
           "documents": {
             "items": {
               "$ref": "#/components/schemas/DocumentView"
@@ -10530,6 +10568,7 @@
           "project_id",
           "name",
           "documents",
+          "client_files",
           "brief_version",
           "extraction"
         ],
@@ -11429,17 +11468,6 @@
           "artifact": {
             "$ref": "#/components/schemas/VersionView"
           },
-          "brief_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Brief Status"
-          },
           "counts": {
             "$ref": "#/components/schemas/RequirementCounts"
           },
@@ -11458,8 +11486,7 @@
           "artifact",
           "matrix",
           "counts",
-          "feasibility",
-          "brief_status"
+          "feasibility"
         ],
         "title": "RequirementsPage",
         "type": "object"
@@ -17002,75 +17029,6 @@
         ]
       }
     },
-    "/api/v1/projects/{project_id}/brief:approve": {
-      "post": {
-        "description": "L1 gate (D-07: a named approval, meaning \"Reviewed\"): refused while anything blocks the brief.",
-        "operationId": "approve_brief_api_v1_projects__project_id__brief_approve_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Approval"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_BriefPage_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Approve Brief",
-        "tags": [
-          "brief"
-        ]
-      }
-    },
     "/api/v1/projects/{project_id}/brief:extract": {
       "post": {
         "operationId": "extract_brief_api_v1_projects__project_id__brief_extract_post",
@@ -20940,75 +20898,6 @@
         ]
       }
     },
-    "/api/v1/projects/{project_id}/requirements:approve": {
-      "post": {
-        "description": "Closes P1 with the brief (D-07: named approval). The brief must be approved first and the plan up to date.",
-        "operationId": "approve_requirements_api_v1_projects__project_id__requirements_approve_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApproveRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_RequirementsPage_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Approve Requirements",
-        "tags": [
-          "requirements"
-        ]
-      }
-    },
     "/api/v1/projects/{project_id}/requirements:derive": {
       "post": {
         "operationId": "derive_requirements_api_v1_projects__project_id__requirements_derive_post",
@@ -21450,7 +21339,7 @@
     },
     "/api/v1/projects:initiate": {
       "post": {
-        "description": "P0: create the project from the drug name and the technical proposal, then start the extraction.",
+        "description": "P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows\np0-files and p3-upload), then start the extraction. A client file that cannot be read is answered with the reason;\nthe project still starts.",
         "operationId": "initiate_project_api_v1_projects_initiate_post",
         "parameters": [
           {

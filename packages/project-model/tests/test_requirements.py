@@ -121,3 +121,17 @@ def test_the_data_plan_service_derives_from_the_latest_brief_and_keeps_overrides
     feasibility = ws.latest(ArtifactKind.FEASIBILITY, "main")
     assert feasibility.content == check(_vbe_brief()).to_content()
     assert matrix_version.derived_from == (brief.ref,) and feasibility.derived_from == (brief.ref,)
+
+
+def test_the_pathway_kinds_decide_the_pathway_items_a_list_of_enzymes_alone_would_not():
+    """`scope.pathways` (Start): a brief that names only its enzymes still says whether the drug is cleared renally, so
+    the renal items are neither dropped nor left undetermined."""
+    b = _set(empty_brief("X", by="u"), "drug.modality", "small_molecule")
+    assert derive(b).get("REQ-elim.renal").applies == "undetermined"
+    enzymes = _set(b, "scope.pathways_stated", ["UGT1A9"])
+    assert derive(enzymes).get("REQ-elim.renal").applies == "no"                       # the enzyme names say nothing renal
+    kinds = edit_field(enzymes, "scope.pathways", value=["hepatic_metabolism", "renal_filtration"], status=FieldStatus.EDITED,
+                       by="u")
+    assert derive(kinds).get("REQ-elim.renal").applies == "yes"
+    only_hepatic = edit_field(b, "scope.pathways", value=["hepatic_metabolism"], status=FieldStatus.EDITED, by="u")
+    assert derive(only_hepatic).get("REQ-elim.renal").applies == "no"

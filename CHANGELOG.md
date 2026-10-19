@@ -15,6 +15,52 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Start, completed: one upload with the client's files, no approval left, pathway kinds, the viewer on the proposal (R2b follow-up)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.1 and §5; what #73 left for later, or missed):
+  - **One upload for the proposal and the client's files** (map rows `p0-files`, `p3-upload`):
+    - `POST /projects:initiate` takes `client_files` and reads each one into Inputs, as an upload there would (a filled
+      template at once, any other workbook triaged). A file that cannot be read is answered with the reason
+      (`ProjectStarted.client_files`), and the project still starts.
+    - On `/projects/start`, each file says what it is, guessed from its type and changeable: proposal or annex, or
+      client data. Before, a workbook given at the start was stored as a page of the proposal.
+  - **No approval is left at Start** (D-27; §5 schedules these for R2, #73 had kept them for the T-56 kit until R5):
+    - `POST /projects/{id}/brief:approve` and `POST /projects/{id}/requirements:approve` are removed, with
+      `RequirementsPage.brief_status`.
+    - The full brief page loses its approve button and its Data plan and Feasibility tabs (`DataPlan.tsx` is removed):
+      Start's checklist shows both. The page stays as #73 intends, to edit the products, populations and data-plan
+      statements until Inputs and Review & sign take them over (R3, R4), and it no longer asks "why" for an edit.
+    - **The checklist's provider and literature cross-check are changed in place on Start** (map rows `p1-provider`,
+      `p1-crosscheck`), so nothing the Data plan tab did is lost. A person's choice is kept across re-derivations, as
+      before.
+    - The project title and type, the products and the data-plan statements are no longer `required`: they are
+      proposal notes, and the full brief's "what it still lacks" lists only what Start needs.
+    - The client-data page's first step reads the checklist as current or behind the brief, not as approved.
+  - **The kinds of pathway, picked at Start** (new `scope.pathways`: hepatic, gut-wall, renal filtration, renal
+    secretion, biliary, transporter). They decide the checklist's `pathway` items. Before, only the words of
+    `scope.pathways_stated` did, so a brief naming only its enzymes ("UGT1A9") dropped the renal-clearance item even
+    for a drug cleared renally.
+  - **Start's document viewer opens on the proposal.** Documents are stored by content hash, so a client file or the
+    PubChem record could be listed first and the viewer opened on it.
+  - **A1 is no longer shown the person-only fields** (the ICH M15 ratings, the risk and its justification), which it
+    was refused on anyway.
+  - **The T-56 kit** no longer approves anything: it fills the ratings and the scope gates, and checks that Start is
+    done.
+- **Why:** the plan's R2 scope (§3.1 one upload, §5 the R2 removals) and two defects found while merging the two R2b
+  implementations (#73 kept; #74, which duplicated it, replaced by this change).
+- **Impact:**
+  - **Science: nothing changes in the model.** The data checklist differs only where `scope.pathways` is set; the
+    T-56 kit's checklist is identical with and without its new brief fields (checked).
+  - **API contract:** two routes removed; `client_files` on `POST /projects:initiate`; `ClientFileStarted`;
+    `RequirementsPage.brief_status` removed. `docs/api/openapi.json` and the web types are regenerated.
+  - **Tests:** `test_brief_api.py` (the data plan with no approval and a kept override; one upload with a refused
+    file), `test_requirements.py` (pathway kinds), `test_brief.py` (proposal notes not required); the T-56 kit test;
+    `start-project.spec.ts` rewritten (one upload, the viewer on the proposal despite a client CSV listed first, the
+    provider changed in place, the full brief with no approval). Here: 1364 passed, 23 skipped; 14 failed only because
+    this sandbox cannot download Temporal's test server (`test_campaign_workflows.py`, untouched). Ruff, the web
+    typecheck and the web build pass.
+- **Known gap:** the browser flows were walked through in the running app (stub engine) but not run by Playwright here:
+  this session's sandbox can bind no port and start no browser. CI runs them.
+
 ### Added — Start, the first step of the new flow: one screen, no approvals (R2b)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.1; D-27, D-28):
   - **A new Start screen** (`/projects/{id}/start`; the create flow now lands there). Six blocks on one page, built
@@ -3447,3 +3493,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-06 (worktree `claude/vbe-template`) | Claude Opus 5.5 | Atomic writes for every file the API reads during a campaign; first campaign record written before the id is returned (T-56 kit test flake); T-31 VBE template |
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
+| 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal). No GitHub access from this sandbox: the owner pushes |

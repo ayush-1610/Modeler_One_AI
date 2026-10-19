@@ -74,7 +74,7 @@ def test_unsupported_upload_is_refused(client):
     assert r.status_code == 422 and "unsupported" in r.json()["detail"]
 
 
-def test_extraction_with_a_scripted_agent_then_edit_preview_answer_and_approve(client):
+def test_extraction_with_a_scripted_agent_then_edit_and_preview(client):
     c, store = client
     pid = _initiate(c)
     sha = next(d["sha256"] for d in c.get(f"/api/v1/projects/{pid}/documents", headers=H).json()["data"]["documents"]
@@ -112,8 +112,8 @@ def test_extraction_with_a_scripted_agent_then_edit_preview_answer_and_approve(c
     saved = c.put(f"/api/v1/projects/{pid}/brief", headers=H, json=edit).json()["data"]
     assert saved["artifact"]["version"] == 3 and saved["artifact"]["reason"] == "client amended the dose"
 
-    refused = c.post(f"/api/v1/projects/{pid}/brief:approve", headers=H, json={})
-    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "BRIEF_NOT_READY"
+    # nothing is approved (D-27): the brief's approval is gone, the one review is the MAP signature
+    assert c.post(f"/api/v1/projects/{pid}/brief:approve", headers=H, json={}).status_code == 404
 
     bad = c.put(f"/api/v1/projects/{pid}/brief", headers=H,
                 json={"changes": [{"path": "drug.modality", "status": "EDITED", "value": "pill", "note": "x"}], "reason": "r"})
@@ -156,34 +156,16 @@ def test_start_edits_ask_no_reason_refuse_a_risk_outside_its_m15_range_and_keep_
 
 
 @pytest.mark.req("T-42")
-def test_approved_brief_derives_the_data_plan_which_takes_overrides_and_closes_p1(client):
-    c, store = client
+def test_the_data_plan_follows_every_brief_change_and_keeps_a_persons_override_with_no_approval(client):
+    c, _ = client
     pid = _initiate(c)
-    sha = next(d["sha256"] for d in c.get(f"/api/v1/projects/{pid}/documents", headers=H).json()["data"]["documents"]
-               if d["role"] == "proposal")
-    from modeler_project import ArtifactKind, Workspace
-    from modeler_project.brief import Citation, FieldStatus, ProjectBrief
-    from modeler_project.brief_ops import agent_set
-
-    ws = Workspace(store, "t1", pid)
-    brief = ProjectBrief.from_content(ws.latest(ArtifactKind.BRIEF, "main").content)
-    cite = (Citation(doc_sha256=sha, page=1, quote="single oral dose of 50 mg"),)
-    for path, value in [("proj.title", "Exampleamide PBPK"), ("proj.type", "research"), ("drug.modality", "small_molecule"),
-                        ("qoi.text", "exposure after 50 mg"), ("qoi.context_of_use", "internal decision"),
-                        ("qoi.applications", ["APP-01"]), ("products[0].name", "50 mg tablet"), ("products[0].role", "TEST"),
-                        ("scenarios[0].population", "healthy adults"), ("scenarios[0].route", "oral"),
-                        ("scenarios[0].dose", 50), ("data_plan[0].item", "clinical PK of EX-101"),
-                        ("data_plan[0].category", "clinical_pk_oral"), ("data_plan[0].provider", "CLIENT")]:
-        brief = agent_set(brief, path, value=value, unit=None, citations=cite, status=FieldStatus.EXTRACTED, confidence="A",
-                          by="agent:t")
-    ws.commit(ArtifactKind.BRIEF, "main", brief.to_content(), derived_from=ws.latest(ArtifactKind.BRIEF, "main").derived_from,
-              actor="agent:t", reason="filled")
-    assert c.post(f"/api/v1/projects/{pid}/requirements:approve", headers=H, json={}).status_code == 409
-
-    approved = c.post(f"/api/v1/projects/{pid}/brief:approve", headers=H, json={"note": "checked against the PDF"})
-    assert approved.status_code == 200, approved.text
+    changes = [{"path": path, "status": "EDITED", "value": value} for path, value in (
+        ("drug.modality", "small_molecule"), ("qoi.applications", ["APP-01"]), ("scenarios[0].route", "oral"),
+        ("data_plan[0].item", "clinical PK of EX-101"), ("data_plan[0].category", "clinical_pk_oral"),
+        ("data_plan[0].provider", "CLIENT"))]
+    assert c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": changes}).status_code == 200
     plan = c.get(f"/api/v1/projects/{pid}/requirements", headers=H).json()["data"]
-    assert plan["brief_status"] == "APPROVED" and plan["counts"]["applicable"] > 10
+    assert plan["artifact"]["status"] == "DRAFT" and plan["counts"]["applicable"] > 10      # current, never approved
     po = next(i for i in plan["matrix"]["items"] if i["req_id"] == "REQ-obs.po_fasted_range")
     assert po["provider"] == "CLIENT" and po["provider_statement"] == "clinical PK of EX-101"
 
@@ -191,9 +173,34 @@ def test_approved_brief_derives_the_data_plan_which_takes_overrides_and_closes_p
                     json={"provider": "CLIENT", "reason": "the client measured logD7.4"}).json()["data"]
     logp = next(i for i in changed["matrix"]["items"] if i["req_id"] == "REQ-phys.logp")
     assert logp["provider"] == "CLIENT" and logp["provider_source"] == "override"
-    assert c.post(f"/api/v1/projects/{pid}/requirements:approve", headers=H, json={}).status_code == 200
-    phases = {p["phase"]: p["status"] for p in c.get(f"/api/v1/projects/{pid}/phases", headers=H).json()["data"]["phases"]}
-    assert phases["P1"] == "APPROVED"
+    c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
+        {"path": "drug.bcs_class", "status": "EDITED", "value": "II"}]})
+    kept = c.get(f"/api/v1/projects/{pid}/requirements", headers=H).json()["data"]
+    assert kept["artifact"]["version"] > changed["artifact"]["version"]                      # re-derived from the edit
+    assert next(i for i in kept["matrix"]["items"] if i["req_id"] == "REQ-phys.logp")["provider_source"] == "override"
+    assert c.post(f"/api/v1/projects/{pid}/requirements:approve", headers=H, json={}).status_code == 404
+
+
+def test_one_upload_carries_the_proposal_and_the_clients_files(client):
+    """Map rows p0-files and p3-upload: the client's files go straight to Inputs; one that cannot be read is reported
+    with the reason, and the project still starts."""
+    from modeler_intake.client_template import build_template
+
+    c, _ = client
+    xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    answer = c.post("/api/v1/projects:initiate", headers=H, data={"drug_name": "Exampleamide", "extract": "false"},
+                    files=[("files", ("proposal.txt", PROPOSAL, "text/plain")),
+                           ("client_files", ("ModelerOne_ClientData.xlsx", build_template(), xlsx)),
+                           ("client_files", ("scan.gif", b"GIF89a", "image/gif"))])
+    assert answer.status_code == 201, answer.text
+    started = answer.json()["data"]
+    assert [d["role"] for d in started["documents"]] == ["proposal"]
+    template, refused = started["client_files"]
+    assert template["template"] is True and template["id"] and template["problem"] is None
+    assert refused["id"] is None and "unsupported" in refused["problem"]
+    pid = started["project_id"]
+    files = c.get(f"/api/v1/projects/{pid}/client-data", headers=H).json()["data"]["files"]
+    assert [f["file"] for f in files] == ["ModelerOne_ClientData.xlsx"]
 
 
 def test_documents_extraction_items_and_questions_answer_through_their_typed_models(client, monkeypatch):

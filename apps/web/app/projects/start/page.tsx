@@ -4,27 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { FilePicker, type Picked } from "@/components/start/FilePicker";
 import { Card } from "@/components/ui";
-import { upload } from "@/lib/api";
+import { upload, type Schema } from "@/lib/api";
 
-const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.csv,.tsv,.xlsx,.xlsm,.xls";
-
-/** P0 · Initiate (plan §5.2): the drug, the technical proposal, any context. Nothing else is asked here. */
+/** P0 · Initiate (plan §5.2; redesign §3.1, block 1): the drug, any context, and one upload for the technical proposal,
+ *  its annexes and the client's data files, which go straight to Inputs (map rows p0-files, p3-upload). */
 export default function StartProjectPage() {
   const router = useRouter();
   const [drug, setDrug] = useState("");
   const [name, setName] = useState("");
   const [context, setContext] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<Picked[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
-
-  function addFiles(list: FileList | null) {
-    if (!list) return;
-    const incoming = Array.from(list);
-    setFiles((prev) => [...prev, ...incoming.filter((f) => !prev.some((p) => p.name === f.name && p.size === f.size))]);
-  }
+  const [unread, setUnread] = useState<{ projectId: string; files: Schema<"ClientFileStarted">[] } | null>(null);
 
   async function start() {
     setBusy(true);
@@ -33,25 +27,32 @@ export default function StartProjectPage() {
     form.set("drug_name", drug.trim());
     if (name.trim()) form.set("name", name.trim());
     if (context.trim()) form.set("context", context.trim());
-    files.forEach((f) => form.append("files", f));
+    files.forEach((p) => form.append(p.role === "client" ? "client_files" : "files", p.file));
     const env = await upload("/api/v1/projects:initiate", {}, form);
     setBusy(false);
     if (env.errors?.length || !env.data) {
       setError(env.errors?.[0]?.message ?? "The project could not be started.");
       return;
     }
+    const refused = env.data.client_files.filter((f) => f.problem);
+    if (refused.length) {
+      setUnread({ projectId: env.data.project_id, files: refused });   // say what was not read before moving on
+      return;
+    }
     router.push(`/projects/${env.data.project_id}/start`);
   }
 
-  const ready = drug.trim().length > 0 && (files.length > 0 || context.trim().length > 0) && !busy;
+  const proposal = files.some((p) => p.role === "proposal");
+  const ready = drug.trim().length > 0 && (proposal || context.trim().length > 0) && !busy && unread === null;
 
   return (
     <main>
       <h1>Start a project</h1>
       <p className="muted" style={{ maxWidth: "var(--measure)" }}>
-        <strong>P0 · Initiate.</strong> Give the drug and upload the technical proposal you shared with the client (and any
-        annexes). The intake agent reads them and prepares the Project Brief for your review: every value it fills cites
-        the page and the exact words it came from; anything the documents do not state is left for you, never guessed.
+        <strong>Step 1 · Start.</strong> Give the drug and drop the files in one go: the technical proposal you shared with
+        the client and its annexes are read for the brief, and the client&apos;s data files go straight to Inputs. Every
+        value the intake agent fills cites the page and the exact words it came from; anything the documents do not state
+        is left for you, never guessed.
       </p>
 
       <div className="cols-2">
@@ -75,36 +76,19 @@ export default function StartProjectPage() {
           </p>
         </Card>
 
-        <Card title="Technical proposal and annexes">
-          <label
-            className={`dropzone${dragging ? " over" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
-          >
-            <input type="file" data-testid="proposal-files" multiple accept={ACCEPT} onChange={(e) => addFiles(e.target.files)} hidden />
-            <strong>Drop files here</strong> or click to choose
-            <span className="muted">PDF, Word (.docx), Markdown, text, CSV or Excel (.xlsx)</span>
-          </label>
-          {files.length > 0 && (
-            <table style={{ marginTop: 12 }}>
-              <tbody>
-                {files.map((f) => (
-                  <tr key={`${f.name}-${f.size}`}>
-                    <td>{f.name}</td>
-                    <td className="num muted">{(f.size / 1024).toFixed(0)} KB</td>
-                    <td className="num">
-                      <button className="btn" onClick={() => setFiles(files.filter((x) => x !== f))}>Remove</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        <Card title="The proposal, its annexes and the client's files">
+          <FilePicker picked={files} onChange={setFiles} testId="proposal-files" />
         </Card>
       </div>
 
       {error && <div className="banner err" data-testid="start-error" style={{ marginTop: 16 }}>{error}</div>}
+      {unread && (
+        <div className="banner warn" data-testid="start-unread" style={{ marginTop: 16 }}>
+          The project started, but {unread.files.length === 1 ? "one client file was" : `${unread.files.length} client files were`}{" "}
+          not read: {unread.files.map((f) => `${f.file} (${f.problem})`).join("; ")}.{" "}
+          <Link href={`/projects/${unread.projectId}/start`}>Continue to Start</Link>
+        </div>
+      )}
       <div className="row" style={{ marginTop: 16 }}>
         <button className="btn primary" data-testid="start-project" disabled={!ready} onClick={start}>
           {busy ? "Uploading…" : "Start the project and prepare the brief"}

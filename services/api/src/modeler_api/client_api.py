@@ -59,7 +59,8 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 def _matrix(ws: Workspace) -> tuple[Any, RequirementMatrix]:
     version = ws.latest(ArtifactKind.REQUIREMENTS, "main")
     if version is None:
-        raise HTTPException(status_code=409, detail="derive and approve the data plan first (P1)")
+        raise HTTPException(status_code=409, detail="this project has no data checklist yet: it is derived from the brief "
+                                                    "at Start")
     return version, RequirementMatrix.from_content(version.content)
 
 

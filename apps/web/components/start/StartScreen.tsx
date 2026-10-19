@@ -12,13 +12,25 @@ import { RiskPicker } from "@/components/start/RiskPicker";
 import { ScopeGates } from "@/components/start/ScopeGates";
 import { ShortBrief } from "@/components/start/ShortBrief";
 import { narrow, send } from "@/lib/api";
-import type { BriefView, Citation } from "@/lib/brief";
+import type { BriefView, Citation, DocumentView } from "@/lib/brief";
 import type { PlanView } from "@/lib/data-plan";
 import { useMutation, useResource } from "@/lib/hooks";
 import { STEP_ROUTES } from "@/lib/pipeline";
 import type { BriefChange } from "@/lib/start";
 
 type Focus = { sha256: string; page: number; quote: string | null } | null;
+
+// The order the viewer lists documents in, so it opens on the proposal: documents are stored by content hash, and a
+// client file or the PubChem record listed first would open instead. The client's files come last (read in Inputs).
+const VIEWER_ORDER = ["proposal", "annex", "context", "retrieved_record", "paper", "other", "client_file"];
+
+function forViewer(documents: DocumentView[]): DocumentView[] {
+  const rank = (d: DocumentView) => {
+    const i = VIEWER_ORDER.indexOf(d.role);
+    return i < 0 ? VIEWER_ORDER.length : i;
+  };
+  return [...documents].sort((a, b) => rank(a) - rank(b) || a.uploaded_at.localeCompare(b.uploaded_at));
+}
 
 /** Step 1 · Start (redesign §3.1): the drug and its files, the short brief, the model risk, the scope gates and the
  *  data checklist on one screen. Nothing here is approved: a person reviews everything once, at the MAP signature
@@ -37,7 +49,7 @@ export function StartScreen({ projectId }: { projectId: string }) {
 
   if (page.problem) return <div className="banner err">{page.problem}</div>;
   if (!view) return <p className="muted">Loading the project…</p>;
-  const documents = docs.data?.documents ?? [];
+  const documents = forViewer(docs.data?.documents ?? []);
   const open = (c: Citation) => setFocus({ sha256: c.doc_sha256, page: c.page, quote: c.quote });
 
   async function save(changes: BriefChange[]): Promise<string | null> {
@@ -97,8 +109,8 @@ export function StartScreen({ projectId }: { projectId: string }) {
       <ShortBrief view={view} save={save} open={open} onAnswer={answer} />
       <RiskPicker key={riskKey} view={view} save={save} open={open} />
       <ScopeGates view={view} save={save} open={open} />
-      <DataChecklist plan={plan.data} planProblem={plan.problem}
-                     reconciliation={client.data ? client.data.reconciliation.rows : null} />
+      <DataChecklist projectId={projectId} plan={plan.data} planProblem={plan.problem}
+                     reconciliation={client.data ? client.data.reconciliation.rows : null} run={run} busy={busy} />
       <ProposalNotes projectId={projectId} view={view} save={save} open={open} onAnswer={answer} />
     </PageShell>
   );
