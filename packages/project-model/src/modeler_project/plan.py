@@ -130,6 +130,8 @@ class Structure(BaseModel):
     measured_fed_solubility: bool = False
     planned_applications: tuple[str, ...] = ()   # flagged classes with a planned S6 application (MS-01 rule 4)
     applications: tuple[MapApplication, ...] = ()  # the analysis templates S6 runs (T-31), with the person's inputs
+    # the assumptions the brief states (map row p1-assump): limitations of the analysis, named in the MAP
+    assumptions: tuple[str, ...] = ()
     locked: tuple[str, ...] = ()                  # structure keys a person set (userLocked)
     reasons: dict[str, str] = Field(default_factory=dict)
 
@@ -233,7 +235,17 @@ def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility:
                      food_effect_in_question="APP-12" in apps, measured_fed_solubility=measured_fed_solubility,
                      planned_applications=tuple(sorted({_APPLICATION_CLASSES[a] for a in apps if a in _APPLICATION_CLASSES})),
                      applications=tuple(MapApplication.pinned(_RUNNABLE_TEMPLATES[a]) for a in sorted(apps)
-                                        if a in _RUNNABLE_TEMPLATES))
+                                        if a in _RUNNABLE_TEMPLATES),
+                     assumptions=tuple(str(a) for a in ((brief.value("notes.assumptions") if brief else None) or ())))
+
+
+def map_limitations(plan: ModelPlan, violations: list[Violation]) -> tuple[str, ...]:
+    """The limitations the MAP names (ICH M15 credibility, redesign §3.3): the MS-01 split's own and each healthy adult
+    default (`default_limitations`), the assumptions the brief states, and every warning a person accepted, with why."""
+    accepted = [f"{v.message} — acknowledged: {v.acknowledged}" for v in violations
+                if v.severity == "warning" and v.acknowledged]
+    return (*plan.default_limitations, *(f"Assumption stated in the brief: {a}" for a in plan.structure.assumptions),
+            *accepted)
 
 
 def keep_locked(previous: Structure, fresh: Structure) -> Structure:
@@ -604,8 +616,8 @@ def map_from_plan(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, expl
     if blocking(violations):
         raise PlanError("the plan has open rule violations: " + "; ".join(v.message for v in blocking(violations)))
     split = plan_split(plan)
-    limits = [f"{v.message} — acknowledged: {v.acknowledged}" for v in violations if v.severity == "warning" and v.acknowledged]
-    split = split.model_copy(update={"limitations": (*plan.default_limitations, *(limits if acknowledged_limitations else []))})
+    limits = map_limitations(plan, violations if acknowledged_limitations else [])
+    split = split.model_copy(update={"limitations": limits})
     doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=split)
     return doc
 

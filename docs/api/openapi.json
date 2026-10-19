@@ -168,6 +168,17 @@
             "title": "Confidence",
             "type": "string"
           },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
           "differs_pct": {
             "anyOf": [
               {
@@ -182,6 +193,10 @@
             ],
             "title": "Differs Pct"
           },
+          "extraction": {
+            "title": "Extraction",
+            "type": "string"
+          },
           "flags": {
             "items": {
               "type": "string"
@@ -191,6 +206,10 @@
           },
           "id": {
             "title": "Id",
+            "type": "string"
+          },
+          "proposed_by": {
+            "title": "Proposed By",
             "type": "string"
           },
           "provider": {
@@ -296,6 +315,9 @@
           "conditions",
           "source",
           "quote",
+          "extraction",
+          "proposed_by",
+          "decided_by",
           "relation",
           "differs_pct"
         ],
@@ -4975,6 +4997,31 @@
         "title": "Envelope[ResearchStart]",
         "type": "object"
       },
+      "Envelope_ReviewPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ReviewPage]",
+        "type": "object"
+      },
       "Envelope_RunAccepted_": {
         "additionalProperties": false,
         "properties": {
@@ -6102,6 +6149,21 @@
             "title": "Confidence",
             "type": "string"
           },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "extraction": {
+            "title": "Extraction",
+            "type": "string"
+          },
           "flags": {
             "items": {
               "type": "string"
@@ -6111,6 +6173,10 @@
           },
           "id": {
             "title": "Id",
+            "type": "string"
+          },
+          "proposed_by": {
+            "title": "Proposed By",
             "type": "string"
           },
           "provider": {
@@ -6206,7 +6272,10 @@
           "source_type",
           "conditions",
           "source",
-          "quote"
+          "quote",
+          "extraction",
+          "proposed_by",
+          "decided_by"
         ],
         "title": "EvidenceView",
         "type": "object"
@@ -12219,6 +12288,517 @@
         "title": "RevealRequest",
         "type": "object"
       },
+      "ReviewCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "all": {
+            "title": "All",
+            "type": "integer"
+          },
+          "by_person": {
+            "title": "By Person",
+            "type": "integer"
+          },
+          "flagged": {
+            "title": "Flagged",
+            "type": "integer"
+          },
+          "from_agent": {
+            "title": "From Agent",
+            "type": "integer"
+          },
+          "open": {
+            "title": "Open",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "all",
+          "flagged",
+          "by_person",
+          "from_agent",
+          "open"
+        ],
+        "title": "ReviewCounts",
+        "type": "object"
+      },
+      "ReviewPage": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_seconds": {
+            "title": "Budget Seconds",
+            "type": "integer"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ReviewCounts"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/ReviewRisk"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageBudget"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "studies": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewStudy"
+            },
+            "title": "Studies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows",
+          "counts",
+          "studies",
+          "risk",
+          "budget_seconds",
+          "stages",
+          "limitations"
+        ],
+        "title": "ReviewPage",
+        "type": "object"
+      },
+      "ReviewRisk": {
+        "additionalProperties": false,
+        "description": "The ICH M15 model risk the MAP will carry, and what Start says of it.",
+        "properties": {
+          "consequence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consequence"
+          },
+          "influence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Influence"
+          },
+          "justification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Justification"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "set_here": {
+            "title": "Set Here",
+            "type": "boolean"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          }
+        },
+        "required": [
+          "tier",
+          "set_here",
+          "reason",
+          "influence",
+          "consequence",
+          "justification"
+        ],
+        "title": "ReviewRisk",
+        "type": "object"
+      },
+      "ReviewRow": {
+        "additionalProperties": false,
+        "description": "One model input as the review table shows it (`modeler_project.review.review_rows`).",
+        "properties": {
+          "agreeing": {
+            "title": "Agreeing",
+            "type": "integer"
+          },
+          "alternatives": {
+            "title": "Alternatives",
+            "type": "integer"
+          },
+          "changed_by_person": {
+            "title": "Changed By Person",
+            "type": "boolean"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "kept",
+              "conflict",
+              "held",
+              "missing"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "supplied_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "agent",
+                  "client file",
+                  "person",
+                  "system"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplied By"
+          },
+          "tab": {
+            "title": "Tab",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "tab",
+          "state",
+          "value",
+          "unit",
+          "status",
+          "message",
+          "evidence_id",
+          "source",
+          "quote",
+          "grade",
+          "flags",
+          "supplied_by",
+          "changed_by_person",
+          "agreeing",
+          "alternatives",
+          "confidence"
+        ],
+        "title": "ReviewRow",
+        "type": "object"
+      },
+      "ReviewSource": {
+        "additionalProperties": false,
+        "description": "Where the kept value comes from (the evidence item's source, with its type).",
+        "properties": {
+          "authors": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authors"
+          },
+          "doi": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doi"
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locator"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "type",
+          "title"
+        ],
+        "title": "ReviewSource",
+        "type": "object"
+      },
+      "ReviewStudy": {
+        "additionalProperties": false,
+        "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "demographics": {
+            "title": "Demographics",
+            "type": "string"
+          },
+          "excluded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "S1",
+                  "S2",
+                  "S3",
+                  "S5",
+                  "S6",
+                  "SUPPORTIVE"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "role_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role By"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_id",
+          "role",
+          "role_by",
+          "purpose",
+          "origin",
+          "blinded",
+          "excluded",
+          "demographics"
+        ],
+        "title": "ReviewStudy",
+        "type": "object"
+      },
       "RiskView": {
         "additionalProperties": false,
         "properties": {
@@ -13728,6 +14308,42 @@
         "title": "Stage",
         "type": "string"
       },
+      "StageBudget": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_seconds": {
+            "title": "Budget Seconds",
+            "type": "integer"
+          },
+          "fraction": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Fraction"
+          },
+          "max_rounds": {
+            "title": "Max Rounds",
+            "type": "integer"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "budget_seconds",
+          "fraction",
+          "max_rounds"
+        ],
+        "title": "StageBudget",
+        "type": "object"
+      },
       "StageRecord": {
         "additionalProperties": false,
         "properties": {
@@ -13908,6 +14524,14 @@
             "title": "Applications",
             "type": "array"
           },
+          "assumptions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
           "campaign_budget_seconds": {
             "default": 28800,
             "maximum": 172800.0,
@@ -13984,6 +14608,7 @@
           "measured_fed_solubility",
           "planned_applications",
           "applications",
+          "assumptions",
           "locked",
           "reasons"
         ],
@@ -20956,6 +21581,65 @@
           }
         },
         "summary": "Decide",
+        "tags": [
+          "plan"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/plan/review": {
+      "get": {
+        "description": "Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied\nit; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them.\nRead only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas.",
+        "operationId": "get_review_api_v1_projects__project_id__plan_review_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ReviewPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Review",
         "tags": [
           "plan"
         ]
