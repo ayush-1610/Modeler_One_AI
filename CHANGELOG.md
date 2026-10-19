@@ -15,6 +15,15 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the review inbox shows the next escalation of a campaign it just resumed
+- **What:** a signed decision in the review inbox resumes its campaign in the background, and the campaign may escalate
+  again (an S5 decision is followed by the S4/S5 signature). The inbox read the escalations once, right after the
+  decision, so a campaign slower than that read never showed its next decision until the page was reloaded. The inbox
+  now reads again every 4 s (`AutoRefresh`, as the campaign monitor does); a decision being typed keeps its state.
+- **Why:** the browser flow `feedback.spec.ts` failed on this race three times in CI (#60, #76, #84). It was reproduced
+  locally by pausing the resumed campaign 4 s before it continues, and passes with the fix under the same pause.
+- **Impact:** web only; no API or science change.
+
 ### Changed (science) — the signed MAP binds the fit bounds and the internal target, and the verdicts follow it (R4d, D-35, D-36)
 - **What** (locked files `campaign/map.py` and `acceptance.py`, changed with the owner's approval of 2026-10-19):
   - **The MAP's parameter table carries what the run may fit within.** Each parameter now records its fit policy's
