@@ -230,6 +230,94 @@ class ReviewRisk(View):
     justification: str | None
 
 
+class BoundsProposalView(View):
+    """The bounds MS-01 §2.2 proposes for a parameter (`estimation.proposed_bounds`, D-34), or why none."""
+
+    lower: Number | None
+    upper: Number | None
+    scale: Literal["linear", "log"] | None
+    basis: str
+    note: str
+    fixed: bool                            # MS-01 keeps it fixed (a measured fu)
+    from_ms01: bool                        # False: the redesign's 0.1–10×, MS-01 giving no default
+
+
+class EstimatedFit(View):
+    stages: list[str]
+    lower: Number
+    upper: Number
+    scale: Literal["linear", "log"]
+    by: str
+    reason: str
+
+
+class BoundsFinding(View):
+    severity: Literal["error", "warning"]
+    rule: str
+    message: str
+
+
+class EstimationRow(View):
+    """One numeric parameter of the estimation plan (`review.estimation_rows`): fixed (no fit) or estimated."""
+
+    id: str
+    value: Number
+    unit: str | None
+    status: str
+    source: str | None
+    grade: str | None
+    estimated: EstimatedFit | None
+    candidate_at: list[str]                # the stages MS-01 lets it be fitted at
+    proposal: BoundsProposalView
+    findings: list[BoundsFinding]
+
+
+class RuleVersion(View):
+    version: str
+    status: str
+    source: str
+
+
+class ValidationStudy(View):
+    study_id: str
+    blinded: bool
+    role: Role | None
+
+
+class ValidationStage(View):
+    """What S4 or S5 judges under the MAP this plan generates, and what happens when it fails (MS-01 §4, §6.6)."""
+
+    stage: Literal["S4", "S5"]
+    judges: str
+    on_failure: str
+    studies: list[ValidationStudy]
+    skip_reason: str | None
+    notes: list[str]
+
+
+class Criterion(View):
+    quantity: str
+    max_fold: Number | None
+    guest_delta: Number | None
+    citation: str | None
+
+
+class AcceptanceView(View):
+    """The limits of the chosen tier as the MAP records them (UNVERIFIED ruleset), and the internal target (MS-01 §8)."""
+
+    tier: Literal["low", "medium", "high"] | None
+    ruleset: str
+    status: str
+    description: str | None
+    pk_parameters: list[Criterion]
+    ddi_ratios: list[Criterion]
+    min_fraction_within: Number | None
+    internal_target_pe: Number | None
+    target_set_here: bool
+    loosest_target_pe: Number | None       # the largest target no looser than the tier
+    target_applied: bool                   # False until the verdicts apply it (R4d)
+
+
 class ReviewPage(View):
     rows: list[ReviewRow]
     counts: ReviewCounts
@@ -238,3 +326,7 @@ class ReviewPage(View):
     budget_seconds: int
     stages: list[StageBudget]
     limitations: list[str]
+    estimation: list[EstimationRow]
+    bounds_rule: RuleVersion
+    validation: list[ValidationStage]
+    acceptance: AcceptanceView

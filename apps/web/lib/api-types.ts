@@ -1321,7 +1321,8 @@ export interface paths {
         /**
          * Get Review
          * @description Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied
-         *     it; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them.
+         *     it; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them;
+         *     the estimation plan with MS-01's proposed bounds, the validation plan and the tier's acceptance criteria (R4b).
          *     Read only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas.
          */
         get: operations["get_review_api_v1_projects__project_id__plan_review_get"];
@@ -1792,6 +1793,34 @@ export interface components {
              */
             note?: string;
         };
+        /**
+         * AcceptanceView
+         * @description The limits of the chosen tier as the MAP records them (UNVERIFIED ruleset), and the internal target (MS-01 §8).
+         */
+        AcceptanceView: {
+            /** Ddi Ratios */
+            ddi_ratios: components["schemas"]["Criterion"][];
+            /** Description */
+            description: string | null;
+            /** Internal Target Pe */
+            internal_target_pe: number | null;
+            /** Loosest Target Pe */
+            loosest_target_pe: number | null;
+            /** Min Fraction Within */
+            min_fraction_within: number | null;
+            /** Pk Parameters */
+            pk_parameters: components["schemas"]["Criterion"][];
+            /** Ruleset */
+            ruleset: string;
+            /** Status */
+            status: string;
+            /** Target Applied */
+            target_applied: boolean;
+            /** Target Set Here */
+            target_set_here: boolean;
+            /** Tier */
+            tier: ("low" | "medium" | "high") | null;
+        };
         /** AffectedView */
         AffectedView: {
             /** Effect */
@@ -2097,6 +2126,38 @@ export interface components {
              * @default proposal
              */
             role?: string;
+        };
+        /** BoundsFinding */
+        BoundsFinding: {
+            /** Message */
+            message: string;
+            /** Rule */
+            rule: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning";
+        };
+        /**
+         * BoundsProposalView
+         * @description The bounds MS-01 §2.2 proposes for a parameter (`estimation.proposed_bounds`, D-34), or why none.
+         */
+        BoundsProposalView: {
+            /** Basis */
+            basis: string;
+            /** Fixed */
+            fixed: boolean;
+            /** From Ms01 */
+            from_ms01: boolean;
+            /** Lower */
+            lower: number | null;
+            /** Note */
+            note: string;
+            /** Scale */
+            scale: ("linear" | "log") | null;
+            /** Upper */
+            upper: number | null;
         };
         /**
          * BriefCatalog
@@ -2805,6 +2866,17 @@ export interface components {
             ready: boolean;
             /** Version */
             version: number;
+        };
+        /** Criterion */
+        Criterion: {
+            /** Citation */
+            citation: string | null;
+            /** Guest Delta */
+            guest_delta: number | null;
+            /** Max Fold */
+            max_fold: number | null;
+            /** Quantity */
+            quantity: string;
         };
         /**
          * DataOrigin
@@ -3768,6 +3840,48 @@ export interface components {
         Escalations: {
             /** Escalations */
             escalations: components["schemas"]["EscalationRecord"][];
+        };
+        /** EstimatedFit */
+        EstimatedFit: {
+            /** By */
+            by: string;
+            /** Lower */
+            lower: number;
+            /** Reason */
+            reason: string;
+            /**
+             * Scale
+             * @enum {string}
+             */
+            scale: "linear" | "log";
+            /** Stages */
+            stages: string[];
+            /** Upper */
+            upper: number;
+        };
+        /**
+         * EstimationRow
+         * @description One numeric parameter of the estimation plan (`review.estimation_rows`): fixed (no fit) or estimated.
+         */
+        EstimationRow: {
+            /** Candidate At */
+            candidate_at: string[];
+            estimated: components["schemas"]["EstimatedFit"] | null;
+            /** Findings */
+            findings: components["schemas"]["BoundsFinding"][];
+            /** Grade */
+            grade: string | null;
+            /** Id */
+            id: string;
+            proposal: components["schemas"]["BoundsProposalView"];
+            /** Source */
+            source: string | null;
+            /** Status */
+            status: string;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: number;
         };
         /** Evidence */
         Evidence: {
@@ -6320,9 +6434,13 @@ export interface components {
         };
         /** ReviewPage */
         ReviewPage: {
+            acceptance: components["schemas"]["AcceptanceView"];
+            bounds_rule: components["schemas"]["RuleVersion"];
             /** Budget Seconds */
             budget_seconds: number;
             counts: components["schemas"]["ReviewCounts"];
+            /** Estimation */
+            estimation: components["schemas"]["EstimationRow"][];
             /** Limitations */
             limitations: string[];
             risk: components["schemas"]["ReviewRisk"];
@@ -6332,6 +6450,8 @@ export interface components {
             stages: components["schemas"]["StageBudget"][];
             /** Studies */
             studies: components["schemas"]["ReviewStudy"][];
+            /** Validation */
+            validation: components["schemas"]["ValidationStage"][];
         };
         /**
          * ReviewRisk
@@ -6485,6 +6605,15 @@ export interface components {
          * @enum {string}
          */
         Route: "iv_bolus" | "iv_infusion" | "oral" | "other";
+        /** RuleVersion */
+        RuleVersion: {
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            /** Version */
+            version: string;
+        };
         /** RunAccepted */
         RunAccepted: {
             /** Run Id */
@@ -7124,6 +7253,8 @@ export interface components {
              * @default false
              */
             food_effect_in_question: boolean;
+            /** Internal Target Pe */
+            internal_target_pe: number | null;
             /**
              * Locked
              * @default []
@@ -7157,7 +7288,7 @@ export interface components {
              * Key
              * @enum {string}
              */
-            key: "objective" | "context_of_use" | "model_risk" | "campaign_budget_seconds" | "food_effect_in_question" | "measured_fed_solubility" | "planned_applications" | "applications";
+            key: "objective" | "context_of_use" | "model_risk" | "campaign_budget_seconds" | "food_effect_in_question" | "measured_fed_solubility" | "planned_applications" | "applications" | "internal_target_pe";
             /** Reason */
             reason: string;
             /** Value */
@@ -7837,6 +7968,36 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * ValidationStage
+         * @description What S4 or S5 judges under the MAP this plan generates, and what happens when it fails (MS-01 §4, §6.6).
+         */
+        ValidationStage: {
+            /** Judges */
+            judges: string;
+            /** Notes */
+            notes: string[];
+            /** On Failure */
+            on_failure: string;
+            /** Skip Reason */
+            skip_reason: string | null;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "S4" | "S5";
+            /** Studies */
+            studies: components["schemas"]["ValidationStudy"][];
+        };
+        /** ValidationStudy */
+        ValidationStudy: {
+            /** Blinded */
+            blinded: boolean;
+            /** Role */
+            role: ("S1" | "S2" | "S3" | "S5" | "S6" | "SUPPORTIVE") | null;
+            /** Study Id */
+            study_id: string;
         };
         /** ValueOrigin */
         ValueOrigin: {

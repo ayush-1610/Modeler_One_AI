@@ -15,6 +15,75 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed (science) — Review & sign gains the estimation plan, the validation plan and the tier's acceptance criteria; fit bounds are proposed from MS-01 §2.2 (R4b, D-34)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3; D-34, owner decision 2026-10-19):
+  - **The estimation plan** (map rows `p5-fit`, `m-bounds`): one table of every numeric parameter, fixed or estimated,
+    with its start value and source (citation and grade from the review table), the MS-01 stages it is a fit candidate
+    at, the fit's stages, bounds, scale and reason, and the bounds proposed for it. **Estimate** opens a form filled
+    from the proposal; the reason stays required, because a fit is the person's choice. **Fix it** removes a fit.
+    Filters: estimated, MS-01 candidates, flagged.
+  - **The bounds proposal follows MS-01 §2.2's "Default bounds"** (`modeler_project/fit_bounds.yaml`, a data rule,
+    **version 0.1, UNVERIFIED** for the SME; `modeler_project.estimation`). Each row copies MS-01's cell word for word,
+    and a test parses MS-01 §2.2 and fails if the two drift or a row with bounds is missing:
+    - relative bounds around the start value (fu predicted [0.5×, 2×], solubility [1×, 100×], Km and transporters
+      [0.1×, 10×], Weibull and particle d50 [0.5×, 2×]); the start value ± 1.5 for a measured logP; absolute bounds
+      as written (perm, CLspec, total CL, GFR fraction, TS CLspec, biliary CL, EHC fraction, fed solubility factor,
+      a predicted logP), **used only when the parameter is stored in MS-01's unit**. Otherwise, and where MS-01
+      gives none, 0.1–10× the start value (the redesign's rule, §6 item 2), with a note;
+    - each proposal is kept within the registry's physical bounds when the parameter is stored in the registry's
+      unit; none is proposed (with the reason) when the bounds would have no width or a log scale needs a positive
+      start value;
+    - **MS-01 keeps a measured fu fixed:** nothing is proposed for it.
+  - **The validator checks a fit's bounds** (`plan.validate`):
+    - error `fit`: a lower bound not below the upper (`PUT plan/fits/{id}` refuses it with 422);
+    - error `fit-plausible`: a bound beyond the physical bounds (MS-01 §2.2: "the MAP may narrow them, never widen
+      them beyond plausibility");
+    - warning `fit-default`: bounds wider than MS-01's default. Acknowledged, it becomes a limitation of the MAP, as
+      every acknowledged warning does;
+    - warning `fit-fixed`: estimating a parameter MS-01 keeps fixed (a measured fu).
+  - **The validation plan:** what S4 (internal) and S5 (external) judge under the MAP the plan generates, their studies
+    (from `stage_coverage`, a blinded one marked) or why a stage has none, and what follows a failure: S4 escalates
+    and is never refitted (MS-01 §4); at S5 the person chooses an MS-01 §6.6 path, signed as a deviation.
+  - **The tier's acceptance criteria**, under Credibility: the limits of the chosen tier from the ruleset the MAP
+    records (`pbpk_acceptance_criteria.yaml` 2026.2-draft, UNVERIFIED; medium: AUC and Cmax within 1.5-fold, DDI ratios
+    Guest δ 2, 80 % of comparisons within), and an optional **internal target** |prediction error| ≤ t %
+    (`Structure.internal_target_pe`, seeded from the brief's `acceptance.internal_target_pe`, set on the page with a
+    reason through `PUT plan/structure`).
+    - **Stricter than the tier only** (MS-01 §8): error `target` when t > (1 − 1/f) × 100, with f the tier's smallest
+      fold limit, which keeps the ratio band inside [1/f, f] (medium 33.3 %, high 20 %, low 50 %).
+    - **Stated, not yet applied:** a set target adds "Internal target |prediction error| ≤ t % (MS-01 §8): stated in
+      the plan; the verdicts do not apply it yet" to the MAP's limitations. Applying it changes the locked
+      `acceptance.py` and is R4d's.
+  - **API:** `GET /projects/{id}/plan/review` gains `estimation`, `bounds_rule`, `validation` and `acceptance`; the
+    structure key `internal_target_pe`. `docs/api/openapi.json` and the web types are regenerated.
+- **Why:** the approved Review & sign screen (R1, redesign §3.3) lists the estimation plan with proposed bounds, the
+  validation plan and the tier's criteria among what the signer sees. The owner chose MS-01's own default bounds over
+  the generic 0.1–10× rule (2026-10-19), because they are the SME's text.
+- **Impact:**
+  - **Science:** a fit's bounds are now checked against MS-01's defaults and the physical bounds; the proposal only
+    fills a form, so no plan changes unless a person saves it. Existing fits outside MS-01's defaults now show a
+    `fit-default` warning to acknowledge before signing; one beyond the physical bounds blocks signing. The values
+    are MS-01's, UNVERIFIED until the SME signs (`docs/SME_SIGNOFF.md`).
+  - **The start value may now sit on a bound** (`lower ≤ start ≤ upper`, was strict): MS-01's own solubility default,
+    [1×, 100×] the measured value, puts the start on the lower bound, which the strict check refused.
+  - **Fixed in passing:**
+    - a saved fit with inverted bounds made `GET /plan/review` fail (500) and was not refused when saved;
+    - changing the time budget on Review & sign failed with 500: a number in the plan's diff did not fit the
+      response's text field (R4a's budget control). The diff now shows numbers as text.
+  - Tests: `test_estimation.py` (the rule word for word against MS-01, each kind of default, units, physical bounds,
+    the findings); `test_plan.py` (the four bounds rules, the target rule and its limitation); `test_plan_api.py`
+    (the review's new parts against `stage_coverage` and the ruleset, a 422 on inverted bounds, the budget change);
+    `review-sign.spec.ts` gains a browser flow (estimate logP with the proposed bounds, the validation plan, the
+    criteria, a target refused at 40 % and stated at 20 %).
+- **Known gaps:**
+  - **The signed MAP does not carry the fit bounds:** `MapParameter` has none, and the bounds travel in the campaign
+    CPF beside the MAP. Putting them under the signature changes the locked `map.py`: one locked-file PR after R4b
+    (owner-approved in principle, 2026-10-19), with R4d.
+  - **The verdicts read the ruleset at run time** (`evaluate(comparisons, model_risk)`), not the criteria the MAP
+    records. Noted for that same PR.
+  - **The campaign fits only what the plan frees:** a candidate with neither a fit nor a plausibility range is not
+    fitted. MS-01's defaults could become the candidates' plausibility; that is a science change, for the owner.
+
 ### Added — the reading agent proposes how to read each client sheet, checked by code; an evaluation set scores it (R3c)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.2 and §4):
   - **The reading agent** (A4's second job, `modeler_agents.sheet_reader`) starts from code's first filling of the

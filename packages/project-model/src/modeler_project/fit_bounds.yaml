@@ -1,0 +1,114 @@
+# The bounds proposed for a fitted parameter (redesign §3.3 "the estimation plan"; D-34, owner decision 2026-10-19).
+#
+# Copied from MS-01 §2.2 "Default bounds" (docs/PBPK_MODELING_WORKFLOW.md), the SME's text: each `ms01` field is the
+# table's cell word for word, and a test fails if the two drift. MS-01: "Bounds are defaults [SME]; the MAP may narrow
+# them, never widen them beyond plausibility." A row MS-01 leaves "–" is not here.
+#
+# PROVISIONAL: UNVERIFIED until the SME signs (T-30). Read by modeler_project.estimation; a change here is a science
+# change (CHANGELOG entry, version bump). The bounds are only proposed: the person who frees a parameter keeps or
+# changes them, with a reason, and the plan's validator checks them.
+#
+# Per source kind (`measured`: anything not PREDICTED in the CPF; `predicted`; `any`):
+#   fixed               MS-01 keeps it fixed: no bounds are proposed, and estimating it is flagged
+#   relative: [lo, hi]  lo× to hi× the start value
+#   additive: d         the start value ± d (linear)
+#   absolute: [lo, hi]  as written, in `unit` (used only when the parameter is stored in that unit)
+# `row` names the MS-01 row when one row there covers several ids here (e.g. `km/vmax`).
+version: "0.1"
+status: UNVERIFIED
+source: MS-01 v1.3 §2.2 "Default bounds"
+
+# A parameter MS-01 gives no default for: the redesign's rule (§6 item 2), 0.1–10× the start value on a log scale.
+fallback: {relative: [0.1, 10]}
+
+bounds:
+  - id: phys.logp
+    unit: Log Units
+    ms01: measured ±1.5; predicted [−2, 7]
+    measured: {additive: 1.5}
+    predicted: {absolute: [-2, 7]}
+  - id: phys.solubility.ref
+    unit: mg/ml
+    ms01: "[1×, 100×] measured (biorelevant ≥ aqueous)"
+    measured: {relative: [1, 100]}
+  - id: bind.fu
+    unit: "–"
+    ms01: "measured: fixed; predicted [0.5×, 2×]"
+    measured: fixed
+    predicted: {relative: [0.5, 2]}
+  - id: perm.cellular
+    unit: cm/min
+    ms01: "[1e-7, 1e-1]"
+    any: {absolute: [1.0e-7, 1.0e-1]}
+  - id: perm.intestinal
+    unit: cm/min
+    ms01: "[1e-7, 1e-2]"
+    any: {absolute: [1.0e-7, 1.0e-2]}
+  - id: elim.hepatic.{enzyme}.clspec
+    unit: l/µmol/min
+    ms01: "[1e-4, 1e2]"
+    any: {absolute: [1.0e-4, 1.0e+2]}
+  - id: elim.hepatic.{enzyme}.km
+    row: "elim.hepatic.{enzyme}.km/vmax"
+    unit: µmol/l
+    ms01: Km [0.1×, 10×] in vitro
+    any: {relative: [0.1, 10]}
+  - id: elim.hepatic.total_cl
+    unit: ml/min/kg
+    ms01: "[0.01, 30]"
+    any: {absolute: [0.01, 30]}
+  - id: elim.renal.gfr_fraction
+    unit: "–"
+    ms01: "[0, 3]"
+    any: {absolute: [0, 3]}
+  - id: elim.renal.ts_clspec
+    unit: 1/min
+    ms01: "[0, 10]"
+    any: {absolute: [0, 10]}
+  - id: elim.biliary.cl
+    unit: ml/min/kg
+    ms01: "[0, 20]"
+    any: {absolute: [0, 20]}
+  - id: elim.ehc_fraction
+    unit: "–"
+    ms01: "[0, 1]"
+    any: {absolute: [0, 1]}
+  - id: transp.{transporter}.km
+    row: "transp.{transporter}.{km,vmax|clspec}"
+    unit: "–"
+    ms01: in vitro [0.1×, 10×]
+    any: {relative: [0.1, 10]}
+  - id: transp.{transporter}.vmax
+    row: "transp.{transporter}.{km,vmax|clspec}"
+    unit: "–"
+    ms01: in vitro [0.1×, 10×]
+    any: {relative: [0.1, 10]}
+  - id: transp.{transporter}.clspec
+    row: "transp.{transporter}.{km,vmax|clspec}"
+    unit: "–"
+    ms01: in vitro [0.1×, 10×]
+    any: {relative: [0.1, 10]}
+  - id: form.{name}.weibull.t50
+    row: "form.{name}.weibull.t50/shape/lag"
+    unit: min
+    ms01: in vivo [0.5×, 2×] of in vitro fit
+    any: {relative: [0.5, 2]}
+  - id: form.{name}.weibull.shape
+    row: "form.{name}.weibull.t50/shape/lag"
+    unit: "–"
+    ms01: in vivo [0.5×, 2×] of in vitro fit
+    any: {relative: [0.5, 2]}
+  - id: form.{name}.weibull.lag
+    row: "form.{name}.weibull.t50/shape/lag"
+    unit: min
+    ms01: in vivo [0.5×, 2×] of in vitro fit
+    any: {relative: [0.5, 2]}
+  - id: form.{name}.particle.d50
+    row: "form.{name}.particle.{d50,…}"
+    unit: µm
+    ms01: measured [0.5×, 2×]
+    any: {relative: [0.5, 2]}
+  - id: food.fed_solubility_factor
+    unit: "–"
+    ms01: "[1, 50]"
+    any: {absolute: [1, 50]}

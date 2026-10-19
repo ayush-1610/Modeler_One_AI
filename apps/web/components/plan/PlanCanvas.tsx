@@ -6,7 +6,9 @@ import { InlineIssue, PageShell } from "@/components/kit";
 import { D3Dag, STUDY_MIME, StudyChip } from "@/components/plan/D3Dag";
 import { D1Disposition, D2Absorption } from "@/components/plan/Diagrams";
 import { Credibility, StudiesTable } from "@/components/review/Credibility";
+import { EstimationPlan } from "@/components/review/EstimationPlan";
 import { ReviewTable } from "@/components/review/ReviewTable";
+import { ValidationPlan } from "@/components/review/ValidationPlan";
 import { Card } from "@/components/ui";
 import type { Envelope, Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
@@ -152,7 +154,8 @@ function BlindingPanel({ projectId }: { projectId: string }) {
 
 /** Step 3 · Review & sign (redesign §3.3; plan §11): the one review D-27 relies on. The signature on top; the studies and
  *  their roles on the MS-01 canvas (the three diagrams, "Overall Data"); every input with its source in the review
- *  table; credibility (the model risk, the budget split, the limitations); the live validator and the diff. */
+ *  table; the estimation plan and the validation plan (R4b); credibility (the model risk, the tier's acceptance
+ *  criteria, the budget split, the limitations); the live validator and the diff. */
 export function PlanCanvas({ projectId }: { projectId: string }) {
   const page = useResource("/api/v1/projects/{project_id}/plan", { project_id: projectId }, { poll: (d) => d.running });
   const review = useResource("/api/v1/projects/{project_id}/plan/review", { project_id: projectId }, { enabled: page.data !== null });
@@ -258,6 +261,7 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
       </Card>
       <nav className="review-nav" aria-label="Review sections">
         <a href="#review-studies">Studies and roles</a><a href="#review-inputs">The inputs</a>
+        <a href="#review-estimation">The estimation plan</a><a href="#review-validation">The validation plan</a>
         <a href="#review-credibility">Credibility</a><a href="#review-validator">Validator and changes</a>
       </nav>
       <section className="review-block" id="review-studies" aria-labelledby="review-studies-title">
@@ -309,6 +313,19 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
         {review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue>
           : review.data ? <ReviewTable projectId={projectId} review={review.data} run={mutation.run} busy={mutation.busy} />
             : <p className="muted">Loading the review…</p>}
+      </section>
+      <section className="review-block" id="review-estimation" aria-labelledby="review-estimation-title">
+        <h2 id="review-estimation-title">The estimation plan</h2>
+        <p className="muted review-lede">Each parameter fixed or estimated, its start value and source, and its bounds. Estimating one
+          is your choice, with a reason; MS-01&apos;s default bounds are proposed and the validator checks them.</p>
+        {review.data ? <EstimationPlan projectId={projectId} review={review.data} apply={apply} />
+          : review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue> : <p className="muted">Loading…</p>}
+      </section>
+      <section className="review-block" id="review-validation" aria-labelledby="review-validation-title">
+        <h2 id="review-validation-title">The validation plan</h2>
+        <p className="muted review-lede">What validates the model under this MAP, and what happens if it fails.</p>
+        {review.data ? <ValidationPlan review={review.data} />
+          : review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue> : <p className="muted">Loading…</p>}
       </section>
       <section className="review-block" id="review-credibility" aria-labelledby="review-credibility-title">
         <h2 id="review-credibility-title">Credibility (ICH M15)</h2>

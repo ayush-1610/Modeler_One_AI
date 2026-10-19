@@ -202,7 +202,8 @@ def read_plan(project_id: str, principal: Reader, store: StoreDep) -> dict[str, 
 @router.get("/projects/{project_id}/plan/review", **answers(ReviewPage))
 def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     """Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied
-    it; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them.
+    it; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them;
+    the estimation plan with MS-01's proposed bounds, the validation plan and the tier's acceptance criteria (R4b).
     Read only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas."""
     from modeler_project import review
 
@@ -213,6 +214,7 @@ def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
     cpf, rows, _refs = _inputs(ws)
     violations = validate(plan, cpf, rows, exploratory=_exploratory(ws))
     table = review.review_rows(ws)
+    doc = review.campaign_map(plan, cpf, rows)
     brief = _brief(ws)
     structure = plan.structure
     studies = []
@@ -230,8 +232,12 @@ def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
                  "consequence": brief.value("m15.consequence_rating") if brief else None,
                  "justification": brief.value("m15.risk_justification") if brief else None},
         "budget_seconds": structure.campaign_budget_seconds,
-        "stages": review.stage_budgets(plan, cpf, rows),
+        "stages": review.stage_budgets(plan, doc),
         "limitations": review.limitations(plan, violations),
+        "estimation": review.estimation_rows(plan, cpf, table),
+        "bounds_rule": review.bounds_rule_view(),
+        "validation": review.validation_plan(doc, studies),
+        "acceptance": review.acceptance(plan, doc),
     })
 
 
@@ -327,7 +333,7 @@ def remove_fit(project_id: str, parameter: str, body: ReasonRequest, principal: 
 
 class StructureRequest(BaseModel):
     key: Literal["objective", "context_of_use", "model_risk", "campaign_budget_seconds", "food_effect_in_question",
-                 "measured_fed_solubility", "planned_applications", "applications"]
+                 "measured_fed_solubility", "planned_applications", "applications", "internal_target_pe"]
     value: Any
     reason: str = Field(min_length=1)
 

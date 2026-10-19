@@ -40,3 +40,49 @@ test("the review table, an exclusion with a reason, and the credibility the MAP 
   await expect(page.getByTestId("plan-stale")).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("review.png"), fullPage: true });
 });
+
+// R4b (redesign §3.3, D-34): the estimation plan proposes MS-01 §2.2's default bounds and a parameter is estimated with
+// them and a reason; the validation plan names what S4 and S5 judge and what follows a failure; the tier's criteria are
+// shown, and an internal target stricter than the tier is stated while a looser one is refused by the validator.
+test("the estimation plan, the validation plan and the tier's acceptance criteria", async ({ page, request }) => {
+  const projectId = await projectWithInputs(request, "Estimamide", [
+    { study_id: "iv-250", route: "iv_infusion", dose_mg: 250 }, { study_id: "po-10", route: "oral", dose_mg: 10 },
+    { study_id: "po-50", route: "oral", dose_mg: 50 },
+  ]);
+  expect((await request.get(`/api/v1/projects/${projectId}/plan`, { headers: AUTH })).ok()).toBeTruthy();   // built on first read
+  const risk = await request.put(`/api/v1/projects/${projectId}/plan/structure`, { headers: AUTH,
+    data: { key: "model_risk", value: "medium", reason: "supports a decision with clinical evidence" } });
+  expect(risk.ok(), await risk.text()).toBeTruthy();
+
+  await page.goto(`/projects/${projectId}/plan`);
+  const estimation = page.getByTestId("estimation-plan");
+  await expect(estimation.getByTestId("proposal-phys.logp")).toContainText("[-3.06, -0.06] linear");   // measured ± 1.5
+  await expect(estimation.getByTestId("proposal-phys.logp")).toContainText("MS-01 §2.2, measured");
+  await expect(estimation.getByTestId("proposal-bind.fu")).toContainText("MS-01: fixed");               // measured fu
+  await estimation.getByTestId("estimate-phys.logp").click();
+  const form = estimation.getByTestId("estimate-form-phys.logp");
+  await expect(form.getByLabel("lower bound of phys.logp")).toHaveValue("-3.06");
+  await form.getByLabel("why estimate phys.logp").fill("lipophilicity drives the partition coefficients");
+  await form.getByTestId("estimate-save-phys.logp").click();
+  await expect(estimation.getByTestId("estimation-row-phys.logp")).toContainText("estimated in S1");
+  await estimation.getByTestId("estimation-filter-estimated").click();
+  await expect(estimation.locator("[data-testid^='estimation-row-']")).toHaveCount(1);
+
+  const validation = page.getByTestId("validation-plan");
+  await expect(validation.getByTestId("validation-S4")).toContainText("never refitted");
+  await expect(validation.getByTestId("validation-S5")).toContainText("MS-01 §6.6");
+
+  const criteria = page.getByTestId("acceptance-criteria");
+  await expect(criteria.getByTestId("criterion-AUC")).toContainText("within 1.5-fold");
+  await expect(criteria).toContainText("at most 33.3 %");
+  await criteria.getByTestId("target-input").fill("40");
+  await criteria.getByTestId("target-reason").fill("the client asks for a tighter check");
+  await criteria.getByTestId("target-save").click();
+  await expect(page.getByText(/looser than the medium tier, which allows at most 33\.3 %/)).toBeVisible();
+  await criteria.getByTestId("target-input").fill("20");
+  await criteria.getByTestId("target-reason").fill("the client asks for a tighter check");
+  await criteria.getByTestId("target-save").click();
+  await expect(page.getByTestId("limitations")).toContainText("Internal target |prediction error| ≤ 20 %");
+  await expect(page.getByText(/looser than the medium tier/)).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("estimation.png"), fullPage: true });
+});
