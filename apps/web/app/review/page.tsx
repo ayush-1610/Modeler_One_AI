@@ -1,3 +1,4 @@
+import { AutoRefresh } from "@/components/AutoRefresh";
 import { ApiProblem, Card } from "@/components/ui";
 import { EscalationDecision } from "@/components/EscalationDecision";
 import { getEscalations, getProposals } from "@/lib/reads";
@@ -10,6 +11,9 @@ export default async function ReviewInbox() {
 
   return (
     <main>
+      {/* a decided escalation resumes its campaign in the background, which may escalate again: read the inbox again
+          every few seconds so the next decision appears without a reload (a decision being typed keeps its state) */}
+      <AutoRefresh active intervalMs={4000} />
       <h1>Review inbox</h1>
       <p className="muted">Curator and reviewer actions: agent parameter proposals awaiting acceptance, and campaign
         escalations that resume only through a signed decision.</p>
