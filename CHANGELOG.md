@@ -15,6 +15,22 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — two quick edits of the brief both land (Start's pickers no longer drop a choice)
+- **What:** everything that changes the brief now reads, changes and commits it under one per-project lock
+  (`brief_api._brief_edits`: a file lock beside the project's artifacts, held across threads and workers). That covers
+  the routes (`PUT /brief`, `brief/items:remove`, `brief/questions/{id}`) and A1's merge of its reading into the
+  latest brief, which runs while the person picks on the Start screen.
+- **Why:** each edit read the latest brief, changed it and committed the next version. The Start screen saves every
+  pick at once, so two picks a moment apart both read one version, and the later commit, built on it, overwrote the
+  other's change. Both requests answered 200, and the choice was silently lost.
+  - Found as an intermittent browser-test failure, "PBPK model: not set yet" after picking it
+    (`start-step.spec.ts`).
+  - Reproduced by `test_two_quick_edits_of_the_brief_both_land` and
+    `test_an_edit_made_while_the_agent_merges_its_reading_is_kept`; both fail without the lock.
+- **Impact:** no data or contract change. A second edit waits until the first has committed, then builds on it.
+- **Known gap:** other read-modify-write routes have the same pattern (the evidence register, datasets, the plan).
+  Their edits are rarer and come one at a time from their pages. Not changed here; each is checked in its own change.
+
 ### Added — Review & sign, the third step: one review table and the model's credibility around the MS-01 canvas (R4a)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3; D-27: "a person reviews everything once, at the MAP
   signature"):
