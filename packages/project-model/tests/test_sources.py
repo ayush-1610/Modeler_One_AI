@@ -9,7 +9,7 @@ from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.brief import empty_brief
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceRef, SourceType, assess, new_id
 from modeler_project.evidence_register import decide, propose
-from modeler_project.inputs import assemble, current_cpf, todo
+from modeler_project.inputs import assemble, current_cpf, inputs_ready, refresh_inputs, todo
 from modeler_project.requirements import derive
 from modeler_project.sources import compare, held, rule, select
 
@@ -102,3 +102,15 @@ def test_two_pka_values_of_one_kind_wait_on_a_person(ws):
     decide(ws, second.id, state=EvidenceState.REJECTED, reason="same amine, older method", by="u")
     assemble(ws, by="u")
     assert current_cpf(ws).get("phys.pka.base.0").value == 9.1
+
+
+def test_a_value_proposed_after_the_assembly_flows_in_on_the_next_refresh(ws):
+    """A new value is a new artifact, which makes nothing stale: the assembly's key over what it read says it changed."""
+    first = _propose(ws, "phys.logp", 2.1)
+    assert refresh_inputs(ws, by="u") and inputs_ready(ws)[1] != "the model inputs are not assembled yet"
+    assert not refresh_inputs(ws, by="u")                                     # nothing changed: no new assembly
+    second = _propose(ws, "phys.logp", 2.2)
+    assert "changed since" in inputs_ready(ws)[1]                             # the plan would not read the old inputs
+    assert refresh_inputs(ws, by="u")
+    reference = current_cpf(ws).get("phys.logp").provenance.reference
+    assert first.id not in reference and second.id in reference               # the kept source names the one that agrees

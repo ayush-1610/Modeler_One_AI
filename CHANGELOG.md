@@ -58,8 +58,11 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     split proposes (S1–S3, S5, S6 or supportive) as soon as the inputs are assembled, and the plan's placements once a
     plan exists. Blinding (D-15) hides a study proposed for S5 or S6 from that moment, not only after the plan.
   - **The inputs assemble themselves** (`inputs.refresh_inputs`): every route that changes evidence, datasets, client
-    data or choices re-assembles a missing or stale readiness. The plan needs **ready and current** inputs
-    (`inputs.inputs_ready`; 409 with the reason), no longer the P4 approval.
+    data or choices re-assembles the inputs when they are missing or have changed. "Changed" is staleness, or a new
+    `inputs_key` (`inputs.inputs_key`): the readiness records a key over what the assembly read (the brief, the
+    checklist, the choices, every evidence item and dataset at its version). A new value is a new artifact, which makes
+    nothing stale, so without the key it reached the CPF only on the next manual assembly. The plan needs **ready and
+    current** inputs (`inputs.inputs_ready`; 409 with the reason), no longer the P4 approval.
   - **The Model inputs page keeps up until R3b replaces it:** its to-do list shows the new items (a held value with
     Accept / Reject, "Use the healthy adult default", a multiple-dose study's doses and interval; each study item names
     its `dataset_id`), and its text no longer says values come only from accepted evidence.

@@ -19,6 +19,7 @@ covers them).
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import defaultdict
 from typing import Any
@@ -495,21 +496,35 @@ def assemble(ws: Workspace, *, by: str) -> dict[str, Any]:
     catalog_version = ws.commit(ArtifactKind.STUDY_CATALOG, MAIN, {"studies": rows, "notes": notes},
                                 derived_from=[*([picked_version.ref] if picked_version else []), *[v.ref for v in datasets_used]],
                                 actor=by, reason=f"{len(rows)} studies from accepted datasets")
-    result = readiness(cpf, rows, report, brief)
+    result = {**readiness(cpf, rows, report, brief), "inputs_key": inputs_key(ws)}
     ready_version = ws.commit(ArtifactKind.READINESS, MAIN, result, derived_from=[cpf_version.ref, catalog_version.ref],
                               actor=by, reason="ready" if result["ready"] else "not ready")
     return {"cpf": cpf_version, "catalog": catalog_version, "readiness": ready_version}
 
 
-def refresh_inputs(ws: Workspace, *, by: str) -> bool:
-    """Assemble again when the inputs are missing or stale (redesign §3.2: the CPF is assembled continuously, not on a
-    button). Called after every change to the evidence, the datasets or the choices. True when assembled."""
+def inputs_key(ws: Workspace) -> str:
+    """What the assembly read, as one key: the brief, the data checklist, the choices and every evidence item and dataset
+    at its latest version. A new value is a new artifact, which makes nothing stale, so the key is what says the inputs
+    have changed since they were assembled."""
+    read = [ws.latest(ArtifactKind.BRIEF, "main"), ws.latest(ArtifactKind.REQUIREMENTS, "main"),
+            ws.latest(ArtifactKind.CPF, CHOICES), *ws.list(ArtifactKind.EVIDENCE), *ws.list(ArtifactKind.DATASET)]
+    text = "\n".join(sorted(f"{v.ref.kind.value}:{v.ref.id}:{v.ref.version}" for v in read if v is not None))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _changed(ws: Workspace, ready: ArtifactVersion) -> bool:
     from modeler_project.artifacts import ArtifactStatus
 
+    return ws.status(ready) is ArtifactStatus.STALE or ready.content.get("inputs_key") != inputs_key(ws)
+
+
+def refresh_inputs(ws: Workspace, *, by: str) -> bool:
+    """Assemble again when the inputs are missing or have changed (redesign §3.2: the CPF is assembled continuously, not
+    on a button). Called after every change to the evidence, the datasets or the choices. True when assembled."""
     if ws.latest(ArtifactKind.BRIEF, "main") is None:
         return False
     ready = ws.latest(ArtifactKind.READINESS, MAIN)
-    if ready is not None and ws.status(ready) is not ArtifactStatus.STALE:
+    if ready is not None and not _changed(ws, ready):
         return False
     assemble(ws, by=by)
     return True
@@ -518,12 +533,10 @@ def refresh_inputs(ws: Workspace, *, by: str) -> bool:
 def inputs_ready(ws: Workspace) -> tuple[bool, str]:
     """Whether the plan can read the inputs: assembled, current and ready (no acceptance needed, D-27). The reason when
     not."""
-    from modeler_project.artifacts import ArtifactStatus
-
     version = ws.latest(ArtifactKind.READINESS, MAIN)
     if version is None:
         return False, "the model inputs are not assembled yet"
-    if ws.status(version) is ArtifactStatus.STALE:
+    if _changed(ws, version):
         return False, "the model inputs changed since they were checked: assemble them again"
     if not version.content["ready"]:
         failing = [c["check"] for c in version.content["checks"] if not c["ok"]]
