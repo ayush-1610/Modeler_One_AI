@@ -105,8 +105,10 @@ def approve_overlay(ws: Workspace, dataset_id: str, *, by: str) -> ObservedDatas
 def digitized_dataset(*, study: dict[str, Any], doc_sha256: str, page: int, locator: str, calibration: dict[str, Any],
                       pixels: dict[str, list[tuple[float, float]]], time_unit: str, unit: str,
                       statistic: str = "arithmetic_mean", n: int | None = None, source: SourceRef | None = None,
-                      provider: str = "LITERATURE", purpose: str = "model_building") -> ObservedDataset:
-    """Build a dataset from a person's axis calibration and picked points (series name → pixels)."""
+                      provider: str = "LITERATURE", purpose: str = "model_building",
+                      crop: tuple[float, float, float, float] | None = None, scale: float | None = None) -> ObservedDataset:
+    """Build a dataset from a person's axis calibration and picked points (series name → pixels). The pixels may be in a
+    cropped, zoomed view of the page (`crop`, `scale`, kept with the record): the calibration maps them all the same."""
     cal = Calibration(x=AxisCalibration(**calibration["x"]), y=AxisCalibration(**calibration["y"]))
     series = []
     worst = {"x": 0.0, "y": 0.0}
@@ -120,7 +122,8 @@ def digitized_dataset(*, study: dict[str, Any], doc_sha256: str, page: int, loca
     return ObservedDataset(
         id=new_dataset_id(), kind="profile", study=study, time_unit=time_unit, unit=unit, series=tuple(series),
         origin=Origin.FIGURE_DIGITIZED, extraction="FIGURE_DIGITIZED", source=ref,
-        digitization=Digitization(page=page, calibration=calibration, pixels=pixels, resolution=worst),
+        digitization=Digitization(page=page, calibration=calibration, pixels=pixels, resolution=worst, crop=crop,
+                                  scale=scale),
         provider=provider, purpose=purpose)  # type: ignore[arg-type]
 
 

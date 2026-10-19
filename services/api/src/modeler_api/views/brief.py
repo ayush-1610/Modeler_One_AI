@@ -38,6 +38,21 @@ class Documents(View):
     documents: list[DocumentView]
 
 
+class FigureView(View):
+    """An image placed on a PDF page (`modeler_intake.documents.PdfFigure`): its box as fractions of the page as shown."""
+
+    page: int
+    name: str
+    box: list[float]          # left, top, right, bottom
+    width: int
+    height: int
+
+
+class DocumentFigures(View):
+    sha256: str
+    figures: list[FigureView]
+
+
 class DocumentPage(View):
     sha256: str
     name: str

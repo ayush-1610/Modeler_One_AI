@@ -58,3 +58,25 @@ def test_digitizer_round_trip_within_two_percent_of_the_axis_range():
     assert all(p.dx == pytest.approx(0.04) for p in points)
     with pytest.raises(CalibrationError, match="positive"):
         AxisCalibration(p1=1, v1=0, p2=2, v2=10, scale="log")
+
+
+@pytest.mark.req("T-45")
+def test_a_figure_digitized_in_a_cropped_zoomed_view_gives_the_same_values_and_keeps_its_frame():
+    """R3d: the pixels of a crop are in that view's own frame; the calibration maps them all the same."""
+    from modeler_project.dataset_register import digitized_dataset
+
+    study = {"study_id": "fig-1", "n": 12, "route": "oral", "dose_mg": 10, "formulation": "solution", "food_state": "fasted",
+             "n_timepoints": 3}
+    whole = {"x": {"p1": 100, "v1": 0, "p2": 700, "v2": 12}, "y": {"p1": 500, "v1": 0, "p2": 100, "v2": 200}}
+    page = digitized_dataset(study=study, doc_sha256="a" * 64, page=3, locator="Figure 2", calibration=whole,
+                             pixels={"mean": [(150, 400), (200, 300), (300, 200)]}, time_unit="h", unit="ng/ml")
+    # the same figure cropped to its box (offset 80, 40) and drawn at twice the scale
+    zoom = {a: {**c, "p1": (c["p1"] - (80 if a == "x" else 40)) * 2, "p2": (c["p2"] - (80 if a == "x" else 40)) * 2}
+            for a, c in whole.items()}
+    cropped = digitized_dataset(study=study, doc_sha256="a" * 64, page=3, locator="Figure 2", calibration=zoom,
+                                pixels={"mean": [((x - 80) * 2, (y - 40) * 2) for x, y in [(150, 400), (200, 300), (300, 200)]]},
+                                time_unit="h", unit="ng/ml", crop=(0.1, 0.05, 0.9, 0.6), scale=4.0)
+    assert cropped.series[0].times == pytest.approx(page.series[0].times)
+    assert cropped.series[0].values == pytest.approx(page.series[0].values)
+    assert (cropped.digitization.crop, cropped.digitization.scale) == ((0.1, 0.05, 0.9, 0.6), 4.0)
+    assert page.digitization.crop is None and ObservedDataset.from_content(cropped.to_content()) == cropped

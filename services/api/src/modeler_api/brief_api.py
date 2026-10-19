@@ -39,6 +39,7 @@ from modeler_api.views.brief import (
     AgentRunDetail,
     BriefImpact,
     BriefPage,
+    DocumentFigures,
     DocumentPage,
     Documents,
     ExtractionStart,
@@ -288,6 +289,27 @@ def document_page(project_id: str, sha256: str, page: int, principal: Reader, st
         raise HTTPException(status_code=404, detail="no such document page")
     record = document_record(version)
     return envelope({"sha256": sha256, "name": record.name, "page": page, "n_pages": record.n_pages, "text": text})
+
+
+@router.get("/projects/{project_id}/documents/{sha256}/figures", **answers(DocumentFigures))
+def document_figures(project_id: str, sha256: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """The images placed in a PDF, page by page, where each sits (the digitizer crops the page to one); [] for a file
+    that is not a PDF."""
+    from modeler_intake.documents import pdf_figures
+
+    ws = workspace_for(project_id, principal, store)
+    version = DocumentLibrary(ws).by_sha(sha256)
+    path = store.blob_path(principal.tenant_id, project_id, sha256) if version else None
+    if version is None or path is None:
+        raise HTTPException(status_code=404, detail="no such document")
+    if document_record(version).kind != "pdf":
+        return envelope({"sha256": sha256, "figures": []})
+    try:
+        figures = pdf_figures(path.read_bytes())
+    except DocumentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return envelope({"sha256": sha256, "figures": [{"page": f.page, "name": f.name, "box": list(f.box), "width": f.width,
+                                                     "height": f.height} for f in figures]})
 
 
 @router.get("/projects/{project_id}/documents/{sha256}/raw")

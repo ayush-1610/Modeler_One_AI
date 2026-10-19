@@ -3402,6 +3402,33 @@
             "title": "Calibration",
             "type": "object"
           },
+          "crop": {
+            "anyOf": [
+              {
+                "maxItems": 4,
+                "minItems": 4,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crop"
+          },
           "overlay_approved_by": {
             "anyOf": [
               {
@@ -3443,6 +3470,17 @@
             },
             "title": "Resolution",
             "type": "object"
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scale"
           }
         },
         "required": [
@@ -3450,7 +3488,9 @@
           "calibration",
           "pixels",
           "resolution",
-          "overlay_approved_by"
+          "overlay_approved_by",
+          "crop",
+          "scale"
         ],
         "title": "Digitization",
         "type": "object"
@@ -3464,6 +3504,33 @@
             },
             "title": "Calibration",
             "type": "object"
+          },
+          "crop": {
+            "anyOf": [
+              {
+                "maxItems": 4,
+                "minItems": 4,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crop"
           },
           "doc_sha256": {
             "title": "Doc Sha256",
@@ -3525,6 +3592,18 @@
             "default": "model_building",
             "title": "Purpose",
             "type": "string"
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scale"
           },
           "statistic": {
             "default": "arithmetic_mean",
@@ -3695,6 +3774,28 @@
           "name"
         ],
         "title": "DissolvedFormulationSpec",
+        "type": "object"
+      },
+      "DocumentFigures": {
+        "additionalProperties": false,
+        "properties": {
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/FigureView"
+            },
+            "title": "Figures",
+            "type": "array"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "figures"
+        ],
+        "title": "DocumentFigures",
         "type": "object"
       },
       "DocumentPage": {
@@ -4320,6 +4421,31 @@
           "errors"
         ],
         "title": "Envelope[CpfView]",
+        "type": "object"
+      },
+      "Envelope_DocumentFigures_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DocumentFigures"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DocumentFigures]",
         "type": "object"
       },
       "Envelope_DocumentPage_": {
@@ -6550,6 +6676,44 @@
           "status"
         ],
         "title": "FieldChange",
+        "type": "object"
+      },
+      "FigureView": {
+        "additionalProperties": false,
+        "description": "An image placed on a PDF page (`modeler_intake.documents.PdfFigure`): its box as fractions of the page as shown.",
+        "properties": {
+          "box": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Box",
+            "type": "array"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "name",
+          "box",
+          "width",
+          "height"
+        ],
+        "title": "FigureView",
         "type": "object"
       },
       "FirstOrderMetabolism": {
@@ -19739,6 +19903,74 @@
           }
         },
         "summary": "Upload Documents",
+        "tags": [
+          "brief"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/documents/{sha256}/figures": {
+      "get": {
+        "description": "The images placed in a PDF, page by page, where each sits (the digitizer crops the page to one); [] for a file\nthat is not a PDF.",
+        "operationId": "document_figures_api_v1_projects__project_id__documents__sha256__figures_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DocumentFigures_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Document Figures",
         "tags": [
           "brief"
         ]

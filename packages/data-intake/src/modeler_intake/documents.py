@@ -20,6 +20,7 @@ import hashlib
 import io
 from dataclasses import dataclass, field
 from pathlib import PurePath
+from typing import Any
 
 PAGE_CHARS = 3500
 MAX_BYTES = 60 * 1024 * 1024
@@ -224,3 +225,93 @@ def extract_document(data: bytes, filename: str) -> ExtractedDocument:
         media_type=media_type, size_bytes=len(data),
         pages=tuple(DocumentPage(page=i, text=t) for i, t in enumerate(texts, start=1)), warnings=tuple(warnings),
     )
+
+
+# --- figures in a PDF (the digitizer's figure list) -------------------------------------------------------------------
+
+MIN_FIGURE_FRACTION = 0.08   # images narrower or shorter than this share of the page (logos, icons) are not listed
+
+
+@dataclass(frozen=True)
+class PdfFigure:
+    """An image placed on a PDF page: where it sits, as fractions of the page as shown (left, top, right, bottom; the
+    page's own rotation applied), and its size in pixels. Found from the page's drawing instructions; nothing is
+    decoded, so the digitizer crops the page it renders to this box."""
+
+    page: int
+    name: str
+    box: tuple[float, float, float, float]
+    width: int
+    height: int
+
+
+Matrix = tuple[float, float, float, float, float, float]
+_IDENTITY: Matrix = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+
+
+def _times(m: Matrix, n: Matrix) -> Matrix:
+    """m then n (PDF row-vector convention: a point p goes to p·m·n)."""
+    a, b, c, d, e, f = m
+    a2, b2, c2, d2, e2, f2 = n
+    return (a * a2 + b * c2, a * b2 + b * d2, c * a2 + d * c2, c * b2 + d * d2, e * a2 + f * c2 + e2, e * b2 + f * d2 + f2)
+
+
+def _placements(content: Any, resources: Any, ctm: Matrix, reader: Any, depth: int,
+                out: list[tuple[str, Matrix, int, int]]) -> None:
+    from pypdf.generic import ContentStream
+
+    if content is None or depth > 8:
+        return
+    xobjects = (resources or {}).get("/XObject") or {}
+    stack: list[Matrix] = []
+    for operands, operator in ContentStream(content, reader).operations:
+        if operator == b"q":
+            stack.append(ctm)
+        elif operator == b"Q" and stack:
+            ctm = stack.pop()
+        elif operator == b"cm" and len(operands) == 6:
+            ctm = _times(tuple(float(v) for v in operands), ctm)  # type: ignore[arg-type]
+        elif operator == b"Do" and operands and operands[0] in xobjects:
+            xobject = xobjects[operands[0]].get_object()
+            if xobject.get("/Subtype") == "/Image":
+                out.append((str(operands[0]).lstrip("/"), ctm, int(xobject.get("/Width", 0)), int(xobject.get("/Height", 0))))
+            elif xobject.get("/Subtype") == "/Form":
+                matrix = tuple(float(v) for v in xobject.get("/Matrix", _IDENTITY))
+                _placements(xobject, xobject.get("/Resources") or resources, _times(matrix, ctm), reader, depth + 1, out)  # type: ignore[arg-type]
+
+
+def _page_box(points: list[tuple[float, float]], left: float, bottom: float, width: float, height: float,
+              rotate: int) -> tuple[float, float, float, float]:
+    """The bounding box of PDF points as fractions of the page as a viewer shows it (y down, rotation applied)."""
+    fractions = [((x - left) / width, 1 - (y - bottom) / height) for x, y in points]
+    for _ in range((rotate // 90) % 4):          # each quarter turn clockwise: (u, v) -> (1 - v, u)
+        fractions = [(1 - v, u) for u, v in fractions]
+    us, vs = [u for u, _ in fractions], [v for _, v in fractions]
+    return (_unit(min(us)), _unit(min(vs)), _unit(max(us)), _unit(max(vs)))
+
+
+def _unit(t: float) -> float:
+    return round(min(max(t, 0.0), 1.0), 4)
+
+
+def pdf_figures(data: bytes) -> list[PdfFigure]:
+    """Every image placed on each page of a PDF, larger than a logo, page by page in drawing order."""
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        figures: list[PdfFigure] = []
+        for number, page in enumerate(reader.pages, start=1):
+            box = page.cropbox
+            left, bottom, width, height = float(box.left), float(box.bottom), float(box.width), float(box.height)
+            found: list[tuple[str, Matrix, int, int]] = []
+            _placements(page.get_contents(), page.get("/Resources"), _IDENTITY, reader, 0, found)
+            for name, (a, b, c, d, e, f), w, h in found:
+                corners = [(e, f), (a + e, b + f), (c + e, d + f), (a + c + e, b + d + f)]
+                placed = _page_box(corners, left, bottom, width, height, int(page.get("/Rotate", 0) or 0))
+                if placed[2] - placed[0] >= MIN_FIGURE_FRACTION and placed[3] - placed[1] >= MIN_FIGURE_FRACTION:
+                    figures.append(PdfFigure(page=number, name=name, box=placed, width=w, height=h))
+        return figures
+    except (PdfReadError, ValueError, KeyError, TypeError) as exc:
+        raise DocumentError(f"the PDF's figures could not be listed: {exc}") from exc
