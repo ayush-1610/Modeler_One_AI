@@ -55,6 +55,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     AUC and Cmax of internal groups only is listed for the SME (`docs/SME_SIGNOFF.md`).
   - **A new MAP hash** for any MAP that records bounds, plausibility or a target. The reference runs' refit MAPs are
     unsigned development MAPs.
+  - **Verified on PK-Sim** (`dapagliflozin-refit`, Actions run 39286267822, engine 12.4.4, on this branch): identical to
+    the recorded refit. S0 passes with no departure note. S1 escalates after the clearance fit, with UGT1A9 clspec at
+    its lower bound (0.0399). The GMFE is 2.478 / 2.516 at baseline and 1.412 / 2.291 after the fit.
   - **API contract:** `MapParameter`, `MapAcceptance` and `CampaignRecord` gain fields; the OpenAPI snapshot and web
     types are regenerated.
   - **Locked files:** `campaign/map.py` and `acceptance.py`, hashes refreshed in `docs/architecture/locked-files.json`.
