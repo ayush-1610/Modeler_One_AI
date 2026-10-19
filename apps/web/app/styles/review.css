@@ -1,0 +1,44 @@
+/* Step 3 · Review & sign (components/plan/PlanCanvas, components/review): the section links, the studies and roles, the
+ * review table and credibility. Built only from the theme tokens in globals.css, so it reads the same in light and dark. */
+
+.review-nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0 4px; }
+.review-nav a { font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-dim);
+  text-decoration: none; background: var(--surface); }
+.review-nav a:hover { color: var(--ink); border-color: color-mix(in srgb, var(--sim) 45%, var(--line)); }
+.review-block { margin-top: 18px; scroll-margin-top: 16px; }
+.review-block > h2 { font-size: 17px; margin: 0 0 8px; letter-spacing: -0.01em; }
+.review-lede, .credibility-lede, .review-hint { font-size: 13px; max-width: none; }
+.review-lede { margin: -2px 0 10px; }
+#review-validator { scroll-margin-top: 16px; }
+
+/* the studies under the canvas */
+#review-studies .table-scroll { margin-top: 12px; }
+#review-studies tr.left-out td { color: var(--ink-faint); }
+
+/* the review table */
+.review-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.review-filters button { font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-dim); display: inline-flex; gap: 6px; align-items: center; }
+.review-filters button[aria-pressed="true"] { border-color: var(--sim); color: var(--brand-ink); font-weight: 600;
+  background: color-mix(in srgb, var(--sim) 12%, var(--surface)); }
+.review-filters .count { font: 500 11.5px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-faint); }
+.review-table td { vertical-align: top; font-size: 13.5px; }
+.review-table tr.waiting td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
+.review-source { max-width: 420px; }
+.review-source q { display: block; margin-top: 3px; font-size: 12.5px; color: var(--ink-dim); quotes: "“" "”"; }
+.review-note { font-size: 12px; margin-top: 3px; }
+.review-flag { margin-top: 3px; font-size: 12px; color: var(--warn); }
+.review-exclude { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.review-exclude input { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); min-width: 180px; }
+.review-hint { margin: 8px 0 0; }
+
+/* credibility */
+.credibility { display: grid; gap: 16px; }
+.credibility section { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.credibility h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-dim); }
+.credibility-lede { margin: 0 0 10px; }
+.credibility .table-scroll { max-width: 620px; }
+.stage-split { min-width: 0; }
+.stage-split td, .stage-split th { font-size: 13px; }
+.limitations { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; }

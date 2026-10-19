@@ -619,7 +619,8 @@ _MW_IN_RECORD = re.compile(r'"MolecularWeight"\s*:\s*"?(\d+(?:\.\d+)?)"?')
 
 
 def evidence_view(item: EvidenceItem) -> dict[str, Any]:
-    """An evidence item as the to-do list shows it: the value in both units, where it comes from, how it was graded."""
+    """An evidence item as the to-do list shows it: the value in both units, where it comes from, how it was graded,
+    and who supplied and who last decided it (an agent run, a person, or the system reading a file)."""
     s = item.source
     return {"id": item.id, "target": item.target, "value": item.value, "unit": item.unit, "value_pksim": item.value_pksim,
             "unit_pksim": item.unit_pksim, "state": item.state.value, "confidence": item.confidence,
@@ -627,7 +628,8 @@ def evidence_view(item: EvidenceItem) -> dict[str, Any]:
             "provider": item.provider, "source_type": item.source_type.value, "conditions": item.conditions,
             "source": {"title": s.title, "authors": s.authors, "year": s.year, "doi": s.doi, "page": s.page,
                        "locator": s.locator},
-            "quote": item.quote[:300]}
+            "quote": item.quote[:300], "extraction": item.extraction.value, "proposed_by": item.proposed_by,
+            "decided_by": item.decided_by}
 
 
 def _suggestions(target: str) -> dict[str, Any]:

@@ -131,7 +131,25 @@ is approved here: the one review is at the MAP signature.
 
 When the list is empty, **Go to Review & sign**.
 
-## 8. When something looks wrong: the project doctor
+## 8. Review & sign (step 3): the one review, then the signature
+
+The Review & sign page (`/projects/{id}/plan`) is where everything is reviewed once, before the run (D-27).
+
+- **Studies and roles.** The MS-01 canvas: drag a dataset onto a stage of the development and validation graph, with
+  a reason; D1 and D2 free a parameter for fitting within bounds. Below it, each study's role, whether it is blinded
+  until the signature, its demographics, and **Leave out** with a reason.
+- **The inputs.** Every value the model takes, with the source the CPF keeps, its quote, grade and flags, who supplied
+  it, and how many other sources agree. Filter it (flagged, changed by a person, from an agent, waiting on you).
+  **Exclude** a value with a reason: the next source takes its place, and the plan asks to be brought up to date. The
+  confidence shown sums up the grade, the flags and the agreement; it decides nothing.
+- **Credibility (ICH M15).** The model risk, as set at Start or changed here with a reason; the campaign's time budget
+  and MS-01's fixed share of it for each stage, as the MAP signs them (more time means a larger budget, signed again);
+  and the limitations the MAP will name, the brief's stated assumptions among them.
+- **The live validator** lists what is still open; acknowledge a warning with a reason and it becomes a limitation.
+  **Approve and Sign** generates the MAP from the plan and signs it (MIDD lead, step-up). After the signature a change
+  is a deviation, signed into a new MAP version before it applies.
+
+## 9. When something looks wrong: the project doctor
 
 On the server, in `~/Modeler_One_AI`:
 
