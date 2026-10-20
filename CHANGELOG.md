@@ -15,6 +15,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — UI/UX pass, PR 2: one dialog for the signing step-up, an escalation's pop-up and the signature confirmation (web only)
+- **What:** a kit `Dialog` (`components/kit/Dialog.tsx`, styles in `kit.css`) replaces three hand-built modals. Each is now
+  named by its title, takes focus when it opens and gives it back when it closes, keeps Tab inside, and closes on
+  Escape (step-up: cancel; pop-up: "Decide later"; signature confirmation: back to the decision, unless a signature is being
+  sent). Dialogs nest: Escape and Tab act on the innermost only. The signature confirmation's inline styles and its own
+  overlay colour are gone, and its Cancel button now sits left of "Sign & submit", as in the step-up.
+- **Why:** the audit found a signing dialog (21 CFR 11.200) that a keyboard user could tab out of, with no accessible
+  name beyond a label, no Escape, and a title styled as a 12 px grey caption.
+- **Impact:** appearance and keyboard behaviour only; every testid, text and API call is unchanged. The Review & sign
+  drop dialog shares the `.dialog` rules and is untouched. Covered by `escalation-popup.spec.ts` (focus, Tab, nested
+  Escape, focus returned, the step-up opened by a stubbed 403 and cancelled with Escape); the Keycloak sign-in itself is
+  still `oidc-signing.spec.ts`, which needs a test Keycloak and was not run here.
+
 ### Added — UI/UX pass, PR 0: test hooks and a guard for the caveats a restyle must not hide (web only)
 - **What:** (1) `data-testid`s beside the class-selected elements the e2e specs lean on: `campaign-status` and
   `campaign-stage-<Sx>` on the campaign page, `start-document` on the Start document viewer; no class, text or layout
