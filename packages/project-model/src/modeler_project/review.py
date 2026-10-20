@@ -14,6 +14,9 @@
 - **The acceptance criteria (R4b):** the limits of the chosen tier, as the MAP records them (`MapAcceptance`), from
   the ruleset UNVERIFIED until the SME signs; and the stricter internal target, if any (MS-01 §8), which the MAP
   records and the verdicts apply to the internal groups (R4d).
+- **The applications (R4c):** each analysis template the MAP pins (the VBE crossover), its inputs as the template
+  declares them and what is still missing; and each of the brief's applications with what the campaign does with it
+  (`plan.APPLICATION_SUPPORT`), with the brief's prediction scenarios, which S6 does not simulate yet.
 
 Each part reads the MAP this plan generates now (`campaign_map`), so the page shows what the signature would carry.
 """
@@ -22,13 +25,16 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from modeler_project.brief import VALUED, ProjectBrief
 from modeler_project.estimation import fit_findings, proposed_bounds
 from modeler_project.estimation import rule as bounds_rule
 from modeler_project.inputs import todo
 from modeler_project.inputs_view import compound_rows
 from modeler_project.plan import (
+    APPLICATION_SUPPORT,
     ModelPlan,
     Violation,
+    application_label,
     campaign_cpf,
     default_map,
     map_limitations,
@@ -36,7 +42,9 @@ from modeler_project.plan import (
 )
 from modeler_project.workspace import Workspace
 from pbpk_domain.acceptance import load_acceptance_ruleset, loosest_internal_target
+from pbpk_domain.analysis_templates import load_template
 from pbpk_domain.campaign.map import MapDocument, stage_coverage
+from pbpk_domain.cpf.formulations import formulation_names
 from pbpk_domain.cpf.models import CPF, ParameterStatus
 
 Confidence = Literal["low", "medium", "high"]
@@ -222,3 +230,43 @@ def acceptance(plan: ModelPlan, doc: MapDocument) -> dict[str, Any]:
         "loosest_target_pe": round(loosest_internal_target(tier), 1) if tier else None,
         "target_applied": True,
     }
+
+
+# the templates a person may add on Review & sign, and the brief applications that make each one offered
+_ADDABLE = {"vbe-crossover": ("APP-11", "APP-14")}
+
+
+def applications(plan: ModelPlan, cpf: CPF, violations: list[Violation]) -> dict[str, Any]:
+    """The analysis templates the MAP pins, each with its inputs as the template declares them, the person's values,
+    what the validator still says of it, and the choices its inputs take (the CPF's formulations, the template's
+    limits); and the templates the brief's applications would let a person add."""
+    pinned = []
+    for application in plan.structure.applications:
+        template = load_template(application.template)
+        pinned.append({
+            "template": template.id, "version": application.template_version, "status": template.status,
+            "inputs": [{**spec.model_dump(mode="json"), "value": application.inputs.get(spec.id)} for spec in template.inputs],
+            "problems": [v.message for v in violations
+                         if v.rule == "application" and v.target.split(":", 1)[0] == application.template],
+            "formulations": sorted(formulation_names(cpf)),
+            "limits": [{"id": key, **limit.model_dump(mode="json")} for key, limit in template.limits.items()],
+        })
+    present = {a.template for a in plan.structure.applications}
+    codes = set(plan.structure.application_codes)
+    addable = [t for t, apps in _ADDABLE.items() if t not in present and codes & set(apps)]
+    return {"pinned": pinned, "addable": addable}
+
+
+def _scenario(item: dict[str, Any]) -> dict[str, Any]:
+    return {key: record.value for key, record in item.items() if record.status in VALUED}
+
+
+def application_support(plan: ModelPlan, brief: ProjectBrief | None) -> dict[str, Any]:
+    """Each of the brief's applications with what the campaign does with it, and the brief's prediction scenarios:
+    recorded, but S6 does not simulate them yet (it simulates the validated studies)."""
+    rows = []
+    for code in plan.structure.application_codes:
+        status, reason = APPLICATION_SUPPORT.get(code, ("not_supported", "the campaign does not know this application"))
+        rows.append({"code": code, "label": application_label(code), "status": status, "reason": reason})
+    scenarios = [_scenario(item) for item in (brief.groups.get("scenarios", ()) if brief else ())]
+    return {"rows": rows, "scenarios": [s for s in scenarios if s]}

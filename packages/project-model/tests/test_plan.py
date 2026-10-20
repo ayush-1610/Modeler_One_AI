@@ -234,3 +234,40 @@ def test_an_internal_target_must_be_stricter_than_the_tier_and_the_signed_map_ca
     assert target.severity == "error" and "at most 33.3 %" in target.message
     high = set_structure(loose, "model_risk", "high", by="u", reason="r")
     assert "at most 20.0 %" in next(v.message for v in validate(high, cpf, ROWS) if v.rule == "target")
+
+
+def test_applications_the_campaign_cannot_run_are_said_at_signing_and_named_among_the_limitations():
+    """R4c (owner 2026-10-19): an application S6 does not run is a warning at signing; acknowledged, the MAP names it as
+    a limitation. A VBE crossover needs two subjects per trial, and each of its problems is its own line."""
+    from modeler_project.plan import acknowledge, map_limitations, set_structure, structure_from_brief
+
+    class Brief:
+        def value(self, key):
+            return {"qoi.applications": ["APP-01 model build and verification", "APP-03 enzyme DDI", "APP-12 food effect",
+                                         "APP-14 virtual bioequivalence"], "acceptance.tier": "medium"}.get(key)
+
+    structure = structure_from_brief(Brief())  # type: ignore[arg-type]
+    assert structure.application_codes == ("APP-01", "APP-03", "APP-12", "APP-14")
+    cpf = _cpf()
+    plan = build_default(cpf, ROWS, structure)
+    unsupported = {v.target: v for v in validate(plan, cpf, ROWS) if v.rule == "application-unsupported"}
+    assert set(unsupported) == {"APP-03", "APP-12"}                      # APP-01: the campaign; APP-14: S6 runs it
+    assert unsupported["APP-03"].severity == "warning"
+    assert unsupported["APP-03"].message.startswith("APP-03 enzyme DDI: not supported yet — S6 runs no DDI template")
+    assert unsupported["APP-12"].message.startswith("APP-12 food effect: partly supported — fed studies are judged at S5")
+    acknowledged = acknowledge(plan, unsupported["APP-03"].id, by="u1", reason="the DDI question is answered elsewhere")
+    lines = map_limitations(acknowledged, validate(acknowledged, cpf, ROWS))
+    assert any(line.startswith("APP-03 enzyme DDI: not supported yet") and "answered elsewhere" in line for line in lines)
+
+    ids = [v.id for v in validate(plan, cpf, ROWS) if v.rule == "application"]
+    assert len(ids) > 1 and len(ids) == len(set(ids))                    # one id per problem, never shared
+    one = {"test_formulation": "Test", "reference_formulation": "Ref", "n_subjects": 1, "n_trials": 100, "seed": 7,
+           "pos_threshold": 0.8, "variability": [{"parameter": "Organism|Lumen|Stomach|Gastric emptying time",
+                                                  "cv_percent": 30, "source": "cited"}]}
+    tablets = tuple(ParameterRecord(id=f"form.{n}.weibull.t50", value=30.0, unit="min", status=ParameterStatus.FIXED,
+                                    provenance=PROV) for n in ("Test", "Ref"))
+    with_tablets = cpf.model_copy(update={"parameters": (*cpf.parameters, *tablets)})
+    single = set_structure(plan, "applications", [{"template": "vbe-crossover", "inputs": one}], by="u1", reason="design")
+    assert [v.message for v in validate(single, with_tablets, ROWS) if v.rule == "application"] == [
+        ("vbe-crossover: Subjects per trial: at least 2 (a crossover's 90 % confidence interval needs two subjects; the "
+         "engine refuses fewer)")]

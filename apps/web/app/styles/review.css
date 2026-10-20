@@ -61,3 +61,12 @@
 .validation-failure { font-size: 13px; margin: 8px 0 0; }
 .internal-target { margin-top: 12px; font-size: 13.5px; }
 .credibility td.nowrap { white-space: nowrap; }
+
+/* R4c · the applications: the VBE panel and the brief's applications */
+.applications h3 { margin: 14px 0 6px; font-size: 14px; }
+.vbe-panel { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.vbe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 12px; }
+.vbe-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-dim); }
+.vbe-field input, .vbe-field select { font-size: 13px; }
+.vbe-variability input { width: 100%; min-width: 0; }
+.vbe-problems li { color: var(--fail); }

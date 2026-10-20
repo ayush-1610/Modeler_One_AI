@@ -8,6 +8,7 @@ import { D1Disposition, D2Absorption } from "@/components/plan/Diagrams";
 import { Credibility, StudiesTable } from "@/components/review/Credibility";
 import { EstimationPlan } from "@/components/review/EstimationPlan";
 import { ReviewTable } from "@/components/review/ReviewTable";
+import { Applications } from "@/components/review/Applications";
 import { ValidationPlan } from "@/components/review/ValidationPlan";
 import { Card } from "@/components/ui";
 import type { Envelope, Schema } from "@/lib/api";
@@ -262,6 +263,7 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
       <nav className="review-nav" aria-label="Review sections">
         <a href="#review-studies">Studies and roles</a><a href="#review-inputs">The inputs</a>
         <a href="#review-estimation">The estimation plan</a><a href="#review-validation">The validation plan</a>
+        <a href="#review-applications">Applications</a>
         <a href="#review-credibility">Credibility</a><a href="#review-validator">Validator and changes</a>
       </nav>
       <section className="review-block" id="review-studies" aria-labelledby="review-studies-title">
@@ -325,6 +327,13 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
         <h2 id="review-validation-title">The validation plan</h2>
         <p className="muted review-lede">What validates the model under this MAP, and what happens if it fails.</p>
         {review.data ? <ValidationPlan review={review.data} />
+          : review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue> : <p className="muted">Loading…</p>}
+      </section>
+      <section className="review-block" id="review-applications" aria-labelledby="review-applications-title">
+        <h2 id="review-applications-title">Applications</h2>
+        <p className="muted review-lede">What S6 runs after validation, with its inputs, and what the campaign does with each application
+          the brief names. One it cannot run yet is said here; acknowledged, it becomes a limitation of the MAP.</p>
+        {review.data ? <Applications projectId={projectId} view={view} review={review.data} apply={apply} />
           : review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue> : <p className="muted">Loading…</p>}
       </section>
       <section className="review-block" id="review-credibility" aria-labelledby="review-credibility-title">

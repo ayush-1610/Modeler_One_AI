@@ -6,7 +6,7 @@ by its owner's model); the rest is computed for the canvas.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -318,6 +318,56 @@ class AcceptanceView(View):
     target_applied: bool                   # the verdicts apply it to the internal groups (since R4d)
 
 
+class ApplicationInput(View):
+    """One input an analysis template declares (`analysis_templates.TemplateInput`) and the value the plan holds."""
+
+    id: str
+    label: str
+    kind: str
+    required: bool
+    default: Any = None
+    unit: str | None
+    note: str
+    never_default: bool
+    value: Any = None
+
+
+class ApplicationLimits(View):
+    id: str
+    lower: Number
+    upper: Number
+    ci_level: Number
+    verified: bool
+    source: str
+
+
+class PinnedApplication(View):
+    template: str
+    version: str
+    status: str                            # the template's own (DRAFT until the SME approves it)
+    inputs: list[ApplicationInput]
+    problems: list[str]                    # what the validator still says of it (signing waits on these)
+    formulations: list[str]                # the CPF's formulations, the choices of a formulation input
+    limits: list[ApplicationLimits]
+
+
+class ApplicationsView(View):
+    pinned: list[PinnedApplication]
+    addable: list[str]                     # templates the brief's applications offer, not yet in the plan
+
+
+class ApplicationSupportRow(View):
+    code: str
+    label: str
+    status: Literal["runs", "campaign", "partial", "not_supported"]
+    reason: str
+
+
+class ApplicationSupport(View):
+    rows: list[ApplicationSupportRow]
+    scenarios: list[dict[str, Any]]        # the brief's prediction scenarios, recorded; S6 does not simulate them yet
+
+
 class ReviewPage(View):
     rows: list[ReviewRow]
     counts: ReviewCounts
@@ -330,3 +380,5 @@ class ReviewPage(View):
     bounds_rule: RuleVersion
     validation: list[ValidationStage]
     acceptance: AcceptanceView
+    applications: ApplicationsView
+    application_support: ApplicationSupport

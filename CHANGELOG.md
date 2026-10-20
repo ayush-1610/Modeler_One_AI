@@ -15,6 +15,53 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Review & sign shows the applications: the VBE panel, and what the campaign does with each of the brief's (R4c)
+- **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3, "VBE, its own panel" and "Other applications"; map rows
+  `m-vbe`, `p1-apps`, `p1-scen-other`):
+  - **The VBE panel.** The `vbe-crossover` template's inputs are set on Review & sign, saved with a reason through
+    `PUT plan/structure` (key `applications`):
+    - the TEST and reference formulations, chosen from the CPF's;
+    - the intra-subject variability: a PK-Sim parameter path, its CV and its source, never defaulted. The path is free
+      text; the engine checks it before the trials run, and an unknown path stops the VBE (owner, 2026-10-19);
+    - subjects per trial, trials, seed and the probability-of-success threshold, empty until given;
+    - the limits: standard 80–125 %, or NTI, marked "[VERIFY], unverified";
+    - an optional observed BE study. Without one, the panel says the result will be NOT VALIDATED (F-304).
+    - What the validator still says of the application is listed in the panel. "Add the VBE application" is offered
+      when the brief names APP-11 or APP-14 and the plan has none.
+  - **The brief's applications, each with what the campaign does with it** (`plan.APPLICATION_SUPPORT`):
+    - **runs at S6:** APP-14;
+    - **the campaign:** APP-01 and APP-11, which the stages themselves answer;
+    - **partly supported:** APP-12 (fed studies are judged at S5; the S3 fed fit has no engine path yet);
+    - **not supported yet:** the rest (DDI, PGx, special populations, tissue exposure, regimen predictions, …).
+    - The brief's prediction scenarios are listed, marked "not simulated yet".
+  - **The validator:**
+    - **new warning `application-unsupported`** for each partly supported or not-supported application. Acknowledged,
+      it becomes a limitation of the MAP, so the signed MAP and the MAR say it (owner, 2026-10-19: a warning, never a
+      block);
+    - **new error:** a VBE crossover needs at least 2 subjects per trial (the engine refuses fewer);
+    - each application problem has its own violation id (they all shared one).
+  - **S6's note** no longer promises "the other application templates … are the next phase". It now reads "S6
+    characterises the validated model: sensitivity and prediction intervals of the internal studies"; the unrun
+    applications are in the MAP's limitations instead.
+  - **API:** `GET /projects/{id}/plan/review` gains `applications` (the pinned templates with their input specs, values,
+    problems, formulation and limit choices, and the addable ones) and `application_support`. `Structure` gains
+    `application_codes`, read from the brief on every rebase. The OpenAPI snapshot and web types are regenerated.
+- **Why:** a project whose brief names APP-14 got a VBE application with empty inputs, which blocks signing, and nothing
+  on the web could fill them. And the applications the campaign cannot run were said only by a note at S6, after the
+  MAP was signed.
+- **Impact:**
+  - **No science change.** The inputs and their rules are the template's (`vbe-crossover` 0.2.0-draft, SME-locked,
+    unchanged); the support statuses state what the code runs. No locked file changes.
+  - **A brief that names an application S6 does not run now has a warning to acknowledge before signing.** The T-56
+    kit acknowledges its APP-12 warning, so its MAP names that limitation.
+  - Tests:
+    - `test_plan.py`: the warnings and their limitation, the subject minimum, one id per problem;
+    - `test_review.py`: the applications view and the support table with the brief's scenarios;
+    - `test_plan_api.py`: the VBE inputs set through the API and shown with what is left;
+    - `test_local_runner.py`: S6's note;
+    - new browser flow `applications.spec.ts`. The e2e fixture can now enter brief fields before the data plan is
+      derived.
+
 ### Fixed — the review inbox shows the next escalation of a campaign it just resumed
 - **What:** a signed decision in the review inbox resumes its campaign in the background, and the campaign may escalate
   again (an S5 decision is followed by the S4/S5 signature). The inbox read the escalations once, right after the
