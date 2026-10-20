@@ -22,9 +22,9 @@ export function Nav({ user }: { user?: string | null }) {
         <span className="brand-mark" aria-hidden />
         Modeler One
       </div>
-      <nav className="nav">
+      <nav className="nav" aria-label="Main">
         {LINKS.map((l) => (
-          <Link key={l.href} href={l.href} className={is(l.href) ? "active" : ""}>
+          <Link key={l.href} href={l.href} className={is(l.href) ? "active" : ""} aria-current={is(l.href) ? "page" : undefined}>
             {l.label}
           </Link>
         ))}
