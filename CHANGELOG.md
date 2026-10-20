@@ -26,6 +26,17 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Impact:** appearance and keyboard behaviour only; no page, testid, text or API call changed. Each page keeps rendering its
   own `<main>` (there is no wrapper landmark, which would nest two).
 
+### Changed — UI/UX pass, PR 3: kit tabs, a banner, and a labelled table scroller (web only)
+- **What:** `components/kit/Tabs.tsx` (a tablist that answers the arrow keys, Home and End, has only the selected tab in
+  the Tab order, and names each panel by its tab) and `Banner` and a `label` option on `DataTable` in `components/kit`
+  (the label is read aloud as a caption, and the scrolling box can be reached and scrolled from the keyboard). The Inputs
+  workspace's hand-built tab strip uses them, and the Start checklist's table is labelled; a tab's open-item count is now
+  read as "N open". Unchanged for every other page: `.tabs`, `.banner` and `.table-scroll` keep their rules.
+- **Why:** the audit found tab buttons with no panel, no arrow-key movement and a count read as a bare number, and
+  scrolling tables a keyboard user cannot reach.
+- **Impact:** appearance and keyboard behaviour only; testids, texts and API calls unchanged (`tab-<id>` and
+  `inputs-notice` kept). Plan, evidence and Review & sign pages are untouched.
+
 ### Changed — UI/UX pass, PR 2: one dialog for the signing step-up, an escalation's pop-up and the signature confirmation (web only)
 - **What:** a kit `Dialog` (`components/kit/Dialog.tsx`, styles in `kit.css`) replaces three hand-built modals. Each is now
   named by its title, takes focus when it opens and gives it back when it closes, keeps Tab inside, and closes on

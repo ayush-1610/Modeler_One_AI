@@ -37,6 +37,17 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await expect(page.getByTestId("record-phys.logp")).toContainText("+1 agree");
   await shot(page, "1-compound");
 
+  // the tabs answer the keyboard: arrows move and select, only the selected tab is in the Tab order, the panel is named
+  await expect(page.getByRole("tabpanel", { name: "Compound" })).toBeVisible();
+  await page.getByTestId("tab-compound").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("tab-formulations")).toBeFocused();
+  await expect(page.getByTestId("tab-compound")).toHaveAttribute("tabindex", "-1");
+  await expect(page.getByRole("tabpanel", { name: "Formulations" })).toBeVisible();
+  await page.keyboard.press("Home");
+  await expect(page.getByTestId("tab-compound")).toHaveAttribute("aria-selected", "true");
+
   // a value no source has given yet, typed into its row with its source
   await page.getByTestId("add-open-phys.mw").click();
   const mw = page.getByTestId("add-phys.mw");
