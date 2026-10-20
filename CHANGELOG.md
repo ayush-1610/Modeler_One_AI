@@ -15,6 +15,17 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — UI/UX pass, PR 4: the frame around every page (web only)
+- **What:** a "Skip to the page" link as the first Tab stop (it lands on a zero-size point at the start of the page, so the
+  next Tab is the page's first control); the sidebar's links say which page is current (`aria-current`) and the list is
+  named "Main"; `app/loading.tsx`, `app/error.tsx` and `app/not-found.tsx` replace Next's defaults. A page that fails to draw
+  now says so, with the browser's message and the server-log reference, a "Try again" button and a way back; an address with
+  no page says so with the sidebar still there. `e2e/shell.spec.ts` covers the three.
+- **Why:** the audit found no way past the sidebar for a keyboard, no marked current page, and a blank or default Next screen
+  on a failure or a retired address (the old pages are about to be removed).
+- **Impact:** appearance and keyboard behaviour only; no page, testid, text or API call changed. Each page keeps rendering its
+  own `<main>` (there is no wrapper landmark, which would nest two).
+
 ### Changed — UI/UX pass, PR 2: one dialog for the signing step-up, an escalation's pop-up and the signature confirmation (web only)
 - **What:** a kit `Dialog` (`components/kit/Dialog.tsx`, styles in `kit.css`) replaces three hand-built modals. Each is now
   named by its title, takes focus when it opens and gives it back when it closes, keeps Tab inside, and closes on

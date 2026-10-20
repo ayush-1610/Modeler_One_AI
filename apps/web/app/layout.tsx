@@ -47,9 +47,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} /></head>
       <body>
+        {/* the first Tab stop: past the sidebar to the page (every page renders its own <main>) */}
+        <a className="skip-link" href="#content">Skip to the page</a>
         <div className="app">
           <Nav user={user} />
-          <div className="content"><Providers>{children}</Providers></div>
+          <div className="content">
+            <span id="content" tabIndex={-1} className="skip-target" />
+            <Providers>{children}</Providers>
+          </div>
         </div>
       </body>
     </html>
