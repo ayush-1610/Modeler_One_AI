@@ -43,7 +43,7 @@ export function DocumentViewer({
   const quote = focus && focus.sha256 === sha && focus.page === pageNo ? focus.quote : null;
 
   return (
-    <section className="card doc-viewer">
+    <section className="card doc-viewer" data-testid="start-document">
       <div className="spread" style={{ marginBottom: 8 }}>
         <select value={sha ?? ""} onChange={(e) => { setSha(e.target.value); setPageNo(1); }} aria-label="Document">
           {documents.map((d) => (

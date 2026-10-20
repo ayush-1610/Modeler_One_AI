@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — UI/UX pass, PR 0: test hooks and a guard for the caveats a restyle must not hide (web only)
+- **What:** (1) `data-testid`s beside the class-selected elements the e2e specs lean on: `campaign-status` and
+  `campaign-stage-<Sx>` on the campaign page, `start-document` on the Start document viewer; no class, text or layout
+  changed. (2) `e2e/protected-text.spec.ts`: Start's "not supported yet" gate and the waiting list must be visible,
+  unclipped and not painted in their background colour, in light and dark (to be extended to "provisional (SME)",
+  "UNVERIFIED" and "TEST ONLY" as those screens are restyled). (3) The e2e web server's readiness probe moves from
+  `/projects/new` to `/`, so the run no longer depends on a page the old-page removal deletes.
+- **Why:** the audit found that no spec asserts the caveats (`toContainText` passes on hidden text) and that deleting
+  `/projects/new` would make every e2e run wait out its 300 s start-up timeout.
+- **Impact:** none on behaviour; no API, locked file or dependency touched. First of the per-page UI/UX series on the
+  design foundation (redesign plan §7).
+
 ### Added — Review & sign shows the applications: the VBE panel, and what the campaign does with each of the brief's (R4c)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3, "VBE, its own panel" and "Other applications"; map rows
   `m-vbe`, `p1-apps`, `p1-scen-other`):
