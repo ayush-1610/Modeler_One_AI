@@ -161,6 +161,18 @@ The Review & sign page (`/projects/{id}/plan`) is where everything is reviewed o
 - **The validation plan.** What S4 (internal) and S5 (external) judge under this MAP, which studies (a blinded one
   marked), and what happens when validation fails: S4 escalates and is never refitted; at S5 you choose an MS-01 §6.6
   path, signed as a deviation.
+- **Applications.** The virtual bioequivalence design, when the brief names APP-14 (or APP-11, with "Add the VBE
+  application"):
+  - the TEST and reference formulations;
+  - the intra-subject variability: a PK-Sim parameter path, its CV and its source. The engine checks the path before
+    the trials run;
+  - subjects × trials, the seed and the probability-of-success threshold;
+  - the limits;
+  - an optional observed BE study. Without it the result is "not validated".
+
+  Nothing is defaulted, and what is missing is listed. Below it, each application of the brief says what the campaign
+  does with it: runs at S6, the campaign itself, partly supported, or not supported yet. Acknowledge one it cannot run
+  with a reason, and the MAP names it as a limitation. The brief's prediction scenarios are shown as not simulated yet.
 - **Credibility (ICH M15).** The model risk, as set at Start or changed here with a reason; the **acceptance
   criteria** of that tier (the limits every round is judged by, provisional until the SME signs the ruleset) and an
   optional **internal target**, stricter than the tier only (the validator refuses a looser one). The signed MAP

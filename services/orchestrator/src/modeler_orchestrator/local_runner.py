@@ -748,8 +748,8 @@ class LocalExecutor:
         if vbe is not None:
             result["vbe"] = vbe
             notes.append(_vbe_note(vbe))
-        notes.append("the other application templates (DDI, paediatric, organ impairment) are the next phase (T-31); "
-                     "S6 characterises the validated model")
+        # the applications S6 does not run are said at signing and named among the MAP's limitations (R4c)
+        notes.append("S6 characterises the validated model: sensitivity and prediction intervals of the internal studies")
         result["notes"] = notes
         self._last["S6"] = {"prediction": result}
         if self.writer:

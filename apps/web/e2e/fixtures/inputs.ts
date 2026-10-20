@@ -5,14 +5,21 @@ import { expect, type APIRequestContext } from "@playwright/test";
 export const AUTH = { Authorization: "Bearer dev" };
 
 type Study = { study_id: string; route: string; dose_mg: number; food_state?: string; co_medication?: string };
+type BriefChange = { path: string; value: unknown; unit?: string };
 
-export async function projectWithInputs(request: APIRequestContext, drug: string, studies: Study[], { accept = true } = {}) {
+export async function projectWithInputs(request: APIRequestContext, drug: string, studies: Study[],
+                                        { accept = true, brief = [] as BriefChange[] } = {}) {
   const started = await request.post("/api/v1/projects:initiate", {
     headers: AUTH,
     multipart: { drug_name: drug, extract: "false",
                  files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nPBPK model.") } },
   });
   const projectId = (await started.json()).data.project_id as string;
+  if (brief.length) {      // the brief's fields a flow needs, entered by a person before the data plan is derived
+    const edited = await request.put(`/api/v1/projects/${projectId}/brief`, { headers: AUTH,
+      data: { changes: brief.map((c) => ({ ...c, status: "EDITED" })) } });
+    expect(edited.ok(), await edited.text()).toBeTruthy();
+  }
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
   const values: [string, string, number, string | null, Record<string, string>][] = [
     ["REQ-phys.mw", "phys.mw", 225.2, "g/mol", {}],

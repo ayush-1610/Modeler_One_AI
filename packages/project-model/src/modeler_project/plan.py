@@ -23,7 +23,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
-from modeler_project.brief import ProjectBrief
+from modeler_project.brief import APPLICATIONS, ProjectBrief
 from modeler_project.estimation import fit_findings
 from modeler_project.workspace import Workspace
 from pbpk_domain.acceptance import loosest_internal_target
@@ -132,6 +132,7 @@ class Structure(BaseModel):
     measured_fed_solubility: bool = False
     planned_applications: tuple[str, ...] = ()   # flagged classes with a planned S6 application (MS-01 rule 4)
     applications: tuple[MapApplication, ...] = ()  # the analysis templates S6 runs (T-31), with the person's inputs
+    application_codes: tuple[str, ...] = ()        # the brief's applications (APP-xx), each said to run or not (R4c)
     # the assumptions the brief states (map row p1-assump): limitations of the analysis, named in the MAP
     assumptions: tuple[str, ...] = ()
     # a stricter project target than the tier, |prediction error| at most this % (MS-01 §8; brief
@@ -225,6 +226,37 @@ _APPLICATION_CLASSES = {"APP-03": "DDI", "APP-04": "DDI", "APP-13": "DDI", "APP-
                         "APP-02": "PRECLINICAL"}
 
 
+# What the campaign does with each of the brief's applications (redesign §3.3 "Other applications"): a statement of what
+# the code runs, not a science rule. `runs`: an analysis template S6 runs; `campaign`: the stages themselves answer it;
+# `partial` and `not_supported`: said at signing (a warning acknowledged into the MAP's limitations, owner 2026-10-19).
+APPLICATION_SUPPORT: dict[str, tuple[str, str]] = {
+    "APP-01": ("campaign", "S0–S5 build, fit and validate the model; S7 reports it"),
+    "APP-02": ("not_supported", "no stage translates preclinical data to a first-in-human dose"),
+    "APP-03": ("not_supported", "S6 runs no DDI template yet (ddi-cyp3a4-victim is a draft no stage runs)"),
+    "APP-04": ("not_supported", "S6 runs no transporter DDI template yet"),
+    "APP-05": ("not_supported", "S6 simulates no genotype other than the studies' own"),
+    "APP-06": ("not_supported", "S6 simulates no population other than the studies' own"),
+    "APP-07": ("not_supported", "S6 simulates no population other than the studies' own"),
+    "APP-08": ("not_supported", "S6 simulates no population other than the studies' own"),
+    "APP-09": ("not_supported", "S6 simulates no population other than the studies' own"),
+    "APP-10": ("not_supported", "S6 simulates no population other than the studies' own"),
+    "APP-11": ("campaign", "S2 and S3 fit absorption and the formulations"),
+    "APP-12": ("partial", "fed studies are judged at S5 as their own group; the S3 fed fit has no engine path yet"),
+    "APP-13": ("not_supported", "S6 runs no pH-dependent DDI template yet"),
+    "APP-14": ("runs", "S6 runs the vbe-crossover template once its inputs are given"),
+    "APP-15": ("not_supported", "S6 reports plasma AUC and Cmax only"),
+    "APP-16": ("not_supported", "the builder makes small-molecule models only"),
+    "APP-17": ("not_supported", "the campaign has no PD model"),
+    "APP-18": ("not_supported", "S6 does not simulate the brief's prediction regimens yet"),
+    "APP-19": ("not_supported", "no chemical risk template exists"),
+}
+
+
+def application_label(code: str) -> str:
+    """The brief's label of an application code (``APP-12 food effect``), or the code."""
+    return next((label for label in APPLICATIONS if label.split(" ", 1)[0] == code), code)
+
+
 def applications(brief: ProjectBrief | None) -> set[str]:
     """The brief's application codes (``APP-12``), from its labels (``APP-12 food effect``)."""
     return {str(a).split(" ", 1)[0] for a in ((brief.value("qoi.applications") if brief else None) or [])}
@@ -251,6 +283,7 @@ def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility:
                      planned_applications=tuple(sorted({_APPLICATION_CLASSES[a] for a in apps if a in _APPLICATION_CLASSES})),
                      applications=tuple(MapApplication.pinned(_RUNNABLE_TEMPLATES[a]) for a in sorted(apps)
                                         if a in _RUNNABLE_TEMPLATES),
+                     application_codes=tuple(sorted(apps)),
                      assumptions=tuple(str(a) for a in ((brief.value("notes.assumptions") if brief else None) or ())),
                      internal_target_pe=_target(target))
 
@@ -485,8 +518,19 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
                                             f"reserve: its fit cannot run, so the stage escalates. More than "
                                             f"{FIT_RESERVE_S / BUDGET_FRACTION[stage] / 3600:.1f} h leaves it time")
     for application in plan.structure.applications:
-        for line in application.problems(cpf):
-            add("error", "application", application.template, line)
+        lines = list(application.problems(cpf))
+        subjects = application.inputs.get("n_subjects")
+        if application.template == "vbe-crossover" and isinstance(subjects, int) and not isinstance(subjects, bool) \
+                and subjects == 1:
+            lines.append(f"{application.template}: Subjects per trial: at least 2 (a crossover's 90 % confidence interval "
+                         "needs two subjects; the engine refuses fewer)")
+        for n, line in enumerate(lines, 1):
+            add("error", "application", f"{application.template}:{n}", line)
+    for code in plan.structure.application_codes:
+        status, reason = APPLICATION_SUPPORT.get(code, ("not_supported", "the campaign does not know this application"))
+        if status in ("not_supported", "partial"):
+            said = "not supported yet" if status == "not_supported" else "partly supported"
+            add("warning", "application-unsupported", code, f"{application_label(code)}: {said} — {reason}")
     if plan.structure.model_risk is None:
         add("error", "risk", "model_risk", "Set the model risk (low, medium or high): it decides the acceptance criteria "
                                            "every round is judged by (ICH M15), and it is never assumed")

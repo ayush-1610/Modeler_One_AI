@@ -444,6 +444,124 @@
         "title": "AlternativeView",
         "type": "object"
       },
+      "ApplicationInput": {
+        "additionalProperties": false,
+        "description": "One input an analysis template declares (`analysis_templates.TemplateInput`) and the value the plan holds.",
+        "properties": {
+          "default": {
+            "title": "Default"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "never_default": {
+            "title": "Never Default",
+            "type": "boolean"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "required",
+          "unit",
+          "note",
+          "never_default"
+        ],
+        "title": "ApplicationInput",
+        "type": "object"
+      },
+      "ApplicationLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "ci_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Ci Level"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Lower"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Upper"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "lower",
+          "upper",
+          "ci_level",
+          "verified",
+          "source"
+        ],
+        "title": "ApplicationLimits",
+        "type": "object"
+      },
       "ApplicationRequest": {
         "description": "An application the campaign runs at S6 (T-31): an analysis template and the person's inputs to it.",
         "properties": {
@@ -462,6 +580,92 @@
           "template"
         ],
         "title": "ApplicationRequest",
+        "type": "object"
+      },
+      "ApplicationSupport": {
+        "additionalProperties": false,
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationSupportRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "scenarios": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows",
+          "scenarios"
+        ],
+        "title": "ApplicationSupport",
+        "type": "object"
+      },
+      "ApplicationSupportRow": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "runs",
+              "campaign",
+              "partial",
+              "not_supported"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "status",
+          "reason"
+        ],
+        "title": "ApplicationSupportRow",
+        "type": "object"
+      },
+      "ApplicationsView": {
+        "additionalProperties": false,
+        "properties": {
+          "addable": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Addable",
+            "type": "array"
+          },
+          "pinned": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedApplication"
+            },
+            "title": "Pinned",
+            "type": "array"
+          }
+        },
+        "required": [
+          "pinned",
+          "addable"
+        ],
+        "title": "ApplicationsView",
         "type": "object"
       },
       "ApprovalView": {
@@ -11372,6 +11576,62 @@
         "title": "Phases",
         "type": "object"
       },
+      "PinnedApplication": {
+        "additionalProperties": false,
+        "properties": {
+          "formulations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Formulations",
+            "type": "array"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationInput"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationLimits"
+            },
+            "title": "Limits",
+            "type": "array"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "version",
+          "status",
+          "inputs",
+          "problems",
+          "formulations",
+          "limits"
+        ],
+        "title": "PinnedApplication",
+        "type": "object"
+      },
       "PkaSpec": {
         "additionalProperties": false,
         "properties": {
@@ -13044,6 +13304,12 @@
           "acceptance": {
             "$ref": "#/components/schemas/AcceptanceView"
           },
+          "application_support": {
+            "$ref": "#/components/schemas/ApplicationSupport"
+          },
+          "applications": {
+            "$ref": "#/components/schemas/ApplicationsView"
+          },
           "bounds_rule": {
             "$ref": "#/components/schemas/RuleVersion"
           },
@@ -13111,7 +13377,9 @@
           "estimation",
           "bounds_rule",
           "validation",
-          "acceptance"
+          "acceptance",
+          "applications",
+          "application_support"
         ],
         "title": "ReviewPage",
         "type": "object"
@@ -15296,6 +15564,14 @@
       "Structure": {
         "additionalProperties": false,
         "properties": {
+          "application_codes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Application Codes",
+            "type": "array"
+          },
           "applications": {
             "default": [],
             "items": {
@@ -15401,6 +15677,7 @@
           "measured_fed_solubility",
           "planned_applications",
           "applications",
+          "application_codes",
           "assumptions",
           "internal_target_pe",
           "locked",
@@ -22632,7 +22909,7 @@
     },
     "/api/v1/projects/{project_id}/plan/review": {
       "get": {
-        "description": "Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied\nit; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them;\nthe estimation plan with MS-01's proposed bounds, the validation plan and the tier's acceptance criteria (R4b).\nRead only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas.",
+        "description": "Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied\nit; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them;\nthe estimation plan with MS-01's proposed bounds, the validation plan and the tier's acceptance criteria (R4b);\nthe applications the MAP pins with their inputs, and what the campaign does with each of the brief's (R4c).\nRead only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas.",
         "operationId": "get_review_api_v1_projects__project_id__plan_review_get",
         "parameters": [
           {

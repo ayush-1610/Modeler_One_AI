@@ -535,6 +535,10 @@ def test_campaign_runs_s0_to_s7_with_the_signature_gate_and_releases_a_reproduci
     # S6: a sensitivity ranking and prediction intervals from 200 uncertainty draws
     assert campaign["prediction"]["sensitivity"]["iv"][0]["parameter"] == "phys.logp"
     assert campaign["prediction"]["intervals"]["iv"]["AUC"]["n"] == 200
+    # the applications S6 does not run are said at signing, not promised as a next phase here (R4c)
+    s6_notes = next(s for s in campaign["stages"] if s["stage"] == "S6")["notes"]
+    assert any(n.startswith("S6 characterises the validated model") for n in s6_notes)
+    assert not any("next phase" in n for n in s6_notes)
     # S7: reproduction passed on the bundled result table, the MAR rendered, the package released
     package = campaign["package"]
     assert package["reproduction"]["passes"] and package["reproduction"]["compared"] >= 1

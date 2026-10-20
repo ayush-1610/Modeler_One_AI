@@ -420,3 +420,25 @@ def test_the_review_shows_the_estimation_plan_the_validation_plan_and_the_tiers_
                    json={"key": "campaign_budget_seconds", "value": 36000, "reason": "a larger budget"})
     assert budget.status_code == 200, budget.text                     # a number in the changes list is shown as text
     assert {d["target"]: d["to"] for d in budget.json()["data"]["diff"]}["campaign_budget_seconds"] == "36000"
+
+
+def test_the_review_shows_each_application_its_inputs_and_what_is_still_missing(setup):
+    """R4c: the VBE application's inputs are set on Review & sign through the structure route, with a reason; the review
+    shows the template's inputs, the values and what the validator still says."""
+    c, _ws, _root = setup
+    c.get("/api/v1/projects/p1/plan", headers=H)                                   # the plan is built on first read
+    review = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]
+    assert review["applications"] == {"pinned": [], "addable": []}
+    assert review["application_support"] == {"rows": [], "scenarios": []}
+    inputs = {"test_formulation": "Test", "reference_formulation": "Ref", "n_subjects": 24, "n_trials": 100, "seed": 7,
+              "pos_threshold": 0.8, "limits": "standard",
+              "variability": [{"parameter": "Organism|Lumen|Stomach|Gastric emptying time", "cv_percent": 30,
+                               "source": "a cited crossover study"}]}
+    set_vbe = c.put("/api/v1/projects/p1/plan/structure", headers=H, json={
+        "key": "applications", "value": [{"template": "vbe-crossover", "inputs": inputs}], "reason": "the BE question"})
+    assert set_vbe.status_code == 200, set_vbe.text
+    [vbe] = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]["applications"]["pinned"]
+    values = {i["id"]: i["value"] for i in vbe["inputs"]}
+    assert values["n_trials"] == 100 and values["variability"][0]["cv_percent"] == 30 and values["observed_be"] is None
+    assert vbe["formulations"] == [] and all("is not a CPF formulation" in p for p in vbe["problems"])
+    assert len(vbe["problems"]) == 2                                   # only the two formulations are left to give

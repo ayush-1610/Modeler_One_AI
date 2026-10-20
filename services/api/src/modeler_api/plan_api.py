@@ -203,7 +203,8 @@ def read_plan(project_id: str, principal: Reader, store: StoreDep) -> dict[str, 
 def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     """Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied
     it; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them;
-    the estimation plan with MS-01's proposed bounds, the validation plan and the tier's acceptance criteria (R4b).
+    the estimation plan with MS-01's proposed bounds, the validation plan and the tier's acceptance criteria (R4b);
+    the applications the MAP pins with their inputs, and what the campaign does with each of the brief's (R4c).
     Read only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas."""
     from modeler_project import review
 
@@ -238,6 +239,8 @@ def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
         "bounds_rule": review.bounds_rule_view(),
         "validation": review.validation_plan(doc, studies),
         "acceptance": review.acceptance(plan, doc),
+        "applications": review.applications(plan, cpf, violations),
+        "application_support": review.application_support(plan, brief),
     })
 
 

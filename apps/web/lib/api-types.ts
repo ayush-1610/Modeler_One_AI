@@ -1322,7 +1322,8 @@ export interface paths {
          * Get Review
          * @description Step 3 · Review & sign (redesign §3.3): every model input with its source, quote, grade, flags and who supplied
          *     it; the studies with their roles; the model risk; the budget split and the limitations as the MAP will carry them;
-         *     the estimation plan with MS-01's proposed bounds, the validation plan and the tier's acceptance criteria (R4b).
+         *     the estimation plan with MS-01's proposed bounds, the validation plan and the tier's acceptance criteria (R4b);
+         *     the applications the MAP pins with their inputs, and what the campaign does with each of the brief's (R4c).
          *     Read only: an input or a study is excluded through the Inputs routes, and the plan is changed on the canvas.
          */
         get: operations["get_review_api_v1_projects__project_id__plan_review_get"];
@@ -1907,6 +1908,45 @@ export interface components {
             value_pksim: number | null;
         };
         /**
+         * ApplicationInput
+         * @description One input an analysis template declares (`analysis_templates.TemplateInput`) and the value the plan holds.
+         */
+        ApplicationInput: {
+            /** Default */
+            default?: unknown;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Never Default */
+            never_default: boolean;
+            /** Note */
+            note: string;
+            /** Required */
+            required: boolean;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value?: unknown;
+        };
+        /** ApplicationLimits */
+        ApplicationLimits: {
+            /** Ci Level */
+            ci_level: number;
+            /** Id */
+            id: string;
+            /** Lower */
+            lower: number;
+            /** Source */
+            source: string;
+            /** Upper */
+            upper: number;
+            /** Verified */
+            verified: boolean;
+        };
+        /**
          * ApplicationRequest
          * @description An application the campaign runs at S6 (T-31): an analysis template and the person's inputs to it.
          */
@@ -1917,6 +1957,36 @@ export interface components {
             };
             /** Template */
             template: string;
+        };
+        /** ApplicationSupport */
+        ApplicationSupport: {
+            /** Rows */
+            rows: components["schemas"]["ApplicationSupportRow"][];
+            /** Scenarios */
+            scenarios: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** ApplicationSupportRow */
+        ApplicationSupportRow: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "runs" | "campaign" | "partial" | "not_supported";
+        };
+        /** ApplicationsView */
+        ApplicationsView: {
+            /** Addable */
+            addable: string[];
+            /** Pinned */
+            pinned: components["schemas"]["PinnedApplication"][];
         };
         /** ApprovalView */
         ApprovalView: {
@@ -5803,6 +5873,23 @@ export interface components {
             /** Stale */
             stale: components["schemas"]["StaleArtifact"][];
         };
+        /** PinnedApplication */
+        PinnedApplication: {
+            /** Formulations */
+            formulations: string[];
+            /** Inputs */
+            inputs: components["schemas"]["ApplicationInput"][];
+            /** Limits */
+            limits: components["schemas"]["ApplicationLimits"][];
+            /** Problems */
+            problems: string[];
+            /** Status */
+            status: string;
+            /** Template */
+            template: string;
+            /** Version */
+            version: string;
+        };
         /** PkaSpec */
         PkaSpec: {
             origin?: components["schemas"]["ValueOrigin"] | null;
@@ -6460,6 +6547,8 @@ export interface components {
         /** ReviewPage */
         ReviewPage: {
             acceptance: components["schemas"]["AcceptanceView"];
+            application_support: components["schemas"]["ApplicationSupport"];
+            applications: components["schemas"]["ApplicationsView"];
             bounds_rule: components["schemas"]["RuleVersion"];
             /** Budget Seconds */
             budget_seconds: number;
@@ -7253,6 +7342,11 @@ export interface components {
         };
         /** Structure */
         Structure: {
+            /**
+             * Application Codes
+             * @default []
+             */
+            application_codes: string[];
             /**
              * Applications
              * @default []
