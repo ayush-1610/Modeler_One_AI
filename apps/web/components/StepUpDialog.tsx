@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { Dialog } from "@/components/kit/Dialog";
 import { registerStepUpDialog } from "@/lib/step-up";
 
 type Answer = (confirmed: boolean) => void;
@@ -32,10 +33,9 @@ export function StepUpDialog() {
   const cancel = () => { answer(false); setAnswer(null); };
   const here = typeof window === "undefined" ? "/" : window.location.pathname + window.location.search;
   return (
-    <div className="dialog-backdrop step-up" role="dialog" aria-modal="true" aria-label="Confirm your identity" data-testid="step-up-dialog">
-      <div className="dialog">
-        <h3 style={{ marginTop: 0 }}>Confirm your identity to sign</h3>
-        <p className="muted" style={{ marginTop: 0 }}>
+    <Dialog title="Confirm your identity to sign" onClose={cancel} above testId="step-up-dialog">
+      <>
+        <p className="muted">
           An electronic signature needs your password and your authenticator code again, every time (21 CFR 11.200).
           Keycloak asks for them in a small window; the signature is sent as soon as you are done.
         </p>
@@ -46,11 +46,11 @@ export function StepUpDialog() {
             afterwards (what you typed on this page is not kept).
           </div>
         )}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+        <div className="dialog-actions">
           <button className="btn" onClick={cancel} data-testid="step-up-cancel">Cancel</button>
           <button className="btn primary" onClick={confirm} data-testid="step-up-confirm">Confirm identity</button>
         </div>
-      </div>
-    </div>
+      </>
+    </Dialog>
   );
 }

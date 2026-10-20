@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { FeedbackDiagnosisView } from "@/components/campaign/Feedback";
+import { Dialog } from "@/components/kit/Dialog";
 import { useMutation } from "@/lib/hooks";
 import type { Escalation } from "@/lib/types";
 import { resolveEscalation } from "@/lib/writes";
@@ -136,24 +137,23 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
       )}
 
       {confirming && (
-        <div role="dialog" aria-modal="true"
-          style={{ position: "fixed", inset: 0, background: "rgba(10,15,22,0.45)", display: "grid", placeItems: "center", zIndex: 50 }}>
-          <div className="card" style={{ maxWidth: 460 }}>
-            <h2>Electronic signature</h2>
+        <Dialog title="Electronic signature" size="narrow" testId="decision-confirm-dialog"
+                onClose={() => { if (!busy) setConfirming(false); }}>
+          <>
             <p className="muted">
               You are about to sign the decision <strong>{option?.label}</strong> for stage {escalation.stage} of
               campaign {escalation.campaignId}. This is recorded as an <em>Approved</em> signature bound to the
               decision; your password is never entered into Modeler One — the signature is taken from your
               session&apos;s step-up authentication.
             </p>
-            <div className="row">
+            <div className="dialog-actions">
+              <button className="btn" disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
               <button className="btn primary" disabled={busy} onClick={() => void submit()} data-testid="decision-confirm">
                 {busy ? "Submitting…" : "Sign & submit"}
               </button>
-              <button className="btn" disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
             </div>
-          </div>
-        </div>
+          </>
+        </Dialog>
       )}
     </div>
   );
