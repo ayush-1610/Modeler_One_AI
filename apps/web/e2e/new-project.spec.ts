@@ -61,6 +61,8 @@ test("the wizard shows the API's own reason when it refuses a step", async ({ pa
   await page.getByTestId("template-aciclovir-illustrative").click();
   await page.getByTestId("create-project").click();
   await page.getByTestId("save-cpf").click();
+  // Step 2 has its own "Edit as JSON": wait for step 3, or the empty list is typed into the CPF's editor instead
+  await expect(page.getByTestId("upload-studies")).toBeVisible();
   // An empty study list is refused by the API (422); the refusal must reach the user, not vanish.
   await page.getByText("Edit as JSON").click();
   await page.locator("details textarea").fill("[]");
