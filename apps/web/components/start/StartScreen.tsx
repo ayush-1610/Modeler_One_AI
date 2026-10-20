@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
-import { PageShell, SidePanel } from "@/components/kit";
+import { Banner, PageShell, SidePanel } from "@/components/kit";
 import { DrugAndFiles } from "@/components/start/Blocks";
 import { DataChecklist } from "@/components/start/DataChecklist";
 import { ProposalNotes } from "@/components/start/ProposalNotes";
@@ -47,7 +47,9 @@ export function StartScreen({ projectId }: { projectId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const view = page.data;
 
-  if (page.problem) return <div className="banner err">{page.problem}</div>;
+  // A failed read before anything was shown is the whole answer. A failed read after (a background poll while the API is
+  // busy) must not throw the screen away: an open editor and what was typed in it would be lost with it.
+  if (page.problem && !view) return <div className="banner err">{page.problem}</div>;
   if (!view) return <p className="muted">Loading the project…</p>;
   const documents = forViewer(docs.data?.documents ?? []);
   const open = (c: Citation) => setFocus({ sha256: c.doc_sha256, page: c.page, quote: c.quote });
@@ -103,6 +105,11 @@ export function StartScreen({ projectId }: { projectId: string }) {
         </>
       )}
     >
+      {page.problem && (
+        <Banner tone="err" testId="start-stale">
+          The brief could not be read again ({page.problem}). What is shown is the last answer received; it may be out of date.
+        </Banner>
+      )}
       {notice && <div className="banner ok" data-testid="start-notice">{notice}</div>}
       <DrugAndFiles projectId={projectId} view={view} documents={documents} save={save} open={open} run={run} busy={busy}
                     onNotice={setNotice} />

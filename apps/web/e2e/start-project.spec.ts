@@ -25,6 +25,8 @@ test("a project starts from its proposal and the client's file in one upload, wi
   await page.waitForURL(/\/projects\/[^/]+\/start$/);
   await expect(page.getByTestId("start-title")).toHaveText("Dapagliflozin");
   await expect(page.locator(".doc-page")).toContainText("single oral dose of 10 mg");
+  // the project's own background reading (PubChem, the structure check) ends before the flow goes on
+  await expect(page.getByTestId("start-read")).toHaveText("Read the documents again", { timeout: 120_000 });
   await expect(page.getByTestId("start-files")).toContainText("client-pk.csv");
   await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");
   await expect(page.getByRole("button", { name: /approve/i })).toHaveCount(0);

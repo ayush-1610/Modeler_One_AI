@@ -22,12 +22,17 @@ test("Start: the short brief, the model risk, the scope gates and the checklist,
   await expect(waiting).toContainText("Question of interest: not set yet");
   await expect(waiting).toContainText("Model risk: not set yet (it is never assumed)");
   await expect(page.locator(".doc-page")).toContainText("single oral dose of 10 mg");
+  await expect(page.getByTestId("start-read")).toHaveText("Read the documents again", { timeout: 120_000 });
 
   // the question: set in place, nothing asks why; the record says who set it
   const set = async (path: string, value: string) => {
     await page.getByTestId(`edit-${path}`).click();
     await page.getByTestId(`input-${path}`).fill(value);
+    // the typed text is already in the row before Save is clicked, so wait for the save itself, and the editor closing
+    const saved = page.waitForResponse((r) => r.request().method() === "PUT" && r.url().endsWith("/brief"));
     await page.getByTestId(`save-${path}`).click();
+    expect((await saved).status()).toBe(200);
+    await expect(page.getByTestId(`input-${path}`)).toHaveCount(0);
     await expect(page.getByTestId(`start-field-${path}`)).toContainText(value);
   };
   await set("qoi.text", "Exposure after a single 10 mg oral dose, fasted and fed");

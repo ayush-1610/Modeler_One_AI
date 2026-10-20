@@ -44,7 +44,10 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `uv run uvicorn modeler_api.main:app --host 127.0.0.1 --port ${API_PORT}`,
+      // The first RDKit import in a fresh environment takes ~20 s and stalls the API while it runs (an extraction job
+      // imports it inside the API process), which dropped saves made by whichever spec was running. Load it here, once,
+      // before the first request.
+      command: `uv run python -c "import rdkit.Chem, rdkit.Chem.Descriptors, rdkit.Chem.rdMolDescriptors" && uv run uvicorn modeler_api.main:app --host 127.0.0.1 --port ${API_PORT}`,
       cwd: REPO,
       url: `${API_BASE}/docs`,
       timeout: 120_000,
