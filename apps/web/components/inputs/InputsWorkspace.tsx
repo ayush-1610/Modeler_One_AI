@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { Dissolution } from "@/components/client/ClientData";
 import type { View as ClientView } from "@/components/client/types";
-import { InlineIssue, PageShell, SidePanel } from "@/components/kit";
+import { Banner, InlineIssue, PageShell, SidePanel } from "@/components/kit";
+import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
@@ -144,23 +145,17 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
         </>
       )}
     >
-      {notice && <div className={`banner ${notice.ok ? "ok" : "err"}`} role="status" data-testid="inputs-notice">{notice.text}</div>}
-      <nav className="tabs" aria-label="PK-Sim building blocks" role="tablist">
-        {TABS.map(([id, label]) => (
-          <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "active" : ""}
-                  onClick={() => setTab(id)} data-testid={`tab-${id}`}>
-            {label}{forTab(id).length > 0 && <span className="tab-count">{forTab(id).length}</span>}
-          </button>
-        ))}
-      </nav>
+      {notice && <Banner tone={notice.ok ? "ok" : "err"} testId="inputs-notice">{notice.text}</Banner>}
+      <Tabs label="PK-Sim building blocks" prefix="inputs" value={tab} onChange={setTab}
+            tabs={TABS.map(([id, label]) => ({ id, label, count: forTab(id).length, testId: `tab-${id}` }))} />
 
       {tab === "compound" && (
-        <InputRows rows={rows("compound")} todo={forTab("compound")} projectId={projectId} run={run}
-                   empty="The compound's values appear here as the client's files, the literature and PubChem fill them." />
+        <TabPanel prefix="inputs" id="compound"><InputRows rows={rows("compound")} todo={forTab("compound")} projectId={projectId} run={run}
+                   empty="The compound's values appear here as the client's files, the literature and PubChem fill them." /></TabPanel>
       )}
 
       {tab === "formulations" && (
-        <>
+        <TabPanel prefix="inputs" id="formulations">
           <InputRows rows={rows("formulations")} todo={forTab("formulations")} projectId={projectId} run={run}
                      empty="No formulation yet: a solution needs none; a tablet's release comes from its dissolution profile or the literature." />
           {used.some((s) => SOLID.includes(String(s.facts.formulation))) && (
@@ -184,11 +179,11 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
             <Dissolution projectId={projectId} d={client.data.dissolution}
                          act={async (fn) => run(fn, "The release model is proposed; its values flow into the formulation.")} />
           )}
-        </>
+        </TabPanel>
       )}
 
       {tab === "individuals" && (
-        <>
+        <TabPanel prefix="inputs" id="individuals">
           {forTab("individuals").filter((t) => t.kind !== "demographics").length > 0 && (
             <InputRows rows={[]} todo={forTab("individuals").filter((t) => t.kind !== "demographics")} projectId={projectId} run={run} empty="" />
           )}
@@ -197,11 +192,11 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
           <h3>Values set on the individual</h3>
           <InputRows rows={rows("individuals")} todo={[]} projectId={projectId} run={run}
                      empty="None: enzyme and transporter expression and individual values appear here when a source gives them." />
-        </>
+        </TabPanel>
       )}
 
       {tab === "settings" && (
-        <>
+        <TabPanel prefix="inputs" id="settings">
           <InputRows rows={rows("settings")} todo={forTab("settings")} projectId={projectId} run={run}
                      empty="The calculation methods are PK-Sim's defaults unless the published model sets them." />
           <section className="card">
@@ -223,13 +218,13 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
             <InlineIssue severity="note">Each study is simulated over its whole sampled window. Prediction regimens are applications,
               set on Review &amp; sign.</InlineIssue>
           </section>
-        </>
+        </TabPanel>
       )}
 
       {tab === "studies" && (
-        <StudiesTab studies={studies} todo={forTab("studies")} projectId={projectId} run={run} options={options}
+        <TabPanel prefix="inputs" id="studies"><StudiesTab studies={studies} todo={forTab("studies")} projectId={projectId} run={run} options={options}
                     onIndividuals={() => setTab("individuals")} client={client.data ?? undefined}
-                    onSaved={(m) => setNotice({ ok: true, text: m })} />
+                    onSaved={(m) => setNotice({ ok: true, text: m })} /></TabPanel>
       )}
     </PageShell>
   );

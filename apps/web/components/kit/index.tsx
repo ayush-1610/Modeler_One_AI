@@ -57,16 +57,23 @@ export function InlineIssue({ severity = "warn", children, testId }: {
   return <p className={`inline-issue ${severity}`} role={severity === "error" ? "alert" : undefined} data-testid={testId}>{children}</p>;
 }
 
+/** A result or a refusal the person should hear about: a note for what went fine or a caution, an alert for a refusal. */
+export function Banner({ tone, children, testId }: { tone: "ok" | "warn" | "err"; children: ReactNode; testId?: string }) {
+  return <div className={`banner ${tone}`} role={tone === "err" ? "alert" : "status"} data-testid={testId}>{children}</div>;
+}
+
 export type Column<T> = { key: string; label: string; numeric?: boolean; render: (row: T) => ReactNode };
 
-/** A table that scrolls inside its own box on a narrow screen and says when it is empty. */
-export function DataTable<T>({ columns, rows, rowKey, empty, testId }: {
-  columns: Column<T>[]; rows: T[]; rowKey: (row: T) => string; empty?: ReactNode; testId?: string;
+/** A table that scrolls inside its own box on a narrow screen and says when it is empty. With a `label` the table has a
+ *  caption (read aloud, not drawn) and its scrolling box can be reached and scrolled from the keyboard. */
+export function DataTable<T>({ columns, rows, rowKey, empty, testId, label }: {
+  columns: Column<T>[]; rows: T[]; rowKey: (row: T) => string; empty?: ReactNode; testId?: string; label?: string;
 }) {
   if (!rows.length) return <>{empty ?? <EmptyState title="Nothing here yet" />}</>;
   return (
-    <div className="table-scroll" data-testid={testId}>
+    <div className="table-scroll" data-testid={testId} {...(label ? { role: "region", "aria-label": label, tabIndex: 0 } : {})}>
       <table>
+        {label && <caption className="sr-only">{label}</caption>}
         <thead><tr>{columns.map((c) => <th key={c.key} className={c.numeric ? "num" : undefined}>{c.label}</th>)}</tr></thead>
         <tbody>
           {rows.map((r) => (
