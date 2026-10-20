@@ -15,6 +15,22 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a cold first e2e run dropped a save, and a failed poll discarded the Start screen (web and e2e only)
+- **What:** (1) The e2e API now loads RDKit once, before its first request (`playwright.config.ts`). (2) `start-project` and
+  `start-step` wait for the project's own background reading to finish before going on, and `start-step`'s `set()` waits
+  for the save's response and for the editor to close, not for the typed text, which is already in the row before Save is
+  clicked. (3) Start no longer replaces the whole screen with an error when a background re-read of the brief fails once the
+  screen is up: it keeps the last answer, with a "could not be read again" notice, so an open editor and what was typed in it
+  survive.
+- **Why:** the first RDKit import in a process (the extraction job's structure check, inside the API process) took 18–28 s on a
+  cold run and stalled every request. A save sent in that window never landed; the page then showed the failed re-read as a
+  full-screen error and redrew the field from the old brief (the evidence is the audit gaps in five first runs and the failing
+  run's brief with no "edited" version). This was the cause of the first-run failures of `start-project` and `start-step`.
+- **Impact:** tests and the Start screen's failure behaviour only; no API, testid or text changed. Not proven: that the proxy
+  answered the stalled calls with HTTP 500, which the screen-discard step depends on. Verified by a full run with a 20 s RDKit
+  stall injected, which passes (28/28). Not fixed, backend: the stall itself, which any first extraction can cause in a fresh
+  API process; loading RDKit when the API starts would remove it.
+
 ### Changed — UI/UX pass, PR 4: the frame around every page (web only)
 - **What:** a "Skip to the page" link as the first Tab stop (it lands on a zero-size point at the start of the page, so the
   next Tab is the page's first control); the sidebar's links say which page is current (`aria-current`) and the list is
