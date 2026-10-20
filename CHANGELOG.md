@@ -51,6 +51,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     explicit amber one. The theme toggle's focus ring is drawn inside its box instead of being clipped.
 - **Why:** the audit measured light-theme text at 2.7–4.5:1 where it carries words (the chip that says "provisional
   (SME)" was 3.6:1), and form-control edges at 1.2–1.4:1 (WCAG 1.4.3, 1.4.11).
+- **Test fix, same PR:** `new-project.spec.ts` "the wizard shows the API's own reason" typed `[]` into step 2's "Edit as JSON"
+  when CI was slow (it did not wait for step 3), uploaded the real studies and so saw no refusal; it now waits for step 3.
 - **Impact:** appearance only; no text, testid, class name, API or dependency changed. Light and dark screenshots
   checked on Start, a project's page and the home page. Still below AA, left to the page that owns the sheet:
   `--ink-faint` text in `plan.css`, `review.css`, `brief.css` and `client-data.css`.
