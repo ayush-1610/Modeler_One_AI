@@ -91,7 +91,7 @@ export function DataChecklist({ projectId, plan, planProblem, reconciliation, ru
           <strong>{l.feature}</strong>: {l.route}
         </InlineIssue>
       ))}
-      <DataTable columns={columns} rows={items} rowKey={(i) => i.req_id} testId="checklist-table"
+      <DataTable columns={columns} rows={items} rowKey={(i) => i.req_id} testId="checklist-table" label="The data checklist"
                  empty={<EmptyState title="Nothing applies yet">Fill the short brief: the checklist follows it.</EmptyState>} />
     </Block>
   );
