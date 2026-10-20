@@ -26,7 +26,7 @@
 .input-row .sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .source-line { border-top: 1px solid var(--line-soft); padding-top: 6px; }
 .add-value, .typed-table { border-top: 1px dashed var(--line); padding-top: 8px; }
-.tabs .tab-count { margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; background: var(--warn); color: var(--surface); }
+.tabs .tab-count { margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; background: var(--warn-ink); color: var(--surface); }
 .missing-list, .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
 .individual { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); }
 .individual + .individual { margin-top: 8px; }

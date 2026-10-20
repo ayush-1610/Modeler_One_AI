@@ -15,16 +15,16 @@
   border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
   text-decoration: none; transition: border-color 120ms var(--ease), background 120ms var(--ease); }
 .stepper .step a:hover { border-color: color-mix(in srgb, var(--sim) 45%, var(--line)); }
-.stepper .step-n { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+.stepper .step-n { flex-shrink: 0; background: transparent; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
   font: 600 12px/1 var(--font-mono, ui-monospace, monospace); border: 1.5px solid var(--ink-faint); color: var(--ink-dim); }
 .stepper .step-text { display: grid; min-width: 0; }
 .stepper .step-label { font-weight: 600; font-size: 13.5px; letter-spacing: -0.01em; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
 .stepper .step-state { font-size: 12px; color: var(--ink-dim); }
 .stepper .step.done .step-n { background: var(--pass); border-color: var(--pass); color: var(--surface); }
-.stepper .step.done .step-state { color: var(--pass); }
-.stepper .step.needs_you .step-n { border-color: var(--warn); color: var(--warn); }
-.stepper .step.needs_you .step-state { color: var(--warn); font-weight: 600; }
+.stepper .step.done .step-state { color: var(--pass-ink); }
+.stepper .step.needs_you .step-n { border-color: var(--warn); color: var(--warn-ink); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.stepper .step.needs_you .step-state { color: var(--warn-ink); font-weight: 600; }
 .stepper .step.running .step-n { border-color: var(--sim); color: var(--sim); }
 .stepper .step.running .step-state { color: var(--brand-ink); font-weight: 600; }
 .stepper .step.current a { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 8%, var(--surface));
@@ -38,7 +38,7 @@
 .step-pages a:hover { color: var(--ink); }
 .step-pages a.active { color: var(--brand-ink); border-color: var(--sim); background: color-mix(in srgb, var(--sim) 10%, var(--surface)); font-weight: 600; }
 .step-waiting { margin: 10px 0 0; font-size: 13px; color: var(--ink-dim); max-width: none; }
-.step-waiting strong { color: var(--warn); font-weight: 600; }
+.step-waiting strong { color: var(--warn-ink); font-weight: 600; }
 @media (max-width: 760px) {
   .stepper { flex-direction: column; }
   .stepper ol { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 8px; }
@@ -47,7 +47,7 @@
 
 /* ---- a step's page ---- */
 .eyebrow { display: block; font: 500 11.5px/1.2 var(--font-mono, ui-monospace, monospace); letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--ink-faint); margin-bottom: 6px; }
+  text-transform: uppercase; color: var(--ink-quiet); margin-bottom: 6px; }
 .shell-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
 .shell-title { min-width: 0; }
 .shell-title .lede { color: var(--ink-dim); margin: 4px 0 0; font-size: 15px; }
@@ -79,4 +79,6 @@
 .theme-toggle { display: inline-flex; margin-top: 18px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
 .theme-toggle button { font: inherit; font-size: 12px; padding: 5px 10px; border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; }
 .theme-toggle button + button { border-left: 1px solid var(--line); }
+/* the box clips the outline, so the focus ring is drawn inside it */
+.theme-toggle button:focus-visible { outline-offset: -2px; border-radius: 0; }
 .theme-toggle button[aria-pressed="true"] { background: color-mix(in srgb, var(--sim) 14%, transparent); color: var(--brand-ink); font-weight: 600; }

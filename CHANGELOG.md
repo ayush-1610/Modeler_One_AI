@@ -15,6 +15,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — UI/UX pass, PR 1: readable text, a visible control edge, a clean step bar (web only, colours only)
+- **What:** in `globals.css`, `kit.css`, `start.css` and `inputs.css`:
+  - New text-grade tokens `--pass-ink`, `--warn-ink`, `--fail-ink` and `--ink-quiet`. Chips, banners, provenance tags,
+    flags, table headers, `h3`, the eyebrow and the step bar's states use them; `--ink-faint` is left for non-text.
+    In dark each twin equals its base colour, so dark is unchanged apart from `--ink-quiet`.
+  - `--primary` / `--on-primary` for the filled button (white on it 5.2:1, was 4.3:1) and `--control-border` for
+    inputs (3.2:1, was 1.2:1). `--sim` stays the chart colour.
+  - The step bar's circles no longer pick up `client-data.css`'s amber `.step-n` tint; "needs you" keeps an
+    explicit amber one. The theme toggle's focus ring is drawn inside its box instead of being clipped.
+- **Why:** the audit measured light-theme text at 2.7–4.5:1 where it carries words (the chip that says "provisional
+  (SME)" was 3.6:1), and form-control edges at 1.2–1.4:1 (WCAG 1.4.3, 1.4.11).
+- **Impact:** appearance only; no text, testid, class name, API or dependency changed. Light and dark screenshots
+  checked on Start, a project's page and the home page. Still below AA, left to the page that owns the sheet:
+  `--ink-faint` text in `plan.css`, `review.css`, `brief.css` and `client-data.css`.
+
 ### Added — Review & sign shows the applications: the VBE panel, and what the campaign does with each of the brief's (R4c)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3, "VBE, its own panel" and "Other applications"; map rows
   `m-vbe`, `p1-apps`, `p1-scen-other`):
