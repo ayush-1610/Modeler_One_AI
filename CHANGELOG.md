@@ -15,6 +15,31 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — UI/UX pass, PR 2: one dialog for the signing step-up, an escalation's pop-up and the signature confirmation (web only)
+- **What:** a kit `Dialog` (`components/kit/Dialog.tsx`, styles in `kit.css`) replaces three hand-built modals. Each is now
+  named by its title, takes focus when it opens and gives it back when it closes, keeps Tab inside, and closes on
+  Escape (step-up: cancel; pop-up: "Decide later"; signature confirmation: back to the decision, unless a signature is being
+  sent). Dialogs nest: Escape and Tab act on the innermost only. The signature confirmation's inline styles and its own
+  overlay colour are gone, and its Cancel button now sits left of "Sign & submit", as in the step-up.
+- **Why:** the audit found a signing dialog (21 CFR 11.200) that a keyboard user could tab out of, with no accessible
+  name beyond a label, no Escape, and a title styled as a 12 px grey caption.
+- **Impact:** appearance and keyboard behaviour only; every testid, text and API call is unchanged. The Review & sign
+  drop dialog shares the `.dialog` rules and is untouched. Covered by `escalation-popup.spec.ts` (focus, Tab, nested
+  Escape, focus returned, the step-up opened by a stubbed 403 and cancelled with Escape); the Keycloak sign-in itself is
+  still `oidc-signing.spec.ts`, which needs a test Keycloak and was not run here.
+
+### Added — UI/UX pass, PR 0: test hooks and a guard for the caveats a restyle must not hide (web only)
+- **What:** (1) `data-testid`s beside the class-selected elements the e2e specs lean on: `campaign-status` and
+  `campaign-stage-<Sx>` on the campaign page, `start-document` on the Start document viewer; no class, text or layout
+  changed. (2) `e2e/protected-text.spec.ts`: Start's "not supported yet" gate and the waiting list must be visible,
+  unclipped and not painted in their background colour, in light and dark (to be extended to "provisional (SME)",
+  "UNVERIFIED" and "TEST ONLY" as those screens are restyled). (3) The e2e web server's readiness probe moves from
+  `/projects/new` to `/`, so the run no longer depends on a page the old-page removal deletes.
+- **Why:** the audit found that no spec asserts the caveats (`toContainText` passes on hidden text) and that deleting
+  `/projects/new` would make every e2e run wait out its 300 s start-up timeout.
+- **Impact:** none on behaviour; no API, locked file or dependency touched. First of the per-page UI/UX series on the
+  design foundation (redesign plan §7).
+
 ### Changed — UI/UX pass, PR 1: readable text, a visible control edge, a clean step bar (web only, colours only)
 - **What:** in `globals.css`, `kit.css`, `start.css` and `inputs.css`:
   - New text-grade tokens `--pass-ink`, `--warn-ink`, `--fail-ink` and `--ink-quiet`. Chips, banners, provenance tags,
@@ -29,6 +54,7 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Impact:** appearance only; no text, testid, class name, API or dependency changed. Light and dark screenshots
   checked on Start, a project's page and the home page. Still below AA, left to the page that owns the sheet:
   `--ink-faint` text in `plan.css`, `review.css`, `brief.css` and `client-data.css`.
+
 
 ### Added — Review & sign shows the applications: the VBE panel, and what the campaign does with each of the brief's (R4c)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3, "VBE, its own panel" and "Other applications"; map rows

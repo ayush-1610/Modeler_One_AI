@@ -63,7 +63,8 @@ export default defineConfig({
       // Rewrites are fixed at build time, so the build must see the test API's address.
       command: `npm run build && npx next start -H 127.0.0.1 -p ${WEB_PORT}`,
       cwd: __dirname,
-      url: `http://127.0.0.1:${WEB_PORT}/projects/new`,
+      // any page that always exists: this was /projects/new, which the old-page removal deletes
+      url: `http://127.0.0.1:${WEB_PORT}/`,
       // with Keycloak the page redirects to the test Keycloak's sign-in, served with its self-signed certificate
       ignoreHTTPSErrors: Boolean(OIDC),
       timeout: 300_000,

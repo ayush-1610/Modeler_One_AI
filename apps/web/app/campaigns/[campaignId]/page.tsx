@@ -59,7 +59,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
           <p className="muted" style={{ margin: 0 }}>{c.question}</p>
         </div>
         <div className="row" style={{ gap: 8, flexShrink: 0 }}>
-          {c.status && <StatusChip status={c.status} />}
+          {c.status && <span data-testid="campaign-status"><StatusChip status={c.status} /></span>}
           <RiskChip rating={c.modelRisk} />
         </div>
       </div>
@@ -93,7 +93,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
       <Card title="Stage progress" action={<span className="muted">current: {c.currentStage}</span>}>
         <div className="timeline">
           {c.stages.map((s) => (
-            <div key={s.stage} className={`stage ${s.status.toLowerCase()}`}>
+            <div key={s.stage} className={`stage ${s.status.toLowerCase()}`} data-testid={`campaign-stage-${s.stage}`}>
               <div className="st-name">{s.stage}</div>
               <div className="st-sub">{s.label}</div>
               <div style={{ marginTop: 6 }}><StatusChip status={s.status === "PENDING" ? "PROPOSED" : s.status} /></div>

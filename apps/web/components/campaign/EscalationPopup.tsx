@@ -7,6 +7,7 @@
 import { useState } from "react";
 
 import { EscalationDecision } from "@/components/EscalationDecision";
+import { Dialog } from "@/components/kit/Dialog";
 import { narrow } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import type { Escalation } from "@/lib/types";
@@ -18,17 +19,15 @@ export function EscalationPopup({ campaignIds }: { campaignIds: string[] }) {
     .filter((e) => campaignIds.includes(e.campaignId) && !later.includes(e.id));
   if (!waiting.length) return null;
   const e = waiting[0];
+  const decideLater = () => setLater([...later, e.id]);
   return (
-    <div className="dialog-backdrop" role="dialog" aria-modal="true" aria-label={`Decision needed at ${e.stage}`}
-         data-testid="escalation-popup">
-      <div className="dialog" style={{ width: "min(760px, 100%)", maxHeight: "90vh", overflowY: "auto" }}>
-        <h2 style={{ marginTop: 0 }}>Your decision is needed: campaign {e.campaignId}, stage {e.stage}</h2>
-        {waiting.length > 1 && <p className="muted" style={{ marginTop: 0 }}>{waiting.length - 1} more after this one.</p>}
-        <EscalationDecision escalation={e} />
-        <div className="row" style={{ justifyContent: "flex-end", marginTop: 12 }}>
-          <button className="btn" onClick={() => setLater([...later, e.id])} data-testid="escalation-later">Decide later</button>
-        </div>
+    <Dialog title={`Your decision is needed: campaign ${e.campaignId}, stage ${e.stage}`} size="wide" testId="escalation-popup"
+            onClose={decideLater}>
+      {waiting.length > 1 && <p className="muted">{waiting.length - 1} more after this one.</p>}
+      <EscalationDecision escalation={e} />
+      <div className="dialog-actions">
+        <button className="btn" onClick={decideLater} data-testid="escalation-later">Decide later</button>
       </div>
-    </div>
+    </Dialog>
   );
 }

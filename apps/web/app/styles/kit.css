@@ -82,3 +82,11 @@
 /* the box clips the outline, so the focus ring is drawn inside it */
 .theme-toggle button:focus-visible { outline-offset: -2px; border-radius: 0; }
 .theme-toggle button[aria-pressed="true"] { background: color-mix(in srgb, var(--sim) 14%, transparent); color: var(--brand-ink); font-weight: 600; }
+
+/* ---- the dialog (components/kit/Dialog.tsx; the backdrop and panel base rules are shared with Review & sign's) ---- */
+.dialog:focus { outline: none; }
+.dialog.narrow { width: min(460px, 100%); }
+.dialog.wide { width: min(760px, 100%); max-height: 90vh; overflow-y: auto; }
+.dialog-title { margin: 0 0 8px; }
+.dialog-title + .muted { margin-top: 0; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 14px; }
