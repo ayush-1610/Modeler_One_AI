@@ -25,13 +25,15 @@ password is ever typed into or stored by the kit.
 ```bash
 cd ~/Modeler_One_AI
 uv run python deploy/proof/run_t56.py prepare --api http://localhost:8000 --token dev --out ~/modeler-data/t56
-#   P0–P3: project from the mock proposal, brief filled from it, data plan, values / datasets / client file proposed.
-#   Review them on /projects/<id> (Evidence, Client data). Nothing is accepted yet.
+#   Start and Inputs: project from the mock proposal, brief filled from it, data checklist, values / datasets / client
+#   file proposed. They flow into the inputs; look at them on /projects/<id>/inputs (nothing is accepted, D-27).
 
 uv run python deploy/proof/run_t56.py accept --api http://localhost:8000 --token dev --out ~/modeler-data/t56 \
     --project <id> --as "Your Name"
-#   Your decisions, recorded under your name: every proposed item accepted with its reason, P2–P4 approved (Start
-#   has no approval, D-27), the P5 plan drafted from the MS-01 default. It stops before the MAP signature.
+#   Your decisions, recorded under your name: what the Inputs step leaves to a person (the values held until checked,
+#   each pathway's process type, the client study's formulation, the healthy adult default where a study states no
+#   individual), then the plan drafted from the MS-01 default. Nothing else is accepted (D-27). It stops before the MAP
+#   signature.
 
 #   In the web app: /projects/<id>/plan — review the placements and fits (any move or freed parameter is yours, with
 #   its reason), then "Approve and Sign" (MIDD lead, step-up).

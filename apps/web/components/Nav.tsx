@@ -8,7 +8,6 @@ import { ThemeToggle } from "@/components/kit/ThemeToggle";
 const LINKS = [
   { href: "/", label: "Projects" },
   { href: "/projects/start", label: "+ Start from proposal" },
-  { href: "/projects/new", label: "+ Quick start" },
   { href: "/review", label: "Review inbox" },
 ];
 

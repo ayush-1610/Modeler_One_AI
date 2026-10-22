@@ -45,9 +45,10 @@ test("a model system is shown, its dose fractions are edited, and a study names 
   const stored = await request.get(`/api/v1/projects/${projectId}/system`, { headers: AUTH });
   expect((await stored.json()).data.system.products["Parentamide HCl 10 mg"].Parentamide).toBe(0.912);
 
-  // the upload names what the study measures and the product it gives, from the system
-  await page.goto(`/projects/${projectId}/intake`);
-  await page.getByRole("button", { name: "Use example data" }).click();
-  await expect(page.getByTestId("intake-analyte")).toContainText("Metabolamide (judged at SM, SJ, S4, S5)");
-  await expect(page.getByTestId("intake-product")).toContainText("Parentamide HCl 10 mg");
+  // a study added on the Inputs step names what it measures and the product it gives, chosen from the system
+  await page.getByRole("link", { name: "Add data" }).click();
+  await page.waitForURL(/\/inputs\?tab=studies$/);
+  await page.getByTestId("type-table").click();
+  await expect(page.getByTestId("typed-analyte")).toContainText("Metabolamide (judged at SM, SJ, S4, S5)");
+  await expect(page.getByTestId("typed-product")).toContainText("Parentamide HCl 10 mg");
 });

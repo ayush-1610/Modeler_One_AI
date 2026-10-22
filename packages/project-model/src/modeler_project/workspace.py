@@ -14,7 +14,6 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -30,31 +29,6 @@ from modeler_project.artifacts import (
 from modeler_project.diff import Change, diff
 from modeler_project.store import ProjectStore
 from pbpk_domain.atomic_io import file_lock
-
-
-class PhaseStatus(StrEnum):
-    NOT_STARTED = "NOT_STARTED"
-    IN_REVIEW = "IN_REVIEW"      # produced, not approved yet
-    APPROVED = "APPROVED"
-    STALE = "STALE"              # approved or drafted on inputs that have since changed
-
-
-# The artifacts whose approval closes each phase (plan §16). `None` as id: any artifact of that kind counts.
-PHASE_GATES: dict[str, tuple[tuple[ArtifactKind, str | None], ...]] = {
-    "P0": ((ArtifactKind.DOCUMENT, None),),
-    "P1": ((ArtifactKind.BRIEF, "main"), (ArtifactKind.REQUIREMENTS, "main")),
-    "P2": ((ArtifactKind.EVIDENCE, "register-literature"),),
-    "P3": ((ArtifactKind.CLIENT_SUBMISSION, "register"),),
-    "P4": ((ArtifactKind.READINESS, "main"),),
-    "P5": ((ArtifactKind.MODEL_PLAN, "main"), (ArtifactKind.MAP, "main")),
-    "P6": ((ArtifactKind.CAMPAIGN, None),),
-}
-PHASE_LABELS = {
-    "P0": "Initiate", "P1": "Brief & data plan", "P2": "Literature", "P3": "Client data",
-    "P4": "Model inputs", "P5": "Model plan", "P6": "Run",
-}
-# Kinds that need no approval: a document is a fact (its bytes), a campaign is judged by its own gates.
-_NO_APPROVAL = {ArtifactKind.DOCUMENT, ArtifactKind.CAMPAIGN}
 
 # What a change upstream means for each kind of dependent (plan §13.3).
 _EFFECT = {
@@ -262,32 +236,6 @@ class Workspace:
                 queue.append(dep.ref.key)
         return ImpactReport(target=latest.ref, changes=changes, affected=tuple(affected))
 
-    # --- phases -----------------------------------------------------------------------------------------------
-
-    def phases(self) -> dict[str, PhaseStatus]:
-        """Each phase's status from its gate artifacts (plan §16)."""
-        out: dict[str, PhaseStatus] = {}
-        for phase, gates in PHASE_GATES.items():
-            statuses: list[PhaseStatus] = []
-            for kind, artifact_id in gates:
-                if artifact_id is None:
-                    present = self.list(kind)
-                    statuses.append(PhaseStatus.APPROVED if present else PhaseStatus.NOT_STARTED)
-                    continue
-                version = self.latest(kind, artifact_id)
-                if version is None:
-                    statuses.append(PhaseStatus.NOT_STARTED)
-                    continue
-                status = self.status(version)
-                if status is ArtifactStatus.STALE:
-                    statuses.append(PhaseStatus.STALE)
-                elif status is ArtifactStatus.APPROVED or kind in _NO_APPROVAL:
-                    statuses.append(PhaseStatus.APPROVED)
-                else:
-                    statuses.append(PhaseStatus.IN_REVIEW)
-            out[phase] = _worst(statuses)
-        return out
-
     def history(self, kind: ArtifactKind, artifact_id: str) -> list[dict[str, Any]]:
         """Every version with its status, approvals and the field changes from the previous version."""
         versions = self.versions(kind, artifact_id)
@@ -307,15 +255,3 @@ class Workspace:
             })
             previous = version.content
         return rows
-
-
-def _worst(statuses: list[PhaseStatus]) -> PhaseStatus:
-    """A phase is as far as its least advanced gate: nothing yet → not started; anything stale → stale; anything
-    missing or unapproved → in review; else approved."""
-    if not statuses or all(s is PhaseStatus.NOT_STARTED for s in statuses):
-        return PhaseStatus.NOT_STARTED
-    if PhaseStatus.STALE in statuses:
-        return PhaseStatus.STALE
-    if PhaseStatus.NOT_STARTED in statuses or PhaseStatus.IN_REVIEW in statuses:
-        return PhaseStatus.IN_REVIEW
-    return PhaseStatus.APPROVED

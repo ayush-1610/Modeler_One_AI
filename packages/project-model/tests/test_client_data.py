@@ -11,7 +11,7 @@ from modeler_intake.client_template import build_template
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.brief import Citation, FieldStatus, empty_brief
 from modeler_project.brief_ops import agent_set
-from modeler_project.client_data import ClientDataError, close_register, ingest, reconcile
+from modeler_project.client_data import ingest, reconcile
 from modeler_project.dataset_register import datasets
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence_register import items
@@ -105,7 +105,7 @@ def test_a_filled_template_becomes_client_datasets_and_evidence_quoted_from_thei
 
 
 def test_reconciliation_names_what_was_promised_delivered_partial_or_missing(tmp_path):
-    ws, library, brief, matrix, matrix_ref = _project(tmp_path)
+    ws, library, brief, matrix, _ref = _project(tmp_path)
     ingest(ws, library, _workbook(), "client.xlsx", by="u", matrix=matrix, brief=brief)
     rows = {r.req_id: r for r in reconcile(ws, matrix).rows}
     release = rows["REQ-form.release@test-10-mg-tablet"]
@@ -116,15 +116,11 @@ def test_reconciliation_names_what_was_promised_delivered_partial_or_missing(tmp
     assert any(u.startswith("bind.fu = 0.09") for u in reconcile(ws, matrix).unpromised)
     missing = [r.req_id for r in reconcile(ws, matrix).blocking()]
     assert missing and all(rows[m].status == "MISSING" for m in missing)
-    with pytest.raises(ClientDataError, match="still missing"):
-        close_register(ws, matrix_ref, matrix, by="u")
-    # R-07: the person skips what the client will not send (or asks for a literature cross-check); then P3 closes
+    # R-07: the person says what the client will not send; nothing then waits on the client (nothing is approved, D-27)
     overrides = tuple(RequirementOverride(req_id=m, status="NOT_AVAILABLE", reason="not in the client's scope", by="u")
                       for m in missing)
     matrix = derive(brief, overrides, previous=matrix)
-    matrix_ref = ws.commit(ArtifactKind.REQUIREMENTS, "main", matrix.to_content(), actor="u", reason="skipped").ref
-    close_register(ws, matrix_ref, matrix, by="u", printed_name="Dr U")
-    assert ws.phases()["P3"] == "APPROVED"
+    assert not reconcile(ws, matrix).blocking()
 
 
 def _plain_dissolution_workbook() -> bytes:
@@ -198,18 +194,17 @@ def test_dissolution_for_a_product_the_brief_does_not_name_says_so(tmp_path):
     assert release.status == "MISSING" and "'ER 50 mg', not for 'Test 10 mg tablet'" in release.detail
 
 
-def test_an_item_the_client_cannot_send_is_taken_from_the_literature_and_no_longer_holds_p3(tmp_path):
-    ws, library, brief, matrix, matrix_ref = _project(tmp_path)
+def test_an_item_the_client_cannot_send_is_taken_from_the_literature_and_no_longer_waits_on_the_client(tmp_path):
+    ws, library, brief, matrix, _ref = _project(tmp_path)
     ingest(ws, library, _workbook(), "client.xlsx", by="u", matrix=matrix, brief=brief)
     blocking = reconcile(ws, matrix).blocking()
     first = blocking[0]
     assert first.kind and first.target                     # the page says how each item would be delivered
-    # a cross-check alone does not close it: it counts once a literature value is accepted, and the refusal says so
+    # a cross-check alone does not settle it: the item still waits on the client
     matrix = derive(brief, (RequirementOverride(req_id=first.req_id, cross_check=True, reason="ask the literature", by="u"),),
                     previous=matrix)
-    with pytest.raises(ClientDataError, match="counts once a literature value is accepted"):
-        close_register(ws, matrix_ref, matrix, by="u")
-    # taking it from the literature instead moves it to P2: P3 no longer waits for it
+    assert first.req_id in [r.req_id for r in reconcile(ws, matrix).blocking()]
+    # taking it from the literature instead: the client no longer owes it
     matrix = derive(brief, (RequirementOverride(req_id=first.req_id, provider="LITERATURE", reason="client has none", by="u"),),
                     previous=matrix)
     assert first.req_id not in [r.req_id for r in reconcile(ws, matrix).blocking()]

@@ -144,21 +144,21 @@ def test_every_signature_is_an_audit_event(client, tmp_path):
     assert event.after["signature_id"] == signed["signature_id"] and event.after["record_sha256"] == "b" * 64
 
 
-def test_the_p6_phase_follows_the_projects_campaigns(client, tmp_path):
+def test_the_run_step_follows_the_projects_campaigns(client, tmp_path):
     http, _runner = client
     store = FileWriteStore(str(tmp_path))
     store.put_project("dev", {"id": "p1", "name": "P1", "compounds": ["Drug-A"], "openQuestions": 0, "risk": "medium",
                               "questions": [], "pipeline": True})
 
-    def p6() -> str:
-        phases = http.get("/api/v1/projects/p1/phases", headers=DEV).json()["data"]["phases"]
-        return next(p["status"] for p in phases if p["phase"] == "P6")
+    def run() -> str:
+        steps = http.get("/api/v1/projects/p1/steps", headers=DEV).json()["data"]["steps"]
+        return next(s["state"] for s in steps if s["step"] == "run")
 
-    assert p6() == "NOT_STARTED"
+    assert run() == "not_started"
     store.upsert_campaign("dev", {"id": "camp-1", "project": "p1", "status": "RUNNING"})
-    assert p6() == "IN_REVIEW"
+    assert run() == "running"
     store.upsert_campaign("dev", {"id": "camp-1", "project": "p1", "status": "COMPLETED"})
-    assert p6() == "APPROVED"
+    assert run() == "done"
 
 
 @pytest.mark.req("T-16")

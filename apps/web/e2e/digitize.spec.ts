@@ -46,7 +46,7 @@ function figure(): Buffer {
                         chunk("IDAT", deflateSync(Buffer.concat(rows))), chunk("IEND", Buffer.alloc(0))]);
 }
 
-test("a figure is digitized against calibrated axes, its overlay approved, and the dataset accepted", async ({ page, request }) => {
+test("a figure is digitized against calibrated axes, its overlay checked, and the study used", async ({ page, request }) => {
   const started = await request.post("/api/v1/projects:initiate", {
     headers: { Authorization: "Bearer dev" },
     multipart: {
@@ -58,7 +58,7 @@ test("a figure is digitized against calibrated axes, its overlay approved, and t
   const projectId = (await started.json()).data.project_id as string;
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: { Authorization: "Bearer dev" } })).ok()).toBeTruthy();
 
-  await page.goto(`/projects/${projectId}/evidence?tab=observed`);
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   await page.getByTestId("open-digitizer").click();
   const canvas = page.locator(".figure canvas");
   await expect(canvas).toBeVisible();
@@ -92,10 +92,11 @@ test("a figure is digitized against calibrated axes, its overlay approved, and t
     expect(Math.abs(pairs[i][1] - c)).toBeLessThan(4);    // 2 % of the 200 ng/ml axis
   });
   await page.screenshot({ path: test.info().outputPath("digitized.png"), fullPage: true });
-  await card.getByRole("button", { name: "Approve the overlay" }).click();
-  await expect(card).toContainText("overlay approved by");
-  await card.getByPlaceholder("reason (required)").fill("points match the figure markers");
-  await card.getByRole("button", { name: "Accept" }).click();
-  await expect(card).toContainText("accepted");
-  await expect(page.getByTestId("need-REQ-obs.po_fasted_range")).not.toHaveText("not found");
+  // a figure's points count once a person has checked the overlay (D-27: nothing else is accepted); the study is then used
+  await expect(card).toContainText("overlay to check");
+  await expect(page.getByTestId("study-doe-2019-po-10mg")).toHaveCount(0);
+  await card.getByRole("button", { name: "The overlay matches the figure" }).click();
+  await expect(card).toContainText("overlay checked by");
+  await expect(card).toContainText("used");
+  await expect(page.getByTestId("study-doe-2019-po-10mg")).toBeVisible();
 });

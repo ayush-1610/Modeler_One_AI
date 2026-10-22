@@ -1,4 +1,4 @@
-// A project with accepted model inputs (P4), built through the API the way a curator enters values by hand.
+// A project with ready model inputs, built through the API the way a curator enters values by hand.
 // Software test data (made-up numbers): it exercises the pipeline, never a model.
 import { expect, type APIRequestContext } from "@playwright/test";
 
@@ -8,7 +8,7 @@ type Study = { study_id: string; route: string; dose_mg: number; food_state?: st
 type BriefChange = { path: string; value: unknown; unit?: string };
 
 export async function projectWithInputs(request: APIRequestContext, drug: string, studies: Study[],
-                                        { accept = true, brief = [] as BriefChange[] } = {}) {
+                                        { assemble = true, brief = [] as BriefChange[] } = {}) {
   const started = await request.post("/api/v1/projects:initiate", {
     headers: AUTH,
     multipart: { drug_name: drug, extract: "false",
@@ -48,10 +48,9 @@ export async function projectWithInputs(request: APIRequestContext, drug: string
     const id = (await ds.json()).data.id as string;
     await request.post(`/api/v1/projects/${projectId}/datasets/${id}:decide`, { headers: AUTH, data: { state: "ACCEPTED", reason: "checked" } });
   }
-  if (accept) {
+  if (assemble) {     // ready inputs are what the plan reads; nothing is accepted (D-27)
     const assembled = await request.post(`/api/v1/projects/${projectId}/inputs:assemble`, { headers: AUTH });
     expect((await assembled.json()).data.readiness.content.ready).toBeTruthy();
-    expect((await request.post(`/api/v1/projects/${projectId}/inputs:accept`, { headers: AUTH, data: {} })).ok()).toBeTruthy();
   }
   return projectId;
 }

@@ -45,17 +45,6 @@
         "title": "Absorption",
         "type": "object"
       },
-      "AcceptRequest": {
-        "properties": {
-          "note": {
-            "default": "",
-            "title": "Note",
-            "type": "string"
-          }
-        },
-        "title": "AcceptRequest",
-        "type": "object"
-      },
       "AcceptanceView": {
         "additionalProperties": false,
         "description": "The limits of the chosen tier as the MAP records them (UNVERIFIED ruleset), and the internal target (MS-01 §8).",
@@ -2496,17 +2485,6 @@
           "read"
         ],
         "title": "ClientUpload",
-        "type": "object"
-      },
-      "CloseRequest": {
-        "properties": {
-          "note": {
-            "default": "",
-            "title": "Note",
-            "type": "string"
-          }
-        },
-        "title": "CloseRequest",
         "type": "object"
       },
       "CoCompoundSpec": {
@@ -5356,31 +5334,6 @@
         "title": "Envelope[ObservedDataset]",
         "type": "object"
       },
-      "Envelope_Phases_": {
-        "additionalProperties": false,
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/Phases"
-          },
-          "errors": {
-            "items": {
-              "$ref": "#/components/schemas/ErrorItem"
-            },
-            "title": "Errors",
-            "type": "array"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/Meta"
-          }
-        },
-        "required": [
-          "data",
-          "meta",
-          "errors"
-        ],
-        "title": "Envelope[Phases]",
-        "type": "object"
-      },
       "Envelope_PlanPage_": {
         "additionalProperties": false,
         "properties": {
@@ -5556,6 +5509,31 @@
         "title": "Envelope[Proposals]",
         "type": "object"
       },
+      "Envelope_PublishedModelTaken_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PublishedModelTaken"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[PublishedModelTaken]",
+        "type": "object"
+      },
       "Envelope_ReleaseProposal_": {
         "additionalProperties": false,
         "properties": {
@@ -5729,6 +5707,31 @@
           "errors"
         ],
         "title": "Envelope[SnapshotPreview]",
+        "type": "object"
+      },
+      "Envelope_StaleArtifacts_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaleArtifacts"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[StaleArtifacts]",
         "type": "object"
       },
       "Envelope_Steps_": {
@@ -7839,17 +7842,12 @@
             "title": "Evidence",
             "type": "string"
           },
-          "published": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Published"
+          "published_models": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedModel"
+            },
+            "title": "Published Models",
+            "type": "array"
           },
           "readiness": {
             "anyOf": [
@@ -7905,12 +7903,12 @@
           "catalog",
           "readiness",
           "choices",
-          "published",
           "todo",
           "compound",
           "studies",
           "study_options",
           "selection_rule",
+          "published_models",
           "evidence"
         ],
         "title": "IdentityProposal",
@@ -8177,17 +8175,12 @@
               }
             ]
           },
-          "published": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Published"
+          "published_models": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedModel"
+            },
+            "title": "Published Models",
+            "type": "array"
           },
           "readiness": {
             "anyOf": [
@@ -8243,12 +8236,12 @@
           "catalog",
           "readiness",
           "choices",
-          "published",
           "todo",
           "compound",
           "studies",
           "study_options",
-          "selection_rule"
+          "selection_rule",
+          "published_models"
         ],
         "title": "InputsPage",
         "type": "object"
@@ -11509,73 +11502,6 @@
         "title": "PersonView",
         "type": "object"
       },
-      "PhaseRow": {
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "phase": {
-            "enum": [
-              "P0",
-              "P1",
-              "P2",
-              "P3",
-              "P4",
-              "P5",
-              "P6"
-            ],
-            "title": "Phase",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/PhaseStatus"
-          }
-        },
-        "required": [
-          "phase",
-          "label",
-          "status"
-        ],
-        "title": "PhaseRow",
-        "type": "object"
-      },
-      "PhaseStatus": {
-        "enum": [
-          "NOT_STARTED",
-          "IN_REVIEW",
-          "APPROVED",
-          "STALE"
-        ],
-        "title": "PhaseStatus",
-        "type": "string"
-      },
-      "Phases": {
-        "additionalProperties": false,
-        "properties": {
-          "phases": {
-            "items": {
-              "$ref": "#/components/schemas/PhaseRow"
-            },
-            "title": "Phases",
-            "type": "array"
-          },
-          "stale": {
-            "items": {
-              "$ref": "#/components/schemas/StaleArtifact"
-            },
-            "title": "Stale",
-            "type": "array"
-          }
-        },
-        "required": [
-          "phases",
-          "stale"
-        ],
-        "title": "Phases",
-        "type": "object"
-      },
       "PinnedApplication": {
         "additionalProperties": false,
         "properties": {
@@ -12555,6 +12481,83 @@
           "name"
         ],
         "title": "PublishedIndividual",
+        "type": "object"
+      },
+      "PublishedModel": {
+        "additionalProperties": false,
+        "description": "A published OSP model of the project's drug, which the Inputs step can take as a source.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "PublishedModel",
+        "type": "object"
+      },
+      "PublishedModelRequest": {
+        "properties": {
+          "template_id": {
+            "minLength": 1,
+            "title": "Template Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "title": "PublishedModelRequest",
+        "type": "object"
+      },
+      "PublishedModelTaken": {
+        "additionalProperties": false,
+        "description": "What taking a published OSP model as a source proposed: its values and datasets, those it had already given,\nand what it left out, with why.",
+        "properties": {
+          "already": {
+            "title": "Already",
+            "type": "integer"
+          },
+          "datasets": {
+            "title": "Datasets",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "skipped": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "template_id": {
+            "title": "Template Id",
+            "type": "string"
+          },
+          "values": {
+            "title": "Values",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "template_id",
+          "model",
+          "values",
+          "datasets",
+          "already",
+          "skipped"
+        ],
+        "title": "PublishedModelTaken",
         "type": "object"
       },
       "QuestionAnswer": {
@@ -15450,6 +15453,24 @@
           "reasons"
         ],
         "title": "StaleArtifact",
+        "type": "object"
+      },
+      "StaleArtifacts": {
+        "additionalProperties": false,
+        "description": "What was made from inputs that have since changed, with why (shown on the History page).",
+        "properties": {
+          "stale": {
+            "items": {
+              "$ref": "#/components/schemas/StaleArtifact"
+            },
+            "title": "Stale",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stale"
+        ],
+        "title": "StaleArtifacts",
         "type": "object"
       },
       "StartBlock": {
@@ -20146,75 +20167,6 @@
         ]
       }
     },
-    "/api/v1/projects/{project_id}/client-data:approve": {
-      "post": {
-        "description": "Close P3: snapshot the files and the reconciliation, with a named approval.",
-        "operationId": "approve_client_data_api_v1_projects__project_id__client_data_approve_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CloseRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_ClientDataPage_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Approve Client Data",
-        "tags": [
-          "client-data"
-        ]
-      }
-    },
     "/api/v1/projects/{project_id}/compounds/{compound}/cpf": {
       "get": {
         "operationId": "get_compound_cpf_api_v1_projects__project_id__compounds__compound__cpf_get",
@@ -21564,9 +21516,10 @@
         ]
       }
     },
-    "/api/v1/projects/{project_id}/evidence:approve": {
+    "/api/v1/projects/{project_id}/evidence:published-model": {
       "post": {
-        "operationId": "approve_evidence_api_v1_projects__project_id__evidence_approve_post",
+        "description": "A published OSP model of the project's drug as a source (redesign §5, in place of the Quick start wizard): its\nvalues are proposed citing the model and its clinical datasets citing their publications; they flow in like any\nother source and rank below the client and the literature (D-32). A model of another drug is refused.",
+        "operationId": "take_published_model_api_v1_projects__project_id__evidence_published_model_post",
         "parameters": [
           {
             "in": "path",
@@ -21598,7 +21551,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CloseRequest"
+                "$ref": "#/components/schemas/PublishedModelRequest"
               }
             }
           },
@@ -21609,7 +21562,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_EvidencePage_"
+                  "$ref": "#/components/schemas/Envelope_PublishedModelTaken_"
                 }
               }
             },
@@ -21626,7 +21579,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Approve Evidence",
+        "summary": "Take Published Model",
         "tags": [
           "evidence"
         ]
@@ -21901,74 +21854,6 @@
         ]
       }
     },
-    "/api/v1/projects/{project_id}/inputs:accept": {
-      "post": {
-        "operationId": "accept_api_v1_projects__project_id__inputs_accept_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AcceptRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_InputsPage_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Accept",
-        "tags": [
-          "inputs"
-        ]
-      }
-    },
     "/api/v1/projects/{project_id}/inputs:assemble": {
       "post": {
         "operationId": "assemble_inputs_api_v1_projects__project_id__inputs_assemble_post",
@@ -22081,65 +21966,6 @@
           }
         },
         "summary": "Propose Identity",
-        "tags": [
-          "inputs"
-        ]
-      }
-    },
-    "/api/v1/projects/{project_id}/inputs:publish": {
-      "post": {
-        "description": "Hand the accepted CPF v1 and the judged studies to the campaign path (the project's CPF and studies).",
-        "operationId": "publish_api_v1_projects__project_id__inputs_publish_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_InputsPage_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Publish",
         "tags": [
           "inputs"
         ]
@@ -22334,64 +22160,6 @@
         "summary": "Remove Member",
         "tags": [
           "members"
-        ]
-      }
-    },
-    "/api/v1/projects/{project_id}/phases": {
-      "get": {
-        "operationId": "get_phases_api_v1_projects__project_id__phases_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_Phases_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Phases",
-        "tags": [
-          "project-pipeline"
         ]
       }
     },
@@ -23772,6 +23540,65 @@
         "summary": "Create Signature",
         "tags": [
           "signatures"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/stale": {
+      "get": {
+        "description": "What was made from inputs that have since changed, with why. Where a project stands is its steps (below), read\nfrom what is filled and missing, never from approvals (D-27).",
+        "operationId": "get_stale_api_v1_projects__project_id__stale_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_StaleArtifacts_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Stale",
+        "tags": [
+          "project-pipeline"
         ]
       }
     },

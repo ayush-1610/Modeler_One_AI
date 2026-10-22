@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { Stepper } from "@/components/kit/Stepper";
 import { ApiProblem, Card, StatusChip } from "@/components/ui";
-import { getArtifacts, getAudit, getHistory, getPhases, type Change } from "@/lib/pipeline";
+import { getArtifacts, getAudit, getHistory, getStale, type Change } from "@/lib/pipeline";
 
 function show(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -29,13 +29,13 @@ export default async function HistoryPage({
 }) {
   const { projectId } = await params;
   const { kind, id } = await searchParams;
-  const [artifacts, phases, audit, history] = await Promise.all([
+  const [artifacts, stale, audit, history] = await Promise.all([
     getArtifacts(projectId),
-    getPhases(projectId),
+    getStale(projectId),
     getAudit(projectId),
     kind && id ? getHistory(projectId, kind, id) : Promise.resolve(null),
   ]);
-  const problem = artifacts.problem ?? phases.problem ?? audit.problem;
+  const problem = artifacts.problem ?? stale.problem ?? audit.problem;
 
   return (
     <main>
@@ -47,12 +47,12 @@ export default async function HistoryPage({
       </p>
       {problem && <ApiProblem problem={problem} />}
 
-      {phases.data && phases.data.stale.length > 0 && (
+      {stale.data && stale.data.length > 0 && (
         <Card title="Stale — made from inputs that have since changed">
           <table>
             <thead><tr><th>Artifact</th><th>Why</th></tr></thead>
             <tbody>
-              {phases.data.stale.map((s) => (
+              {stale.data.map((s) => (
                 <tr key={`${s.ref.kind}/${s.ref.id}`}>
                   <td><code>{s.ref.kind}/{s.ref.id}@v{s.ref.version}</code></td>
                   <td>{s.reasons.join("; ")}</td>

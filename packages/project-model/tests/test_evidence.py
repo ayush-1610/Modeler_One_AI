@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from modeler_project import ArtifactKind, FileProjectStore, PhaseStatus, Workspace
+from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, assess, new_id
 from modeler_project.evidence_register import (
     EvidenceError,
     blocking,
-    close_register,
     coverage,
     decide,
     items,
@@ -62,7 +61,7 @@ def test_conflicts_coverage_and_the_register_gate(tmp_path):
     from modeler_project.requirements import derive
 
     matrix = derive(empty_brief("X", by="u"))
-    matrix_version = ws.commit(ArtifactKind.REQUIREMENTS, "main", matrix.to_content(), actor="system", reason="derived")
+    ws.commit(ArtifactKind.REQUIREMENTS, "main", matrix.to_content(), actor="system", reason="derived")
     a = propose(ws, _fu(9, "%"), actor="agent:r1")
     b = propose(ws, _fu(0.35, None), actor="agent:r1")
     listed = {e.id: e for e in items(ws)}
@@ -78,16 +77,14 @@ def test_conflicts_coverage_and_the_register_gate(tmp_path):
     assert rows["REQ-bind.fu"].status == "ACCEPTED"
     assert not any(f.startswith("conflict") for f in next(e for e in items(ws) if e.id == a.id).flags)
 
-    with pytest.raises(EvidenceError, match="still open"):
-        close_register(ws, matrix_version.ref, matrix, by="u")
-    for row in blocking(coverage(matrix, items(ws))):
+    # what is still open on the literature's side, until each is found or recorded as not available
+    open_items = blocking(coverage(matrix, items(ws)))
+    assert open_items and "REQ-bind.fu" not in [r.req_id for r in open_items]
+    for row in open_items:
         matrix = RequirementMatrix.from_content({**matrix.to_content(), "items": [
             {**i.model_dump(mode="json"), "status": "NOT_AVAILABLE"} if i.req_id == row.req_id else i.model_dump(mode="json")
             for i in matrix.items]})
-    close_register(ws, matrix_version.ref, matrix, by="u", note="gaps accepted for the test")
-    assert ws.phases()["P2"] is PhaseStatus.APPROVED
-    decide(ws, a.id, state=EvidenceState.REJECTED, reason="superseded by the client's own measurement", by="u")
-    assert ws.phases()["P2"] is PhaseStatus.STALE
+    assert not blocking(coverage(matrix, items(ws)))
 
 
 def test_clspec_cannot_be_accepted_without_its_pksim_value(tmp_path):

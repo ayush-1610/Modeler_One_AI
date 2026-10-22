@@ -20,7 +20,7 @@ from modeler_project.dataset_register import decide_dataset, propose_dataset
 from modeler_project.datasets import ObservedDataset, Origin, Series, new_dataset_id
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import decide, propose
-from modeler_project.inputs import accept_inputs, assemble
+from modeler_project.inputs import assemble
 from modeler_project.requirements import derive
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 
@@ -80,8 +80,7 @@ def setup(tmp_path, monkeypatch, api_settings):
                              ("po-50", "oral", 50), ("po-100", "oral", 100)):
         _dataset(ws, sid, route, dose)
     _dataset(ws, "ddi-itra", "oral", 50, co_medication="itraconazole")
-    assemble(ws, by="u1")
-    accept_inputs(ws, by="u1")
+    assemble(ws, by="u1")                     # ready inputs are what the plan reads; nothing is accepted (D-27)
     yield TestClient(app), ws, read_root
     app.dependency_overrides.clear()
 
@@ -167,7 +166,8 @@ def test_approve_and_sign_generates_the_map_signs_it_and_stages_the_campaign(set
 
     staged = CPF.model_validate_json(Path(unquote(urlparse(campaign["cpf_uri"]).path)).read_text())
     assert cpf_differences(MapDocument.model_validate(map_doc), staged) == []   # D-36: a pilot starts on the staged pair
-    assert ws.phases()["P5"] == "APPROVED"
+    steps = {s["step"]: s["state"] for s in c.get("/api/v1/projects/p1/steps", headers=H).json()["data"]["steps"]}
+    assert steps["review"] == "done"                                             # the signed MAP closes Review & sign
     # D-14: after the signature a change is a MAP deviation, pending until the MIDD lead signs it
     after = c.put("/api/v1/projects/p1/plan/placements/po-10", headers=H, json={"role": "S5", "reason": "late change"})
     assert after.status_code == 200, after.text
@@ -227,10 +227,10 @@ def test_external_values_are_blinded_until_the_map_is_signed(setup):
 
     from modeler_api.read_api import get_read_store
 
-    # the studies published for the legacy campaign path are blinded the same way
+    # the studies uploaded for the campaign path are blinded the same way
     from modeler_api.studies import StudyUpload
 
-    def row(study_id: str, value: float) -> dict:  # a study as `inputs:publish` stores it (the upload shape)
+    def row(study_id: str, value: float) -> dict:  # a study as the study upload stores it
         return StudyUpload(study_id=study_id, route="iv_infusion", dose_mg=250, infusion_time_min=60,
                            profile={"times": [1.0], "values": [value]}).model_dump()
 
@@ -307,7 +307,6 @@ def test_a_brief_edit_makes_the_plan_stale_and_the_rebase_reads_it_while_a_perso
         {"path": "acceptance.tier", "status": "EDITED", "value": "high"}]})
     assert edit.status_code == 200, edit.text
     assemble(ws, by="u1")                     # the CPF derives from the brief: the inputs are put together again
-    accept_inputs(ws, by="u1")
     stale = c.put("/api/v1/projects/p1/plan/placements/po-50", headers=H, json={"role": "S5", "reason": "validation"})
     assert stale.status_code == 409 and "the brief changed" in stale.json()["detail"]
     structure = c.post("/api/v1/projects/p1/plan:rebase", headers=H).json()["data"]["plan"]["structure"]

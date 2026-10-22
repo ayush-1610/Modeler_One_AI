@@ -1,6 +1,6 @@
 // T-47: the guided client-data flow on files laid out the way CROs and labs send them (an ER tablet with a VBE and
-// food-effect question). Each sheet is read from a form filled in from the sheet itself; the data-plan items the
-// client cannot send are decided with a reason; then P3 is approved. The workbooks are written by a Python helper
+// food-effect question), on the Inputs step's Studies tab. Each sheet is read from a form filled in from the sheet
+// itself; Start's data checklist ticks what arrived, and what the client cannot send goes to another provider there. The workbooks are written by a Python helper
 // (software test data, never a model).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
@@ -16,7 +16,7 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
 }
 
-test("an ER tablet's BE, dissolution and literature files are read sheet by sheet and P3 closes", async ({ page, request }) => {
+test("an ER tablet's BE, dissolution and literature files are read sheet by sheet and ticked off the checklist", async ({ page, request }) => {
   const dir = mkdtempSync(join(tmpdir(), "er-be-"));
   execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "er_be_workbooks.py"), dir], { cwd: REPO });
 
@@ -38,9 +38,7 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   expect(brief.ok(), await brief.text()).toBeTruthy();
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
 
-  await page.goto(`/projects/${projectId}/client-data`);
-  await expect(page.getByText(/What stops approval/)).toBeVisible();
-  await expect(page.getByTestId("approve-client-data")).toBeDisabled();
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   await page.getByTestId("client-upload").setInputFiles(["230-23 Fasting Reference.xlsx", "230-23 Fasting Test.xlsx",
     "Dissolution Test pH 6.8.xlsx", "Dissolution RLD pH 6.8.xlsx", "Nichols2012 IV 50 mg 5 h infusion.xlsx"].map((f) => join(dir, f)));
   await expect(page.getByText("5 files stored.")).toBeVisible();
@@ -98,7 +96,9 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
     await r.getByRole("button", { name: "Save these data" }).click();
     await expect(page.getByText(/pH 6.8: 96 dissolution values saved/)).toBeVisible();
   }
+  await page.getByTestId("tab-formulations").click();
   await expect(page.getByTestId("f2-row")).toBeVisible();
+  await page.getByTestId("tab-studies").click();
 
   // published IV means: SD and N columns, the route from the file name
   await page.getByTestId("client-file-Nichols2012 IV 50 mg 5 h infusion.xlsx").getByRole("button", { name: "Read this sheet" }).click();
@@ -112,21 +112,15 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await iv.getByRole("button", { name: "Save these data" }).click();
   await expect(page.getByText(/Nichols2012-IV saved/)).toBeVisible();
 
-  // what the client cannot send: decided with a reason, not left hanging
-  await expect(page.getByTestId("recon-REQ-vbe.be_study")).toContainText("delivered");
-  await expect(page.getByTestId("recon-REQ-vbe.rld_dissolution")).toContainText("delivered");
+  // what arrived is ticked on Start's data checklist; what the client cannot send is given to another provider there
+  // (nothing is approved: D-27)
+  await page.goto(`/projects/${projectId}/start`);
+  await expect(page.getByTestId("arrived-REQ-vbe.be_study")).toContainText("arrived");
+  await expect(page.getByTestId("arrived-REQ-vbe.rld_dissolution")).toContainText("arrived");
   await shot(page, "4-plan");
-  const biorelevant = page.getByTestId("recon-REQ-fe.biorelevant");
-  await biorelevant.getByLabel("reason for REQ-fe.biorelevant", { exact: true }).fill("the client has no FaSSIF / FeSSIF data");
-  await biorelevant.getByRole("button", { name: "Get it from the literature instead" }).click();
-  await expect(page.getByTestId("recon-REQ-fe.biorelevant")).toHaveCount(0);
-  const variability = page.getByTestId("recon-REQ-vbe.variability");
-  await variability.getByLabel("reason for REQ-vbe.variability", { exact: true }).fill("computed later from the BE study data");
-  await variability.getByRole("button", { name: "Not from the client" }).click();
-  await expect(page.getByTestId("recon-REQ-vbe.variability")).toContainText("not from the client");
-
-  await expect(page.getByTestId("approve-client-data")).toBeEnabled();
-  await page.getByTestId("approve-client-data").click();
-  await expect(page.getByText("Client data approved (P3).")).toBeVisible();
-  await shot(page, "5-approved");
+  await page.getByTestId("provider-REQ-fe.biorelevant").selectOption("LITERATURE");     // no FaSSIF / FeSSIF data from the client
+  await expect(page.getByTestId("provider-REQ-fe.biorelevant")).toHaveValue("LITERATURE");
+  await page.getByTestId("provider-REQ-vbe.variability").selectOption("STUDY");         // computed later from the BE study data
+  await expect(page.getByTestId("provider-REQ-vbe.variability")).toHaveValue("STUDY");
+  await shot(page, "5-checklist");
 });

@@ -75,7 +75,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
           </table>
         </Card>
 
-        <Card title="Observed studies" action={<Link className="btn" href={`/projects/${project.id}/intake`}>Add data</Link>}>
+        <Card title="Observed studies" action={<Link className="btn" href={`/projects/${project.id}/inputs?tab=studies`}>Add data</Link>}>
           {studies && studies.length > 0 ? (
             <table>
               <thead><tr><th>Study</th><th>Route</th><th className="num">Dose</th><th className="num">Points</th></tr></thead>

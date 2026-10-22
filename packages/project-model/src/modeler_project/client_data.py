@@ -571,21 +571,3 @@ def reconcile(ws: Workspace, matrix: RequirementMatrix) -> Reconciliation:
     if not used_diss and diss_rows:
         result.unpromised.append("dissolution profiles: delivered, not promised by the data plan")
     return result
-
-
-def close_register(ws: Workspace, matrix_ref, matrix: RequirementMatrix, *, by: str, note: str = "",
-                   printed_name: str = "") -> None:
-    """Snapshot the client files and the reconciliation and approve them (named approval, D-07): the P3 gate."""
-    recon = reconcile(ws, matrix)
-    gaps = recon.blocking()
-    if gaps:
-        waiting = [r.req_id for r in gaps if r.cross_check]
-        raise ClientDataError(
-            "required client items still missing: " + ", ".join(r.req_id for r in gaps) + ". Deliver each, mark it not "
-            "available from the client, or get it from the literature instead"
-            + (f" ({', '.join(waiting)}: the literature cross-check counts once a literature value is accepted)" if waiting else ""))
-    files = [v for v in ws.list(ArtifactKind.CLIENT_SUBMISSION) if v.id != REGISTER]
-    content = {"files": [v.ref.model_dump(mode="json") for v in files], "reconciliation": recon.to_content()}
-    version = ws.commit(ArtifactKind.CLIENT_SUBMISSION, REGISTER, content, derived_from=[matrix_ref, *[v.ref for v in files]],
-                        actor=by, reason="client data reconciled")
-    ws.approve(version.ref, by=by, printed_name=printed_name, meaning="Reviewed", note=note)

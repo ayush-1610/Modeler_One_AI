@@ -10,12 +10,12 @@ export default async function ProjectsPage() {
     <main>
       <div className="spread">
         <h1>Projects</h1>
-        <Link className="btn primary" href="/projects/new">+ New project</Link>
+        <Link className="btn primary" href="/projects/start">+ New project</Link>
       </div>
       <p className="muted">PBPK modeling programs on the Open Systems Pharmacology Suite. Each project holds its compounds, questions of interest and campaigns.</p>
       {live.problem && <ApiProblem problem={live.problem} />}
       {!live.problem && projects.length === 0 && (
-        <p className="muted">No projects yet. Use <strong>+ New project</strong> to start from a published model.</p>
+        <p className="muted">No projects yet. Use <strong>+ New project</strong> to start one from its proposal and the client&apos;s files.</p>
       )}
       <Card>
         <table>

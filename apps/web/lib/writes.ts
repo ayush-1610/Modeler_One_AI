@@ -1,26 +1,10 @@
-// Client-side write helpers for the guided create-project flow, the campaign start and the escalations, through the
+// Client-side write helpers for the campaign's preparation and start, the MAP signature and the escalations, through the
 // one client in lib/api.ts, each typed by its route; signatures, the campaign start and the escalation decision answer
 // without the envelope and go through `post`.
 
 import { post, send, type Narrow, type Schema } from "@/lib/api";
 
 export type PrepareResult = Schema<"CampaignInputs">;
-
-export function createProject(body: Schema<"ProjectCreate">) {
-  return send("post", "/api/v1/projects", {}, body);
-}
-
-/** Put a compound's CPF; the JSON a person edited is the body, checked by the API against the CPF schema. */
-export function putCpf(projectId: string, compound: string, cpf: unknown) {
-  return send("put", "/api/v1/projects/{project_id}/compounds/{compound}/cpf", { project_id: projectId, compound },
-              cpf as Schema<"CPF">);
-}
-
-/** Upload observed studies; the rows a person edited are the body, checked by the API against the upload schema. */
-export function uploadStudies(projectId: string, studies: unknown[]) {
-  return send("post", "/api/v1/projects/{project_id}/studies", { project_id: projectId },
-              { studies: studies as Schema<"StudiesUpload">["studies"] });
-}
 
 export function prepareCampaign(projectId: string, questionId: string, body: Schema<"PrepareRequest">) {
   return send("post", "/api/v1/projects/{project_id}/questions/{question_id}/campaign:prepare",

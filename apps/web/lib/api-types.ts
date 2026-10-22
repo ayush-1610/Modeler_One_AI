@@ -642,26 +642,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/client-data:approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve Client Data
-         * @description Close P3: snapshot the files and the reconciliation, with a named approval.
-         */
-        post: operations["approve_client_data_api_v1_projects__project_id__client_data_approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/compounds/{compound}/cpf": {
         parameters: {
             query?: never;
@@ -969,7 +949,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/evidence:approve": {
+    "/api/v1/projects/{project_id}/evidence:published-model": {
         parameters: {
             query?: never;
             header?: never;
@@ -978,8 +958,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve Evidence */
-        post: operations["approve_evidence_api_v1_projects__project_id__evidence_approve_post"];
+        /**
+         * Take Published Model
+         * @description A published OSP model of the project's drug as a source (redesign §5, in place of the Quick start wizard): its
+         *     values are proposed citing the model and its clinical datasets citing their publications; they flow in like any
+         *     other source and rank below the client and the literature (D-32). A model of another drug is refused.
+         */
+        post: operations["take_published_model_api_v1_projects__project_id__evidence_published_model_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1063,23 +1048,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/inputs:accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Accept */
-        post: operations["accept_api_v1_projects__project_id__inputs_accept_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/inputs:assemble": {
         parameters: {
             query?: never;
@@ -1117,26 +1085,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/inputs:publish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Publish
-         * @description Hand the accepted CPF v1 and the judged studies to the campaign path (the project's CPF and studies).
-         */
-        post: operations["publish_api_v1_projects__project_id__inputs_publish_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/members": {
         parameters: {
             query?: never;
@@ -1166,23 +1114,6 @@ export interface paths {
         put?: never;
         /** Remove Member */
         post: operations["remove_member_api_v1_projects__project_id__members_remove_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{project_id}/phases": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Phases */
-        get: operations["get_phases_api_v1_projects__project_id__phases_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1561,6 +1492,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Stale
+         * @description What was made from inputs that have since changed, with why. Where a project stands is its steps (below), read
+         *     from what is filled and missing, never from approvals (D-27).
+         */
+        get: operations["get_stale_api_v1_projects__project_id__stale_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/steps": {
         parameters: {
             query?: never;
@@ -1785,14 +1737,6 @@ export interface components {
             lanes: components["schemas"]["Lane"][];
             /** Measured Fed Solubility */
             measured_fed_solubility: boolean;
-        };
-        /** AcceptRequest */
-        AcceptRequest: {
-            /**
-             * Note
-             * @default
-             */
-            note?: string;
         };
         /**
          * AcceptanceView
@@ -2679,14 +2623,6 @@ export interface components {
             running: boolean;
             /** Template */
             template: string;
-        };
-        /** CloseRequest */
-        CloseRequest: {
-            /**
-             * Note
-             * @default
-             */
-            note?: string;
         };
         /**
          * CoCompoundSpec
@@ -3655,13 +3591,6 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
-        /** Envelope[Phases] */
-        Envelope_Phases_: {
-            data: components["schemas"]["Phases"];
-            /** Errors */
-            errors: components["schemas"]["ErrorItem"][];
-            meta: components["schemas"]["Meta"];
-        };
         /** Envelope[PlanPage] */
         Envelope_PlanPage_: {
             data: components["schemas"]["PlanPage"];
@@ -3711,6 +3640,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[PublishedModelTaken] */
+        Envelope_PublishedModelTaken_: {
+            data: components["schemas"]["PublishedModelTaken"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[ReleaseProposal] */
         Envelope_ReleaseProposal_: {
             data: components["schemas"]["ReleaseProposal"];
@@ -3756,6 +3692,13 @@ export interface components {
         /** Envelope[SnapshotPreview] */
         Envelope_SnapshotPreview_: {
             data: components["schemas"]["SnapshotPreview"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[StaleArtifacts] */
+        Envelope_StaleArtifacts_: {
+            data: components["schemas"]["StaleArtifacts"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -4518,10 +4461,8 @@ export interface components {
             cpf: components["schemas"]["CpfVersion"] | null;
             /** Evidence */
             evidence: string;
-            /** Published */
-            published: {
-                [key: string]: unknown;
-            } | null;
+            /** Published Models */
+            published_models: components["schemas"]["PublishedModel"][];
             readiness: components["schemas"]["VersionView"] | null;
             /** Records */
             records: {
@@ -4630,10 +4571,8 @@ export interface components {
             /** Compound */
             compound: components["schemas"]["CompoundRow"][];
             cpf: components["schemas"]["CpfVersion"] | null;
-            /** Published */
-            published: {
-                [key: string]: unknown;
-            } | null;
+            /** Published Models */
+            published_models: components["schemas"]["PublishedModel"][];
             readiness: components["schemas"]["VersionView"] | null;
             /** Records */
             records: {
@@ -5850,29 +5789,6 @@ export interface components {
             /** Subject */
             subject: string;
         };
-        /** PhaseRow */
-        PhaseRow: {
-            /** Label */
-            label: string;
-            /**
-             * Phase
-             * @enum {string}
-             */
-            phase: "P0" | "P1" | "P2" | "P3" | "P4" | "P5" | "P6";
-            status: components["schemas"]["PhaseStatus"];
-        };
-        /**
-         * PhaseStatus
-         * @enum {string}
-         */
-        PhaseStatus: "NOT_STARTED" | "IN_REVIEW" | "APPROVED" | "STALE";
-        /** Phases */
-        Phases: {
-            /** Phases */
-            phases: components["schemas"]["PhaseRow"][];
-            /** Stale */
-            stale: components["schemas"]["StaleArtifact"][];
-        };
         /** PinnedApplication */
         PinnedApplication: {
             /** Formulations */
@@ -6237,6 +6153,40 @@ export interface components {
             };
             /** Seed */
             seed?: number | null;
+        };
+        /**
+         * PublishedModel
+         * @description A published OSP model of the project's drug, which the Inputs step can take as a source.
+         */
+        PublishedModel: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** PublishedModelRequest */
+        PublishedModelRequest: {
+            /** Template Id */
+            template_id: string;
+        };
+        /**
+         * PublishedModelTaken
+         * @description What taking a published OSP model as a source proposed: its values and datasets, those it had already given,
+         *     and what it left out, with why.
+         */
+        PublishedModelTaken: {
+            /** Already */
+            already: number;
+            /** Datasets */
+            datasets: number;
+            /** Model */
+            model: string;
+            /** Skipped */
+            skipped: string[];
+            /** Template Id */
+            template_id: string;
+            /** Values */
+            values: number;
         };
         /** QuestionAnswer */
         QuestionAnswer: {
@@ -7296,6 +7246,14 @@ export interface components {
             /** Reasons */
             reasons: string[];
             ref: components["schemas"]["Ref"];
+        };
+        /**
+         * StaleArtifacts
+         * @description What was made from inputs that have since changed, with why (shown on the History page).
+         */
+        StaleArtifacts: {
+            /** Stale */
+            stale: components["schemas"]["StaleArtifact"][];
         };
         /**
          * StartBlock
@@ -9498,43 +9456,6 @@ export interface operations {
             };
         };
     };
-    approve_client_data_api_v1_projects__project_id__client_data_approve_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CloseRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_ClientDataPage_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_compound_cpf_api_v1_projects__project_id__compounds__compound__cpf_get: {
         parameters: {
             query?: never;
@@ -10224,7 +10145,7 @@ export interface operations {
             };
         };
     };
-    approve_evidence_api_v1_projects__project_id__evidence_approve_post: {
+    take_published_model_api_v1_projects__project_id__evidence_published_model_post: {
         parameters: {
             query?: never;
             header?: {
@@ -10237,7 +10158,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CloseRequest"];
+                "application/json": components["schemas"]["PublishedModelRequest"];
             };
         };
         responses: {
@@ -10247,7 +10168,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_EvidencePage_"];
+                    "application/json": components["schemas"]["Envelope_PublishedModelTaken_"];
                 };
             };
             /** @description Validation Error */
@@ -10403,43 +10324,6 @@ export interface operations {
             };
         };
     };
-    accept_api_v1_projects__project_id__inputs_accept_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AcceptRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_InputsPage_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     assemble_inputs_api_v1_projects__project_id__inputs_assemble_post: {
         parameters: {
             query?: never;
@@ -10493,39 +10377,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_IdentityProposal_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    publish_api_v1_projects__project_id__inputs_publish_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_InputsPage_"];
                 };
             };
             /** @description Validation Error */
@@ -10633,39 +10484,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_MembersPage_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_phases_api_v1_projects__project_id__phases_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_Phases_"];
                 };
             };
             /** @description Validation Error */
@@ -11385,6 +11203,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignatureCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_stale_api_v1_projects__project_id__stale_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_StaleArtifacts_"];
                 };
             };
             /** @description Validation Error */

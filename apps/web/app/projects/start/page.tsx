@@ -94,7 +94,7 @@ export default function StartProjectPage() {
           {busy ? "Uploading…" : "Start the project and prepare the brief"}
         </button>
         <span className="muted">
-          or <Link href="/projects/new">start from a published model or your own parameters</Link> (quick start, no proposal)
+          A published OSP model of the drug can be taken as a source on the Inputs step.
         </span>
       </div>
     </main>

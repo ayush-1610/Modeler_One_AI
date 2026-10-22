@@ -3,8 +3,8 @@
 The client-data template is downloaded, filled and uploaded; it is read with no AI into CLIENT datasets and evidence.
 Any other workbook is triaged sheet by sheet (by code, then agent A4 for the sheets code cannot decide); A4 then proposes
 how to read each data sheet (checked by code), and a sheet is read once a person checks and confirms its reading. PDF, Word, CSV and Markdown files are stored as citable documents. The
-view reconciles what arrived with what the data plan says the client provides; the phase closes when every required
-client item is delivered, skipped as not available, or covered by an accepted literature cross-check (owner, R-07).
+view reconciles what arrived with what the data checklist says the client provides; Start's checklist ticks it off. It is
+read on the Inputs step's Studies tab, and nothing is approved (D-27): the one review is at the MAP signature.
 """
 
 from __future__ import annotations
@@ -36,7 +36,6 @@ from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import (
     REGISTER,
     ClientDataError,
-    close_register,
     datasets_from_observations,
     ingest,
     reconcile,
@@ -391,19 +390,3 @@ def propose_release(project_id: str, profile_id: str, body: ReleaseModelRequest,
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({"evidence": [e.id for e in proposed], **_view(ws)})
-
-
-class CloseRequest(BaseModel):
-    note: str = ""
-
-
-@router.post("/projects/{project_id}/client-data:approve", **answers(ClientDataPage))
-def approve_client_data(project_id: str, body: CloseRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """Close P3: snapshot the files and the reconciliation, with a named approval."""
-    ws = workspace_for(project_id, principal, store)
-    matrix_version, matrix = _matrix(ws)
-    try:
-        close_register(ws, matrix_version.ref, matrix, by=principal.user_id, note=body.note, printed_name=principal.printed_name)
-    except (ClientDataError, ValueError) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return envelope(_view(ws))

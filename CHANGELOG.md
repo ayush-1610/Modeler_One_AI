@@ -15,6 +15,48 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — R5: the old pages are removed; a published OSP model is a source on Inputs
+Redesign `docs/plans/2026-10-19-p0-p5-redesign.md` §5 and §8 (R5, the owner's choice 2026-10-20).
+- **What moved first, so nothing is lost:**
+  - Start's **Proposal notes** edit the brief's lists in place (products, populations, the data plan's lines, scenarios):
+    add one, change a field, remove one with the reason.
+  - The Inputs step's **Studies** tab gains the client's file upload and the client-data template, **Every dataset**
+    (its values, its source; a blinded one revealed with a reason; a digitized figure used once a person confirms the
+    overlay; leave one out with a reason or use it again), the digitizer, the observed-data agent and what the client
+    sent beyond the checklist. A typed table names its analyte and product in a model system. `?tab=studies` opens the
+    tab (the project page's **Add data**).
+  - The **Compound** tab lists the papers the literature agent could not read, to store them.
+- **A published OSP model of the drug as a source** (the redesign's replacement for Quick start):
+  `POST /projects/{id}/evidence:published-model` proposes the model's parameter values citing it (`OSP_LIBRARY`, its
+  ValueOrigin as the quote) and its clinical datasets citing their publications (`modeler_project.published_model`, the
+  rules the T-56 kit already used, now shared). They flow in like every other source and rank below the client and the
+  literature (D-32); nothing is accepted. Only a model of the project's drug is taken (422 otherwise), and taking it
+  twice adds nothing. `GET /inputs` lists the drug's published models (`published_models`).
+- **Removed:** the Quick start wizard (`/projects/new`) and its links; the brief, Literature, Client data and Add data
+  pages (`/brief`, `/evidence`, `/client-data`, `/intake`) with `BriefReview`, `EvidenceReview`, `ObservedData`,
+  `DataIntake` and the client-data page component (`components/client/ClientData.tsx` is now `ClientFiles.tsx`: the files,
+  the sheet reader and dissolution); the routes only they used: `evidence:approve`, `client-data:approve`,
+  `inputs:accept`, `inputs:publish` (and `InputsPage.published`), with `close_register` (both), `accept_inputs` and the
+  publication record; the approval-based phases (`GET /phases`, `Workspace.phases`, `PhaseStatus`), replaced by
+  `GET /projects/{id}/stale` for the History page; the Stepper's links to the old Inputs pages. The project doctor reports
+  the four steps. The template API stays (the reference runs and scripts use it).
+- **The T-56 kit** (`deploy/proof/run_t56.py`): `accept` no longer accepts every item or the inputs; it settles what the
+  Inputs step leaves to a person (the values held until checked, each pathway's process type, the client study's
+  formulation, the healthy adult default) and checks readiness. On the stub engine it reaches the **same CPF** (42
+  parameters, the same values and units) and the **same 40 studies** as accepting every item, and its trace counts every
+  dataset not left out.
+- **Fixed in passing:** the Inputs page's background assembly cleared the message of what the person had just done when
+  it finished after it (seen as a missing "files stored" notice).
+- **Why:** R0–R4 built the four steps; R5 retires what they replaced (redesign §5), so there is one path through the tool
+  and no approval left that gates nothing.
+- **Impact:** no science change: the CPF builder, the MAP, the split, the rulesets and the campaign are untouched, and
+  the kit's CPF is the same. API contract: the four routes and `/phases` are gone (404), `/stale` and
+  `evidence:published-model` are new, `InputsPage` gains `published_models` and loses `published`; the OpenAPI snapshot and
+  the web types are regenerated. Projects that approved a register before R5 keep it as a record. Browser flows moved to
+  the new screens (`blinding`, `digitize`, `digitize-pdf-figure`, `client-data`, `client-data-guided`, `model-system`,
+  `start-project`); `new-project.spec.ts` becomes `campaign-monitor.spec.ts` (the monitor, TEST ONLY, an unrecorded
+  campaign) and `published-model.spec.ts` is new.
+
 ### Changed — UI/UX pass, PR 4: the frame around every page (web only)
 - **What:** a "Skip to the page" link as the first Tab stop (it lands on a zero-size point at the start of the page, so the
   next Tab is the page's first control); the sidebar's links say which page is current (`aria-current`) and the list is

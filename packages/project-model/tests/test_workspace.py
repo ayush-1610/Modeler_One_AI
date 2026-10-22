@@ -9,7 +9,7 @@ import threading
 
 import pytest
 
-from modeler_project import ArtifactKind, ArtifactStatus, FileProjectStore, ImmutableVersionError, PhaseStatus, Workspace
+from modeler_project import ArtifactKind, ArtifactStatus, FileProjectStore, ImmutableVersionError, Workspace
 from modeler_project.artifacts import ArtifactVersion
 
 pytestmark = pytest.mark.req("T-40")
@@ -84,18 +84,6 @@ def test_approval_binds_the_hash_and_refuses_stale_or_superseded_versions(ws):
         ws.approve(brief.ref, by="lead")
     with pytest.raises(ValueError, match="stale"):
         ws.approve(req.ref, by="lead")
-
-
-def test_phase_rail_follows_the_gates(ws):
-    assert set(ws.phases().values()) == {PhaseStatus.NOT_STARTED}
-    doc, brief, req, _plan, _map = _chain(ws)
-    phases = ws.phases()
-    assert phases["P0"] is PhaseStatus.APPROVED and phases["P1"] is PhaseStatus.IN_REVIEW
-    ws.approve(brief.ref, by="lead")
-    ws.approve(req.ref, by="lead")
-    assert ws.phases()["P1"] is PhaseStatus.APPROVED
-    ws.commit(K.BRIEF, "main", {"dose": 100}, derived_from=[doc.ref], actor="u", reason="edit")
-    assert ws.phases()["P1"] is PhaseStatus.STALE   # the data plan was derived from the old brief
 
 
 def test_history_shows_changes_between_versions(ws):
