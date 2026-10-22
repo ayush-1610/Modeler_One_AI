@@ -1785,6 +1785,17 @@
             "title": "Cycle",
             "type": "integer"
           },
+          "deployment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deployment"
+          },
           "elapsedSeconds": {
             "title": "Elapsedseconds",
             "type": "integer"

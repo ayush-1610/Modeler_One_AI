@@ -247,6 +247,7 @@ class CampaignArtifactWriter:
     prediction: dict | None = None  # the S6 result (sensitivity ranking, prediction intervals)
     package: dict | None = None     # the S7 record (reproduction verdict, report files, exportable package)
     engine: dict | None = None      # what produced the numbers (`engine_identity`): PK-Sim or a software fixture
+    deployment: str | None = None   # where it ran (`runtime_env().deployment_kind`): the PQ evidence names it
     origins: dict[str, str | None] = field(default_factory=dict)  # study -> origin of its observed data (plan §9.4)
     ledger: Ledger = field(default_factory=Ledger)  # every parameter-set change and the verdicts it moved (§12.3 N6)
     influence: dict | None = None                   # parameters × studies on the working set (§12.3 N5)
@@ -284,6 +285,9 @@ class CampaignArtifactWriter:
         writer._gof_by_stage = {k: list(v) for k, v in (campaign.get("gofByStage") or {}).items()}
         writer.prediction = campaign.get("prediction")
         writer.engine = campaign.get("engine")
+        # a campaign resumed under another deployment says so: its later decisions were signed there (PQ-02)
+        recorded, now = campaign.get("deployment"), runtime_env().deployment_kind
+        writer.deployment = recorded if recorded in (None, now) or recorded.endswith(f"then {now}") else f"{recorded}, then {now}"
         writer.package = campaign.get("package")
         writer.origins = dict(campaign.get("observedOrigins") or {})
         writer.ledger = Ledger.from_content(campaign.get("ledger"))
@@ -368,6 +372,7 @@ class CampaignArtifactWriter:
             "prediction": self.prediction,
             "package": self.package,
             "engine": self.engine,
+            **({"deployment": self.deployment} if self.deployment else {}),
             "observedOrigins": self.origins,
             "realData": self.real_data(),
             "ledger": self.ledger.to_content(),
@@ -1083,7 +1088,7 @@ def _campaign_writer(request: CampaignRequest, *, read_root: str, project: str, 
         store=FileWriteStore(read_root), tenant_id=request.tenant_id, campaign_id=request.campaign_id,
         project=project, compound=request.compound, question=question, model_risk=model_risk,
         budget_seconds=total_budget, stages=_planned_stages(request, request.stages), engine=engine_identity(engine),
-        origins=observed_origins(request.observed_uri),
+        deployment=runtime_env().deployment_kind, origins=observed_origins(request.observed_uri),
         internal_target_pe=((_local_json(request.map_uri) or {}).get("acceptance") or {}).get("internal_target_pe")
         if request.map_uri else None,
     )

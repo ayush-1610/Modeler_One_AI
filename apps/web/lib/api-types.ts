@@ -2368,6 +2368,8 @@ export interface components {
              * @default 1
              */
             cycle?: number;
+            /** Deployment */
+            deployment?: string | null;
             /** Elapsedseconds */
             elapsedSeconds: number;
             engine?: components["schemas"]["EngineIdentity"] | null;

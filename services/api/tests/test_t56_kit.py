@@ -75,6 +75,11 @@ def test_the_kit_takes_dapagliflozin_from_the_mock_proposal_to_a_traced_campaign
     assert "Not a PBPK result" in report                          # the stub engine ran it: said so in the report
     assert "| `phys.mw` | 408.873 g/mol |" in report and "pubmed/21435141" in report
     assert not [b for b in broken if not b.startswith("MAR")], broken
+    # the PQ record says what ran it and where: a software fixture in development is never a PQ pass (V1)
+    pq = kit.pq_record(kit.Api(client), campaign_id, broken)
+    results = {c["id"]: c["result"] for c in pq["checks"]}
+    assert pq["schema"] == "pq/1" and pq["facts"]["deployment"] == "development" and pq["facts"]["engine_kind"] != "pksim"
+    assert results["PQ-01"] == "fail" and results["PQ-02"] == "fail" and results["PQ-08"] == "pass"
 
 
 def test_the_trace_reads_the_mar_evidence_index():

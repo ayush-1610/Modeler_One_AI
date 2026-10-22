@@ -15,6 +15,37 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — validation pack V1: Installation and Performance Qualification (T-32)
+The one item buildable while the owner and the SME decide (the owner's plan, 2026-10-15). GAMP 5 asks for IQ, OQ and
+PQ; until now the pack had only OQ, and its IQ and PQ sections said "pending Helm/k3s", a deployment that does not exist.
+- **IQ: `deploy/server/qualify.sh iq`** (read-only; `deploy/server/qualify.py`, standard library only) writes an
+  `iq/1` record and prints ten checks:
+  - **IQ-01** deployed from a clean `main` (`deploy/dev/deploy_to_server.sh` now records the commit, the branch and
+    whether the tree was clean in `.deployed.json` on the server, and warns when it is not a clean `main`);
+  - **IQ-02** every locked file matches its recorded sha256;
+  - **IQ-03** the dependency locks and the runtimes (recorded);
+  - **IQ-04** the PK-Sim R packages (`ospsuite`, `ospsuite.parameteridentification`) match the engine catalog the
+    builder's names were harvested from;
+  - **IQ-05** the engine identity the API stamps on every run is that catalog's hash;
+  - **IQ-06** PostgreSQL 16 holds every migration with its file's sha256 (`postgres.sh applied`, new);
+  - **IQ-07** Keycloak is the version `keycloak.sh` pins;
+  - **IQ-08 to IQ-10** the API answers, the deployment is production with Keycloak sign-in, the web answers.
+
+  A piece that is not installed is "not checked", which leaves the IQ **incomplete**, never passed.
+- **PQ: `run_t56.py trace` also writes `pq.json`**, judged by `validation_pack.pq_checks`: real PK-Sim; a production
+  run (every signature Part 11); the package built; every number traced; no MAR issue; the reproduction passed; within
+  the 1-hour goal. The stages' outcomes are recorded, not judged: a model can fail validation while the system works.
+  So the T-56 run of 2026-10-22, on the pilot, records as a PQ **FAIL** on its deployment, as it should.
+- **A campaign records the deployment it ran under** (`CampaignRecord.deployment`: development, pilot or production;
+  "pilot, then production" if it was resumed elsewhere), so PQ never takes the deployment from the day of the trace.
+  Campaigns run before this have none, and PQ says "not checked".
+- **The pack:** `ValidationPack` gains `iq` and `pq`; sections 6 and 7 show each check and the verdict (PASS, FAIL or
+  INCOMPLETE), or say how to produce the record. `python -m pbpk_domain.report.validation_pack` renders a full pack
+  from files. CI's call is unchanged (no IQ or PQ there).
+- **Not done:** the URS (`docs/validation/requirements.yaml`) still has 11 requirements; extending it to Part 11
+  records, step-up signatures, members, backups and blinding needs the owner's approval (a locked file, QA review).
+- **Impact:** no science change. The API contract gains `CampaignRecord.deployment` (OpenAPI and web types regenerated).
+
 ### Verified on PK-Sim — T-56, Dapagliflozin from a mock proposal to a traced package (2026-10-22; records only)
 - **The owner ran the T-56 kit on the server's PK-Sim** after R5 (`deploy/proof/run_t56.py` prepare → accept → the MAP
   signed in the web app → start → trace). Campaign `camp_bc05bdd4096748298bf2048921baae46`, engine `pksim`

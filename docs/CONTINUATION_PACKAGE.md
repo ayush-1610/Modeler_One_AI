@@ -281,7 +281,7 @@ records (projects, campaigns) stay in the file stores |
 | T-14 | Done — ruleset **UNVERIFIED** pending SME sign-off (T-30) |
 | T-15, T-17, T-20 | Done — agent `RunStore` still file-backed |
 | T-16 | Done — but the MAP never schedules S4/S5 work (R1) |
-| T-23, T-24, T-32 | Done as libraries — not wired into campaigns (R9) |
+| T-23, T-24, T-32 | Done as libraries — not wired into campaigns (R9). **T-32 V1 (2026-10-22):** the validation pack renders IQ from `deploy/server/qualify.sh iq` (10 checks: deployed from a clean `main`, locked files, dependency locks, the PK-Sim packages against the engine catalog, the engine identity, PostgreSQL migrations, Keycloak's version, the API, production sign-in, the web) and PQ from the T-56 trace's `pq.json` (real PK-Sim, a production run, the package, every number traced, no MAR issue, the reproduction, the 1-hour goal); a campaign records the deployment it ran under. Not yet run on the server; the URS (`docs/validation/requirements.yaml`, locked, 11 requirements) is not extended (owner's approval needed) |
 | T-26 / T-27 / T-28 | Built — Playwright create-project flow + failure-mode flows written and passing (stub engine); intake / review-inbox decision flows not yet; wizard offers 12 published OSP models with real data |
 | Remaining to the goal | `docs/plans/2026-09-24-remaining-to-goal.md`: plan exit ≈ 7–11 sessions, regulator-reviewable product ≈ 22–34 sessions + SME time. Verification blocked on GitHub Actions minutes; `deploy/reference/run_all.sh` runs the same checks on the server |
 | T-19, T-21, T-22, T-29 | Not started |
