@@ -89,3 +89,33 @@ test("the estimation plan, the validation plan and the tier's acceptance criteri
   await expect(page.getByText(/looser than the medium tier/)).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("estimation.png"), fullPage: true });
 });
+
+// D-37: an MS-01 candidate nobody estimates may be fitted by the diagnosis within MS-01's own default bounds; a person
+// keeps one fixed with a reason, lets the diagnosis fit it again, and the MAP's limitations list the candidates.
+test("the diagnosis may fit MS-01's candidates within MS-01's defaults unless a person keeps one fixed", async ({ page, request }) => {
+  const projectId = await projectWithInputs(request, "Defaultamide", [
+    { study_id: "iv-250", route: "iv_infusion", dose_mg: 250 }, { study_id: "po-10", route: "oral", dose_mg: 10 },
+    { study_id: "po-50", route: "oral", dose_mg: 50 },
+  ]);
+  expect((await request.get(`/api/v1/projects/${projectId}/plan`, { headers: AUTH })).ok()).toBeTruthy();   // built on first read
+
+  await page.goto(`/projects/${projectId}/plan`);
+  const estimation = page.getByTestId("estimation-plan");
+  await expect(estimation.getByTestId("diagnosis-may-fit-phys.logp")).toContainText("the diagnosis may fit it in S1");
+  await expect(estimation.getByTestId("estimation-row-phys.logp")).toContainText("[-3.06, -0.06] linear");
+  await expect(estimation.getByTestId("diagnosis-may-fit-bind.fu")).toHaveCount(0);                 // a measured fu stays fixed
+  await expect(page.getByTestId("limitations")).toContainText("phys.logp in S1 [-3.06, -0.06] linear");
+
+  await estimation.getByTestId("fix-phys.logp").click();
+  await estimation.getByLabel("why keep phys.logp fixed").fill("logP is measured; keep it as measured");
+  await estimation.getByRole("button", { name: "Fix", exact: true }).click();
+  await expect(estimation.getByTestId("held-fixed-phys.logp")).toBeVisible();
+  await expect(estimation.getByTestId("estimation-row-phys.logp")).toContainText("logP is measured; keep it as measured");
+  await expect(page.getByTestId("limitations")).not.toContainText("phys.logp in S1");
+
+  await estimation.getByTestId("release-phys.logp").click();
+  await estimation.getByLabel("why let the diagnosis fit phys.logp").fill("let the diagnosis decide");
+  await estimation.getByRole("button", { name: "Let it" }).click();
+  await expect(estimation.getByTestId("diagnosis-may-fit-phys.logp")).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("defaults.png"), fullPage: true });
+});

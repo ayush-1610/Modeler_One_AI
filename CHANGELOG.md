@@ -15,6 +15,47 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed (science) — the diagnosis may fit MS-01's candidates within MS-01's default bounds (D-37; UNVERIFIED)
+The owner's decision of 2026-10-20 ("yes, after T-56"); T-56 ran on PK-Sim on 2026-10-22. Redesign §2 D-37.
+- **Before:** S1–S3 fitted only what a person freed on Review & sign. The diagnosis named its candidates per stage, but
+  `campaign_activities._fittable_candidates` drops one with neither a fit policy nor a plausibility range, and an
+  assembled CPF has neither. So in a project where nobody freed a fit, the stages could only judge the starting model.
+- **Now:** every MS-01 fit candidate of a stage (`ModelPlan.fit_candidates`) that a person neither estimates nor holds
+  fixed gets MS-01 §2.2's default bounds and scale (`fit_bounds.yaml` 0.1, UNVERIFIED) as its fit policy, at the stages it
+  is a candidate at (`plan.default_fits`, `estimation.ms01_default`). The diagnosis may then fit it there; it never has
+  to. On the published Dapagliflozin model, 10 of its 11 candidates get one: the three hepatic clspec (S1, S2;
+  [0.0001, 100] l/µmol/min, log), logP (S1; ±1.5), the GFR fraction (S1; [0, 3]), the cellular and intestinal
+  permeabilities, the reference solubility and the tablet's Weibull t50 and shape. The measured fu stays fixed.
+- **No default for:** a candidate MS-01 gives none for (the 0.1–10× fallback stays a proposal a person confirms), one
+  MS-01 keeps fixed (a measured fu), one whose start value lies outside the default, and one the CPF already bounds.
+- **A person keeps a candidate fixed** with a reason (`POST plan/fits/{id}:hold`) and lets the diagnosis fit it again
+  (`:release`); after the signature each is a MAP deviation (D-14). Estimating a candidate replaces its hold; taking a
+  person's fit back leaves MS-01's default. A hold survives a rebase while the parameter is still a candidate.
+- **Signed and checked:** the staged campaign CPF and the MAP's parameter table carry the defaults (fit stages, bounds,
+  scale), so the signature covers them and D-36 compares them at start. The MAP's limitations list each one and say the
+  bounds are UNVERIFIED until the SME signs; a hold is a plan change in the MAP's rationale, with who and why.
+- **Review & sign:** the estimation table shows "the diagnosis may fit it in S1" with the bounds, a filter for those
+  rows, **Keep fixed** and, on a held row, **Let the diagnosis fit it**. The validator's budget warning counts a stage
+  with a default candidate as a fit stage.
+- **Deviation from the approved wording, and why:** the owner approved the defaults "as plausibility". They are written as
+  a fit policy instead. The run takes the same bounds from either, but the plausibility field has no scale and two run
+  paths read only a fit policy:
+  - the multi-start draws its start values on a log scale only from a fit policy (`campaign_activities._is_log_scale`),
+    so a six-decade clearance range would have been sampled linearly, with almost every start above 1 l/µmol/min;
+  - the joint refinement SJ refits only parameters with a fit policy (`joint.joint_parameters`), so a candidate fitted
+    in S1–S3 within a plausibility range alone would never be refined jointly.
+
+  Plausibility stays what the CPF schema says it is: the range fitting must never exceed.
+- **Impact:** a project where nobody freed a fit now lets the diagnosis fit, so its verdicts can change and its fits take
+  more of a stage's time. MAPs already signed, and the CPFs staged with them, are unchanged; a plan signed again carries
+  the defaults. The reference runs do not go through the plan and are unchanged. No locked file changes.
+- **Known gap, for the owner (a locked engine script):** `run_pi.R` drives BOBYQA on each parameter's linear value
+  (in its base unit) whatever the recorded scale; only the start values are drawn on a log scale. Over MS-01's six-decade
+  clearance range a local search from a distant start can converge slowly or stop at a bound. Fitting log-scaled
+  parameters on their logarithm inside `run_pi.R` would fix it; that changes a locked engine script and the qualified
+  image, so it waits for the owner's approval in its own PR.
+- **PK-Sim evidence:** none yet. T-56 run again on the server after this merges shows the effect on Dapagliflozin.
+
 ### Changed — R5: the old pages are removed; a published OSP model is a source on Inputs
 Redesign `docs/plans/2026-10-19-p0-p5-redesign.md` §5 and §8 (R5, the owner's choice 2026-10-20).
 - **What moved first, so nothing is lost:**
