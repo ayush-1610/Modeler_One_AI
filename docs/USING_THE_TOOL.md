@@ -164,6 +164,9 @@ The Review & sign page (`/projects/{id}/plan`) is where everything is reviewed o
   gives none); choose the stages and give a reason. MS-01 keeps a measured fu fixed. Bounds wider than MS-01's
   default are said and must be acknowledged; bounds beyond the physical range, or a lower bound not below the upper,
   are refused. The rule is provisional until the SME signs it.
+  An MS-01 candidate you do not estimate shows **the diagnosis may fit it in S1** (or its stages) with MS-01's own
+  default bounds: when a round's diagnosis names it, the campaign may fit it within them (D-37). **Keep fixed** stops
+  that, with a reason; **Let the diagnosis fit it** undoes it. The MAP lists every such candidate in its limitations.
 - **The validation plan.** What S4 (internal) and S5 (external) judge under this MAP, which studies (a blinded one
   marked), and what happens when validation fails: S4 escalates and is never refitted; at S5 you choose an MS-01 §6.6
   path, signed as a deviation.

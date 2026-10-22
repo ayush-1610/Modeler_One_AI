@@ -31,6 +31,10 @@ export const planApi = {
     send("put", "/api/v1/projects/{project_id}/plan/fits/{parameter}", { project_id: projectId, parameter }, fit),
   unfit: (projectId: string, parameter: string, reason: string) =>
     send("post", "/api/v1/projects/{project_id}/plan/fits/{parameter}:remove", { project_id: projectId, parameter }, { reason }),
+  hold: (projectId: string, parameter: string, reason: string) =>
+    send("post", "/api/v1/projects/{project_id}/plan/fits/{parameter}:hold", { project_id: projectId, parameter }, { reason }),
+  release: (projectId: string, parameter: string, reason: string) =>
+    send("post", "/api/v1/projects/{project_id}/plan/fits/{parameter}:release", { project_id: projectId, parameter }, { reason }),
   structure: (projectId: string, key: Schema<"StructureRequest">["key"], value: unknown, reason: string) =>
     send("put", "/api/v1/projects/{project_id}/plan/structure", project(projectId), { key, value, reason }),
   acknowledge: (projectId: string, violationId: string, reason: string) =>

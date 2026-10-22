@@ -158,7 +158,9 @@ export function D3Dag({ view, onDrop, onLayout }: {
                 <div className="dag-fits">fits {fits.map(([pid, f]) => <code key={pid} title={f.reason}>{pid} [{f.lower}, {f.upper}]</code>)}</div>
               )}
               {n.role && ["S1", "S2", "S3"].includes(n.role) && (view.plan.fit_candidates[n.role]?.length ?? 0) > 0 && fits.length === 0 && (
-                <div className="dag-fits muted">MS-01 candidates: {view.plan.fit_candidates[n.role].join(", ")} (none freed)</div>
+                // none freed by a person: the diagnosis may still fit each candidate MS-01 gives a default for (D-37)
+                <div className="dag-fits muted">MS-01 candidates: {view.plan.fit_candidates[n.role].join(", ")} (none freed by
+                  you; see the estimation plan)</div>
               )}
             </div>
           );

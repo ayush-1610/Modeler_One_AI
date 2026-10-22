@@ -7,7 +7,9 @@ proposals wait for a person (the diff). A person's change is **userLocked**: a l
 never overwrites it. Every change is checked by the **live validator** (MS-01 rules); the plan can be signed only with
 no error and every warning acknowledged with a reason. On signature the MAP is generated deterministically from the
 plan: its assignments become the split, its fit choices the CPF's fit policies, its changes and reasons go into the
-MAP's rationale and limitations. With no change, the MAP equals `generate_map` on the default split.
+MAP's rationale and limitations. Every other MS-01 fit candidate gets MS-01 §2.2's default bounds as its fit policy, so
+the diagnosis may fit it at its stages (D-37), unless a person holds it fixed. With no change, the MAP equals
+`generate_map` on the default split and that campaign CPF.
 
 A study's **role** on the D3 canvas: ``S1`` / ``S2`` / ``S3`` (trains that stage, INTERNAL; re-simulated in S4), ``S5``
 (external validation, EXTERNAL), ``S6`` (verifies a planned application: DDI, PGx, special population, preclinical;
@@ -24,7 +26,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
 from modeler_project.brief import APPLICATIONS, ProjectBrief
-from modeler_project.estimation import fit_findings
+from modeler_project.estimation import fit_findings, ms01_default
+from modeler_project.estimation import rule as bounds_rule
 from modeler_project.workspace import Workspace
 from pbpk_domain.acceptance import loosest_internal_target
 from pbpk_domain.campaign.map import (
@@ -101,6 +104,15 @@ class FitChoice(BaseModel):
     scale: Literal["linear", "log"] = "linear"
     by: str
     userLocked: bool = True
+    reason: str = Field(min_length=1)
+
+
+class Hold(BaseModel):
+    """An MS-01 fit candidate a person keeps fixed: the diagnosis does not fit it within MS-01's default (D-37)."""
+
+    model_config = _CONTENT
+
+    by: str
     reason: str = Field(min_length=1)
 
 
@@ -189,6 +201,7 @@ class ModelPlan(BaseModel):
     studies: tuple[StudyView, ...]
     placements: dict[str, Placement]
     fits: dict[str, FitChoice] = Field(default_factory=dict)
+    held_fixed: dict[str, Hold] = Field(default_factory=dict)  # MS-01 candidates a person keeps fixed (D-37)
     structure: Structure = Field(default_factory=Structure)
     default_rationale: tuple[str, ...] = ()
     default_limitations: tuple[str, ...] = ()
@@ -402,6 +415,7 @@ def rebase(previous: ModelPlan | None, fresh: ModelPlan) -> ModelPlan:
     return fresh.model_copy(update={
         "studies": studies, "placements": placements, "structure": keep_locked(previous.structure, fresh.structure),
         "fits": {k: v for k, v in previous.fits.items() if k in candidates or v.userLocked},
+        "held_fixed": {k: v for k, v in previous.held_fixed.items() if k in candidates},
         "rationale": {k: v for k, v in previous.rationale.items() if k in ids or "." in k or k.startswith("structure")},
         "proposals": tuple(p for p in previous.proposals if p.target in ids or p.kind == "fit"),
         "acknowledged": previous.acknowledged, "layout": previous.layout,
@@ -509,9 +523,11 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
         if not trained:
             add("warning", "fit-data", pid, f"{pid}: no study trains {', '.join(fit.stages)}, so nothing will fit it")
     budget = plan.structure.campaign_budget_seconds
+    defaults = default_fits(plan, cpf)
     for stage in FIT_STAGES:  # each stage's share of the budget (MS-01), and what a fit at that stage keeps in reserve
         share = budget * BUDGET_FRACTION[stage]
-        fitted = any(stage in fit.stages for fit in plan.fits.values()) and stage in roles.values()
+        fitted = (any(stage in fit.stages for fit in plan.fits.values()) or any(stage in d.stage for d in defaults.values())) \
+            and stage in roles.values()
         if fitted and share <= FIT_RESERVE_S:
             add("warning", "budget", stage, f"{stage} gets {share / 60:.0f} min of the {budget / 3600:g} h budget (MS-01: "
                                             f"{BUDGET_FRACTION[stage]:.0%}), and a fit keeps {FIT_RESERVE_S // 60} min of it in "
@@ -569,14 +585,40 @@ def unlock(plan: ModelPlan, study_id: str) -> ModelPlan:
 
 
 def set_fit(plan: ModelPlan, parameter: str, fit: dict[str, Any] | None, *, by: str, reason: str) -> ModelPlan:
+    """A person estimates a parameter (it is no longer held fixed), or takes the fit back: the parameter is then fixed, or
+    an MS-01 candidate the diagnosis may fit within MS-01's default (D-37)."""
     fits = dict(plan.fits)
+    held = dict(plan.held_fixed)
     if fit is None:
         fits.pop(parameter, None)
     else:
         if not float(fit["lower"]) < float(fit["upper"]):
             raise PlanError(f"{parameter}: the lower bound {fit['lower']:g} must be below the upper bound {fit['upper']:g}")
         fits[parameter] = FitChoice(**fit, by=by, userLocked=True, reason=reason)
-    return plan.model_copy(update={"fits": fits})
+        held.pop(parameter, None)
+    return plan.model_copy(update={"fits": fits, "held_fixed": held})
+
+
+def _candidate(plan: ModelPlan, parameter: str) -> bool:
+    return any(parameter in ids for ids in plan.fit_candidates.values())
+
+
+def hold_fixed(plan: ModelPlan, parameter: str, *, by: str, reason: str) -> ModelPlan:
+    """A person keeps an MS-01 fit candidate fixed (D-37): the diagnosis does not fit it, and a fit the person had set
+    for it goes."""
+    if not _candidate(plan, parameter):
+        raise PlanError(f"{parameter} is not an MS-01 fit candidate: it stays fixed unless you estimate it")
+    if not reason.strip():
+        raise PlanError("keeping a candidate fixed needs a reason")
+    fits = {k: v for k, v in plan.fits.items() if k != parameter}
+    return plan.model_copy(update={"fits": fits, "held_fixed": {**plan.held_fixed, parameter: Hold(by=by, reason=reason)}})
+
+
+def release(plan: ModelPlan, parameter: str) -> ModelPlan:
+    """A held candidate back to MS-01's default: the diagnosis may fit it again (D-37)."""
+    if parameter not in plan.held_fixed:
+        raise PlanError(f"{parameter} is not held fixed")
+    return plan.model_copy(update={"held_fixed": {k: v for k, v in plan.held_fixed.items() if k != parameter}})
 
 
 def set_structure(plan: ModelPlan, key: str, value: Any, *, by: str, reason: str) -> ModelPlan:
@@ -646,6 +688,9 @@ def diff(plan: ModelPlan) -> list[dict[str, Any]]:
     for pid, fit in plan.fits.items():
         out.append({"kind": "fit", "target": pid, "from": "fixed", "to": f"fitted in {', '.join(fit.stages)} "
                     f"[{fit.lower:g}, {fit.upper:g}] {fit.scale}", "by": fit.by, "reason": fit.reason, "status": "APPLIED"})
+    for pid, hold in plan.held_fixed.items():
+        out.append({"kind": "fit", "target": pid, "from": "MS-01 default", "to": "held fixed", "by": hold.by,
+                    "reason": hold.reason, "status": "APPLIED"})
     for key in plan.structure.locked:
         to = getattr(plan.structure, key)
         if key == "applications":
@@ -666,14 +711,51 @@ def diff(plan: ModelPlan) -> list[dict[str, Any]]:
 # --- MAP from plan ---------------------------------------------------------------------------------------------
 
 
+def default_fits(plan: ModelPlan, cpf: CPF) -> dict[str, FitPolicy]:
+    """D-37: every MS-01 fit candidate a person neither estimates nor holds fixed, with MS-01 §2.2's default bounds and
+    scale (`estimation.ms01_default`) as its fit policy at the stages it is a candidate at, so the diagnosis may fit it
+    there; it never has to. A candidate MS-01 gives no default for, keeps fixed (a measured fu), or whose start value
+    lies outside its default stays fixed unless a person frees it, and so does one the CPF already bounds."""
+    stages: dict[str, list[str]] = {}
+    for stage, ids in plan.fit_candidates.items():
+        for pid in ids:
+            stages.setdefault(pid, []).append(stage)
+    out = {}
+    for pid, at in stages.items():
+        record = cpf.get(pid)
+        if pid in plan.fits or pid in plan.held_fixed or record is None or record.fit_policy or record.plausibility:
+            continue
+        default = ms01_default(record)
+        if default is not None:
+            out[pid] = FitPolicy(stage=tuple(at), lower=default.lower, upper=default.upper, scale=Scale(default.scale))
+    return out
+
+
+def default_fit_limitation(plan: ModelPlan, cpf: CPF) -> tuple[str, ...]:
+    """What the MAP says of the candidates the diagnosis may fit within MS-01's defaults (D-37), and that those bounds
+    are provisional."""
+    defaults = default_fits(plan, cpf)
+    if not defaults:
+        return ()
+    current = bounds_rule()
+    listed = "; ".join(f"{pid} in {', '.join(p.stage)} [{p.lower:g}, {p.upper:g}] {p.scale.value}" for pid, p in defaults.items())
+    line = (f"The diagnosis may fit {len(defaults)} MS-01 candidate(s) within MS-01 §2.2's default bounds ({current.source}, "
+            f"data rule v{current.version}, {current.status} until the SME signs; D-37): {listed}")
+    return (line,)
+
+
 def campaign_cpf(plan: ModelPlan, cpf: CPF) -> CPF:
-    """CPF v1 with the plan's fit choices as fit policies (status and values unchanged)."""
+    """CPF v1 with the plan's fit choices, and MS-01's default for every other fit candidate (D-37), as fit policies
+    (status and values unchanged)."""
+    defaults = default_fits(plan, cpf)
     records = []
     for record in cpf.parameters:
         fit = plan.fits.get(record.id)
         if fit is not None:
             record = record.model_copy(update={"fit_policy": FitPolicy(stage=fit.stages, lower=fit.lower, upper=fit.upper,
                                                                        scale=Scale(fit.scale))})
+        elif record.id in defaults:
+            record = record.model_copy(update={"fit_policy": defaults[record.id]})
         records.append(record)
     return CPF(compound=cpf.compound, version=cpf.version, parameters=tuple(records), note=cpf.note)
 
@@ -693,7 +775,7 @@ def map_from_plan(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, expl
     if blocking(violations):
         raise PlanError("the plan has open rule violations: " + "; ".join(v.message for v in blocking(violations)))
     split = plan_split(plan)
-    limits = map_limitations(plan, violations if acknowledged_limitations else [])
+    limits = (*map_limitations(plan, violations if acknowledged_limitations else []), *default_fit_limitation(plan, cpf))
     split = split.model_copy(update={"limitations": limits})
     doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=split,
                          internal_target_pe=plan.structure.internal_target_pe)

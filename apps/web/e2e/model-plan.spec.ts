@@ -60,9 +60,12 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   const sign = page.getByTestId("approve-and-sign");
   for (let i = 0; i < 6 && !(await page.getByTestId("validator-green").isVisible()); i++) {
     const warning = page.locator("[data-testid^='violation-']").first();
+    const id = (await warning.getAttribute("data-testid"))!;
     await warning.getByPlaceholder("accept it because…").fill("an accepted limitation of this test project");
     await warning.getByRole("button", { name: "Acknowledge" }).click();
-    await page.waitForTimeout(300);
+    // an acknowledged warning leaves the open list: wait for that, not a fixed time (a slow answer made the next pass
+    // fill the warning just acknowledged, which then vanished)
+    await expect(page.getByTestId(id)).toHaveCount(0);
   }
   await expect(page.getByTestId("validator-green")).toBeVisible();
   await expect(sign).toBeEnabled();
