@@ -55,6 +55,34 @@ The owner's decision of 2026-10-20 ("yes, after T-56"); T-56 ran on PK-Sim on 20
   parameters on their logarithm inside `run_pi.R` would fix it; that changes a locked engine script and the qualified
   image, so it waits for the owner's approval in its own PR.
 - **PK-Sim evidence:** none yet. T-56 run again on the server after this merges shows the effect on Dapagliflozin.
+### Verified on PK-Sim — T-56, Dapagliflozin from a mock proposal to a traced package (2026-10-22; records only)
+- **The owner ran the T-56 kit on the server's PK-Sim** after R5 (`deploy/proof/run_t56.py` prepare → accept → the MAP
+  signed in the web app → start → trace). Campaign `camp_bc05bdd4096748298bf2048921baae46`, engine `pksim`
+  (`Rscript run_job.R`).
+- **The acceptance holds** ("a reviewer can trace every number in the MAR to its source", plan §19 T-56). `trace.md`
+  resolves:
+  - every one of the CPF's 42 parameters to its evidence and the published model (the 16 values held for a check
+    accepted by the owner, the rest flowed in, D-27);
+  - every one of the 40 judged studies to its dataset and publication (the "client" fed study to its cells);
+  - every number in the MAR (17 evidence-index entries).
+
+  The MAR has no report issue, its re-run reproduced, and no link is broken.
+- **Time:** the campaign took 9 min of its 60-min budget.
+- **Limits, as the kit states:** the inputs are the published model's values, not a literature search, and the "client"
+  study is published data in the client template. The campaign's stage verdicts are in its MAR, not in the trace. This
+  run is the first PQ evidence for the validation pack.
+
+### Changed — the unwired mapping agent is retired; the reading agent's score on the server's model
+- **The score** (`python -m modeler_agents.evals.sheet_reading`, the 11 synthetic layouts of
+  `modeler_intake.reading_eval`, the owner's server, `qwen-coder` behind LiteLLM):
+  - the reading agent A4 reads 6/11 sheets exactly;
+  - code's filling (`suggest`) reads 5/11;
+  - the tool keeps code's filling where the agent proposes nothing, so together they read **8/11** (the agent gives no
+    reading for `long-subject-time` and `wide-subjects`, which code reads exactly);
+  - both miss `minutes-subj-columns` (subject columns in minutes) and `unit-in-note`, and `report-table`'s values.
+- **Removed:** `modeler_agents/data_mapping.py` (Anthropic-only, wired to nothing since A4 replaced it in R3c) and its
+  test, as the redesign's R3c decided on this score. `recipe_review` names its real callers.
+- **Impact:** none at run time: no route or job used it.
 
 ### Changed — R5: the old pages are removed; a published OSP model is a source on Inputs
 Redesign `docs/plans/2026-10-19-p0-p5-redesign.md` §5 and §8 (R5, the owner's choice 2026-10-20).

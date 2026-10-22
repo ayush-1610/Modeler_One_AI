@@ -1,8 +1,9 @@
 """Review of a proposed mapping recipe: applied and validated by code, never saved here.
 
-A proposal comes from the Data Mapping agent (`modeler_agents.data_mapping`) or from the guided sheet form
-(`sheet_form.to_proposal`). Every unit, LLOQ, dose or study identifier it reports must cite a cell whose text contains
-the quoted evidence, otherwise the proposal is flagged. A person confirms the recipe before it is saved and reused.
+A proposal comes from the guided sheet form (`sheet_form.to_proposal`), filled by code (`sheet_form.suggest`) or by
+the reading agent A4 (`modeler_agents.sheet_reader`). Every unit, LLOQ, dose or study identifier it reports must cite a
+cell whose text contains the quoted evidence, otherwise the proposal is flagged. A person confirms the recipe before it
+is saved and reused.
 """
 
 from __future__ import annotations
