@@ -1154,6 +1154,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/plan/fits/{parameter}:hold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hold Fit
+         * @description An MS-01 candidate kept fixed: the diagnosis does not fit it within MS-01's default (D-37).
+         */
+        post: operations["hold_fit_api_v1_projects__project_id__plan_fits__parameter__hold_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/plan/fits/{parameter}:release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Fit
+         * @description A held candidate back to MS-01's default: the diagnosis may fit it again (D-37).
+         */
+        post: operations["release_fit_api_v1_projects__project_id__plan_fits__parameter__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/plan/fits/{parameter}:remove": {
         parameters: {
             query?: never;
@@ -1163,7 +1203,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Remove Fit */
+        /**
+         * Remove Fit
+         * @description The person's fit taken back: the parameter is fixed again, or an MS-01 candidate within MS-01's default (D-37).
+         */
         post: operations["remove_fit_api_v1_projects__project_id__plan_fits__parameter__remove_post"];
         delete?: never;
         options?: never;
@@ -3000,6 +3043,23 @@ export interface components {
             reason: string;
         };
         /**
+         * DefaultFit
+         * @description The MS-01 §2.2 default the diagnosis may fit a candidate within, at its stages (D-37, `plan.default_fits`).
+         */
+        DefaultFit: {
+            /** Lower */
+            lower: number;
+            /**
+             * Scale
+             * @enum {string}
+             */
+            scale: "linear" | "log";
+            /** Stages */
+            stages: string[];
+            /** Upper */
+            upper: number;
+        };
+        /**
          * Demographics
          * @description The representative individual a study is simulated with (MS-01 §2.3).
          *
@@ -3883,11 +3943,13 @@ export interface components {
         EstimationRow: {
             /** Candidate At */
             candidate_at: string[];
+            diagnosis_may_fit: components["schemas"]["DefaultFit"] | null;
             estimated: components["schemas"]["EstimatedFit"] | null;
             /** Findings */
             findings: components["schemas"]["BoundsFinding"][];
             /** Grade */
             grade: string | null;
+            held_fixed: components["schemas"]["HeldFixed"] | null;
             /** Id */
             id: string;
             proposal: components["schemas"]["BoundsProposalView"];
@@ -4417,6 +4479,16 @@ export interface components {
              */
             verifier: "dev" | "oidc" | "none";
         };
+        /**
+         * HeldFixed
+         * @description An MS-01 candidate a person keeps fixed (D-37).
+         */
+        HeldFixed: {
+            /** By */
+            by: string;
+            /** Reason */
+            reason: string;
+        };
         /** History */
         History: {
             /** Versions */
@@ -4447,6 +4519,16 @@ export interface components {
             status: components["schemas"]["ArtifactStatus"];
             /** Version */
             version: number;
+        };
+        /**
+         * Hold
+         * @description An MS-01 fit candidate a person keeps fixed: the diagnosis does not fit it within MS-01's default (D-37).
+         */
+        Hold: {
+            /** By */
+            by: string;
+            /** Reason */
+            reason: string;
         };
         /**
          * IdentityProposal
@@ -5417,6 +5499,10 @@ export interface components {
             /** Fits */
             fits: {
                 [key: string]: components["schemas"]["FitChoice"];
+            };
+            /** Held Fixed */
+            held_fixed: {
+                [key: string]: components["schemas"]["Hold"];
             };
             /** Layout */
             layout: {
@@ -10547,6 +10633,82 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["FitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PlanPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hold_fit_api_v1_projects__project_id__plan_fits__parameter__hold_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                parameter: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PlanPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_fit_api_v1_projects__project_id__plan_fits__parameter__release_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                parameter: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
             };
         };
         responses: {

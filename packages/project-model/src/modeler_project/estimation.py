@@ -7,7 +7,8 @@ parameter is stored in MS-01's unit), each clipped to the registry's physical bo
 only when the parameter is stored in the registry's unit). A parameter MS-01 gives no default for gets the redesign's
 0.1–10× the start value. MS-01 keeps a measured fu fixed: nothing is proposed for it.
 
-Nothing here changes the plan: a proposal fills the form a person confirms with a reason (`plan.set_fit`).
+A proposal fills the form a person confirms with a reason (`plan.set_fit`). MS-01's own defaults (`ms01_default`) also
+bound the fits the diagnosis may make of every candidate a person neither frees nor holds fixed (D-37, `plan.default_fits`).
 """
 
 from __future__ import annotations
@@ -161,6 +162,16 @@ def proposed_bounds(record: ParameterRecord) -> BoundsProposal:
                               note=(note + "; " if note else "") + f"the start value {_fmt(start)} lies outside "
                                    f"[{_fmt(lower)}, {_fmt(upper)}]: check the value or set the bounds")
     return BoundsProposal(float(f"{lower:.6g}"), float(f"{upper:.6g}"), scale, basis, note=note, from_ms01=from_ms01)  # type: ignore[arg-type]
+
+
+def ms01_default(record: ParameterRecord) -> BoundsProposal | None:
+    """MS-01 §2.2's own default bounds for this parameter, when there are some to fit within (D-37): None when MS-01
+    gives no default (the redesign's 0.1–10× is a proposal for a person, never a default), keeps it fixed, or no bounds
+    can be taken at this start value."""
+    proposal = proposed_bounds(record)
+    if not proposal.from_ms01 or proposal.fixed or proposal.lower is None or proposal.upper is None:
+        return None
+    return proposal
 
 
 def fit_findings(record: ParameterRecord, lower: float, upper: float) -> list[tuple[str, str, str]]:

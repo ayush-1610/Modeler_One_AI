@@ -251,6 +251,22 @@ class EstimatedFit(View):
     reason: str
 
 
+class DefaultFit(View):
+    """The MS-01 §2.2 default the diagnosis may fit a candidate within, at its stages (D-37, `plan.default_fits`)."""
+
+    stages: list[str]
+    lower: Number
+    upper: Number
+    scale: Literal["linear", "log"]
+
+
+class HeldFixed(View):
+    """An MS-01 candidate a person keeps fixed (D-37)."""
+
+    by: str
+    reason: str
+
+
 class BoundsFinding(View):
     severity: Literal["error", "warning"]
     rule: str
@@ -268,6 +284,8 @@ class EstimationRow(View):
     grade: str | None
     estimated: EstimatedFit | None
     candidate_at: list[str]                # the stages MS-01 lets it be fitted at
+    diagnosis_may_fit: DefaultFit | None   # no person's fit and not held: MS-01's default bounds it (D-37)
+    held_fixed: HeldFixed | None           # a person keeps this candidate fixed (D-37)
     proposal: BoundsProposalView
     findings: list[BoundsFinding]
 
