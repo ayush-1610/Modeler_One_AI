@@ -1,5 +1,5 @@
-// T-47: the client-data template is downloaded, filled and uploaded; any other workbook is sorted sheet by sheet; the
-// reconciliation shows what the data plan expects from the client. The workbooks are written by a Python helper
+// T-47: on the Inputs step, the client-data template is downloaded, filled and uploaded; any other workbook is sorted sheet
+// by sheet; the dissolution profiles are on the Formulations tab; what the client sent beyond the data checklist is named. The workbooks are written by a Python helper
 // (software test data, never a model).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
@@ -10,7 +10,7 @@ import { expect, test } from "@playwright/test";
 
 const REPO = resolve(__dirname, "../../..");
 
-test("client files are read cell by cell, sorted, and reconciled with the data plan", async ({ page, request }) => {
+test("client files are read cell by cell, sorted, and what the checklist did not promise is named", async ({ page, request }) => {
   const dir = mkdtempSync(join(tmpdir(), "client-data-"));
   execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "client_workbooks.py"), dir], { cwd: REPO });
 
@@ -23,7 +23,7 @@ test("client files are read cell by cell, sorted, and reconciled with the data p
   const projectId = (await started.json()).data.project_id as string;
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: { Authorization: "Bearer dev" } })).ok()).toBeTruthy();
 
-  await page.goto(`/projects/${projectId}/client-data`);
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   const download = page.waitForEvent("download");
   await page.getByTestId("download-template").click();
   expect((await download).suggestedFilename()).toBe("ModelerOne_ClientData_v1.xlsx");
@@ -44,7 +44,8 @@ test("client files are read cell by cell, sorted, and reconciled with the data p
   await notes.getByRole("button", { name: "Set" }).click();
   await expect(raw.getByTestId("sheet-Notes")).toContainText("product info");
 
-  // dissolution: each profile fitted (PK-Sim Weibull), test vs reference compared by f2 under its conditions
+  // dissolution, on the Formulations tab: each profile fitted (PK-Sim Weibull), test vs reference compared by f2
+  await page.getByTestId("tab-formulations").click();
   await expect(page.getByTestId("f2-row")).toContainText("similar");
   const testProfile = page.locator("tr[data-testid^='profile-']", { hasText: "Test 10 mg" });
   await expect(testProfile).toContainText("t50 18 min");
@@ -53,6 +54,7 @@ test("client files are read cell by cell, sorted, and reconciled with the data p
   await expect(page.getByText(/Problems|Error/)).toHaveCount(0);
 
   // a dissolution sheet in the client's own layout: the guided reader finds the time and vessel columns
+  await page.getByTestId("tab-studies").click();
   await raw.getByTestId("sheet-Diss pH 6.8").getByRole("button", { name: "Read this sheet" }).click();
   const reader = page.getByTestId("reader-Diss pH 6.8");
   await expect(reader.getByLabel("pH", { exact: true })).toHaveValue("6.8");
@@ -64,15 +66,15 @@ test("client files are read cell by cell, sorted, and reconciled with the data p
   await reader.getByRole("button", { name: "Check what will be read" }).click();
   await expect(reader.getByTestId("read-result")).toContainText("4 values · 2 vessels · 2 times — ready to save");
   await reader.getByRole("button", { name: "Save these data" }).click();
-  await expect(page.locator("tr[data-testid^='profile-']", { hasText: "Raw 10 mg · OTHER · phosphate pH 6.8" })).toBeVisible();
 
-  // the client's study arrived without the plan promising it; the client dataset is on the observed-data tab too
-  await expect(page.getByText(/CL-01 .*delivered, not promised/)).toBeVisible();
-  await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });
-  await page.goto(`/projects/${projectId}/evidence?tab=observed`);
+  // the client's study arrived without the checklist promising it; the client dataset is among every dataset
+  await expect(page.getByTestId("unpromised")).toContainText(/CL-01 .*delivered, not promised/);
   await expect(page.locator(".evidence", { hasText: "CL-01" })).toContainText("client");
-  // the proposed release model waits for acceptance on the Parameters tab; PK-Sim has confirmed the equation, so the
-  // value carries the engine check rather than an "unconfirmed" flag
+  await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });
+  await page.getByTestId("tab-formulations").click();
+  await expect(page.locator("tr[data-testid^='profile-']", { hasText: "Raw 10 mg · OTHER · phosphate pH 6.8" })).toBeVisible();
+  // the proposed release model flows in, held for the review; PK-Sim has confirmed the equation, so the value carries
+  // the engine check rather than an "unconfirmed" flag
   const views = await request.get(`/api/v1/projects/${projectId}/evidence`, { headers: { Authorization: "Bearer dev" } });
   const t50 = (await views.json()).data.evidence.find((e: { target: string }) => e.target === "form.Test10.weibull.t50");
   expect(t50.state).toBe("PROPOSED");

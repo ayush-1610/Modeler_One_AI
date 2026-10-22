@@ -10,7 +10,7 @@ from modeler_project.dataset_register import decide_dataset, propose_dataset
 from modeler_project.datasets import ObservedDataset, Origin, Series, new_dataset_id
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import decide, propose
-from modeler_project.inputs import accept_inputs, assemble, current_cpf, set_choice
+from modeler_project.inputs import assemble, current_cpf, inputs_ready, set_choice
 from modeler_project.requirements import derive
 
 pytestmark = pytest.mark.req("T-49")
@@ -64,11 +64,10 @@ def test_a_complete_compound_assembles_builds_and_is_accepted(tmp_path):
     catalog = result["catalog"].content["studies"]
     assert catalog[0]["origin"] == "LITERATURE" and catalog[0]["profile"]["values"][1] == 35.2
     assert any("built" in d for c in ready["checks"] for d in c["detail"] if c["check"].startswith("every planned"))
-    accept_inputs(ws, by="u", printed_name="Dr U")
-    assert ws.phases()["P4"] == "APPROVED"
-    # a later evidence decision makes the accepted inputs stale until they are assembled again
+    assert inputs_ready(ws) == (True, "")                       # what the plan reads: ready and current, never accepted
+    # a later evidence decision gives a new CPF version when the inputs are assembled again
     _accept(ws, "perm.intestinal", 1e-5, "cm/s")
-    assert assemble(ws, by="u")["cpf"].version == 2 and ws.phases()["P4"] != "APPROVED"
+    assert assemble(ws, by="u")["cpf"].version == 2
 
 
 def test_conflicts_and_open_structure_choices_are_named_never_resolved_by_code(tmp_path):
@@ -86,8 +85,8 @@ def test_conflicts_and_open_structure_choices_are_named_never_resolved_by_code(t
     clspec = current_cpf(ws).get("elim.hepatic.CYP3A4.clspec")
     assert clspec.engine_binding.process == "MetabolizationSpecific_FirstOrder:CYP3A4"
     assert clspec.engine_binding.parameter == "CLspec/[Enzyme]"
-    with pytest.raises(ValueError, match="not ready"):
-        accept_inputs(ws, by="u")
+    ok, why = inputs_ready(ws)
+    assert not ok and "not ready" in why
 
 
 def test_a_total_clearance_filed_under_total_cl_is_placed_on_liver_clearance(tmp_path):

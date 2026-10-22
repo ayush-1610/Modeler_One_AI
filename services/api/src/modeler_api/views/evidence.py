@@ -51,6 +51,18 @@ class ResearchStart(View):
     model: str
 
 
+class PublishedModelTaken(View):
+    """What taking a published OSP model as a source proposed: its values and datasets, those it had already given,
+    and what it left out, with why."""
+
+    template_id: str
+    model: str
+    values: int
+    datasets: int
+    already: int
+    skipped: list[str]
+
+
 class EvidenceChoice(EvidencePage):
     """A value kept for its parameter: the ids of the other values it rejected, and the page."""
 

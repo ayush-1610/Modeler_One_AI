@@ -1,7 +1,7 @@
 """Observed studies as uploaded: the request model and the observed PK derived from each profile.
 
-The study upload (`POST .../studies`), the P4 hand-off to the campaign path (`inputs:publish`) and the P5 signature
-(`plan:sign`) all read these; a module of its own so no router imports another.
+The study upload (`POST .../studies`) and the MAP signature (`plan:sign`, which stages the campaign's studies) both read
+these; a module of its own so no router imports another.
 """
 
 from __future__ import annotations

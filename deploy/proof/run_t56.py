@@ -12,10 +12,10 @@ parameter of the published OSP Dapagliflozin model is proposed as evidence citin
 ValueOrigin text as the quote); every clinical dataset the model carries is proposed with its publication and figure;
 the fed study Kasichayanula 2011a is delivered in the client-data template as the "client" study. Nothing is accepted.
 
-**accept** (the owner's decisions, run only by the owner with their own name): every item `prepare` proposed is
-accepted with its reason, the gates P2–P4 are approved (Start has none: the brief and its data checklist are never
-approved, D-27), and P5 is drafted: the MS-01 default plan, one fasted dose level moved to external validation
-(Appendix A step 6), the validator's warnings acknowledged. It stops before the MAP signature: a Part 11 signature is
+**accept** (the owner's decisions, run only by the owner with their own name): the values and datasets `prepare`
+proposed flow in with nothing to accept (D-27); the owner settles what the Inputs step leaves to a person (the values
+held until checked, each pathway's process type, the client study's formulation, the healthy adult default where a
+study states no individual), and P5 is drafted: the MS-01 default plan, the validator's warnings acknowledged. It stops before the MAP signature: a Part 11 signature is
 a person's act in the web app (step-up), never a script's.
 
 **trace** (the T-56 acceptance, "a reviewer can trace every number in the MAR to its source"): every parameter of the
@@ -34,7 +34,6 @@ from __future__ import annotations
 import argparse
 import io
 import json
-import re
 import sys
 import time
 from pathlib import Path
@@ -48,17 +47,6 @@ CLIENT_STUDY = "kasichayanula-2011a-fed"
 CLIENT_ID = "KAS-2011A-FED"                      # the study id the mock client uses in its workbook
 KIT_NOTE = "T-56 proof kit"
 
-# The data-plan item each published-model parameter answers (by CPF id prefix, most specific first). A parameter with
-# no item of its own is carried with the item of its group, and the evidence says so.
-REQUIREMENT_OF = (
-    ("phys.halogens.", "REQ-phys.halogens"), ("phys.mw", "REQ-phys.mw"), ("phys.logp", "REQ-phys.logp"),
-    ("phys.pka.", "REQ-phys.pka"), ("phys.solubility.", "REQ-phys.solubility.ref"), ("bind.fu", "REQ-bind.fu"),
-    ("bind.partner", "REQ-bind.partner"), ("perm.intestinal", "REQ-perm.intestinal"), ("elim.renal.", "REQ-elim.renal"),
-    ("elim.", "REQ-elim.pathway"), ("expr.", "REQ-expr.profiles"), ("form.", "REQ-form.release"),
-    ("indiv.", "REQ-sys.demographics"), ("sim.", "REQ-dist.bp_ratio"), ("dist.", "REQ-dist.bp_ratio"),
-    ("perm.cellular", "REQ-dist.bp_ratio"),
-)
-_OWN_ITEM = {"REQ-phys.mw", "REQ-phys.logp", "REQ-bind.fu", "REQ-bind.partner", "REQ-perm.intestinal", "REQ-elim.renal"}
 
 # The brief, filled by hand from the mock proposal: (path, value, proposal section).
 BRIEF = (
@@ -96,15 +84,9 @@ BRIEF = (
     ("data_plan[2].item", "physicochemistry, binding, elimination, IV and oral clinical PK", "§5"),
     ("data_plan[2].category", "clinical_pk_oral", "§5"), ("data_plan[2].provider", "LITERATURE", "§5"),
 )
-_STAT = {"ArithmeticMean": "arithmetic_mean", "GeometricMean": "geometric_mean", "Median": "median"}
-_REF = re.compile(r"\((https?://[^,\s)]+),\s*([^)]*)\)")
 
 
 # --- the inputs, from the published model --------------------------------------------------------------------
-
-
-def requirement_of(cpf_id: str) -> str:
-    return next(req for prefix, req in REQUIREMENT_OF if cpf_id == prefix.rstrip(".") or cpf_id.startswith(prefix))
 
 
 def load_reference():
@@ -114,71 +96,20 @@ def load_reference():
     return snapshot, import_osp_snapshot(snapshot, source="OSP Dapagliflozin model")
 
 
-def statistics(snapshot: dict) -> dict[str, str]:
-    """Study id → the statistic its observed series is (harvested from the snapshot's quantity path)."""
-    from pbpk_domain.reference.osp_import import _props, _study_id
-
-    out = {}
-    for dataset in snapshot.get("ObservedData", []):
-        path = ((dataset.get("Columns") or [{}])[0].get("QuantityInfo") or {}).get("Path", "")
-        kind = path.rsplit("|", 1)[-1]
-        if kind in _STAT:
-            out[_study_id(_props(dataset), dataset["Name"])] = _STAT[kind]
-    return out
-
-
 def evidence_items(imported) -> list[dict[str, Any]]:
-    """One manual-evidence body per parameter of the published model, citing the model and its ValueOrigin."""
-    out = []
-    for record in imported.cpf.parameters:
-        req = requirement_of(record.id)
-        prov = record.provenance
-        origin = prov.reference if prov and prov.reference else imported.source
-        fitted = record.status.value == "FITTED"
-        note = (f"{KIT_NOTE}: value of the published OSP Dapagliflozin model"
-                + ("; identified by parameter identification in that model" if fitted else "")
-                + ("" if req in _OWN_ITEM else f"; carried with {req} (no data-plan item of its own)"))
-        out.append({
-            "req_id": req, "target": record.id, "value": record.value, "unit": record.unit, "source_type": "OSP_LIBRARY",
-            "quote": origin, "locator": "PK-Sim snapshot, compound Dapagliflozin", "url": OSP_MODEL_URL,
-            "title": "Open Systems Pharmacology — Dapagliflozin model (PK-Sim snapshot)",
-            "conditions": {"value origin": (prov.source_type if prov else "published model")}, "note": note,
-            **({"_process": record.engine_binding.process} if record.engine_binding and record.engine_binding.process
-               and record.id.startswith("elim.") else {}),
-        })
-    return out
+    """One manual-evidence body per parameter of the published model, citing the model and its ValueOrigin (the same
+    rules as the Inputs step's published-model source, `modeler_project.published_model`)."""
+    from modeler_project.published_model import evidence_bodies
+
+    return evidence_bodies(imported, model="Dapagliflozin", url=OSP_MODEL_URL, note=f"{KIT_NOTE}: ")
 
 
-def _reference(text: str) -> tuple[str | None, str, str]:
-    """(url, locator, import note) from an imported study's reference text."""
-    match = _REF.search(text or "")
-    note = text.split("Import:", 1)[1].strip() if "Import:" in (text or "") else ""
-    return (match.group(1), match.group(2).strip(), note) if match else (None, "", note)
-
-
-def dataset_bodies(imported, stats: dict[str, str]) -> tuple[list[dict[str, Any]], list[str]]:
+def dataset_bodies(imported, snapshot: dict) -> tuple[list[dict[str, Any]], list[str]]:
     """The literature datasets (every imported study but the client's), with their publication and figure."""
-    out, skipped = [], []
-    for row in imported.studies:
-        sid = row["study_id"]
-        if sid == CLIENT_STUDY:
-            continue
-        statistic = stats.get(sid)
-        profile = row.get("profile")
-        if statistic is None or not profile:
-            skipped.append(f"{sid}: {'no profile' if not profile else 'statistic not stated in the snapshot'}")
-            continue
-        url, locator, note = _reference(row.get("reference", ""))
-        study = {k: v for k, v in row.items() if k not in ("profile", "reference")}
-        out.append({
-            "kind": "profile", "study": study, "time_unit": profile.get("time_unit", "h"), "unit": profile["unit"],
-            "series": [{"name": "mean", "statistic": statistic, "times": profile["times"], "values": profile["values"],
-                        "n": row.get("n")}],
-            "origin": "OSP_LIBRARY", "purpose": "model_building",
-            "source": {"url": url, "locator": locator, "title": f"OSP Dapagliflozin model observed data: {row['reference'].split(' (')[0]}"},
-            "note": f"{KIT_NOTE}; import: {note}" if note else KIT_NOTE,
-        })
-    return out, skipped
+    from modeler_project.published_model import dataset_bodies as bodies
+    from modeler_project.published_model import statistics
+
+    return bodies(imported, statistics(snapshot), model="Dapagliflozin", label=KIT_NOTE, leave_out=(CLIENT_STUDY,))
 
 
 def client_workbook(imported) -> bytes:
@@ -186,9 +117,10 @@ def client_workbook(imported) -> bytes:
     from openpyxl import load_workbook
 
     from modeler_intake.client_template import build_template
+    from modeler_project.published_model import study_reference
 
     row = next(s for s in imported.studies if s["study_id"] == CLIENT_STUDY)
-    url, locator, _note = _reference(row["reference"])
+    url, locator, _note = study_reference(row["reference"])
     wb = load_workbook(io.BytesIO(build_template()))
     header = [str(c.value).rstrip("*") for c in wb["Studies"][1]]
     study = {"study_id": CLIENT_ID, "reference": f"{url} ({locator})",
@@ -260,7 +192,7 @@ def prepare(api: Api, log=print) -> dict[str, Any]:
         proposed["evidence"].append({"id": item["id"], "target": body["target"], "value": body["value"], "unit": body["unit"]})
         if process:
             proposed["processes"][body["target"].rpartition(".")[0]] = process.split(":", 1)[0]
-    bodies, skipped = dataset_bodies(imported, statistics(snapshot))
+    bodies, skipped = dataset_bodies(imported, snapshot)
     for body in bodies:
         ds = api.post(f"/api/v1/projects/{pid}/datasets", f"P2 dataset {body['study']['study_id']}", json=body)
         proposed["datasets"].append({"id": ds["id"], "study_id": body["study"]["study_id"]})
@@ -276,53 +208,47 @@ def prepare(api: Api, log=print) -> dict[str, Any]:
 
 
 def accept(api: Api, pid: str, prepared: dict[str, Any], *, name: str, log=print) -> dict[str, Any]:
-    """The owner's decisions on what `prepare` proposed, up to the MAP signature (which is the owner's, in the UI)."""
-    reason = f"accepted by {name} ({KIT_NOTE}): taken verbatim from the published OSP Dapagliflozin model, cited"
+    """The owner's decisions on what `prepare` proposed, up to the MAP signature (which is the owner's, in the UI). Every
+    value and dataset flows in with nothing to accept (D-27); what is left is what a person settles on the Inputs step:
+    the values held until checked, the process type of each pathway, a study's formulation and its individual."""
+    reason = f"checked by {name} ({KIT_NOTE}): taken verbatim from the published OSP Dapagliflozin model, cited"
     release = prepared["proposed"]["requirements"].get("REQ-form.release", "REQ-form.release")
-    api.put(f"/api/v1/projects/{pid}/requirements/{release}", "P1 release model from the literature",
+    api.put(f"/api/v1/projects/{pid}/requirements/{release}", "Start: release model from the literature",
             json={"provider": "LITERATURE", "reason": "no measured dissolution profile is public; the tablet's release "
                                                        "(Weibull) is taken from the published model"})
-    for item in prepared["proposed"]["evidence"]:
+    # assemble first: the assembly names what is held until a person checks it and the structure choices it needs
+    assembled = api.post(f"/api/v1/projects/{pid}/inputs:assemble", "Inputs: assemble")
+    held = [item for t in assembled.get("todo", []) if t["kind"] == "review" for item in t.get("items", [])]
+    for item in held:
         numeric = isinstance(item["value"], int | float)
         body = {"state": "ACCEPTED", "reason": reason,
                 **({"value_pksim": item["value"], "unit_pksim": item["unit"]} if numeric else {})}
-        api.post(f"/api/v1/projects/{pid}/evidence/{item['id']}:decide", f"P2 accept {item['target']}", json=body)
-    for ds in prepared["proposed"]["datasets"]:
-        api.post(f"/api/v1/projects/{pid}/datasets/{ds['id']}:decide", f"P2 accept {ds['study_id']}",
-                 json={"state": "ACCEPTED", "reason": reason})
-    view = api.get(f"/api/v1/projects/{pid}/evidence", "P2 register")
-    for ds in view.get("datasets", []):
-        if ds.get("state") == "PROPOSED" and ds.get("origin") == "CLIENT":
-            api.post(f"/api/v1/projects/{pid}/datasets/{ds['id']}:decide", "P3 accept the client study",
-                     json={"state": "ACCEPTED", "reason": f"accepted by {name}: the client's fed study as delivered"})
-    log("P2  every proposed value and dataset accepted with its reason")
-    # assemble first: the assembly names the structure choices it needs (the process type of each pathway)
-    assembled = api.post(f"/api/v1/projects/{pid}/inputs:assemble", "P4 assemble")
+        api.post(f"/api/v1/projects/{pid}/evidence/{item['id']}:decide", f"Inputs: check {item['target']}", json=body)
+    log(f"Inputs: {len(held)} held values checked (the published model's own); every other value and dataset flowed in")
     for key, value in prepared["proposed"]["processes"].items():
-        assembled = api.put(f"/api/v1/projects/{pid}/inputs/choices", f"P4 process {key}",
+        assembled = api.put(f"/api/v1/projects/{pid}/inputs/choices", f"Inputs: process {key}",
                             json={"kind": "process", "key": key, "value": value,
                                   "reason": "the process type the published model uses"})
     # the client's tablet study names no formulation: simulated as the published model simulates it
     client_formulation = prepared["client_formulation"]
-    assembled = api.put(f"/api/v1/projects/{pid}/inputs/choices", f"P4 formulation of {CLIENT_ID}",
+    assembled = api.put(f"/api/v1/projects/{pid}/inputs/choices", f"Inputs: formulation of {CLIENT_ID}",
                         json={"kind": "formulation", "key": CLIENT_ID, "value": client_formulation,
                               "reason": f"the fed arm's tablet release is not reported; simulated as the published model "
                                         f"simulates its tablet studies ({client_formulation})"})
     # D-29: a study the published model simulates in its default individual gets the healthy adult default explicitly
     # (never silently); the MAP lists each as a limitation
-    register = api.get(f"/api/v1/projects/{pid}/evidence", "P2 register")
+    register = api.get(f"/api/v1/projects/{pid}/evidence", "evidence register")
     by_study = {d["study"]["study_id"]: d["id"] for d in register.get("datasets", []) if d.get("state") != "REJECTED"}
     unstated = [t["target"] for t in assembled.get("todo", []) if t["kind"] == "demographics" and t["target"] in by_study]
     for sid in unstated:
-        api.post(f"/api/v1/projects/{pid}/datasets/{by_study[sid]}:study", f"P4 demographics of {sid}",
+        api.post(f"/api/v1/projects/{pid}/datasets/{by_study[sid]}:study", f"Inputs: demographics of {sid}",
                  json={"demographics_choice": "healthy_adult_default"})
     if unstated:
-        assembled = api.post(f"/api/v1/projects/{pid}/inputs:assemble", "P4 assemble")
+        assembled = api.post(f"/api/v1/projects/{pid}/inputs:assemble", "Inputs: assemble")
     readiness = assembled["readiness"]["content"]
     if not readiness.get("ready"):
-        raise RuntimeError("P4 readiness: " + json.dumps(readiness, default=str)[:1500])
-    api.post(f"/api/v1/projects/{pid}/inputs:accept", "P4 accept", json={"note": f"accepted by {name}"})
-    log("P4  CPF v1 assembled from the accepted evidence; readiness passed; inputs accepted")
+        raise RuntimeError("Inputs readiness: " + json.dumps(readiness, default=str)[:1500])
+    log("Inputs: CPF v1 assembled from every value not excluded; readiness passed (nothing accepted: D-27)")
     plan = moved = api.get(f"/api/v1/projects/{pid}/plan", "P5 plan")
     for _ in range(20):
         open_warnings = [v for v in moved.get("violations", []) if v.get("severity") == "warning" and not v.get("acknowledged")]
@@ -389,13 +315,14 @@ def trace(api: Api, pid: str, campaign_id: str) -> tuple[str, list[str]]:
                      f"{src.get('locator', '')} | {str(item.get('quote', ''))[:80]} |")
     lines += ["", "## Studies (judged data → dataset → publication)", "", "| Study | Origin | Dataset | Source |", "|---|---|---|---|"]
     origins = campaign.get("observedOrigins") or {}
-    by_study = {d.get("study", {}).get("study_id"): d for d in datasets.values() if d.get("state") == "ACCEPTED"}
+    # every dataset not excluded is used (D-27): the one a study was judged on is the one not left out
+    by_study = {d.get("study", {}).get("study_id"): d for d in datasets.values() if d.get("state") != "REJECTED"}
     for sid, origin in sorted(origins.items()):
         ds = by_study.get(sid)
         src = (ds or {}).get("source") or {}
         where = src.get("doi") or src.get("pmid") or src.get("url") or src.get("doc_sha256") or src.get("title") or ""
         if ds is None or not where:
-            broken.append(f"study {sid}: {'no accepted dataset' if ds is None else 'its dataset cites no source'}")
+            broken.append(f"study {sid}: {'no dataset in use' if ds is None else 'its dataset cites no source'}")
         lines.append(f"| `{sid}` | {origin} | {(ds or {}).get('id', '—')} | {where} {src.get('locator', '')} |")
     lines += ["", "## Changes during the campaign (ledger)", ""]
     for e in (campaign.get("ledger") or {}).get("entries", []):

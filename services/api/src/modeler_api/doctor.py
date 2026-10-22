@@ -50,6 +50,15 @@ def _status(ws: Workspace, kind: ArtifactKind, artifact_id: str) -> str:
     return f"v{version.version} {ws.status(version).value.lower()}" if version else "not started"
 
 
+def _steps(ws: Workspace) -> str:
+    """Start, Inputs, Review & sign and Run, each with where it stands (the redesign's steps, never approvals)."""
+    from modeler_api.deps import project_campaigns
+    from modeler_project.steps import project_steps
+
+    statuses = [str(c.get("status", "")) for c in project_campaigns(ws)]
+    return " · ".join(f"{s.label} {s.state.replace('_', ' ')}" for s in project_steps(ws, statuses))
+
+
 def report(ws: Workspace, *, logs: Path | None = None) -> str:
     """The project's state in Markdown (no observed values, no secrets)."""
     from modeler_project.client_data import reconcile, submissions
@@ -63,8 +72,8 @@ def report(ws: Workspace, *, logs: Path | None = None) -> str:
     w = out.append
     brief = _brief(ws)
     w(f"# Project doctor · {ws.project_id} (tenant {ws.tenant_id})\n")
-    w("## Phases\n")
-    w(" · ".join(f"{p} {s.value.lower()}" for p, s in ws.phases().items()) + "\n")
+    w("## Steps\n")
+    w(_steps(ws) + "\n")
 
     w("## P1 brief and data plan\n")
     if brief is None:
@@ -178,8 +187,7 @@ def main(argv: list[str] | None = None) -> int:
         for tenant, pid in found:
             ws = Workspace(store, tenant, pid)
             brief = _brief(ws)
-            phases = " ".join(f"{p}:{s.value.lower()}" for p, s in ws.phases().items())
-            print(f"{tenant}\t{pid}\t{brief.drug_name if brief else '—'}\t{phases}")
+            print(f"{tenant}\t{pid}\t{brief.drug_name if brief else '—'}\t{_steps(ws)}")
         return 0
     tenants = [t for t, p in found if p == args.project and (args.tenant is None or t == args.tenant)]
     if len(tenants) != 1:

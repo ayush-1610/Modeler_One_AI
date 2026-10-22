@@ -1,4 +1,4 @@
-"""T-40: the start-up pipeline's shared endpoints (phases, artifacts, history, impact, audit)."""
+"""T-40: the start-up pipeline's shared endpoints (stale artifacts, artifacts, history, impact, audit)."""
 
 from __future__ import annotations
 
@@ -42,14 +42,14 @@ def setup(tmp_path):
 H = {"Authorization": "Bearer t"}
 
 
-def test_phases_artifacts_history_and_impact(setup):
+def test_stale_artifacts_history_and_impact(setup):
     client, ws = setup
     doc = ws.commit(ArtifactKind.DOCUMENT, "d1", {"name": "proposal.pdf"}, actor="u1", reason="upload")
     ws.commit(ArtifactKind.BRIEF, "main", {"dose": 50}, derived_from=[doc.ref], actor="u1", reason="extracted")
     ws.commit(ArtifactKind.BRIEF, "main", {"dose": 100}, derived_from=[doc.ref], actor="u1", reason="edited")
 
-    phases = client.get("/api/v1/projects/p1/phases", headers=H).json()["data"]["phases"]
-    assert {p["phase"]: p["status"] for p in phases}["P1"] == "IN_REVIEW"
+    assert client.get("/api/v1/projects/p1/stale", headers=H).json()["data"]["stale"] == []
+    assert client.get("/api/v1/projects/p1/phases", headers=H).status_code == 404     # R5: steps, not approval phases
 
     listed = client.get("/api/v1/projects/p1/artifacts?kind=brief", headers=H).json()["data"]["artifacts"]
     assert [(a["id"], a["version"], a["status"]) for a in listed] == [("main", 2, "DRAFT")]
@@ -77,7 +77,7 @@ def test_audit_endpoint_reports_the_chain(setup):
 def test_project_membership_is_enforced(setup, tmp_path):
     client, _ = setup
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(_claims(projects=("other",)))
-    assert client.get("/api/v1/projects/p1/phases", headers=H).status_code == 403
+    assert client.get("/api/v1/projects/p1/stale", headers=H).status_code == 403
 
 
 def test_file_and_postgres_audit_chains_hash_identically():

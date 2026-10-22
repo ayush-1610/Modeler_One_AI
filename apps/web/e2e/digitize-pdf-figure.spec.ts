@@ -60,7 +60,7 @@ test("a figure inside a PDF is picked from its figure list, cropped, digitized, 
   const projectId = (await started.json()).data.project_id as string;
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: { Authorization: "Bearer dev" } })).ok()).toBeTruthy();
 
-  await page.goto(`/projects/${projectId}/evidence?tab=observed`);
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   await page.getByTestId("open-digitizer").click();
   const panel = page.getByTestId("digitizer");
   await expect(panel.getByTestId("figure-list")).toContainText("p.1 · Im1 · 800×600");

@@ -57,6 +57,12 @@ export function StartScreen({ projectId }: { projectId: string }) {
     return problem;
   }
 
+  async function remove(group: string, index: number, reason: string): Promise<string | null> {
+    const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/items:remove", { project_id: projectId },
+      { group, index, reason }));
+    return problem;
+  }
+
   async function answer(questionId: string, text: string, status: "answered" | "accepted_as_limitation") {
     const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/questions/{question_id}",
       { project_id: projectId, question_id: questionId }, { answer: text, status }));
@@ -111,7 +117,7 @@ export function StartScreen({ projectId }: { projectId: string }) {
       <ScopeGates view={view} save={save} open={open} />
       <DataChecklist projectId={projectId} plan={plan.data} planProblem={plan.problem}
                      reconciliation={client.data ? client.data.reconciliation.rows : null} run={run} busy={busy} />
-      <ProposalNotes projectId={projectId} view={view} save={save} open={open} onAnswer={answer} />
+      <ProposalNotes view={view} save={save} open={open} remove={remove} onAnswer={answer} />
     </PageShell>
   );
 }

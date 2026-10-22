@@ -153,19 +153,6 @@ def test_a4_classifies_only_with_a_header_quote_code_can_find(setup):
     assert triage["Sheet1"]["category"] == "PK_INDIVIDUAL"
 
 
-def test_p3_closes_only_when_required_client_items_are_met_or_skipped(setup):
-    c, ws = setup
-    view = c.get("/api/v1/projects/p1/client-data", headers=H).json()["data"]
-    blocking = view["reconciliation"]["blocking"]
-    if blocking:
-        gate = c.post("/api/v1/projects/p1/client-data:approve", headers=H, json={})
-        assert gate.status_code == 409 and "still missing" in gate.json()["detail"]
-    else:
-        ok = c.post("/api/v1/projects/p1/client-data:approve", headers=H, json={"note": "nothing promised by the client"})
-        assert ok.status_code == 200 and ok.json()["data"]["register"]["status"] == "APPROVED"
-        assert ws.phases()["P3"] == "APPROVED"
-
-
 @pytest.mark.req("T-48")
 def test_dissolution_profiles_are_shown_and_a_fit_is_proposed_as_a_release_model(setup):
     import numpy as np

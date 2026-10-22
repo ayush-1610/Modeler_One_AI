@@ -15,7 +15,7 @@ from modeler_project.artifacts import (
 )
 from modeler_project.diff import Change, diff
 from modeler_project.store import FileProjectStore, ImmutableVersionError, ProjectStore
-from modeler_project.workspace import ImpactItem, ImpactReport, PhaseStatus, StaleItem, Workspace
+from modeler_project.workspace import ImpactItem, ImpactReport, StaleItem, Workspace
 
 __all__ = [
     "Approval",
@@ -28,7 +28,6 @@ __all__ = [
     "ImmutableVersionError",
     "ImpactItem",
     "ImpactReport",
-    "PhaseStatus",
     "ProjectStore",
     "StaleItem",
     "Workspace",

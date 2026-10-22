@@ -17,7 +17,7 @@ from modeler_project.datasets import ObservedDataset, Origin, Series, new_datase
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import decide, propose
 from modeler_project.requirements import derive
-from modeler_storage.filestore import FileReadStore, FileWriteStore
+from modeler_storage.filestore import FileWriteStore
 
 pytestmark = pytest.mark.req("T-49")
 H = {"Authorization": "Bearer t"}
@@ -62,37 +62,27 @@ def setup(tmp_path, api_settings):
     app.dependency_overrides.clear()
 
 
-def test_inputs_are_assembled_chosen_accepted_and_handed_to_the_campaign_path(setup):
-    c, _ws, read_root = setup
+def test_inputs_are_assembled_and_chosen_and_the_plan_reads_them_once_ready(setup):
+    c, _ws, _read_root = setup
     view = c.post("/api/v1/projects/p1/inputs:assemble", headers=H).json()["data"]
     assert view["readiness"]["content"]["ready"] is False
     clspec = next(r for r in view["records"] if r["id"] == "elim.hepatic.CYP3A4.clspec")
     assert set(clspec["candidates"]) == {"MetabolizationSpecific_FirstOrder", "rCYP450_FirstOrder"} and clspec["block"] == "compound"
-    early = c.post("/api/v1/projects/p1/inputs:accept", headers=H, json={})
-    assert early.status_code == 409 and "not ready" in early.json()["detail"]
     bad = c.put("/api/v1/projects/p1/inputs/choices", headers=H,
                 json={"kind": "process", "key": "elim.hepatic.CYP3A4", "value": "Made_Up", "reason": "x"})
     assert bad.status_code == 422 and "not a harvested process" in bad.json()["detail"]
-    early_publish = c.post("/api/v1/projects/p1/inputs:publish", headers=H)
-    assert early_publish.status_code == 409
     # CYP3A4 needs an expression profile from the library: readiness says so if it is missing, otherwise it is ready
     view = c.put("/api/v1/projects/p1/inputs/choices", headers=H,
                  json={"kind": "process", "key": "elim.hepatic.CYP3A4", "value": "MetabolizationSpecific_FirstOrder",
                        "reason": "first-order specific clearance, as the OSP models write it"}).json()["data"]
     failing = [ch for ch in view["readiness"]["content"]["checks"] if not ch["ok"]]
     assert view["readiness"]["content"]["ready"], failing
-    assert c.post("/api/v1/projects/p1/inputs:accept", headers=H, json={"note": "inputs complete"}).status_code == 200
-    published = c.post("/api/v1/projects/p1/inputs:publish", headers=H).json()["data"]["published"]
-    assert published["studies"] == ["cl-iv"]
-    # phase 6e: CPF/published is written by modeler_project.inputs, with the keys the router wrote before
-    from modeler_project.inputs import Publication
-
-    stored = _ws.latest(ArtifactKind.CPF, "published").content
-    assert set(stored) == {"compound", "studies", "cpf", "readiness"} and stored["cpf"]["kind"] == "cpf"
-    assert Publication.model_validate(stored).to_content() == stored
-    read = FileReadStore(str(read_root))
-    assert read.get_cpf("t1", "p1", "Renaldrug").get("phys.logp").provenance.method == "InVitro"
-    assert read.list_studies("t1", "p1")[0]["origin"] == "CLIENT"
+    assert "published" not in view
+    # R5: nothing is accepted or handed over by hand; the plan reads the ready inputs, the signature stages the campaign's
+    for retired in ("inputs:accept", "inputs:publish", "evidence:approve", "client-data:approve"):
+        assert c.post(f"/api/v1/projects/p1/{retired}", headers=H, json={}).status_code == 404, retired
+    plan = c.get("/api/v1/projects/p1/plan", headers=H)
+    assert plan.status_code == 200, plan.text
 
 
 def test_a_process_type_can_be_chosen_before_the_first_assembly(setup):
@@ -188,4 +178,4 @@ def test_the_inputs_assemble_after_each_change_and_the_plan_reads_them_without_a
     c.put("/api/v1/projects/p1/inputs/choices", headers=H, json={"kind": "process", "key": "elim.hepatic.CYP3A4",
                                                                 "value": "MetabolizationSpecific_FirstOrder", "reason": "x"})
     plan = c.get("/api/v1/projects/p1/plan", headers=H)
-    assert plan.status_code == 200, plan.text                                          # no inputs:accept
+    assert plan.status_code == 200, plan.text                                          # nothing accepted

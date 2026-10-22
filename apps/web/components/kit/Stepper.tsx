@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { getSteps, INPUTS_PAGES, STEP_ROUTES, type StepId, type StepState } from "@/lib/pipeline";
+import { getSteps, STEP_ROUTES, type StepId, type StepState } from "@/lib/pipeline";
 
 const STATE_LABEL: Record<StepState, string> = {
   done: "done",
@@ -10,10 +10,9 @@ const STATE_LABEL: Record<StepState, string> = {
 };
 
 /** The project's four steps (redesign §3): Start, Inputs, Review & sign, Run, each with where it stands. The step the
- *  page belongs to is marked, and what it waits on is written out under the row. Inputs still spans three pages until
- *  they become one workspace (R3), so its pages are linked while you are in it. */
-export async function Stepper({ projectId, current, page, waiting = true }: {
-  projectId: string; current?: StepId; page?: string;
+ *  page belongs to is marked, and what it waits on is written out under the row. */
+export async function Stepper({ projectId, current, waiting = true }: {
+  projectId: string; current?: StepId;
   /** Write out what the current step waits on (off where the page lists it itself, as Start does). */
   waiting?: boolean;
 }) {
@@ -40,14 +39,6 @@ export async function Stepper({ projectId, current, page, waiting = true }: {
         </ol>
         <Link href={`/projects/${projectId}/history`} className="step-history">History</Link>
       </nav>
-      {current === "inputs" && (
-        <nav className="step-pages" aria-label="Inputs pages">
-          {INPUTS_PAGES.map((p) => (
-            <Link key={p.id} href={p.href(projectId)} className={page === p.id ? "active" : ""}
-                  aria-current={page === p.id ? "page" : undefined}>{p.label}</Link>
-          ))}
-        </nav>
-      )}
       {waiting && here && here.state === "needs_you" && here.reasons.length > 0 && (
         <p className="step-waiting" data-testid="step-waiting">
           <strong>Waiting on you:</strong> {here.reasons.join(" · ")}

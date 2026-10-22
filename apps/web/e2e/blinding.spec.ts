@@ -1,4 +1,4 @@
-// D-15: with blinding on, an external study's values are withheld on the evidence page until the MAP is signed; a
+// D-15: with blinding on, an external study's values are withheld on the Inputs step's Studies tab until the MAP is signed; a
 // curator reveals one dataset for a check with a reason. Software test data (made-up numbers), never a model.
 import { expect, test } from "@playwright/test";
 
@@ -16,7 +16,7 @@ test("external values are blinded until the MAP is signed, and revealed for a ch
   await panel.getByTestId("blinding-toggle").click();
   await expect(panel).toContainText(/On — \d+ external stud/);
 
-  await page.goto(`/projects/${projectId}/evidence?tab=observed`);
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   const blinded = page.locator("[data-testid^='blinded-']").first();
   await expect(blinded).toContainText("blinded until the MAP is signed");
   const testId = (await blinded.getAttribute("data-testid"))!;

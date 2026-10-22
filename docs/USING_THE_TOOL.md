@@ -50,11 +50,11 @@ prediction (sensitivity, prediction intervals; **stops for your signature**) →
 
 ## 4. Your own compound
 
-**New project** → pick a starting point (a published model with its real data, or start empty) → enter or check the
-compound's parameters (CPF: physchem, binding, permeability, clearance processes; every value with its source) →
-**Add data** (CSV of plasma concentrations per study: dose, route, formulation, food state, population) → **Run
-campaign**. The tool generates the analysis plan from your studies (the MS-01 data split), you sign it, and the
-campaign runs S0 → S7 on PK-Sim.
+Every project starts from its proposal: **+ New project** (or **+ Start from proposal** in the sidebar), then four steps:
+**Start**, **Inputs**, **Review & sign** and **Run**. The Quick start wizard is gone (R5): to begin from a published OSP
+model, start the project for that drug and, on Inputs, **Take the published OSP model's values** (§7). The tool
+generates the analysis plan from your studies (the MS-01 data split), you sign it, and the campaign runs S0 → S7 on
+PK-Sim.
 
 **From a proposal (Step 1 · Start):** **+ Start from proposal** → name the drug and drop the proposal, its annexes and
 the client's data files in one upload (each file says what it is; the client's go straight to Inputs) → the Start screen
@@ -62,8 +62,10 @@ fills the drug's identity from PubChem and, with an agent configured, the short 
 the words it came from. Set what they do not say and correct what is wrong; no "why" is asked. Rate model influence and
 decision consequence, then set the model risk ICH M15 admits for them. Say what is modelled (modality, PBPK model, site
 of action, formulation types, the scenarios' routes): what the builder cannot model yet is refused there. The data
-checklist below follows the brief as it changes; change who provides an item in place. Nothing on Start is approved: you
-review everything once, when you sign the plan.
+checklist below follows the brief as it changes; change who provides an item in place, and see what has arrived. Under
+**Proposal notes**, every other field of the proposal is edited in place, and so are its lists (the products, the
+populations, what it says about data, the prediction scenarios): add one, change a field, or remove one with the reason.
+Nothing on Start is approved: you review everything once, when you sign the plan.
 
 ## 5. Checks against the published models
 
@@ -71,14 +73,14 @@ review everything once, when you sign the plan.
 (PK-Sim)", which runs on every push) rebuilds every published simulation from the imported CPF and compares both on
 PK-Sim: identical inputs must give identical curves (1e-6 of the peak). Results: `reports/reference/<stamp>/summary.md`.
 
-## 6. Client data (P3): reading the client's spreadsheets
+## 6. The client's spreadsheets (on Inputs → Studies)
 
-The Client data page shows five steps at the top: data checklist, files, sheets read, plan items, approval. The approve
-button opens when every **required** plan item is delivered or decided.
+Add the client's files on Start (one upload with the proposal) or on the Inputs step's **Studies** tab (**Add the
+client's files**). Workbooks are split into sheets; PDF, Word and Markdown are kept as citable documents. The
+client-data template (**client-data template** on the same tab) is read automatically, cell by cell. Start's data
+checklist ticks off what arrives; what the client cannot send goes to another provider there. Nothing is approved.
 
-1. **Upload** every file (drop zone). Workbooks are split into sheets; PDF, Word and Markdown are kept as citable
-   documents. The client-data template (download button) is read automatically, cell by cell.
-2. **Read each data sheet** ("Read this sheet"). The sheet appears next to a form filled in from what the sheet
+1. **Read each data sheet** ("Read this sheet"). The sheet appears next to a form filled in from what the sheet
    states: header row, data rows (Mean / SD rows under the subjects are left out), times down a column or across the
    top, subject / period / value columns, units, LLOQ and dose quoted from their cells. "Found in the sheet" says what
    was taken from the file name instead (study id, food state) and what is missing.
@@ -86,28 +88,27 @@ button opens when every **required** plan item is delivered or decided.
      other-formulation studies: **external validation**), the infusion time for IV data.
    - Give each BE arm its own study id (e.g. `230-23-TEST`, `230-23-REF`).
    - Dissolution: name the product exactly as the brief does and its role (TEST / RLD); the release-model item and the
-     f2 comparison count only such profiles.
+     f2 comparison count only such profiles. The profiles, their Weibull fit and f2 are on the **Formulations** tab.
    - "Check what will be read" shows the subjects, times, the first values with their cells, and every problem in
      words (e.g. a cell that says `NS`: add it under "cells that mean no sample"). "Save these data" keeps it.
    - "Same layout as the last sheet" copies columns, units, LLOQ and cell texts to the next file; the rows and the
      study (id, dose, route, formulation, food, subjects, purpose) stay this sheet's own.
-   - Read a sheet again to correct it: the new reading replaces the earlier one (its datasets are rejected).
+   - Read a sheet again to correct it: the new reading replaces the earlier one (its datasets are left out).
    - With agents on, **Read the data sheets (agent)** lets the reading agent read the file's data sheets first. Code
      checks every reading it proposes: each quote is in its cell and states its value, a unit, LLOQ, dose or n stands on
      a quote (never guessed), and the reading applies without a problem. A sheet with a proposal shows **reading
      proposed** and opens on the agent's reading, marked as the agent's, with its notes. Check it against the sheet,
      correct anything wrong and save: nothing is read in until you save.
-3. **Settle what the client cannot send** ("What stops approval"): with a reason, either **Not from the client** (the
-   gap is recorded) or **Get it from the literature instead** (P2 takes it over). The literature cross-check counts only
-   once a literature value is accepted. These decisions change the data checklist, which follows them at once (Start
-   shows it); it is never approved.
-4. **Approve the client data.** Then accept the new datasets and release-model values on the Literature page.
+2. What the client sent that the checklist did not promise is listed under **Delivered, not in the data checklist**.
 
 ## 7. Inputs (step 2): from every source to a ready CPF
 
 The Inputs page (`/projects/{id}/inputs`) is one workspace in PK-Sim's building blocks: **Compound**, **Formulations**,
 **Individuals**, **Simulation settings** and **Studies**. Values flow in from the client's files, the literature agent,
-PubChem and the published OSP model with no per-item acceptance (D-27). The inputs are put together again after
+PubChem and the published OSP model with no per-item acceptance (D-27). **Take the published OSP model's values**
+(shown when the platform carries a published model of the drug) proposes every parameter of that model, citing it, and
+the clinical datasets it carries, citing their publications; they rank below the client's and the literature's values,
+and taking it twice adds nothing. The inputs are put together again after
 every change. The side list **Still missing to run** names each open item; clicking one opens it on its tab. Nothing
 is approved here: the one review is at the MAP signature.
 
@@ -118,7 +119,8 @@ is approved here: the one review is at the MAP signature.
 - **Exclude a source** from a row's sources, with a reason; the next best source takes over.
 - **Add a value** in any row: the value, its unit, the source (DOI or URL) and the sentence that states it.
 - **Held until you check it:** a value filed where a mistake is likely (a % bound as fu, fe as the GFR fraction), one
-  with no conversion to the PK-Sim unit, or one moved to another parameter by a correction. Accept or reject it.
+  with no conversion to the PK-Sim unit, or one moved to another parameter by a correction. Accept or reject it:
+  it is the one value a person accepts, because a likely mistake must not reach the model unseen.
 - **Filed under the wrong parameter.** `elim` (the data plan's "an elimination pathway"), a template such as
   `elim.hepatic.{enzyme}.km/vmax`, or a name the model does not use never reaches PK-Sim. Choose the real parameter
   (and the enzyme) and **Correct**, or **Reject**. The fraction excreted unchanged in urine goes under
@@ -131,7 +133,11 @@ is approved here: the one review is at the MAP signature.
   blinded, a multiple-dose study's number of doses and interval, and **Leave out** with a reason. The client's sheets
   are listed on the tab itself: open a sheet, check the reading agent's (or code's) reading, and save. Add data also by
   filling the client-data template, digitizing a published figure, or typing a table in.
-  - **Digitizing a figure in a PDF:** open the digitizer on the Literature page. A PDF's figures (images placed on
+  - **Every dataset** lists each dataset however it arrived, with its values, its source and whether it is used; a
+    blinded one is revealed for a check with the reason; **Leave it out** with a reason, or use it again. A digitized
+    figure is used once you confirm **The overlay matches the figure**. **Find observed data (agent)** asks the
+    observed-data agent.
+  - **Digitizing a figure in a PDF:** **Digitize a figure** under Every dataset. A PDF's figures (images placed on
     its pages) are listed: pick one and the page is cropped to it. A figure drawn as lines is cropped by hand
     (**Crop to a region**, then two corners). **Zoom** enlarges the view. Calibrate the axes and pick the points in
     that view; changing the crop, the page or the zoom starts the calibration again. The dataset keeps the crop.

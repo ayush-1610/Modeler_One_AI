@@ -207,28 +207,6 @@ def blocking(rows: list[Coverage]) -> list[Coverage]:
             and r.status not in ("ACCEPTED", "NOT_AVAILABLE", "WAIVED")]
 
 
-def close_register(ws: Workspace, matrix_ref, matrix: RequirementMatrix, *, by: str, note: str = "",
-                   printed_name: str = "") -> None:
-    """Snapshot the accepted literature evidence and approve it (named approval, D-07)."""
-    from modeler_project.dataset_register import datasets
-
-    evidence = items(ws)
-    observed = datasets(ws)
-    rows = coverage(matrix, evidence, observed)
-    gaps = blocking(rows)
-    if gaps:
-        raise EvidenceError("required literature items still open: " + ", ".join(r.req_id for r in gaps))
-    accepted = [ws.latest(ArtifactKind.EVIDENCE, e.id) for e in evidence if e.state is EvidenceState.ACCEPTED
-                and e.provider == "LITERATURE"]
-    accepted += [ws.latest(ArtifactKind.DATASET, d.id) for d in observed if d.state is EvidenceState.ACCEPTED
-                 and d.provider == "LITERATURE"]
-    content = {"accepted": [v.ref.model_dump(mode="json") for v in accepted],
-               "coverage": [r.__dict__ | {"accepted": list(r.accepted), "proposed": list(r.proposed)} for r in rows]}
-    version = ws.commit(ArtifactKind.EVIDENCE, REGISTER_LITERATURE, content,
-                        derived_from=[matrix_ref, *[v.ref for v in accepted]], actor=by, reason="literature evidence closed")
-    ws.approve(version.ref, by=by, printed_name=printed_name, meaning="Reviewed", note=note)
-
-
 def access_requests(ws: Workspace) -> list[dict[str, Any]]:
     """Every paper requested (title, authors, DOI, what it is needed for, its status), each with its id."""
     return [{"id": v.id, **v.content} for v in ws.list(ArtifactKind.ACCESS_REQUEST)]

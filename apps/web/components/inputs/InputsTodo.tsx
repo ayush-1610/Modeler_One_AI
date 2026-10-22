@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { send, type Envelope } from "@/lib/api";
@@ -210,14 +209,14 @@ function StudyFix({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
   );
 }
 
-function Datasets({ t, projectId }: { t: TodoItem; projectId: string }) {
+function Datasets({ t }: { t: TodoItem }) {
   const rows = t.items as DatasetRow[];
   const meanless = rows.filter((d) => d.state !== "REJECTED" && !d.statistics.some((s) => s !== "individual"));
   return (
     <>
       {(t.warnings ?? []).length > 0 && (
         <ul className="flags" aria-label="dataset problems">
-          {t.warnings!.map((w) => <li key={w}>{w}. Re-read the sheet on the <Link href={`/projects/${projectId}/client-data`}>Client data page</Link> (the new reading replaces the old one).</li>)}
+          {t.warnings!.map((w) => <li key={w}>{w}. Read the sheet again under the client&apos;s sheets below (the new reading replaces the old one).</li>)}
         </ul>
       )}
       {rows.length === 0 && <p className="muted" style={{ margin: 0 }}>No datasets yet: add data below (the client&apos;s sheets, a
@@ -265,7 +264,7 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
         </>
       )}
       {(t.kind === "regimen" || t.kind === "demographics") && <StudyFix t={t} projectId={projectId} run={run} />}
-      {t.kind === "datasets" && <Datasets t={t} projectId={projectId} />}
+      {t.kind === "datasets" && <Datasets t={t} />}
       {t.kind === "formulation" && (
         <>
           <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>{t.message}. Propose the release model from the test

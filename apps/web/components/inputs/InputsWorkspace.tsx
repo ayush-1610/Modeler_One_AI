@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { Dissolution } from "@/components/client/ClientData";
+import { Dissolution } from "@/components/client/ClientFiles";
 import type { View as ClientView } from "@/components/client/types";
 import { Banner, InlineIssue, PageShell, SidePanel } from "@/components/kit";
 import { TabPanel, Tabs } from "@/components/kit/Tabs";
@@ -14,9 +14,10 @@ import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
 import { LABEL, ORDER, type Run, TITLE, type TodoItem } from "./InputsTodo";
+import { AccessRequests } from "./ObservedDatasets";
 import { type Options, StudiesTab } from "./StudiesTab";
 
-type Tab = "compound" | "formulations" | "individuals" | "settings" | "studies";
+export type Tab = "compound" | "formulations" | "individuals" | "settings" | "studies";
 const TABS: [Tab, string][] = [["compound", "Compound"], ["formulations", "Formulations"], ["individuals", "Individuals"],
                                ["settings", "Simulation settings"], ["studies", "Studies"]];
 const TAB_LABEL = Object.fromEntries(TABS) as Record<Tab, string>;
@@ -48,12 +49,12 @@ function FormulationChoice({ study, options, projectId, run }: { study: string; 
 /** Step 2 · Inputs (redesign §3.2): one workspace in PK-Sim's building blocks. Values flow in from every source not
  *  excluded and the source-selection rule keeps one per input (D-32); the side list says what is still missing to run,
  *  and each item opens where it is settled. Nothing is accepted here: the one review is at the MAP signature (D-27). */
-export function InputsWorkspace({ projectId }: { projectId: string }) {
+export function InputsWorkspace({ projectId, initialTab = "compound" }: { projectId: string; initialTab?: Tab }) {
   const page = useResource("/api/v1/projects/{project_id}/inputs", { project_id: projectId }, { select: (d) => narrow<View>(d) });
   const client = useResource("/api/v1/projects/{project_id}/client-data", { project_id: projectId },
     { select: (d) => narrow<ClientView>(d), poll: (d) => d.running });
   const mutation = useMutation();
-  const [tab, setTab] = useState<Tab>("compound");
+  const [tab, setTab] = useState<Tab>(TABS.some(([id]) => id === initialTab) ? initialTab : "compound");
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const assembled = useRef(false);
   const view = page.data;
@@ -69,7 +70,9 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!stale || assembled.current) return;
     assembled.current = true;
-    void run(() => send("post", "/api/v1/projects/{project_id}/inputs:assemble", { project_id: projectId }), "");
+    // in the background: it reports only a problem, so it never wipes the message of what the person just did
+    void mutation.run(() => send("post", "/api/v1/projects/{project_id}/inputs:assemble", { project_id: projectId }))
+      .then(({ problem }) => { if (problem) setNotice({ ok: false, text: problem }); });
   }, [stale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (page.problem) return <div className="banner err">{page.problem}</div>;
@@ -84,6 +87,17 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
   const used = studies.filter((s) => !s.excluded);
   const formulations = view.compound.filter((r) => /^form\.[^.]+\.type$/.test(r.id) && r.state === "kept").map((r) => r.id.split(".")[1]);
 
+  // a published OSP model of the drug as a source (in place of the old Quick start): its values and datasets flow in,
+  // ranked below the client and the literature (D-32), and the person checks them at the review like any other
+  async function take(templateId: string) {
+    const { data, problem } = await mutation.run(() => send("post", "/api/v1/projects/{project_id}/evidence:published-model",
+                                                            { project_id: projectId }, { template_id: templateId }));
+    setNotice(problem ? { ok: false, text: problem } : data ? { ok: true, text:
+      `The published OSP ${data.model} model: ${data.values} values and ${data.datasets} datasets added`
+      + (data.already ? `, ${data.already} already here` : "") + (data.skipped.length ? `; ${data.skipped.length} not taken (not plasma data of the drug)` : "")
+      + ". They rank below the client's and the literature's values." } : null);
+  }
+
   function open(t: TodoItem) {
     setTab((t.tab ?? "compound") as Tab);
     window.setTimeout(() => document.getElementById(`todo-${t.kind}-${t.target}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
@@ -96,11 +110,19 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
       lede={<>Every value not excluded flows in; where sources give several, one is kept by source and grade and the others
         stay listed for the review. Values are never averaged. <span className="muted">({view.selection_rule})</span></>}
       actions={(
-        <button type="button" className="btn" data-testid="ask-literature"
-                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }),
-                                        "The literature agent is searching; its values flow into the rows.")}>
-          Ask the literature for what is missing
-        </button>
+        <>
+          {view.published_models.map((m) => (
+            <button key={m.id} type="button" className="btn" data-testid={`published-model-${m.id}`} title={m.name}
+                    onClick={() => void take(m.id)}>
+              Take the published OSP model&apos;s values
+            </button>
+          ))}
+          <button type="button" className="btn" data-testid="ask-literature"
+                  onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }),
+                                          "The literature agent is searching; its values flow into the rows.")}>
+            Ask the literature for what is missing
+          </button>
+        </>
       )}
       side={(
         <>
@@ -138,9 +160,8 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
             </SidePanel>
           )}
           <SidePanel title="Where values come from">
-            <p style={{ margin: 0, fontSize: 13 }}>The client&apos;s files, the literature agent, PubChem and the published OSP model.
-              The <Link href={`/projects/${projectId}/evidence`}>Literature</Link> and <Link href={`/projects/${projectId}/client-data`}>Client
-              data</Link> pages stay open until they are retired.</p>
+            <p style={{ margin: 0, fontSize: 13 }}>The client&apos;s files and figures (Studies), the literature agent, PubChem and the
+              published OSP model of the drug. Where several give a value, the client&apos;s comes first, then the literature by grade.</p>
           </SidePanel>
         </>
       )}
@@ -151,7 +172,8 @@ export function InputsWorkspace({ projectId }: { projectId: string }) {
 
       {tab === "compound" && (
         <TabPanel prefix="inputs" id="compound"><InputRows rows={rows("compound")} todo={forTab("compound")} projectId={projectId} run={run}
-                   empty="The compound's values appear here as the client's files, the literature and PubChem fill them." /></TabPanel>
+                   empty="The compound's values appear here as the client's files, the literature and PubChem fill them." />
+          <AccessRequests projectId={projectId} run={run} /></TabPanel>
       )}
 
       {tab === "formulations" && (

@@ -1,9 +1,10 @@
 """P2 literature evidence (plan §5.2, review layer L2a; T-44).
 
 `POST /evidence:research` runs agent A2 in the background on the data plan's literature items (and the client items
-flagged for a cross-check). A person can also propose a value by hand (the manual path, same checks and grade). Each
-proposal is accepted or rejected with a reason; the phase closes when every required literature item has accepted
-evidence or is recorded as not available, and the register snapshot is approved (named approval, D-07).
+flagged for a cross-check). A person can also propose a value by hand (the manual path, same checks and grade), or take
+the published OSP model of the drug as a source. Every value not excluded flows into the inputs (D-27); a person keeps
+one of conflicting values, checks a held one, or excludes one with a reason. Nothing is approved here: the one review is
+at the MAP signature.
 """
 
 from __future__ import annotations
@@ -14,9 +15,11 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from modeler_api import agent_jobs, jobs
+from modeler_api.config import SettingsDep
 from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
+from modeler_api.reference_models import TEMPLATES, model_name, snapshot
 from modeler_api.responses import answers, envelope
-from modeler_api.views.evidence import EvidenceChoice, EvidenceCorrection, EvidencePage, ResearchStart
+from modeler_api.views.evidence import EvidenceChoice, EvidenceCorrection, EvidencePage, PublishedModelTaken, ResearchStart
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
@@ -37,7 +40,6 @@ from modeler_project.evidence_register import (
     access_requests,
     blocking,
     choose,
-    close_register,
     correct,
     coverage,
     decide,
@@ -46,6 +48,7 @@ from modeler_project.evidence_register import (
     propose,
 )
 from modeler_project.inputs import refresh_inputs
+from modeler_project.published_model import propose_published_model
 from modeler_project.requirements import RequirementMatrix, literature_items
 
 router = APIRouter(prefix="/api/v1", tags=["evidence"])
@@ -127,6 +130,35 @@ def start_research(project_id: str, principal: Writer, store: StoreDep, agent: L
     jobs.start(store, principal.tenant_id, project_id, "research", job, busy="a literature run is already in progress",
                name=f"research-{project_id}")
     return envelope({"started": True, "provider": model.provider, "model": model.model})
+
+
+class PublishedModelRequest(BaseModel):
+    template_id: str = Field(min_length=1)
+
+
+@router.post("/projects/{project_id}/evidence:published-model", **answers(PublishedModelTaken))
+def take_published_model(project_id: str, body: PublishedModelRequest, principal: Writer, store: StoreDep,
+                         settings: SettingsDep) -> dict[str, Any]:
+    """A published OSP model of the project's drug as a source (redesign §5, in place of the Quick start wizard): its
+    values are proposed citing the model and its clinical datasets citing their publications; they flow in like any
+    other source and rank below the client and the literature (D-32). A model of another drug is refused."""
+    ws = workspace_for(project_id, principal, store)
+    spec = TEMPLATES.get(body.template_id)
+    if spec is None or "snapshot" not in spec:
+        raise HTTPException(status_code=404, detail=f"no published model {body.template_id}")
+    drug, model = _drug(ws), model_name(spec)
+    if model.casefold() != drug.strip().casefold():
+        raise HTTPException(status_code=422, detail=f"the published model is of {model}; this project's drug is {drug}")
+    try:
+        taken = propose_published_model(ws, snapshot(spec, settings), model=model, actor=principal.user_id,
+                                        url=_MODEL_URL.format(model=model), mol_weight=_mol_weight(ws))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
+    return envelope({"template_id": body.template_id, "model": model, "values": taken.values, "datasets": taken.datasets,
+                     "already": taken.already, "skipped": taken.skipped})
 
 
 class ManualEvidence(BaseModel):
@@ -245,22 +277,6 @@ def correct_evidence(project_id: str, evidence_id: str, body: CorrectionRequest,
     return envelope({"corrected": _evidence_view(corrected), **_view(ws)})
 
 
-class CloseRequest(BaseModel):
-    note: str = ""
-
-
-@router.post("/projects/{project_id}/evidence:approve", **answers(EvidencePage))
-def approve_evidence(project_id: str, body: CloseRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    ws = workspace_for(project_id, principal, store)
-    matrix_version, matrix = _matrix(ws)
-    try:
-        close_register(ws, matrix_version.ref, matrix, by=principal.user_id, note=body.note,
-                       printed_name=principal.printed_name)
-    except (EvidenceError, ValueError) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return envelope(_view(ws))
-
-
 @router.post("/projects/{project_id}/access-requests/{request_id}:fulfil", **answers(EvidencePage))
 async def fulfil_request(project_id: str, request_id: str, principal: Writer, store: StoreDep,
                          file: Annotated[UploadFile, File()], note: Annotated[str, Form()] = "") -> dict[str, Any]:
@@ -294,6 +310,15 @@ class DatasetBody(BaseModel):
     note: str = ""
     # D-29: demographics in `study`, or the explicit choice of the healthy adult default
     demographics_choice: Literal["entered", "healthy_adult_default"] | None = None
+
+
+# the OSP library's repository of each published model (`Open-Systems-Pharmacology/<Drug>-Model`)
+_MODEL_URL = "https://github.com/Open-Systems-Pharmacology/{model}-Model"
+
+
+def _drug(ws: Workspace) -> str:
+    brief = ws.latest(ArtifactKind.BRIEF, "main")
+    return ProjectBrief.from_content(brief.content).drug_name if brief else ""
 
 
 def _mol_weight(ws: Workspace) -> float | None:

@@ -39,3 +39,8 @@
   .input-head { grid-template-columns: 1fr 1fr; }
   .input-state { text-align: left; }
 }
+.observed { margin-top: 18px; }
+.observed > .spread h3 { margin: 0; }
+.observed .card { margin: 10px 0; }
+.access-requests { margin: 0; padding-left: 18px; font-size: 13.5px; }
+.access-requests li { margin: 4px 0; }

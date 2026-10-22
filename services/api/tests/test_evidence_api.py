@@ -56,9 +56,7 @@ def test_manual_evidence_needs_a_source_and_is_graded(setup):
     view = c.post(f"/api/v1/projects/p1/evidence/{item['id']}:decide", headers=H,
                   json={"state": "ACCEPTED", "reason": "FDA review table 3"}).json()["data"]
     fu = next(r for r in view["coverage"] if r["req_id"] == "REQ-bind.fu")
-    assert fu["status"] == "ACCEPTED" and "REQ-phys.logp" in view["blocking"]
-    gate = c.post("/api/v1/projects/p1/evidence:approve", headers=H, json={})
-    assert gate.status_code == 409 and "still open" in gate.json()["detail"]
+    assert fu["status"] == "ACCEPTED" and "REQ-phys.logp" in view["blocking"]   # what the literature still owes, shown
 
 
 def test_research_job_runs_a2_and_records_the_run(setup):
@@ -153,6 +151,4 @@ def test_research_start_paper_fulfilment_and_the_closed_register_answer_through_
                    for i in literature_items(matrix))
     ws.commit(ArtifactKind.REQUIREMENTS, "main", derive(empty_brief("Exampleamide", by="u1"), waived).to_content(),
               derived_from=[ws.latest(ArtifactKind.BRIEF, "main").ref], actor="u1", reason="every literature item waived")
-    closed = c.post("/api/v1/projects/p1/evidence:approve", headers=H, json={"note": "nothing to find"})
-    assert closed.status_code == 200, closed.text
-    assert closed.json()["data"]["register"]["status"] == "APPROVED"
+    assert c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["blocking"] == []   # nothing left to find

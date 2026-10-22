@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from modeler_api.views.common import Number, StoredContent, VersionView, View
+from modeler_api.views.common import Number, VersionView, View
 
 InputsTab = Literal["compound", "formulations", "individuals", "settings", "studies"]
 
@@ -80,18 +80,25 @@ class CpfVersion(VersionView):
     assembly: dict[str, Any]
 
 
+class PublishedModel(View):
+    """A published OSP model of the project's drug, which the Inputs step can take as a source."""
+
+    id: str
+    name: str
+
+
 class InputsPage(View):
     cpf: CpfVersion | None
     records: list[dict[str, Any]]          # each CPF parameter record, with its block, placement and binding candidates
     catalog: VersionView | None            # the study catalog, external values withheld until the MAP is signed (D-15)
     readiness: VersionView | None
     choices: dict[str, Any]                # modeler_project.inputs.InputChoices
-    published: StoredContent | None        # the hand-off record to the campaign path
     todo: list[dict[str, Any]]             # what stands between the inputs and readiness, by kind and tab (inputs.todo)
     compound: list[CompoundRow]            # every model input on its tab
     studies: list[InputStudyRow]
     study_options: dict[str, list[str]]    # route, formulation, food state, purpose, sex, PK-Sim population (harvested)
     selection_rule: str                    # the source-selection rule that picked the values (D-32), with its status
+    published_models: list[PublishedModel]  # the published OSP models of the drug, a source like any other
 
 
 class IdentityProposal(InputsPage):
