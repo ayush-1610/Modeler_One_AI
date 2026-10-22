@@ -45,6 +45,13 @@ PQ; until now the pack had only OQ, and its IQ and PQ sections said "pending Hel
 - **Not done:** the URS (`docs/validation/requirements.yaml`) still has 11 requirements; extending it to Part 11
   records, step-up signatures, members, backups and blinding needs the owner's approval (a locked file, QA review).
 - **Impact:** no science change. The API contract gains `CampaignRecord.deployment` (OpenAPI and web types regenerated).
+### Fixed — Next.js 16.4.0 → 16.4.2: three security advisories, one critical (web only)
+`npm audit` reports Next.js 16.0.0–16.4.0 as critical: unauthenticated remote code execution in the Image Optimization
+API when SVG files are used (GHSA-2464-fhr4-w9xw), remote code execution in `use cache` functions that return typed
+arrays (GHSA-673q-mjm6-r5xr), and a denial of service in the App Router through Server Actions (GHSA-p3m5-59mp-jv5r).
+Next's own build now stops on 16.4.0, so `npm run build` failed. `apps/web` moves to the patch release 16.4.2
+(2026-10-15; `package.json` floor `^16.4.2`, so a fresh install cannot fall back), with only Next's own packages
+changing in the lock file. `npm audit`: 0 vulnerabilities. No code change, no new dependency.
 
 ### Verified on PK-Sim — T-56, Dapagliflozin from a mock proposal to a traced package (2026-10-22; records only)
 - **The owner ran the T-56 kit on the server's PK-Sim** after R5 (`deploy/proof/run_t56.py` prepare → accept → the MAP
