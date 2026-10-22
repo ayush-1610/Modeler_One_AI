@@ -21,7 +21,8 @@ a person's act in the web app (step-up), never a script's.
 **trace** (the T-56 acceptance, "a reviewer can trace every number in the MAR to its source"): every parameter of the
 campaign's final CPF to its evidence item and source or to the fit that produced it, every judged study to its dataset
 and publication, every number in the MAR's evidence index to its source; any broken link is listed and the exit
-code is 1.
+code is 1. It also writes ``pq.json``, the Performance Qualification record the validation pack renders (`pq_record`):
+PQ passes only on a production (Part 11) run on PK-Sim whose package reproduces, within the 1-hour goal.
 
 Honest limits, stated in the report: the inputs are the published model's values (a "literature" proof, not an A2 search;
 A2 runs only with a provider key); the "client" fed study is published data in the client template; no measured
@@ -348,6 +349,26 @@ def trace(api: Api, pid: str, campaign_id: str) -> tuple[str, list[str]]:
     return "\n".join(lines) + "\n", broken
 
 
+def pq_record(api: Api, campaign_id: str, broken: list[str]) -> dict[str, Any]:
+    """The Performance Qualification record of this proof campaign (``pq/1``, judged by
+    `pbpk_domain.report.validation_pack.pq_checks`): what ran it, where, how long, and whether its package holds."""
+    from datetime import UTC, datetime
+
+    from pbpk_domain.report.validation_pack import pq_checks
+
+    campaign = api.get(f"/api/v1/campaigns/{campaign_id}", "campaign")
+    package = campaign.get("package") or {}
+    facts = {"engine_kind": (campaign.get("engine") or {}).get("kind"), "deployment": campaign.get("deployment"),
+             "status": campaign.get("status"), "package": bool(package),
+             "report_issues": len(package.get("report_issues", [])) if package else None,
+             "reproduction": bool((package.get("reproduction") or {}).get("passes")), "broken": len(broken),
+             "elapsed_seconds": campaign.get("elapsedSeconds"),
+             "stages": [{"stage": s["stage"], "status": s["status"]} for s in campaign.get("stages", [])]}
+    return {"schema": "pq/1", "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "subject": f"T-56 campaign {campaign_id} ({campaign.get('compound', '')})", "facts": facts,
+            "checks": pq_checks(facts)}
+
+
 def mar_evidence_index(markdown: str) -> list[tuple[str, str, str]]:
     """(reference, value or title, source) of every row of the MAR's evidence index."""
     rows, inside = [], False
@@ -410,7 +431,12 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(30)
     report, broken = trace(api, args.project, args.campaign)
     (args.out / "trace.md").write_text(report, encoding="utf-8")
+    pq = pq_record(api, args.campaign, broken)
+    (args.out / "pq.json").write_text(json.dumps(pq, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(report)
+    for c in pq["checks"]:
+        print(f"{c['id']}  {c['result']:<11} {c['item']}: {c['found']}" + (f" ({c['note']})" if c["note"] else ""))
+    print(f"PQ record: {args.out / 'pq.json'} (the validation pack's --pq)")
     return 1 if broken else 0
 
 

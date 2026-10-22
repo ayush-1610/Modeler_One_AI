@@ -11,6 +11,7 @@
 #   postgres.sh restore-check   restore the latest dumps into scratch databases and compare them with the live ones
 #   postgres.sh env             the lines for ~/.modeler-secrets.env: Keycloak and the Part 11 records on PostgreSQL
 #   postgres.sh verify          the Part 11 copy against the file audit chains (python -m modeler_api.part11)
+#   postgres.sh applied         the server's version, then each applied migration and its sha256 (read by qualify.sh)
 #
 # Settings (environment, default in brackets): MODELER_POSTGRES_HOME [~/modeler-postgres], MODELER_POSTGRES_PORT
 # [5432], MODELER_BACKUP_DIR [~/modeler-backups] (better on another disk), MODELER_POSTGRES_BIN (an existing
@@ -200,6 +201,13 @@ cmd_verify() {
   cd "$REPO" && uv run --quiet python -m modeler_api.part11 verify
 }
 
+# For the Installation Qualification (deploy/server/qualify.py): the server version, then "name sha256" per migration.
+cmd_applied() {
+  running || die "not running: run 'postgres.sh start'"
+  sql -d modeler -c "SHOW server_version"
+  sql -d modeler -c "SELECT name || ' ' || sha256 FROM schema_migrations ORDER BY name"
+}
+
 BIN="$(pg_bin || true)"
 case "${1:-}" in
   install) cmd_install ;;
@@ -210,6 +218,7 @@ case "${1:-}" in
   backup) [ -n "$BIN" ] || { echo "postgres not installed: nothing to back up"; exit 0; }; cmd_backup ;;
   env) [ -n "$BIN" ] || die "not installed"; cmd_env ;;
   verify) cmd_verify ;;
+  applied) [ -n "$BIN" ] || die "not installed"; cmd_applied ;;
   restore-check) [ -n "$BIN" ] || { echo "postgres not installed: nothing to check"; exit 0; }; cmd_restore_check ;;
   *) sed -n '2,20p' "$0"; exit 2 ;;
 esac

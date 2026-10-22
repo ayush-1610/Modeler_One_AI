@@ -46,6 +46,17 @@ uv run python deploy/proof/run_t56.py trace --api http://localhost:8000 --token 
     --project <id> --campaign <cid>
 #   Writes trace.md: every CPF parameter → evidence → source; every judged study → dataset → publication; the
 #   campaign's parameter changes (ledger); the MAR's evidence index. Exit code 0 only when nothing is broken.
+#   Also writes pq.json, the Performance Qualification record: PQ passes only on a production (Part 11) run on
+#   PK-Sim whose package reproduces, every number traced, within the 1-hour goal (a pilot run is recorded as FAIL).
+```
+
+**The validation pack** (IQ, OQ, PQ). On the server, `bash deploy/server/qualify.sh iq` records the installation
+(`~/modeler-data/qualification/iq-<time>.json`). With CI's trace matrix and JUnit report (the `validation-pack`
+artifact), render the pack:
+
+```bash
+uv run python -m pbpk_domain.report.validation_pack --trace-matrix trace_matrix.json --junit junit.xml \
+    --iq ~/modeler-data/qualification/iq-<time>.json --pq ~/modeler-data/t56/pq.json --out validation-pack.md
 ```
 
 ## What it shows, and what it does not

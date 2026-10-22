@@ -141,6 +141,7 @@ class CampaignRecord(Record):
     prediction: dict[str, Any] | None = None
     package: dict[str, Any] | None = None
     engine: EngineIdentity | None = None
+    deployment: str | None = None             # where it ran (development | pilot | production): only production signs Part 11
     observedOrigins: dict[str, str | None] = Field(default_factory=dict)
     realData: dict[str, RealDataSummary] = Field(default_factory=dict)
     ledger: dict[str, Any] | None = None
