@@ -15,6 +15,14 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — Next.js 16.4.0 → 16.4.2: three security advisories, one critical (web only)
+`npm audit` reports Next.js 16.0.0–16.4.0 as critical: unauthenticated remote code execution in the Image Optimization
+API when SVG files are used (GHSA-2464-fhr4-w9xw), remote code execution in `use cache` functions that return typed
+arrays (GHSA-673q-mjm6-r5xr), and a denial of service in the App Router through Server Actions (GHSA-p3m5-59mp-jv5r).
+Next's own build now stops on 16.4.0, so `npm run build` failed. `apps/web` moves to the patch release 16.4.2
+(2026-10-15; `package.json` floor `^16.4.2`, so a fresh install cannot fall back), with only Next's own packages
+changing in the lock file. `npm audit`: 0 vulnerabilities. No code change, no new dependency.
+
 ### Changed (science) — the diagnosis may fit MS-01's candidates within MS-01's default bounds (D-37; UNVERIFIED)
 The owner's decision of 2026-10-20 ("yes, after T-56"); T-56 ran on PK-Sim on 2026-10-22. Redesign §2 D-37.
 - **Before:** S1–S3 fitted only what a person freed on Review & sign. The diagnosis named its candidates per stage, but
