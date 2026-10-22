@@ -35,7 +35,8 @@ PQ; until now the pack had only OQ, and its IQ and PQ sections said "pending Hel
 - **PQ: `run_t56.py trace` also writes `pq.json`**, judged by `validation_pack.pq_checks`: real PK-Sim; a production
   run (every signature Part 11); the package built; every number traced; no MAR issue; the reproduction passed; within
   the 1-hour goal. The stages' outcomes are recorded, not judged: a model can fail validation while the system works.
-  So the T-56 run of 2026-10-22, on the pilot, records as a PQ **FAIL** on its deployment, as it should.
+  The T-56 campaign of 2026-10-22 predates the deployment record, so its PQ is **incomplete** (PQ-02 not checked); a
+  new run on the pilot records PQ-02 as a FAIL, as it should.
 - **A campaign records the deployment it ran under** (`CampaignRecord.deployment`: development, pilot or production;
   "pilot, then production" if it was resumed elsewhere), so PQ never takes the deployment from the day of the trace.
   Campaigns run before this have none, and PQ says "not checked".
