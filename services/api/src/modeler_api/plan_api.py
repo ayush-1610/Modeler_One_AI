@@ -45,10 +45,12 @@ from modeler_project.plan import (
     current,
     decide_proposal,
     diff,
+    hold_fixed,
     keep_locked,
     map_from_plan,
     place,
     rebase,
+    release,
     save,
     set_fit,
     set_structure,
@@ -234,7 +236,7 @@ def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
                  "justification": brief.value("m15.risk_justification") if brief else None},
         "budget_seconds": structure.campaign_budget_seconds,
         "stages": review.stage_budgets(plan, doc),
-        "limitations": review.limitations(plan, violations),
+        "limitations": review.limitations(plan, cpf, violations),
         "estimation": review.estimation_rows(plan, cpf, table),
         "bounds_rule": review.bounds_rule_view(),
         "validation": review.validation_plan(doc, studies),
@@ -329,9 +331,27 @@ class ReasonRequest(BaseModel):
 
 @router.post("/projects/{project_id}/plan/fits/{parameter}:remove", **answers(PlanPage))
 def remove_fit(project_id: str, parameter: str, body: ReasonRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """The person's fit taken back: the parameter is fixed again, or an MS-01 candidate within MS-01's default (D-37)."""
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal, lambda p: set_fit(p, parameter, None, by=principal.user_id, reason=body.reason),
-                   f"{parameter} fixed again: {body.reason}", deviation=("fit removed", parameter, "fixed again"))
+                   f"{parameter}: the fit set by a person removed: {body.reason}",
+                   deviation=("fit removed", parameter, "fixed, or within MS-01's default if it is a candidate"))
+
+
+@router.post("/projects/{project_id}/plan/fits/{parameter}:hold", **answers(PlanPage))
+def hold_fit(project_id: str, parameter: str, body: ReasonRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """An MS-01 candidate kept fixed: the diagnosis does not fit it within MS-01's default (D-37)."""
+    ws = workspace_for(project_id, principal, store)
+    return _change(ws, principal, lambda p: hold_fixed(p, parameter, by=principal.user_id, reason=body.reason),
+                   f"{parameter} held fixed: {body.reason}", deviation=("fit held", parameter, "held fixed"))
+
+
+@router.post("/projects/{project_id}/plan/fits/{parameter}:release", **answers(PlanPage))
+def release_fit(project_id: str, parameter: str, body: ReasonRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """A held candidate back to MS-01's default: the diagnosis may fit it again (D-37)."""
+    ws = workspace_for(project_id, principal, store)
+    return _change(ws, principal, lambda p: release(p, parameter), f"{parameter} back to MS-01's default: {body.reason}",
+                   deviation=("fit released", parameter, "within MS-01's default"))
 
 
 class StructureRequest(BaseModel):

@@ -11,17 +11,30 @@ from modeler_project.plan import (
     add_proposal,
     blocking,
     build_default,
+    campaign_cpf,
     decide_proposal,
+    default_fit_limitation,
     default_map,
     diff,
+    hold_fixed,
     map_from_plan,
     place,
     rebase,
+    release,
     set_fit,
     unlock,
     validate,
 )
-from pbpk_domain.cpf.models import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
+from pbpk_domain.cpf.models import (
+    CPF,
+    EngineBinding,
+    FitPolicy,
+    ParameterRecord,
+    ParameterStatus,
+    Plausibility,
+    Provenance,
+    Scale,
+)
 
 pytestmark = pytest.mark.req("T-50")
 PROV = Provenance(source_type="Publication", reference="review")
@@ -51,15 +64,59 @@ ROWS = [_row("iv-1", "iv_infusion", 250), _row("iv-2", "iv_infusion", 500), _row
         _row("po-100", dose=100), _row("po-100b", dose=100), _row("fed-50", food="fed", dose=50), _row("fed-100", food="fed", dose=100)]
 
 
-def test_the_default_plan_is_ms01_and_its_map_equals_generate_map():
+def test_the_default_plan_is_ms01_and_its_map_equals_generate_map_on_its_campaign_cpf():
     cpf, structure = _cpf(), Structure(model_risk="medium")
     plan = build_default(cpf, ROWS, structure)
     roles = {s: p.role for s, p in plan.placements.items()}
     assert roles["iv-1"] == "S1" and roles["iv-2"] == "S5" and roles["po-10"] == "S2" and roles["po-100"] in ("S2", "S5")
     assert sum(r == "S3" for r in roles.values()) == 1 and plan.fit_candidates["S1"] and plan.budgets["S1"] == 5760 and plan.budgets["SJ"] == 4320  # 20 % and 15 % of 8 h
     assert not blocking(validate(plan, cpf, ROWS))
-    expected, _ = default_map(cpf, ROWS, structure)
-    assert map_from_plan(plan, cpf, ROWS).content_sha256() == expected.content_sha256()
+    # the campaign CPF bounds MS-01's candidates by MS-01's defaults (D-37), and the MAP says so in its limitations
+    expected, _ = default_map(campaign_cpf(plan, cpf), ROWS, structure)
+    doc = map_from_plan(plan, cpf, ROWS)
+    assert doc.split_limitations == (*expected.split_limitations, *default_fit_limitation(plan, cpf))
+    assert doc.model_copy(update={"split_limitations": expected.split_limitations}).content_sha256() == expected.content_sha256()
+
+
+def test_ms01_candidates_are_fitted_within_ms01_defaults_unless_a_person_holds_them_fixed():
+    """D-37: every MS-01 fit candidate a person neither estimates nor holds fixed gets MS-01 §2.2's default bounds and
+    scale as its fit policy at the stages it is a candidate at, so the diagnosis may fit it there."""
+    cpf, structure = _cpf(), Structure(model_risk="medium")
+    plan = build_default(cpf, ROWS, structure)
+    run = campaign_cpf(plan, cpf)
+    assert run.get("phys.logp").fit_policy == FitPolicy(stage=("S1",), lower=-3.06, upper=-0.06, scale=Scale.LINEAR)  # ±1.5
+    assert run.get("phys.solubility.ref").fit_policy == FitPolicy(stage=("S2",), lower=1.3, upper=130, scale=Scale.LOG)
+    assert run.get("bind.fu").fit_policy is None        # a measured fu: MS-01 §2.2 keeps it fixed
+    assert run.get("phys.mw").fit_policy is None        # not a candidate
+    doc = map_from_plan(plan, cpf, ROWS)
+    logp = next(p for p in doc.cpf_parameters if p.id == "phys.logp")
+    assert logp.fittable_stages == ("S1",) and logp.bounds is not None and logp.bounds.lower == -3.06
+    assert any("D-37" in line and "phys.logp in S1 [-3.06, -0.06] linear" in line and "UNVERIFIED" in line
+               for line in doc.split_limitations)
+    # held fixed: no fit policy; the diff and the MAP's rationale say who and why
+    held = hold_fixed(plan, "phys.logp", by="u", reason="logP measured twice; keep it")
+    assert campaign_cpf(held, cpf).get("phys.logp").fit_policy is None
+    assert {"kind": "fit", "target": "phys.logp", "from": "MS-01 default", "to": "held fixed", "by": "u",
+            "reason": "logP measured twice; keep it", "status": "APPLIED"} in diff(held)
+    assert any("Plan change: phys.logp MS-01 default → held fixed by u" in r for r in map_from_plan(held, cpf, ROWS).split_rationale)
+    with pytest.raises(PlanError, match="not an MS-01 fit candidate"):
+        hold_fixed(plan, "phys.mw", by="u", reason="x")
+    assert release(held, "phys.logp").held_fixed == {}
+    # the hold survives a rebase while it is still a candidate
+    assert set(rebase(held, build_default(cpf, ROWS, structure)).held_fixed) == {"phys.logp"}
+    # a person's fit replaces the hold; taking the fit back leaves MS-01's default again
+    fitted = set_fit(held, "phys.logp", {"stages": ("S1",), "lower": -2.5, "upper": -0.5, "scale": "linear"}, by="u",
+                     reason="narrower than MS-01")
+    assert not fitted.held_fixed and campaign_cpf(fitted, cpf).get("phys.logp").fit_policy.lower == -2.5
+    unfitted = set_fit(fitted, "phys.logp", None, by="u", reason="back")
+    assert campaign_cpf(unfitted, cpf).get("phys.logp").fit_policy.lower == -3.06
+    # holding a candidate with a person's fit removes that fit
+    assert "phys.logp" not in hold_fixed(fitted, "phys.logp", by="u", reason="fixed after all").fits
+    # a candidate the CPF already bounds keeps its own range
+    bounded = cpf.model_copy(update={"parameters": tuple(
+        r.model_copy(update={"plausibility": Plausibility(lower=-2, upper=0, source="SME")}) if r.id == "phys.logp" else r
+        for r in cpf.parameters)})
+    assert campaign_cpf(plan, bounded).get("phys.logp").fit_policy is None
 
 
 def test_every_ms01_rule_is_enforced_on_the_canvas():

@@ -421,6 +421,44 @@ def test_the_review_shows_the_estimation_plan_the_validation_plan_and_the_tiers_
     assert {d["target"]: d["to"] for d in budget.json()["data"]["diff"]}["campaign_budget_seconds"] == "36000"
 
 
+def test_ms01_candidates_are_fitted_within_ms01_defaults_and_a_person_can_hold_one_fixed(setup):
+    """D-37: the review says which MS-01 candidates the diagnosis may fit within MS-01 §2.2's defaults; holding one fixed
+    and letting it go again are plan changes with a reason; the staged campaign CPF and the signed MAP carry the
+    defaults as fit policies."""
+    c, _ws, _root = setup
+    view = c.get("/api/v1/projects/p1/plan", headers=H).json()["data"]
+    for v in [v for v in view["violations"] if v["severity"] == "warning" and not v["acknowledged"]]:
+        c.post(f"/api/v1/projects/p1/plan/violations/{v['id']}:acknowledge", headers=H, json={"reason": "accepted limitation"})
+    review = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]
+    estimation = {r["id"]: r for r in review["estimation"]}
+    logp = estimation["phys.logp"]
+    assert logp["diagnosis_may_fit"] == {"stages": ["S1"], "lower": logp["proposal"]["lower"],
+                                         "upper": logp["proposal"]["upper"], "scale": "linear"} and logp["held_fixed"] is None
+    assert estimation["bind.fu"]["diagnosis_may_fit"] is None                  # a measured fu stays fixed (MS-01 §2.2)
+    assert any("D-37" in line and "phys.logp in S1" in line for line in review["limitations"])
+
+    assert c.post("/api/v1/projects/p1/plan/fits/phys.mw:hold", headers=H, json={"reason": "x"}).status_code == 422
+    held = c.post("/api/v1/projects/p1/plan/fits/phys.logp:hold", headers=H, json={"reason": "logP is measured; keep it"})
+    assert held.status_code == 200, held.text
+    assert held.json()["data"]["plan"]["held_fixed"]["phys.logp"]["reason"] == "logP is measured; keep it"
+    row = next(r for r in c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]["estimation"] if r["id"] == "phys.logp")
+    assert row["diagnosis_may_fit"] is None and row["held_fixed"]["by"]
+    released = c.post("/api/v1/projects/p1/plan/fits/phys.logp:release", headers=H, json={"reason": "let the diagnosis decide"})
+    assert released.status_code == 200 and released.json()["data"]["plan"]["held_fixed"] == {}
+    assert c.post("/api/v1/projects/p1/plan/fits/phys.logp:release", headers=H, json={"reason": "x"}).status_code == 422
+
+    ROLES["value"] = ["modeler-curator", "modeler-reviewer"]
+    signed = c.post("/api/v1/projects/p1/plan:sign", headers=H, json={"note": "plan reviewed"})
+    assert signed.status_code == 200, signed.text
+    campaign = signed.json()["data"]["map"]["campaign"]
+    map_doc = json.loads(Path(unquote(urlparse(campaign["map_uri"]).path)).read_text())
+    staged = json.loads(Path(unquote(urlparse(campaign["cpf_uri"]).path)).read_text())
+    policy = next(r for r in staged["parameters"] if r["id"] == "phys.logp")["fit_policy"]
+    mapped = next(p for p in map_doc["cpf_parameters"] if p["id"] == "phys.logp")
+    assert policy["stage"] == ["S1"] and policy["lower"] == logp["proposal"]["lower"] and policy["scale"] == "linear"
+    assert mapped["fittable_stages"] == ["S1"] and mapped["bounds"]["lower"] == logp["proposal"]["lower"]
+
+
 def test_the_review_shows_each_application_its_inputs_and_what_is_still_missing(setup):
     """R4c: the VBE application's inputs are set on Review & sign through the structure route, with a reason; the review
     shows the template's inputs, the values and what the validator still says."""

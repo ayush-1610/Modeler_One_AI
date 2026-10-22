@@ -3,7 +3,8 @@
 // The estimation plan (redesign §3.3, map rows p5-fit and m-bounds; D-34): every numeric parameter, fixed or estimated,
 // with its start value and source, the stages MS-01 lets it be fitted at, the bounds MS-01 §2.2 proposes (a provisional
 // data rule, UNVERIFIED until the SME signs) and what the validator says of a fit's bounds. Estimating a parameter is the
-// person's choice, with a reason; the proposal only fills the form.
+// person's choice, with a reason; the proposal only fills the form. Every other MS-01 candidate may be fitted by the
+// diagnosis within MS-01's own default unless the person keeps it fixed, with a reason (D-37).
 
 import { Fragment, useState } from "react";
 
@@ -14,11 +15,12 @@ import type { ReviewPage } from "@/lib/review";
 
 type Row = Schema<"EstimationRow">;
 type Apply = <T>(call: () => Promise<Envelope<T>>, ok?: string) => Promise<string | null>;
-type Filter = "all" | "estimated" | "candidates" | "flagged";
+type Filter = "all" | "estimated" | "diagnosis" | "candidates" | "flagged";
 
 const FILTERS: { id: Filter; label: string; keep: (r: Row) => boolean }[] = [
   { id: "all", label: "All", keep: () => true },
   { id: "estimated", label: "Estimated", keep: (r) => r.estimated !== null },
+  { id: "diagnosis", label: "The diagnosis may fit", keep: (r) => r.diagnosis_may_fit !== null },
   { id: "candidates", label: "MS-01 candidates", keep: (r) => r.candidate_at.length > 0 },
   { id: "flagged", label: "Flagged", keep: (r) => r.findings.length > 0 },
 ];
@@ -86,15 +88,18 @@ function EstimateForm({ row, onSave, onClose }: {
   );
 }
 
-function FixAgain({ row, onFix }: { row: Row; onFix: (reason: string) => Promise<string | null> }) {
+/** A change that needs a reason: one link opens the reason and its button. */
+function WithReason({ testId, label, ask, button, onDo }: {
+  testId: string; label: string; ask: string; button: string; onDo: (reason: string) => Promise<string | null>;
+}) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
-  if (!open) return <button type="button" className="link-btn" onClick={() => setOpen(true)} data-testid={`fix-${row.id}`}>Fix it</button>;
+  if (!open) return <button type="button" className="link-btn" onClick={() => setOpen(true)} data-testid={testId}>{label}</button>;
   return (
     <span className="review-exclude">
-      <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why fix it (required)" aria-label={`why fix ${row.id}`} />
-      <button type="button" className="btn tiny" disabled={!reason.trim()} onClick={async () => { if (!(await onFix(reason.trim()))) setOpen(false); }}>
-        Fix</button>
+      <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={`${ask} (required)`} aria-label={ask} />
+      <button type="button" className="btn tiny" disabled={!reason.trim()} onClick={async () => { if (!(await onDo(reason.trim()))) setOpen(false); }}>
+        {button}</button>
       <button type="button" className="btn tiny" onClick={() => setOpen(false)}>Cancel</button>
     </span>
   );
@@ -134,6 +139,13 @@ export function EstimationPlan({ projectId, review, apply }: { projectId: string
                       <span className="chip brand">estimated in {r.estimated.stages.join(", ")}</span>
                       <div className="review-note">{bounds(r.estimated.lower, r.estimated.upper, r.estimated.scale)}</div>
                       <div className="muted review-note">{r.estimated.reason}</div>
+                    </> : r.diagnosis_may_fit ? <>
+                      <span className="chip brand" data-testid={`diagnosis-may-fit-${r.id}`}>the diagnosis may fit it in {r.diagnosis_may_fit.stages.join(", ")}</span>
+                      <div className="review-note">{bounds(r.diagnosis_may_fit.lower, r.diagnosis_may_fit.upper, r.diagnosis_may_fit.scale)}</div>
+                      <div className="muted review-note">MS-01&apos;s default (D-37)</div>
+                    </> : r.held_fixed ? <>
+                      <span className="chip neutral" data-testid={`held-fixed-${r.id}`}>held fixed</span>
+                      <div className="muted review-note">{r.held_fixed.reason}</div>
                     </> : <span className="chip neutral">fixed</span>}
                     {r.findings.map((f) => (
                       <div key={f.rule} className={f.severity === "error" ? "review-flag error" : "review-flag"} data-testid={`finding-${r.id}-${f.rule}`}>
@@ -151,8 +163,18 @@ export function EstimationPlan({ projectId, review, apply }: { projectId: string
                       <button type="button" className="link-btn" onClick={() => setEditing(r.id)} data-testid={`estimate-${r.id}`}>
                         {r.estimated ? "Change" : "Estimate"}</button>
                     )}
-                    {r.estimated && editing !== r.id && (
-                      <> · <FixAgain row={r} onFix={(reason) => apply(() => planApi.unfit(projectId, r.id, reason), `${r.id} fixed again.`)} /></>
+                    {editing !== r.id && (r.estimated || r.diagnosis_may_fit) && (
+                      // an MS-01 candidate is held fixed (else the diagnosis could fit it within MS-01's default); another
+                      // parameter only loses the person's fit
+                      <> · <WithReason testId={`fix-${r.id}`} label={r.estimated ? "Fix it" : "Keep fixed"} ask={`why keep ${r.id} fixed`}
+                                       button="Fix"
+                                       onDo={(reason) => apply(() => r.candidate_at.length ? planApi.hold(projectId, r.id, reason)
+                                         : planApi.unfit(projectId, r.id, reason), `${r.id} fixed.`)} /></>
+                    )}
+                    {editing !== r.id && r.held_fixed && (
+                      <> · <WithReason testId={`release-${r.id}`} label="Let the diagnosis fit it" ask={`why let the diagnosis fit ${r.id}`}
+                                       button="Let it" onDo={(reason) => apply(() => planApi.release(projectId, r.id, reason),
+                                         `The diagnosis may fit ${r.id} within MS-01's default.`)} /></>
                     )}
                   </td>
                 </tr>
@@ -171,7 +193,9 @@ export function EstimationPlan({ projectId, review, apply }: { projectId: string
       <p className="muted review-hint">Proposed bounds follow MS-01 §2.2&apos;s default bounds ({rule.source}, data rule v{rule.version},{" "}
         {rule.status === "UNVERIFIED" ? "provisional until the SME signs" : rule.status}): relative ones around the start value,
         absolute ones only in MS-01&apos;s unit, each kept within the registry&apos;s physical bounds. The MAP may narrow them;
-        wider bounds are said and acknowledged. A parameter MS-01 gives no default for gets 0.1–10× its start value.</p>
+        wider bounds are said and acknowledged. A parameter MS-01 gives no default for gets 0.1–10× its start value.
+        An MS-01 candidate you neither estimate nor keep fixed may be fitted by the diagnosis at its stages, within MS-01&apos;s
+        own default (D-37); the signed MAP lists each one.</p>
     </div>
   );
 }

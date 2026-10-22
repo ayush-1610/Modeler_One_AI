@@ -8,7 +8,8 @@
   fractions; D-31: no per-stage overrides, more time is a larger budget signed again), and the limitations the MAP
   names (`plan.map_limitations`).
 - **The estimation plan (R4b):** every numeric parameter fixed or estimated, its source, its bounds, the bounds MS-01
-  §2.2 proposes (`estimation.proposed_bounds`, D-34) and what the validator says of them.
+  §2.2 proposes (`estimation.proposed_bounds`, D-34) and what the validator says of them; and each MS-01 candidate the
+  diagnosis may fit within MS-01's default, or that a person holds fixed (D-37).
 - **The validation plan (R4b):** what S4 and S5 judge under this MAP (`map.stage_coverage`), and what happens when
   validation fails (MS-01 §4, §6.6).
 - **The acceptance criteria (R4b):** the limits of the chosen tier, as the MAP records them (`MapAcceptance`), from
@@ -36,6 +37,8 @@ from modeler_project.plan import (
     Violation,
     application_label,
     campaign_cpf,
+    default_fit_limitation,
+    default_fits,
     default_map,
     map_limitations,
     plan_split,
@@ -122,8 +125,8 @@ def stage_budgets(plan: ModelPlan, doc: MapDocument) -> list[dict[str, Any]]:
              "max_rounds": s.max_rounds} for s in doc.stage_plan]
 
 
-def limitations(plan: ModelPlan, violations: list[Violation]) -> list[str]:
-    return list(map_limitations(plan, violations))
+def limitations(plan: ModelPlan, cpf: CPF, violations: list[Violation]) -> list[str]:
+    return [*map_limitations(plan, violations), *default_fit_limitation(plan, cpf)]
 
 
 # --- the estimation plan (R4b) ------------------------------------------------------------------------------------
@@ -142,9 +145,11 @@ def _source(row: dict[str, Any] | None, record: Any) -> tuple[str | None, str | 
 
 def estimation_rows(plan: ModelPlan, cpf: CPF, table: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Every numeric parameter of the CPF, fixed or estimated: its start value and source, the plan's fit (stages,
-    bounds, scale, who and why), the MS-01 stages it is a candidate at, the bounds MS-01 §2.2 proposes and what the
-    validator says of the fit's bounds. The estimated first, then the MS-01 candidates, then the rest."""
+    bounds, scale, who and why), the MS-01 stages it is a candidate at, the default the diagnosis may fit it within
+    (D-37) or the person's reason to hold it fixed, the bounds MS-01 §2.2 proposes and what the validator says of the
+    fit's bounds. The estimated first, then those the diagnosis may fit, then the other candidates, then the rest."""
     by_id = {r["id"]: r for r in table}
+    defaults = default_fits(plan, cpf)
     candidates: dict[str, list[str]] = {}
     for stage, ids in plan.fit_candidates.items():
         for pid in ids:
@@ -154,6 +159,8 @@ def estimation_rows(plan: ModelPlan, cpf: CPF, table: list[dict[str, Any]]) -> l
         if record.status is ParameterStatus.MISSING or not isinstance(record.value, int | float) or isinstance(record.value, bool):
             continue
         fit = plan.fits.get(record.id)
+        default = defaults.get(record.id)
+        hold = plan.held_fixed.get(record.id)
         source, grade = _source(by_id.get(record.id), record)
         findings = fit_findings(record, fit.lower, fit.upper) if fit else []
         out.append({
@@ -162,10 +169,13 @@ def estimation_rows(plan: ModelPlan, cpf: CPF, table: list[dict[str, Any]]) -> l
             "estimated": ({"stages": list(fit.stages), "lower": fit.lower, "upper": fit.upper, "scale": fit.scale,
                            "by": fit.by, "reason": fit.reason} if fit else None),
             "candidate_at": sorted(candidates.get(record.id, [])),
+            "diagnosis_may_fit": ({"stages": list(default.stage), "lower": default.lower, "upper": default.upper,
+                                   "scale": default.scale.value} if default else None),
+            "held_fixed": {"by": hold.by, "reason": hold.reason} if hold else None,
             "proposal": proposed_bounds(record).to_content(),
             "findings": [{"severity": sev, "rule": rule, "message": message} for sev, rule, message in findings],
         })
-    return sorted(out, key=lambda r: (r["estimated"] is None, not r["candidate_at"], r["id"]))
+    return sorted(out, key=lambda r: (r["estimated"] is None, r["diagnosis_may_fit"] is None, not r["candidate_at"], r["id"]))
 
 
 def bounds_rule_view() -> dict[str, str]:
