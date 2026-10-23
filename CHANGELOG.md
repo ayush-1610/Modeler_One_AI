@@ -15,6 +15,20 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — two plans for the owner: parameter identification, and a page-by-page review (2026-10-23)
+- **`docs/plans/2026-10-23-parameter-identification-review.md`** answers the owner's question "are we fitting?".
+  - Parameter identification works on PK-Sim (the reference refits), but no fit has yet run in a T-56 campaign.
+  - Findings against PBPK practice:
+    - parallel hepatic pathways are fitted together from plasma data that cannot separate them;
+    - the identifiability checks (correlations, confidence intervals) are wired but never fed;
+    - the optimiser works on a linear scale over six decades;
+    - parameters are chosen by rule, not by sensitivity.
+  - A plan of steps PI-0 to PI-8 follows, each needing the owner's decision; the science steps also need the SME.
+- **`docs/plans/2026-10-23-page-by-page-review.md`** proposes how to review the 13 pages the owner exported: map
+  every element, the owner decides, one PR per page. It records a first pass of what the exports show, for example
+  the Run page saying "No observed data yet" during a campaign, and the inbox mixing test fixtures with real items.
+- **Impact:** none. Nothing is built until the owner decides.
+
 ### Docs — the URS covers every traced requirement: version 2, DRAFT for QA review (T-32; locked file)
 The owner approved drafting it on 2026-10-23 ("URS: yes, draft it"). `docs/validation/requirements.yaml` had 11
 requirements, while the tests traced 42 ids: the validation pack listed 31 of them with no requirement behind them.
