@@ -39,6 +39,28 @@ requirements, while the tests traced 42 ids: the validation pack listed 31 of th
 - **Still needed:** QA review of the draft; then its status is set and the version noted here.
 - **Impact:** no behaviour change. The locked-file hashes are refreshed for `requirements.yaml`.
 
+### Fixed — a campaign says whether it fitted, and why not (from the T-56 re-run of 2026-10-23)
+The owner's T-56 re-run on PK-Sim (`camp_5a30f5fda3c547f18b597d6e7a08040c`) escalated at S1 after 5 seconds and was
+stopped. Its S1 record showed only round 1 "baseline" and round 2 "branch dist.partition_method" (the IV Cmax 0.54×),
+with no word on why the next action of the distribution rule, "fit phys.logp", was never tried. The reasons went only
+to the API's log, at a level the server does not keep. So nothing on the record could tell a person whether parameter
+identification ran. Now the stage's notes say it:
+- **Which candidates the diagnosis could fit** at the stage, and which it could not (no fit bounds, or no such parameter
+  or engine path). A candidate missing its D-37 bounds is visible here (most likely this run: its plan was signed
+  before D-37 was deployed; to be confirmed on the server).
+- **Why a planned fit did not run:** no fittable parameter, no observed profile of the stage's studies, the fit not
+  specifiable, or no model file (`.pkml`) exported for it.
+- **What each parameter identification did:** its parameters, how many starts ran, the best objective, a bound reached
+  and how far the starts agree; or that no start gave an estimate.
+- **Why the stage escalated:** the causes found, the actions tried, and that no permitted action was left.
+- **The T-56 trace** (`run_t56.py trace`) lists each stage's outcome, rounds and notes, and counts the parameter
+  identifications run; `pq.json` lists them too.
+- **PQ-07 (the 1-hour goal)** is judged only on a campaign that reached its report; on one that stopped early it is
+  "not checked" (it read "pass, 0 min" for this run).
+- **The monitor's time budget** is the signed MAP's total (8 h by default), not a one-hour placeholder: the run already
+  followed the MAP's stage budgets (S1 96 min here); only the display was wrong.
+- **Impact:** no science change; what runs and how it is judged are unchanged. `RoundDiagnosis` gains `notes`.
+
 ### Added — validation pack V1: Installation and Performance Qualification (T-32)
 The one item buildable while the owner and the SME decide (the owner's plan, 2026-10-15). GAMP 5 asks for IQ, OQ and
 PQ; until now the pack had only OQ, and its IQ and PQ sections said "pending Helm/k3s", a deployment that does not exist.

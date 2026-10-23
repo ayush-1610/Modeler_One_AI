@@ -118,7 +118,8 @@ def pq_checks(facts: Mapping[str, Any]) -> list[dict[str, str]]:
               "passed" if facts.get("reproduction") else "not passed", package and bool(facts.get("reproduction"))),
         check("PQ-07", "Wall-clock time (simulations and parameter identification)", f"≤ {ONE_HOUR_S // 60} min",
               "unknown" if elapsed is None else f"{float(elapsed) / 60:.0f} min",
-              None if elapsed is None else float(elapsed) <= ONE_HOUR_S),
+              None if elapsed is None or not package else float(elapsed) <= ONE_HOUR_S,
+              "" if package else "the campaign did not reach its report: its time to a result is not known"),
         check("PQ-08", "Stage outcomes", "recorded", ", ".join(f"{s.get('stage')} {s.get('status')}" for s in stages) or "none",
               None if not stages else True),
     ]

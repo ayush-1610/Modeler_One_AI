@@ -325,6 +325,17 @@ def trace(api: Api, pid: str, campaign_id: str) -> tuple[str, list[str]]:
         if ds is None or not where:
             broken.append(f"study {sid}: {'no dataset in use' if ds is None else 'its dataset cites no source'}")
         lines.append(f"| `{sid}` | {origin} | {(ds or {}).get('id', '—')} | {where} {src.get('locator', '')} |")
+    lines += ["", "## Stages (outcome, rounds and notes)", ""]
+    for stage in campaign.get("stages", []):
+        if stage.get("status") == "PENDING" and not stage.get("rounds"):
+            continue
+        lines.append(f"- **{stage['stage']}** {stage.get('label', '')}: {stage.get('status')}")
+        for r in stage.get("rounds", []):
+            found = "; ".join((r.get("findings") or [])[:4])
+            lines.append(f"  - round {r['round']}: {r['action']} → {r['verdict']}" + (f" ({found})" if found else ""))
+        lines += [f"  - note: {n}" for n in stage.get("notes", [])]
+    fits = [n for st in campaign.get("stages", []) for n in st.get("notes", []) if n.startswith("Parameter identification")]
+    lines.append(f"\nParameter identifications run: {len(fits)}.")
     lines += ["", "## Changes during the campaign (ledger)", ""]
     for e in (campaign.get("ledger") or {}).get("entries", []):
         changed = ", ".join(f"{c['parameter']} {c.get('before')} → {c.get('after')}" for c in e.get("changes", []))
@@ -363,6 +374,8 @@ def pq_record(api: Api, campaign_id: str, broken: list[str]) -> dict[str, Any]:
              "report_issues": len(package.get("report_issues", [])) if package else None,
              "reproduction": bool((package.get("reproduction") or {}).get("passes")), "broken": len(broken),
              "elapsed_seconds": campaign.get("elapsedSeconds"),
+             "parameter_identifications": [n for st in campaign.get("stages", []) for n in st.get("notes", [])
+                                           if n.startswith("Parameter identification")],
              "stages": [{"stage": s["stage"], "status": s["status"]} for s in campaign.get("stages", [])]}
     return {"schema": "pq/1", "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "subject": f"T-56 campaign {campaign_id} ({campaign.get('compound', '')})", "facts": facts,

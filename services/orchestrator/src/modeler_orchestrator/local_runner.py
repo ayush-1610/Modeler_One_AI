@@ -1002,6 +1002,10 @@ class LocalExecutor:
             pkml = collect_pkml_inputs(manifest)
             if pkml:
                 fit_outcome = self._run_fit(replace(build.fit_request, model_inputs=pkml))
+                notes.append(_fit_note(ctx, build.fit_request, fit_outcome))
+            else:
+                notes.append(f"FIT NOT RUN in round {ctx.round_index} ({ctx.pending_action}): the simulation exported no "
+                             "model file (.pkml) for parameter identification")
 
         run_result = run_round(RoundRun(context=ctx, build=build, fit_outcome=fit_outcome, manifest=manifest))
         judged_ctx = ctx
@@ -1037,6 +1041,7 @@ class LocalExecutor:
                                          choice=None, notes=notes, fitted=fitted, **judged)
         if not evaluation.gate_passed and not judge_only:
             diagnosis = diagnose_round(judged_ctx, evaluation)
+            notes.extend(n for n in diagnosis.notes if n not in notes)
             if not diagnosis.escalate:
                 choice = choose_action(judged_ctx, diagnosis)
         return _RoundOutcome(run_result=run_result, evaluation=evaluation, diagnosis=diagnosis, choice=choice,
@@ -1081,9 +1086,27 @@ def _executor_engine(engine: EngineRun | None, *, read_root: str, tenant_id: str
     return base
 
 
+def _fit_note(ctx: RoundContext, request, outcome) -> str:
+    """What one parameter identification did, for the stage's record: the parameters, how many starts ran, the best
+    objective, and what the assessment flagged (a bound reached, starts that disagree)."""
+    names = ", ".join(p.name for p in request.parameters)
+    ran = sum(1 for s in outcome.starts if s.status == "SUCCEEDED")
+    head = f"Parameter identification in round {ctx.round_index} ({names}): {ran} of {outcome.planned_starts} start(s) ran"
+    if outcome.best_start_index is None:
+        return f"{head}; no estimate (every start failed or none converged)"
+    best = next(s for s in outcome.starts if s.start_index == outcome.best_start_index)
+    flags = ([f"at a bound: {', '.join(outcome.at_bound)}"] if outcome.at_bound else []) + \
+        ([f"starts agree {outcome.starts_agreement:.0%}"] if outcome.starts_agreement is not None else [])
+    objective = f"{best.objective:.4g}" if best.objective is not None else "not reported"
+    return f"{head}; best objective {objective}" + (f" ({'; '.join(flags)})" if flags else "")
+
+
 def _campaign_writer(request: CampaignRequest, *, read_root: str, project: str, question: str, model_risk: str,
                      budget_seconds: int | None, engine: EngineRun | None) -> CampaignArtifactWriter:
-    total_budget = budget_seconds or (sum(request.stage_budgets_seconds.values()) or 3600)
+    # the campaign's budget as the monitor shows it: set at the start, else the stages' (the signed MAP's) total
+    planned = sum(int(p.get("budget_seconds") or 0) for p in ((_local_json(request.map_uri) or {}).get("stage_plan") or [])
+                  ) if request.map_uri else 0
+    total_budget = budget_seconds or sum(request.stage_budgets_seconds.values()) or planned or 3600
     return CampaignArtifactWriter(
         store=FileWriteStore(read_root), tenant_id=request.tenant_id, campaign_id=request.campaign_id,
         project=project, compound=request.compound, question=question, model_risk=model_risk,
