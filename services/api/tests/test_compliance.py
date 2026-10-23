@@ -37,7 +37,7 @@ def build_chain(n: int) -> list[ChainedEvent]:
     return events
 
 
-@pytest.mark.req("T-05", "F-401")
+@pytest.mark.req("T-05", "F-404")
 def test_intact_chain_verifies():
     assert verify_chain(build_chain(5)) is None
 

@@ -217,7 +217,7 @@
     },
     {
       "path": "docs/validation/requirements.yaml",
-      "sha256": "03944c6314eda26de5db05aabef930a0695d7542be2421d9db363972e0bd75fa"
+      "sha256": "bfb331ab77394cb407794590992f306abbaa221a88b3fca2391928c5467a6d7b"
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/acceptance.py",

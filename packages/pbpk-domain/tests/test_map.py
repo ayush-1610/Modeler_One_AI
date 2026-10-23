@@ -17,6 +17,8 @@ from pbpk_domain.campaign.split import (
 from pbpk_domain.cpf import CPF, FitPolicy, ParameterRecord, ParameterStatus, Plausibility, Provenance
 from pbpk_domain.m15 import Rating
 
+pytestmark = pytest.mark.req("T-16")
+
 
 def _cpf() -> CPF:
     prov = Provenance(source_type="measured", reference="Example 2020")

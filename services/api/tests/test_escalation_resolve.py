@@ -15,6 +15,8 @@ from fastapi.testclient import TestClient
 from modeler_api.auth import get_verifier
 from modeler_api.main import app
 
+pytestmark = pytest.mark.req("T-17")
+
 URL = "/api/v1/campaigns/camp-1/stages/S1/escalation:resolve"
 
 
