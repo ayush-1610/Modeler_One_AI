@@ -80,6 +80,13 @@ def test_the_kit_takes_dapagliflozin_from_the_mock_proposal_to_a_traced_campaign
     results = {c["id"]: c["result"] for c in pq["checks"]}
     assert pq["schema"] == "pq/1" and pq["facts"]["deployment"] == "development" and pq["facts"]["engine_kind"] != "pksim"
     assert results["PQ-01"] == "fail" and results["PQ-02"] == "fail" and results["PQ-08"] == "pass"
+    # the run explains itself (2026-10-23): each stage's rounds and notes, which candidates the diagnosis could fit,
+    # and why a fit did not run (the stub engine exports no model file); no PQ time verdict on an unfinished campaign
+    assert "## Stages (outcome, rounds and notes)" in report and "Fit candidates the diagnosis may use at S1" in report
+    assert "FIT NOT RUN" in report and "Parameter identifications run: 0." in report
+    assert results["PQ-07"] == "not_checked" and pq["facts"]["parameter_identifications"] == []
+    campaign = client.get(f"/api/v1/campaigns/{campaign_id}").json()["data"]
+    assert campaign["budgetSeconds"] == 8 * 3600              # the signed MAP's total, not a one-hour placeholder
 
 
 def test_the_trace_reads_the_mar_evidence_index():

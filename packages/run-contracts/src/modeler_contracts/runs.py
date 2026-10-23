@@ -307,6 +307,7 @@ class RoundDiagnosis:
     permitted_actions: list[str] = field(default_factory=list)
     escalate: bool = False
     escalation_reason: str | None = None
+    notes: list[str] = field(default_factory=list)  # what the stage could fit and why it stopped, for the record
 
 
 @dataclass

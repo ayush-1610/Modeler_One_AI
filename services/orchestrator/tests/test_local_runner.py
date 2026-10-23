@@ -757,3 +757,24 @@ def test_each_stage_runs_within_the_signed_maps_limits_and_says_where_they_came_
     assert (budget, rounds) == (2016.0, 2)  # S3: 7 % of 8 h, and MS-01's 2 rounds
     assert note == "Limits: 33.6 min (the signed MAP), at most 2 round(s) (the signed MAP)"
     assert executor._limits(replace(request, map_uri="", stage_budgets_seconds={}), "S3")[:2] == (1800.0, 4)
+
+
+def test_a_parameter_identification_is_noted_with_its_starts_objective_and_bounds_reached() -> None:
+    """A fit is on the stage's record (2026-10-23): which parameters, how many starts ran, the best objective, what the
+    assessment flagged; or that no start gave an estimate."""
+    from types import SimpleNamespace
+
+    from modeler_contracts.runs import FitRoundOutcome, FitStartOutcome
+    from modeler_orchestrator.local_runner import _fit_note
+
+    ctx = SimpleNamespace(round_index=2)
+    request = SimpleNamespace(parameters=[SimpleNamespace(name="elim.hepatic.UGT1A9.clspec"), SimpleNamespace(name="phys.logp")])
+    fitted = FitRoundOutcome(round_id="r", planned_starts=4, acceptable=True, findings=[], best_start_index=1, deadline_reached=False,
+                             at_bound=["phys.logp"],
+                             starts_agreement=0.75, starts=[FitStartOutcome(0, "FAILED"), FitStartOutcome(1, "SUCCEEDED", objective=12.5),
+                                                            FitStartOutcome(2, "SUCCEEDED", objective=13.0), FitStartOutcome(3, "SUCCEEDED", objective=14.0)])
+    assert _fit_note(ctx, request, fitted) == ("Parameter identification in round 2 (elim.hepatic.UGT1A9.clspec, phys.logp): 3 of 4 "
+                                               "start(s) ran; best objective 12.5 (at a bound: phys.logp; starts agree 75%)")
+    failed = FitRoundOutcome(round_id="r", planned_starts=2, acceptable=False, findings=[], best_start_index=None, deadline_reached=False,
+                             starts=[FitStartOutcome(0, "FAILED"), FitStartOutcome(1, "FAILED")])
+    assert _fit_note(ctx, request, failed).endswith("0 of 2 start(s) ran; no estimate (every start failed or none converged)")
