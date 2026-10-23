@@ -184,7 +184,7 @@ def test_writes_require_project_membership(tmp_path):
     r = c.put("/api/v1/projects/renal-demo/compounds/Renaldrug/cpf", json=_renal_cpf(), headers=_auth())
     assert r.status_code == 403
 
-@pytest.mark.req("T-08")
+@pytest.mark.req("T-03")
 def test_two_projects_on_one_compound_keep_their_own_cpf(tmp_path):
     """A refit project and an as-published one on the same drug each keep their CPF (they shared one file before)."""
     write, read = FileWriteStore(str(tmp_path)), FileReadStore(str(tmp_path))

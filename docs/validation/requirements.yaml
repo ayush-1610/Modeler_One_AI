@@ -2,19 +2,48 @@
 # Each id matches an @pytest.mark.req(...) id, so the validation pack traces every requirement to the tests
 # that verify it (via the T-25 trace matrix) and to the OQ evidence (CI JUnit). Extend as requirements and
 # their tagged tests grow. Categories: functional | regulatory | performance. GAMP risk: low | medium | high.
+#
+# Version 2, DRAFT for QA review (2026-10-23; drafted with the owner's approval of that day). Version 1 had 11
+# requirements. Version 2 covers every id the tests trace: the CPF and builder (T-03, T-10), the campaign (T-13 to
+# T-18), the start-up pipeline (T-40 to T-56), the decisions D6 and D7, and the ICH M15 / Part 11 features F-401 to
+# F-404 (ARCHITECTURE_PACK). Version 1 used F-401 for the audit trail; the audit trail is F-404.
+# The functional specifications state what is built and verified by the traced tests, not what is planned. Where a
+# requirement rests on SME-governed content (rulesets, MS-01, templates), that content is UNVERIFIED until T-30.
+# QA review: pending.
+
+- id: T-03
+  title: Compound parameter file and model regeneration
+  user_requirement: Every simulation must be generated from one versioned compound parameter file (CPF), using only names, paths and units harvested from the engine.
+  functional_spec: Frozen pydantic CPF records (value, unit, status, fit policy, plausibility, provenance); the builder regenerates PK-Sim snapshots from the CPF and the harvested catalog; published OSP models import into a CPF and a model system (parents, metabolites, sums) and round-trip; each project keeps its own CPF; a published dataset left out is recorded with its reason and never altered.
+  category: functional
+  risk: high
 
 - id: T-05
-  title: Tamper-evident audit trail
-  user_requirement: Every change to a regulated record must be recorded in a tamper-evident, verifiable trail.
-  functional_spec: Hash-chained audit_events; verify_chain detects any edited, re-hashed or deleted link.
+  title: Durable, append-only Part 11 records
+  user_requirement: Regulated records (audit events, electronic signatures) must be stored durably, must not be altered or removed, and must be recoverable.
+  functional_spec: In production, audit events and signatures are written to PostgreSQL 16 tables the API's login can only append to; a write the database refuses leaves the file record unwritten; migrations are applied once each and recorded with their sha256, and a changed migration stops the migration; a nightly backup restores completely; the file chain and the PostgreSQL chain hash identically and a verify command checks both.
   category: regulatory
   risk: high
 
 - id: T-06
   title: Authentication and authorization
   user_requirement: Only authorised project members may act, and electronic signatures require re-authentication.
-  functional_spec: Keycloak OIDC; realm roles plus project membership; loa2 step-up (auth_time <= 300 s) for signatures.
+  functional_spec: Keycloak OIDC (Authorization Code + PKCE, public web client, no password grant); tokens carry the tenant, the projects and the API audience; realm roles plus project membership (the creator and the members they add, recorded and audited); loa2 step-up (password + TOTP every time, auth_time <= 300 s) for signatures; the DEV verifier is refused in production.
   category: regulatory
+  risk: high
+
+- id: T-08
+  title: Results ingestion
+  user_requirement: Engine outputs must be stored in a queryable form that reproduces the engine's own PK table.
+  functional_spec: Engine CSV outputs become long Parquet (time, path, value, unit, individual); the PK table is read from pk_analyses.csv and reproduced; ingestion is idempotent; GET results answers per run, to an authenticated reader of the same tenant only.
+  category: functional
+  risk: medium
+
+- id: T-10
+  title: Builder coverage of study scenarios
+  user_requirement: Each study must be simulated as it was run (dose, route, regimen, formulation).
+  functional_spec: Study scenarios become PK-Sim protocols, formulations, events and simulations, deterministically; IV bolus or infusion, multiple-dose and phased regimens (each phase with its own infusion time); a tablet built as the CPF's Weibull formulation; a fed stage with its meal event; parameter alternatives selected per simulation; demographics, weight and height in the individual; a model system's dose split by its dose fractions.
+  category: functional
   risk: high
 
 - id: T-12
@@ -25,9 +54,9 @@
   risk: high
 
 - id: T-13
-  title: Parameter identification and CPF versioning
-  user_requirement: Fitted parameters must be applied to the model with full provenance and versioning.
-  functional_spec: apply_fit_estimates creates a new FITTED CPF version with ParameterIdentification provenance; PK-Sim paths resolved from the harvested map.
+  title: Campaign stages, parameter identification and CPF versioning
+  user_requirement: Fitted parameters must be applied to the model with full provenance and versioning, stage by stage as MS-01 sets out.
+  functional_spec: apply_fit_estimates creates a new FITTED CPF version with ParameterIdentification provenance; PK-Sim paths resolved from the harvested map; a model system adds stage SM for metabolites with internal data (10 % of the budget), each analyte split and judged as its own group.
   category: functional
   risk: medium
 
@@ -38,10 +67,31 @@
   category: functional
   risk: medium
 
+- id: T-16
+  title: Model Analysis Plan (MAP) generator
+  user_requirement: Before any run, the plan of the analysis must be written down completely and frozen when signed.
+  functional_spec: generate_map writes every MS-01 §9 section from the CPF, studies, split, question, model risk, engine and budget; the content hash is deterministic; signing freezes the version; a revision after signing is a new version and invalidates its campaigns; the plan's fit reserve is the runner's.
+  category: regulatory
+  risk: high
+
+- id: T-17
+  title: Escalations and signed decisions
+  user_requirement: A stopped campaign may resume only through a recorded decision by an authorised person.
+  functional_spec: escalation:resolve applies a decision only with a valid step-up signature by a project member; a decision already taken is refused before any signature; abort is applied and signed; a campaign is prepared only with an explicit model risk, never an assumed one.
+  category: regulatory
+  risk: high
+
 - id: T-18
   title: Deterministic NCA and acceptance gate
   user_requirement: Predicted vs observed PK must be judged by a deterministic, tiered acceptance gate.
   functional_spec: nca computes Cmax/tmax/AUC/t-half; assess_round applies the M15 model-risk-tiered acceptance criteria.
+  category: functional
+  risk: medium
+
+- id: T-19
+  title: Figure digitizer
+  user_requirement: Observed data available only as a published figure must be captured with a verifiable accuracy.
+  functional_spec: Two-point axis calibration per axis (linear or log) maps picked markers to observations; a round trip is within 2 % of the axis range; the overlay is approved before the dataset counts.
   category: functional
   risk: medium
 
@@ -50,6 +100,13 @@
   user_requirement: Every agent decision must be auditable and bounded by a token/cost budget.
   functional_spec: agent_runs/agent_steps record each turn; Budget stops a run INCOMPLETE at its limit; provider failure yields LLM_UNAVAILABLE with retry.
   category: regulatory
+  risk: medium
+
+- id: T-21
+  title: Agent evaluation sets
+  user_requirement: The quality of an agent's readings must be measured against known answers before it is relied on.
+  functional_spec: A sheet-reading evaluation set with known answers scores the code reader and the agent as the API runs it; the scorer catches a wrong column, a wrong unit and a guessed LLOQ; an agent's quote must be in its cell and state the value; a reading the code refuses is not kept.
+  category: functional
   risk: medium
 
 - id: T-23
@@ -66,10 +123,185 @@
   category: regulatory
   risk: high
 
+- id: T-25
+  title: CI pipeline and validation evidence
+  user_requirement: Every change must be verified automatically, and drift from the qualified state must stop the build.
+  functional_spec: CI runs the tests with the requirement trace matrix, lint, the secret scan and Trivy; architecture checks fail on drift (layer imports, locked-file hashes, the OpenAPI snapshot, the harvested parameter registry and vocabulary, one default per setting, no process-local job state, concurrent writers).
+  category: regulatory
+  risk: medium
+
+- id: T-26
+  title: Projects from published models
+  user_requirement: A project can start from a published, qualified OSP model, and only signed-in readers see what is offered.
+  functional_spec: The templates list the published real-data models first; every published single-compound template loads and runs through the write path; reading the templates needs an authenticated reader; the illustrative template binds its clearance.
+  category: functional
+  risk: low
+
+- id: T-28
+  title: Engine identity on every result
+  user_requirement: A result must say which engine produced it; a software fixture must never be presented as PK-Sim.
+  functional_spec: The engine kind follows the configured command (PK-Sim, or software fixture); development runs the stub only when no engine is set and production has no default engine; an injected engine is never claimed as PK-Sim; the campaign records the engine that ran it.
+  category: regulatory
+  risk: high
+
+- id: T-31
+  title: Application templates (virtual bioequivalence)
+  user_requirement: An application analysis must run only from a versioned template whose decision inputs a person sets, and must say when it is not validated.
+  functional_spec: Templates load against their schema and stay DRAFT until signed; decision inputs (variability with source and positive CV, subjects, trials, seed, PoS threshold) are never defaulted; standard limits by default, NTI limits awaiting verification; the MAP pins the template version and a missing input blocks the signature; S6 runs the VBE trials; without observed BE data the result is NOT VALIDATED.
+  category: regulatory
+  risk: high
+
+- id: T-32
+  title: Validation pack (IQ, OQ, PQ)
+  user_requirement: The system's validation evidence must be generated from its own records, and nothing missing may read as a pass.
+  functional_spec: The pack renders this URS/FS, the trace matrix, OQ from CI JUnit, IQ from qualify.sh iq (10 checks against the repository and the engine catalog) and PQ from the T-56 trace; a missing check is "not checked" and the verdict INCOMPLETE; a changed locked file, another branch, the wrong engine or a pilot deployment fail.
+  category: regulatory
+  risk: medium
+
+- id: T-40
+  title: Project record spine
+  user_requirement: Every project artifact must be versioned immutably, with its dependencies and approvals recorded.
+  functional_spec: Versions are numbered, immutable and written once, even with racing writers; a reader never sees a half-written version; content-addressed blobs; an edit makes exactly its descendants stale; an approval binds the hash and refuses stale or superseded versions; every commit and approval is on the verifiable audit chain.
+  category: regulatory
+  risk: high
+
+- id: T-41
+  title: Documents and the project brief
+  user_requirement: The project's question and context must be taken from the proposal with every value cited, and a person's entries must never be overwritten by an agent.
+  functional_spec: PDF, DOCX, XLSX, legacy XLS, Markdown and CSV are read into quotable pages (unreadable files refused with a reason); agent A1 records only verified fields; a person's fields are locked against agents; PubChem answers are stored and quoted; the model risk must lie in its M15 range; LLM providers come from the environment only.
+  category: functional
+  risk: medium
+
+- id: T-42
+  title: Requirement templates and the data plan
+  user_requirement: The data a model needs must be derived from the project's question, with a person able to override it.
+  functional_spec: Requirement templates (core, VBE, food effect, DDI, FIH, special populations) derive a data matrix; conditions are true, false or undetermined; providers come from the proposal's data plan; a person's overrides are kept across re-derivation; the plan follows every brief change.
+  category: functional
+  risk: medium
+
+- id: T-43
+  title: Feasibility check
+  user_requirement: A project must be told early what the model builder cannot produce.
+  functional_spec: The feasibility check reports each requested feature the builder cannot produce yet.
+  category: functional
+  risk: low
+
+- id: T-44
+  title: Evidence register
+  user_requirement: Every parameter value must come from a cited, graded source, and known filing errors must be refused.
+  functional_spec: Values are filed with their quote; unit conversion and the A–D grade are done by code; an agent cannot file a value where a real project saw it go wrong; a clspec needs its PK-Sim value; conflicts and coverage are reported; a hand-entered value names a parameter the model uses and its source; the published model of the same drug is a source, another drug's is refused.
+  category: functional
+  risk: high
+
+- id: T-45
+  title: Observed data capture
+  user_requirement: Observed concentration data must be captured with checks that it was read correctly.
+  functional_spec: Agent A3 extracts tables quoted row by row; a PDF's placed figures are listed with their page box, and a figure digitized in a cropped, zoomed view gives the same values and keeps its frame; dataset checks and an NCA cross-check.
+  category: functional
+  risk: medium
+
+- id: T-46
+  title: Real-data rule
+  user_requirement: A verdict must never rest on synthetic or illustrative data outside an exploratory project.
+  functional_spec: Each study keeps its origin through prepare; an unrecorded origin is not taken as real; a study without observed data is not evaluable; synthetic or illustrative data is TEST ONLY; a signature on such a campaign is refused outside an exploratory project.
+  category: regulatory
+  risk: high
+
+- id: T-47
+  title: Client data intake
+  user_requirement: A client's files must be read with every value traceable to its cell, and what was promised but not delivered must be named.
+  functional_spec: The client template is read with no AI and cell references; other workbooks (XLSX, XLS) are triaged by a quoted header; the guided and agent readings are checked against their cells; reconciliation names what was promised, delivered, partial or missing; an item the client cannot send is taken from the literature.
+  category: functional
+  risk: medium
+
+- id: T-48
+  title: Dissolution profiles and release model
+  user_requirement: In vitro dissolution must be compared and turned into a release model in the engine's own parameterization.
+  functional_spec: f2 is computed only under its conditions; profile checks say which release model the data support; the Weibull fit recovers known parameters in PK-Sim's parameterization and is proposed as the release model (the equation confirmed against PK-Sim's own curve in the engine-image qualification).
+  category: functional
+  risk: medium
+
+- id: T-49
+  title: Model inputs assembled from evidence
+  user_requirement: The CPF and the studies must be assembled from the evidence by a stated rule, and every open choice left to a person.
+  functional_spec: Values within 10 % are one value with all their sources; within 2-fold the best source wins, never an average; beyond 2-fold a person keeps one (the rule versioned, UNVERIFIED); process candidates and populations come from the harvested tables; demographics are never defaulted silently; a multiple-dose study needs its regimen; a flagged value is held for a person.
+  category: functional
+  risk: high
+
+- id: T-50
+  title: Model plan and MAP signature
+  user_requirement: The person signing the MAP must see and decide the whole plan, and the signature must bind what the run uses.
+  functional_spec: The plan validator enforces every MS-01 rule; the default plan is MS-01 and its MAP equals generate_map; a person's choices are locked against agents and rebases; fit bounds are checked against MS-01 and plausibility; the fit bounds, plausibility and internal target are under the MAP hash, and a MAP signed before them keeps its hash; the recorded criteria judge the run; the model risk is never assumed; unrunnable applications are named at signing.
+  category: regulatory
+  risk: high
+
+- id: T-51
+  title: Model sets and memoized runs
+  user_requirement: An identical simulation must not be run twice, except where the re-run is the evidence.
+  functional_spec: Identical engine jobs reuse their outputs and anything different runs; a second identical campaign runs no engine job and records its model sets; the S7 reproduction re-run always runs.
+  category: performance
+  risk: medium
+
+- id: T-52
+  title: No-regression gate
+  user_requirement: A later fit must not silently break a stage that already passed.
+  functional_spec: After each fit the earlier stages are re-judged; a fit that breaks one is caught before S4; a fit that keeps them passing goes on.
+  category: functional
+  risk: high
+
+- id: T-53
+  title: Joint refinement (SJ)
+  user_requirement: When stages conflict, a joint refit may be tried, but kept only if it is no worse anywhere.
+  functional_spec: A regression is first remedied by a joint refit of the stages up to it; SJ keeps the joint estimate only when every study passes and agreement is no worse; it runs through the same build and evaluation path (MS-01 v1.1, UNVERIFIED).
+  category: functional
+  risk: high
+
+- id: T-54
+  title: Change ledger and influence map
+  user_requirement: Every change to the model and its effect on each verdict must be explainable.
+  functional_spec: The ledger lists each parameter's value, status and fitting stage; study verdicts read the round flags; the influence map is structural from the MAP and quantitative from S6; the MAR lists the development history and the joint stage.
+  category: regulatory
+  risk: medium
+
+- id: T-55
+  title: External validation feedback cycles
+  user_requirement: A failed external validation must be resolved only by a signed decision within MS-01's guardrails.
+  functional_spec: An S5 failure waits for a feedback decision with its diagnosis; a learn the guardrails forbid is refused before a signature is taken; a class with no other external study cannot learn; the signature binds the decision's content.
+  category: regulatory
+  risk: high
+
+- id: T-56
+  title: End-to-end proof and its trace
+  user_requirement: A reviewer must be able to trace every number in the report to its source, and see how each stage went, on a real compound from proposal to report.
+  functional_spec: The kit takes Dapagliflozin from a mock proposal to a traced campaign; the trace reads the MAR evidence index, lists each stage's outcome, rounds and notes (including why a fit did not run) and the fits run, and writes the PQ record.
+  category: performance
+  risk: high
+
+- id: D6
+  title: Acceptance criteria tiered by model risk
+  user_requirement: How closely the model must match the data must follow the model's risk (ICH M15), from a versioned ruleset.
+  functional_spec: The acceptance ruleset is tiered by M15 model risk, versioned and UNVERIFIED until the SME signs; the gate passes when the prediction matches the observed data.
+  category: regulatory
+  risk: high
+
+- id: D7
+  title: Deterministic diagnostics
+  user_requirement: Which remedies are permitted must be decided by a fixed ruleset, never by an agent.
+  functional_spec: The diagnostics ruleset (MS-01 §5) returns the permitted actions; the strategist may only choose among them; >= 80 % of golden cases agree on the first action.
+  category: functional
+  risk: medium
+
 - id: F-401
-  title: Audit trail integrity (21 CFR Part 11)
-  user_requirement: The audit trail must be verifiable and detect tampering.
-  functional_spec: Hash-chained events; verify_chain returns the index of the first broken link.
+  title: ICH M15 assessment table
+  user_requirement: The model's risk and credibility must be assessed and reported as ICH M15 requires.
+  functional_spec: The allowed model risk follows influence x consequence; the assessment table applies its stage rules; the MAR renders the M15 tables and the signatures.
+  category: regulatory
+  risk: high
+
+- id: F-402
+  title: MAP signature and data blinding gate
+  user_requirement: External validation data must stay hidden until the plan is signed, and no regulated run may start on an unsigned plan or a changed model.
+  functional_spec: External dataset values are blinded until the MAP is signed; a study proposed for S5 is blinded from the moment it is read; in pilot and production a campaign starts only on a MAP a person signed, and only on the CPF that MAP signed (D-36).
   category: regulatory
   risk: high
 
@@ -77,5 +309,12 @@
   title: Electronic signature binding (21 CFR Part 11)
   user_requirement: An electronic signature must bind to the exact record it approves and manifest signer, meaning and time.
   functional_spec: sign_record binds record_sha256; manifestation renders name, meaning and timestamp; step-up enforced.
+  category: regulatory
+  risk: high
+
+- id: F-404
+  title: Audit trail integrity (21 CFR Part 11)
+  user_requirement: The audit trail must be verifiable and detect tampering, and every signature must be on it.
+  functional_spec: Hash-chained events; verify_chain returns the index of the first broken link; every signature is an audit event.
   category: regulatory
   risk: high

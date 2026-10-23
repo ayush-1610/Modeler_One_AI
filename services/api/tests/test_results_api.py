@@ -14,6 +14,8 @@ from modeler_api.auth import get_verifier
 from modeler_api.main import app
 from modeler_api.results_api import get_results_dir
 
+pytestmark = pytest.mark.req("T-08")
+
 PLASMA = "Organism|PeripheralVenousBlood|Drug|Plasma (Peripheral Venous Blood)"
 
 

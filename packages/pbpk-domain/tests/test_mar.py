@@ -146,6 +146,7 @@ def test_figure_reference_renders_image_and_number():
     assert "**Figure 1. Goodness of fit, stage S2.**" in md
 
 
+@pytest.mark.req("F-401")
 def test_m15_tables_and_signatures_render():
     table = AssessmentTable(
         question_of_interest="Food effect", context_of_use="waiver",

@@ -197,6 +197,7 @@ def test_approve_and_sign_generates_the_map_signs_it_and_stages_the_campaign(set
         assert MapArtifact.from_content(stored.content).to_content() == stored.content
 
 
+@pytest.mark.req("F-402")
 @pytest.mark.req("T-50")
 def test_external_values_are_blinded_until_the_map_is_signed(setup):
     """D-15: with blinding on, an external study's values are left out of every view (its metadata stays) until the

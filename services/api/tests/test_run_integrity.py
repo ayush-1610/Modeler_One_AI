@@ -75,6 +75,7 @@ def _start(client, map_uri, cpf_uri: str | None = None):
     return client.post("/api/v1/projects/p1/campaigns", json=body, headers=DEV)
 
 
+@pytest.mark.req("F-402")
 def test_a_pilot_starts_only_on_a_map_a_person_signed(client, tmp_path, monkeypatch):
     http, runner = client
     monkeypatch.setenv("MODELER_DEPLOYMENT", "pilot")
@@ -105,6 +106,7 @@ def test_a_pilot_start_cannot_override_the_signed_stage_budgets(client, tmp_path
     assert http.post("/api/v1/projects/p1/campaigns", json=body, headers=DEV).status_code == 202
 
 
+@pytest.mark.req("F-402")
 def test_a_pilot_runs_only_on_the_cpf_its_map_signed(client, tmp_path, monkeypatch):
     # D-36: the signature binds the parameters the run uses, the fit bounds among them
     http, runner = client
@@ -135,6 +137,7 @@ def test_the_model_risk_must_be_said_at_the_start(client, tmp_path):
     assert http.post("/api/v1/projects/p1/campaigns", json=body, headers=DEV).status_code == 422
 
 
+@pytest.mark.req("F-404")
 def test_every_signature_is_an_audit_event(client, tmp_path):
     http, _runner = client
     body = {"meaning": "Approved", "record_type": "map_approval", "record_id": "map-1", "record_sha256": "b" * 64}

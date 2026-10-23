@@ -40,6 +40,7 @@ def test_roles_are_proposed_by_the_split_before_any_plan(ws):
     assert proposed_roles(ws) == {"iv-250": "S1", "iv-500": "S5", "po-10": "S2", "po-50": "S5", "po-100": "S2"}
 
 
+@pytest.mark.req("F-402")
 def test_a_study_proposed_for_s5_is_blinded_from_the_moment_it_is_read(ws):
     assemble(ws, by="u")
     assert external_studies(ws) == {"iv-500", "po-50"}
