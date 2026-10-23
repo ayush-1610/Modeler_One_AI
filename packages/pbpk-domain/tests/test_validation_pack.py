@@ -112,6 +112,7 @@ def test_pq_passes_only_on_a_production_pksim_run_that_reproduces_within_the_hou
     assert slow["PQ-07"] == slow["PQ-01"] == slow["PQ-04"] == slow["PQ-06"] == "fail"
     unbuilt = {c["id"]: c["result"] for c in pq_checks({**PRODUCTION_RUN, "package": False, "report_issues": None})}
     assert unbuilt["PQ-03"] == unbuilt["PQ-05"] == unbuilt["PQ-06"] == "fail"
+    assert unbuilt["PQ-07"] == "not_checked"          # a campaign that stopped early has no time to a result
 
 
 @pytest.mark.req("T-32")

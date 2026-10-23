@@ -227,12 +227,14 @@ def _is_log_scale(cpf, param_id: str, system=None) -> bool:
 
 
 def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, out_dir: Path,
-                       system=None) -> FitRoundRequest | None:
+                       system=None, why: list[str] | None = None) -> FitRoundRequest | None:
     """Assemble the round's FitRoundRequest from the chosen action, the CPF and the observed profiles.
 
     Returns None (the round then simulates instead of fitting) when there is no fittable parameter, no
-    observed profile to fit against, or the spec cannot be built. The pkml model inputs are left empty here
-    and filled by the snapshot->pkml conversion step before the fit runs."""
+    observed profile to fit against, or the spec cannot be built; the reason is appended to ``why``, so the round's
+    notes say why no parameter identification ran. The pkml model inputs are left empty here and filled by the
+    snapshot->pkml conversion step before the fit runs."""
+    why = why if why is not None else []
     from pbpk_domain.campaign.round_build import protocol_name, scenario_alternatives, scenarios_for_stage
     from pbpk_domain.cpf.build import ALTERNATIVE_GROUP_OF_ID
     from pbpk_domain.cpf.formulations import FormulationError, resolve_formulation_name
@@ -246,6 +248,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     fit_ids = list(dict.fromkeys(cid for part in target.split("+") for cid in resolve_fit_ids(cpf, part, system)))
     if not fit_ids:
         activity.logger.info("build_round_snapshot %s %s: no fittable CPF parameter for %r", ctx.campaign_id, ctx.stage, target)
+        why.append(f"no fittable CPF parameter for {target!r}")
         return None
 
     # The strategist's bounds are keyed by the (possibly templated) action target; apply them to every
@@ -303,6 +306,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
         ))
     if not simulations:
         activity.logger.info("build_round_snapshot %s %s: no observed profile to fit against", ctx.campaign_id, ctx.stage)
+        why.append(f"no observed profile of a {ctx.stage} study to fit {', '.join(fit_ids)} against")
         return None
 
     try:
@@ -311,6 +315,7 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
                               equal_study_weights=ctx.stage == "SJ", system=system)
     except FitSpecError as exc:
         activity.logger.info("build_round_snapshot %s %s: fit spec not built (%s)", ctx.campaign_id, ctx.stage, exc)
+        why.append(f"the fit of {', '.join(fit_ids)} could not be specified: {exc}")
         return None
 
     spec_path = out_dir / f"{snapshot_stem}-pi_spec.json"
@@ -395,7 +400,8 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     snapshot_sha = hashlib.sha256(out.read_bytes()).hexdigest()
     for note in stage.notes:
         activity.logger.info("build_round_snapshot %s %s: %s", ctx.campaign_id, ctx.stage, note)
-    fit_request = (_build_fit_request(ctx, cpf, map_doc, snapshot_stem=out.stem, out_dir=out.parent, system=system)
+    why: list[str] = []
+    fit_request = (_build_fit_request(ctx, cpf, map_doc, snapshot_stem=out.stem, out_dir=out.parent, system=system, why=why)
                    if needs_fit else None)
     activity.logger.info(
         "build_round_snapshot %s %s round %d: built %d simulation(s) fit=%s fit_request=%s",
@@ -403,7 +409,7 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     )
     return RoundBuild(
         snapshot_uri=out.as_uri(), snapshot_sha256=snapshot_sha, needs_fit=needs_fit, fit_request=fit_request,
-        notes=list(stage.notes),
+        notes=[*stage.notes, *(f"FIT NOT RUN in round {ctx.round_index} ({ctx.pending_action}): {w}" for w in why)],
     )
 
 
@@ -891,6 +897,7 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
     if not groups:
         groups[(fitted,)] = []
     diagnoses = []
+    notes: list[str] = []
     for subject in sorted(groups, key=lambda subj: (subj != (fitted,), order.get(subj[0], 0))):
         own = subject == (fitted,)
         usable = candidates if cpf is None else _subject_candidates(cpf, system, subject, candidates, ctx.stage)
@@ -900,6 +907,11 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
                 ctx.campaign_id, ctx.stage, ",".join(usable) or "none",
                 ",".join(c for c in candidates if c not in usable) or "none",
             )
+        if own:
+            dropped = [c for c in candidates if c not in usable]
+            notes.append(f"Fit candidates the diagnosis may use at {ctx.stage}: {', '.join(usable) or 'none'}"
+                         + (f" (not fittable in this CPF: {', '.join(dropped)}: no fit bounds, or no such parameter or "
+                            "engine path)" if dropped else ""))
         found = diagnose(
             groups[subject], stage=ctx.stage, stage_candidates=usable,
             stage_branches=plan.get("branches", ()) if own else (),
@@ -913,10 +925,14 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
         "diagnose_round %s %s round %d: causes=%s actions=%d escalate=%s",
         ctx.campaign_id, ctx.stage, ctx.round_index, list(diagnosis.causes), len(diagnosis.permitted_actions), diagnosis.escalate,
     )
+    if diagnosis.escalate or not diagnosis.permitted_actions:
+        notes.append(f"Round {ctx.round_index}: causes {', '.join(diagnosis.causes) or 'none found'}; actions tried "
+                     f"{', '.join(ctx.actions_tried) or 'none'}; no permitted action left"
+                     + (f" ({diagnosis.reason})" if diagnosis.reason else ""))
     return RoundDiagnosis(
         evidence=list(diagnosis.evidence), causes=list(diagnosis.causes),
         permitted_actions=list(diagnosis.permitted_actions),
-        escalate=diagnosis.escalate, escalation_reason=diagnosis.reason,
+        escalate=diagnosis.escalate, escalation_reason=diagnosis.reason, notes=notes,
     )
 
 
