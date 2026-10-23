@@ -55,6 +55,7 @@ def test_production_with_its_settings_starts(monkeypatch, fresh_settings):
     assert _AnsweringPart11Store.pinged  # the database was asked before the API served anything
 
 
+@pytest.mark.req("T-05")
 def test_production_refuses_to_keep_its_part11_records_in_files_only(monkeypatch, fresh_settings):
     # the owner's decision, 2026-10-15 (P2): audit events and signatures are also kept in PostgreSQL
     _engine_settings(monkeypatch, "production")
@@ -63,6 +64,7 @@ def test_production_refuses_to_keep_its_part11_records_in_files_only(monkeypatch
         pass
 
 
+@pytest.mark.req("T-06")
 def test_production_refuses_the_dev_verifier(monkeypatch, fresh_settings):
     # the owner's decision, 2026-10-09: DEV signatures stand in for Part 11 step-up and are never a production record
     _engine_settings(monkeypatch, "production")
@@ -71,6 +73,7 @@ def test_production_refuses_the_dev_verifier(monkeypatch, fresh_settings):
         pass
 
 
+@pytest.mark.req("T-06")
 def test_a_pilot_runs_the_dev_verifier_and_says_so(monkeypatch, fresh_settings):
     _engine_settings(monkeypatch, "pilot")
     monkeypatch.setenv("MODELER_DEV_AUTH", "1")

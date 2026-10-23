@@ -11,6 +11,8 @@ import pytest
 from modeler_api.results import ingest_results, parse_pk_csv
 from modeler_api.results.query import concentration_series, output_paths, query_results
 
+pytestmark = pytest.mark.req("T-08")
+
 SAMPLE = Path(__file__).parents[3] / "services" / "engine-worker" / "golden" / "results_sample"
 RESULTS_CSV = SAMPLE / "results.csv"
 PK_CSV = SAMPLE / "pk_analyses.csv"

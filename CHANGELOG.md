@@ -15,6 +15,30 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — the URS covers every traced requirement: version 2, DRAFT for QA review (T-32; locked file)
+The owner approved drafting it on 2026-10-23 ("URS: yes, draft it"). `docs/validation/requirements.yaml` had 11
+requirements, while the tests traced 42 ids: the validation pack listed 31 of them with no requirement behind them.
+- **Version 2 has 44 requirements**, each with its user requirement, its functional specification, a category and a
+  GAMP risk (22 regulatory, 20 functional, 2 performance; 25 high, 17 medium, 2 low). It adds the CPF and builder (T-03,
+  T-10), results ingestion (T-08), the MAP generator (T-16), escalations (T-17), the digitizer (T-19), the agent
+  evaluation sets (T-21), CI (T-25), published-model projects (T-26), engine identity (T-28), application templates
+  (T-31), the validation pack itself (T-32), the start-up pipeline T-40 to T-56, the decisions D6 and D7, and F-402 and
+  F-404.
+- **Rewritten:** T-05 is now the Part 11 records in PostgreSQL (append-only, migrations with their sha256, backups that
+  restore), and T-06 adds project members and the refusal of the DEV verifier in production. Each functional
+  specification states what is built and what the traced tests verify, not what was planned; SME-governed content
+  stays UNVERIFIED.
+- **Corrected:** version 1 used F-401 for the audit trail. In ARCHITECTURE_PACK, F-401 is the ICH M15 assessment
+  table and F-404 the audit trail. The audit-chain test now traces to F-404, and the M15 tests to F-401.
+- **Tests tagged** (markers only, no test changed): F-401 (4 M15 tests), F-402 (blinding, and a pilot start only on a
+  signed MAP and its CPF), F-404 (every signature is an audit event), T-06 on project members and the production
+  verifier, T-05 on production's PostgreSQL records, T-08 on results ingestion and the results API, T-16 on
+  `test_map.py`, T-17 on `escalation:resolve`. The project-scoped CPF store test moved from T-08 to T-03, the
+  requirement it verifies.
+- **Verified:** the pack built from the full trace matrix has no gap, and no traced id lacks a requirement.
+- **Still needed:** QA review of the draft; then its status is set and the version noted here.
+- **Impact:** no behaviour change. The locked-file hashes are refreshed for `requirements.yaml`.
+
 ### Added — validation pack V1: Installation and Performance Qualification (T-32)
 The one item buildable while the owner and the SME decide (the owner's plan, 2026-10-15). GAMP 5 asks for IQ, OQ and
 PQ; until now the pack had only OQ, and its IQ and PQ sections said "pending Helm/k3s", a deployment that does not exist.

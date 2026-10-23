@@ -93,12 +93,14 @@ def complete_table(**overrides) -> AssessmentTable:
     return AssessmentTable(**fields)
 
 
+@pytest.mark.req("F-401")
 def test_model_risk_range_follows_m15():
     assert allowed_model_risk(Rating.LOW, Rating.LOW) == (Rating.LOW,)
     assert allowed_model_risk(Rating.HIGH, Rating.LOW) == (Rating.LOW, Rating.MEDIUM, Rating.HIGH)
     assert allowed_model_risk(Rating.MEDIUM, Rating.HIGH) == (Rating.MEDIUM, Rating.HIGH)
 
 
+@pytest.mark.req("F-401")
 def test_assessment_table_stage_rules():
     assert validate_table(complete_table(), Stage.PLANNING) == []
     submission_codes = {i.code for i in validate_table(complete_table(), Stage.SUBMISSION)}

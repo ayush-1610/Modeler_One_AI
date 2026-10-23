@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from modeler_api.auth import get_verifier
 from modeler_api.main import app
 
-pytestmark = pytest.mark.req("T-05")
+pytestmark = pytest.mark.req("T-05", "T-06")
 
 ROLES = ["modeler-viewer", "modeler-curator", "modeler-reviewer"]
 

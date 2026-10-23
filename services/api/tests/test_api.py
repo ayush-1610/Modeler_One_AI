@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from modeler_api.main import app
@@ -39,6 +40,7 @@ def test_preview_reports_reference_issues():
     assert response.json()["errors"][0]["code"] == "UNKNOWN_PROTOCOL"
 
 
+@pytest.mark.req("F-401")
 def test_m15_validation_reports_allowed_model_risk():
     response = client.post(
         "/api/v1/m15/validate",
