@@ -72,8 +72,7 @@ def _identifiability_manifest(tmp_path, index, objective, *, correlations=None, 
     result = {
         "convergence": True, "objective_value": objective, "function_evaluations": 120,
         "estimates": [{"name": "Lipophilicity", "estimate": 2.0, "sd": 0.1, "cv": 0.05, "lowerCI": 1.8, "upperCI": 2.2},
-                      {"name": "CLspec", "estimate": 0.5, "sd": 0.6, "cv": 1.2, "lowerCI": 0.05, "upperCI": 4.8,
-                       "scale": "log", "sd_log10": 0.47}],
+                      {"name": "CLspec", "estimate": 0.5, "sd": 0.6, "cv": 1.2, "lowerCI": 0.05, "upperCI": 4.8}],
         "correlations": correlations or [],
     }
     if ci_error:

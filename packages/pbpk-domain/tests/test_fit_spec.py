@@ -66,13 +66,6 @@ def test_build_fit_spec_structure_and_path():
     assert spec["algorithm"] == "BOBYQA"
 
 
-@pytest.mark.req("T-13")
-def test_a_log_fit_policy_asks_the_engine_to_fit_on_log10_and_a_linear_one_does_not():
-    spec = build_fit_spec(_cpf(), ["phys.logp", "elim.hepatic.CYP3A4.clspec"], [_sim()])
-    scale = {p["name"]: p.get("scale") for p in spec["parameters"]}
-    assert scale == {"phys.logp": None, "elim.hepatic.CYP3A4.clspec": "log"}
-
-
 def test_dimensionless_parameter_carries_no_unit_key():
     """A null unit came back from run_job.R's re-serialisation as {} and ospsuite rejected it (found on PK-Sim)."""
     gfr_bind = EngineBinding(building_block="Compound", process="GlomerularFiltration", parameter="GFR fraction",

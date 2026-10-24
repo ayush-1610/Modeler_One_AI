@@ -66,39 +66,21 @@ shift <- abs(w_result$estimates[[1]]$estimate - result$estimates[[1]]$estimate)
 stopifnot(is.finite(ratio), abs(ratio - 4) < 0.1, shift < 0.05)
 cat("PI SMOKE WEIGHTED OK: objective x", ratio, "(expected 4), estimate moved", shift, "\n")
 
-# A log-scaled parameter (MS-01 §2.2 clearance bounds span decades) is optimised on log10 of its value (run_pi.R
-# LogPIParameters). Fitted alone, Aciclovir's tubular secretion reaches the same optimum on either scale, and the
-# log-scale result is reported as a value, inside its bounds. Fitted together with lipophilicity, the result carries
-# the pair's correlation from the Hessian CI, or says why there is no CI. The path is the one the package's own tests
-# and user guide fit (OSPSuite.ParameterIdentification v2.2.0, tests/testthat/helper-for-tests.R).
+# Two parameters fitted together report their correlation from the Hessian CI (run_pi.R `correlations`), or say why
+# there is no CI (`ci_error`). Aciclovir's tubular secretion is fitted beside lipophilicity at the path the package's
+# own tests and user guide fit (OSPSuite.ParameterIdentification v2.2.0, tests/testthat/helper-for-tests.R).
 TS_PATH <- "Neighborhoods|Kidney_pls_Kidney_ur|Aciclovir|Renal Clearances-TS-Aciclovir|TSspec"
-tubular <- function(scale) {
-  p <- list(name = "TSspec", unit = "1/min", min = 0.01, max = 100, start = 0.5,
-            paths = list(list(simulation = "IV250", path = TS_PATH)))
-  if (!is.null(scale)) p$scale <- scale
-  p
-}
-run_variant <- function(parameters, tag) {
-  variant <- spec
-  variant$parameters <- parameters
-  path <- file.path(work, paste0("pi_spec_", tag, ".json"))
-  write_json(variant, path, auto_unbox = TRUE, pretty = TRUE, digits = NA)
-  run_parameter_identification(path, file.path(work, paste0("out_", tag)))
-}
-lin <- run_variant(list(tubular(NULL)), "ts_linear")
-logr <- run_variant(list(tubular("log")), "ts_log")
-lin_est <- lin$estimates[[1]]$estimate
-log_est <- logr$estimates[[1]]$estimate
-stopifnot(identical(logr$estimates[[1]]$scale, "log"), is.finite(log_est), log_est > 0.01, log_est < 100,
-          abs(log_est / lin_est - 1) < 0.05, logr$objective_value <= lin$objective_value * 1.05)
-cat("PI SMOKE LOG OK: TSspec", log_est, "on log10 vs", lin_est, "linear; objective", logr$objective_value, "vs",
-    lin$objective_value, "\n")
-both <- run_variant(c(spec$parameters, list(tubular("log"))), "pair")
+pair <- spec
+pair$parameters <- c(spec$parameters, list(list(name = "TSspec", unit = "1/min", min = 0.01, max = 100, start = 0.5,
+                                                paths = list(list(simulation = "IV250", path = TS_PATH)))))
+pair_path <- file.path(work, "pi_spec_pair.json")
+write_json(pair, pair_path, auto_unbox = TRUE, pretty = TRUE, digits = NA)
+both <- run_parameter_identification(pair_path, file.path(work, "out_pair"))
 stopifnot(length(both$estimates) == 2, length(both$correlations) == 1 || !is.null(both$ci_error))
 if (length(both$correlations) == 1) {
-  pair <- both$correlations[[1]]
-  stopifnot(identical(c(pair$a, pair$b), c("Lipophilicity", "TSspec")), abs(pair$r) <= 1 + 1e-9)
-  cat("PI SMOKE CORRELATION OK: r(Lipophilicity, TSspec) =", pair$r, "\n")
+  r <- both$correlations[[1]]
+  stopifnot(identical(c(r$a, r$b), c("Lipophilicity", "TSspec")), abs(r$r) <= 1 + 1e-9)
+  cat("PI SMOKE CORRELATION OK: r(Lipophilicity, TSspec) =", r$r, "\n")
 } else {
   cat("PI SMOKE CORRELATION OK: no CI (", both$ci_error, ")\n")
 }

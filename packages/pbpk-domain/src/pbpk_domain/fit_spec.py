@@ -210,9 +210,6 @@ def build_fit_spec(
         # run_job.R's re-serialisation (R writes it back as {}), and ospsuite then rejects the empty "unit".
         if record.unit:
             entry["unit"] = record.unit
-        # a log fit policy (MS-01 §2.2 clearance bounds span decades) is optimised on log10 of the value (run_pi.R)
-        if record.fit_policy is not None and record.fit_policy.scale.value == "log":
-            entry["scale"] = "log"
         parameters.append(entry)
 
     return {
