@@ -65,3 +65,22 @@ ratio <- w_result$objective_value / result$objective_value
 shift <- abs(w_result$estimates[[1]]$estimate - result$estimates[[1]]$estimate)
 stopifnot(is.finite(ratio), abs(ratio - 4) < 0.1, shift < 0.05)
 cat("PI SMOKE WEIGHTED OK: objective x", ratio, "(expected 4), estimate moved", shift, "\n")
+
+# Two parameters fitted together report their correlation from the Hessian CI (run_pi.R `correlations`), or say why
+# there is no CI (`ci_error`). Aciclovir's tubular secretion is fitted beside lipophilicity at the path the package's
+# own tests and user guide fit (OSPSuite.ParameterIdentification v2.2.0, tests/testthat/helper-for-tests.R).
+TS_PATH <- "Neighborhoods|Kidney_pls_Kidney_ur|Aciclovir|Renal Clearances-TS-Aciclovir|TSspec"
+pair <- spec
+pair$parameters <- c(spec$parameters, list(list(name = "TSspec", unit = "1/min", min = 0.01, max = 100, start = 0.5,
+                                                paths = list(list(simulation = "IV250", path = TS_PATH)))))
+pair_path <- file.path(work, "pi_spec_pair.json")
+write_json(pair, pair_path, auto_unbox = TRUE, pretty = TRUE, digits = NA)
+both <- run_parameter_identification(pair_path, file.path(work, "out_pair"))
+stopifnot(length(both$estimates) == 2, length(both$correlations) == 1 || !is.null(both$ci_error))
+if (length(both$correlations) == 1) {
+  r <- both$correlations[[1]]
+  stopifnot(identical(c(r$a, r$b), c("Lipophilicity", "TSspec")), abs(r$r) <= 1 + 1e-9)
+  cat("PI SMOKE CORRELATION OK: r(Lipophilicity, TSspec) =", r$r, "\n")
+} else {
+  cat("PI SMOKE CORRELATION OK: no CI (", both$ci_error, ")\n")
+}

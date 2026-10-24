@@ -778,3 +778,15 @@ def test_a_parameter_identification_is_noted_with_its_starts_objective_and_bound
     failed = FitRoundOutcome(round_id="r", planned_starts=2, acceptable=False, findings=[], best_start_index=None, deadline_reached=False,
                              starts=[FitStartOutcome(0, "FAILED"), FitStartOutcome(1, "FAILED")])
     assert _fit_note(ctx, request, failed).endswith("0 of 2 start(s) ran; no estimate (every start failed or none converged)")
+    # with the engine's CI (PI-2): each estimate with its 95 % CI, a pair beyond 0.95, and why a CI is missing
+    best = FitStartOutcome(1, "SUCCEEDED", estimates={"elim.hepatic.UGT1A9.clspec": 0.0399, "phys.logp": 2.67}, objective=12.5,
+                           uncertainty={"elim.hepatic.UGT1A9.clspec": {"ci_lower": 0.01, "ci_upper": 0.2}})
+    flagged = FitRoundOutcome(round_id="r", planned_starts=1, acceptable=False, findings=[], best_start_index=1,
+                              deadline_reached=False, starts=[best],
+                              correlations=[{"a": "elim.hepatic.UGT1A9.clspec", "b": "phys.logp", "r": -0.98}])
+    assert _fit_note(ctx, request, flagged).endswith(
+        "best objective 12.5; estimates (95 % CI): elim.hepatic.UGT1A9.clspec 0.0399 [0.01, 0.2], phys.logp 2.67; "
+        "correlated beyond 0.95, recorded and not yet acted on: elim.hepatic.UGT1A9.clspec and phys.logp (r -0.98)")
+    no_ci = FitRoundOutcome(round_id="r", planned_starts=1, acceptable=False, findings=[], best_start_index=1,
+                            deadline_reached=False, starts=[best], ci_error="covariance matrix is not positive definite")
+    assert _fit_note(ctx, request, no_ci).endswith("; no CI: covariance matrix is not positive definite")

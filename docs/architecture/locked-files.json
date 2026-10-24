@@ -357,7 +357,7 @@
     },
     {
       "path": "services/engine-worker/Dockerfile",
-      "sha256": "81a0e94cb82253cc9b70cfba0b3cd64ba40925a2d1c255b8e515d9f069c1c723"
+      "sha256": "4f082a9d8d2e9b5a31f6019d43545d4cece7c203b86f8a3927d0d3b6bb0ad313"
     },
     {
       "path": "services/engine-worker/golden/catalog.json",
@@ -453,7 +453,7 @@
     },
     {
       "path": "services/engine-worker/golden/pi_smoke.R",
-      "sha256": "ab140d92dd9346ca50b7863fb37902c7c405222f49fed9f6722e150e45adcc24"
+      "sha256": "96b176073bd7fd7df22402a000512684ebd82dacaae2b9bcdc0aa1341217965d"
     },
     {
       "path": "services/engine-worker/golden/process_coverage_snapshot.json",
@@ -489,7 +489,7 @@
     },
     {
       "path": "services/engine-worker/r/run_pi.R",
-      "sha256": "3ba15eb0b2ce3cd5b38e82c71e14dc0e3b852be9b2425e970fd7f643d2e80be0"
+      "sha256": "3fd621b8b91ec56997863d1d5919433d55788ccee8e52512a0059abe4407b2f5"
     },
     {
       "path": "tests/architecture/boundaries.toml",

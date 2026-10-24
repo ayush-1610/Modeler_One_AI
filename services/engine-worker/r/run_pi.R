@@ -73,6 +73,17 @@ algorithm_options <- function(spec) {
   )
 }
 
+# The Hessian CI's correlation matrix (rows and columns in the order of spec$parameters) as one entry per pair, keyed by
+# the CPF ids. Empty when there is no CI.
+correlation_pairs <- function(cor_mat, names) {
+  pairs <- list()
+  if (!is.matrix(cor_mat) || nrow(cor_mat) != length(names)) return(pairs)
+  for (i in seq_len(length(names) - 1)) for (j in (i + 1):length(names)) {
+    if (is.finite(cor_mat[i, j])) pairs[[length(pairs) + 1]] <- list(a = names[[i]], b = names[[j]], r = cor_mat[i, j])
+  }
+  pairs
+}
+
 run_parameter_identification <- function(spec_path, out_dir) {
   spec <- fromJSON(spec_path, simplifyVector = FALSE)
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -166,9 +177,13 @@ run_parameter_identification <- function(spec_path, out_dir) {
       }
       row
     }),
+    correlations = correlation_pairs(details$ciDetails$corMat, vapply(spec$parameters, function(p) p$name, "")),
     ospsuite = as.character(packageVersion("ospsuite")),
     parameteridentification = as.character(packageVersion("ospsuite.parameteridentification"))
   )
+  # no CI (and so no correlations) when the covariance matrix is not positive definite: itself a sign the fitted
+  # parameters cannot all be identified from these data
+  if (!is.null(details$ciError)) output$ci_error <- paste(as.character(details$ciError), collapse = " ")
   write_json(output, file.path(out_dir, "pi_result.json"), auto_unbox = TRUE, pretty = TRUE, digits = NA)
   progress(1)
   invisible(output)

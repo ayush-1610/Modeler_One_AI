@@ -139,8 +139,12 @@ class FitStartOutcome:
     converged: bool = False
     evaluations: int = 0
     manifest: EngineManifest | None = None
-    # per parameter: {"sd", "cv", "ci_lower", "ci_upper"} from the engine's CI estimate (hessian), in the CPF's unit
+    # per parameter: {"sd", "cv", "ci_lower", "ci_upper"} from the engine's CI estimate (hessian), in the CPF's unit;
+    # cv is a fraction (the package's sd / |estimate|; lognormal for a log-scaled parameter)
     uncertainty: dict[str, dict[str, float | None]] = field(default_factory=dict)
+    # the Hessian CI's correlation of each pair of fitted parameters, [{"a", "b", "r"}]; empty without a CI
+    correlations: list[dict] = field(default_factory=list)
+    ci_error: str | None = None  # why the engine could not estimate a CI (e.g. covariance not positive definite)
 
 
 @dataclass
@@ -157,6 +161,11 @@ class FitRoundOutcome:
     at_bound: list[str] = field(default_factory=list)
     correlated_pairs: list[list[str]] = field(default_factory=list)
     starts_agreement: float | None = None
+    # the best start's correlations and CI failure, for the record (PI-2). They are flagged in `findings` but not
+    # handed to the diagnosis as `correlated_pairs` until the runner carries out MS-01's action for a
+    # non-identifiable pair (fix the parameter with the more reliable source, refit).
+    correlations: list[dict] = field(default_factory=list)
+    ci_error: str | None = None
 
 
 def fit_signals(outcome: FitRoundOutcome | None) -> dict | None:

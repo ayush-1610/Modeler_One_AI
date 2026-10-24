@@ -90,12 +90,24 @@ def assess_round(
             uncertainty={e["name"]: {"sd": _num(e.get("sd")), "cv": _num(e.get("cv")),
                                      "ci_lower": _num(e.get("lowerCI")), "ci_upper": _num(e.get("upperCI"))}
                          for e in data["estimates"]},
+            correlations=[{"a": c["a"], "b": c["b"], "r": r} for c in data.get("correlations") or []
+                          if (r := _num(c.get("r"))) is not None],
+            ci_error=data.get("ci_error") or None,
         )
         starts.append(outcome)
         results.append(StartResult(index, estimates, outcome.objective, converged, outcome.evaluations))
 
-    assessment = assess_fit(results, _fit_parameters(request))
+    # the best converged start (lowest objective, as assess_fit ranks them) brings its CI and correlations, so a pair
+    # the data cannot tell apart or an estimate they barely determine is flagged (MS-01 §5: |r| > 0.95)
+    converged = [s for s in starts if s.converged and s.objective is not None]
+    best = min(converged, key=lambda s: s.objective) if converged else None
+    correlations = {(c["a"], c["b"]): c["r"] for c in best.correlations} if best else {}
+    intervals = {name: (u["ci_lower"], u["ci_upper"]) for name, u in (best.uncertainty if best else {}).items()
+                 if u.get("ci_lower") is not None and u.get("ci_upper") is not None}
+    assessment = assess_fit(results, _fit_parameters(request), correlations=correlations, confidence_intervals=intervals)
     findings = [f"{f.code}: {f.message}" for f in assessment.findings]
+    if best is not None and best.ci_error:
+        findings.append(f"NO_CI: {best.ci_error}; the fitted parameters may not all be identifiable from these data")
     if deadline_reached:
         findings.append("DEADLINE_REACHED: some starts were cancelled at the time budget")
     return FitRoundOutcome(
@@ -107,8 +119,11 @@ def assess_round(
         best_start_index=assessment.best.start_index if assessment.best else None,
         deadline_reached=deadline_reached,
         at_bound=[f.parameter for f in assessment.findings if f.code == "AT_BOUND" and f.parameter],
-        correlated_pairs=[list(pair) for pair in assessment.correlated_pairs],
+        # recorded and flagged, not yet acted on: see FitRoundOutcome.correlations
+        correlated_pairs=[],
         starts_agreement=assessment.agreement_fraction if assessment.best else None,
+        correlations=list(best.correlations) if best else [],
+        ci_error=best.ci_error if best else None,
     )
 
 
