@@ -64,3 +64,48 @@ def test_assessment_uses_finished_starts_and_reports_the_deadline(tmp_path):
     assert not at_deadline.acceptable
     assert at_deadline.starts[3].status == "CANCELLED_AT_DEADLINE"
     assert any(f.startswith("DEADLINE_REACHED") for f in at_deadline.findings)
+
+
+def _identifiability_manifest(tmp_path, index, objective, *, correlations=None, ci_error=None):
+    path = tmp_path / f"start-{index}" / "pi_result.json"
+    path.parent.mkdir()
+    result = {
+        "convergence": True, "objective_value": objective, "function_evaluations": 120,
+        "estimates": [{"name": "Lipophilicity", "estimate": 2.0, "sd": 0.1, "cv": 0.05, "lowerCI": 1.8, "upperCI": 2.2},
+                      {"name": "CLspec", "estimate": 0.5, "sd": 0.6, "cv": 1.2, "lowerCI": 0.05, "upperCI": 4.8,
+                       "scale": "log", "sd_log10": 0.47}],
+        "correlations": correlations or [],
+    }
+    if ci_error:
+        result["ci_error"] = ci_error
+    path.write_text(json.dumps(result))
+    return EngineManifest(
+        job_id=f"round-1-s{index:03d}", status="SUCCEEDED", engine_id="ospsuite-12.4.4", image_digest="sha256:x",
+        started_at="", finished_at="", inputs={}, outputs=[OutputFile("pi_result.json", path.as_uri(), "c" * 64, 10)],
+        warnings=[], engine_info={}, stderr_tail="",
+    )
+
+
+def test_the_best_starts_correlations_and_intervals_are_recorded_and_flagged_but_not_yet_acted_on(tmp_path):
+    """PI-2 (2026-10-24): run_pi.R exports the Hessian CI's correlations. A pair beyond 0.95 and a CI wider than its
+    estimate are flagged; the correlations are recorded, and not handed to the diagnosis until MS-01's
+    non-identifiable-pair action is carried out."""
+    jobs = plan_jobs(REQUEST)[:2]
+    manifests = [_identifiability_manifest(tmp_path, 0, 10.0, correlations=[{"a": "Lipophilicity", "b": "CLspec", "r": -0.97}]),
+                 _identifiability_manifest(tmp_path, 1, 10.01, correlations=[{"a": "Lipophilicity", "b": "CLspec", "r": 0.1}])]
+    outcome = assess_round(REQUEST, jobs, manifests, deadline_reached=False)
+    assert outcome.best_start_index == 0 and outcome.correlations == [{"a": "Lipophilicity", "b": "CLspec", "r": -0.97}]
+    assert any(f.startswith("HIGHLY_CORRELATED: Lipophilicity and CLspec") for f in outcome.findings)
+    assert any(f.startswith("POORLY_DETERMINED: CLspec") for f in outcome.findings)
+    assert not any("Lipophilicity: 95%" in f for f in outcome.findings)  # a narrow CI is not flagged
+    assert outcome.correlated_pairs == [] and not outcome.acceptable
+    assert outcome.starts[0].uncertainty["CLspec"] == {"sd": 0.6, "cv": 1.2, "ci_lower": 0.05, "ci_upper": 4.8}
+
+
+def test_a_fit_without_a_ci_says_why(tmp_path):
+    jobs = plan_jobs(REQUEST)[:1]
+    outcome = assess_round(REQUEST, jobs, [_identifiability_manifest(
+        tmp_path, 0, 10.0, ci_error="Covariance matrix validity check: Covariance matrix is not positive definite.")],
+        deadline_reached=False)
+    assert outcome.ci_error.endswith("not positive definite.") and outcome.correlations == []
+    assert any(f.startswith("NO_CI: Covariance matrix validity check") for f in outcome.findings)

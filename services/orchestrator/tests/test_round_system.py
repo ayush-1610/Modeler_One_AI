@@ -34,7 +34,7 @@ def _campaign(tmp_path: Path) -> RoundContext:
 
 def _fit(estimates: dict[str, float]) -> FitRoundOutcome:
     start = FitStartOutcome(start_index=0, status="SUCCEEDED", estimates=estimates, converged=True,
-                            uncertainty={k: {"sd": 0.01, "cv": 5.0, "ci_lower": v * 0.9, "ci_upper": v * 1.1}
+                            uncertainty={k: {"sd": 0.01, "cv": 0.05, "ci_lower": v * 0.9, "ci_upper": v * 1.1}
                                          for k, v in estimates.items()})
     return FitRoundOutcome(round_id="r", planned_starts=1, starts=[start], acceptable=True, findings=[],
                            best_start_index=0, deadline_reached=False)
@@ -55,7 +55,7 @@ def test_a_metabolite_estimate_goes_into_the_metabolites_cpf_beside_the_parents_
     hydroxy = system.cpf(HYDROXY)
     record = hydroxy.get(KCAT)
     assert record.numeric_value == 0.05 and record.status.value == "FITTED" and record.fitted_at_stage == "S2"
-    assert record.provenance.supersedes.startswith(f"{HYDROXY}@") and record.uncertainty.cv_percent == 5.0
+    assert record.provenance.supersedes.startswith(f"{HYDROXY}@") and record.uncertainty.cv_percent == pytest.approx(5.0)
     assert system.cpf("Itraconazole") == updated
     # the parent's new version names the compound it moved, so its own hash binds that state
     assert f"{HYDROXY} v{hydroxy.version} (sha256 {content_sha256(hydroxy)[:12]})" in updated.note
@@ -113,3 +113,28 @@ def test_the_joint_refinement_refits_another_compounds_fitted_parameter(tmp_path
     plan = joint_parameters(updated, ("S2",), system)
     assert plan.fit_ids == (f"{HYDROXY}::{KCAT}",)
     assert joint_parameters(updated, ("S2",)).fit_ids == ()  # outside the system the parent alone fitted nothing
+
+
+def test_a_metabolite_fit_with_no_profile_says_why_instead_of_failing(tmp_path):
+    # the analyte's molecular weight is looked up per study; that lookup's answer must not replace the round's list of
+    # reasons, or the "no observed profile" reason is lost (and appending to it fails)
+    from modeler_orchestrator.campaign_activities import _build_fit_request
+    from pbpk_domain.campaign.map import generate_map
+    from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
+    from pbpk_domain.m15 import Rating
+
+    imported = import_osp_system(json.loads((FIXTURES / "Itraconazole-Model.json").read_text(encoding="utf-8")))
+    studies = [StudyRecord.model_validate({k: v for k, v in s.items() if k in StudyRecord.model_fields})
+               for s in imported.studies]
+    doc = generate_map(compound="Itraconazole", cpf=imported.system.cpf("Itraconazole"), studies=studies,
+                       split=split_studies(studies, QuestionOfInterest()), objective="t", context_of_use="t",
+                       food_effect_in_question=False, model_risk=Rating.MEDIUM, engine_image_digest="t",
+                       software_versions={}, system=imported.system, campaign_budget_seconds=3600)
+    assert any(s.stage == "SM" and s.gated and s.analyte == HYDROXY for s in doc.scenarios)
+    ctx = RoundContext(campaign_id="c1", tenant_id="t1", stage="SM", round_index=1, cpf_uri="file:///unused",
+                       cpf_sha256="a" * 64, pending_action=f"fit {HYDROXY}::{KCAT}")
+    why: list[str] = []
+    request = _build_fit_request(ctx, imported.system.cpf("Itraconazole"), doc, snapshot_stem="x", out_dir=tmp_path,
+                                 system=imported.system, why=why)
+    assert request is None
+    assert why == [f"no observed profile of a SM study to fit {HYDROXY}::{KCAT} against"]

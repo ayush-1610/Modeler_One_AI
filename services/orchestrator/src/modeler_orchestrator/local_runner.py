@@ -1088,7 +1088,8 @@ def _executor_engine(engine: EngineRun | None, *, read_root: str, tenant_id: str
 
 def _fit_note(ctx: RoundContext, request, outcome) -> str:
     """What one parameter identification did, for the stage's record: the parameters, how many starts ran, the best
-    objective, and what the assessment flagged (a bound reached, starts that disagree)."""
+    objective, what the assessment flagged (a bound reached, starts that disagree), each estimate with its 95 % CI, the
+    pairs correlated beyond MS-01's 0.95, and why there is no CI when the engine could not estimate one."""
     names = ", ".join(p.name for p in request.parameters)
     ran = sum(1 for s in outcome.starts if s.status == "SUCCEEDED")
     head = f"Parameter identification in round {ctx.round_index} ({names}): {ran} of {outcome.planned_starts} start(s) ran"
@@ -1098,7 +1099,19 @@ def _fit_note(ctx: RoundContext, request, outcome) -> str:
     flags = ([f"at a bound: {', '.join(outcome.at_bound)}"] if outcome.at_bound else []) + \
         ([f"starts agree {outcome.starts_agreement:.0%}"] if outcome.starts_agreement is not None else [])
     objective = f"{best.objective:.4g}" if best.objective is not None else "not reported"
-    return f"{head}; best objective {objective}" + (f" ({'; '.join(flags)})" if flags else "")
+    estimates = []
+    for p in request.parameters:
+        if p.name not in best.estimates:
+            continue
+        spread = (best.uncertainty or {}).get(p.name) or {}
+        lo, hi = spread.get("ci_lower"), spread.get("ci_upper")
+        estimates.append(f"{p.name} {best.estimates[p.name]:.4g}" + (f" [{lo:.3g}, {hi:.3g}]" if lo is not None and hi is not None else ""))
+    strong = [c for c in outcome.correlations if abs(c["r"]) > 0.95]
+    return (f"{head}; best objective {objective}" + (f" ({'; '.join(flags)})" if flags else "")
+            + (f"; estimates (95 % CI): {', '.join(estimates)}" if estimates else "")
+            + (f"; correlated beyond 0.95, recorded and not yet acted on: "
+               f"{', '.join(f'{c['a']} and {c['b']} (r {c['r']:.2f})' for c in strong)}" if strong else "")
+            + (f"; no CI: {outcome.ci_error}" if outcome.ci_error else ""))
 
 
 def _campaign_writer(request: CampaignRequest, *, read_root: str, project: str, question: str, model_risk: str,

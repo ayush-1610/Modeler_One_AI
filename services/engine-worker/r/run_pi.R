@@ -8,8 +8,9 @@
 #
 # Spec fields:
 #   simulations      [{id, pkml}]
-#   parameters       [{name, unit, min, max, start, paths: [{simulation, path}]}]   one PIParameters per entry;
-#                    several paths = one value shared across simulations
+#   parameters       [{name, unit, min, max, start, scale (optional), paths: [{simulation, path}]}]   one PIParameters
+#                    per entry; several paths = one value shared across simulations; scale "log" optimises the
+#                    parameter on log10 of its value (bounds above 0), absent or "linear" on the value itself
 #   output_mappings  [{simulation, output_path, scaling ("lin"|"log"), observed: {name, time[], time_unit,
 #                      values[], unit, sd[] (optional), lloq (optional), mol_weight, weight (optional)}}]
 #                    weight: one residual weight for the whole dataset (the joint refinement gives every study the
@@ -31,6 +32,34 @@ progress <- function(fraction) {
 }
 
 num <- function(x) as.numeric(unlist(x))
+
+is_log_scale <- function(p) identical(p$scale, "log")
+
+# A parameter whose fit policy is on a log scale (MS-01 §2.2: a clearance's bounds span six decades) is optimised on
+# log10 of its value. ospsuite.parameteridentification 2.2.0 has no parameter transform, so this subclass applies 10^x
+# to the model and reports log10 of the model's value: start, bounds, the optimiser's steps and the Hessian CI are all
+# on log10, and the result is turned back to values below. Steps of one decade then weigh the same anywhere in range.
+LogPIParameters <- R6::R6Class(
+  "LogPIParameters",
+  inherit = PIParameters,
+  active = list(
+    currValue = function(value) {
+      if (!missing(value)) stop("currValue is read-only: use $setValue()")
+      log10(ospsuite::toUnit(quantityOrDimension = private$.parameters[[1]], values = private$.parameters[[1]]$value,
+                             targetUnit = private$.unit))
+    }
+  ),
+  public = list(
+    initialize = function(parameters) {
+      super$initialize(parameters)
+      start <- private$.startValue
+      private$.startValue <- if (is.finite(start) && start > 0) log10(start) else 0
+      private$.minValue <- private$.startValue - 1
+      private$.maxValue <- private$.startValue + 1
+    },
+    setValue = function(value) super$setValue(10^value)
+  )
+)
 
 build_dataset <- function(observed) {
   dataset <- DataSet$new(name = observed$name)
@@ -73,6 +102,17 @@ algorithm_options <- function(spec) {
   )
 }
 
+# The Hessian CI's correlation matrix (rows and columns in the order of spec$parameters) as one entry per pair, keyed by
+# the CPF ids; on log-scaled parameters it is the correlation of their log10. Empty when there is no CI.
+correlation_pairs <- function(cor_mat, names) {
+  pairs <- list()
+  if (!is.matrix(cor_mat) || nrow(cor_mat) != length(names)) return(pairs)
+  for (i in seq_len(length(names) - 1)) for (j in (i + 1):length(names)) {
+    if (is.finite(cor_mat[i, j])) pairs[[length(pairs) + 1]] <- list(a = names[[i]], b = names[[j]], r = cor_mat[i, j])
+  }
+  pairs
+}
+
 run_parameter_identification <- function(spec_path, out_dir) {
   spec <- fromJSON(spec_path, simplifyVector = FALSE)
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -92,14 +132,17 @@ run_parameter_identification <- function(spec_path, out_dir) {
   base_factor <- list()  # parameter name -> multiply a base-unit value by this to get the CPF's unit
   parameters <- lapply(spec$parameters, function(p) {
     objects <- lapply(p$paths, function(x) getParameter(path = x$path, container = simulations[[x$simulation]]))
-    pi_parameter <- PIParameters$new(parameters = objects)
+    log_scale <- is_log_scale(p)
+    pi_parameter <- if (log_scale) LogPIParameters$new(parameters = objects) else PIParameters$new(parameters = objects)
     to_base <- function(v) if (has_unit(p$unit)) toBaseUnit(objects[[1]], as.numeric(v), p$unit) else as.numeric(v)
+    if (log_scale && !(to_base(p$min) > 0)) stop(sprintf("%s: a log-scale fit needs bounds above 0", p$name))
+    to_scale <- function(v) if (log_scale) log10(to_base(v)) else to_base(v)
     base_factor[[p$name]] <<- if (has_unit(p$unit)) toUnit(objects[[1]], 1, p$unit) else 1
-    lo <- to_base(p$min); hi <- to_base(p$max)
+    lo <- to_scale(p$min); hi <- to_scale(p$max)
     # Widen first, then set the start, then narrow: the setters reject a bound on the wrong side of the start.
     pi_parameter$maxValue <- max(hi, pi_parameter$maxValue)
     pi_parameter$minValue <- min(lo, pi_parameter$minValue)
-    if (!is.null(p$start)) pi_parameter$startValue <- to_base(p$start)
+    if (!is.null(p$start)) pi_parameter$startValue <- to_scale(p$start)
     pi_parameter$minValue <- lo
     pi_parameter$maxValue <- hi
     pi_parameter
@@ -160,15 +203,28 @@ run_parameter_identification <- function(spec_path, out_dir) {
         # back from the base unit to the CPF's unit (linear units: absolute SD and CIs scale by the same factor)
         spec_p <- Filter(function(p) identical(p$name, cpf_id), spec$parameters)[[1]]
         factor <- base_factor[[cpf_id]]
+        if (is_log_scale(spec_p)) {
+          # from log10 back to values: the CI bounds transform exactly; the SD of log10 gives the lognormal CV
+          z <- as.numeric(row$sd)
+          for (k in c("estimate", "lowerCI", "upperCI", "initialValue")) row[[k]] <- 10^as.numeric(row[[k]])
+          row$cv <- if (is.finite(z)) sqrt(exp((log(10) * z)^2) - 1) else NA_real_
+          row$sd <- row$cv * row$estimate
+          row$sd_log10 <- z
+          row$scale <- "log"
+        }
         for (k in c("estimate", "sd", "lowerCI", "upperCI", "initialValue")) row[[k]] <- as.numeric(row[[k]]) * factor
         row$base_unit <- row$unit
         row$unit <- if (has_unit(spec_p$unit)) spec_p$unit else row$unit
       }
       row
     }),
+    correlations = correlation_pairs(details$ciDetails$corMat, vapply(spec$parameters, function(p) p$name, "")),
     ospsuite = as.character(packageVersion("ospsuite")),
     parameteridentification = as.character(packageVersion("ospsuite.parameteridentification"))
   )
+  # no CI (and so no correlations) when the covariance matrix is not positive definite: itself a sign the fitted
+  # parameters cannot all be identified from these data
+  if (!is.null(details$ciError)) output$ci_error <- paste(as.character(details$ciError), collapse = " ")
   write_json(output, file.path(out_dir, "pi_result.json"), auto_unbox = TRUE, pretty = TRUE, digits = NA)
   progress(1)
   invisible(output)

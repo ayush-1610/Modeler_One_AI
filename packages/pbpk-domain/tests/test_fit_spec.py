@@ -66,6 +66,13 @@ def test_build_fit_spec_structure_and_path():
     assert spec["algorithm"] == "BOBYQA"
 
 
+@pytest.mark.req("T-13")
+def test_a_log_fit_policy_asks_the_engine_to_fit_on_log10_and_a_linear_one_does_not():
+    spec = build_fit_spec(_cpf(), ["phys.logp", "elim.hepatic.CYP3A4.clspec"], [_sim()])
+    scale = {p["name"]: p.get("scale") for p in spec["parameters"]}
+    assert scale == {"phys.logp": None, "elim.hepatic.CYP3A4.clspec": "log"}
+
+
 def test_dimensionless_parameter_carries_no_unit_key():
     """A null unit came back from run_job.R's re-serialisation as {} and ospsuite rejected it (found on PK-Sim)."""
     gfr_bind = EngineBinding(building_block="Compound", process="GlomerularFiltration", parameter="GFR fraction",
@@ -116,6 +123,14 @@ def test_apply_estimates_creates_fitted_new_version():
     assert logp.provenance.supersedes == f"Drug-A@{cpf.version}:phys.logp"
     assert logp.fit_policy is not None  # policy/binding preserved
     assert cpf.require("phys.logp").numeric_value == 2.5  # original unchanged (immutable)
+
+
+@pytest.mark.req("T-13")
+def test_the_engines_cv_fraction_is_kept_in_percent():
+    spread = {"elim.hepatic.CYP3A4.clspec": {"sd": 0.28, "cv": 0.2, "ci_lower": 0.9, "ci_upper": 2.1}}
+    updated = apply_fit_estimates(_cpf(), {"elim.hepatic.CYP3A4.clspec": 1.4}, stage="S1", uncertainty=spread)
+    u = updated.require("elim.hepatic.CYP3A4.clspec").uncertainty
+    assert u.cv_percent == pytest.approx(20.0) and u.sd == 0.28 and (u.ci95_lower, u.ci95_upper) == (0.9, 2.1)
 
 
 def test_apply_unknown_estimate_raises():

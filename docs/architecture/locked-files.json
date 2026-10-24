@@ -453,7 +453,7 @@
     },
     {
       "path": "services/engine-worker/golden/pi_smoke.R",
-      "sha256": "ab140d92dd9346ca50b7863fb37902c7c405222f49fed9f6722e150e45adcc24"
+      "sha256": "4350334d4893ab73641015f4c984cce6983c579602a2f71613a21c58201b2017"
     },
     {
       "path": "services/engine-worker/golden/process_coverage_snapshot.json",
@@ -489,7 +489,7 @@
     },
     {
       "path": "services/engine-worker/r/run_pi.R",
-      "sha256": "3ba15eb0b2ce3cd5b38e82c71e14dc0e3b852be9b2425e970fd7f643d2e80be0"
+      "sha256": "7953f91578add4c5f08ced4d1606485a38e525a64cdad576a114c5b30f301fc2"
     },
     {
       "path": "tests/architecture/boundaries.toml",

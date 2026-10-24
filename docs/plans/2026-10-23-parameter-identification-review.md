@@ -1,6 +1,7 @@
 # Parameter identification: are we fitting, and is it sound PBPK? (review and plan)
 
-Status: **DRAFT for the owner's decisions** (2026-10-23). Nothing here is built yet. Science items are UNVERIFIED and go
+Status: **in progress** (2026-10-24). The owner decided: PI-1 pin 2.2.0 (built, PR #100, qualified on PK-Sim); PI-2 and
+PI-3 approved as one `run_pi.R` PR (built; the correlations are recorded and flagged, not yet acted on: PI-2b). Science items are UNVERIFIED and go
 to the SME (T-30) before they bind anything.
 
 The owner asked (2026-10-23): "are we doing or running Parameter Identification, are many of the simulation is just
@@ -65,6 +66,7 @@ UNVERIFIED, version bump, CHANGELOG science entry, and PK-Sim evidence before it
 | **PI-0** | **Confirm what T-56 did.** Re-run T-56 with a plan signed after D-37. PR #97's notes then show the fit candidates, each fit and why any did not run. | the owner, on the server | evidence |
 | **PI-1** | **Unblock the engine image.** r-universe now serves PI 2.3.0, so every engine build fails. Install the qualified 2.2.0 from its release source with a pinned sha256, as ospsuite already is. | `services/engine-worker/Dockerfile` (locked) | infra |
 | **PI-2** | **Identifiability in every fit, without changing any decision:** `run_pi.R` exports the correlation matrix of the best start; `assess_fit` receives the correlations and the CIs, so "highly correlated" and "poorly determined" fire, and the existing `non_identifiable_pair` rule can act; each fit's estimate, CI, CV, correlations, start agreement and bounds go into the stage notes and a MAR table. | `run_pi.R` (locked), `fitting_activities.py`, `campaign_mar.py` | engine + report |
+| **PI-2b** | **Act on a non-identifiable pair:** carry out MS-01's `fix_and_refit` ("fix the one with the more reliable source; refit"), then hand the correlated pairs to the diagnosis. It needs a choice of the value to fix at (its source value, or the value it was fitted to). | `campaign_activities.py`, `local_runner.py` | science |
 | **PI-3** | **Log-scale optimisation** (approved by the owner on 2026-10-23, after T-56): parameters with a log fit policy are optimised on log10. Includes a golden PI case and a PK-Sim qualification run. Can share the engine PR with PI-2. | `run_pi.R` (locked), `golden/pi_smoke.R` | engine |
 | **PI-4** | **Parallel pathways: fit what the data identify** (science, SME). When several pathways of one kind would be fitted from plasma data alone, fit one common factor on them and keep their fm split, unless the stage has data that separate them (metabolites, urine). The MAP records which. | `diag_rules.yaml` 0.7, `fit_spec.py`, MS-01 (locked, SME) | science |
 | **PI-5** | **Choose by sensitivity** (science). Before a fit, run a local sensitivity of the training outputs to the action's candidates (the engine's `sensitivity` task). Leave out those below a threshold, and record why. | `campaign_activities.py`, `diag_rules.yaml` | science |

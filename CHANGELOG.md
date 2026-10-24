@@ -15,6 +15,54 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed (science) — fits run on log10 for log-scaled parameters, and every fit records its CI and correlations (PI-2, PI-3; locked `run_pi.R`; UNVERIFIED)
+The owner's decision of 2026-10-24 ("approve run_pi.R PR"); plan `docs/plans/2026-10-23-parameter-identification-review.md`
+F2 and F3.
+- **Log-scale optimisation (PI-3).**
+  - **Before:** a parameter whose fit policy is on a log scale (MS-01 §2.2: the hepatic clspec bounds
+    [0.0001, 100] l/µmol/min) had log-sampled start values only. BOBYQA then stepped on the value itself, so a step
+    near the lower bound covered decades and one near the upper bound a fraction of one.
+  - **Now:** `build_fit_spec` marks such a parameter `scale: "log"`, and `run_pi.R` optimises it on log10 of its value.
+    `ospsuite.parameteridentification` 2.2.0 has no parameter transform, so a subclass of its `PIParameters` applies
+    10^x to the model and reports log10 of the model's value. The start, the bounds, the optimiser and the Hessian
+    CI all work on log10.
+  - **Results:** they are turned back to values. The CI bounds transform exactly; the CV is the lognormal one,
+    √(exp((ln 10 · sd)²) − 1).
+  - **Unchanged:** linear-scale parameters.
+- **Identifiability on the record (PI-2).**
+  - **Exported by `run_pi.R`:** the correlation of each pair of fitted parameters from the Hessian CI. When no CI could
+    be estimated, it says why (for example, a covariance that is not positive definite, itself a sign the parameters
+    are not all identifiable).
+  - **Judged by `assess_round`:** it hands the best start's correlations and 95 % CIs to `assess_fit`. A pair beyond
+    MS-01's |r| > 0.95 is flagged `HIGHLY_CORRELATED`, a CI wider than its estimate `POORLY_DETERMINED`, and a missing
+    CI `NO_CI`. Before, those checks existed but were never given data.
+  - **Shown in each stage's notes:** every estimate with its 95 % CI, and the strong pairs.
+- **Not yet acted on (known gap):** the correlations are recorded and flagged, but they are not handed to the
+  diagnosis (`correlated_pairs` stays empty). MS-01's action for a non-identifiable pair ("fix the one with the more
+  reliable source; refit", diag-rules `fix_and_refit`) is not carried out by the runner yet. Its target `a|b` would
+  match no parameter and the round would fit nothing, so feeding the signal now would only waste rounds. It is the
+  next step (PI-2b), and it needs a choice of the value to fix at.
+- **Fixed in passing:**
+  - **The CV unit.** The engine's CV is a fraction (sd / |estimate|), and the CPF stored it as `cv_percent`
+    unchanged. It is now ×100.
+  - **The model-system fit reasons.** `_build_fit_request` reused the name `why` for an analyte lookup, so in a model
+    system the round's list of reasons why a fit did not run was replaced. The "no observed profile" reason was lost,
+    and appending to it raised `AttributeError` (from #97; a regression test now covers it).
+- **Golden (locked `pi_smoke.R`):** Aciclovir's tubular secretion is fitted on both scales from the same start, at the
+  path the package's own tests fit. The case requires:
+  - the same optimum within 5 %;
+  - a log-scale result inside its bounds;
+  - a two-parameter fit that reports its correlation or says why there is none.
+- **Impact:**
+  - **Different estimates:** fits of log-scaled parameters (under the MS-01 defaults, D-37: the hepatic clspec and
+    kcat, the permeabilities, the reference solubility and the Weibull parameters) can converge to different estimates than before, and more often away from a
+    bound.
+  - **Stricter assessment:** more fits are marked not acceptable, because the new findings count. No run uses that
+    flag to decide anything.
+  - **Unchanged verdict path:** only the estimates feed the verdicts.
+- **To show on PK-Sim:** this PR's engine-image job (the golden cases above), then `dapagliflozin-refit`, to compare with
+  the recorded refit (UGT1A9 clspec at its lower bound, GMFE 2.478 → 1.412).
+
 ### Fixed — the engine image builds again: parameter identification 2.2.0 pinned to its release (PI-1; locked file)
 The owner's decision of 2026-10-24 ("pin 2.2.0"). The OSP r-universe now serves only `ospsuite.parameteridentification`
 2.3.0, so every engine-image build since 2026-10-23 stopped at its own version check (2.3.0 is not the qualified
