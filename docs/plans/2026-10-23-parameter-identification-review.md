@@ -1,7 +1,8 @@
 # Parameter identification: are we fitting, and is it sound PBPK? (review and plan)
 
 Status: **in progress** (2026-10-24). The owner decided: PI-1 pin 2.2.0 (built, PR #100, qualified on PK-Sim); PI-2 and
-PI-3 approved as one `run_pi.R` PR. PI-2 is built (PR #101; correlations recorded and flagged, not yet acted on: PI-2b).
+PI-3 approved as one `run_pi.R` PR. PI-2 is built (PR #101, its golden case qualified on PK-Sim in run 40080162775;
+correlations recorded and flagged, not yet acted on: PI-2b).
 PI-3 is blocked: the package writes the optimiser's raw values into its simulation batches, so no parameter subclass can
 change the scale (found on PK-Sim, run 40079660726). Options for the owner are under PI-3 below. Science items are UNVERIFIED and go
 to the SME (T-30) before they bind anything.

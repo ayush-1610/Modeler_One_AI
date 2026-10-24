@@ -41,6 +41,9 @@ The owner's decision of 2026-10-24 ("approve run_pi.R PR"); plan `docs/plans/202
     `AttributeError` (from #97). A regression test now covers it.
 - **Golden (locked `pi_smoke.R`):** a two-parameter Aciclovir fit (lipophilicity and tubular secretion, at the path the
   package's own tests fit) must report its correlation, or why there is none.
+  - **Passed on PK-Sim** (engine-image run 40080162775 on a90d450, PK-Sim 12.3.173, ospsuite 12.4.4, PI 2.2.0): the
+    Hessian CI was estimated and `r(Lipophilicity, TSspec) = 0.42`. The single and weighted smoke cases, the golden
+    tasks, the Aciclovir benchmark fit (41 evaluations, objective 6.57) and the Weibull check passed unchanged.
 - **Not done: log-scale optimisation (PI-3).**
   - **Tried:** a `PIParameters` subclass that applies 10^x.
   - **Why it cannot work:** `ospsuite.parameteridentification` 2.2.0 writes the optimiser's raw values into its
