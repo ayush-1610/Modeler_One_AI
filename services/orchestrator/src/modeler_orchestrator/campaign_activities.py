@@ -226,14 +226,91 @@ def _is_log_scale(cpf, param_id: str, system=None) -> bool:
     return bool(record and record.fit_policy and record.fit_policy.scale.value == "log")
 
 
+FIT_OPS = ("fit", "fix_and_refit")
+
+
+def _stage_fits(ctx: RoundContext, cpf, map_doc, system=None) -> tuple[tuple[str, ...], tuple, str | None]:
+    """What the pending action fits, the parameters MS-01's fix_and_refit fixed so far in the stage (in order), and why a
+    fix could not be decided, if so. The stage's actions are replayed (``actions_tried``, ending with the pending one):
+    a fit names its parameters, less any fixed earlier in the stage; a fix_and_refit fixes the more reliable of its pair
+    at the signed source value (`pbpk_domain.identifiability`) and refits the previous fit's other parameters (PI-2b)."""
+    from pbpk_domain.fit_spec import resolve_fit_ids
+    from pbpk_domain.identifiability import choose_fixed
+
+    actions = list(ctx.actions_tried)
+    if ctx.pending_action and (not actions or actions[-1] != ctx.pending_action):
+        actions.append(ctx.pending_action)  # the joint refinement's fit is not in a round loop's actions
+    signed = {p.id: p for p in map_doc.cpf_parameters}
+    fit_ids: tuple[str, ...] = ()
+    fixed: list = []
+    for action in actions:
+        op, _, target = action.partition(" ")
+        if op == "fit":
+            held = {f.fixed for f in fixed}
+            fit_ids = tuple(cid for cid in dict.fromkeys(c for part in target.split("+") for c in resolve_fit_ids(cpf, part, system))
+                            if cid not in held)
+        elif op == "fix_and_refit":
+            a, _, b = target.partition("|")
+            choice = choose_fixed(a, b, signed)
+            if isinstance(choice, str):
+                return (), tuple(fixed), f"non-identifiable pair {a} and {b}: {choice}"
+            fixed.append(choice)
+            fit_ids = tuple(cid for cid in fit_ids if cid != choice.fixed)
+    return fit_ids, tuple(fixed), None
+
+
+def _fix_note(ctx: RoundContext, choice) -> str:
+    unit = f" {choice.unit}" if choice.unit else ""
+    return (f"MS-01 fix_and_refit at {ctx.stage} round {ctx.round_index}: {choice.fixed} fixed at its signed source value "
+            f"{choice.value:g}{unit}, {choice.refit} refitted; {choice.reason}")
+
+
+def _round_base(ctx: RoundContext) -> tuple[str, str, str | None]:
+    """The CPF the round works on, and why a fix was not applied: ctx's CPF, or, when the pending action is MS-01's
+    fix_and_refit, a new version with the more reliable parameter of the pair back at its signed source value. It is
+    written beside the CPF under the same name each time (the build and the fit both read it), and it carries forward
+    even when the refit produces no estimate."""
+    if not ctx.pending_action or not ctx.pending_action.startswith("fix_and_refit ") or not ctx.map_uri:
+        return ctx.cpf_uri, ctx.cpf_sha256, None
+    cpf_text, map_text = _load_local_text(ctx.cpf_uri), _load_local_text(ctx.map_uri)
+    if cpf_text is None or map_text is None:
+        return ctx.cpf_uri, ctx.cpf_sha256, "the CPF or the MAP is not locally loadable"
+
+    from pbpk_domain.campaign.map import MapDocument
+    from pbpk_domain.cpf import CPF
+    from pbpk_domain.identifiability import fix_at_source
+
+    cpf = CPF.model_validate_json(cpf_text)
+    _ids, fixed, problem = _stage_fits(ctx, cpf, MapDocument.model_validate_json(map_text), _round_system(ctx, cpf))
+    if problem or not fixed:
+        return ctx.cpf_uri, ctx.cpf_sha256, problem or "no pair to fix"  # the diagnosis escalates such a pair first
+    try:
+        updated = fix_at_source(cpf, fixed[-1], note=_fix_note(ctx, fixed[-1]))
+    except ValueError as exc:
+        activity.logger.warning("fix_and_refit %s %s round %d: not applied (%s)", ctx.campaign_id, ctx.stage, ctx.round_index, exc)
+        return ctx.cpf_uri, ctx.cpf_sha256, str(exc)
+    payload = updated.model_dump_json().encode("utf-8")
+    out = _local_path(ctx.cpf_uri).parent / "cpf" / f"{_round_stem(ctx)}-fixed.json"
+    atomic_write_bytes(out, payload)
+    system = _round_system(ctx, cpf)
+    if system is not None:
+        from modeler_orchestrator.round_system import write_beside
+        from pbpk_domain.system import with_cpf
+
+        write_beside(out, with_cpf(system, updated))
+    return out.as_uri(), hashlib.sha256(payload).hexdigest(), None
+
+
 def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, out_dir: Path,
-                       system=None, why: list[str] | None = None) -> FitRoundRequest | None:
+                       system=None, why: list[str] | None = None,
+                       fit_ids: tuple[str, ...] | None = None) -> FitRoundRequest | None:
     """Assemble the round's FitRoundRequest from the chosen action, the CPF and the observed profiles.
 
     Returns None (the round then simulates instead of fitting) when there is no fittable parameter, no
     observed profile to fit against, or the spec cannot be built; the reason is appended to ``why``, so the round's
-    notes say why no parameter identification ran. The pkml model inputs are left empty here and filled by the
-    snapshot->pkml conversion step before the fit runs."""
+    notes say why no parameter identification ran. ``fit_ids`` are the parameters the stage's actions leave to fit
+    (`_stage_fits`); without them the target is resolved here. The pkml model inputs are left empty here and filled by
+    the snapshot->pkml conversion step before the fit runs."""
     why = why if why is not None else []
     from pbpk_domain.campaign.round_build import protocol_name, scenario_alternatives, scenarios_for_stage
     from pbpk_domain.cpf.build import ALTERNATIVE_GROUP_OF_ID
@@ -245,10 +322,12 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     target = ctx.pending_action.split(" ", 1)[1] if ctx.pending_action and " " in ctx.pending_action else ""
     # a joint fit names several parameters, "a+b+c" (SJ); a single target resolves as before. In a model system a
     # target may name another compound's parameter, "<compound>::<id>" (multi-compound phase 2, D-25)
-    fit_ids = list(dict.fromkeys(cid for part in target.split("+") for cid in resolve_fit_ids(cpf, part, system)))
+    fit_ids = list(fit_ids if fit_ids is not None else
+                   dict.fromkeys(cid for part in target.split("+") for cid in resolve_fit_ids(cpf, part, system)))
     if not fit_ids:
         activity.logger.info("build_round_snapshot %s %s: no fittable CPF parameter for %r", ctx.campaign_id, ctx.stage, target)
-        why.append(f"no fittable CPF parameter for {target!r}")
+        why.append(f"no parameter left to refit after {target!r}" if ctx.pending_action.startswith("fix_and_refit ")
+                   else f"no fittable CPF parameter for {target!r}")
         return None
 
     # The strategist's bounds are keyed by the (possibly templated) action target; apply them to every
@@ -357,10 +436,11 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     stage snapshot via `pbpk_domain.campaign.round_build.build_stage_snapshot`, writes it next to the CPF and
     returns its URI and content hash. When the pending action is a fit, it also assembles the round's
     FitRoundRequest (`_build_fit_request`: resolve the parameters, build the PI spec against the observed
-    profiles, persist it) — None when nothing is fittable, so the round simulates instead. When the CPF or MAP
-    is not locally loadable, or no scenario trains this stage (e.g. the validation stages), the round falls
-    back to echoing the CPF so the workflow still advances; the reason is logged."""
-    needs_fit = bool(ctx.pending_action and ctx.pending_action.startswith("fit"))
+    profiles, persist it) — None when nothing is fittable, so the round simulates instead. MS-01's fix_and_refit
+    builds from the CPF with the pair's more reliable parameter fixed at its signed source value (`_round_base`) and
+    fits the rest. When the CPF or MAP is not locally loadable, or no scenario trains this stage (e.g. the validation
+    stages), the round falls back to echoing the CPF so the workflow still advances; the reason is logged."""
+    needs_fit = bool(ctx.pending_action and ctx.pending_action.split(" ", 1)[0] in FIT_OPS)
 
     def _echo(reason: str) -> RoundBuild:
         activity.logger.info(
@@ -368,7 +448,8 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
         )
         return RoundBuild(snapshot_uri=ctx.cpf_uri, snapshot_sha256=ctx.cpf_sha256, needs_fit=needs_fit, fit_request=None)
 
-    cpf_text = _load_local_text(ctx.cpf_uri)
+    base_uri, _base_sha, not_fixed = _round_base(ctx)
+    cpf_text = _load_local_text(base_uri)
     map_text = _load_local_text(ctx.map_uri) if ctx.map_uri else None
     if cpf_text is None or map_text is None:
         return _echo("CPF or MAP not locally loadable (object-store I/O pending)")
@@ -401,15 +482,24 @@ def build_round_snapshot(ctx: RoundContext) -> RoundBuild:
     for note in stage.notes:
         activity.logger.info("build_round_snapshot %s %s: %s", ctx.campaign_id, ctx.stage, note)
     why: list[str] = []
-    fit_request = (_build_fit_request(ctx, cpf, map_doc, snapshot_stem=out.stem, out_dir=out.parent, system=system, why=why)
-                   if needs_fit else None)
+    fixes: list[str] = []
+    fit_request = None
+    if needs_fit:
+        fit_ids, fixed, problem = _stage_fits(ctx, cpf, map_doc, system)
+        if problem or not_fixed:
+            why.append(problem or f"the parameter to fix could not be set to its signed source value ({not_fixed})")
+        else:
+            if ctx.pending_action.startswith("fix_and_refit "):
+                fixes.append(_fix_note(ctx, fixed[-1]))
+            fit_request = _build_fit_request(ctx, cpf, map_doc, snapshot_stem=out.stem, out_dir=out.parent, system=system,
+                                             why=why, fit_ids=fit_ids)
     activity.logger.info(
         "build_round_snapshot %s %s round %d: built %d simulation(s) fit=%s fit_request=%s",
         ctx.campaign_id, ctx.stage, ctx.round_index, len(stage.simulations), needs_fit, fit_request is not None,
     )
     return RoundBuild(
         snapshot_uri=out.as_uri(), snapshot_sha256=snapshot_sha, needs_fit=needs_fit, fit_request=fit_request,
-        notes=[*stage.notes, *(f"FIT NOT RUN in round {ctx.round_index} ({ctx.pending_action}): {w}" for w in why)],
+        notes=[*stage.notes, *fixes, *(f"FIT NOT RUN in round {ctx.round_index} ({ctx.pending_action}): {w}" for w in why)],
     )
 
 
@@ -538,10 +628,11 @@ def _apply_round_fit(ctx: RoundContext, fit_outcome) -> tuple[str, str]:
     system as of the new version is written beside it (`round_system`); the new version's note names each compound
     it moved, with its version and content hash. Falls back to the unchanged CPF when no estimates were produced, the
     CPF is not locally loadable, or an estimate names a compound the system does not have."""
+    base_uri, base_sha, _not_fixed = _round_base(ctx)  # MS-01 fix_and_refit: the fixed CPF, kept with or without estimates
     estimates = _best_estimates(fit_outcome)
-    cpf_text = _load_local_text(ctx.cpf_uri) if estimates else None
+    cpf_text = _load_local_text(base_uri) if estimates else None
     if not estimates or cpf_text is None:
-        return ctx.cpf_uri, ctx.cpf_sha256
+        return base_uri, base_sha
 
     from modeler_orchestrator.round_system import moved_note, write_beside
     from pbpk_domain.cpf import CPF
@@ -570,7 +661,7 @@ def _apply_round_fit(ctx: RoundContext, fit_outcome) -> tuple[str, str]:
                    if own else cpf.replace(note=note))
     except FitSpecError as exc:
         activity.logger.warning("run_round %s %s round %d: fit not applied (%s)", ctx.campaign_id, ctx.stage, ctx.round_index, exc)
-        return ctx.cpf_uri, ctx.cpf_sha256
+        return base_uri, base_sha
 
     payload = updated.model_dump_json().encode("utf-8")
     cycle = f"-c{ctx.cycle}" if ctx.cycle > 1 else ""
@@ -818,6 +909,33 @@ def _merge_diagnoses(diagnoses):
     return Diagnosis(evidence=evidence, causes=causes, permitted_actions=(), escalate=True, reason=reason)
 
 
+def _decide_pairs(ctx: RoundContext, diagnosis, map_doc):
+    """MS-01's fix_and_refit for each non-identifiable pair the diagnosis permits (PI-2b): name which parameter is fixed
+    at its signed source value and which refitted, or, where the signed sources cannot decide, escalate the round to the
+    modeller rather than guess (the owner's rule of 2026-10-25)."""
+    from pbpk_domain.diagnostics import Diagnosis
+    from pbpk_domain.identifiability import choose_fixed
+
+    if diagnosis.escalate:
+        return diagnosis, []
+    signed = {p.id: p for p in map_doc.cpf_parameters}
+    notes: list[str] = []
+    for action in diagnosis.permitted_actions:
+        op, _, target = action.partition(" ")
+        if op != "fix_and_refit":
+            continue
+        a, _, b = target.partition("|")
+        choice = choose_fixed(a, b, signed)
+        if isinstance(choice, str):
+            reason = (f"non-identifiable pair {a} and {b} (|r| > 0.95): {choice}; which one to fix is the modeller's "
+                      "decision (MS-01 fix_and_refit)")
+            return Diagnosis(evidence=diagnosis.evidence, causes=diagnosis.causes, permitted_actions=(), escalate=True,
+                             reason=reason), []  # the round's escalation note names the reason
+        notes.append(f"Round {ctx.round_index}: {a} and {b} are not identifiable together (|r| > 0.95); if refitted, "
+                     f"{choice.fixed} is fixed at its signed source value and {choice.refit} refitted ({choice.reason})")
+    return diagnosis, notes
+
+
 def _off(ratio: float | None, thresholds: dict) -> bool:
     """A predicted/observed ratio outside the ruleset's diagnostic band (ratio_low .. ratio_high)."""
     return ratio is not None and not float(thresholds["ratio_low"]) <= ratio <= float(thresholds["ratio_high"])
@@ -921,6 +1039,8 @@ def diagnose_round(ctx: RoundContext, evaluation: RoundEvaluation) -> RoundDiagn
                    if (q := _qualify_action(a, subject, fitted, system)) and q not in ctx.actions_tried]
         diagnoses.append((subject, found, actions))
     diagnosis = _merge_diagnoses(diagnoses)
+    diagnosis, fix_notes = _decide_pairs(ctx, diagnosis, map_doc)
+    notes.extend(fix_notes)
     activity.logger.info(
         "diagnose_round %s %s round %d: causes=%s actions=%d escalate=%s",
         ctx.campaign_id, ctx.stage, ctx.round_index, list(diagnosis.causes), len(diagnosis.permitted_actions), diagnosis.escalate,

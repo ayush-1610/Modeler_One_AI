@@ -478,6 +478,7 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
               settings: SettingsDep) -> dict[str, Any]:
     """Approve and sign: the MAP generated from the plan, signed (Part 11, step-up), and the campaign inputs staged."""
     from modeler_api.studies import observed_from_studies
+    from modeler_project import review
     from modeler_storage.filestore import FileWriteStore
 
     ws = workspace_for(project_id, principal, store)
@@ -490,7 +491,8 @@ def sign_plan(project_id: str, body: SignRequest, principal: MiddLead, store: St
         raise HTTPException(status_code=409, detail=f"MAP v{previous[1].version} is signed and the plan has not changed since")
     exploratory = _exploratory(ws)
     try:
-        doc = map_from_plan(plan, cpf, rows, exploratory=exploratory)
+        # each value's source grade, as the review shows it: MS-01's "more reliable source" for a non-identifiable pair
+        doc = map_from_plan(plan, cpf, rows, exploratory=exploratory, grades=review.grades(review.review_rows(ws)))
     except PlanError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if previous is not None:

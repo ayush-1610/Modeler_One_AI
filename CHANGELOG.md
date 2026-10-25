@@ -15,6 +15,47 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — a non-identifiable pair is fixed and refitted (PI-2b, MS-01 fix_and_refit; locked `map.py`; UNVERIFIED)
+The owner's decision of 2026-10-25 ("PI-2b: build it"), with the owner's rule for "the more reliable source"; plan
+`docs/plans/2026-10-23-parameter-identification-review.md` PI-2b. It closes PI-2's known gap.
+- **Before:** a fit whose two parameters were correlated beyond |r| > 0.95 was flagged (PI-2), but the pair never
+  reached the diagnosis, and MS-01's `fix_and_refit` would have fitted nothing (its target `a|b` matched no
+  parameter, and its op was not recognised as a fit).
+- **The pairs reach the diagnosis.** `assess_round` hands the best start's pairs beyond 0.95 to the diagnosis as
+  `correlated_pairs`, strongest first (`assess_fit` orders them). diag-rules' `non_identifiable_pair` then permits
+  `fix_and_refit a|b`. The ruleset is unchanged (0.6).
+- **The owner's rule** (`pbpk_domain.identifiability`): fix the parameter with the more reliable source at its source
+  value from the signed MAP, then refit.
+  - More reliable is the higher evidence grade (A–D), and a measured value (status FIXED) beats a predicted one
+    (PREDICTED).
+  - Grade is compared when both have one. Status is compared when both are measured or predicted; FITTED and DERIVED
+    are not ranked.
+  - A tie is never guessed: equal grade and status, a pair neither comparison ranks, or a grade and a status pointing
+    at different parameters. The round escalates to the modeller, and the reason names both parameters' grade and
+    status.
+  - A parameter that is not in the signed MAP's table (another compound of a model system) cannot be fixed at a signed
+    value, so it escalates too.
+- **The round** (`campaign_activities`, for both the local and the Temporal runner):
+  - it writes a new CPF version with the fixed parameter back at its signed value and status, with no fit and no CI,
+    and `supersedes` naming the fitted value;
+  - it builds the snapshot from that version, and fits the previous fit's other parameters;
+  - the fixed parameter stays out of the stage's later fits, and the fixed version carries forward even when the
+    refit produces no estimate;
+  - the build and the diagnosis each write a note naming which parameter is fixed, at what value, and why.
+- **Locked `campaign/map.py`, shown to the owner before it was pushed:** `MapParameter.grade`. The signing route
+  records each input's kept source grade from the review table (`review.grades`, `plan.map_from_plan`).
+  - The grade is left out of the content hash when unset, so a MAP signed before keeps its hash.
+  - It is not compared with the campaign CPF (D-36), which does not carry grades.
+  - The reference runs and the published-model paths sign no grades.
+- **Records:** `docs/SME_SIGNOFF.md` (the rule, the 0.95 limit, the order of grade and status). The OpenAPI snapshot and
+  the web types gain the optional `grade`. Locked hashes refreshed.
+- **Impact:** a campaign whose fit finds a non-identifiable pair now acts on it: it refits with one parameter fixed, or
+  escalates where the signed sources cannot rank the pair. Before, such a round chose another rule's action, or
+  escalated with no permitted action. Verdicts and every other decision are unchanged. A parameter at its bound still
+  escalates first (`param_at_bound`).
+- **PK-Sim:** `dapagliflozin-refit` before (run 40206672048, `main` 35e0954) and after (on this branch). Recorded in the
+  PR.
+
 ### Changed — every fit records its CI and its parameters' correlations (PI-2; locked `run_pi.R`; UNVERIFIED)
 The owner's decision of 2026-10-24 ("approve run_pi.R PR"); plan `docs/plans/2026-10-23-parameter-identification-review.md` F2.
 - **Before:** `fitting.assess_fit` could flag a correlated pair or a wide CI, but it was never given either, and

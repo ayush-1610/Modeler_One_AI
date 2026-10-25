@@ -1109,7 +1109,7 @@ def _fit_note(ctx: RoundContext, request, outcome) -> str:
     strong = [c for c in outcome.correlations if abs(c["r"]) > 0.95]
     return (f"{head}; best objective {objective}" + (f" ({'; '.join(flags)})" if flags else "")
             + (f"; estimates (95 % CI): {', '.join(estimates)}" if estimates else "")
-            + (f"; correlated beyond 0.95, recorded and not yet acted on: "
+            + (f"; correlated beyond 0.95, handed to the diagnosis (MS-01 fix_and_refit): "
                f"{', '.join(f'{c['a']} and {c['b']} (r {c['r']:.2f})' for c in strong)}" if strong else "")
             + (f"; no CI: {outcome.ci_error}" if outcome.ci_error else ""))
 

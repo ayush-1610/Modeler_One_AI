@@ -5036,6 +5036,8 @@ export interface components {
              * @default []
              */
             fittable_stages?: string[];
+            /** Grade */
+            grade?: string | null;
             /** Id */
             id: string;
             /** Plausibility */

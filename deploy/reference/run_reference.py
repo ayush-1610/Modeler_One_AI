@@ -419,6 +419,12 @@ def summary(step: str, result: dict) -> str:
                                for r in s.get("rounds", []))
             notes = " · ".join(n[:160] for n in s.get("notes", []) if not n.startswith("expression profiles"))
             lines.append(f"| {s['stage']} | {s['status']} | {rounds} | {notes} |")
+        # each fit's record in full (the table cuts notes at 160 characters): estimates and CIs, correlated pairs, and
+        # MS-01's fix_and_refit (PI-2b)
+        for s in c.get("stages", []):
+            for n in s.get("notes", []):
+                if n.startswith(("Parameter identification", "MS-01 fix_and_refit")) or "not identifiable together" in n:
+                    lines.append(f"- {s['stage']} fit: {n}")
         for s in c.get("stages", []):
             for r in s.get("rounds", []):
                 for st in r.get("studies", []):

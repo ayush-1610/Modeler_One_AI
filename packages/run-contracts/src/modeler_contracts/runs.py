@@ -161,9 +161,8 @@ class FitRoundOutcome:
     at_bound: list[str] = field(default_factory=list)
     correlated_pairs: list[list[str]] = field(default_factory=list)
     starts_agreement: float | None = None
-    # the best start's correlations and CI failure, for the record (PI-2). They are flagged in `findings` but not
-    # handed to the diagnosis as `correlated_pairs` until the runner carries out MS-01's action for a
-    # non-identifiable pair (fix the parameter with the more reliable source, refit).
+    # the best start's correlations and CI failure, for the record (PI-2). The pairs beyond the limit also reach the
+    # diagnosis as `correlated_pairs`, strongest first, and MS-01's fix_and_refit acts on the first (PI-2b).
     correlations: list[dict] = field(default_factory=list)
     ci_error: str | None = None
 
