@@ -15,6 +15,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the engine image builds again: parameter identification 2.2.0 pinned to its release (PI-1; locked file)
+The owner's decision of 2026-10-24 ("pin 2.2.0"). The OSP r-universe now serves only `ospsuite.parameteridentification`
+2.3.0, so every engine-image build since 2026-10-23 stopped at its own version check (2.3.0 is not the qualified
+engine), `main` included (run 39964142511 on the #97 merge). No new image could be published.
+- **`services/engine-worker/Dockerfile`** installs PI 2.2.0 from its release tag `v2.2.0` (commit `cb9e9e58`), as
+  ospsuite 12.4.4 already is. The package is pure R; its declared Imports are installed first, and 2.3.0 is never
+  installed.
+- **Integrity:** the downloaded source must hash to `PI_TREE_SHA256`, the sha256 over every file's sha256 in byte
+  order of path. It was computed from the tagged commit's 132 tracked files. A file-tree hash is used because
+  GitHub's archive bytes are not promised stable, while the files are. A changed source fails the build.
+- **The qualified set is unchanged:** ospsuite 12.4.4, PI 2.2.0, rSharp 1.2.2, checked by the same version guard.
+  The golden suite, the PI smoke test and the Weibull check run in the image as the publish gate.
+- **Impact:** none on results; the engine is the qualified one. The image digest changes (rebuilt), so the next
+  image registration and IQ-05 record the new digest.
+
 ### Docs — two plans for the owner: parameter identification, and a page-by-page review (2026-10-23)
 - **`docs/plans/2026-10-23-parameter-identification-review.md`** answers the owner's question "are we fitting?".
   - Parameter identification works on PK-Sim (the reference refits), but no fit has yet run in a T-56 campaign.
