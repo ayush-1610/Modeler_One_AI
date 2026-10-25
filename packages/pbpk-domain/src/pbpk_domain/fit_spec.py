@@ -244,8 +244,10 @@ def apply_fit_estimates(
             supersedes=f"{cpf.compound}@{cpf.version}:{pid}",
         )
         spread = (uncertainty or {}).get(pid) or {}
-        precision = Uncertainty(sd=spread.get("sd"), cv_percent=spread.get("cv"), ci95_lower=spread.get("ci_lower"),
-                                ci95_upper=spread.get("ci_upper")) if spread else None
+        # the engine's cv is a fraction (sd / |estimate|); the record keeps it in percent
+        cv = spread.get("cv")
+        precision = Uncertainty(sd=spread.get("sd"), cv_percent=None if cv is None else cv * 100,
+                                ci95_lower=spread.get("ci_lower"), ci95_upper=spread.get("ci_upper")) if spread else None
         records.append(record.model_copy(update={
             "value": float(value), "status": ParameterStatus.FITTED, "fitted_at_stage": stage, "provenance": provenance,
             "uncertainty": precision,

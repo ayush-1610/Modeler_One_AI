@@ -15,6 +15,49 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — every fit records its CI and its parameters' correlations (PI-2; locked `run_pi.R`; UNVERIFIED)
+The owner's decision of 2026-10-24 ("approve run_pi.R PR"); plan `docs/plans/2026-10-23-parameter-identification-review.md` F2.
+- **Before:** `fitting.assess_fit` could flag a correlated pair or a wide CI, but it was never given either, and
+  `run_pi.R` did not export the correlations. A fit whose parameters the data cannot separate passed unflagged.
+- **`run_pi.R` exports the correlations.** It writes the correlation of each pair of fitted parameters from the
+  Hessian CI (`ciDetails$corMat`), keyed by CPF id. When no CI could be estimated, it writes why (`ci_error`, for
+  example a covariance that is not positive definite, itself a sign the parameters are not all identifiable).
+- **`assess_round` judges them.** It gives the best start's correlations and 95 % CIs to `assess_fit`, which flags:
+  - `HIGHLY_CORRELATED` for a pair beyond MS-01's |r| > 0.95;
+  - `POORLY_DETERMINED` for a CI wider than its estimate;
+  - `NO_CI` when there is no CI.
+- **Each stage's notes show the result:** every estimate with its 95 % CI, and the strong pairs.
+- **Not yet acted on (known gap):** the correlations are recorded and flagged, but they are not handed to the
+  diagnosis (`correlated_pairs` stays empty).
+  - **Why:** MS-01's action for a non-identifiable pair ("fix the one with the more reliable source; refit",
+    diag-rules `fix_and_refit`) is not carried out by the runner yet. Its target `a|b` matches no parameter, so the
+    round would fit nothing.
+  - **Next:** PI-2b, which needs the owner's choice of the value to fix at.
+- **Fixed in passing:**
+  - **The CV unit.** The engine's CV is a fraction (sd / |estimate|), and the CPF stored it as `cv_percent`
+    unchanged. It is now ×100.
+  - **The model-system fit reasons.** `_build_fit_request` reused the name `why` for an analyte lookup, so in a model
+    system the round's list of reasons why a fit did not run was replaced, and appending to it raised
+    `AttributeError` (from #97). A regression test now covers it.
+- **Golden (locked `pi_smoke.R`):** a two-parameter Aciclovir fit (lipophilicity and tubular secretion, at the path the
+  package's own tests fit) must report its correlation, or why there is none.
+  - **Passed on PK-Sim** (engine-image run 40080162775 on a90d450, PK-Sim 12.3.173, ospsuite 12.4.4, PI 2.2.0): the
+    Hessian CI was estimated and `r(Lipophilicity, TSspec) = 0.42`. The single and weighted smoke cases, the golden
+    tasks, the Aciclovir benchmark fit (41 evaluations, objective 6.57) and the Weibull check passed unchanged.
+- **Not done: log-scale optimisation (PI-3).**
+  - **Tried:** a `PIParameters` subclass that applies 10^x.
+  - **Why it cannot work:** `ospsuite.parameteridentification` 2.2.0 writes the optimiser's raw values into its
+    simulation batches (`SimulationBatch$addRunValues`) and never calls `PIParameters$setValue`. The package has
+    no parameter transform.
+  - **Found on PK-Sim:** this PR's first engine run set the secretion to its log10 (−0.30), and the simulation failed
+    (run 40079660726).
+  - **What would work:** driving the package's internal objective function directly, or a transform added upstream.
+    That is a decision for the owner.
+- **Impact:**
+  - **The record:** fits gain findings and notes. More fits are marked "not acceptable", but no run uses that flag to
+    decide anything.
+  - **Unchanged:** the estimates, the verdicts and every decision.
+
 ### Fixed — the engine image builds again: parameter identification 2.2.0 pinned to its release (PI-1; locked file)
 The owner's decision of 2026-10-24 ("pin 2.2.0"). The OSP r-universe now serves only `ospsuite.parameteridentification`
 2.3.0, so every engine-image build since 2026-10-23 stopped at its own version check (2.3.0 is not the qualified

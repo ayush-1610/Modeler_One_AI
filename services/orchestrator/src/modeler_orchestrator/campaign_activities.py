@@ -280,10 +280,10 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
         # analyte's (a metabolite's own, or a molar sum's shared one); a sum with no single weight is not fitted
         study_weight = mol_weight
         if system is not None and scenario.analyte:
-            study_weight, why = analyte_molecular_weight(system, scenario.analyte)
-            if why:
+            study_weight, skipped = analyte_molecular_weight(system, scenario.analyte)
+            if skipped:
                 activity.logger.info("build_round_snapshot %s %s: %s left out of the fit (%s)",
-                                     ctx.campaign_id, ctx.stage, scenario.study_id, why)
+                                     ctx.campaign_id, ctx.stage, scenario.study_id, skipped)
                 continue
         if not profile or study_weight is None:
             continue

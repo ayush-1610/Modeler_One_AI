@@ -118,6 +118,14 @@ def test_apply_estimates_creates_fitted_new_version():
     assert cpf.require("phys.logp").numeric_value == 2.5  # original unchanged (immutable)
 
 
+@pytest.mark.req("T-13")
+def test_the_engines_cv_fraction_is_kept_in_percent():
+    spread = {"elim.hepatic.CYP3A4.clspec": {"sd": 0.28, "cv": 0.2, "ci_lower": 0.9, "ci_upper": 2.1}}
+    updated = apply_fit_estimates(_cpf(), {"elim.hepatic.CYP3A4.clspec": 1.4}, stage="S1", uncertainty=spread)
+    u = updated.require("elim.hepatic.CYP3A4.clspec").uncertainty
+    assert u.cv_percent == pytest.approx(20.0) and u.sd == 0.28 and (u.ci95_lower, u.ci95_upper) == (0.9, 2.1)
+
+
 def test_apply_unknown_estimate_raises():
     with pytest.raises(FitSpecError, match="no such parameter"):
         apply_fit_estimates(_cpf(), {"phys.nonesuch": 1.0}, stage="S1")
