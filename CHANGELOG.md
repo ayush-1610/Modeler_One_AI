@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — log-scale fitting stays linear for now; a parameter transform is proposed to OSP (PI-3, decided)
+The owner's decision of 2026-10-25: options (c) + (b) of `docs/plans/2026-10-23-parameter-identification-review.md` PI-3.
+- **Why a decision was needed:** `ospsuite.parameteridentification` 2.2.0 writes the optimiser's values straight into
+  its simulation batches (`SimulationBatch$addRunValues`), so a log scale cannot be added through its public API. Found
+  on PK-Sim in engine-image run 40079660726; see the PI-2 entry below.
+- **(c) Stay linear for now.** The fits keep the log-sampled multi-start, which spreads the starts over the decades.
+  `run_pi.R` is unchanged.
+- **(b) Propose a transform upstream.** The draft feature request is
+  `docs/upstream/2026-10-25-osp-pi-log-scale-request.md`. It is not sent until the owner approves its text. Once OSP
+  releases a transform, it is adopted only after it is pinned and re-qualified in the engine image (a locked
+  Dockerfile change, in its own PR).
+- **(a) Revisited only on evidence.** Our own log-space optimisation, which drives the package's internal objective
+  function, is reconsidered only if `POORLY_DETERMINED` or `NO_CI` findings show up often in real fits.
+- **Verified on PK-Sim after #100 and #101 merged:** `dapagliflozin-refit` on `main` 35e0954 (Actions run 40206672048,
+  engine 12.4.4, PI 2.2.0) gives the same result as the recorded refit (run 39286267822). S0 PASSED. S1 ESCALATED
+  after the clearance fit, with UGT1A9 clspec at its lower bound (0.0399) and UGT2B7 clspec at its upper bound
+  (0.066). GMFE: baseline 2.478 / 2.516, after the fit 1.412 / 2.291. The Boulton 2013 IV Cmax is 0.44× (PE −56 %).
+  PI-2 changed the record, not the result.
+
 ### Changed — every fit records its CI and its parameters' correlations (PI-2; locked `run_pi.R`; UNVERIFIED)
 The owner's decision of 2026-10-24 ("approve run_pi.R PR"); plan `docs/plans/2026-10-23-parameter-identification-review.md` F2.
 - **Before:** `fitting.assess_fit` could flag a correlated pair or a wide CI, but it was never given either, and
