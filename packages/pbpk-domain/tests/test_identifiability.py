@@ -44,11 +44,18 @@ def test_with_an_equal_grade_a_measured_value_beats_a_predicted_one() -> None:
     (_p("a", 1.0, "FIXED", "B"), _p("b", 2.0, "FIXED", "B"), "neither source is more reliable"),
     (_p("a", 1.0, "PREDICTED"), _p("b", 2.0, "PREDICTED"), "neither source is more reliable"),   # the reference refit
     (_p("a", 1.0, "FITTED"), _p("b", 2.0, "FIXED"), "neither source is more reliable"),         # FITTED is not ranked
-    (_p("a", 1.0, "PREDICTED", "A"), _p("b", 2.0, "FIXED", "C"), "point at different parameters"),
 ])
 def test_a_pair_the_signed_sources_cannot_rank_is_never_guessed(a, b, says) -> None:
     reason = choose_fixed("a", "b", _signed(a, b))
     assert isinstance(reason, str) and says in reason
+
+
+@pytest.mark.req("T-14")
+def test_where_grade_and_status_disagree_the_grade_decides() -> None:
+    # the owner, 2026-10-27: a grade-A predicted value is fixed before a grade-C measured one
+    choice = choose_fixed("a", "b", _signed(_p("a", 1.0, "PREDICTED", "A"), _p("b", 2.0, "FIXED", "C")))
+    assert isinstance(choice, FixChoice) and (choice.fixed, choice.refit, choice.status) == ("a", "b", "PREDICTED")
+    assert "a higher grade, which decides over its predicted status" in choice.reason
 
 
 @pytest.mark.req("T-14")

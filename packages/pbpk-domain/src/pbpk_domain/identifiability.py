@@ -7,9 +7,9 @@ more reliable source; refit". The owner's rule of 2026-10-25 makes that concrete
 - more reliable is the higher evidence grade (A best, D worst), and a measured value (status FIXED) beats a predicted
   one (PREDICTED);
 - grade is compared when both parameters have one, status when both are measured or predicted (FITTED and DERIVED
-  are not ranked);
-- where that cannot decide, nothing is guessed and the round escalates to the modeller. This covers an equal grade and
-  status, a pair neither comparison ranks, and a grade and a status that point at different parameters.
+  are not ranked). Where the two point at different parameters, the grade decides (the owner, 2026-10-27);
+- where neither decides, nothing is guessed and the round escalates to the modeller: an equal grade and status, or a
+  pair neither comparison ranks.
 
 Both facts come from the signed MAP's parameter table (`MapParameter.grade`, `.status`), so the choice is the one the
 signature covers, not the campaign CPF's current state (which says FITTED once a value has been fitted).
@@ -63,15 +63,14 @@ def choose_fixed(a: str, b: str, parameters: Mapping[str, MapParameter]) -> FixC
     by_grade = _better(GRADES.index(pa.grade) if pa.grade in GRADES else None,
                        GRADES.index(pb.grade) if pb.grade in GRADES else None)
     by_status = _better(STATUS_RANK.get(pa.status), STATUS_RANK.get(pb.status))
-    if by_grade and by_status and by_grade != by_status:
-        return f"the grade and the status point at different parameters: {rated}"
-    winner = by_grade or by_status
+    winner = by_grade or by_status  # the grade decides where the two disagree
     if winner is None:
         return f"neither source is more reliable: {rated}"
     fixed, refit = (pa, pb) if winner == "a" else (pb, pa)
     if not isinstance(fixed.value, int | float) or isinstance(fixed.value, bool):
         return f"{fixed.id} has no numeric source value in the signed MAP"
-    basis = "a higher grade" if by_grade else "measured, not predicted"
+    basis = ("a higher grade" + (", which decides over its predicted status" if by_status and by_status != by_grade else "")
+             if by_grade else "measured, not predicted")
     return FixChoice(fixed=fixed.id, refit=refit.id, value=float(fixed.value), unit=fixed.unit, status=fixed.status,
                      source=fixed.source,
                      reason=f"{fixed.id} has the more reliable source ({basis}: {rated})")

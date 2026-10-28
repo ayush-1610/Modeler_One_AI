@@ -30,9 +30,10 @@ The owner's decision of 2026-10-25 ("PI-2b: build it"), with the owner's rule fo
     (PREDICTED).
   - Grade is compared when both have one. Status is compared when both are measured or predicted; FITTED and DERIVED
     are not ranked.
-  - A tie is never guessed: equal grade and status, a pair neither comparison ranks, or a grade and a status pointing
-    at different parameters. The round escalates to the modeller, and the reason names both parameters' grade and
-    status.
+  - Where grade and status point at different parameters, the grade decides (the owner, 2026-10-27; to be revisited
+    with the SME).
+  - A tie is never guessed: equal grade and status, or a pair neither comparison ranks. The round escalates to the
+    modeller, and the reason names both parameters' grade and status.
   - A parameter that is not in the signed MAP's table (another compound of a model system) cannot be fixed at a signed
     value, so it escalates too.
 - **The round** (`campaign_activities`, for both the local and the Temporal runner):
@@ -42,7 +43,7 @@ The owner's decision of 2026-10-25 ("PI-2b: build it"), with the owner's rule fo
   - the fixed parameter stays out of the stage's later fits, and the fixed version carries forward even when the
     refit produces no estimate;
   - the build and the diagnosis each write a note naming which parameter is fixed, at what value, and why.
-- **Locked `campaign/map.py`, shown to the owner before it was pushed:** `MapParameter.grade`. The signing route
+- **Locked `campaign/map.py`, approved by the owner (2026-10-27) after seeing the diff:** `MapParameter.grade`. The signing route
   records each input's kept source grade from the review table (`review.grades`, `plan.map_from_plan`).
   - The grade is left out of the content hash when unset, so a MAP signed before keeps its hash.
   - It is not compared with the campaign CPF (D-36), which does not carry grades.
