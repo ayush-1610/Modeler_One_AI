@@ -134,6 +134,16 @@ def test_start_edits_ask_no_reason_refuse_a_risk_outside_its_m15_range_and_keep_
     assert {g["gate"]: g["state"] for g in view["start"]["gates"]}["pbpk_model"] == "not_set"
     assert "Model risk: not set yet (it is never assumed)" in view["start"]["problems"]
     assert "CYP3A4" in view["start"]["pathway_suggestions"]
+    # page review 1: each issue names its field; the tier's criteria and loosest target; what each application adds
+    issues = {i["path"]: i["message"] for i in view["start"]["issues"]}
+    assert issues["acceptance.tier"] == "Model risk: not set yet (it is never assumed)"
+    assert [i["message"] for i in view["start"]["issues"]] == view["start"]["problems"]
+    risk = view["start"]["risk"]
+    assert risk["criteria"]["medium"] == "AUC within 1.5-fold and Cmax within 1.5-fold, in 80% of studies"
+    assert risk["target_max"]["medium"] == 33.3 and risk["ruleset"].endswith("(UNVERIFIED)")
+    food = next(a for a in view["start"]["applications"] if a["code"] == "APP-12")
+    assert food["name"] == "food effect" and "FaSSIF / FeSSIF solubility" in food["adds"]
+    assert view["start"]["pathways_not_named"] == []
 
     def put(*changes, reason=""):
         return c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={

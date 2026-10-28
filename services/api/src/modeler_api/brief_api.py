@@ -45,6 +45,7 @@ from modeler_api.views.brief import (
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import (
+    APPLICATIONS,
     BriefPathError,
     FieldStatus,
     ProjectBrief,
@@ -59,11 +60,14 @@ from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, r
 from modeler_project.client_data import ingest
 from modeler_project.data_plan import refresh_data_plan
 from modeler_project.documents import DocumentLibrary, document_record
-from modeler_project.feasibility import pathway_suggestions, scope_gates
-from modeler_project.requirements import RequirementMatrix
-from modeler_project.steps import start_problems
+from modeler_project.evidence import SourceType
+from modeler_project.evidence_register import items as evidence_items
+from modeler_project.feasibility import pathway_suggestions, pathways_not_named, scope_gates
+from modeler_project.requirements import RequirementMatrix, application_additions
+from modeler_project.steps import start_issues, start_problems
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord
+from pbpk_domain.acceptance import load_acceptance_ruleset, loosest_internal_target
 
 router = APIRouter(prefix="/api/v1", tags=["brief"])
 
@@ -309,6 +313,26 @@ def document_raw(project_id: str, sha256: str, principal: Reader, store: StoreDe
 # --- the brief -----------------------------------------------------------------------------------------------
 
 
+def _tier_criteria() -> dict[str, Any]:
+    """What each tier asks of the verdicts (the acceptance ruleset, UNVERIFIED), and the loosest internal target it
+    admits (MS-01 §8), shown beside the model risk."""
+    ruleset = load_acceptance_ruleset()
+    criteria = {}
+    for tier, rules in ruleset["tiers"].items():
+        folds = {name: rule["max_fold"] for name, rule in rules["pk_parameters"].items() if "max_fold" in rule}
+        within = " and ".join(f"{name} within {fold:g}-fold" for name, fold in folds.items())
+        criteria[tier] = f"{within}, in {rules['min_fraction_within']:.0%} of studies"
+    return {"criteria": criteria, "target_max": {tier: round(loosest_internal_target(tier, ruleset), 1) for tier in criteria},
+            "ruleset": f"{ruleset['id']}@{ruleset['version']} ({ruleset['status']})"}
+
+
+def _applications_view() -> list[dict[str, Any]]:
+    """Each application with its plain name and the data it adds to what the model needs (the requirement templates)."""
+    adds = application_additions()
+    return [{"option": option, "code": option.split(" ", 1)[0], "name": option.split(" ", 1)[1],
+             "adds": adds.get(option.split(" ", 1)[0], [])} for option in APPLICATIONS]
+
+
 def _brief_view(ws: Workspace) -> dict[str, Any]:
     version = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
     if version is None:
@@ -324,10 +348,15 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
         "agents": agent_jobs.agents_status(), "extraction_running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "extraction"),
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "provider", "model", "started_at", "finished_at",
                                          "summary")} for r in runs[:5]],
-        "start": {"problems": start_problems(brief), "gates": [g.model_dump() for g in scope_gates(brief)],
+        "start": {"problems": start_problems(brief), "issues": [i.model_dump() for i in start_issues(brief)],
+                  "gates": [g.model_dump() for g in scope_gates(brief)],
                   "risk": {"allowed": list(risk.allowed) if risk.allowed else None, "problems": list(risk.problems),
-                           "admitted": admitted_tiers()},
-                  "pathway_suggestions": pathway_suggestions()},
+                           "admitted": admitted_tiers(), **_tier_criteria()},
+                  "applications": _applications_view(),
+                  "pathway_suggestions": pathway_suggestions(),
+                  # the published OSP model's enzymes and transporters the proposal does not name (page review 1)
+                  "pathways_not_named": pathways_not_named(brief, [i.target for i in evidence_items(ws)
+                                                                   if i.source_type is SourceType.OSP_LIBRARY])},
     }
 
 

@@ -1,6 +1,7 @@
 # Page-by-page review of the web app (plan)
 
-Status: **DRAFT for the owner's decisions** (2026-10-23). This plan builds nothing yet.
+Status: **in progress** (2026-10-28). The method is agreed. The owner chose to start with Start (2026-10-24); its
+marks and PR are in §4.
 
 The owner sent 13 page exports (2026-10-23): "its so difficult to navigate and understand... we need to plan on
 understanding each fields and data on each page and correct it and work on that one page at time". This document
@@ -64,3 +65,66 @@ These notes come from the PDFs only, read as text. They are inputs to step 1, no
 3. **The reference project:** your real project or Dapagliflozin?
 4. **Test projects and stale escalations on the server:** they are your data. Shall I add an archive (hide, never
    delete) so the lists show real work only?
+
+## 4. Page 1: Start (marked 2026-10-25…28, built 2026-10-28)
+The owner marked 48 elements on the review page `FLcNRsUrnCJcEcDTkDhqzE` (collection `decisions`): 12 keep, 11
+change, 7 move, 17 drop, and a general note. The owner asked for pushback, not blind implementation ("think think
+think").
+
+### 4.1 Built (this PR)
+- **Marked in place:**
+  - What still needs the person is marked red on its own field, with a ⚠ line (`f.waiting`).
+  - The steps after Start are locked until it is done.
+  - There is no side panel.
+- **Kept:**
+  - the drug, CID and SMILES (the agent fills them);
+  - the question of interest, context of use and BCS class;
+  - influence, consequence, "Why this tier" and "Save the model risk";
+  - the formulation types and the step bar.
+- **Changed:**
+  - **Applications** say what data each adds (`b2.apps`).
+  - **Pathways** are one list, each with its kind; a pathway the published model has and the proposal does not name
+    is flagged (`b2.kinds`, `b2.named`).
+  - **Nonlinearity and EHC** are yes / no / not stated (`b2.nonlin`, `b2.ehc`).
+  - **The tier** shows its criteria (`b3.tier`).
+  - **What is modelled** reads as one product line (`b4.model`, `b4.site`).
+  - **The dose** is edited on its route (`b4.routes`).
+- **Moved:**
+  - the internal target, under the tier (`b3.target`);
+  - History, to the Projects page (`f.history`);
+  - the agent notice, under "Read the proposal again" (`f.read`; the redesign stays with the owner);
+  - the document viewer, to a dialog opened from a value's source (`f.viewer`, until the library is built);
+  - MW, to Inputs, where it already shows as `phys.mw` with its source (`b1.mw`).
+- **Dropped:**
+  - the title, agent chip, hint, open-questions list and InChIKey;
+  - "How the model is used" and "What a wrong decision means";
+  - the data checklist (`b5.*`);
+  - Proposal notes (`b6.*`).
+
+  The brief keeps every dropped field, and the data plan is still derived from it on every change.
+
+### 4.2 Not built here, planned
+- **The project document library** (`b1.files`, `b1.add`, `f.viewer`): `docs/plans/2026-10-28-project-document-library.md`,
+  three PRs. Until it lands, Start keeps its file list and "Add files", without the type selector.
+- **Product types the builder does not make yet** (`b4.modality`). Each is refused at Start today with "not supported
+  yet"; each is added one at a time, with the SME, and each needs its own plan:
+
+  | Product type | What it needs before the builder can make it |
+  |---|---|
+  | **Large molecule** (therapeutic protein, antibody) | PK-Sim's protein model: FcRn binding, target-mediated disposition, endosomal clearance. New requirement templates, rulesets and reference models. |
+  | **Other modality** (oligonucleotide, cell or gene therapy, ADC) | Is a PBPK model the right tool for each? An SME call first; some may stay out of scope. |
+  | **Minimal PBPK** | A reduced model structure (MoBi, not a PK-Sim snapshot). It needs its own builder path and reference runs. |
+  | **Local site of action** (lung, skin, eye, gut lumen) | A site model: an inhaled, dermal or ocular deposition model, or a tissue sub-compartment. Its own data and acceptance criteria. |
+
+- **Inputs is not hard-blocked** before Start is done. It shows a red banner instead, because 13 browser specs open it
+  directly. A hard block needs those specs to finish Start first. Proposed as a follow-up once the owner agrees.
+- **Delete on the Projects page** (`f.history`): not built. A project is a Part 11 record, so archive (hide, never erase)
+  is proposed instead. This waits on the owner's answer.
+
+### 4.3 Questions for the owner (from the general note)
+These are in the PR description and the reply of 2026-10-28:
+- the M15 texts (influence and consequence rationale);
+- an early list of what only the client can send;
+- products, populations and scenarios;
+- Delete or Archive;
+- the Inputs hard block.

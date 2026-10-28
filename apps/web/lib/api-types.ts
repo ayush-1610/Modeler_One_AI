@@ -1968,6 +1968,20 @@ export interface components {
              */
             status: "runs" | "campaign" | "partial" | "not_supported";
         };
+        /**
+         * ApplicationView
+         * @description An application code with its plain name and the data items it adds (the requirement templates).
+         */
+        ApplicationView: {
+            /** Adds */
+            adds: string[];
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Option */
+            option: string;
+        };
         /** ApplicationsView */
         ApplicationsView: {
             /** Addable */
@@ -6712,8 +6726,18 @@ export interface components {
             };
             /** Allowed */
             allowed: string[] | null;
+            /** Criteria */
+            criteria: {
+                [key: string]: string;
+            };
             /** Problems */
             problems: string[];
+            /** Ruleset */
+            ruleset: string;
+            /** Target Max */
+            target_max: {
+                [key: string]: number;
+            };
         };
         /** RoundRecord */
         RoundRecord: {
@@ -7345,16 +7369,32 @@ export interface components {
         };
         /**
          * StartBlock
-         * @description What Start still needs (`steps.start_problems`), and the parts the screen draws from.
+         * @description What Start still needs (`steps.start_issues`), and the parts the screen draws from.
          */
         StartBlock: {
+            /** Applications */
+            applications: components["schemas"]["ApplicationView"][];
             /** Gates */
             gates: components["schemas"]["ScopeGateView"][];
+            /** Issues */
+            issues: components["schemas"]["StartIssueView"][];
             /** Pathway Suggestions */
             pathway_suggestions: string[];
+            /** Pathways Not Named */
+            pathways_not_named: string[];
             /** Problems */
             problems: string[];
             risk: components["schemas"]["RiskView"];
+        };
+        /**
+         * StartIssueView
+         * @description One thing Start still needs, on the brief field it belongs to (`steps.start_issues`).
+         */
+        StartIssueView: {
+            /** Message */
+            message: string;
+            /** Path */
+            path: string;
         };
         /**
          * Statistic

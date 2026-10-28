@@ -29,9 +29,10 @@
 .stepper .step.running .step-state { color: var(--brand-ink); font-weight: 600; }
 .stepper .step.current a { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 8%, var(--surface));
   box-shadow: inset 0 -2px 0 var(--sim); }
-.stepper .step-history { align-self: center; flex-shrink: 0; font-size: 12.5px; color: var(--ink-dim); text-decoration: none;
-  padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
-.stepper .step-history:hover { color: var(--ink); border-color: var(--ink-faint); }
+/* a step after an unfinished Start: shown, not opened (page review 1) */
+.stepper .step-locked { display: flex; gap: 10px; align-items: center; padding: 9px 12px; margin: 0 8px 0 0; min-width: 0;
+  border-radius: var(--radius); border: 1px dashed var(--line); background: var(--surface); color: var(--ink);
+  cursor: not-allowed; opacity: 0.6; }
 .step-waiting { margin: 10px 0 0; font-size: 13px; color: var(--ink-dim); max-width: none; }
 .step-waiting strong { color: var(--warn-ink); font-weight: 600; }
 @media (max-width: 760px) {

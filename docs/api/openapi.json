@@ -632,6 +632,39 @@
         "title": "ApplicationSupportRow",
         "type": "object"
       },
+      "ApplicationView": {
+        "additionalProperties": false,
+        "description": "An application code with its plain name and the data items it adds (the requirement templates).",
+        "properties": {
+          "adds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Adds",
+            "type": "array"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "option": {
+            "title": "Option",
+            "type": "string"
+          }
+        },
+        "required": [
+          "option",
+          "code",
+          "name",
+          "adds"
+        ],
+        "title": "ApplicationView",
+        "type": "object"
+      },
       "ApplicationsView": {
         "additionalProperties": false,
         "properties": {
@@ -13970,18 +14003,39 @@
             ],
             "title": "Allowed"
           },
+          "criteria": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Criteria",
+            "type": "object"
+          },
           "problems": {
             "items": {
               "type": "string"
             },
             "title": "Problems",
             "type": "array"
+          },
+          "ruleset": {
+            "title": "Ruleset",
+            "type": "string"
+          },
+          "target_max": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Target Max",
+            "type": "object"
           }
         },
         "required": [
           "allowed",
           "problems",
-          "admitted"
+          "admitted",
+          "criteria",
+          "target_max",
+          "ruleset"
         ],
         "title": "RiskView",
         "type": "object"
@@ -15608,8 +15662,15 @@
       },
       "StartBlock": {
         "additionalProperties": false,
-        "description": "What Start still needs (`steps.start_problems`), and the parts the screen draws from.",
+        "description": "What Start still needs (`steps.start_issues`), and the parts the screen draws from.",
         "properties": {
+          "applications": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationView"
+            },
+            "title": "Applications",
+            "type": "array"
+          },
           "gates": {
             "items": {
               "$ref": "#/components/schemas/ScopeGateView"
@@ -15617,11 +15678,25 @@
             "title": "Gates",
             "type": "array"
           },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/StartIssueView"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
           "pathway_suggestions": {
             "items": {
               "type": "string"
             },
             "title": "Pathway Suggestions",
+            "type": "array"
+          },
+          "pathways_not_named": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pathways Not Named",
             "type": "array"
           },
           "problems": {
@@ -15637,11 +15712,34 @@
         },
         "required": [
           "problems",
+          "issues",
           "gates",
           "risk",
-          "pathway_suggestions"
+          "applications",
+          "pathway_suggestions",
+          "pathways_not_named"
         ],
         "title": "StartBlock",
+        "type": "object"
+      },
+      "StartIssueView": {
+        "additionalProperties": false,
+        "description": "One thing Start still needs, on the brief field it belongs to (`steps.start_issues`).",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "title": "StartIssueView",
         "type": "object"
       },
       "Statistic": {

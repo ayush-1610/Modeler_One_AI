@@ -4,19 +4,16 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
-import { PageShell, SidePanel } from "@/components/kit";
+import { Dialog } from "@/components/kit/Dialog";
 import { DrugAndFiles } from "@/components/start/Blocks";
-import { DataChecklist } from "@/components/start/DataChecklist";
-import { ProposalNotes } from "@/components/start/ProposalNotes";
 import { RiskPicker } from "@/components/start/RiskPicker";
 import { ScopeGates } from "@/components/start/ScopeGates";
 import { ShortBrief } from "@/components/start/ShortBrief";
 import { narrow, send } from "@/lib/api";
 import type { BriefView, Citation, DocumentView } from "@/lib/brief";
-import type { PlanView } from "@/lib/data-plan";
 import { useMutation, useResource } from "@/lib/hooks";
 import { STEP_ROUTES } from "@/lib/pipeline";
-import type { BriefChange } from "@/lib/start";
+import { marks as startMarks, type BriefChange } from "@/lib/start";
 
 type Focus = { sha256: string; page: number; quote: string | null } | null;
 
@@ -32,16 +29,14 @@ function forViewer(documents: DocumentView[]): DocumentView[] {
   return [...documents].sort((a, b) => rank(a) - rank(b) || a.uploaded_at.localeCompare(b.uploaded_at));
 }
 
-/** Step 1 · Start (redesign §3.1): the drug and its files, the short brief, the model risk, the scope gates and the
- *  data checklist on one screen. Nothing here is approved: a person reviews everything once, at the MAP signature
- *  (D-27). The step is done when the side panel has nothing left. */
+/** Step 1 · Start (redesign §3.1; page review 1, 2026-10-27): the drug and its files, the question, the model risk and
+ *  what is modelled, on one screen. Nothing here is approved: a person reviews everything once, at the MAP signature
+ *  (D-27). Each box that still needs the person is marked in red where it is; until none is, Start cannot be left. A
+ *  value's source is shown beside it, and its page opens over the screen. */
 export function StartScreen({ projectId }: { projectId: string }) {
   const page = useResource("/api/v1/projects/{project_id}/brief", { project_id: projectId },
     { select: (d) => narrow<BriefView>(d), poll: (d) => d.extraction_running });
   const docs = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
-  const plan = useResource("/api/v1/projects/{project_id}/requirements", { project_id: projectId },
-    { select: (d) => narrow<PlanView>(d) });
-  const client = useResource("/api/v1/projects/{project_id}/client-data", { project_id: projectId });
   const { run, busy } = useMutation();
   const [focus, setFocus] = useState<Focus>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -57,12 +52,6 @@ export function StartScreen({ projectId }: { projectId: string }) {
     return problem;
   }
 
-  async function remove(group: string, index: number, reason: string): Promise<string | null> {
-    const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/items:remove", { project_id: projectId },
-      { group, index, reason }));
-    return problem;
-  }
-
   async function answer(questionId: string, text: string, status: "answered" | "accepted_as_limitation") {
     const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/questions/{question_id}",
       { project_id: projectId, question_id: questionId }, { answer: text, status }));
@@ -75,49 +64,50 @@ export function StartScreen({ projectId }: { projectId: string }) {
       : (data?.problem ?? "Identity resolved; fill the rest by hand.")));
   }
 
-  const problems = view.start.problems;
-  const agent = view.agents.enabled ? `${view.agents.provider} · ${view.agents.model}` : null;
+  const marks = startMarks(view, answer);
+  const waiting = view.start.issues.length;
   const riskKey = ["m15.influence_rating", "m15.consequence_rating", "acceptance.tier", "m15.risk_justification"]
     .map((p) => view.brief.fields[p]?.at ?? "").join("|");
 
   return (
-    <PageShell
-      eyebrow="Step 1 of 4"
-      title={<>Start · <span data-testid="start-title">{view.brief.drug_name}</span></>}
-      lede="Confirm what the agents read from the proposal, and say what is modelled. Nothing is approved here: the one review is at the MAP signature."
-      actions={(
-        <>
-          <span className={`chip ${agent ? "brand" : "neutral"}`} title={view.agents.problem ?? ""}>{agent ? `agent: ${agent}` : "agents off"}</span>
-          <button type="button" className="btn" disabled={busy || view.extraction_running} onClick={readAgain} data-testid="start-read">
-            {view.extraction_running ? "Reading the documents…" : "Read the documents again"}
-          </button>
-        </>
+    <div className="start-screen">
+      <div className="start-top">
+        <button type="button" className="btn" disabled={busy || view.extraction_running} onClick={readAgain} data-testid="start-read">
+          {view.extraction_running ? "Reading the proposal…" : "Read the proposal again"}
+        </button>
+        {(notice || view.extraction_running) && (
+          <p className="start-notice muted" data-testid="start-notice">
+            {view.extraction_running ? "The intake agent is reading the documents; the screen fills in as it finishes." : notice}
+          </p>
+        )}
+      </div>
+      <DrugAndFiles projectId={projectId} view={view} documents={documents} save={save} open={open} marks={marks}
+                    run={run} busy={busy} onNotice={setNotice} />
+      <ShortBrief view={view} save={save} open={open} marks={marks} />
+      <RiskPicker key={riskKey} view={view} save={save} marks={marks} />
+      <ScopeGates view={view} save={save} open={open} marks={marks} />
+      <div className={`start-continue${waiting ? " needs-you" : ""}`} data-testid={waiting ? "start-waiting" : "start-done"}>
+        {waiting ? (
+          <>
+            <span><span aria-hidden>⚠ </span>{waiting} {waiting === 1 ? "thing still needs" : "things still need"} you, marked in red above.
+              Start is done when none is left.</span>
+            <button type="button" className="btn primary" disabled data-testid="start-continue">Continue to Inputs</button>
+          </>
+        ) : (
+          <>
+            <span>Start is done: everything the inputs need from the brief is here.</span>
+            <Link className="btn primary" href={STEP_ROUTES.inputs(projectId)} data-testid="start-continue">Continue to Inputs</Link>
+          </>
+        )}
+      </div>
+      {focus && documents.length > 0 && (
+        <Dialog title="Where the value comes from" size="wide" onClose={() => setFocus(null)} testId="start-source-dialog">
+          <DocumentViewer projectId={projectId} documents={documents} focus={focus} />
+          <div className="dialog-actions">
+            <button type="button" className="btn" onClick={() => setFocus(null)}>Close</button>
+          </div>
+        </Dialog>
       )}
-      side={(
-        <>
-          {problems.length ? (
-            <SidePanel title={`Waiting on you (${problems.length})`} tone="warn" testId="start-waiting">
-              <ul className="start-waiting">{problems.map((p) => <li key={p}>{p}</li>)}</ul>
-            </SidePanel>
-          ) : (
-            <SidePanel title="Start is done" tone="ok" testId="start-done">
-              <p style={{ margin: 0 }}>Everything the inputs need from the brief is here.</p>
-              <Link className="btn primary" href={STEP_ROUTES.inputs(projectId)}>Go to the inputs</Link>
-            </SidePanel>
-          )}
-          {documents.length > 0 && <DocumentViewer projectId={projectId} documents={documents} focus={focus} />}
-        </>
-      )}
-    >
-      {notice && <div className="banner ok" data-testid="start-notice">{notice}</div>}
-      <DrugAndFiles projectId={projectId} view={view} documents={documents} save={save} open={open} run={run} busy={busy}
-                    onNotice={setNotice} />
-      <ShortBrief view={view} save={save} open={open} onAnswer={answer} />
-      <RiskPicker key={riskKey} view={view} save={save} open={open} />
-      <ScopeGates view={view} save={save} open={open} />
-      <DataChecklist projectId={projectId} plan={plan.data} planProblem={plan.problem}
-                     reconciliation={client.data ? client.data.reconciliation.rows : null} run={run} busy={busy} />
-      <ProposalNotes view={view} save={save} open={open} remove={remove} onAnswer={answer} />
-    </PageShell>
+    </div>
   );
 }

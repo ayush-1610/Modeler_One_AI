@@ -1,7 +1,7 @@
 // T-47: the guided client-data flow on files laid out the way CROs and labs send them (an ER tablet with a VBE and
 // food-effect question), on the Inputs step's Studies tab. Each sheet is read from a form filled in from the sheet
-// itself; Start's data checklist ticks what arrived, and what the client cannot send goes to another provider there. The workbooks are written by a Python helper
-// (software test data, never a model).
+// itself; the data plan, kept server-side since Start's checklist was dropped (page review 1), ticks off what arrived.
+// The workbooks are written by a Python helper (software test data, never a model).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,7 +16,7 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
 }
 
-test("an ER tablet's BE, dissolution and literature files are read sheet by sheet and ticked off the checklist", async ({ page, request }) => {
+test("an ER tablet's BE, dissolution and literature files are read sheet by sheet and ticked off the data plan", async ({ page, request }) => {
   const dir = mkdtempSync(join(tmpdir(), "er-be-"));
   execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "er_be_workbooks.py"), dir], { cwd: REPO });
 
@@ -112,15 +112,10 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await iv.getByRole("button", { name: "Save these data" }).click();
   await expect(page.getByText(/Nichols2012-IV saved/)).toBeVisible();
 
-  // what arrived is ticked on Start's data checklist; what the client cannot send is given to another provider there
-  // (nothing is approved: D-27)
-  await page.goto(`/projects/${projectId}/start`);
-  await expect(page.getByTestId("arrived-REQ-vbe.be_study")).toContainText("arrived");
-  await expect(page.getByTestId("arrived-REQ-vbe.rld_dissolution")).toContainText("arrived");
-  await shot(page, "4-plan");
-  await page.getByTestId("provider-REQ-fe.biorelevant").selectOption("LITERATURE");     // no FaSSIF / FeSSIF data from the client
-  await expect(page.getByTestId("provider-REQ-fe.biorelevant")).toHaveValue("LITERATURE");
-  await page.getByTestId("provider-REQ-vbe.variability").selectOption("STUDY");         // computed later from the BE study data
-  await expect(page.getByTestId("provider-REQ-vbe.variability")).toHaveValue("STUDY");
-  await shot(page, "5-checklist");
+  // what arrived is ticked off the data plan (no checklist on Start since page review 1; nothing is approved: D-27)
+  const client = await request.get(`/api/v1/projects/${projectId}/client-data`, { headers: AUTH });
+  const rows = (await client.json()).data.reconciliation.rows as { req_id: string; status: string }[];
+  const status = (req: string) => rows.find((r) => r.req_id === req)?.status;
+  expect(status("REQ-vbe.be_study")).toBe("DELIVERED");
+  expect(status("REQ-vbe.rld_dissolution")).toBe("DELIVERED");
 });

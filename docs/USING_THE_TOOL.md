@@ -57,14 +57,23 @@ generates the analysis plan from your studies (the MS-01 data split), you sign i
 PK-Sim.
 
 **From a proposal (Step 1 · Start):** **+ Start from proposal** → name the drug and drop the proposal, its annexes and
-the client's data files in one upload (each file says what it is; the client's go straight to Inputs) → the Start screen
-fills the drug's identity from PubChem and, with an agent configured, the short brief from the documents, each value with
-the words it came from. Set what they do not say and correct what is wrong; no "why" is asked. Rate model influence and
-decision consequence, then set the model risk ICH M15 admits for them. Say what is modelled (modality, PBPK model, site
-of action, formulation types, the scenarios' routes): what the builder cannot model yet is refused there. The data
-checklist below follows the brief as it changes; change who provides an item in place, and see what has arrived. Under
-**Proposal notes**, every other field of the proposal is edited in place, and so are its lists (the products, the
-populations, what it says about data, the prediction scenarios): add one, change a field, or remove one with the reason.
+the client's data files in one upload (workbooks go to the client's data on Inputs, every other file to the documents)
+→ the Start screen fills the drug's identity from PubChem and, with an agent configured, the brief from the documents.
+Each value shows its source; click it to see the page it was read from. Anything that still needs you is marked red on
+its own box, with a ⚠ line saying why, and the bar at the bottom counts what is left. The steps after Start stay
+locked until nothing is.
+- **The question:** set what the documents do not say and correct what is wrong; no "why" is asked. Each application
+  says what data it adds.
+- **The drug's disposition:**
+  - The pathways are one list, each enzyme, transporter or route with its kind. A pathway the published OSP model has
+    and the proposal does not name is flagged, with **Add it**.
+  - Nonlinearity and enterohepatic recycling are yes / no / not stated. "No" to nonlinearity means linear PK, so Km and
+    Vmax are not asked for.
+- **Model risk (ICH M15):** rate model influence and decision consequence, then save the tier they admit. The tier's
+  acceptance criteria show beside it. An optional internal target sits under it and is never looser than the tier.
+- **What is modelled:** modality, PBPK model and site of action read as one line once all three are supported. Then
+  come the formulation types, and the routes with their doses. What the builder cannot model yet is refused there.
+
 Nothing on Start is approved: you review everything once, when you sign the plan.
 
 ## 5. Checks against the published models
@@ -75,10 +84,10 @@ PK-Sim: identical inputs must give identical curves (1e-6 of the peak). Results:
 
 ## 6. The client's spreadsheets (on Inputs → Studies)
 
-Add the client's files on Start (one upload with the proposal) or on the Inputs step's **Studies** tab (**Add the
-client's files**). Workbooks are split into sheets; PDF, Word and Markdown are kept as citable documents. The
-client-data template (**client-data template** on the same tab) is read automatically, cell by cell. Start's data
-checklist ticks off what arrives; what the client cannot send goes to another provider there. Nothing is approved.
+Add the client's files when you start the project (one upload with the proposal), with **Add files** on Start, or on
+the Inputs step's **Studies** tab (**Add the client's files**). Workbooks are split into sheets; PDF, Word and Markdown
+are kept as citable documents. The client-data template (**client-data template** on the same tab) is read
+automatically, cell by cell. The data plan, derived from the brief, ticks off what arrives. Nothing is approved.
 
 1. **Read each data sheet** ("Read this sheet"). The sheet appears next to a form filled in from what the sheet
    states: header row, data rows (Mean / SD rows under the subjects are left out), times down a column or across the
