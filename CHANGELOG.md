@@ -54,8 +54,19 @@ The owner's decision of 2026-10-25 ("PI-2b: build it"), with the owner's rule fo
   escalates where the signed sources cannot rank the pair. Before, such a round chose another rule's action, or
   escalated with no permitted action. Verdicts and every other decision are unchanged. A parameter at its bound still
   escalates first (`param_at_bound`).
-- **PK-Sim:** `dapagliflozin-refit` before (run 40206672048, `main` 35e0954) and after (on this branch). Recorded in the
-  PR.
+- **PK-Sim:** `dapagliflozin-refit` before (run 40206672048, `main` 35e0954) and after (run 40739239767, this branch,
+  3d7e38c) give the same result:
+  - S1 escalates after the clearance fit, with UGT1A9 clspec at its lower bound and UGT2B7 clspec at its upper bound.
+  - GMFE goes from 2.478 / 2.516 to 1.412 / 2.291.
+  - No pair passes |r| > 0.95, so `fix_and_refit` is not reached here: a parameter at its bound escalates first.
+- **What the full fit note now shows** (the reference summary prints it whole):
+  - Every clearance's 95 % CI is wider than its estimate and reaches below zero: UGT1A9 0.040 [−0.031, 0.111], UGT2B7
+    0.066 [−0.39, 0.52], hepatic CYP 0.963 [−0.66, 2.59].
+  - Only 59 % of the starts reach the best solution.
+  - The one IV study does not separate the three parallel clearances. This is the case PI-4 (fit a common factor on
+    parallel pathways) is for.
+  - It is also the kind of `POORLY_DETERMINED` finding the PI-3 decision watches for: a linear-scale Hessian CI that
+    reaches below zero for a positive parameter.
 ### Docs — log-scale fitting stays linear for now; a parameter transform is proposed to OSP (PI-3, decided)
 The owner's decision of 2026-10-25: options (c) + (b) of `docs/plans/2026-10-23-parameter-identification-review.md` PI-3.
 - **Why a decision was needed:** `ospsuite.parameteridentification` 2.2.0 writes the optimiser's values straight into
