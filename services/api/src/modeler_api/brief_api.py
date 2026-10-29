@@ -40,6 +40,7 @@ from modeler_api.views.brief import (
     DocumentPage,
     Documents,
     ExtractionStart,
+    LibraryPage,
     ProjectStarted,
 )
 from modeler_intake.documents import DocumentError
@@ -63,6 +64,7 @@ from modeler_project.documents import DocumentLibrary, document_record
 from modeler_project.evidence import SourceType
 from modeler_project.evidence_register import items as evidence_items
 from modeler_project.feasibility import pathway_suggestions, pathways_not_named, scope_gates
+from modeler_project.library import library_rows
 from modeler_project.requirements import RequirementMatrix, application_additions
 from modeler_project.steps import start_issues, start_problems
 from modeler_storage.filestore import FileReadStore, FileWriteStore
@@ -264,6 +266,13 @@ async def upload_documents(project_id: str, principal: Writer, store: StoreDep,
 def list_documents(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     return envelope({"documents": [_document_view(d) for d in DocumentLibrary(ws).documents()]})
+
+
+@router.get("/projects/{project_id}/library", **answers(LibraryPage))
+def get_library(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """The project's document library (plan 2026-10-28, PR 1): every document with who added it and what cites it."""
+    ws = workspace_for(project_id, principal, store)
+    return envelope({"documents": [row.model_dump() for row in library_rows(ws)]})
 
 
 @router.get("/projects/{project_id}/documents/{sha256}/pages/{page}", **answers(DocumentPage))

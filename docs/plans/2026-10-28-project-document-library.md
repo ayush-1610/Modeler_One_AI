@@ -1,6 +1,7 @@
 # The project document library (plan)
 
-Status: **DRAFT for the owner** (2026-10-28). Nothing here is built yet. This plan comes from the owner's marks on the
+Status: **agreed** (the owner, 2026-10-29: decisions 10–13). **PR 1, the library page, is built** (2026-10-29);
+PR 2 ("Add data") and PR 3 (agents library first) follow. This plan comes from the owner's marks on the
 Start page review (page review 1, 2026-10-27): rows `b1.files` and `b1.add` (move), and `f.viewer` (move).
 
 ## What the owner asked for
@@ -65,9 +66,8 @@ Start page review (page review 1, 2026-10-27): rows `b1.files` and `b1.add` (mov
    - Licensing is respected: a paper the project has no right to store is kept as a reference with its abstract, and
      access is requested (the existing `access_requests`).
 
-## Questions for the owner
-1. **Categories:** start with the roles above plus "what it relates to" (step / task)? Or name a category list now?
-2. **Deleting a document:** documents are part of the record (Part 11: a signed MAP cites them). Proposed: a document
-   can be **withdrawn** with a reason. It is then hidden from the agents and marked in the table, never erased. Agreed?
-3. **Agent retrieval:** may the agents store full-text papers fetched from open-access sources? Paywalled ones would
-   stay references only, unless the owner uploads them.
+## The owner's answers (2026-10-29)
+1. **Categories:** the roles above plus "what it relates to" (a step, and optionally a task).
+2. **Removing a document:** it is withdrawn with a reason, hidden from the agents and marked in the table, never erased.
+3. **Agent retrieval:** agents store open-access papers only. A paywalled paper stays a reference with its abstract,
+   unless the owner uploads it.

@@ -15,6 +15,31 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the Project Document Library, PR 1: every document and what the project took from it (decision 10)
+The owner's decisions 10–13 of 2026-10-29; plan `docs/plans/2026-10-28-project-document-library.md`, now agreed.
+- **The page:** `/projects/{id}/library`, reached from the sidebar's new **This project** section while a project is
+  open.
+  - One row per document: who added it (a person, an agent or the system), when, its role, format and pages, and its
+    versions.
+  - **Data extracted / project contribution:** what the project took from the document, computed from what cites it
+    (`modeler_project.library`):
+    - evidence values (`source.doc_sha256`);
+    - observed datasets;
+    - brief fields (their citations).
+
+    Each shows its value and state, linked to where it is used. A document nothing cites says so.
+  - Search (names, parameters, values), filters (role, who added it), sorting, and **Open**, which shows the document
+    page by page.
+- **API:** `GET /projects/{id}/library` (`LibraryPage`).
+- **Start:** the file list is now one line, the files' names with a link to the library. "Add files" stays until
+  "Add data" comes to the sidebar (PR 2).
+- **Not yet:** PR 2 brings "Add data" with "what it relates to". PR 3 has the agents search the library first and store
+  what they fetch (open access only).
+- **Tests:**
+  - `test_library`: who added each document, and what cites it, including a document nothing cites.
+  - `test_brief_api`: the route.
+  - `library.spec.ts`: sidebar, contribution, search, filter and open.
+
 ### Changed — the Start page, rebuilt from the owner's marks (page review 1)
 The owner marked the 48 elements of Start between 2026-10-25 and 2026-10-28 (review page `FLcNRsUrnCJcEcDTkDhqzE`,
 collection `decisions`). Plan: `docs/plans/2026-10-23-page-by-page-review.md` §4.

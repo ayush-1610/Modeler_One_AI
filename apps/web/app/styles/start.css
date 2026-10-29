@@ -56,11 +56,7 @@
 .chip-list input { width: 160px; }
 
 /* files */
-.file-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.file-list li { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; padding: 6px 10px;
-  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--raised); }
-.file-list li span:first-child { overflow-wrap: anywhere; min-width: 0; }
-.file-list li span:last-child { flex-shrink: 0; }
+.start-files { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
 
 /* the model risk */
 .risk-grid { display: grid; gap: 10px; margin-top: 4px; }

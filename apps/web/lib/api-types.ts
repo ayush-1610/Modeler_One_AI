@@ -1085,6 +1085,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Library
+         * @description The project's document library (plan 2026-10-28, PR 1): every document with who added it and what cites it.
+         */
+        get: operations["get_library_api_v1_projects__project_id__library_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/members": {
         parameters: {
             query?: never;
@@ -2825,6 +2845,30 @@ export interface components {
             /** Solubility Table Value */
             solubility_table_value?: number | null;
         };
+        /**
+         * ContributionView
+         * @description One thing the project took from a document (`library.Contribution`).
+         */
+        ContributionView: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "value" | "dataset" | "brief";
+            /** Page */
+            page: number | null;
+            /** State */
+            state: string;
+            /**
+             * Step
+             * @enum {string}
+             */
+            step: "start" | "inputs";
+            /** Target */
+            target: string;
+            /** Value */
+            value: string;
+        };
         /** CorrectionRequest */
         CorrectionRequest: {
             /** Conditions */
@@ -3642,6 +3686,13 @@ export interface components {
         /** Envelope[InputsPage] */
         Envelope_InputsPage_: {
             data: components["schemas"]["InputsPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[LibraryPage] */
+        Envelope_LibraryPage_: {
+            data: components["schemas"]["LibraryPage"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -4806,6 +4857,42 @@ export interface components {
                     [key: string]: number;
                 };
             };
+        };
+        /** LibraryPage */
+        LibraryPage: {
+            /** Documents */
+            documents: components["schemas"]["LibraryRowView"][];
+        };
+        /**
+         * LibraryRowView
+         * @description One document of the project library (`library.LibraryRow`), with what it contributed.
+         */
+        LibraryRowView: {
+            /** Added At */
+            added_at: string;
+            /** Added By */
+            added_by: string;
+            /** Contributions */
+            contributions: components["schemas"]["ContributionView"][];
+            /** Format */
+            format: string;
+            /** N Pages */
+            n_pages: number;
+            /** Name */
+            name: string;
+            /** Role */
+            role: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "person" | "agent" | "system";
+            /** Versions */
+            versions: number;
         };
         /** M15Issue */
         M15Issue: {
@@ -10507,6 +10594,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_IdentityProposal_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_library_api_v1_projects__project_id__library_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LibraryPage_"];
                 };
             };
             /** @description Validation Error */

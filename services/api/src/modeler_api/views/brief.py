@@ -38,6 +38,37 @@ class Documents(View):
     documents: list[DocumentView]
 
 
+class ContributionView(View):
+    """One thing the project took from a document (`library.Contribution`)."""
+
+    kind: Literal["value", "dataset", "brief"]
+    target: str
+    value: str
+    state: str
+    page: int | None
+    step: Literal["start", "inputs"]
+
+
+class LibraryRowView(View):
+    """One document of the project library (`library.LibraryRow`), with what it contributed."""
+
+    sha256: str
+    name: str
+    role: str
+    format: str
+    n_pages: int
+    size_bytes: int
+    added_at: str
+    added_by: str
+    source: Literal["person", "agent", "system"]
+    versions: int
+    contributions: list[ContributionView]
+
+
+class LibraryPage(View):
+    documents: list[LibraryRowView]
+
+
 class FigureView(View):
     """An image placed on a PDF page (`modeler_intake.documents.PdfFigure`): its box as fractions of the page as shown."""
 

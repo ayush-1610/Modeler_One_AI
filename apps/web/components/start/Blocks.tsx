@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type ReactNode } from "react";
 
 import { EmptyState, InlineIssue } from "@/components/kit";
@@ -67,8 +68,9 @@ const IDENTITY = ["drug.pubchem_cid", "drug.smiles"];
 const OFF_SCREEN = ["drug.mw_free_base", "drug.inchikey"];
 const WORKBOOK = /\.(xlsx|xlsm|xls|csv|tsv)$/i;
 
-/** Block 1: the drug and its identity (PubChem), and the files. Until the project's document library replaces it, the
- *  files stay listed here; each added file goes where its type says (a workbook to client data, the rest to documents). */
+/** Block 1: the drug and its identity (PubChem), and the files: named in one line, listed in the project's document
+ *  library (its plan, PR 1). Until "Add data" comes to the sidebar (PR 2), files are added here; each goes where its
+ *  type says (a workbook to client data, the rest to documents). */
 export function DrugAndFiles({ projectId, view, documents, save, open, marks, run, busy, onNotice }: {
   projectId: string; view: BriefView; documents: DocumentView[]; save: Save; open: Open; marks: Marks;
   run: ReturnType<typeof useMutation>["run"]; busy: boolean; onNotice: (text: string) => void;
@@ -109,11 +111,11 @@ export function DrugAndFiles({ projectId, view, documents, save, open, marks, ru
       <HiddenMarks paths={OFF_SCREEN} marks={marks} />
       <h3 className="start-sub">Files</h3>
       {shown.length === 0 ? <EmptyState title="No files yet" /> : (
-        <ul className="file-list" data-testid="start-files">
-          {shown.map((d) => (
-            <li key={d.sha256}><span>{d.name}</span><span className="muted">{d.role.replace(/_/g, " ")} · {d.n_pages} p.</span></li>
-          ))}
-        </ul>
+        <p className="start-files" data-testid="start-files">
+          {shown.length} {shown.length === 1 ? "file" : "files"}: {shown.map((d) => d.name).join(", ")}.{" "}
+          <Link href={`/projects/${encodeURIComponent(projectId)}/library`} data-testid="start-library">
+            See them in the Project Document Library</Link>, with what each contributed.
+        </p>
       )}
       <div className="row" style={{ marginTop: 10 }}>
         <label className="btn">

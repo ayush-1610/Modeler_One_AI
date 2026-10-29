@@ -15,6 +15,8 @@ const LINKS = [
 export function Nav({ user }: { user?: string | null }) {
   const path = usePathname();
   const is = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  const project = /^\/projects\/([^/]+)/.exec(path)?.[1];
+  const open = project && project !== "start" ? decodeURIComponent(project) : null;
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -28,6 +30,16 @@ export function Nav({ user }: { user?: string | null }) {
           </Link>
         ))}
       </nav>
+      {open && (
+        // the open project's own pages (the document library plan: its library, and "Add data" above it, in PR 2)
+        <nav className="nav nav-project" aria-label="This project" data-testid="nav-project">
+          <span className="nav-heading">This project</span>
+          <Link href={`/projects/${encodeURIComponent(open)}/library`} data-testid="nav-library"
+                className={path.endsWith("/library") ? "active" : ""} aria-current={path.endsWith("/library") ? "page" : undefined}>
+            Project Document Library
+          </Link>
+        </nav>
+      )}
       <ThemeToggle />
       {user && (
         <div className="nav-user" data-testid="signed-in">

@@ -337,3 +337,15 @@ def test_an_edit_made_while_the_agent_merges_its_reading_is_kept(client, monkeyp
     fields = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]["brief"]["fields"]
     assert edit.status_code == 200
     assert fields["scope.pbpk_model"]["value"] == "full"
+
+
+def test_the_library_lists_each_document_with_who_added_it_and_what_cites_it(client):
+    # docs/plans/2026-10-28-project-document-library.md, PR 1: the table the library page shows
+    c, _ = client
+    pid = _initiate(c)
+    docs = c.get(f"/api/v1/projects/{pid}/library", headers=H).json()["data"]["documents"]
+    assert sorted(d["role"] for d in docs) == ["context", "proposal"]
+    proposal = next(d for d in docs if d["role"] == "proposal")
+    assert (proposal["name"], proposal["source"], proposal["added_by"], proposal["versions"]) == ("proposal.txt", "person",
+                                                                                                    "u1", 1)
+    assert proposal["contributions"] == []                     # nothing is read from it yet (agents off)
