@@ -15,6 +15,58 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — a non-identifiable pair is fixed and refitted (PI-2b, MS-01 fix_and_refit; locked `map.py`; UNVERIFIED)
+The owner's decision of 2026-10-25 ("PI-2b: build it"), with the owner's rule for "the more reliable source"; plan
+`docs/plans/2026-10-23-parameter-identification-review.md` PI-2b. It closes PI-2's known gap.
+- **Before:** a fit whose two parameters were correlated beyond |r| > 0.95 was flagged (PI-2), but the pair never
+  reached the diagnosis, and MS-01's `fix_and_refit` would have fitted nothing (its target `a|b` matched no
+  parameter, and its op was not recognised as a fit).
+- **The pairs reach the diagnosis.** `assess_round` hands the best start's pairs beyond 0.95 to the diagnosis as
+  `correlated_pairs`, strongest first (`assess_fit` orders them). diag-rules' `non_identifiable_pair` then permits
+  `fix_and_refit a|b`. The ruleset is unchanged (0.6).
+- **The owner's rule** (`pbpk_domain.identifiability`): fix the parameter with the more reliable source at its source
+  value from the signed MAP, then refit.
+  - More reliable is the higher evidence grade (A–D), and a measured value (status FIXED) beats a predicted one
+    (PREDICTED).
+  - Grade is compared when both have one. Status is compared when both are measured or predicted; FITTED and DERIVED
+    are not ranked.
+  - Where grade and status point at different parameters, the grade decides (the owner, 2026-10-27; to be revisited
+    with the SME).
+  - A tie is never guessed: equal grade and status, or a pair neither comparison ranks. The round escalates to the
+    modeller, and the reason names both parameters' grade and status.
+  - A parameter that is not in the signed MAP's table (another compound of a model system) cannot be fixed at a signed
+    value, so it escalates too.
+- **The round** (`campaign_activities`, for both the local and the Temporal runner):
+  - it writes a new CPF version with the fixed parameter back at its signed value and status, with no fit and no CI,
+    and `supersedes` naming the fitted value;
+  - it builds the snapshot from that version, and fits the previous fit's other parameters;
+  - the fixed parameter stays out of the stage's later fits, and the fixed version carries forward even when the
+    refit produces no estimate;
+  - the build and the diagnosis each write a note naming which parameter is fixed, at what value, and why.
+- **Locked `campaign/map.py`, approved by the owner (2026-10-27) after seeing the diff:** `MapParameter.grade`. The signing route
+  records each input's kept source grade from the review table (`review.grades`, `plan.map_from_plan`).
+  - The grade is left out of the content hash when unset, so a MAP signed before keeps its hash.
+  - It is not compared with the campaign CPF (D-36), which does not carry grades.
+  - The reference runs and the published-model paths sign no grades.
+- **Records:** `docs/SME_SIGNOFF.md` (the rule, the 0.95 limit, the order of grade and status). The OpenAPI snapshot and
+  the web types gain the optional `grade`. Locked hashes refreshed.
+- **Impact:** a campaign whose fit finds a non-identifiable pair now acts on it: it refits with one parameter fixed, or
+  escalates where the signed sources cannot rank the pair. Before, such a round chose another rule's action, or
+  escalated with no permitted action. Verdicts and every other decision are unchanged. A parameter at its bound still
+  escalates first (`param_at_bound`).
+- **PK-Sim:** `dapagliflozin-refit` before (run 40206672048, `main` 35e0954) and after (run 40739239767, this branch,
+  3d7e38c) give the same result:
+  - S1 escalates after the clearance fit, with UGT1A9 clspec at its lower bound and UGT2B7 clspec at its upper bound.
+  - GMFE goes from 2.478 / 2.516 to 1.412 / 2.291.
+  - No pair passes |r| > 0.95, so `fix_and_refit` is not reached here: a parameter at its bound escalates first.
+- **What the full fit note now shows** (the reference summary prints it whole):
+  - Every clearance's 95 % CI is wider than its estimate and reaches below zero: UGT1A9 0.040 [−0.031, 0.111], UGT2B7
+    0.066 [−0.39, 0.52], hepatic CYP 0.963 [−0.66, 2.59].
+  - Only 59 % of the starts reach the best solution.
+  - The one IV study does not separate the three parallel clearances. This is the case PI-4 (fit a common factor on
+    parallel pathways) is for.
+  - It is also the kind of `POORLY_DETERMINED` finding the PI-3 decision watches for: a linear-scale Hessian CI that
+    reaches below zero for a positive parameter.
 ### Docs — log-scale fitting stays linear for now; a parameter transform is proposed to OSP (PI-3, decided)
 The owner's decision of 2026-10-25: options (c) + (b) of `docs/plans/2026-10-23-parameter-identification-review.md` PI-3.
 - **Why a decision was needed:** `ospsuite.parameteridentification` 2.2.0 writes the optimiser's values straight into

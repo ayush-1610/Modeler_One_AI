@@ -103,6 +103,11 @@ def review_rows(ws: Workspace) -> list[dict[str, Any]]:
     return out
 
 
+def grades(rows: list[dict[str, Any]]) -> dict[str, str]:
+    """Each input's kept source grade (A–D) from the review rows, for the MAP's parameter table (PI-2b)."""
+    return {r["id"]: r["grade"] for r in rows if r.get("grade")}
+
+
 def counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     """The review table's filters, counted."""
     return {"all": len(rows), "flagged": sum(bool(r["flags"]) or r["state"] in ("held", "conflict") for r in rows),

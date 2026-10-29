@@ -9316,6 +9316,17 @@
             "title": "Fittable Stages",
             "type": "array"
           },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
           "id": {
             "title": "Id",
             "type": "string"
