@@ -228,6 +228,8 @@ class ReviewRisk(View):
     influence: str | None                  # the ratings and justification from Start
     consequence: str | None
     justification: str | None
+    influence_text: str | None = None      # why each rating is what it is, as a person wrote or confirmed it at Start
+    consequence_text: str | None = None
 
 
 class BoundsProposalView(View):
