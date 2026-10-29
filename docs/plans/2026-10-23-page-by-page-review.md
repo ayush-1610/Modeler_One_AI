@@ -135,7 +135,7 @@ as they are (a) and the proposal (b).
 | 5 | Delete on the Projects page | archive | To build: archive (hide, never erase), with a reason, in the audit trail |
 | 6 | One tier per application | a, for now | One tier per project stays. A known gap: ICH M15 assesses credibility per context of use |
 | 7 | Inputs hard-blocked before Start is done | yes | To build: the browser specs finish Start first; a step that has begun stays open (PR #105) |
-| 8 | Grade vs status | c: in the SME grading rubric | To draft: a predicted value is capped, and the test system is part of the grade. SME-governed and locked: the diff goes to the owner first |
+| 8 | Grade vs status | c: in the SME grading rubric | #107: the rubric was code, not a locked ruleset; it becomes `evidence_grading.yaml` 0.1 (UNVERIFIED). A value its source calls predicted is C, and a human in vitro clearance is B, below in vivo |
 | 9 | PI-4 next | yes | `docs/plans/2026-10-23-parameter-identification-review.md` PI-4 |
 | 10 | The document library | yes | `docs/plans/2026-10-28-project-document-library.md`, three PRs |
 | 11 | Its categories | the roles plus "what it relates to" | As planned |
