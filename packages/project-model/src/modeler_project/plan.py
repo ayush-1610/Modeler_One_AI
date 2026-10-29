@@ -19,6 +19,7 @@ EXTERNAL), ``SUPPORTIVE`` (context only).
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -346,11 +347,12 @@ def _sampling_end_h(rows: list[dict[str, Any]]) -> dict[str, float]:
 
 
 def default_map(cpf: CPF, rows: list[dict[str, Any]], structure: Structure, *,
-                split: SplitResult | None = None, internal_target_pe: float | None = None) -> tuple[MapDocument, SplitResult]:
+                split: SplitResult | None = None, internal_target_pe: float | None = None,
+                grades: Mapping[str, str] | None = None) -> tuple[MapDocument, SplitResult]:
     """The MAP exactly as `generate_map` makes it (the split computed by MS-01 unless one is given), with the
     structure's campaign budget split across the stages. An unset model risk drafts at medium only to compute the
     default split, which the tier does not change; `map_from_plan` refuses to sign without one, and passes the
-    internal target once the validator has checked it against the tier."""
+    internal target once the validator has checked it against the tier, and each value's source grade (PI-2b)."""
     records = _records(rows)
     split = split or split_studies(records, _question(structure))
     doc = generate_map(compound=cpf.compound, cpf=cpf, studies=records, split=split, objective=structure.objective,
@@ -358,7 +360,7 @@ def default_map(cpf: CPF, rows: list[dict[str, Any]], structure: Structure, *,
                        model_risk=Rating(structure.model_risk or "medium"), engine_image_digest=ENGINE_DIGEST,
                        software_versions={"ospsuite": "12.4.4"}, sampling_end_h=_sampling_end_h(rows),
                        campaign_budget_seconds=structure.campaign_budget_seconds, applications=structure.applications,
-                       internal_target_pe=internal_target_pe)
+                       internal_target_pe=internal_target_pe, grades=grades)
     return doc, split
 
 
@@ -769,8 +771,9 @@ def plan_split(plan: ModelPlan) -> SplitResult:
 
 
 def map_from_plan(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, exploratory: bool = False,
-                  acknowledged_limitations: bool = True) -> MapDocument:
-    """The MAP, deterministically, from the plan. Refused while the validator has a blocking violation."""
+                  acknowledged_limitations: bool = True, grades: Mapping[str, str] | None = None) -> MapDocument:
+    """The MAP, deterministically, from the plan. Refused while the validator has a blocking violation. ``grades`` maps
+    a CPF id to its kept source's evidence grade, as the review shows it (`review.grades`); the MAP records them."""
     violations = validate(plan, cpf, rows, exploratory=exploratory)
     if blocking(violations):
         raise PlanError("the plan has open rule violations: " + "; ".join(v.message for v in blocking(violations)))
@@ -778,7 +781,7 @@ def map_from_plan(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, expl
     limits = (*map_limitations(plan, violations if acknowledged_limitations else []), *default_fit_limitation(plan, cpf))
     split = split.model_copy(update={"limitations": limits})
     doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=split,
-                         internal_target_pe=plan.structure.internal_target_pe)
+                         internal_target_pe=plan.structure.internal_target_pe, grades=grades)
     return doc
 
 

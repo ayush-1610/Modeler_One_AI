@@ -119,8 +119,8 @@ def assess_round(
         best_start_index=assessment.best.start_index if assessment.best else None,
         deadline_reached=deadline_reached,
         at_bound=[f.parameter for f in assessment.findings if f.code == "AT_BOUND" and f.parameter],
-        # recorded and flagged, not yet acted on: see FitRoundOutcome.correlations
-        correlated_pairs=[],
+        # the pairs beyond |r| > 0.95, strongest first: the diagnosis fixes one of the first and refits (PI-2b)
+        correlated_pairs=[list(pair) for pair in assessment.correlated_pairs],
         starts_agreement=assessment.agreement_fraction if assessment.best else None,
         correlations=list(best.correlations) if best else [],
         ci_error=best.ci_error if best else None,

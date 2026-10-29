@@ -264,6 +264,22 @@ def test_a_fit_s_bounds_and_the_plausibility_range_are_in_the_map_and_under_its_
 
 
 @pytest.mark.req("T-50")
+def test_each_values_source_grade_is_recorded_under_the_hash_and_not_compared_with_the_campaign_cpf():
+    # PI-2b: the signed table carries each source's grade, MS-01's "more reliable source" for fix_and_refit; the CPF
+    # does not carry it, so a run's CPF is never refused for it (D-36), and a MAP without grades hashes as before
+    from pbpk_domain.campaign.map import cpf_differences
+
+    m, graded = _map(), _map(grades={"phys.logp": "B", "bind.fu": "A"})
+    assert {p.id: p.grade for p in graded.cpf_parameters if p.grade} == {"phys.logp": "B", "bind.fu": "A"}
+    assert all(p.grade is None for p in m.cpf_parameters) and _map(grades={}).content_sha256() == m.content_sha256()
+    assert graded.content_sha256() != m.content_sha256()
+    assert _map(grades={"phys.logp": "C", "bind.fu": "A"}).content_sha256() != graded.content_sha256()
+    assert cpf_differences(graded, _cpf()) == []
+    signed = graded.sign(printed_name="Owner")
+    assert MapDocument.model_validate_json(signed.model_dump_json()).content_sha256() == signed.signature.content_sha256
+
+
+@pytest.mark.req("T-50")
 def test_the_internal_target_is_recorded_under_the_hash_and_never_looser_than_the_tier():
     m, strict = _map(), _map(internal_target_pe=20)
     assert m.acceptance.internal_target_pe is None and strict.acceptance.internal_target_pe == 20

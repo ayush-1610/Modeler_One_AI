@@ -154,10 +154,15 @@ class MapParameter(BaseModel):
     # (fit_spec). Left out of the content hash when unset, so a MAP without them hashes as it did before.
     bounds: MapBounds | None = None
     plausibility: tuple[float, float] | None = None
+    # the evidence grade (A–D) of the source the value came from, as the review showed it at signing: MS-01's "the
+    # more reliable source" when a non-identifiable pair is fixed and refitted (PI-2b). The CPF does not carry it.
+    grade: str | None = None
 
 
 # MapParameter fields left out of the content hash when unset (signatures given before they existed stay valid)
-_HASHED_WHEN_SET = ("bounds", "plausibility")
+_HASHED_WHEN_SET = ("bounds", "plausibility", "grade")
+# ...and of those, what the campaign's CPF also carries, so a run is compared with its MAP on them (D-36)
+_COMPARED_WHEN_SET = ("bounds", "plausibility")
 
 
 class MapStudy(BaseModel):
@@ -369,9 +374,10 @@ class MapDocument(BaseModel):
         return self.supersedes_sha256 is not None
 
 
-def map_parameters(cpf: CPF) -> tuple[MapParameter, ...]:
-    """The MAP's parameter table: each CPF parameter with its source, the stages it may be fitted at, and the bounds
-    the run may fit it within."""
+def map_parameters(cpf: CPF, grades: Mapping[str, str] | None = None) -> tuple[MapParameter, ...]:
+    """The MAP's parameter table: each CPF parameter with its source (and that source's grade, when the caller knows
+    it), the stages it may be fitted at, and the bounds the run may fit it within."""
+    grades = grades or {}
     return tuple(
         MapParameter(
             id=p.id, value=p.value, unit=p.unit, status=p.status.value,
@@ -380,6 +386,7 @@ def map_parameters(cpf: CPF) -> tuple[MapParameter, ...]:
             bounds=MapBounds(lower=p.fit_policy.lower, upper=p.fit_policy.upper, scale=p.fit_policy.scale.value)
             if p.fit_policy else None,
             plausibility=(p.plausibility.lower, p.plausibility.upper) if p.plausibility else None,
+            grade=grades.get(p.id),
         )
         for p in cpf.parameters
     )
@@ -406,7 +413,7 @@ def cpf_differences(doc: MapDocument, cpf: CPF) -> list[str]:
     out += [f"{pid}: in the campaign's CPF, not in the signed MAP" for pid in sorted(run.keys() - signed.keys())]
     for pid in sorted(signed.keys() & run.keys()):
         mine, theirs = signed[pid], run[pid]
-        fields = [*_COMPARED, *(f for f in _HASHED_WHEN_SET if f in mine.model_fields_set)]
+        fields = [*_COMPARED, *(f for f in _COMPARED_WHEN_SET if f in mine.model_fields_set)]
         changed = [f for f in fields if getattr(mine, f) != getattr(theirs, f)]
         out += [f"{pid}: {f} {_shown(getattr(theirs, f))} in the campaign's CPF, {_shown(getattr(mine, f))} in the "
                 "signed MAP" for f in changed]
@@ -586,16 +593,17 @@ def generate_map(
     system: ModelSystem | None = None,
     applications: tuple[MapApplication, ...] = (),
     internal_target_pe: float | None = None,
+    grades: Mapping[str, str] | None = None,
 ) -> MapDocument:
     """Produce the MAP (version 1, DRAFT) from the standard and the campaign's inputs (MS-01 §9).
 
     ``sampling_end_h`` maps a study to its last observed time (hours) so each simulation covers the whole
-    sampled window."""
+    sampled window. ``grades`` maps a CPF id to its source's evidence grade (A–D), recorded in the parameter table."""
     if diagnostics_ruleset_version is None:
         from pbpk_domain.diagnostics import diag_ruleset_version
 
         diagnostics_ruleset_version = diag_ruleset_version()
-    parameters = map_parameters(cpf)
+    parameters = map_parameters(cpf, grades)
     study_rows = tuple(
         MapStudy(study_id=s.study_id, study_class=s.study_class.value, score=round(s.score, 3), assignment=s.assignment.value)
         for s in split.splits

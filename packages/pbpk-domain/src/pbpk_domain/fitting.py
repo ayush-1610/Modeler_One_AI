@@ -223,8 +223,9 @@ def assess_fit(
         if u <= bound_tolerance or u >= 1 - bound_tolerance:
             findings.append(Finding("AT_BOUND", f"{p.name} = {best.estimates[p.name]:.4g} is at its bound", p.name))
 
+    # strongest first: the diagnosis acts on the first pair (MS-01 fix_and_refit)
     correlated: list[tuple[str, str]] = []
-    for (a, b), r in (correlations or {}).items():
+    for (a, b), r in sorted((correlations or {}).items(), key=lambda item: -abs(item[1])):
         if a != b and abs(r) > correlation_limit:
             correlated.append((a, b))
             findings.append(

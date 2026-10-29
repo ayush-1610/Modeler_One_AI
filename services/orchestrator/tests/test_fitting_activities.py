@@ -1,6 +1,8 @@
 import json
 
-from modeler_contracts.runs import EngineInput, EngineManifest, FitParameterBounds, FitRoundRequest, OutputFile
+import pytest
+
+from modeler_contracts.runs import EngineInput, EngineManifest, FitParameterBounds, FitRoundRequest, OutputFile, fit_signals
 from modeler_orchestrator.fitting_activities import assess_round, plan_jobs
 
 REQUEST = FitRoundRequest(
@@ -85,10 +87,10 @@ def _identifiability_manifest(tmp_path, index, objective, *, correlations=None, 
     )
 
 
-def test_the_best_starts_correlations_and_intervals_are_recorded_and_flagged_but_not_yet_acted_on(tmp_path):
+def test_the_best_starts_correlations_and_intervals_are_flagged_and_its_strong_pairs_reach_the_diagnosis(tmp_path):
     """PI-2 (2026-10-24): run_pi.R exports the Hessian CI's correlations. A pair beyond 0.95 and a CI wider than its
-    estimate are flagged; the correlations are recorded, and not handed to the diagnosis until MS-01's
-    non-identifiable-pair action is carried out."""
+    estimate are flagged. PI-2b (2026-10-25): the best start's pairs beyond 0.95 are handed to the diagnosis, which
+    carries out MS-01's fix_and_refit."""
     jobs = plan_jobs(REQUEST)[:2]
     manifests = [_identifiability_manifest(tmp_path, 0, 10.0, correlations=[{"a": "Lipophilicity", "b": "CLspec", "r": -0.97}]),
                  _identifiability_manifest(tmp_path, 1, 10.01, correlations=[{"a": "Lipophilicity", "b": "CLspec", "r": 0.1}])]
@@ -97,8 +99,24 @@ def test_the_best_starts_correlations_and_intervals_are_recorded_and_flagged_but
     assert any(f.startswith("HIGHLY_CORRELATED: Lipophilicity and CLspec") for f in outcome.findings)
     assert any(f.startswith("POORLY_DETERMINED: CLspec") for f in outcome.findings)
     assert not any("Lipophilicity: 95%" in f for f in outcome.findings)  # a narrow CI is not flagged
-    assert outcome.correlated_pairs == [] and not outcome.acceptable
+    assert outcome.correlated_pairs == [["Lipophilicity", "CLspec"]] and not outcome.acceptable
+    assert fit_signals(outcome)["correlated_pairs"] == [["Lipophilicity", "CLspec"]]
     assert outcome.starts[0].uncertainty["CLspec"] == {"sd": 0.6, "cv": 1.2, "ci_lower": 0.05, "ci_upper": 4.8}
+
+
+@pytest.mark.req("T-14")
+def test_a_pair_below_the_limit_is_recorded_but_not_handed_on_and_the_strongest_pair_comes_first(tmp_path):
+    jobs = plan_jobs(REQUEST)[:1]
+    weak = assess_round(REQUEST, jobs, [_identifiability_manifest(
+        tmp_path, 0, 10.0, correlations=[{"a": "Lipophilicity", "b": "CLspec", "r": 0.95}])], deadline_reached=False)
+    assert weak.correlated_pairs == [] and weak.correlations == [{"a": "Lipophilicity", "b": "CLspec", "r": 0.95}]
+
+    from pbpk_domain.fitting import FitParameter, StartResult, assess_fit
+
+    params = [FitParameter(n, 0.0, 10.0) for n in ("a", "b", "c")]
+    result = assess_fit([StartResult(0, {"a": 5.0, "b": 5.0, "c": 5.0}, 1.0, True, 10)], params,
+                        correlations={("a", "b"): 0.96, ("a", "c"): -0.99, ("b", "c"): 0.2})
+    assert result.correlated_pairs == (("a", "c"), ("a", "b"))
 
 
 def test_a_fit_without_a_ci_says_why(tmp_path):

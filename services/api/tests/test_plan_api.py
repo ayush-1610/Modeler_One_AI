@@ -166,6 +166,11 @@ def test_approve_and_sign_generates_the_map_signs_it_and_stages_the_campaign(set
 
     staged = CPF.model_validate_json(Path(unquote(urlparse(campaign["cpf_uri"]).path)).read_text())
     assert cpf_differences(MapDocument.model_validate(map_doc), staged) == []   # D-36: a pilot starts on the staged pair
+    # PI-2b: each value's source grade, as the review showed it, is signed with the parameter table
+    grades = {r["id"]: r["grade"] for r in c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]["rows"]}
+    signed_grades = {p["id"]: p.get("grade") for p in map_doc["cpf_parameters"]}
+    assert signed_grades["phys.logp"] and signed_grades["phys.logp"] == grades["phys.logp"]
+    assert all(signed_grades[pid] == grade for pid, grade in grades.items() if pid in signed_grades)
     steps = {s["step"]: s["state"] for s in c.get("/api/v1/projects/p1/steps", headers=H).json()["data"]["steps"]}
     assert steps["review"] == "done"                                             # the signed MAP closes Review & sign
     # D-14: after the signature a change is a MAP deviation, pending until the MIDD lead signs it
