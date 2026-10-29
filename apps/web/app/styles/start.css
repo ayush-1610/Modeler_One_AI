@@ -117,3 +117,4 @@
 .pathway-edit select, .pathway-edit input, .route-dose input { font: inherit; font-size: 14px; padding: 6px 8px;
   border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .pathway-edit input { flex: 1; min-width: 160px; }
+.client-request { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }

@@ -19,7 +19,8 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from modeler_project.brief import FieldStatus, ProjectBrief
+from modeler_intake.client_template import SHEET_FOR_CATEGORY
+from modeler_project.brief import APPLICATIONS, FieldStatus, ProjectBrief
 
 Applies = Literal["yes", "no", "undetermined"]
 Provider = Literal["CLIENT", "LITERATURE", "SPONSOR_TO_MEASURE", "PREDICT", "STRUCTURE", "LIBRARY", "STUDY", "PROPOSAL",
@@ -279,6 +280,33 @@ def application_additions() -> dict[str, list[str]]:
         for code in scope or []:
             adds.setdefault(code, []).extend(dict.fromkeys(raw["label"] for raw in template["items"]))
     return {code: list(dict.fromkeys(labels)) for code, labels in adds.items()}
+
+
+class RequestLine(BaseModel):
+    """One thing the project asks the client to send (page review 1, the owner's decision 2b of 2026-10-29)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    req_id: str
+    what: str
+    why: str                       # the application it serves, or the model itself
+    required: bool
+    product: str | None = None
+    sheet: str = ""                # where it goes in the client-data workbook; empty: sent as a file
+
+
+def client_request(matrix: RequirementMatrix) -> list[RequestLine]:
+    """What only the client can send: the items P3 expects from the client (`client_items`, the ones the reconciliation
+    checks as files arrive), each with what it serves, in the data plan's order."""
+    names = {option.split(" ", 1)[0]: option.split(" ", 1)[1] for option in APPLICATIONS}
+    serves: dict[str, str] = {}
+    for template in load_templates():
+        scope = template.get("applies_to")
+        serves[template["id"]] = ("the model itself" if scope == "all"
+                                  else " and ".join(names.get(code, code) for code in scope or ()))
+    return [RequestLine(req_id=i.req_id, what=i.label, why=serves.get(i.template, ""), required=i.criticality == "REQUIRED",
+                        product=i.product, sheet=SHEET_FOR_CATEGORY.get(i.data_category, ""))
+            for i in client_items(matrix)]
 
 
 def literature_items(matrix: RequirementMatrix) -> list[RequirementItem]:

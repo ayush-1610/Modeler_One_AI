@@ -14,6 +14,7 @@ from modeler_project.requirements import (
     RequirementOverride,
     application_additions,
     client_items,
+    client_request,
     derive,
     evaluate_when,
     literature_items,
@@ -154,3 +155,17 @@ def test_the_pathway_kinds_decide_the_pathway_items_a_list_of_enzymes_alone_woul
     assert derive(kinds).get("REQ-elim.renal").applies == "yes"
     only_hepatic = edit_field(b, "scope.pathways", value=["hepatic_metabolism"], status=FieldStatus.EDITED, by="u")
     assert derive(only_hepatic).get("REQ-elim.renal").applies == "no"
+
+
+def test_the_client_request_lists_what_only_the_client_sends_with_what_it_serves_and_where_it_goes():
+    # page review 1 (the owner's decision 2b of 2026-10-29): the CRO's day-one data request, from the data plan
+    matrix = derive(_vbe_brief())
+    request = client_request(matrix)
+    assert [line.req_id for line in request] == [i.req_id for i in client_items(matrix)]      # what the arrival check expects
+    by_id = {(line.req_id, line.product): line for line in request}
+    be = next(line for line in request if line.req_id == "REQ-vbe.be_study")
+    assert be.why == "absorption and formulation and virtual bioequivalence" and be.required
+    assert be.sheet == "PK_Individual or PK_Summary"
+    dissolution = [line for line in request if line.req_id == "REQ-vbe.rld_dissolution"]
+    assert dissolution and all(line.sheet == "Dissolution and Product" for line in dissolution)
+    assert all(line.why for line in by_id.values())

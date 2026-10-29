@@ -7,7 +7,14 @@ import io
 import pytest
 from openpyxl import Workbook, load_workbook
 
-from modeler_intake.client_template import SHEETS, TEMPLATE_ID, build_template, read_client_workbook
+from modeler_intake.client_template import (
+    REQUEST_SHEET,
+    SHEETS,
+    TEMPLATE_ID,
+    RequestRow,
+    build_template,
+    read_client_workbook,
+)
 from modeler_intake.grid import read_workbook_bytes
 from modeler_intake.triage import SheetCategory, quote_in_header, triage
 
@@ -35,6 +42,23 @@ def test_the_template_lists_every_sheet_with_its_header_and_readme():
     for name, columns in SHEETS.items():
         header = [c.value for c in wb[name][1]]
         assert header == [f"{c.name}*" if c.required else c.name for c in columns]
+
+
+def test_a_projects_request_comes_first_and_the_reader_skips_it():
+    # page review 1 (the owner's decision 2b of 2026-10-29): the data request is the template with what to send in front
+    rows = [RequestRow(what="Bioequivalence study data (reference arm at least)", why="virtual bioequivalence", required=True,
+                       sheet="PK_Individual or PK_Summary"),
+            RequestRow(what="Preclinical PK per species", why="FIH translation", required=False)]
+    data = build_template(rows, heading="Data request: Drugol (drugol-pbpk), 2026-10-29")
+    wb = load_workbook(io.BytesIO(data))
+    assert wb.sheetnames[:2] == [REQUEST_SHEET, "README"] and wb["README"]["A1"].value == TEMPLATE_ID
+    sheet = [[c.value for c in row] for row in wb[REQUEST_SHEET].iter_rows()]
+    assert sheet[0] == ["Data request: Drugol (drugol-pbpk), 2026-10-29", None, None, None, None, None]
+    assert sheet[3] == ["#", "What we need", "Why", "Required", "Product", "Where it goes"]
+    assert sheet[4][:4] == [1, "Bioequivalence study data (reference arm at least)", "virtual bioequivalence", "yes"]
+    assert sheet[5][3:] == ["if available", None, "send as a file"]
+    read = read_client_workbook(read_workbook_bytes(data, "returned.xlsx"))
+    assert read.template and REQUEST_SHEET not in read.other_sheets       # sent back filled: read as the template
 
 
 def test_a_filled_template_is_read_with_cell_references_and_problems_named():

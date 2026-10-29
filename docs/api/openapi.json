@@ -13297,6 +13297,53 @@
         "title": "ReportedPK",
         "type": "object"
       },
+      "RequestLineView": {
+        "additionalProperties": false,
+        "description": "One thing the project asks the client to send (`requirements.client_request`, page review 1 decision 2b).",
+        "properties": {
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "req_id": {
+            "title": "Req Id",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "sheet": {
+            "title": "Sheet",
+            "type": "string"
+          },
+          "what": {
+            "title": "What",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "req_id",
+          "what",
+          "why",
+          "required",
+          "product",
+          "sheet"
+        ],
+        "title": "RequestLineView",
+        "type": "object"
+      },
       "RequirementCounts": {
         "additionalProperties": false,
         "properties": {
@@ -15682,6 +15729,13 @@
             "title": "Applications",
             "type": "array"
           },
+          "client_request": {
+            "items": {
+              "$ref": "#/components/schemas/RequestLineView"
+            },
+            "title": "Client Request",
+            "type": "array"
+          },
           "gates": {
             "items": {
               "$ref": "#/components/schemas/ScopeGateView"
@@ -15728,7 +15782,8 @@
           "risk",
           "applications",
           "pathway_suggestions",
-          "pathways_not_named"
+          "pathways_not_named",
+          "client_request"
         ],
         "title": "StartBlock",
         "type": "object"
@@ -20010,6 +20065,63 @@
           }
         },
         "summary": "Upload Client Files",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/client-data/request.xlsx": {
+      "get": {
+        "description": "The project's data request (page review 1, decision 2b): the client-data workbook with a first sheet listing what\nonly the client can send, from the data plan, and where each goes. The client fills it and sends it back.",
+        "operationId": "download_request_api_v1_projects__project_id__client_data_request_xlsx_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Request",
         "tags": [
           "client-data"
         ]

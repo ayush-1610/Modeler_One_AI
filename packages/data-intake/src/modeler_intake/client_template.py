@@ -9,6 +9,7 @@ its cell and never guessed, and a missing required value is an issue, not a defa
 from __future__ import annotations
 
 import io
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -137,15 +138,58 @@ README = (
 )
 
 
-def build_template() -> bytes:
-    """The downloadable client-data workbook: README, then one sheet per kind of data with its header and checks."""
+# The sheet a project's data request adds in front (page review 1, the owner's decision 2b): what the client is asked to
+# send, and where in this workbook it goes. The reader skips it, as it skips the README.
+REQUEST_SHEET = "Request"
+# Where each kind of data in the data plan (its `data_category`) goes in this workbook; a kind not listed is sent as a file
+SHEET_FOR_CATEGORY: dict[str, str] = {
+    "clinical_pk_iv": "PK_Individual or PK_Summary", "clinical_pk_oral": "PK_Individual or PK_Summary",
+    "clinical_pk_fed": "PK_Individual or PK_Summary", "clinical_pk_md": "PK_Individual or PK_Summary",
+    "clinical_pk_special": "PK_Individual or PK_Summary", "clinical_ddi": "PK_Individual or PK_Summary",
+    "rld_data": "PK_Individual or PK_Summary", "dissolution": "Dissolution and Product", "physchem": "Physchem_InVitro",
+    "binding": "Physchem_InVitro", "in_vitro_adme": "Physchem_InVitro", "urine_feces": "Urine_Feces",
+}
+
+
+@dataclass(frozen=True)
+class RequestRow:
+    """One thing a project asks the client to send."""
+
+    what: str
+    why: str
+    required: bool
+    product: str | None = None
+    sheet: str = ""
+
+
+def build_template(request: Sequence[RequestRow] = (), *, heading: str = "") -> bytes:
+    """The downloadable client-data workbook: README, then one sheet per kind of data with its header and checks. With
+    a project's request, a first sheet says what the client is asked to send and where each goes."""
     from openpyxl import Workbook
     from openpyxl.styles import Font
     from openpyxl.worksheet.datavalidation import DataValidation
 
     wb = Workbook()
-    readme = wb.active
-    readme.title = "README"
+    if request:
+        sheet = wb.active
+        sheet.title = REQUEST_SHEET
+        sheet.append([heading or "Data request"])
+        sheet["A1"].font = Font(bold=True, size=14)
+        sheet.append([("Please send the data below in this workbook (one sheet per kind of data; see the README), or as "
+                       "files where no sheet is named.")])
+        sheet.append([])
+        sheet.append(["#", "What we need", "Why", "Required", "Product", "Where it goes"])
+        for cell in sheet[4]:
+            cell.font = Font(bold=True)
+        for i, row in enumerate(request, start=1):
+            sheet.append([i, row.what, row.why, "yes" if row.required else "if available", row.product or "",
+                          row.sheet or "send as a file"])
+        for column, width in zip("ABCDEF", (4, 44, 40, 12, 28, 28), strict=True):
+            sheet.column_dimensions[column].width = width
+        readme = wb.create_sheet("README")
+    else:
+        readme = wb.active
+        readme.title = "README"
     for line in README:
         readme.append([line])
     readme.append([])
@@ -246,7 +290,7 @@ def read_client_workbook(workbook: WorkbookGrid) -> ClientWorkbook:
     for name, grid in workbook.sheets.items():
         columns = SHEETS.get(name)
         if columns is None:
-            if name != "README":
+            if name not in ("README", REQUEST_SHEET):
                 result.other_sheets.append(name)
             continue
         found = {_header(grid, i): i for i in range(1, grid.max_column + 1) if _header(grid, i)}

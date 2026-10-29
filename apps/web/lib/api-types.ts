@@ -541,6 +541,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/client-data/request.xlsx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Request
+         * @description The project's data request (page review 1, decision 2b): the client-data workbook with a first sheet listing what
+         *     only the client can send, from the data plan, and where each goes. The client fills it and sends it back.
+         */
+        get: operations["download_request_api_v1_projects__project_id__client_data_request_xlsx_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}": {
         parameters: {
             query?: never;
@@ -6524,6 +6545,24 @@ export interface components {
              */
             variability?: string;
         };
+        /**
+         * RequestLineView
+         * @description One thing the project asks the client to send (`requirements.client_request`, page review 1 decision 2b).
+         */
+        RequestLineView: {
+            /** Product */
+            product: string | null;
+            /** Req Id */
+            req_id: string;
+            /** Required */
+            required: boolean;
+            /** Sheet */
+            sheet: string;
+            /** What */
+            what: string;
+            /** Why */
+            why: string;
+        };
         /** RequirementCounts */
         RequirementCounts: {
             /** Applicable */
@@ -7376,6 +7415,8 @@ export interface components {
         StartBlock: {
             /** Applications */
             applications: components["schemas"]["ApplicationView"][];
+            /** Client Request */
+            client_request: components["schemas"]["RequestLineView"][];
             /** Gates */
             gates: components["schemas"]["ScopeGateView"][];
             /** Issues */
@@ -9389,6 +9430,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ClientUpload_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_request_api_v1_projects__project_id__client_data_request_xlsx_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
