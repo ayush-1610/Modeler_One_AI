@@ -117,11 +117,12 @@ def preview_impact(project_id: str, body: ImpactRequest, principal: Reader, stor
 
 @router.get("/projects/{project_id}/audit", **answers(AuditTrail))
 def get_audit(project_id: str, principal: Reader, store: StoreDep, limit: int = 200) -> dict[str, Any]:
-    """This project's audit events (newest first) and whether the tenant's chain verifies."""
+    """This project's audit events (newest first) and whether the tenant's chain verifies: its artifacts' events, and the
+    events on the project itself (its members, archiving and restoring)."""
     ws = workspace_for(project_id, principal, store)
     log = store.audit(ws.tenant_id)
     prefix = f"{project_id}/"
-    events = [r for r in log.records() if r.event.resource_id.startswith(prefix)]
+    events = [r for r in log.records() if r.event.resource_id.startswith(prefix) or r.event.resource_id == project_id]
     broken = log.verify()
     return envelope({
         "chain_verifies": broken is None, "first_broken_index": broken,

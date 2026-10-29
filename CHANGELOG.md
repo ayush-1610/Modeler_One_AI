@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — a project is archived, never deleted (page review 1, decision 5)
+The owner's decision 5 of 2026-10-29 ("archive"). A project is a Part 11 record: its signed MAP, campaigns and audit
+trail cite it.
+- **Archive:** `POST /projects/{id}:archive` hides a project from the Projects list, with a reason.
+  - Nothing it holds is changed or erased, and it still opens by its address.
+  - It is refused while one of the project's campaigns is queued or running.
+- **Restore:** `POST /projects/{id}:restore`, with a reason.
+- **Where it lives:** both are audit events (`project.archive`, `project.restore`) in the tenant's chain. The state is
+  kept per tenant in `<root>/<tenant>/archive.json` (`modeler_project.archive`), like the memberships.
+- **The list:** `GET /projects` marks each project's archive (who, when, why). The Projects page hides archived
+  projects until **Show archived**, and has **Archive** and **Restore**, each asking why.
+- **History:** a project's audit trail (`GET /projects/{id}/audit`) now includes the events on the project itself: its
+  members and its archive. Before, it listed only its artifacts' events, so member changes were in the chain but not
+  in the project's History.
+- **Tests:**
+  - `test_project_archive`: archive and restore with their reasons and audit events, refused with no reason, with a
+    running campaign or for a person who may not open the project; History lists both.
+  - `projects-archive.spec.ts`: the page flow.
+
 ### Changed — the Start page, rebuilt from the owner's marks (page review 1)
 The owner marked the 48 elements of Start between 2026-10-25 and 2026-10-28 (review page `FLcNRsUrnCJcEcDTkDhqzE`,
 collection `decisions`). Plan: `docs/plans/2026-10-23-page-by-page-review.md` §4.
