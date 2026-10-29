@@ -69,6 +69,56 @@ request with tests.
 
 ---
 
+## Second request (a separate issue), added 2026-10-29 for PI-4
+`docs/plans/2026-10-29-pi-4-parallel-pathways.md`. It goes to the same repository as its own issue, so each can be
+discussed and released on its own.
+
+### Title
+Feature request: a `PIParameters` group that scales its parameters by one factor (a relative group)
+
+### Body
+
+**What we would like**
+
+An option on `PIParameters` for a group whose parameters keep their ratios, for example `mode = "relative"` (default
+`"shared"`, unchanged behaviour). The optimiser would see one factor `f`, start 1, and each parameter `i` would be
+simulated at `f × start_i` in its own unit. Bounds would be given on `f`.
+
+**Why**
+
+A drug cleared by several parallel pathways of one kind (for example two UGT isoforms and a CYP in the liver) is often
+fitted to plasma data alone. Plasma data identify the total clearance but not the split between the pathways. Fitting
+each pathway on its own then gives estimates whose confidence intervals are wider than the estimates. Fitting one
+factor on all of them keeps the split that in vitro data give (the fractions metabolised), and estimates only what the
+data identify.
+
+**What happens today (v2.2.0)**
+
+A `PIParameters` with several parameters gives all of them one value:
+- `PIParameters$initialize` (`R/PIParameters.R:116`) documents that "all parameters are optimized using this unified
+  value", and takes its start value from the first parameter.
+- `setValue` (`:136`) writes that one value into every parameter of the group.
+
+Parallel pathways have different start values, so a shared value cannot keep their split. A relative group cannot be
+built from the public API, because the optimiser's values go straight to `SimulationBatch$addRunValues`
+(`R/ParameterIdentification.R:549`, `:448`). The first request describes the same constraint.
+
+**A possible design**
+
+- **The field:** `PIParameters` gains `mode` (`"shared"` or `"relative"`). With `"relative"`, the optimised quantity
+  is the factor, and `startValue`, `minValue` and `maxValue` refer to it.
+- **The simulations:** wherever the optimiser's value is written to `.variableParameters`, a relative group writes
+  `f × start_i` for each parameter, with the start values taken when the group is created.
+- **The CI:** `estimateCI` reports the factor's CI, and each parameter's CI scaled from it.
+- **The results:** `toDataFrame()` reports each parameter's value, and the factor.
+- **Combined with the first request:** a relative group on a log scale would optimise `log(f)`.
+
+**What we can offer**
+
+As for the first request: testing on our qualification cases, and a pull request with tests if wanted.
+
+---
+
 ## Notes for the owner (not part of the request)
 - **What it tells OSP:** only what the request itself states, namely the package's public behaviour and our
   failed-subclass finding. It contains no project data, compound data or internal names.
@@ -78,3 +128,5 @@ request with tests.
   locked Dockerfile change, its own PR). Until then the fits stay linear, with the log-sampled multi-start.
 - **Revisit option (a)** (our own log-space optimisation in `run_pi.R`) only if `POORLY_DETERMINED` or `NO_CI`
   findings show up often in real fits.
+- **The second request** says nothing about a project either: the dapagliflozin finding is described in general terms
+  (two UGT isoforms and a CYP, plasma data only).
