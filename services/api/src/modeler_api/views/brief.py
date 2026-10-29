@@ -120,15 +120,37 @@ class RiskView(View):
     allowed: list[str] | None      # the tiers ICH M15 §2.1.5 admits for the two ratings; None until both are rated
     problems: list[str]
     admitted: dict[str, list[str]]  # "influence/consequence" -> the tiers admitted, for the picker
+    criteria: dict[str, str]        # tier -> what its verdicts ask ("AUC within 1.5-fold and …, in 80 % of studies")
+    target_max: dict[str, float]    # tier -> the loosest internal target |PE| % it admits (MS-01 §8)
+    ruleset: str                    # the acceptance ruleset the criteria come from, with its status
+
+
+class StartIssueView(View):
+    """One thing Start still needs, on the brief field it belongs to (`steps.start_issues`)."""
+
+    path: str
+    message: str
+
+
+class ApplicationView(View):
+    """An application code with its plain name and the data items it adds (the requirement templates)."""
+
+    option: str
+    code: str
+    name: str
+    adds: list[str]
 
 
 class StartBlock(View):
-    """What Start still needs (`steps.start_problems`), and the parts the screen draws from."""
+    """What Start still needs (`steps.start_issues`), and the parts the screen draws from."""
 
     problems: list[str]
+    issues: list[StartIssueView]
     gates: list[ScopeGateView]
     risk: RiskView
+    applications: list[ApplicationView]
     pathway_suggestions: list[str]
+    pathways_not_named: list[str]   # the published OSP model's enzymes / transporters the proposal does not name
 
 
 class BriefPage(View):

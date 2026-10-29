@@ -8,9 +8,9 @@ import pytest
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.brief import FieldStatus, add_question, empty_brief, risk_check
 from modeler_project.brief_ops import edit_field
-from modeler_project.feasibility import check, scope_gates
+from modeler_project.feasibility import check, pathways_not_named, scope_gates
 from modeler_project.map_artifact import MapArtifact, MapSignature
-from modeler_project.steps import project_steps, run_step, start_problems
+from modeler_project.steps import project_steps, run_step, start_issues, start_problems
 
 pytestmark = pytest.mark.req("T-50")
 
@@ -128,3 +128,27 @@ def test_review_is_done_only_with_a_signed_map(tmp_path):
     (["AWAITING_SIGNATURE"], "needs_you"), (["COMPLETED"], "done"), (["FAILED"], "needs_you")])
 def test_run_follows_the_projects_campaigns(statuses, state):
     assert run_step(statuses).state == state
+
+
+def test_each_start_issue_names_the_field_it_belongs_to_so_the_screen_marks_it():
+    # page review 1: no side panel; the screen marks the field each issue belongs to
+    brief = _fill(empty_brief("Drugol", by="u"), *SHORT, ("m15.influence_rating", "medium"),
+                  ("m15.consequence_rating", "medium"), ("acceptance.tier", "medium"))
+    assert start_issues(brief) == []
+    looser = _fill(brief, ("acceptance.internal_target_pe", 40))
+    (issue,) = start_issues(looser)
+    assert issue.path == "acceptance.internal_target_pe" and issue.message.startswith("Internal target: at most 33.3 %")
+    assert start_issues(_fill(brief, ("acceptance.internal_target_pe", 20))) == []
+    unset = start_issues(empty_brief("Drugol", by="u"))
+    assert {"qoi.text", "acceptance.tier", "drug.modality", "scenarios"} <= {i.path.split("[")[0] for i in unset}
+    assert [i.message for i in unset] == start_problems(empty_brief("Drugol", by="u"))
+
+
+def test_a_pathway_the_published_model_places_and_the_proposal_does_not_name_is_flagged():
+    brief = _fill(empty_brief("Drugol", by="u"), ("scope.pathways_stated", ["UGT1A9 glucuronidation"]),
+                  ("scope.pathways", ["hepatic_metabolism"]))
+    targets = ["elim.hepatic.UGT1A9.clspec", "elim.hepatic.UGT2B7.clspec", "elim.renal.gfr_fraction", "phys.logp"]
+    assert pathways_not_named(brief, targets) == ["UGT2B7", "renal elimination"]
+    named = _fill(brief, ("scope.pathways", ["hepatic_metabolism", "renal_filtration"]),
+                  ("scope.pathways_stated", ["UGT1A9 glucuronidation", "UGT2B7"]))
+    assert pathways_not_named(named, targets) == []

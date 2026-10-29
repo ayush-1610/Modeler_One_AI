@@ -141,6 +141,23 @@ def pathway_suggestions() -> list[str]:
     return [p for p in sorted(expression_proteins()) if _PROTEIN.fullmatch(p)]
 
 
+_NAMED_TARGET = re.compile(r"^(?:elim\.[a-z_]+|transp)\.([^.]+)\.")
+
+
+def pathways_not_named(brief: ProjectBrief, targets: list[str]) -> list[str]:
+    """The enzymes and transporters a published OSP model of the drug places (its evidence targets, e.g.
+    ``elim.hepatic.UGT2B7.clspec``) that the proposal's stated pathways do not name: flagged at Start so the person adds
+    them or says why not (page review 1). Renal elimination is flagged the same way."""
+    stated = " ".join(map(str, brief.value("scope.pathways_stated") or [])).lower()
+    kinds = set(brief.value("scope.pathways") or [])
+    names = list(dict.fromkeys(m.group(1) for t in targets if (m := _NAMED_TARGET.match(t)) and _PROTEIN.fullmatch(m.group(1))))
+    flags = [n for n in names if n.lower() not in stated]
+    renal = any(t.startswith("elim.renal.") for t in targets)
+    if renal and not kinds & {"renal_filtration", "renal_secretion"} and not any(w in stated for w in ("renal", "kidney", "glomerular")):
+        flags.append("renal elimination")
+    return flags
+
+
 def _values(brief: ProjectBrief, group: str, field: str) -> list[Any]:
     return [brief.value(f"{group}[{i}].{field}") for i in range(len(brief.groups.get(group, ())))]
 

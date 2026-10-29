@@ -12,6 +12,7 @@ from modeler_project.feasibility import check
 from modeler_project.requirements import (
     RequirementMatrix,
     RequirementOverride,
+    application_additions,
     client_items,
     derive,
     evaluate_when,
@@ -53,6 +54,24 @@ def test_conditions_are_true_false_or_undetermined():
     assert evaluate_when({"bcs": ["II", "IV"]}, b) is False
     assert evaluate_when({"nonlinear": True}, b) is None  # the brief does not say
     assert evaluate_when({"route": ["oral"], "bcs": ["II"]}, b) is False
+
+
+@pytest.mark.req("T-42")
+def test_nonlinearity_yes_no_and_not_stated():
+    # page review 1: "no" (not applicable) is linear PK, so Km and Vmax are not asked; nothing said stays undetermined
+    b = _vbe_brief()
+    assert evaluate_when({"nonlinear": True}, b) is None
+    linear = edit_field(b, "scope.nonlinearity", status=FieldStatus.NOT_APPLICABLE, by="u")
+    assert evaluate_when({"nonlinear": True}, linear) is False and evaluate_when({"nonlinear": False}, linear) is True
+    stated = _set(b, "scope.nonlinearity", "saturable absorption above 50 mg")
+    assert evaluate_when({"nonlinear": True}, stated) is True
+
+
+@pytest.mark.req("T-42")
+def test_each_application_names_the_data_it_adds():
+    adds = application_additions()
+    assert {"Meal composition of each fed study", "FaSSIF / FeSSIF solubility"} <= set(adds["APP-12"])
+    assert "APP-01" not in adds  # the core template applies to every project, so an application adds nothing of its own
 
 
 @pytest.mark.req("T-42")

@@ -19,7 +19,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from modeler_project.brief import ProjectBrief
+from modeler_project.brief import FieldStatus, ProjectBrief
 
 Applies = Literal["yes", "no", "undetermined"]
 Provider = Literal["CLIENT", "LITERATURE", "SPONSOR_TO_MEASURE", "PREDICT", "STRUCTURE", "LIBRARY", "STUDY", "PROPOSAL",
@@ -164,8 +164,10 @@ def evaluate_when(when: dict[str, Any] | None, brief: ProjectBrief) -> bool | No
             stated = {p for p in wanted if any(w in text for w in _PATHWAY_WORDS.get(p, (p,)))}
             results.append(bool((chosen | stated) & set(wanted)) if picked or text else None)
         elif key == "nonlinear":
+            # a statement is nonlinearity; "no" (not applicable) is linear PK; nothing said is not known
             text = brief.value("scope.nonlinearity")
-            results.append(None if text is None else bool(str(text).strip()) == bool(wanted))
+            linear = brief.get("scope.nonlinearity").status is FieldStatus.NOT_APPLICABLE
+            results.append(not wanted if linear else None if text is None else bool(str(text).strip()) == bool(wanted))
         elif key == "ehc":
             flag = brief.value("scope.ehc")
             results.append(None if flag is None else flag == wanted)
@@ -264,6 +266,19 @@ def _item(raw: dict[str, Any], template: str, req_id: str, product: str | None, 
         status=override.status if override and override.status else (previous.status if previous else "OPEN"),
         satisfied_by=previous.satisfied_by if previous else (),
     )
+
+
+def application_additions() -> dict[str, list[str]]:
+    """What each application code adds to the data the model needs: the labels of the items of the templates that apply
+    to it (not the core template, which applies to all), for the Start screen's applications."""
+    adds: dict[str, list[str]] = {}
+    for template in load_templates():
+        scope = template.get("applies_to")
+        if scope == "all":
+            continue
+        for code in scope or []:
+            adds.setdefault(code, []).extend(dict.fromkeys(raw["label"] for raw in template["items"]))
+    return {code: list(dict.fromkeys(labels)) for code, labels in adds.items()}
 
 
 def literature_items(matrix: RequirementMatrix) -> list[RequirementItem]:

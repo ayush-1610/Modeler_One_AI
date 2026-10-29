@@ -25,6 +25,7 @@ export default async function ProjectsPage() {
               <th>Compounds</th>
               <th className="num">Open questions</th>
               <th>Program risk</th>
+              <th>Record</th>
             </tr>
           </thead>
           <tbody>
@@ -34,6 +35,7 @@ export default async function ProjectsPage() {
                 <td>{p.compounds.join(", ")}</td>
                 <td className="num">{p.openQuestions}</td>
                 <td><RiskChip rating={p.risk} /></td>
+                <td><Link href={`/projects/${p.id}/history`} data-testid={`project-history-${p.id}`}>History</Link></td>
               </tr>
             ))}
           </tbody>

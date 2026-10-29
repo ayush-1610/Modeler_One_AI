@@ -15,6 +15,61 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the Start page, rebuilt from the owner's marks (page review 1)
+The owner marked the 48 elements of Start between 2026-10-25 and 2026-10-28 (review page `FLcNRsUrnCJcEcDTkDhqzE`,
+collection `decisions`). Plan: `docs/plans/2026-10-23-page-by-page-review.md` §4.
+- **What waits on the person is marked where it is.** The side panel ("Waiting on you") is gone.
+  - Each field that still needs the person is marked red, with a ⚠ line saying why. Open questions show on their own
+    field.
+  - A bar at the bottom says how many are left. "Continue to Inputs" stays disabled until none is.
+  - The step bar locks the steps after Start until it is done. Inputs, reached by its address, says so in a red
+    banner. It is not blocked, because 13 browser specs open it directly.
+  - The API sends each problem with its field (`start.issues`: path and message); `start.problems` is unchanged.
+- **Dropped from Start:**
+  - the title, the agent chip and the intro line;
+  - the "what the files are" selector: a workbook goes to the client's data, every other file to the documents;
+  - InChIKey (MW is shown on Inputs as `phys.mw`, with its source);
+  - the hint paragraph and the open-questions list;
+  - "How the model is used" and "What a wrong decision means";
+  - the data checklist: items, who provides each, status, inline warnings, the count line;
+  - "Proposal notes": the other brief fields, products, populations, what the proposal says about data, and the
+    prediction scenarios.
+- **What stays behind the screen:**
+  - The brief keeps all the dropped fields, and the data plan is still derived from it on every change.
+  - The data plan's provider override stays in the API (`PUT …/requirements/{req_id}`), with no screen.
+  - Nothing gated on the checklist: only the `doctor` report reads its "blocking" list.
+- **Moved:**
+  - History, from the step bar to a "Record" column on the Projects page;
+  - the internal target, from the notes to under the model risk;
+  - the dose, from the notes to each route on the product line;
+  - the document viewer, from the side panel to a dialog that opens from a value's source.
+- **Changed:**
+  - **Applications:** each says, by its plain name, what data it adds (`application_additions()`, read from the
+    requirement templates' `applies_to`).
+  - **Pathways:** the kinds and the stated names are one list: each enzyme, transporter or route with its kind.
+    - A pathway the published OSP model has and the proposal does not name is flagged, with "Add it"
+      (`feasibility.pathways_not_named`).
+  - **Nonlinearity and enterohepatic recycling:** each is yes / no / not stated.
+  - **The model risk** shows the tier's criteria and the ruleset version beside it ("medium: AUC within 1.5-fold and
+    Cmax within 1.5-fold, in 80% of studies").
+  - **Internal target:** a target looser than the tier allows (MS-01 §8, `loosest_internal_target`) is now marked at
+    Start. Before, it was refused only when the MAP was generated.
+  - **What is modelled:** modality, PBPK model and site of action read as one line once all three are supported.
+- **Science (the data plan; for the SME, UNVERIFIED):** "no" to nonlinearity is stored as not applicable, and the data
+  plan now reads that as linear pharmacokinetics.
+  - Items that apply only when nonlinearity is stated (Km, Vmax) drop out.
+  - Before, "no" left them undetermined.
+  - The requirement templates are unchanged.
+- **Planned, not built:**
+  - The project document library, which takes over Start's file list and viewer:
+    `docs/plans/2026-10-28-project-document-library.md`.
+  - The product types the owner asked to plan (large molecule, other modality, minimal PBPK, local site of action):
+    the page-review plan §4.
+- **Tests:**
+  - `test_steps`, `test_requirements` and `test_brief_api` gained cases.
+  - `start-step.spec.ts` was rewritten, and `start-project.spec.ts` updated.
+  - `client-data-guided.spec.ts` now checks what arrived through the API.
+
 ### Changed — a non-identifiable pair is fixed and refitted (PI-2b, MS-01 fix_and_refit; locked `map.py`; UNVERIFIED)
 The owner's decision of 2026-10-25 ("PI-2b: build it"), with the owner's rule for "the more reliable source"; plan
 `docs/plans/2026-10-23-parameter-identification-review.md` PI-2b. It closes PI-2's known gap.
@@ -67,6 +122,7 @@ The owner's decision of 2026-10-25 ("PI-2b: build it"), with the owner's rule fo
     parallel pathways) is for.
   - It is also the kind of `POORLY_DETERMINED` finding the PI-3 decision watches for: a linear-scale Hessian CI that
     reaches below zero for a positive parameter.
+
 ### Docs — log-scale fitting stays linear for now; a parameter transform is proposed to OSP (PI-3, decided)
 The owner's decision of 2026-10-25: options (c) + (b) of `docs/plans/2026-10-23-parameter-identification-review.md` PI-3.
 - **Why a decision was needed:** `ospsuite.parameteridentification` 2.2.0 writes the optimiser's values straight into

@@ -3,8 +3,35 @@
 import { useState, type ReactNode } from "react";
 
 import { InlineIssue } from "@/components/kit";
-import { display, type FieldDef, type FieldRecord } from "@/lib/brief";
-import type { BriefChange, Open, Save } from "@/lib/start";
+import { display, type FieldDef, type FieldRecord, type Question } from "@/lib/brief";
+import type { Answer, BriefChange, Open, Save } from "@/lib/start";
+
+/** What a box still needs from the person, in red with a warning sign (page review 1: the side panel is gone; Start
+ *  cannot be left until these are resolved). */
+export function NeedsYou({ issues, testId }: { issues: string[]; testId?: string }) {
+  if (!issues.length) return null;
+  return (
+    <div className="needs-you" data-testid={testId}>
+      {issues.map((m) => <InlineIssue key={m} severity="error"><span aria-hidden>⚠ </span>{m}</InlineIssue>)}
+    </div>
+  );
+}
+
+/** An open question on a field, answered (or accepted as a limitation) where the field is. */
+export function QuestionRow({ q, onAnswer }: { q: Question; onAnswer: Answer }) {
+  const [text, setText] = useState("");
+  return (
+    <div className="start-question needs-you" data-testid={`question-${q.id}`}>
+      <p><span aria-hidden>⚠ </span>{q.question}</p>
+      <div className="row">
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="The answer, or why it is acceptable" />
+        <button type="button" className="btn" disabled={!text.trim()} onClick={() => onAnswer(q.id, text, "answered")}>Answer</button>
+        <button type="button" className="btn" disabled={!text.trim()}
+                onClick={() => onAnswer(q.id, text, "accepted_as_limitation")}>Accept as a limitation</button>
+      </div>
+    </div>
+  );
+}
 
 /** Where a value came from: its quotes (opened in the document viewer), or who set it. */
 export function Source({ record, open }: { record: FieldRecord; open: Open }) {
@@ -113,9 +140,12 @@ export function ValueInput({ def, value, onChange, suggestions, testId }: {
 
 /** One field of the brief: its value with where it came from, and an edit in place. No reason is asked (D-27): the
  *  record keeps who changed it and when. */
-export function FieldRow({ path, def, record, save, open, allowNotApplicable, suggestions, extra }: {
+export function FieldRow({ path, def, record, save, open, allowNotApplicable, suggestions, extra, issues = [], questions = [],
+  onAnswer }: {
   path: string; def: FieldDef; record: FieldRecord; save: Save; open: Open; allowNotApplicable?: boolean;
   suggestions?: string[]; extra?: ReactNode;
+  /** What this field still needs (Start's issues on it) and its open questions, marked in red on the row. */
+  issues?: string[]; questions?: Question[]; onAnswer?: Answer;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<unknown>(record.value);
@@ -129,7 +159,8 @@ export function FieldRow({ path, def, record, save, open, allowNotApplicable, su
   }
 
   return (
-    <div className={`sb-row${record.status === "MISSING" ? " missing" : ""}`} data-testid={`start-field-${path}`}>
+    <div className={`sb-row${record.status === "MISSING" ? " missing" : ""}${issues.length || questions.length ? " needs-you" : ""}`}
+         data-testid={`start-field-${path}`}>
       <div className="sb-label" title={def.help}>{def.label}</div>
       <div className="sb-value">
         {editing ? (
@@ -153,6 +184,8 @@ export function FieldRow({ path, def, record, save, open, allowNotApplicable, su
             {extra}
           </>
         )}
+        <NeedsYou issues={issues} />
+        {onAnswer && questions.map((q) => <QuestionRow key={q.id} q={q} onAnswer={onAnswer} />)}
       </div>
       {!editing && (
         <button type="button" className="btn sb-change" data-testid={`edit-${path}`}

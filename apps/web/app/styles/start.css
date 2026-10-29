@@ -1,5 +1,6 @@
-/* Step 1 · Start (components/start): numbered blocks of field rows, the model-risk picker, the scope gates and the data
- * checklist. Built only from the theme tokens in globals.css, so it works in light and dark. */
+/* Step 1 · Start (components/start): numbered blocks of field rows, the model-risk picker and the scope gates; what still
+ * needs the person is marked red where it is (page review 1). Built only from the theme tokens in globals.css, so it works
+ * in light and dark. */
 
 .start-block { display: grid; gap: 12px; }
 .card + .start-block, .start-block + .card { margin-top: 0; }
@@ -38,7 +39,7 @@
 
 /* choices */
 .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden;
-  max-width: 100%; }
+  max-width: 100%; justify-self: start; }
 .seg button { font: inherit; font-size: 13px; padding: 6px 12px; border: 0; background: var(--surface); color: var(--ink-dim);
   cursor: pointer; }
 .seg button + button { border-left: 1px solid var(--line); }
@@ -85,11 +86,6 @@
 .start-question { border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; display: grid; gap: 6px; }
 .start-question p { margin: 0; font-size: 14px; }
 .start-question input { flex: 1; min-width: 180px; }
-.start-notes summary { display: flex; gap: 12px; align-items: center; cursor: pointer; list-style: none; }
-.start-notes summary::-webkit-details-marker { display: none; }
-.start-notes[open] summary { margin-bottom: 12px; }
-.note-group ul { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px; }
-.start-waiting { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
 
 /* one upload for the proposal and the client's files (components/start/FilePicker): each file says what it is */
 .file-picker { display: grid; gap: 10px; }
@@ -104,11 +100,20 @@
 .link-btn:hover { text-decoration-color: currentColor; }
 .link-btn:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; border-radius: 3px; }
 
-/* the checklist's provider and cross-check, changed in place */
-.check-from { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.check-from select { font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm);
-  background: var(--surface); color: var(--ink); }
-.check-from label { font-size: 12.5px; color: var(--ink-dim); display: inline-flex; gap: 4px; align-items: center; }
-.note-item { border-top: 1px solid var(--line); padding: 8px 0; }
-.note-item.adding { background: color-mix(in srgb, var(--sim) 5%, var(--surface)); padding: 8px; border-radius: var(--radius-sm); }
-.note-group > .btn { margin-top: 6px; }
+/* page review 1: no side panel. What still needs the person is marked red on its own box, and Start is left from the bar
+ * at the bottom only when nothing is. */
+.start-screen { display: grid; gap: 16px; }
+.start-top { display: grid; gap: 6px; justify-items: start; }
+.start-notice { margin: 0; font-size: 13px; }
+.sb-row.needs-you, .gate.needs-you, .risk-grid.needs-you, .risk-row.needs-you {
+  border-left: 3px solid var(--fail); padding-left: 10px; background: color-mix(in srgb, var(--fail) 4%, transparent); }
+.needs-you > .inline-issue { margin: 2px 0; }
+.start-question.needs-you { border-left-color: var(--fail); }
+.start-continue { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 14px; }
+.start-continue.needs-you { border-color: color-mix(in srgb, var(--fail) 45%, var(--line)); color: var(--fail-ink, var(--ink)); }
+.app-adds, .pathway-list { margin: 2px 0 0; padding-left: 18px; font-size: 13px; display: grid; gap: 2px; }
+.pathway-edit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pathway-edit select, .pathway-edit input, .route-dose input { font: inherit; font-size: 14px; padding: 6px 8px;
+  border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.pathway-edit input { flex: 1; min-width: 160px; }

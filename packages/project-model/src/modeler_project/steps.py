@@ -23,6 +23,7 @@ from modeler_project.brief import (
 from modeler_project.feasibility import scope_gates
 from modeler_project.map_artifact import latest_map
 from modeler_project.workspace import Workspace
+from pbpk_domain.acceptance import loosest_internal_target
 
 MAIN = "main"
 
@@ -45,22 +46,43 @@ def _step(step: StepId, state: StepState, *reasons: str) -> Step:
     return Step(step=step, label=STEP_LABELS[step], state=state, reasons=tuple(reasons))
 
 
-def start_problems(brief: ProjectBrief) -> list[str]:
+class StartIssue(BaseModel):
+    """One thing Start still needs, on the brief field it belongs to, so the screen marks that field (page review 1)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str
+    message: str
+
+
+def start_issues(brief: ProjectBrief) -> list[StartIssue]:
     """What Start still needs (redesign §3.1): the question and its applications, the model risk (ICH M15, never
-    assumed), the scope gates (D-28: anything the builder cannot model is refused here), and the open questions on the
-    short brief. Proposal notes never hold Start up."""
-    reasons = [f"{definition_of(path).label}: not set yet" for path in START_REQUIRED
-               if brief.value(path) in (None, "", []) and brief.get(path).status is not FieldStatus.NOT_APPLICABLE]
-    reasons += risk_check(brief).problems
+    assumed) and an internal target no looser than its tier (MS-01 §8), the scope gates (D-28: anything the builder
+    cannot model is refused here), and the open questions on the short brief. Proposal notes never hold Start up."""
+    issues = [StartIssue(path=path, message=f"{definition_of(path).label}: not set yet") for path in START_REQUIRED
+              if brief.value(path) in (None, "", []) and brief.get(path).status is not FieldStatus.NOT_APPLICABLE]
+    issues += [StartIssue(path="acceptance.tier", message=m) for m in risk_check(brief).problems]
+    target, tier = brief.value("acceptance.internal_target_pe"), brief.value("acceptance.tier")
+    if target not in (None, "") and tier:
+        widest = loosest_internal_target(str(tier))
+        if not 0 < float(target) <= widest + 1e-9:
+            issues.append(StartIssue(path="acceptance.internal_target_pe",
+                                     message=f"Internal target: at most {widest:.1f} % at the {tier} tier (MS-01 §8: never "
+                                             f"looser than the tier), {float(target):g} % given"))
     for gate in scope_gates(brief):
         if gate.state == "not_set":
-            reasons.append(f"{gate.label}: not set yet")
+            issues.append(StartIssue(path=gate.path, message=f"{gate.label}: not set yet"))
         elif gate.state == "not_supported":
-            reasons.append(f"{gate.label}: {gate.message}")
+            issues.append(StartIssue(path=gate.path, message=f"{gate.label}: {gate.message}"))
     short = set(SHORT_BRIEF)
-    reasons += [f"Open question on {definition_of(q.field).label}: {q.question}" for q in brief.questions
-                if q.status == "open" and q.field in short]
-    return reasons
+    issues += [StartIssue(path=q.field, message=f"Open question on {definition_of(q.field).label}: {q.question}")
+               for q in brief.questions if q.status == "open" and q.field in short]
+    return issues
+
+
+def start_problems(brief: ProjectBrief) -> list[str]:
+    """`start_issues` as the step's reasons."""
+    return [issue.message for issue in start_issues(brief)]
 
 
 def start_step(ws: Workspace) -> Step:
