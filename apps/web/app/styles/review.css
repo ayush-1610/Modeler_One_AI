@@ -38,6 +38,9 @@
 .credibility section { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .credibility h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-dim); }
 .credibility-lede { margin: 0 0 10px; }
+.m15-why { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0 0 12px; font-size: 13px; }
+.m15-why dt { color: var(--ink-dim); }
+.m15-why dd { margin: 0; }
 .credibility .table-scroll { max-width: 620px; }
 .stage-split { min-width: 0; }
 .stage-split td, .stage-split th { font-size: 13px; }

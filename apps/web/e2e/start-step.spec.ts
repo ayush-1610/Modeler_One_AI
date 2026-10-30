@@ -84,6 +84,12 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await page.getByTestId("risk-save").click();
   await expect(page.getByTestId("risk-current")).toHaveText("Saved: high");
   await expect(page.getByTestId("risk-problem")).toHaveCount(0);
+  // why each rating is what it is (ICH M15 §2.1.5): with no agent there is no draft, so the person writes both; with one,
+  // its draft is confirmed or changed here (decision 1b of 2026-10-29)
+  await expect(page.getByTestId("start-field-m15.influence")).toContainText("How the model is used: not written yet");
+  await set("m15.influence", "The model is the main evidence for the fed label claim: no fed study of this tablet");
+  await set("m15.consequence", "A wrong fed prediction would misdose patients who take the tablet with a meal");
+  await expect(page.getByTestId("start-field-m15.consequence")).not.toHaveClass(/needs-you/);
   // the internal target sits under the tier, and is never looser than it (MS-01 §8: at most 20 % at high)
   await page.getByTestId("risk-target-input").fill("30");
   await page.getByTestId("risk-target-save").click();

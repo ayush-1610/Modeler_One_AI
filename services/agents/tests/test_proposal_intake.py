@@ -90,3 +90,42 @@ def test_run_store_keeps_steps_and_the_finished_run(tmp_path):
     store.finish_run(run_id=run_id, status="COMPLETED", input_tokens=3, output_tokens=1, cost_usd=0.0, summary={"ok": True})
     assert store.get(run_id)["status"] == "COMPLETED" and store.steps(run_id)[0]["content"] == {"x": 1}
     assert [r["run_id"] for r in store.runs("t1", project_id="p1")] == [run_id]
+
+
+def test_a1_drafts_the_m15_assessment_for_a_person_to_confirm(library):
+    # page review 1 (the owner's decisions 1b and 4 of 2026-10-29): suggested ratings and why, DRAFTED, never a value
+    sha = library.documents()[0].content["sha256"]
+    why_influence = "The food-effect label claim rests on the model, with no fed study of the new tablet"
+    why_consequence = "A wrong fed prediction would misdose patients taking the tablet with meals"
+    draft = ("draft_risk_assessment", {"influence": "high", "how_the_model_is_used": why_influence,
+                                       "consequence": "medium", "what_a_wrong_decision_means": why_consequence})
+    model = Scripted([
+        [draft],                                                          # refused: nothing to draft from yet
+        [("propose_field", {"path": "qoi.text", "value": "predict the food effect of the 10 mg IR tablet",
+                            "quote": "predict the food effect of the 10 mg immediate-release tablet", "doc_sha256": sha, "page": 1}),
+         ("propose_field", {"path": "qoi.context_of_use", "value": "food-effect labelling",
+                            "quote": "under fasted and fed conditions", "doc_sha256": sha, "page": 1}),
+         ("propose_field", {"path": "m15.influence_suggested", "value": "low", "quote": "PBPK model of dapagliflozin",
+                            "doc_sha256": sha, "page": 1})],                # refused: suggestions come only from the draft
+        [("draft_risk_assessment", {**draft[1], "influence": "very high"})],  # refused whole: not a rating
+        [draft, ("propose_field", {"path": "m15.influence_rating", "value": "high", "quote": "PBPK model of dapagliflozin",
+                                   "doc_sha256": sha, "page": 1})],           # the rating itself stays human-only
+        [],
+    ])
+    ctx = IntakeContext(library=library, brief=empty_brief("Dapagliflozin", by="u1"), actor="agent:ar_2")
+    outcome = run_proposal_intake(model, ctx)
+    b = outcome.brief
+    assert [r["code"] for r in outcome.rejected] == ["NOTHING_TO_DRAFT_FROM", "DRAFT_ONLY", "INVALID_VALUE", "HUMAN_ONLY"]
+    for path, value in (("m15.influence_suggested", "high"), ("m15.consequence_suggested", "medium"),
+                        ("m15.influence", why_influence), ("m15.consequence", why_consequence)):
+        record = b.get(path)
+        assert record.status is FieldStatus.DRAFTED and record.value == value and b.value(path) is None
+        assert [c.quote for c in record.citations] == ["predict the food effect of the 10 mg immediate-release tablet",
+                                                      "under fasted and fed conditions"]
+    assert b.get("m15.influence_rating").status is FieldStatus.MISSING and b.value("acceptance.tier") is None
+    # a person confirms the draft: it becomes their value; the agent then keeps it on a second draft
+    b = edit_field(b, "m15.influence", status=FieldStatus.CONFIRMED, by="u1")
+    assert b.value("m15.influence") == why_influence and b.get("m15.influence").by == "u1"
+    ctx2 = IntakeContext(library=library, brief=b, actor="agent:ar_3")
+    result = run_proposal_intake(Scripted([[("draft_risk_assessment", {**draft[1], "how_the_model_is_used": "x" * 30})], []]), ctx2)
+    assert result.brief.value("m15.influence") == why_influence

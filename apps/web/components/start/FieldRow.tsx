@@ -33,8 +33,21 @@ export function QuestionRow({ q, onAnswer }: { q: Question; onAnswer: Answer }) 
   );
 }
 
-/** Where a value came from: its quotes (opened in the document viewer), or who set it. */
+/** Where a value came from: its quotes (opened in the document viewer), or who set it. An agent's draft says so, and
+ *  names the quotes it was built from. */
 export function Source({ record, open }: { record: FieldRecord; open: Open }) {
+  if (record.status === "DRAFTED") {
+    return (
+      <span className="sb-source" title={record.note}>
+        <span className="chip medium">draft</span> by the intake agent{record.citations.length ? ", from " : ""}
+        {record.citations.map((c, i) => (
+          <button key={i} type="button" className="cite" title={c.quote} onClick={() => open(c)}>
+            {c.source || "source"} p.{c.page}{c.locator ? ` · ${c.locator}` : ""}
+          </button>
+        ))}
+      </span>
+    );
+  }
   if (record.citations.length) {
     const first = record.citations[0];
     return (
@@ -141,9 +154,11 @@ export function ValueInput({ def, value, onChange, suggestions, testId }: {
 /** One field of the brief: its value with where it came from, and an edit in place. No reason is asked (D-27): the
  *  record keeps who changed it and when. */
 export function FieldRow({ path, def, record, save, open, allowNotApplicable, suggestions, extra, issues = [], questions = [],
-  onAnswer }: {
+  onAnswer, confirmable }: {
   path: string; def: FieldDef; record: FieldRecord; save: Save; open: Open; allowNotApplicable?: boolean;
   suggestions?: string[]; extra?: ReactNode;
+  /** A field that needs a person's word: an agent's draft or a document's value is confirmed (kept as it is) here. */
+  confirmable?: boolean;
   /** What this field still needs (Start's issues on it) and its open questions, marked in red on the row. */
   issues?: string[]; questions?: Question[]; onAnswer?: Answer;
 }) {
@@ -188,8 +203,14 @@ export function FieldRow({ path, def, record, save, open, allowNotApplicable, su
         {onAnswer && questions.map((q) => <QuestionRow key={q.id} q={q} onAnswer={onAnswer} />)}
       </div>
       {!editing && (
-        <button type="button" className="btn sb-change" data-testid={`edit-${path}`}
-                onClick={() => { setValue(record.value); setProblem(null); setEditing(true); }}>{shown ? "Change" : "Set"}</button>
+        <div className="sb-actions">
+          {confirmable && shown && (record.status === "DRAFTED" || record.status === "EXTRACTED") && (
+            <button type="button" className="btn primary" data-testid={`confirm-${path}`}
+                    onClick={() => commit({ path, status: "CONFIRMED" })}>Confirm</button>
+          )}
+          <button type="button" className="btn sb-change" data-testid={`edit-${path}`}
+                  onClick={() => { setValue(record.value); setProblem(null); setEditing(true); }}>{shown ? "Change" : "Set"}</button>
+        </div>
       )}
     </div>
   );

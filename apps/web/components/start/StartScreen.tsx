@@ -67,8 +67,8 @@ export function StartScreen({ projectId }: { projectId: string }) {
 
   const marks = startMarks(view, answer);
   const waiting = view.start.issues.length;
-  const riskKey = ["m15.influence_rating", "m15.consequence_rating", "acceptance.tier", "m15.risk_justification"]
-    .map((p) => view.brief.fields[p]?.at ?? "").join("|");
+  const riskKey = ["m15.influence_rating", "m15.consequence_rating", "acceptance.tier", "m15.risk_justification",
+    "m15.influence_suggested", "m15.consequence_suggested"].map((p) => view.brief.fields[p]?.at ?? "").join("|");
 
   return (
     <div className="start-screen">
@@ -85,7 +85,7 @@ export function StartScreen({ projectId }: { projectId: string }) {
       <DrugAndFiles projectId={projectId} view={view} documents={documents} save={save} open={open} marks={marks}
                     run={run} busy={busy} onNotice={setNotice} />
       <ShortBrief view={view} save={save} open={open} marks={marks} />
-      <RiskPicker key={riskKey} view={view} save={save} marks={marks} />
+      <RiskPicker key={riskKey} view={view} save={save} open={open} marks={marks} />
       <ScopeGates view={view} save={save} open={open} marks={marks} />
       <ClientRequest projectId={projectId} view={view} />
       <div className={`start-continue${waiting ? " needs-you" : ""}`} data-testid={waiting ? "start-waiting" : "start-done"}>

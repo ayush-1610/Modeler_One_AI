@@ -69,8 +69,12 @@ locked until nothing is.
     and the proposal does not name is flagged, with **Add it**.
   - Nonlinearity and enterohepatic recycling are yes / no / not stated. "No" to nonlinearity means linear PK, so Km and
     Vmax are not asked for.
-- **Model risk (ICH M15):** rate model influence and decision consequence, then save the tier they admit. The tier's
-  acceptance criteria show beside it. An optional internal target sits under it and is never looser than the tier.
+- **Model risk (ICH M15):** rate model influence and decision consequence, then save the tier they admit. With an agent
+  configured, its suggested ratings are preselected; they count only once you save them. The tier's acceptance
+  criteria show beside it. Under the ratings, say why each is what it is: **How the model is used** and **What a wrong
+  decision means**. With an agent, it drafts both from the question and context of use; **Confirm** or **Change** each.
+  Start is not done until both are in your words or confirmed by you, and Review & sign shows them to the signer. An
+  optional internal target sits under them and is never looser than the tier.
 - **What is modelled:** modality, PBPK model and site of action read as one line once all three are supported. Then
   come the formulation types, and the routes with their doses. What the builder cannot model yet is refused there.
 - **What to request from the client:** only what the client alone holds (test-product data, BE studies, dissolution,
