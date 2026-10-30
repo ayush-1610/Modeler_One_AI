@@ -5028,6 +5028,7 @@ export interface components {
          */
         LibraryEntryView: {
             relates_to: components["schemas"]["RelatesToView"] | null;
+            retrieved: components["schemas"]["RetrievalView"] | null;
             /** Sha256 */
             sha256: string;
             withdrawn: components["schemas"]["WithdrawalView"] | null;
@@ -5060,6 +5061,7 @@ export interface components {
             /** Name */
             name: string;
             relates_to: components["schemas"]["RelatesToView"] | null;
+            retrieved: components["schemas"]["RetrievalView"] | null;
             /** Role */
             role: string;
             /** Sha256 */
@@ -6911,6 +6913,31 @@ export interface components {
             note?: string;
             /** Studies */
             studies?: string[];
+        };
+        /**
+         * RetrievalView
+         * @description Where an agent took a document from, and what of it is held (`documents.Retrieval`; open-access full text only).
+         */
+        RetrievalView: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Doi */
+            doi: string;
+            /**
+             * Held
+             * @enum {string}
+             */
+            held: "full_text" | "abstract" | "page";
+            /** Pmcid */
+            pmcid: string;
+            /** Pmid */
+            pmid: string;
+            /** Source */
+            source: string;
+            /** Url */
+            url: string;
         };
         /** RevealRequest */
         RevealRequest: {

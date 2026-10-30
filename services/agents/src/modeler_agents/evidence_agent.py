@@ -6,6 +6,11 @@ it reads is stored as a document first, so every proposal is checked by code aga
 verbatim; numbers stated; requirement and target known; the misfiling rules of `evidence.file_check`). Code converts
 units and grades confidence; values flow in without a per-item decision (D-27) and a person excludes what is wrong. A
 paper that is not open access becomes an access request, never an unofficial copy.
+
+The project's library comes first (docs/plans/2026-10-28-project-document-library.md, PR 3; the owner's answers 10 and
+13): `search_literature` lists the library's matches before Europe PMC's and marks a paper the library already holds, a
+paper already stored is read from the library and not fetched again, and everything an agent stores records where it
+came from and whether its full text (open access only) or only its abstract is held.
 """
 
 from __future__ import annotations
@@ -13,13 +18,14 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from modeler_agents.llm import ChatModel, Tool, run_tool_loop
 from modeler_agents.sources import EuropePMC, SourceError
 from modeler_agents.web_search import search_tool
 from modeler_intake.citations import quote_appears_in, value_stated_in_quote
-from modeler_project.documents import DocumentLibrary, document_record
+from modeler_project.documents import DocumentLibrary, Retrieval, document_record
 from modeler_project.evidence import EvidenceItem, Extraction, Misfiling, SourceRef, SourceType, file_check, new_id
 from modeler_project.evidence_register import propose, request_access
 from modeler_project.requirements import RequirementItem
@@ -30,7 +36,8 @@ SYSTEM_PROMPT = """You find input values for a PBPK model built in PK-Sim that m
 Sources, most to least preferred: regulatory review documents (FDA clinical pharmacology / biopharmaceutics reviews, EMA assessment reports); peer-reviewed publications with measured data; the documents the team uploaded; curated databases. A value a database computed or predicted (e.g. a computed logP) is a prediction: propose it only when no measured value exists, with source_type PREDICTED.
 
 Rules:
-- Read before proposing: search_literature, then read_abstract or read_full_text (open access only), or search_documents / read_page for uploaded documents. Every proposal cites a document sha256 and page that you read, with a quote copied exactly from that page (at least 12 characters) containing the value.
+- This project's library comes first: search_documents before searching outside. search_literature also lists the library's matches first and marks the papers the library already holds; read those with read_page, they are not fetched again.
+- Read before proposing: search_literature, then read_abstract or read_full_text (open access only: only an open-access full text is stored, any other paper is kept as its abstract), or search_documents / read_page for uploaded documents. Every proposal cites a document sha256 and page that you read, with a quote copied exactly from that page (at least 12 characters) containing the value.
 - Use the requirement ids and targets listed by list_requirements. For a parameter of a specific enzyme or transporter use the concrete target (e.g. elim.hepatic.UGT1A9.clspec for a UGT1A9 intrinsic clearance; record the in vitro value with its unit, the IVIVE is done later by a person).
 - Report values and units exactly as the source states them; do not convert, do not average. When sources disagree, propose each value separately.
 - Record the conditions that give the value its meaning (species, matrix, method, concentration, pH, temperature, system, fu,inc, cell line, direction) in `conditions` as an object.
@@ -133,42 +140,72 @@ def reading_tools(ctx: ResearchContext, *, kinds: tuple[str, ...] = ("parameter"
                          "client_item_cross_check": r.cross_check})
         return json.dumps(rows)
 
+    def held(paper: Any, kind: str | None = None):
+        return ctx.library.held_paper(pmid=paper.pmid, pmcid=paper.pmcid, doi=paper.doi, held=kind)
+
+    def shown(version: Any, prefix: str) -> str:
+        record = document_record(version)
+        first = ctx.library.page_text(record.sha256, 1) or ""
+        return f"{prefix}doc_sha256 {record.sha256} pages {record.n_pages}\n--- page 1 ---\n{first}"
+
+    def stored(version: Any, retrieval: Retrieval) -> str | None:
+        """Record where a fetched text came from; a text a person withdrew is not used (None: it can be read)."""
+        sha = document_record(version).sha256
+        if (withdrawn := ctx.library.entry(sha).withdrawn) is not None:
+            return f"WITHDRAWN: a person withdrew this document from the project ({withdrawn.reason}); do not use it"
+        ctx.library.record_retrieval(sha, retrieval)
+        return None
+
+    def from_pmc(paper: Any, kind: str) -> Retrieval:
+        url = f"https://doi.org/{paper.doi}" if paper.doi else f"https://europepmc.org/article/{paper.source}/{paper.id}"
+        return Retrieval(source="Europe PMC", held=kind, url=url, doi=paper.doi or "", pmid=paper.pmid or "",  # type: ignore[arg-type]
+                         pmcid=paper.pmcid or "", by=ctx.actor, at=datetime.now(UTC).isoformat())
+
     def search_literature(query: str, max_results: int = 10) -> str:
+        """The project's library first (the owner's answer 10), then Europe PMC, marking the papers already held."""
+        lines = [f"{h.doc_sha256} p.{h.page} {h.title}: {h.snippet}" for h in ctx.library.search(query, 5)]
+        if lines:
+            lines = ["In this project's library (read these first, with read_page):", *lines, "Europe PMC:"]
         try:
             papers = ctx.europe_pmc.search(query, page_size=int(max_results))
         except SourceError as exc:
-            return f"ERROR: {exc}"
+            return "\n".join([*lines, f"ERROR: {exc}"])
         for p in papers:
             ctx.papers[p.id] = p
-        return "\n".join(f"id {p.id} | pmid {p.pmid or '-'} | pmcid {p.pmcid or '-'} | {p.year} | {p.journal} | "
-                         f"{'open access' if p.open_access else 'not open access'} | {p.title}" for p in papers) or "no hits"
+            copy = held(p)
+            mark = f" | in the library: {document_record(copy).sha256}" if copy is not None else ""
+            lines.append(f"id {p.id} | pmid {p.pmid or '-'} | pmcid {p.pmcid or '-'} | {p.year} | {p.journal} | "
+                         f"{'open access' if p.open_access else 'not open access'} | {p.title}{mark}")
+        return "\n".join(lines) or "no hits"
 
     def read_abstract(paper_id: str) -> str:
         paper = ctx.papers.get(paper_id)
         if paper is None:
             return "ERROR: search for the paper first (search_literature)"
+        if (copy := held(paper)) is not None:
+            return shown(copy, "ALREADY IN THE LIBRARY: ")
         if not paper.abstract:
             return "ERROR: no abstract available"
         text = f"{paper.title}\n{paper.authors}. {paper.journal} {paper.year}. doi {paper.doi}\n\n{paper.abstract}"
         doc = ctx.library.add_text(text, f"abstract-{paper_id}.md", role="paper", by=ctx.actor,
                                    note=f"paper:{paper_id} abstract from Europe PMC")
-        return f"doc_sha256 {document_record(doc).sha256} page 1\n{text}"
+        return stored(doc, from_pmc(paper, "abstract")) or f"doc_sha256 {document_record(doc).sha256} page 1\n{text}"
 
     def read_full_text(paper_id: str) -> str:
         paper = ctx.papers.get(paper_id)
         if paper is None:
             return "ERROR: search for the paper first (search_literature)"
-        if not (paper.open_access and paper.pmcid):
-            return "NOT OPEN ACCESS: call request_full_text if the paper is needed"
+        if (copy := held(paper, "full_text")) is not None:
+            return shown(copy, "ALREADY IN THE LIBRARY: ")
+        if not (paper.open_access and paper.pmcid):   # the owner's answer 13: agents store open-access papers only
+            return "NOT OPEN ACCESS: only its abstract is kept (read_abstract); call request_full_text if the paper is needed"
         try:
             text = ctx.europe_pmc.full_text(paper.pmcid)
         except SourceError as exc:
             return f"ERROR: {exc}"
         doc = ctx.library.add_text(text, f"fulltext-{paper.pmcid}.md", role="paper", by=ctx.actor,
                                    note=f"paper:{paper_id} open-access full text from Europe PMC")
-        record = document_record(doc)
-        first = ctx.library.page_text(record.sha256, 1) or ""
-        return f"doc_sha256 {record.sha256} pages {record.n_pages}\n--- page 1 ---\n{first}"
+        return stored(doc, from_pmc(paper, "full_text")) or shown(doc, "")
 
     def read_page(doc_sha256: str, page: int) -> str:
         text = ctx.library.page_text(doc_sha256, int(page))
@@ -194,6 +231,8 @@ def reading_tools(ctx: ResearchContext, *, kinds: tuple[str, ...] = ("parameter"
         text = f"{result['title']}\n{result['url']}\n\n{result['content']}"
         name = "web-" + "".join(ch if ch.isalnum() else "-" for ch in result["url"].split("//", 1)[-1])[:80] + ".md"
         doc = ctx.library.add_text(text, name, role="retrieved_record", by=ctx.actor, note=f"web:{result['url']} (web search)")
+        stored(doc, Retrieval(source="web search", held="page", url=result["url"], by=ctx.actor,
+                              at=datetime.now(UTC).isoformat()))
         return document_record(doc).sha256
 
     s = {"type": "string"}
@@ -201,7 +240,8 @@ def reading_tools(ctx: ResearchContext, *, kinds: tuple[str, ...] = ("parameter"
     return [*([web] if web is not None else []),
         Tool("list_requirements", "The data-plan items to find, with the conditions to record.",
              {"type": "object", "properties": {}}, list_requirements),
-        Tool("search_literature", "Search Europe PMC (PubMed, PMC). Returns ids, years, journals, open-access status.",
+        Tool("search_literature", "This project's library first, then Europe PMC (PubMed, PMC): ids, years, journals, "
+                                  "open-access status, and the papers the library already holds.",
              {"type": "object", "properties": {"query": s, "max_results": {"type": "integer"}}, "required": ["query"]},
              search_literature),
         Tool("read_abstract", "Store and return the abstract of a paper from the last searches.",

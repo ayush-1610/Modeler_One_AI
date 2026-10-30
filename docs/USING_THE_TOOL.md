@@ -75,6 +75,11 @@ either per file. A document is never deleted: **Withdraw** it in the library, wi
 withdrawn, and the agents no longer use it. Nothing new is taken from it (a value, a digitized figure, a client sheet)
 until it is **Restored**. Values already taken from it keep their source; reject them on Inputs if they must go.
 
+The literature agents read the library before they search outside, and they do not fetch a paper the library already
+holds. They store a paper's full text only when it is open access; any other paper is kept as its abstract, and the agent
+asks you for it (Inputs lists the request). Under **Added**, each paper an agent stored names where it came from, with
+its link, and says whether the full text or only the abstract is held.
+
 **From a proposal (Step 1 · Start):** **+ Start from proposal** → name the drug and drop the proposal, its annexes and
 the client's data files in one upload (workbooks go to the client's data on Inputs, every other file to the documents)
 → the Start screen fills the drug's identity from PubChem and, with an agent configured, the brief from the documents.

@@ -15,6 +15,35 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the Project Document Library, PR 3: the agents read the library first and store open-access papers only (10, 13)
+The owner's answers 10 and 13 of 2026-10-29; plan `docs/plans/2026-10-28-project-document-library.md`, PR 3. No locked
+file is touched. It applies to the literature agents A2 (values) and A3 (observed data), which share these tools.
+- **The library first:**
+  - `search_literature` lists the project library's matches before Europe PMC's.
+  - It marks each Europe PMC paper the library already holds.
+  - The prompt says to search the library before searching outside.
+- **Not fetched again:** `read_full_text` and `read_abstract` return the library's copy of a paper already stored, found
+  by its PMID, PMCID or DOI, with the full text preferred over the abstract.
+- **Open-access papers only** (answer 13): only an open-access full text is stored, as before. A paper that is not open
+  access is kept as its abstract, and `request_full_text` asks a person for it. The tool now says so.
+- **Where it came from:** each paper, abstract or web page an agent stores records its source, URL, DOI, PMID, PMCID,
+  which agent, when, and what is held (full text, abstract, or web page).
+  - It lives in the library's record (`Retrieval`, `library.json`), as an audit event `document.retrieve`.
+  - The first retrieval is kept.
+  - The library table shows it under "Added", with the link and an "abstract only" chip, and search finds it.
+- **Withdrawn papers:** fetching a withdrawn paper again does not bring it back. The agent is told that a person
+  withdrew it.
+- **API:** `LibraryRowView` and `LibraryEntryView` gain `retrieved` (`RetrievalView`). Contract and web types regenerated.
+- **Tests:**
+  - `test_evidence_agent`:
+    - the library's match comes first;
+    - a held paper is marked and read from the library, its full text fetched once;
+    - a paper that is not open access is not stored;
+    - provenance is recorded;
+    - a withdrawn paper stays out.
+  - `test_library`: the first retrieval is kept, and a full text is found before an abstract.
+  - `test_evidence_api`: a paper the A2 job stores is listed with its source and what is held.
+
 ### Added — the Project Document Library, PR 2: "Add data", what a file relates to, withdrawal (decisions 10–12)
 The owner's answers 10–12 of 2026-10-29; plan `docs/plans/2026-10-28-project-document-library.md`, PR 2. No locked file
 is touched.

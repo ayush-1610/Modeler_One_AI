@@ -11,7 +11,7 @@ from modeler_project.brief import Citation, FieldStatus, empty_brief
 from modeler_project.brief_ops import agent_set
 from modeler_project.dataset_register import propose_dataset
 from modeler_project.datasets import ObservedDataset, Origin, Series, new_dataset_id
-from modeler_project.documents import DocumentLibrary, LibraryError, RelatesTo, document_id, document_record
+from modeler_project.documents import DocumentLibrary, LibraryError, RelatesTo, Retrieval, document_id, document_record
 from modeler_project.evidence import EvidenceItem, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import propose
 from modeler_project.library import library_rows
@@ -119,3 +119,22 @@ def test_a_withdrawn_document_is_marked_kept_and_hidden_from_the_agents(ws, tmp_
     other.add(b"fu was 30 % in rat plasma (wrong compound).", "wrong.md", role="paper", by="u1")
     library.withdraw(sha, by="u1", reason="a different compound")
     assert other.entry(sha).withdrawn is None
+
+
+def test_what_an_agent_fetched_says_where_from_and_a_full_text_is_found_before_an_abstract(ws):
+    # PR 3 (the owner's answer 13): agents store open-access full text only, and record where each text came from
+    library = DocumentLibrary(ws)
+    abstract = library.add(b"Abstract: fu was 9 %.", "abstract-111.md", role="paper", by="agent:a2").content["sha256"]
+    full = library.add(b"Full text: fu was 9.1 % by equilibrium dialysis.", "fulltext-PMC9.md", role="paper",
+                       by="agent:a2").content["sha256"]
+    seen = dict(source="Europe PMC", pmid="111", doi="10.1/OA", by="agent:a2", at="2026-10-30T07:00:00+00:00")
+    library.record_retrieval(abstract, Retrieval(held="abstract", **seen))
+    library.record_retrieval(full, Retrieval(held="full_text", pmcid="PMC9", **seen))
+    library.record_retrieval(full, Retrieval(held="abstract", **seen))              # the first retrieval is kept
+    assert library.entry(full).retrieved.held == "full_text"
+    assert library.held_paper(doi="10.1/oa").content["sha256"] == full              # the full text first; DOIs ignore case
+    assert library.held_paper(pmid="111", held="abstract").content["sha256"] == abstract
+    assert library.held_paper(pmid="999") is None
+    rows = {r.name: r for r in library_rows(ws)}
+    assert rows["fulltext-PMC9.md"].retrieved.pmcid == "PMC9"
+    assert [e.reason for e in _audit(ws, "document.retrieve")] == ["Europe PMC, abstract", "Europe PMC, full text"]
