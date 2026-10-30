@@ -51,6 +51,12 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await page.getByTestId("input-qoi.applications").getByLabel("APP-12 food effect").check();
   await page.getByTestId("save-qoi.applications").click();
   await expect(page.getByTestId("start-app-adds")).toContainText("food effect: + Meal composition of each fed study");
+  // what only the client can send follows the applications, and downloads as the data request (decision 2b)
+  await expect(page.getByTestId("request-REQ-fe.biorelevant")).toContainText("FaSSIF / FeSSIF solubility");
+  await expect(page.getByTestId("request-REQ-fe.biorelevant")).toContainText("for food effect");
+  const download = page.waitForEvent("download");
+  await page.getByTestId("request-download").click();
+  expect((await download).suggestedFilename()).toMatch(/-data-request\.xlsx$/);
 
   // the pathways, one list: each named pathway with its kind
   await page.getByTestId("edit-pathways").click();

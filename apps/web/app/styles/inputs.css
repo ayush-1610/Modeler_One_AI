@@ -48,3 +48,7 @@
 .inputs-blocked { max-width: 760px; }
 .inputs-blocked h1 { margin-top: 0; }
 .inputs-blocked ul { margin: 6px 0 14px; padding-left: 18px; color: var(--ink-dim); }
+/* the brief's products and populations, shown where they are used (components/brief/BriefList.tsx, page review 1) */
+.brief-list .note-item { border-top: 1px solid var(--line); padding: 8px 0; }
+.brief-list .note-item.adding { background: color-mix(in srgb, var(--sim) 5%, var(--surface)); padding: 8px; border-radius: var(--radius-sm); }
+.brief-list > .btn { margin-top: 6px; }

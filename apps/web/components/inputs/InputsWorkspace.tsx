@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { BriefList } from "@/components/brief/BriefList";
 import { Dissolution } from "@/components/client/ClientFiles";
 import type { View as ClientView } from "@/components/client/types";
 import { Banner, InlineIssue, PageShell, SidePanel } from "@/components/kit";
@@ -178,6 +179,10 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
 
       {tab === "formulations" && (
         <TabPanel prefix="inputs" id="formulations">
+          <BriefList projectId={projectId} group="products" testId="inputs-products"
+                     fields={["name", "role", "dosage_form", "strength", "release", "attributes"]}
+                     title="The products the proposal names"
+                     lede="Each product is built as its own formulation; the data plan asks for its dissolution and, for a test and its reference, the study that compares them." />
           <InputRows rows={rows("formulations")} todo={forTab("formulations")} projectId={projectId} run={run}
                      empty="No formulation yet: a solution needs none; a tablet's release comes from its dissolution profile or the literature." />
           {used.some((s) => SOLID.includes(String(s.facts.formulation))) && (
@@ -206,6 +211,10 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
 
       {tab === "individuals" && (
         <TabPanel prefix="inputs" id="individuals">
+          <BriefList projectId={projectId} group="populations" testId="inputs-populations"
+                     fields={["kind", "age_range", "sex", "ethnicity", "impairment_class", "genotype", "species"]}
+                     title="The populations the proposal names"
+                     lede="The populations the predictions are made for; each study below is simulated in its own individual." />
           {forTab("individuals").filter((t) => t.kind !== "demographics").length > 0 && (
             <InputRows rows={[]} todo={forTab("individuals").filter((t) => t.kind !== "demographics")} projectId={projectId} run={run} empty="" />
           )}
