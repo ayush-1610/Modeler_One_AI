@@ -120,7 +120,7 @@ think").
   directly. The owner agreed to a hard block on 2026-10-29 (decision 7); it is built (PR "Inputs after Start"), and
   the specs finish Start first.
 - **Delete on the Projects page** (`f.history`): not built. A project is a Part 11 record, so archive (hide, never erase)
-  is proposed instead. This waits on the owner's answer.
+  was proposed instead; the owner agreed on 2026-10-29 (decision 5), and it is built (PR "archive a project").
 
 ### 4.3 The owner's answers (2026-10-29)
 The owner answered the reply of 2026-10-28 point by point: "1b, 2b, 3 yes, 4 yes, 5 archive, 6a for now, 7 yes, 8c,

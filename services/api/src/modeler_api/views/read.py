@@ -14,8 +14,25 @@ from modeler_api.views.common import Number, View
 from modeler_storage.records import ProjectRecord, ProposalRecord
 
 
+class ArchivedView(View):
+    """Who archived a project, when and why (page review 1: archived projects are hidden, never erased)."""
+
+    by: str
+    at: str
+    reason: str
+
+
+class ProjectListItem(ProjectRecord):
+    archived: ArchivedView | None = None
+
+
 class Projects(View):
-    projects: list[ProjectRecord]
+    projects: list[ProjectListItem]
+
+
+class ProjectArchiveState(View):
+    project_id: str
+    archived: ArchivedView | None
 
 
 class CpfParameterRow(View):

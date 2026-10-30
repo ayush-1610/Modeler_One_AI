@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from modeler_api.archive_api import router as archive_router
 from modeler_api.brief_api import router as brief_router
 from modeler_api.campaign_api import router as campaign_router
 from modeler_api.client_api import router as client_router
@@ -73,3 +74,4 @@ app.include_router(inputs_router)
 app.include_router(plan_router)
 app.include_router(system_router)
 app.include_router(members_router)
+app.include_router(archive_router)
