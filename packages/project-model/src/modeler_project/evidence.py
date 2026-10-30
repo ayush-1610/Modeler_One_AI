@@ -2,9 +2,9 @@
 
 An `EvidenceItem` is PROPOSED (by an agent or a person) and then ACCEPTED or REJECTED by a person; each decision is a
 new version of the EVIDENCE artifact, so the history of a value is its chain of versions. Code, not the agent, does
-the arithmetic (unit conversion to the PK-Sim storage unit), the confidence grade (§8.4) and the flags (value not in
-the quote, missing conditions, physically impossible values, conflicts with other evidence). Conflicting values are
-shown side by side, never averaged.
+the arithmetic (unit conversion to the PK-Sim storage unit), the confidence grade (the rubric in
+`evidence_grading.yaml`) and the flags (value not in the quote, missing conditions, physically impossible values,
+conflicts with other evidence). Conflicting values are shown side by side, never averaged.
 """
 
 from __future__ import annotations
@@ -12,10 +12,15 @@ from __future__ import annotations
 import re
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from functools import lru_cache
+from importlib import resources
 from typing import Any, Literal
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from pbpk_domain import parameters
@@ -84,6 +89,8 @@ class EvidenceItem(BaseModel):
     extraction: Extraction = Extraction.TEXT
     conditions: dict[str, str] = Field(default_factory=dict)
     confidence: Literal["A", "B", "C", "D"] = "D"
+    grade_reason: str = ""                     # the rubric rule that gave the grade, and its version (empty before 0.1)
+    grade_rubric: str = ""
     flags: tuple[str, ...] = ()
     purpose: str = "model_building"
     provider: Literal["CLIENT", "LITERATURE"] = "LITERATURE"
@@ -186,8 +193,69 @@ def _missing_conditions(required: tuple[str, ...], given: dict[str, str]) -> lis
     return missing
 
 
+@dataclass(frozen=True)
+class GradingRubric:
+    """`evidence_grading.yaml`: the grade's rules, first match wins, and the words they read."""
+
+    version: str
+    status: str
+    rules: tuple[tuple[str, str, str], ...]      # (grade, check, why)
+    predicted_words: re.Pattern[str]
+    in_vitro_words: re.Pattern[str]
+    in_vivo_targets: tuple[str, ...]
+    animal_species: tuple[str, ...]
+
+
+def _words(words: list[str]) -> re.Pattern[str]:
+    """Whole words, any case; a number may follow one (rCYP3A4)."""
+    return re.compile(r"(?<![\w-])(?:" + "|".join(re.escape(w) for w in words) + r")(?![a-z-])", re.IGNORECASE)
+
+
+@lru_cache
+def grading_rubric() -> GradingRubric:
+    raw = yaml.safe_load(resources.files("modeler_project").joinpath("evidence_grading.yaml").read_text(encoding="utf-8"))
+    return GradingRubric(version=str(raw["version"]), status=raw["status"],
+                         rules=tuple((r["grade"], r["if"], r["why"]) for r in raw["rules"]),
+                         predicted_words=_words(raw["predicted_words"]), in_vitro_words=_words(raw["in_vitro_words"]),
+                         in_vivo_targets=tuple(raw["in_vivo_targets"]), animal_species=tuple(raw["animal_species"]))
+
+
+@dataclass(frozen=True)
+class _Graded:
+    """What the rubric's checks read of one item."""
+
+    item: EvidenceItem
+    species: str
+    complete: bool                 # every required condition recorded and the value written in the quote
+    rubric: GradingRubric
+
+    def said(self, pattern: re.Pattern[str]) -> bool:
+        return any(pattern.search(str(v)) for v in self.item.conditions.values())
+
+
+GRADE_CHECKS: dict[str, Callable[[_Graded], bool]] = {
+    "assumption": lambda g: g.item.source_type is SourceType.ASSUMPTION,
+    "predicted_source": lambda g: g.item.source_type is SourceType.PREDICTED,
+    "predicted_by_its_source": lambda g: g.said(g.rubric.predicted_words),
+    "indirect": lambda g: g.item.extraction in (Extraction.FIGURE_DIGITIZED, Extraction.COMPUTED),
+    "animal": lambda g: g.species.startswith(g.rubric.animal_species),
+    "in_vitro_where_in_vivo_exists": lambda g: (g.item.target.startswith(g.rubric.in_vivo_targets)
+                                                and g.said(g.rubric.in_vitro_words)),
+    "incomplete": lambda g: not g.complete,
+    "secondary": lambda g: g.item.source_type not in PRIMARY,
+    "always": lambda g: True,
+}
+
+
+def grade(item: EvidenceItem, *, species: str, complete: bool) -> tuple[str, str]:
+    """The grade the rubric gives the item, and why: the first of its rules that applies."""
+    rubric = grading_rubric()
+    graded = _Graded(item=item, species=species, complete=complete, rubric=rubric)
+    return next((g, why) for g, check, why in rubric.rules if GRADE_CHECKS[check](graded))
+
+
 def assess(item: EvidenceItem, *, required_conditions: tuple[str, ...] = (), value_in_quote: bool | None = None) -> EvidenceItem:
-    """Convert to the storage unit, grade (plan §8.4) and flag. Returns the item with these fields set."""
+    """Convert to the storage unit, grade (`evidence_grading.yaml`) and flag. Returns the item with these fields set."""
     # recomputed here, except conflicts (set when read), what the proposer knows is unconfirmed (e.g. an equation not
     # yet compared with the engine's own curve) and a correction's refiling (held until a person confirms it)
     flags: list[str] = [f for f in item.flags if f.startswith(("conflict", "unconfirmed", "refiled"))]
@@ -210,16 +278,10 @@ def assess(item: EvidenceItem, *, required_conditions: tuple[str, ...] = (), val
     if bounds and value_pksim is not None and not bounds[0] < value_pksim <= bounds[1]:
         flags.append(f"outside_physical_range {bounds[0]:g}–{bounds[1]:g}")
 
-    if item.source_type is SourceType.ASSUMPTION:
-        grade = "D"
-    elif item.source_type is SourceType.PREDICTED or item.extraction in (Extraction.FIGURE_DIGITIZED, Extraction.COMPUTED):
-        grade = "C"
-    elif item.source_type in PRIMARY and not missing and value_in_quote is not False and not species.startswith(("rat", "dog", "mouse", "monkey")):
-        grade = "A"
-    else:
-        grade = "B"
+    confidence, why = grade(item, species=species, complete=not missing and value_in_quote is not False)
     return item.model_copy(update={"value_pksim": value_pksim, "unit_pksim": unit_pksim, "conversion": how,
-                                   "confidence": grade, "flags": tuple(dict.fromkeys(flags))})
+                                   "confidence": confidence, "grade_reason": why, "grade_rubric": grading_rubric().version,
+                                   "flags": tuple(dict.fromkeys(flags))})
 
 
 def flag_conflicts(items: list[EvidenceItem], *, fold: float = 2.0) -> list[EvidenceItem]:

@@ -1,0 +1,42 @@
+# The evidence grade: how good one source is for one value, A best to D (the confidence of an evidence item).
+#
+# PROVISIONAL: UNVERIFIED until the SME signs (T-30). Read by modeler_project.evidence.assess. A change here is a
+# science change (CHANGELOG entry, version bump). The grade decides which source a model input keeps
+# (source_selection.yaml) and which parameter of a non-identifiable pair is fixed (pbpk_domain.identifiability, PI-2b).
+#
+# The owner's decision 8c (2026-10-29): the grade carries what the parameter's status says. A predicted value is never
+# graded above a measured one, and the test system is part of the grade (human in vivo, human in vitro, animal,
+# in silico), so the grade and the status no longer point at different parameters.
+#
+# Version 0.1 keeps the rules the code applied before (0.0, in evidence.assess) and adds the three marked "new in 0.1".
+version: "0.1"
+status: UNVERIFIED
+
+# Read top to bottom: the first rule that applies gives the grade. Each `if` names a check in evidence.py (a test fails
+# on a name the code does not know).
+rules:
+  - {grade: D, if: assumption, why: "an assumption, not a measurement or a prediction"}
+  - {grade: C, if: predicted_source, why: "a prediction (in silico): never above a measured value"}
+  # new in 0.1: a publication or report that itself calls the value predicted (an in silico logP in a paper, say) is
+  # graded as a prediction, whoever reports it
+  - {grade: C, if: predicted_by_its_source, why: "the source itself calls the value predicted"}
+  - {grade: C, if: indirect, why: "read from a figure, or computed from other values"}
+  - {grade: B, if: animal, why: "measured in animals, not in humans"}
+  # new in 0.1: where a value can be measured in humans in vivo (clearance, transport, permeability), a human in vitro
+  # system (microsomes, hepatocytes, recombinant enzymes, cell lines) ranks below it: its scaling to the body (IVIVE)
+  # adds uncertainty. Parameters measured only in vitro (logP, pKa, fu, solubility) are not affected.
+  - {grade: B, if: in_vitro_where_in_vivo_exists, why: "a human in vitro system, where a human in vivo value can exist"}
+  - {grade: B, if: incomplete, why: "a required condition is missing, or the value is not written in the quote"}
+  - {grade: B, if: secondary, why: "not the primary report: a database, the OSP library or the proposal"}
+  - {grade: A, if: always, why: "a primary report (client, regulatory review, publication), complete and quoted"}
+
+# The words that mark a value as predicted, or as measured in vitro, when they appear in its recorded conditions'
+# values (whole words, any case; the conditions' names are not read: "measured or predicted" names a condition).
+predicted_words: [predicted, prediction, in silico, QSAR, QSPR]
+in_vitro_words: [in vitro, HLM, HLS9, S9, microsomes, microsomal, hepatocytes, rCYP, recombinant, supersomes, Caco-2,
+                 MDCK, MDCKII, LLC-PK1, HEK293, PAMPA, transfected]
+# The parameters (CPF id prefixes) a human in vivo study can measure: clearance, transport, permeability.
+in_vivo_targets: [elim., transp., perm.]
+# The species that are not human (the start of the recorded species). New in 0.1: the code knew rat, dog, mouse and
+# monkey only, so a pig or rabbit value could be graded A while flagged species_mismatch.
+animal_species: [rat, dog, mouse, monkey, minipig, pig, rabbit, guinea pig, hamster, cynomolgus, marmoset]
