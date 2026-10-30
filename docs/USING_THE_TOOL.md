@@ -65,7 +65,15 @@ lists them, and **Restore** brings one back, with a reason. A project whose camp
 of the project: the proposal, its annexes, the client's files, retrieved records. For each it shows who added it (a
 person, an agent or the system), its role, format and pages, its versions, and what the project took from it. Those
 contributions are the values, datasets and brief fields that cite the document, each linked to where it is used; a
-document nothing cites says so. Search, filter by role or by who added it, sort, and open a document on its pages.
+document nothing cites says so. Search, filter by role, by who added it or by status, sort, and open a document on its
+pages.
+
+**+ Add data** (in the sidebar, just above the library) adds files at any step: PDF, Word, Excel, CSV, JSON, Markdown or
+text. Say what they relate to: a step (the open page's step is preselected) and, if you like, a task such as
+"Formulations". Workbooks go to the client's data on Inputs and everything else to the documents as an annex; switch
+either per file. A document is never deleted: **Withdraw** it in the library, with a reason. It stays listed, marked
+withdrawn, and the agents no longer use it. Nothing new is taken from it (a value, a digitized figure, a client sheet)
+until it is **Restored**. Values already taken from it keep their source; reject them on Inputs if they must go.
 
 **From a proposal (Step 1 · Start):** **+ Start from proposal** → name the drug and drop the proposal, its annexes and
 the client's data files in one upload (workbooks go to the client's data on Inputs, every other file to the documents)
@@ -99,8 +107,8 @@ PK-Sim: identical inputs must give identical curves (1e-6 of the peak). Results:
 
 ## 6. The client's spreadsheets (on Inputs → Studies)
 
-Add the client's files when you start the project (one upload with the proposal), with **Add files** on Start, or on
-the Inputs step's **Studies** tab (**Add the client's files**). Workbooks are split into sheets; PDF, Word and Markdown
+Add the client's files when you start the project (one upload with the proposal), with **+ Add data** in the sidebar,
+or on the Inputs step's **Studies** tab (**Add the client's files**). Workbooks are split into sheets; PDF, Word and Markdown
 are kept as citable documents. The client-data template (**client-data template** on the same tab) is read
 automatically, cell by cell. The data plan, derived from the brief, ticks off what arrives. Nothing is approved.
 

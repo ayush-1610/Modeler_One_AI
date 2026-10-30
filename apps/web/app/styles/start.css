@@ -59,6 +59,7 @@
 
 /* files */
 .start-files { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.start-add-hint { margin: 8px 0 0; font-size: 13px; }
 
 /* the model risk */
 .risk-grid { display: grid; gap: 10px; margin-top: 4px; }

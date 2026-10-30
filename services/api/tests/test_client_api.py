@@ -344,3 +344,18 @@ def test_a_reading_start_runs_in_the_background_and_refuses_the_template_and_unk
     tid = next(f["id"] for f in template if f["file"] == "filled.xlsx")
     refused = c.post(f"/api/v1/projects/p1/client-data/{tid}:read", headers=H)
     assert refused.status_code == 409 and "cell by cell" in refused.json()["detail"]
+
+
+def test_a_withdrawn_client_file_is_shown_but_not_read_into_the_project(setup):
+    # the document library, PR 2: a withdrawn file is kept and opened, but not classified, read or mapped until restored
+    from modeler_project.documents import DocumentLibrary
+
+    c, ws = setup
+    view = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("raw.xlsx", _raw_workbook(), XLSX))]).json()["data"]
+    sub = view["files"][0]
+    DocumentLibrary(ws).withdraw(sub["sha256"], by="u1", reason="the client sent a corrected file")
+    assert c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Sheet1", headers=H).status_code == 200
+    refused = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Misc:classify", headers=H,
+                     json={"category": "PRODUCT_INFO", "reason": "batch list"})
+    assert refused.status_code == 409 and "the client sent a corrected file" in refused.json()["detail"]
+    assert c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H).status_code == 409

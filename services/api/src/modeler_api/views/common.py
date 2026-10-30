@@ -110,6 +110,7 @@ class DocumentView(View):
     warnings: list[str]
     uploaded_at: str
     uploaded_by: str
+    withdrawn: bool              # withdrawn from the project by a person (the document library, PR 2): kept, not used
 
 
 class DataPlanStatus(View):

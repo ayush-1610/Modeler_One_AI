@@ -107,7 +107,7 @@ def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
     run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
                               agent="A2-literature" if agent == "A2" else "A3-observed-data", model=model,
                               max_turns=max_turns)
-    outcome = agent_jobs.literature_research(model, agent=agent, ws=ws, library=DocumentLibrary(ws),
+    outcome = agent_jobs.literature_research(model, agent=agent, ws=ws, library=DocumentLibrary(ws, for_agents=True),
                                              requirements=literature_items(matrix), actor=run.actor, drug=drug,
                                              max_turns=max_turns, log_step=run.log_step, europe_pmc=europe_pmc)
     summary = {"proposed": len(outcome.proposed), "rejected": len(outcome.rejected), "not_found": outcome.not_found,
@@ -181,6 +181,14 @@ class ManualEvidence(BaseModel):
     note: str = ""
 
 
+
+def _not_withdrawn(library: DocumentLibrary, sha256: str) -> None:
+    """A withdrawn document is no longer a source for new values (the document library, PR 2): restore it first."""
+    if (withdrawn := library.entry(sha256).withdrawn) is not None:
+        raise HTTPException(status_code=409, detail=f"the document was withdrawn ({withdrawn.reason}); "
+                                                    "restore it in the Project Document Library to cite it")
+
+
 @router.post("/projects/{project_id}/evidence", status_code=201, **answers(EvidenceItem))
 def add_evidence(project_id: str, body: ManualEvidence, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """The manual path: a person enters a value with its source. A quote from a stored document is checked verbatim."""
@@ -199,7 +207,9 @@ def add_evidence(project_id: str, body: ManualEvidence, principal: Writer, store
         raise HTTPException(status_code=422, detail=problem)
     stated = None
     if body.doc_sha256:
-        page = DocumentLibrary(ws).page_text(body.doc_sha256, body.page or 1)
+        library = DocumentLibrary(ws)
+        _not_withdrawn(library, body.doc_sha256)
+        page = library.page_text(body.doc_sha256, body.page or 1)
         if page is None:
             raise HTTPException(status_code=422, detail="no such document page")
         if not quote_appears_in(page, body.quote):
@@ -375,8 +385,10 @@ def digitize_dataset(project_id: str, body: DigitizeBody, principal: Writer, sto
     from pbpk_domain.digitize import CalibrationError
 
     ws = workspace_for(project_id, principal, store)
-    if DocumentLibrary(ws).by_sha(body.doc_sha256) is None:
+    library = DocumentLibrary(ws)
+    if library.by_sha(body.doc_sha256) is None:
         raise HTTPException(status_code=404, detail="no such document")
+    _not_withdrawn(library, body.doc_sha256)
     try:
         dataset = digitized_dataset(study={**body.study, "n_timepoints": body.study.get("n_timepoints") or
                                            max((len(p) for p in body.pixels.values()), default=1)},

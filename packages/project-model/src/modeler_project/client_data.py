@@ -31,7 +31,7 @@ from modeler_intake.triage import SheetTriage, triage
 from modeler_project.artifacts import ArtifactKind
 from modeler_project.brief import ProjectBrief
 from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, new_dataset_id
-from modeler_project.documents import DocumentLibrary
+from modeler_project.documents import DocumentLibrary, RelatesTo
 from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, new_id
 from modeler_project.requirements import RequirementItem, RequirementMatrix, _slug, client_items
 from modeler_project.workspace import Workspace
@@ -294,13 +294,14 @@ def _brief_mismatches(read: ClientWorkbook, brief: ProjectBrief | None) -> list[
 
 
 def ingest(ws: Workspace, library: DocumentLibrary, data: bytes, filename: str, *, by: str,
-           matrix: RequirementMatrix | None = None, brief: ProjectBrief | None = None) -> dict[str, Any]:
+           matrix: RequirementMatrix | None = None, brief: ProjectBrief | None = None,
+           relates_to: RelatesTo | None = None) -> dict[str, Any]:
     """Store one client file and read what can be read without a person's mapping. Uploading the same bytes again
-    returns the earlier submission unchanged."""
+    returns the earlier submission unchanged. `relates_to`: what the file relates to, as the person adding it said."""
     from modeler_project.dataset_register import propose_dataset
     from modeler_project.evidence_register import propose
 
-    doc = library.add(data, filename, role="client_file", by=by)
+    doc = library.add(data, filename, role="client_file", by=by, relates_to=relates_to)
     sha = doc.content["sha256"]
     sid = submission_id(sha)
     existing = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)

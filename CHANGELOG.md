@@ -15,6 +15,47 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the Project Document Library, PR 2: "Add data", what a file relates to, withdrawal (decisions 10–12)
+The owner's answers 10–12 of 2026-10-29; plan `docs/plans/2026-10-28-project-document-library.md`, PR 2. No locked file
+is touched.
+- **"+ Add data"** in the sidebar, directly above the Project Document Library, while a project is open. It opens a
+  centred card over the page, at any step:
+  - The person picks files and says what they relate to: a step (preselected from the open page) and, optionally, a
+    task (answer 11: the roles, plus what it relates to).
+  - Each file goes where its type says: a workbook to client data (read on Inputs), anything else to the documents as
+    an annex. The guess is switched per file (client data, or a document as annex, paper, context, proposal or other).
+  - JSON is now a readable document kind (`modeler_intake.documents`): its pages are the file's own text, and it must
+    parse.
+- **Withdraw, never delete** (answer 12): `POST /projects/{id}/documents/{sha256}:withdraw`, with a reason;
+  `:restore` puts it back, with a reason too.
+  - A withdrawn document stays in the table, marked with who withdrew it, when and why. A status filter shows the
+    documents in use, or the withdrawn ones.
+  - The agents no longer list, search or read it: A1, A2 and A3 get `DocumentLibrary(ws, for_agents=True)`.
+  - Until it is restored, nobody takes anything new from it (409): a hand-entered value, a digitized dataset, or, for a
+    client file, a sheet classified, read or mapped. It still opens.
+  - The values already taken from it keep their citation, and their check still passes. The card says so, and that
+    they are rejected on Inputs if they must go.
+- **Where it lives:** `<root>/<tenant>/projects/<pid>/library.json`, beside the project's artifacts. Each change is an
+  audit event (`document.relate`, `document.withdraw`, `document.restore`) with its reason, shown in the project's
+  History. It is not a new version of the DOCUMENT artifact: the brief and the client data derive from the documents,
+  and a new version would mark them stale.
+- **API:**
+  - `POST /projects/{id}/documents` and `POST /projects/{id}/client-data` take `step` and `task` form fields.
+  - `LibraryRowView` gains `relates_to` and `withdrawn`; `DocumentView` gains `withdrawn`.
+- **Start:** "Add files" is gone. Start names its files (withdrawn ones left out) and points to "+ Add data".
+- **Layout:** the sidebar now sits inside the page's data providers, so the card refreshes the page behind it.
+- **Known gap:** a dissolution profile already read from a withdrawn client file can still be proposed as a release
+  model. The profile names its files, not one document's page, so the check has nothing to hold it by.
+- **Next:** PR 3, the agents search the library first and store what they fetch (open-access full text only).
+- **Tests:**
+  - `test_library`: what a document relates to; withdrawal hides it from the agents' view and keeps it in the table;
+    a reason is required; restore; each project's record is its own.
+  - `test_brief_api`: the upload fields, withdraw and restore, the History event, and A1 no longer sees a withdrawn
+    proposal.
+  - `test_evidence_api`: a withdrawn document is refused as a new source. `test_client_api`: a withdrawn client file
+    opens but is not classified or read. `test_documents`: JSON.
+  - `library.spec.ts`: "Add data" from Start, switching a guess, relates-to on the library page, withdraw and restore.
+
 ### Added — the Project Document Library, PR 1: every document and what the project took from it (decision 10)
 The owner's decisions 10–13 of 2026-10-29; plan `docs/plans/2026-10-28-project-document-library.md`, now agreed.
 - **The page:** `/projects/{id}/library`, reached from the sidebar's new **This project** section while a project is

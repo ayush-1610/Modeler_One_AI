@@ -10,12 +10,14 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException
+from pydantic import ValidationError
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep, get_settings
 from modeler_api.part11 import audit_mirror
 from modeler_project import ArtifactKind, ArtifactVersion, FileProjectStore, ProjectStore, Workspace
 from modeler_project import blinding as blind
+from modeler_project.documents import RelatesTo
 
 READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer")
 WRITE_ROLES = ("modeler-curator", "modeler-reviewer")
@@ -134,3 +136,16 @@ def blinding_view(ws: Workspace) -> dict[str, Any]:
     state = blind.setting(project_record(ws), model_risk(ws))
     return {**state, "map_signed": blind.map_signed(ws), "blinded": sorted(blinded_studies(ws)),
             "external": sorted(blind.external_studies(ws))}
+
+
+def relates_to_form(step: str, task: str) -> RelatesTo | None:
+    """What an upload relates to, from its form fields (the document library's "Add data" card: a step and, optionally,
+    a task). Documents and client files take the same two fields."""
+    if not step:
+        if task.strip():
+            raise HTTPException(status_code=422, detail="name the step the task belongs to")
+        return None
+    try:
+        return RelatesTo(step=step, task=task.strip())  # type: ignore[arg-type]
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=f"relates to: {exc.errors()[0]['msg']}") from exc

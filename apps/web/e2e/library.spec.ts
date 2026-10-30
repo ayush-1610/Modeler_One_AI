@@ -35,3 +35,59 @@ test("the library lists each document with what cites it, and finds, filters and
   await page.getByTestId("library-open-proposal.md").click();
   await expect(page.getByTestId("library-viewer")).toContainText("fu was 9 % in human plasma");
 });
+
+test("Add data, from the sidebar at any step, says what each file relates to; a document is withdrawn and restored",
+  async ({ page, request }) => {
+    // PR 2 of the plan: the owner's answers 10 (Add data above the library), 11 (roles + relates to) and 12 (withdrawn
+    // with a reason, never erased, hidden from the agents)
+    const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+      drug_name: "Addamide", extract: "false",
+      files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nAn IR tablet.") } } });
+    const projectId = (await started.json()).data.project_id as string;
+
+    await page.goto(`/projects/${projectId}/start`);
+    await expect(page.getByTestId("start-files")).toContainText("proposal.md");
+    await page.getByTestId("nav-add-data").click();
+    const card = page.getByTestId("add-data");
+    await expect(card.getByRole("dialog", { name: "Add data" })).toBeVisible();
+    await expect(page.getByTestId("add-data-step")).toHaveValue("start");      // the page's own step, preselected
+    await page.getByTestId("add-data-files").setInputFiles([
+      { name: "f2.json", mimeType: "application/json", buffer: Buffer.from('{"formulation": "F2", "strength_mg": 50}') },
+      { name: "pk.csv", mimeType: "text/csv", buffer: Buffer.from("time,conc\n1,2\n") },
+    ]);
+    await expect(page.getByTestId("add-data-goes-pk.csv")).toHaveValue("client");   // a workbook goes to client data
+    await expect(page.getByTestId("add-data-goes-f2.json")).toHaveValue("annex");
+    await page.getByTestId("add-data-goes-f2.json").selectOption("context");          // the guess is switched
+    await page.getByTestId("add-data-step").selectOption("inputs");
+    await page.getByTestId("add-data-task").fill("Formulations");
+    await page.screenshot({ path: test.info().outputPath("add-data.png") });
+    await page.getByTestId("add-data-submit").click();
+    await expect(page.getByTestId("add-data-done")).toContainText("pk.csv: added as client data");
+    await expect(page.getByTestId("add-data-done")).toContainText("f2.json: added as context");
+    await page.getByTestId("add-data-close").click();
+    await expect(card).toHaveCount(0);
+    await expect(page.getByTestId("start-files")).toContainText("f2.json");         // the page behind it is read again
+
+    await page.getByTestId("nav-library").click();
+    await page.waitForURL(/\/library$/);
+    await expect(page.getByTestId("library-row-f2.json")).toContainText("Inputs");
+    await expect(page.getByTestId("library-row-f2.json")).toContainText("Formulations");
+    await expect(page.getByTestId("library-row-pk.csv")).toContainText("client file");
+
+    await page.getByTestId("library-withdraw-f2.json").click();
+    await expect(page.getByTestId("library-confirm")).toBeDisabled();                // a reason is required
+    await page.getByTestId("library-reason").fill("the client sent a corrected formulation sheet");
+    await page.getByTestId("library-confirm").click();
+    await expect(page.getByTestId("library-withdrawn-f2.json")).toContainText("the client sent a corrected formulation sheet");
+    await page.getByTestId("library-status").selectOption("current");
+    await expect(page.getByTestId("library-row-f2.json")).toHaveCount(0);
+    await page.getByTestId("library-status").selectOption("withdrawn");
+    await expect(page.getByTestId("library-row-f2.json")).toBeVisible();             // kept, never erased
+    await page.screenshot({ path: test.info().outputPath("library-withdrawn.png"), fullPage: true });
+    await page.getByTestId("library-restore-f2.json").click();
+    await page.getByTestId("library-reason").fill("withdrawn by mistake");
+    await page.getByTestId("library-confirm").click();
+    await expect(page.getByTestId("library-row-f2.json")).toHaveCount(0);            // no longer withdrawn
+    await page.getByTestId("library-status").selectOption("");
+    await expect(page.getByTestId("library-withdrawn-f2.json")).toHaveCount(0);
+  });

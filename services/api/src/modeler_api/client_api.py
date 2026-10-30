@@ -11,11 +11,11 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field, ValidationError
 
 from modeler_api import agent_jobs, jobs
-from modeler_api.deps import Reader, StoreDep, Writer, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, relates_to_form, version_view, workspace_for
 from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import (
     ClientDataPage,
@@ -101,8 +101,11 @@ def get_client_data(project_id: str, principal: Reader, store: StoreDep) -> dict
 
 @router.post("/projects/{project_id}/client-data", status_code=201, **answers(ClientUpload))
 async def upload_client_files(project_id: str, principal: Writer, store: StoreDep,
-                              files: Annotated[list[UploadFile], File()]) -> dict[str, Any]:
-    """Store each file; read a filled template at once; triage any other workbook."""
+                              files: Annotated[list[UploadFile], File()],
+                              step: Annotated[str, Form()] = "", task: Annotated[str, Form()] = "") -> dict[str, Any]:
+    """Store each file; read a filled template at once; triage any other workbook. `step` and `task`: what the files
+    relate to (the document library's "Add data" card)."""
+    relates_to = relates_to_form(step, task)
     ws = workspace_for(project_id, principal, store)
     _, matrix = _matrix(ws)
     library, brief = DocumentLibrary(ws), _brief(ws)
@@ -110,17 +113,22 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
     for upload in files:
         try:
             read.append(ingest(ws, library, await upload.read(), upload.filename or "client-file", by=principal.user_id,
-                               matrix=matrix, brief=brief))
+                               matrix=matrix, brief=brief, relates_to=relates_to))
         except (DocumentError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=f"{upload.filename}: {exc}") from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({"read": [{k: r[k] for k in ("id", "file", "template")} for r in read], **_view(ws)})
 
 
-def _workbook(ws: Workspace, sid: str) -> tuple[dict[str, Any], WorkbookGrid]:
+def _workbook(ws: Workspace, sid: str, *, use: bool = False) -> tuple[dict[str, Any], WorkbookGrid]:
+    """The file's record and its sheets. `use`: the file is to be read into the project (classified, triaged, read or
+    mapped), which a withdrawn file is not until a person restores it (the document library, PR 2)."""
     content = submission(ws, sid)
     if content is None:
         raise HTTPException(status_code=404, detail=f"no client file {sid}")
+    if use and (withdrawn := DocumentLibrary(ws).entry(content["sha256"]).withdrawn) is not None:
+        raise HTTPException(status_code=409, detail=f"{content['file']} was withdrawn ({withdrawn.reason}); "
+                                                    "restore it in the Project Document Library to read it")
     path = ws.store.blob_path(ws.tenant_id, ws.project_id, content["sha256"])
     if path is None:
         raise HTTPException(status_code=404, detail="the file's bytes are not in the store")
@@ -139,7 +147,7 @@ class Classification(BaseModel):
 def classify(project_id: str, sid: str, sheet: str, body: Classification, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """A person says what a sheet holds (overrides code and A4)."""
     ws = workspace_for(project_id, principal, store)
-    _, workbook = _workbook(ws, sid)
+    _, workbook = _workbook(ws, sid, use=True)
     if sheet not in workbook.sheets:
         raise HTTPException(status_code=404, detail=f"no sheet {sheet!r} in this file")
     set_triage(ws, sid, SheetTriage(sheet, body.category, by=principal.user_id, note=body.reason), by=principal.user_id,
@@ -150,7 +158,7 @@ def classify(project_id: str, sid: str, sheet: str, body: Classification, princi
 def run_triage_job(store: ProjectStore, tenant_id: str, project_id: str, sid: str, *, model, max_turns: int = 6) -> dict[str, Any]:
     """A4 on the sheets code left OTHER; each accepted classification carries a header quote checked by code."""
     ws = Workspace(store, tenant_id, project_id)
-    content, workbook = _workbook(ws, sid)
+    content, workbook = _workbook(ws, sid, use=True)
     undecided = [t["sheet"] for t in content["triage"] if t["category"] == SheetCategory.OTHER.value and t["by"] == "code"]
     if not undecided:
         return {"status": "COMPLETED", "classified": 0, "rejected": 0}
@@ -169,7 +177,7 @@ def run_triage_job(store: ProjectStore, tenant_id: str, project_id: str, sid: st
 @router.post("/projects/{project_id}/client-data/{sid}:triage", status_code=202, **answers(TriageStart))
 def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
-    _workbook(ws, sid)
+    _workbook(ws, sid, use=True)
     model = agent_jobs.require_chat_model("agents are off: say what each sheet holds by hand")
 
     def job() -> None:
@@ -194,7 +202,7 @@ def run_reading_job(store: ProjectStore, tenant_id: str, project_id: str, sid: s
     """A4 proposes how to read each data sheet not read yet (or the sheets named), one agent run per sheet. A reading
     code accepted is kept on the file for the person to check, correct and save; nothing is read into the project here."""
     ws = Workspace(store, tenant_id, project_id)
-    content, workbook = _workbook(ws, sid)
+    content, workbook = _workbook(ws, sid, use=True)
     brief = _brief(ws)
     products = [{"name": str(p.get("name") or ""), "role": str(p.get("role") or "")} for p in _brief_products(brief)]
     categories = {t["sheet"]: t["category"] for t in content.get("triage", [])}
@@ -224,7 +232,7 @@ def start_reading(project_id: str, sid: str, principal: Writer, store: StoreDep,
     """A4 proposes how to read the file's data sheets, in the background; each proposal is checked by code and waits on
     its sheet for the person to check and save (nothing is read into the project until then)."""
     ws = workspace_for(project_id, principal, store)
-    content, workbook = _workbook(ws, sid)
+    content, workbook = _workbook(ws, sid, use=True)
     sheets = body.sheets if body else []
     if content.get("template"):
         raise HTTPException(status_code=409, detail="the client-data template is read cell by cell, with no agent")
@@ -326,7 +334,7 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
     from modeler_project.blinding import EXTERNAL_PURPOSES
 
     ws = workspace_for(project_id, principal, store)
-    content, workbook = _workbook(ws, sid)
+    content, workbook = _workbook(ws, sid, use=body.confirm)   # a preview reads nothing into the project
     if (body.form is None) == (body.proposal is None):
         raise HTTPException(status_code=422, detail="send the reading form or a recipe (one of them)")
     raw = body.proposal

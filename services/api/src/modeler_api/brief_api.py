@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 from modeler_api import agent_jobs, jobs
 from modeler_api.auth import Principal, require_project
 from modeler_api.config import SettingsDep
-from modeler_api.deps import Reader, StoreDep, Writer, impact_view, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, impact_view, relates_to_form, version_view, workspace_for
 from modeler_api.memberships import record_creator
 from modeler_api.responses import answers, envelope
 from modeler_api.views.brief import (
@@ -40,6 +40,7 @@ from modeler_api.views.brief import (
     DocumentPage,
     Documents,
     ExtractionStart,
+    LibraryEntryView,
     LibraryPage,
     ProjectStarted,
 )
@@ -60,7 +61,7 @@ from modeler_project.brief import (
 from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, resolve_identity, save_brief, summary
 from modeler_project.client_data import ingest
 from modeler_project.data_plan import refresh_data_plan
-from modeler_project.documents import DocumentLibrary, document_record
+from modeler_project.documents import DocumentLibrary, LibraryEntry, LibraryError, document_record
 from modeler_project.evidence import SourceType
 from modeler_project.evidence_register import items as evidence_items
 from modeler_project.feasibility import pathway_suggestions, pathways_not_named, scope_gates
@@ -97,11 +98,11 @@ def _document_refs(ws: Workspace):
     return [v.ref for v in ws.list(ArtifactKind.DOCUMENT)]
 
 
-def _document_view(version) -> dict[str, Any]:
+def _document_view(version, *, withdrawn: bool = False) -> dict[str, Any]:
     c = document_record(version)
     return {"id": version.id, "sha256": c.sha256, "name": c.name, "kind": c.kind, "role": c.role, "n_pages": c.n_pages,
             "size_bytes": c.size_bytes, "warnings": list(c.warnings), "uploaded_at": version.created_at.isoformat(),
-            "uploaded_by": version.created_by}
+            "uploaded_by": version.created_by, "withdrawn": withdrawn}
 
 
 # --- extraction (identity + agent A1), in the background ------------------------------------------------------
@@ -130,7 +131,7 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
     from modeler_project.identity import fetch_pubchem
 
     ws = Workspace(store, tenant_id, project_id)
-    library = DocumentLibrary(ws)
+    library = DocumentLibrary(ws, for_agents=True)   # A1 does not see the documents a person withdrew
     start = _brief(ws)
     if start is None:
         raise RuntimeError("no brief to extract into")
@@ -248,24 +249,36 @@ def _read_client_file(ws: Workspace, library: DocumentLibrary, brief: ProjectBri
 @router.post("/projects/{project_id}/documents", status_code=201, **answers(Documents))
 async def upload_documents(project_id: str, principal: Writer, store: StoreDep,
                            files: Annotated[list[UploadFile], File()],
-                           role: Annotated[str, Form()] = "proposal") -> dict[str, Any]:
+                           role: Annotated[str, Form()] = "proposal",
+                           step: Annotated[str, Form()] = "", task: Annotated[str, Form()] = "") -> dict[str, Any]:
+    """Store documents in the project's library. `step` and `task`: what they relate to (the "Add data" card)."""
     if role not in ("proposal", "annex", "context", "client_file", "paper", "other"):
         raise HTTPException(status_code=422, detail=f"unknown document role {role!r}")
+    relates_to = relates_to_form(step, task)
     ws = workspace_for(project_id, principal, store)
     library = DocumentLibrary(ws)
     added = []
     try:
         for f in files:
-            added.append(library.add(await f.read(), f.filename or "upload", role=role, by=principal.user_id))  # type: ignore[arg-type]
+            added.append(library.add(await f.read(), f.filename or "upload", role=role, by=principal.user_id,  # type: ignore[arg-type]
+                                     relates_to=relates_to))
     except DocumentError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return envelope({"documents": [_document_view(d) for d in added]})
+    entries = library.entries()
+    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d)) for d in added]})
+
+
+def _withdrawn(entries: dict[str, LibraryEntry], version) -> bool:
+    entry = entries.get(document_record(version).sha256)
+    return bool(entry and entry.withdrawn)
 
 
 @router.get("/projects/{project_id}/documents", **answers(Documents))
 def list_documents(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
-    return envelope({"documents": [_document_view(d) for d in DocumentLibrary(ws).documents()]})
+    library = DocumentLibrary(ws)
+    entries = library.entries()
+    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d)) for d in library.documents()]})
 
 
 @router.get("/projects/{project_id}/library", **answers(LibraryPage))
@@ -273,6 +286,39 @@ def get_library(project_id: str, principal: Reader, store: StoreDep) -> dict[str
     """The project's document library (plan 2026-10-28, PR 1): every document with who added it and what cites it."""
     ws = workspace_for(project_id, principal, store)
     return envelope({"documents": [row.model_dump() for row in library_rows(ws)]})
+
+
+class LibraryReason(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+def _entry_view(sha256: str, entry: LibraryEntry) -> dict[str, Any]:
+    return {"sha256": sha256, **entry.model_dump(mode="json")}
+
+
+@router.post("/projects/{project_id}/documents/{sha256}:withdraw", **answers(LibraryEntryView))
+def withdraw_document(project_id: str, sha256: str, body: LibraryReason, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Withdraw a document with a reason (the owner's answer 12): never erased, marked in the library, hidden from the
+    agents. The values already taken from it keep their citation; a person rejects them on Inputs if they must go."""
+    library = DocumentLibrary(workspace_for(project_id, principal, store))
+    try:
+        return envelope(_entry_view(sha256, library.withdraw(sha256, by=principal.user_id, reason=body.reason)))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="no such document") from exc
+    except LibraryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/projects/{project_id}/documents/{sha256}:restore", **answers(LibraryEntryView))
+def restore_document(project_id: str, sha256: str, body: LibraryReason, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Put a withdrawn document back in use, with a reason."""
+    library = DocumentLibrary(workspace_for(project_id, principal, store))
+    try:
+        return envelope(_entry_view(sha256, library.restore(sha256, by=principal.user_id, reason=body.reason)))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="no such document") from exc
+    except LibraryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/projects/{project_id}/documents/{sha256}/pages/{page}", **answers(DocumentPage))

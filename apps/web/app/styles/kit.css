@@ -101,3 +101,17 @@ tr.project-archived td { color: var(--ink-faint); }
 .library-table td { vertical-align: top; }
 .library-uses { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
 .library-uses code { font-size: 12px; overflow-wrap: anywhere; }
+.library-table tr.withdrawn td { color: var(--ink-dim); }
+.library-table tr.withdrawn .link-btn { text-decoration: line-through; }
+.library-withdrawn { margin-top: 4px; font-size: 12px; }
+/* "Add data" (components/library/AddData.tsx): the card opened from the sidebar */
+.add-data-lede { margin: 0 0 12px; font-size: 14px; }
+.add-data-field { display: grid; gap: 4px; margin-bottom: 10px; font-size: 14px; }
+.add-data-field > span { font-weight: 600; }
+.add-data-field textarea, .add-data-field input[type="text"], .add-data-field select { width: 100%; }
+.add-data-list { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.add-data-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.add-data-name { font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
+.add-data-relates { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 10px; }
+@media (max-width: 560px) { .add-data-relates { grid-template-columns: 1fr; } }
+.add-data-done { margin-top: 10px; font-size: 14px; }

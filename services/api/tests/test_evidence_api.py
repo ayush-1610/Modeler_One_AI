@@ -152,3 +152,21 @@ def test_research_start_paper_fulfilment_and_the_closed_register_answer_through_
     ws.commit(ArtifactKind.REQUIREMENTS, "main", derive(empty_brief("Exampleamide", by="u1"), waived).to_content(),
               derived_from=[ws.latest(ArtifactKind.BRIEF, "main").ref], actor="u1", reason="every literature item waived")
     assert c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["blocking"] == []   # nothing left to find
+
+
+def test_a_withdrawn_document_is_no_longer_a_source_for_new_values(setup):
+    # the document library, PR 2: a person restores a withdrawn document before citing it again
+    from modeler_project.documents import DocumentLibrary
+
+    c, ws = setup
+    library = DocumentLibrary(ws)
+    doc = library.add(b"The unbound fraction in human plasma was 9 % (equilibrium dialysis).", "paper.md", role="paper",
+                      by="u1")
+    sha = doc.content["sha256"]
+    library.withdraw(sha, by="u1", reason="a different salt form")
+    body = {"req_id": "REQ-bind.fu", "target": "bind.fu", "value": 9.0, "unit": "%", "source_type": "PUBLICATION",
+            "doc_sha256": sha, "page": 1, "quote": "unbound fraction in human plasma was 9 %"}
+    refused = c.post("/api/v1/projects/p1/evidence", headers=H, json=body)
+    assert refused.status_code == 409 and "a different salt form" in refused.json()["detail"]
+    library.restore(sha, by="u1", reason="the right salt form")
+    assert c.post("/api/v1/projects/p1/evidence", headers=H, json=body).status_code == 201

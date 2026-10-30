@@ -1,12 +1,12 @@
 """Text of uploaded documents, page by page, so every extracted value can cite a page and a verbatim quote (plan §6).
 
-Technical proposals, annexes, papers and client files arrive as PDF, Word, Markdown, plain text, CSV or Excel
-(owner's answer to §3 #15). Each becomes a list of pages:
+Technical proposals, annexes, papers and client files arrive as PDF, Word, Markdown, plain text, JSON, CSV or Excel
+(owner's answer to §3 #15; JSON since the document library's "Add data", 2026-10-30). Each becomes a list of pages:
 
 - PDF: one page per PDF page (pypdf's text layer). A PDF with no text layer is reported, not guessed: it needs OCR.
 - Word (.docx): body paragraphs and tables in document order, cut into pages of about 3 500 characters at paragraph
   boundaries (Word files carry no page breaks in their XML until rendered).
-- Markdown / text: split at form feeds, else into ~3 500-character pages at line boundaries.
+- Markdown / text / JSON: split at form feeds, else into ~3 500-character pages at line boundaries (JSON must parse).
 - CSV / Excel: one page per sheet (cut when long); each row is written as ``[Sheet row 3] A3=… | B3=…`` so a quote of
   a row's text also names its cells.
 
@@ -18,6 +18,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import json
 from dataclasses import dataclass, field
 from pathlib import PurePath
 from typing import Any
@@ -27,11 +28,12 @@ MAX_BYTES = 60 * 1024 * 1024
 
 KINDS = {
     ".pdf": "pdf", ".docx": "docx", ".md": "markdown", ".markdown": "markdown", ".txt": "text", ".text": "text",
-    ".csv": "csv", ".tsv": "csv", ".xlsx": "xlsx", ".xlsm": "xlsx", ".xls": "xls", ".png": "image", ".jpg": "image", ".jpeg": "image",
+    ".json": "json", ".csv": "csv", ".tsv": "csv", ".xlsx": "xlsx", ".xlsm": "xlsx", ".xls": "xls", ".png": "image",
+    ".jpg": "image", ".jpeg": "image",
 }
 MEDIA_TYPES = {
     "pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "markdown": "text/markdown", "text": "text/plain", "csv": "text/csv",
+    "markdown": "text/markdown", "text": "text/plain", "json": "application/json", "csv": "text/csv",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "xls": "application/vnd.ms-excel",
     "image": "image/png",
@@ -73,7 +75,7 @@ def detect_kind(data: bytes, filename: str) -> str:
     if kind is None:
         if data.startswith(b"%PDF"):
             return "pdf"
-        raise DocumentError(f"unsupported file type {suffix or '(none)'}: use PDF, DOCX, Markdown, text, CSV, XLSX, PNG or JPEG")
+        raise DocumentError(f"unsupported file type {suffix or '(none)'}: use PDF, DOCX, Markdown, text, JSON, CSV, XLSX, PNG or JPEG")
     if kind == "pdf" and not data.startswith(b"%PDF"):
         raise DocumentError(f"{filename} is not a PDF file")
     if kind in ("docx", "xlsx") and not data.startswith(b"PK"):
@@ -213,6 +215,12 @@ def extract_document(data: bytes, filename: str) -> ExtractedDocument:
     elif kind == "docx":
         texts = _chunk(_docx_blocks(data))
     elif kind in ("markdown", "text"):
+        texts = _text_pages(data)
+    elif kind == "json":
+        try:   # the pages are the file's own text, so a quote is checked against what the file says
+            json.loads(data.decode("utf-8-sig"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise DocumentError(f"{filename} is not valid JSON: {exc}") from exc
         texts = _text_pages(data)
     elif kind == "image":
         texts = [""]
