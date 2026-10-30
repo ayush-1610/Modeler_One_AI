@@ -3,10 +3,10 @@
 import { useState } from "react";
 
 import { InlineIssue } from "@/components/kit";
-import { Block } from "@/components/start/Blocks";
+import { Block, Fields } from "@/components/start/Blocks";
 import { NeedsYou, Seg } from "@/components/start/FieldRow";
 import type { BriefView } from "@/lib/brief";
-import { valueOf, type BriefChange, type Marks, type Save } from "@/lib/start";
+import { recordOf, valueOf, type BriefChange, type Marks, type Open, type Save } from "@/lib/start";
 
 const RATINGS = ["low", "medium", "high"];
 type Rating = string | null;
@@ -48,19 +48,35 @@ function InternalTarget({ view, save, marks, tier }: { view: BriefView; save: Sa
   );
 }
 
+/** A rating the intake agent suggested (DRAFTED): a starting point only, never the rating. */
+function suggestion(view: BriefView, path: string): Rating {
+  const record = recordOf(view, path);
+  return record.status === "DRAFTED" ? (record.value as Rating) : null;
+}
+
+/** What the intake agent suggested for a rating no person has saved yet. */
+function Suggested({ stored, suggested, testId }: { stored: Rating; suggested: Rating; testId: string }) {
+  if (stored || !suggested) return null;
+  return <span className="muted" style={{ fontSize: 12.5 }} data-testid={testId}>suggested by the intake agent: {suggested};
+    it counts once you save it</span>;
+}
+
 /** The ICH M15 model risk (§2.1.5): the person rates the model's influence and the decision's consequence; the tiers
  *  those ratings admit are offered (the API's table, so the rule lives in one place); different ratings need a reason.
- *  The tier is never assumed (R0): without it the plan cannot be signed. The tier's acceptance criteria are shown beside
- *  it, and the internal target under it (page review 1). */
-export function RiskPicker({ view, save, marks }: { view: BriefView; save: Save; marks: Marks }) {
+ *  The tier is never assumed (R0): without it the plan cannot be signed. The intake agent's suggested ratings are
+ *  preselected, and count only once the person saves them; why each rating is what it is sits under the ratings, the
+ *  agent's draft confirmed or changed in place (page review 1, decisions 1b and 4). The tier's acceptance criteria are
+ *  shown beside it, and the internal target under it. */
+export function RiskPicker({ view, save, open, marks }: { view: BriefView; save: Save; open: Open; marks: Marks }) {
   const stored = {
     influence: valueOf(view, "m15.influence_rating") as Rating,
     consequence: valueOf(view, "m15.consequence_rating") as Rating,
     tier: valueOf(view, "acceptance.tier") as Rating,
     why: (valueOf(view, "m15.risk_justification") as string | null) ?? "",
   };
-  const [influence, setInfluence] = useState<Rating>(stored.influence);
-  const [consequence, setConsequence] = useState<Rating>(stored.consequence);
+  const suggested = { influence: suggestion(view, "m15.influence_suggested"), consequence: suggestion(view, "m15.consequence_suggested") };
+  const [influence, setInfluence] = useState<Rating>(stored.influence ?? suggested.influence);
+  const [consequence, setConsequence] = useState<Rating>(stored.consequence ?? suggested.consequence);
   const [tier, setTier] = useState<Rating>(stored.tier);
   const [why, setWhy] = useState(stored.why);
   const [problem, setProblem] = useState<string | null>(null);
@@ -94,11 +110,17 @@ export function RiskPicker({ view, save, marks }: { view: BriefView; save: Save;
       <div className={`risk-grid${issues.length ? " needs-you" : ""}`}>
         <div className="risk-row">
           <span className="sb-label">Model influence</span>
-          <Seg options={RATINGS} value={influence} onPick={setInfluence} testId="risk-influence" />
+          <div className="sb-value">
+            <Seg options={RATINGS} value={influence} onPick={setInfluence} testId="risk-influence" />
+            <Suggested stored={stored.influence} suggested={suggested.influence} testId="risk-influence-suggested" />
+          </div>
         </div>
         <div className="risk-row">
           <span className="sb-label">Decision consequence</span>
-          <Seg options={RATINGS} value={consequence} onPick={setConsequence} testId="risk-consequence" />
+          <div className="sb-value">
+            <Seg options={RATINGS} value={consequence} onPick={setConsequence} testId="risk-consequence" />
+            <Suggested stored={stored.consequence} suggested={suggested.consequence} testId="risk-consequence-suggested" />
+          </div>
         </div>
         <div className="risk-row">
           <span className="sb-label">Model risk</span>
@@ -128,6 +150,8 @@ export function RiskPicker({ view, save, marks }: { view: BriefView; save: Save;
       </div>
       {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
       <NeedsYou issues={issues} testId="risk-problem" />
+      <Fields view={view} paths={["m15.influence", "m15.consequence"]} save={save} open={open} marks={marks}
+              confirmable={["m15.influence", "m15.consequence"]} />
       <InternalTarget key={view.brief.fields["acceptance.internal_target_pe"]?.at ?? ""} view={view} save={save} marks={marks}
                       tier={stored.tier} />
     </Block>

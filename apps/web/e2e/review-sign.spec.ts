@@ -11,7 +11,8 @@ test("the review table, an exclusion with a reason, and the credibility the MAP 
   const projectId = await projectWithInputs(request, "Reviewamide", [
     { study_id: "iv-250", route: "iv_infusion", dose_mg: 250 }, { study_id: "po-10", route: "oral", dose_mg: 10 },
     { study_id: "po-50", route: "oral", dose_mg: 50 },
-  ]);
+  ], { brief: [{ path: "m15.influence", value: "The model supports the dose choice next to the clinical data" },
+               { path: "m15.consequence", value: "A wrong dose choice would be corrected in the next study" }] });
   // a second logP source within 10 % of the first (D-32): one value, two sources
   const second = await request.post(`/api/v1/projects/${projectId}/evidence`, { headers: AUTH, data: {
     req_id: "REQ-phys.logp", target: "phys.logp", value: -1.5, unit: null, source_type: "PUBLICATION", doi: "10.1/paper",
@@ -33,6 +34,8 @@ test("the review table, an exclusion with a reason, and the credibility the MAP 
 
   await expect(page.getByTestId("stage-S3")).toContainText("34 min");        // MS-01's 7 % of the 8 h default (D-31)
   await expect(page.getByTestId("limitations")).toContainText("healthy adult default");
+  // why each M15 rating is what it is, as the person wrote it at Start, is in front of the signer
+  await expect(page.getByTestId("credibility-m15-why")).toContainText("The model supports the dose choice next to the clinical data");
 
   // the kept source set aside with a reason: the agreeing one takes its place, and the plan asks to be brought up to date
   await table.getByTestId("exclude-phys.logp").click();

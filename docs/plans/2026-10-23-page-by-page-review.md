@@ -121,10 +121,24 @@ think").
 - **Delete on the Projects page** (`f.history`): not built. A project is a Part 11 record, so archive (hide, never erase)
   is proposed instead. This waits on the owner's answer.
 
-### 4.3 Questions for the owner (from the general note)
-These are in the PR description and the reply of 2026-10-28:
-- the M15 texts (influence and consequence rationale);
-- an early list of what only the client can send;
-- products, populations and scenarios;
-- Delete or Archive;
-- the Inputs hard block.
+### 4.3 The owner's answers (2026-10-29)
+The owner answered the reply of 2026-10-28 point by point: "1b, 2b, 3 yes, 4 yes, 5 archive, 6a for now, 7 yes, 8c,
+9 yes, 10 yes, 11 roles+relates-to, 12 yes, 13 open-access only, 14 will review". A letter picks between keeping things
+as they are (a) and the proposal (b).
+
+| # | Question | Answer | What follows |
+|---|---|---|---|
+| 1 | The ICH M15 texts | b: the agent drafts both, a person confirms | Built (PR "the M15 draft"): Start is not done until a person has written or confirmed both. Review & sign shows them |
+| 2 | What only the client can send | b: an early "Request from the client" list | To build: on Start, from the applications, downloadable as the data request |
+| 3 | Products, populations, scenarios | yes: show each where it is used | To build: products on Inputs → Formulations, populations on Individuals; scenarios are on Review & sign |
+| 4 | Ratings preselected by the agent | yes | Built with 1: the suggestions are preselected and count once the person saves them |
+| 5 | Delete on the Projects page | archive | To build: archive (hide, never erase), with a reason, in the audit trail |
+| 6 | One tier per application | a, for now | One tier per project stays. A known gap: ICH M15 assesses credibility per context of use |
+| 7 | Inputs hard-blocked before Start is done | yes | To build: the browser specs finish Start first; a step that has begun stays open (PR #105) |
+| 8 | Grade vs status | c: in the SME grading rubric | #107: the rubric was code, not a locked ruleset; it becomes `evidence_grading.yaml` 0.1 (UNVERIFIED). A value its source calls predicted is C, and a human in vitro clearance is B, below in vivo |
+| 9 | PI-4 next | yes | `docs/plans/2026-10-23-parameter-identification-review.md` PI-4 |
+| 10 | The document library | yes | `docs/plans/2026-10-28-project-document-library.md`, three PRs |
+| 11 | Its categories | the roles plus "what it relates to" | As planned |
+| 12 | Withdraw, never delete | yes | As planned |
+| 13 | Papers agents may store | open-access only | Paywalled papers stay references, unless the owner uploads them |
+| 14 | The OSP log-scale request | the owner will review | Unsent until then |
