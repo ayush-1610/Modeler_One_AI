@@ -170,3 +170,40 @@ def test_a_withdrawn_document_is_no_longer_a_source_for_new_values(setup):
     assert refused.status_code == 409 and "a different salt form" in refused.json()["detail"]
     library.restore(sha, by="u1", reason="the right salt form")
     assert c.post("/api/v1/projects/p1/evidence", headers=H, json=body).status_code == 201
+
+
+def test_a_paper_the_research_agent_stores_is_listed_with_its_source_and_what_is_held(setup):
+    # the document library, PR 3 (the owner's answer 13): open-access full text only, with where it came from
+    import httpx
+
+    from modeler_agents.llm import ChatResult, ToolCall
+    from modeler_agents.sources import EuropePMC
+    from modeler_api.evidence_api import run_research_job
+
+    c, ws = setup
+    hits = {"resultList": {"result": [{"id": "111", "source": "MED", "pmid": "111", "pmcid": "PMC9", "doi": "10.1/oa",
+                                       "title": "Pharmacokinetics of exampleamide", "pubYear": "2019", "isOpenAccess": "Y"}]}}
+    jats = "<article><body><sec><p>The fraction unbound in human plasma was 9.1 %.</p></sec></body></article>"
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/search"):
+            return httpx.Response(200, json=hits)
+        return httpx.Response(200, text=jats) if request.url.path.endswith("/PMC9/fullTextXML") else httpx.Response(404)
+
+    class Reader:
+        provider, model = "test", "s"
+
+        def __init__(self):
+            self.turns = [[("search_literature", {"query": "exampleamide"})], [("read_full_text", {"paper_id": "111"})], []]
+
+        def complete(self, messages, tools):
+            calls = self.turns.pop(0)
+            return ChatResult(content="done", finish_reason="", model="s", usage={},
+                              tool_calls=tuple(ToolCall(id=f"c{i}", name=n, arguments=a) for i, (n, a) in enumerate(calls)))
+
+    result = run_research_job(ws.store, "t1", "p1", model=Reader(), europe_pmc=EuropePMC(transport=httpx.MockTransport(transport)))
+    assert result["status"] == "COMPLETED"
+    (row,) = c.get("/api/v1/projects/p1/library", headers=H).json()["data"]["documents"]
+    assert row["source"] == "agent" and row["role"] == "paper"
+    assert {k: row["retrieved"][k] for k in ("source", "held", "pmid", "doi", "url")} == {
+        "source": "Europe PMC", "held": "full_text", "pmid": "111", "doi": "10.1/oa", "url": "https://doi.org/10.1/oa"}

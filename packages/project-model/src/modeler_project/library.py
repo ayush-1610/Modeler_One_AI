@@ -7,7 +7,8 @@ the observed datasets and the brief fields that cite the document, each with its
 nothing cites says so. The library itself is `modeler_project.documents` (one per project, write-once blobs, audited).
 
 PR 2 adds what each document relates to (a step and, optionally, a task: the owner's answer 11) and its withdrawal
-(answer 12): a withdrawn document stays in the table, marked, with who withdrew it, when and why.
+(answer 12): a withdrawn document stays in the table, marked, with who withdrew it, when and why. PR 3 adds, for what an
+agent fetched, where from and whether its full text or only its abstract is held (answer 13).
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from pydantic import BaseModel, ConfigDict
 from modeler_project.artifacts import ArtifactKind
 from modeler_project.brief import ProjectBrief
 from modeler_project.dataset_register import datasets
-from modeler_project.documents import DocumentLibrary, RelatesTo, Withdrawal, document_id, document_record
+from modeler_project.documents import DocumentLibrary, RelatesTo, Retrieval, Withdrawal, document_id, document_record
 from modeler_project.evidence_register import items as evidence_items
 from modeler_project.workspace import Workspace
 
@@ -56,6 +57,7 @@ class LibraryRow(BaseModel):
     contributions: tuple[Contribution, ...]
     relates_to: RelatesTo | None = None
     withdrawn: Withdrawal | None = None
+    retrieved: Retrieval | None = None      # where an agent took it from, and whether the full text is held (PR 3)
 
 
 def _source(by: str) -> Literal["person", "agent", "system"]:
@@ -111,5 +113,6 @@ def library_rows(ws: Workspace) -> list[LibraryRow]:
             sha256=record.sha256, name=record.name, role=record.role, format=record.kind, n_pages=record.n_pages,
             size_bytes=record.size_bytes, added_at=first.created_at.isoformat(), added_by=first.created_by,
             source=_source(first.created_by), versions=len(history) or 1, contributions=tuple(cited.get(record.sha256, ())),
-            relates_to=entry.relates_to if entry else None, withdrawn=entry.withdrawn if entry else None))
+            relates_to=entry.relates_to if entry else None, withdrawn=entry.withdrawn if entry else None,
+            retrieved=entry.retrieved if entry else None))
     return sorted(rows, key=lambda r: r.added_at)

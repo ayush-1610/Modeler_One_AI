@@ -64,6 +64,19 @@ class WithdrawalView(View):
     reason: str
 
 
+class RetrievalView(View):
+    """Where an agent took a document from, and what of it is held (`documents.Retrieval`; open-access full text only)."""
+
+    source: str
+    held: Literal["full_text", "abstract", "page"]
+    url: str
+    doi: str
+    pmid: str
+    pmcid: str
+    by: str
+    at: str
+
+
 class LibraryRowView(View):
     """One document of the project library (`library.LibraryRow`), with what it contributed."""
 
@@ -80,6 +93,7 @@ class LibraryRowView(View):
     contributions: list[ContributionView]
     relates_to: RelatesToView | None
     withdrawn: WithdrawalView | None
+    retrieved: RetrievalView | None
 
 
 class LibraryPage(View):
@@ -92,6 +106,7 @@ class LibraryEntryView(View):
     sha256: str
     relates_to: RelatesToView | None
     withdrawn: WithdrawalView | None
+    retrieved: RetrievalView | None
 
 
 class FigureView(View):

@@ -1,9 +1,9 @@
 # The project document library (plan)
 
 Status: **agreed** (the owner, 2026-10-29: decisions 10–13). **PR 1, the library page, is built** (2026-10-29).
-**PR 2, "Add data" and withdrawal, is built** (2026-10-30). PR 3 (agents library first) follows. This plan comes
-from the owner's marks on the Start page review (page review 1, 2026-10-27): rows `b1.files` and `b1.add` (move), and
-`f.viewer` (move).
+**PR 2, "Add data" and withdrawal, is built** (2026-10-30). **PR 3, the agents library first, is built**
+(2026-10-30). This plan comes from the owner's marks on the Start page review (page review 1, 2026-10-27): rows
+`b1.files` and `b1.add` (move), and `f.viewer` (move).
 
 ## What the owner asked for
 - **"Add data" in the left sidebar,** directly above a "Project Document Library" entry.
@@ -66,6 +66,10 @@ from the owner's marks on the Start page review (page review 1, 2026-10-27): row
    - What it fetches is stored with role `paper` and its provenance (URL, DOI, when, by which agent) before a value is
      taken from it.
    - The document's status says whether its full text is held or only its abstract.
+   - Built (2026-10-30): `search_literature` lists the library's matches first and marks the papers it holds; a paper
+     already stored is read from the library, not fetched again; the provenance is the library record's `Retrieval`.
+     The agents still search Europe PMC when the library has nothing: "library first" orders the search, it does not
+     forbid the outside one.
    - Licensing is respected: a paper the project has no right to store is kept as a reference with its abstract, and
      access is requested (the existing `access_requests`).
 

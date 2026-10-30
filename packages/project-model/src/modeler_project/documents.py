@@ -6,9 +6,10 @@ DOCUMENT artifact (id ``doc-<first 12 hex of the sha>``) records the metadata an
 agents' keyword search. Retrieved database records (e.g. a PubChem answer) are stored the same way, as role
 ``retrieved_record``, so a value taken from a database is quoted from exactly what the database returned.
 
-The library's own record (docs/plans/2026-10-28-project-document-library.md, PR 2; the owner's answers 11 and 12 of
+The library's own record (docs/plans/2026-10-28-project-document-library.md, PRs 2 and 3; the owner's answers 11–13 of
 2026-10-29) is kept beside the artifacts in ``<root>/<tenant>/projects/<pid>/library.json``: what each document relates
-to (a step and, optionally, a task) and whether a person withdrew it. A withdrawn document is never erased: the table
+to (a step and, optionally, a task), whether a person withdrew it, and, for what an agent fetched, where from and whether
+the full text or only the abstract is held (agents store open-access full text only). A withdrawn document is never erased: the table
 marks it, the values already taken from it keep their citation, and the agents' view of the library
 (``DocumentLibrary(ws, for_agents=True)``) no longer lists, searches or reads it. It is not a new version of the
 DOCUMENT artifact, because the brief and the client data derive from the documents and a new version would mark them
@@ -58,6 +59,22 @@ class Withdrawal(BaseModel):
     reason: str
 
 
+class Retrieval(BaseModel):
+    """Where an agent took a document from, and what of it is held (the owner's answer 13: agents store open-access
+    papers only; a paper that is not open access is kept as its abstract, and a person is asked for it)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source: str                                      # "Europe PMC", "web search"
+    held: Literal["full_text", "abstract", "page"]   # an open-access full text, an abstract, a web page as returned
+    url: str = ""
+    doi: str = ""
+    pmid: str = ""
+    pmcid: str = ""
+    by: str
+    at: str
+
+
 class LibraryEntry(BaseModel):
     """The library's record of one document, beside its DOCUMENT artifact."""
 
@@ -65,6 +82,7 @@ class LibraryEntry(BaseModel):
 
     relates_to: RelatesTo | None = None
     withdrawn: Withdrawal | None = None
+    retrieved: Retrieval | None = None
 
 
 @dataclass(frozen=True)
@@ -211,6 +229,30 @@ class DocumentLibrary:
         if not reason.strip():
             raise LibraryError("say why the document is restored (the reason is kept in the audit trail)")
         return self._change(sha256, by=by, action="document.restore", reason=reason.strip(), withdrawn=None)
+
+    def record_retrieval(self, sha256: str, retrieval: Retrieval) -> LibraryEntry:
+        """Record where an agent took a document from. The first retrieval is kept: the same bytes fetched again are the
+        same document, from the same place."""
+        self._known(sha256)
+        if (entry := self.entry(sha256)).retrieved is not None:
+            return entry
+        return self._change(sha256, by=retrieval.by, action="document.retrieve",
+                            reason=f"{retrieval.source}, {retrieval.held.replace('_', ' ')}", retrieved=retrieval)
+
+    def held_paper(self, *, pmid: str | None = None, pmcid: str | None = None, doi: str | None = None,
+                   held: str | None = None) -> ArtifactVersion | None:
+        """The copy of a paper an agent stored before, found by any of its identifiers (a full text before an abstract),
+        so the library is read before anything is fetched again. In the agents' view a withdrawn copy is not found."""
+        def same(entry: Retrieval) -> bool:
+            return bool((pmid and entry.pmid == pmid) or (pmcid and entry.pmcid == pmcid)
+                        or (doi and entry.doi.lower() == doi.lower()))
+
+        found = [(sha, e.retrieved) for sha, e in self.entries().items()
+                 if e.retrieved and same(e.retrieved) and (held is None or e.retrieved.held == held)]
+        for sha, _ in sorted(found, key=lambda f: f[1].held != "full_text"):
+            if (version := self.by_sha(sha)) is not None:
+                return version
+        return None
 
     def pages(self, sha256: str) -> list[str]:
         if self.for_agents and self.entry(sha256).withdrawn:

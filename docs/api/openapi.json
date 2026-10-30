@@ -8956,6 +8956,16 @@
               }
             ]
           },
+          "retrieved": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RetrievalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "sha256": {
             "title": "Sha256",
             "type": "string"
@@ -8974,7 +8984,8 @@
         "required": [
           "sha256",
           "relates_to",
-          "withdrawn"
+          "withdrawn",
+          "retrieved"
         ],
         "title": "LibraryEntryView",
         "type": "object"
@@ -9052,6 +9063,16 @@
               }
             ]
           },
+          "retrieved": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RetrievalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "role": {
             "title": "Role",
             "type": "string"
@@ -9101,7 +9122,8 @@
           "versions",
           "contributions",
           "relates_to",
-          "withdrawn"
+          "withdrawn",
+          "retrieved"
         ],
         "title": "LibraryRowView",
         "type": "object"
@@ -13971,6 +13993,61 @@
           "action"
         ],
         "title": "ResolveRequest",
+        "type": "object"
+      },
+      "RetrievalView": {
+        "additionalProperties": false,
+        "description": "Where an agent took a document from, and what of it is held (`documents.Retrieval`; open-access full text only).",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "doi": {
+            "title": "Doi",
+            "type": "string"
+          },
+          "held": {
+            "enum": [
+              "full_text",
+              "abstract",
+              "page"
+            ],
+            "title": "Held",
+            "type": "string"
+          },
+          "pmcid": {
+            "title": "Pmcid",
+            "type": "string"
+          },
+          "pmid": {
+            "title": "Pmid",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "held",
+          "url",
+          "doi",
+          "pmid",
+          "pmcid",
+          "by",
+          "at"
+        ],
+        "title": "RetrievalView",
         "type": "object"
       },
       "RevealRequest": {

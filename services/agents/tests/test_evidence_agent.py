@@ -98,3 +98,48 @@ def test_a2_stores_what_it_reads_and_only_verified_values_enter_the_register(tmp
     assert evidence["phys.logp"].source.locator == "Table 2"
     assert len(ws.list(ArtifactKind.ACCESS_REQUEST)) == 1 and outcome.not_found == {"REQ-phys.pka": "exampleamide pKa; europe pmc"}
     assert json.loads(json.dumps(outcome.usage))["input_tokens"] == 4
+
+
+def test_the_library_comes_first_and_what_an_agent_stores_says_where_it_came_from(tmp_path):
+    # the document library, PR 3 (the owner's answers 10 and 13): the library is read before anything is fetched again,
+    # only an open-access full text is stored, and each stored text records its source and what of it is held
+    from modeler_agents.evidence_agent import reading_tools
+
+    fetched: list[str] = []
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        fetched.append(request.url.path)
+        return _transport(request)
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    europe_pmc = EuropePMC(transport=httpx.MockTransport(transport))
+
+    def tools(library):
+        ctx = ResearchContext(ws=ws, library=library, requirements=[], actor="agent:ar_2", europe_pmc=europe_pmc)
+        return {t.name: t.handler for t in reading_tools(ctx)}
+
+    first = tools(DocumentLibrary(ws, for_agents=True))
+    assert "in the library" not in first["search_literature"](query="exampleamide")
+    assert first["read_full_text"](paper_id="111").startswith("doc_sha256 ")
+    assert first["read_full_text"](paper_id="222").startswith("NOT OPEN ACCESS: only its abstract is kept")
+    library = DocumentLibrary(ws)
+    (doc,) = library.documents()
+    sha = doc.content["sha256"]
+    retrieved = library.entry(sha).retrieved
+    assert (retrieved.source, retrieved.held, retrieved.pmid, retrieved.doi, retrieved.url, retrieved.by) == (
+        "Europe PMC", "full_text", "111", "10.1/oa", "https://doi.org/10.1/oa", "agent:ar_2")
+
+    # a later run: the library's match comes first, the paper is marked as held and read from the library
+    again = tools(DocumentLibrary(ws, for_agents=True))
+    listing = again["search_literature"](query="fraction unbound plasma")
+    assert listing.startswith("In this project's library") and f"in the library: {sha}" in listing
+    assert again["read_full_text"](paper_id="111").startswith(f"ALREADY IN THE LIBRARY: doc_sha256 {sha}")
+    assert again["read_abstract"](paper_id="111").startswith("ALREADY IN THE LIBRARY:")
+    assert sum(p.endswith("/PMC9/fullTextXML") for p in fetched) == 1           # fetched once, then read from the library
+
+    # withdrawn by a person: not found in the library, and fetching the same text again does not bring it back
+    library.withdraw(sha, by="u1", reason="the wrong salt form")
+    later = tools(DocumentLibrary(ws, for_agents=True))
+    assert "in the library" not in later["search_literature"](query="exampleamide")
+    assert later["read_full_text"](paper_id="111").startswith("WITHDRAWN: a person withdrew this document")
+    assert library.entry(sha).withdrawn is not None

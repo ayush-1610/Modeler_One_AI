@@ -6,6 +6,7 @@
 // document opens on its pages. Each project's library is its own: nothing here is shared with another project.
 // PR 2: what each document relates to (a step and, optionally, a task), and withdrawal with a reason (answer 12): a
 // withdrawn document stays here, marked, and the agents no longer use it; it can be restored, with a reason too.
+// PR 3: what an agent fetched says where from (with its link) and whether the full text or only the abstract is held.
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -61,6 +62,22 @@ function RelatesTo({ projectId, row }: { projectId: string; row: Row }) {
       <Link href={STEP_ROUTES[r.step as StepId](projectId)}>{STEP_LABEL[r.step] ?? r.step}</Link>
       {r.task && <div className="muted" style={{ fontSize: 12 }}>{r.task}</div>}
     </>
+  );
+}
+
+const HELD: Record<string, string> = { full_text: "full text (open access)", abstract: "abstract only", page: "web page" };
+
+/** Where an agent took a document from, and what of it the project holds (PR 3: open-access full text only). */
+function Retrieved({ row }: { row: Row }) {
+  const r = row.retrieved;
+  if (!r) return null;
+  const id = r.pmid ? `PMID ${r.pmid}` : r.doi ? `doi ${r.doi}` : "";
+  return (
+    <div className="library-retrieved" data-testid={`library-retrieved-${row.name}`}>
+      {r.url ? <a href={r.url} target="_blank" rel="noreferrer">{r.source}</a> : r.source}
+      {id && <> · {id}</>}
+      <div><span className={`chip ${r.held === "abstract" ? "medium" : "neutral"}`}>{HELD[r.held] ?? r.held}</span></div>
+    </div>
   );
 }
 
@@ -124,6 +141,7 @@ export function LibraryTable({ projectId }: { projectId: string }) {
   const shown = useMemo(() => {
     const words = query.trim().toLowerCase();
     const hit = (r: Row) => !words || [r.name, r.role, r.added_by, r.relates_to?.task ?? "", r.withdrawn?.reason ?? "",
+      r.retrieved ? `${r.retrieved.source} ${r.retrieved.pmid} ${r.retrieved.doi} ${HELD[r.retrieved.held] ?? ""}` : "",
       ...r.contributions.map((c) => `${c.target} ${c.value}`)].join(" ").toLowerCase().includes(words);
     const list = rows.filter((r) => hit(r) && (!role || r.role === role) && (!source || r.source === source)
       && (!status || (status === "withdrawn") === Boolean(r.withdrawn)));
@@ -184,7 +202,8 @@ export function LibraryTable({ projectId }: { projectId: string }) {
                     )}
                   </td>
                   <td>{r.source === "person" ? r.added_by : r.source === "agent" ? `agent (${r.added_by.slice(6)})` : "system"}
-                    <div className="muted" style={{ fontSize: 12 }}>{r.added_at.slice(0, 10)}</div></td>
+                    <div className="muted" style={{ fontSize: 12 }}>{r.added_at.slice(0, 10)}</div>
+                    <Retrieved row={r} /></td>
                   <td>{ROLE[r.role] ?? r.role}</td>
                   <td><RelatesTo projectId={projectId} row={r} /></td>
                   <td>{r.format} · {r.n_pages} p.</td>
