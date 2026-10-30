@@ -9,6 +9,7 @@ configured root, the seam the Postgres §5 read tables will replace.
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import unquote, urlparse
@@ -20,6 +21,7 @@ from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
 from modeler_api.cpf_view import project_cpf_view
 from modeler_api.deps import get_project_store
+from modeler_api.memberships import archive_for
 from modeler_api.responses import answers, envelope
 from modeler_api.views.campaigns import CampaignPackage, Campaigns, Escalations
 from modeler_api.views.read import CpfView, Projects, ProjectSystem, Proposals, Studies
@@ -46,12 +48,15 @@ StoreDep = Annotated[ReadStore, Depends(get_read_store)]
 
 
 @router.get("/projects", **answers(Projects))
-def list_projects(principal: PrincipalDep, store: StoreDep):
-    # only the projects this person may open (their token's and their platform memberships, P3)
+def list_projects(principal: PrincipalDep, store: StoreDep, settings: SettingsDep):
+    # only the projects this person may open (their token's and their platform memberships, P3); each says whether it is
+    # archived (page review 1), and the Projects page hides those until asked
     projects = store.list_projects(principal.tenant_id)
     if "*" not in principal.projects:
         projects = [p for p in projects if p.get("id") in principal.projects]
-    return envelope({"projects": projects})
+    archived = archive_for(settings, principal.tenant_id).archived() if settings.read_root else {}
+    return envelope({"projects": [{**p, "archived": dataclasses.asdict(archived[p["id"]]) if p.get("id") in archived else None}
+                                  for p in projects]})
 
 
 @router.get("/projects/{project_id}", **answers(ProjectRecord))

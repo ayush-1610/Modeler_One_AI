@@ -56,6 +56,11 @@ model, start the project for that drug and, on Inputs, **Take the published OSP 
 generates the analysis plan from your studies (the MS-01 data split), you sign it, and the campaign runs S0 → S7 on
 PK-Sim.
 
+**The Projects page** lists your projects, each with its **History** (its audit trail: every artifact's change, its
+members, and archiving). A project is never deleted: it is a Part 11 record. **Archive** hides a test or finished
+project from the list, with a reason, and keeps everything it holds; it still opens by its address. **Show archived**
+lists them, and **Restore** brings one back, with a reason. A project whose campaign is still running is not archived.
+
 **From a proposal (Step 1 · Start):** **+ Start from proposal** → name the drug and drop the proposal, its annexes and
 the client's data files in one upload (workbooks go to the client's data on Inputs, every other file to the documents)
 → the Start screen fills the drug's identity from PubChem and, with an agent configured, the brief from the documents.
