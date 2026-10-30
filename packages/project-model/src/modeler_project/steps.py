@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict
 
 from modeler_project.artifacts import ArtifactKind, ArtifactStatus
 from modeler_project.brief import (
+    RISK_TEXTS,
     SHORT_BRIEF,
     START_REQUIRED,
     FieldStatus,
@@ -46,6 +47,10 @@ def _step(step: StepId, state: StepState, *reasons: str) -> Step:
     return Step(step=step, label=STEP_LABELS[step], state=state, reasons=tuple(reasons))
 
 
+# What a person wrote or kept (an agent's or a document's value waits on them where Start asks for a person's word)
+_PERSON = (FieldStatus.ENTERED, FieldStatus.EDITED, FieldStatus.CONFIRMED)
+
+
 class StartIssue(BaseModel):
     """One thing Start still needs, on the brief field it belongs to, so the screen marks that field (page review 1)."""
 
@@ -57,11 +62,20 @@ class StartIssue(BaseModel):
 
 def start_issues(brief: ProjectBrief) -> list[StartIssue]:
     """What Start still needs (redesign §3.1): the question and its applications, the model risk (ICH M15, never
-    assumed) and an internal target no looser than its tier (MS-01 §8), the scope gates (D-28: anything the builder
-    cannot model is refused here), and the open questions on the short brief. Proposal notes never hold Start up."""
+    assumed) with why each rating is what it is (in a person's words, or an agent's draft a person confirmed), an
+    internal target no looser than its tier (MS-01 §8), the scope gates (D-28: anything the builder cannot model is
+    refused here), and the open questions on the short brief. Proposal notes never hold Start up."""
     issues = [StartIssue(path=path, message=f"{definition_of(path).label}: not set yet") for path in START_REQUIRED
               if brief.value(path) in (None, "", []) and brief.get(path).status is not FieldStatus.NOT_APPLICABLE]
     issues += [StartIssue(path="acceptance.tier", message=m) for m in risk_check(brief).problems]
+    for path in RISK_TEXTS:      # why each rating is what it is, in a person's words or confirmed by one (ICH M15 §2.1.5)
+        record, label = brief.get(path), definition_of(path).label
+        if record.value in (None, ""):
+            issues.append(StartIssue(path=path, message=f"{label}: not written yet (ICH M15 asks why the rating is what it is)"))
+        elif record.status is FieldStatus.DRAFTED:
+            issues.append(StartIssue(path=path, message=f"{label}: confirm the intake agent's draft, or change it"))
+        elif record.status not in _PERSON:
+            issues.append(StartIssue(path=path, message=f"{label}: confirm the proposal's words, or change them"))
     target, tier = brief.value("acceptance.internal_target_pe"), brief.value("acceptance.tier")
     if target not in (None, "") and tier:
         widest = loosest_internal_target(str(tier))

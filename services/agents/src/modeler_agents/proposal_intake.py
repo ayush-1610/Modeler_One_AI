@@ -4,7 +4,10 @@ The model reads the uploaded documents through tools and proposes one field at a
 proposal before it enters the brief: the field exists, the value fits the field (enum, number, list), the quote is
 found verbatim on the cited page, and the field is not locked by a person. A rejection is returned to the model with
 its reason, so it can correct the citation or move on. What no document states is marked MISSING with a question;
-nothing is inferred. ICH M15 ratings and the risk tier are never proposed by the agent.
+nothing is inferred, with one exception: the ICH M15 draft (page review 1, the owner's decisions 1b and 4 of
+2026-10-29). From the question of interest and context of use, the agent suggests the model influence and the decision
+consequence, each with why. All four are DRAFTED: none is a value until a person confirms it. The ratings that count
+and the risk tier stay human-only and are never written by the agent.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from modeler_intake.citations import quote_appears_in, value_stated_in_quote
 from modeler_project.brief import (
     FIELDS,
     GROUPS,
+    RATINGS,
     SECTIONS,
     BriefPathError,
     Citation,
@@ -40,11 +44,16 @@ class DocumentSource(Protocol):
     def search(self, query: str, max_results: int = 8) -> list[Any]: ...
 
 
+# The suggested ratings come only from draft_risk_assessment, never from a quote
+DRAFT_ONLY = frozenset({"m15.influence_suggested", "m15.consequence_suggested"})
+
+
 def _catalog_text() -> str:
-    """The fields the agent may fill: every field but the ones only a person sets (the ICH M15 ratings and risk)."""
+    """The fields the agent may fill: every field but the ones only a person sets (the ICH M15 ratings and risk) and the
+    suggested ratings, which come from the draft."""
     lines = []
     for code, title in SECTIONS.items():
-        scalar = [f for f in FIELDS if f.section == code and f.id not in HUMAN_ONLY]
+        scalar = [f for f in FIELDS if f.section == code and f.id not in HUMAN_ONLY | DRAFT_ONLY]
         groups = [g for g in GROUPS if g.section == code]
         if not scalar and not groups:
             continue
@@ -69,7 +78,7 @@ Rules:
 - Use exactly the field paths and option values listed below. For lists of things (products, scenarios, populations, data_plan), use one index per item, starting at 0, and fill the item's required sub-fields first.
 - The data plan (data_plan[i]) records every statement about who provides which data: the client, the literature, the sponsor, or nobody yet; with its category and purpose (model building, internal validation, external validation, application verification).
 - Doses and strengths are numbers with their unit as stated (e.g. value 50, unit mg). Keep the unit the document uses.
-- Never rate model influence, consequence or risk and never set acceptance.tier: those are decided by people. You may extract the descriptions.
+- Never propose the ICH M15 ratings, the risk tier or acceptance.tier with propose_field: people decide those. Once qoi.text and qoi.context_of_use are recorded, call draft_risk_assessment once. Suggest the model influence (how much the model's evidence weighs in the decision: low when other evidence decides, high when the model is the main evidence, e.g. in place of a clinical study) and the decision consequence (what a wrong decision would mean for patients: low when it would do no harm, high when it could seriously harm them). Explain each in one or two plain sentences built from the question and context of use. A person confirms or changes the draft.
 - Do not repeat a field that was RECORDED unless a document states a different value; then propose it again with the new quote and say why in the note.
 - When a proposal is REJECTED, fix it from the page text (exact quote, correct page, valid option) or move on.
 - Work document by document: list_documents, then read pages; search_documents helps to find specific facts. Call several tools in one turn whenever you can (e.g. propose every field you found on a page together). Finish with a short summary of what was filled, what is missing, and any contradictions between documents.
@@ -100,6 +109,8 @@ def propose_field(ctx: IntakeContext, *, path: str, value: Any, quote: str, doc_
         return _reject(ctx, "UNKNOWN_FIELD", path, str(exc))
     if path in HUMAN_ONLY:
         return _reject(ctx, "HUMAN_ONLY", path, "this field is set by a person; extract the description fields instead")
+    if path in DRAFT_ONLY:
+        return _reject(ctx, "DRAFT_ONLY", path, "suggest the ratings with draft_risk_assessment")
     if locked(ctx.brief, path):
         return _reject(ctx, "LOCKED", path, "a person already set this field; it is not changed by the agent")
     page_text = ctx.library.page_text(doc_sha256, int(page))
@@ -128,6 +139,38 @@ def propose_field(ctx: IntakeContext, *, path: str, value: Any, quote: str, doc_
         return _reject(ctx, "INVALID_VALUE", path, str(exc))
     ctx.accepted.append({"path": path, "value": value, "unit": unit, "doc": doc_sha256, "page": page})
     return f"RECORDED {path}" + (" (confidence B: number not literal in the quote)" if confidence == "B" else "")
+
+
+def draft_risk_assessment(ctx: IntakeContext, *, influence: str, how_the_model_is_used: str, consequence: str,
+                          what_a_wrong_decision_means: str) -> str:
+    """The ICH M15 draft: the two ratings the agent suggests, with why, built from the question of interest and context of
+    use already in the brief and citing their quotes. Checked whole before anything is written. A field a person set,
+    or a description the proposal itself states (EXTRACTED), is kept."""
+    basis = [ctx.brief.get(p) for p in ("qoi.text", "qoi.context_of_use")]
+    if any(r.value in (None, "") for r in basis):
+        return _reject(ctx, "NOTHING_TO_DRAFT_FROM", "m15.influence",
+                       "record qoi.text and qoi.context_of_use first: the draft is built from them")
+    drafts = [("m15.influence_suggested", influence), ("m15.consequence_suggested", consequence),
+              ("m15.influence", how_the_model_is_used.strip()), ("m15.consequence", what_a_wrong_decision_means.strip())]
+    for path, value in drafts[:2]:
+        if value not in RATINGS:
+            return _reject(ctx, "INVALID_VALUE", path, f"{value!r} is not one of {', '.join(RATINGS)}")
+    for path, value in drafts[2:]:
+        if len(value) < 20:
+            return _reject(ctx, "INVALID_VALUE", path, "say why in a sentence or two (at least 20 characters)")
+    citations = tuple(c for r in basis for c in r.citations)
+    note = "drafted by the intake agent from the question of interest and context of use; a person confirms it"
+    written, kept = [], []
+    for path, value in drafts:
+        if locked(ctx.brief, path) or ctx.brief.get(path).status is FieldStatus.EXTRACTED:
+            kept.append(path)
+            continue
+        ctx.brief = agent_set(ctx.brief, path, value=value, unit=None, citations=citations, status=FieldStatus.DRAFTED,
+                              confidence=None, by=ctx.actor, note=note)
+        written.append(path)
+        ctx.accepted.append({"path": path, "value": value, "unit": "", "doc": "", "page": None})
+    return (f"DRAFTED {', '.join(written) or 'nothing'}"
+            + (f"; kept {', '.join(kept)} (set by a person or stated in a document)" if kept else ""))
 
 
 def _doc_name(library: DocumentSource, sha: str) -> str:
@@ -190,6 +233,16 @@ def build_tools(ctx: IntakeContext) -> list[Tool]:
         Tool("mark_missing", "Record that a field is not stated in any document, with a question for the reviewer.",
              {"type": "object", "properties": {"path": string, "question": string}, "required": ["path", "question"]},
              mark_missing),
+        Tool("draft_risk_assessment",
+             "Suggest the ICH M15 model influence and decision consequence, each with why, from the recorded question of "
+             "interest and context of use. A draft only: a person confirms or changes it.",
+             {"type": "object", "properties": {
+                 "influence": {"type": "string", "enum": list(RATINGS)},
+                 "how_the_model_is_used": {"type": "string", "description": "why the model's influence is rated so"},
+                 "consequence": {"type": "string", "enum": list(RATINGS)},
+                 "what_a_wrong_decision_means": {"type": "string", "description": "why the consequence is rated so"}},
+              "required": ["influence", "how_the_model_is_used", "consequence", "what_a_wrong_decision_means"]},
+             lambda **kw: draft_risk_assessment(ctx, **kw)),
     ]
 
 

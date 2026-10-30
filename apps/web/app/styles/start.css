@@ -26,6 +26,8 @@
 .sb-source { display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; font-size: 12px; }
 .sb-quote { color: var(--ink-dim); font-style: italic; font-size: 12.5px; overflow-wrap: anywhere; }
 .sb-change { padding: 5px 11px; font-size: 13px; }
+.sb-actions { display: flex; gap: 6px; align-items: baseline; }
+.sb-actions .btn.primary { padding: 5px 11px; font-size: 13px; }
 .sb-editor { display: grid; gap: 8px; }
 .sb-editor input, .sb-editor select, .sb-editor textarea, .chip-list input, .route-row select, .start-question input,
 .risk-row textarea, .start-block .row > select {

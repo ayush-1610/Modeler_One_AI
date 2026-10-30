@@ -28,8 +28,11 @@ export function Block({ n, title, lede, testId, children }: {
   );
 }
 
-export function Fields({ view, paths, save, open, marks, notApplicable = [], suggestions = {}, labels = {}, extras = {} }: {
+export function Fields({ view, paths, save, open, marks, notApplicable = [], suggestions = {}, labels = {}, extras = {},
+  confirmable = [] }: {
   view: BriefView; paths: string[]; save: Save; open: Open; marks: Marks; notApplicable?: string[];
+  /** Fields that need a person's word, confirmed in place (the ICH M15 texts). */
+  confirmable?: string[];
   suggestions?: Record<string, string[]>;
   /** A label for this screen where the catalog's speaks to the intake agent. */
   labels?: Record<string, string>;
@@ -42,7 +45,8 @@ export function Fields({ view, paths, save, open, marks, notApplicable = [], sug
         <FieldRow key={`${p}:${recordOf(view, p).at ?? ""}`} path={p} save={save} record={recordOf(view, p)}
                   def={labels[p] ? { ...defOf(view, p), label: labels[p] } : defOf(view, p)}
                   open={open} allowNotApplicable={notApplicable.includes(p)} suggestions={suggestions[p]} extra={extras[p]}
-                  issues={marks.issues(p)} questions={marks.questions(p)} onAnswer={marks.answer} />
+                  issues={marks.issues(p)} questions={marks.questions(p)} onAnswer={marks.answer}
+                  confirmable={confirmable.includes(p)} />
       ))}
     </div>
   );
