@@ -72,7 +72,9 @@ the client's data files in one upload (workbooks go to the client's data on Inpu
 → the Start screen fills the drug's identity from PubChem and, with an agent configured, the brief from the documents.
 Each value shows its source; click it to see the page it was read from. Anything that still needs you is marked red on
 its own box, with a ⚠ line saying why, and the bar at the bottom counts what is left. The steps after Start stay
-locked until nothing is.
+locked until nothing is: Inputs, opened by its address, says what Start still needs and links back. A project that has
+already gathered its inputs (or signed its plan) keeps its later steps open, with a red banner on Inputs, if Start
+later needs something again.
 - **The question:** set what the documents do not say and correct what is wrong; no "why" is asked. Each application
   says what data it adds.
 - **The drug's disposition:**

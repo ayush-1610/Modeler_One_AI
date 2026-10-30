@@ -3,6 +3,8 @@
 // literature; nothing is accepted. Software check of the pipeline: no PK-Sim run here.
 import { expect, test } from "@playwright/test";
 
+import { finishStart } from "./fixtures/inputs";
+
 const AUTH = { Authorization: "Bearer dev" };
 
 test("the published Dapagliflozin model's values and studies are taken as a source on Inputs", async ({ page, request }) => {
@@ -13,6 +15,7 @@ test("the published Dapagliflozin model's values and studies are taken as a sour
   });
   expect(started.ok(), await started.text()).toBeTruthy();
   const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);      // Inputs opens once Start is done (page review 1, decision 7)
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/inputs`);
