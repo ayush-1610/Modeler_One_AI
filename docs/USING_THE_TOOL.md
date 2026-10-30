@@ -96,6 +96,14 @@ locked until nothing is.
   optional internal target sits under them and is never looser than the tier.
 - **What is modelled:** modality, PBPK model and site of action read as one line once all three are supported. Then
   come the formulation types, and the routes with their doses. What the builder cannot model yet is refused there.
+- **What to request from the client:** only what the client alone holds (test-product data, BE studies, dissolution,
+  biorelevant solubility…), from the data plan, each with what it serves. It follows the applications and the proposal as
+  they change. **Download the request (.xlsx)** gives the client-data workbook with these items on a first sheet, saying
+  where each goes; the client fills it and sends it back, and it is read cell by cell on Inputs. The agents find the
+  rest in the documents and the literature.
+
+The proposal's products are on Inputs → **Formulations**, and its populations on **Individuals**, where they are used:
+each with its source, changed, added or removed (with a reason) in place.
 
 Nothing on Start is approved: you review everything once, when you sign the plan.
 

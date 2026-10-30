@@ -9,6 +9,7 @@ read on the Inputs step's Studies tab, and nothing is approved (D-27): the one r
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
@@ -26,7 +27,7 @@ from modeler_api.views.client_data import (
     SheetView,
     TriageStart,
 )
-from modeler_intake.client_template import TEMPLATE_ID, build_template
+from modeler_intake.client_template import TEMPLATE_ID, RequestRow, build_template
 from modeler_intake.documents import DocumentError
 from modeler_intake.grid import WorkbookGrid, read_workbook_bytes
 from modeler_intake.sheet_form import SheetForm, preview_rows, suggest, to_proposal
@@ -51,7 +52,7 @@ from modeler_project.dissolution_register import DissolutionRegisterError, compa
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceState
 from modeler_project.inputs import refresh_inputs
-from modeler_project.requirements import RequirementMatrix
+from modeler_project.requirements import RequirementMatrix, client_request
 
 router = APIRouter(prefix="/api/v1", tags=["client-data"])
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -92,6 +93,23 @@ def download_template(principal: Reader) -> Response:
     """The client-data workbook (D-11): README plus one sheet per kind of data, read with no AI."""
     return Response(build_template(), media_type=XLSX,
                     headers={"Content-Disposition": f'attachment; filename="{TEMPLATE_ID}.xlsx"'})
+
+
+@router.get("/projects/{project_id}/client-data/request.xlsx")
+def download_request(project_id: str, principal: Reader, store: StoreDep) -> Response:
+    """The project's data request (page review 1, decision 2b): the client-data workbook with a first sheet listing what
+    only the client can send, from the data plan, and where each goes. The client fills it and sends it back."""
+    ws = workspace_for(project_id, principal, store)
+    _version, matrix = _matrix(ws)
+    brief = _brief(ws)
+    drug = (brief.drug_name if brief else "") or project_id
+    rows = [RequestRow(what=line.what, why=line.why, required=line.required, product=line.product, sheet=line.sheet)
+            for line in client_request(matrix)]
+    if not rows:
+        raise HTTPException(status_code=409, detail="the data plan asks the client for nothing yet")
+    heading = f"Data request: {drug} ({project_id}), {datetime.now(UTC).date().isoformat()}"
+    return Response(build_template(rows, heading=heading), media_type=XLSX,
+                    headers={"Content-Disposition": f'attachment; filename="{project_id}-data-request.xlsx"'})
 
 
 @router.get("/projects/{project_id}/client-data", **answers(ClientDataPage))

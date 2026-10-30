@@ -346,6 +346,25 @@ def test_a_reading_start_runs_in_the_background_and_refuses_the_template_and_unk
     assert refused.status_code == 409 and "cell by cell" in refused.json()["detail"]
 
 
+@pytest.mark.req("T-42")
+def test_the_data_request_lists_what_only_the_client_sends_on_start_and_downloads_as_the_workbook(setup):
+    # page review 1 (the owner's decision 2b of 2026-10-29): the CRO's day-one data request, from the data plan
+    from modeler_project.requirements import RequirementMatrix, client_request
+
+    c, ws = setup
+    expected = client_request(RequirementMatrix.from_content(ws.latest(ArtifactKind.REQUIREMENTS, "main").content))
+    assert expected, "the core template asks the client for something even before the brief is filled"
+    start = c.get("/api/v1/projects/p1/brief", headers=H).json()["data"]["start"]
+    assert [line["req_id"] for line in start["client_request"]] == [line.req_id for line in expected]
+    r = c.get("/api/v1/projects/p1/client-data/request.xlsx", headers=H)
+    assert r.status_code == 200 and r.headers["content-type"] == XLSX
+    assert r.headers["content-disposition"] == 'attachment; filename="p1-data-request.xlsx"'
+    wb = load_workbook(io.BytesIO(r.content))
+    assert wb.sheetnames[0] == "Request" and wb["Request"]["A1"].value.startswith("Data request: Exampleamide (p1), ")
+    rows = [[cell.value for cell in row] for row in wb["Request"].iter_rows(min_row=5)]
+    assert [row[1] for row in rows] == [line.what for line in expected]
+
+
 def test_a_withdrawn_client_file_is_shown_but_not_read_into_the_project(setup):
     # the document library, PR 2: a withdrawn file is kept and opened, but not classified, read or mapped until restored
     from modeler_project.documents import DocumentLibrary

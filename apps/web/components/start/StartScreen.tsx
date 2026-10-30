@@ -6,6 +6,7 @@ import { useState } from "react";
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
 import { Dialog } from "@/components/kit/Dialog";
 import { DrugAndFiles } from "@/components/start/Blocks";
+import { ClientRequest } from "@/components/start/ClientRequest";
 import { RiskPicker } from "@/components/start/RiskPicker";
 import { ScopeGates } from "@/components/start/ScopeGates";
 import { ShortBrief } from "@/components/start/ShortBrief";
@@ -85,6 +86,7 @@ export function StartScreen({ projectId }: { projectId: string }) {
       <ShortBrief view={view} save={save} open={open} marks={marks} />
       <RiskPicker key={riskKey} view={view} save={save} open={open} marks={marks} />
       <ScopeGates view={view} save={save} open={open} marks={marks} />
+      <ClientRequest projectId={projectId} view={view} />
       <div className={`start-continue${waiting ? " needs-you" : ""}`} data-testid={waiting ? "start-waiting" : "start-done"}>
         {waiting ? (
           <>
