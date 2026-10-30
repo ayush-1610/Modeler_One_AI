@@ -44,3 +44,7 @@
 .observed .card { margin: 10px 0; }
 .access-requests { margin: 0; padding-left: 18px; font-size: 13.5px; }
 .access-requests li { margin: 4px 0; }
+/* the brief's products and populations, shown where they are used (components/brief/BriefList.tsx, page review 1) */
+.brief-list .note-item { border-top: 1px solid var(--line); padding: 8px 0; }
+.brief-list .note-item.adding { background: color-mix(in srgb, var(--sim) 5%, var(--surface)); padding: 8px; border-radius: var(--radius-sm); }
+.brief-list > .btn { margin-top: 6px; }

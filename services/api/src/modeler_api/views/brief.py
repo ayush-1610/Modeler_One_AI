@@ -141,6 +141,17 @@ class ApplicationView(View):
     adds: list[str]
 
 
+class RequestLineView(View):
+    """One thing the project asks the client to send (`requirements.client_request`, page review 1 decision 2b)."""
+
+    req_id: str
+    what: str
+    why: str
+    required: bool
+    product: str | None
+    sheet: str
+
+
 class StartBlock(View):
     """What Start still needs (`steps.start_issues`), and the parts the screen draws from."""
 
@@ -151,6 +162,7 @@ class StartBlock(View):
     applications: list[ApplicationView]
     pathway_suggestions: list[str]
     pathways_not_named: list[str]   # the published OSP model's enzymes / transporters the proposal does not name
+    client_request: list[RequestLineView]   # what only the client can send, from the data plan
 
 
 class BriefPage(View):

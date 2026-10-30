@@ -98,6 +98,9 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   }
   await page.getByTestId("tab-formulations").click();
   await expect(page.getByTestId("f2-row")).toBeVisible();
+  // the proposal's products are shown where they are built (page review 1, decision 3), with who set them
+  await expect(page.getByTestId("inputs-products-0")).toContainText("Desvenlafaxine succinate ER Tablets");
+  await expect(page.getByTestId("inputs-products-0")).toContainText("set by");
   await page.getByTestId("tab-studies").click();
 
   // published IV means: SD and N columns, the route from the file name

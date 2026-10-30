@@ -69,6 +69,14 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await individual.getByLabel("age for po-md").fill("41");
   await individual.getByRole("button", { name: "Save the individual" }).click();
   await expect(page.getByTestId("individual-po-md")).toContainText("entered");
+  // the proposal's populations are shown here, where the individuals are (page review 1, decision 3): one is added
+  const populations = page.getByTestId("inputs-populations");
+  await expect(populations).toContainText("The populations the proposal names · 0");
+  await populations.getByTestId("inputs-populations-add").click();
+  await populations.getByTestId("edit-populations[0].age_range").click();
+  await populations.getByTestId("input-populations[0].age_range").fill("18 to 45 years");
+  await populations.getByTestId("save-populations[0].age_range").click();
+  await expect(populations.getByTestId("inputs-populations-0")).toContainText("18 to 45 years");
   await shot(page, "2-individuals");
 
   // the multiple-dose regimen, then a table typed in and a study left out
