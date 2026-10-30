@@ -11,7 +11,9 @@ const STATE_LABEL: Record<StepState, string> = {
 
 /** The project's four steps (redesign §3): Start, Inputs, Review & sign, Run, each with where it stands. The step the
  *  page belongs to is marked, and what it waits on is written out under the row. Until Start is done the steps after it
- *  cannot be opened from here (page review 1); the project's history is on the Projects page. */
+ *  that have not begun cannot be opened from here (page review 1); a step that has begun stays open, so a project whose
+ *  Start gains a requirement later is never locked out of its plan or its campaign. The project's history is on the
+ *  Projects page. */
 export async function Stepper({ projectId, current, waiting = true }: {
   projectId: string; current?: StepId;
   /** Write out what the current step waits on (off where the page lists it itself, as Start does). */
@@ -29,7 +31,7 @@ export async function Stepper({ projectId, current, waiting = true }: {
           {live.data.map((s, i) => (
             <li key={s.step} className={`step ${s.state}${current === s.step ? " current" : ""}`}
                 data-testid={`step-${s.step}`} data-state={s.state}>
-              {locked && s.step !== "start" && current !== s.step ? (
+              {locked && s.step !== "start" && s.state === "not_started" && current !== s.step ? (
                 <span className="step-locked" aria-disabled="true" data-testid={`step-${s.step}-locked`}
                       title={`Finish Start first: ${start.reasons.join("; ")}`}>
                   <span className="step-n" aria-hidden>{i + 1}</span>
