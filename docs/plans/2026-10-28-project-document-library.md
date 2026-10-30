@@ -1,6 +1,7 @@
 # The project document library (plan)
 
-Status: **agreed** (the owner, 2026-10-29). Nothing here is built yet. This plan comes from the owner's marks on the
+Status: **agreed** (the owner, 2026-10-29: decisions 10–13). **PR 1, the library page, is built** (2026-10-29);
+PR 2 ("Add data") and PR 3 (agents library first) follow. This plan comes from the owner's marks on the
 Start page review (page review 1, 2026-10-27): rows `b1.files` and `b1.add` (move), and `f.viewer` (move).
 
 ## What the owner asked for

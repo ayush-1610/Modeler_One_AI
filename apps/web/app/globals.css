@@ -149,6 +149,8 @@ p { max-width: var(--measure); }
          font-weight: 500; text-decoration: none; transition: background 120ms var(--ease), color 120ms var(--ease); }
 .nav a:hover { background: var(--raised); color: var(--ink); }
 .nav a.active { background: color-mix(in srgb, var(--sim) 12%, transparent); color: var(--brand-ink); font-weight: 600; }
+.nav-project { margin-top: 14px; }
+.nav-heading { display: block; padding: 0 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
 .nav .group { margin-top: 18px; }
 .nav-user { margin-top: 22px; padding: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-dim); }
 .nav-user strong { display: block; color: var(--ink); font-weight: 600; margin: 2px 0 6px; }
