@@ -15,6 +15,16 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a project that has moved past Start is never locked out of its later steps
+- **The defect (from the Start page PR, #104):** the step bar locked Inputs, Review & sign and Run whenever Start was
+  not done. A project whose Start gains a requirement later lost its links to its plan and its campaign, even with a
+  signed MAP or a campaign running. This includes projects created before #104's Start checks, and any later
+  required field.
+- **Now:** only the steps that have not begun wait on Start. A step that has begun (done, running or needing you)
+  always opens.
+- **Test:** `review-sign.spec.ts` checks a project whose Start is not done but whose inputs are: Inputs opens, and
+  Run (not begun) waits on Start. Against the old step bar the check fails (Inputs locked).
+
 ### Changed — the Start page, rebuilt from the owner's marks (page review 1)
 The owner marked the 48 elements of Start between 2026-10-25 and 2026-10-28 (review page `FLcNRsUrnCJcEcDTkDhqzE`,
 collection `decisions`). Plan: `docs/plans/2026-10-23-page-by-page-review.md` §4.
