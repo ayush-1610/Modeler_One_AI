@@ -4,7 +4,7 @@
 import type { Narrow, Schema } from "./api";
 
 export type FieldStatus =
-  | "ENTERED" | "EXTRACTED" | "RETRIEVED" | "COMPUTED" | "EDITED" | "CONFIRMED" | "MISSING" | "NOT_APPLICABLE";
+  | "ENTERED" | "EXTRACTED" | "RETRIEVED" | "COMPUTED" | "EDITED" | "CONFIRMED" | "MISSING" | "NOT_APPLICABLE" | "DRAFTED";
 
 export type Citation = { doc_sha256: string; page: number; quote: string; locator: string; source: string };
 
@@ -77,5 +77,5 @@ export function display(record: FieldRecord, def?: FieldDef): string {
 
 export const STATUS_CHIP: Record<FieldStatus, string> = {
   ENTERED: "brand", EXTRACTED: "brand", RETRIEVED: "brand", COMPUTED: "brand", EDITED: "medium", CONFIRMED: "low",
-  MISSING: "high", NOT_APPLICABLE: "neutral",
+  MISSING: "high", NOT_APPLICABLE: "neutral", DRAFTED: "medium",
 };

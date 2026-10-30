@@ -80,7 +80,7 @@ def edit_field(brief: ProjectBrief, path: str, *, value: Any = None, unit: str |
 
 
 def agent_set(brief: ProjectBrief, path: str, *, value: Any, unit: str | None, citations: tuple[Citation, ...],
-              status: FieldStatus, confidence: str, by: str, note: str = "") -> ProjectBrief:
+              status: FieldStatus, confidence: str | None, by: str, note: str = "") -> ProjectBrief:
     """An agent's or a database's value for a field. Refused for locked and human-only fields."""
     if path in HUMAN_ONLY:
         raise EditError(f"{path} is set by a person only")

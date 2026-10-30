@@ -6720,8 +6720,12 @@ export interface components {
         ReviewRisk: {
             /** Consequence */
             consequence: string | null;
+            /** Consequence Text */
+            consequence_text?: string | null;
             /** Influence */
             influence: string | null;
+            /** Influence Text */
+            influence_text?: string | null;
             /** Justification */
             justification: string | null;
             /** Reason */

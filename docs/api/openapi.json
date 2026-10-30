@@ -13742,6 +13742,17 @@
             ],
             "title": "Consequence"
           },
+          "consequence_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consequence Text"
+          },
           "influence": {
             "anyOf": [
               {
@@ -13752,6 +13763,17 @@
               }
             ],
             "title": "Influence"
+          },
+          "influence_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Influence Text"
           },
           "justification": {
             "anyOf": [

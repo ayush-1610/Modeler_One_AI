@@ -63,6 +63,10 @@ BRIEF = (
     ("m15.influence_rating", "medium", "the person's ICH M15 rating (§2: supports, does not replace, the clinical study)"),
     ("m15.consequence_rating", "medium", "the person's ICH M15 rating (§2: a label discussion, not a dosing decision)"),
     ("acceptance.tier", "medium", "the person's ICH M15 rating (§2: supports, does not replace, the clinical study)"),
+    # why each rating is what it is, in the person's words (ICH M15 §2.1.5; Start asks for both, page review 1)
+    ("m15.influence", "The model supports the food-effect discussion and does not replace the clinical food-effect study",
+     "§2"),
+    ("m15.consequence", "A wrong prediction would mislead a label discussion, not a dosing decision", "§2"),
     # the scope gates of D-28: a full PBPK model of a systemic small molecule, an IR tablet
     ("scope.pbpk_model", "full", "§1 (a PBPK model in PK-Sim)"),
     ("scope.site_of_action", "systemic", "§2 (exposure: AUC, Cmax)"),

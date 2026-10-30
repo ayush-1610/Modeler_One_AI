@@ -7,7 +7,7 @@ import pytest
 
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
 from modeler_project.brief import FieldStatus, add_question, empty_brief, risk_check
-from modeler_project.brief_ops import edit_field
+from modeler_project.brief_ops import agent_set, edit_field
 from modeler_project.feasibility import check, pathways_not_named, scope_gates
 from modeler_project.map_artifact import MapArtifact, MapSignature
 from modeler_project.steps import project_steps, run_step, start_issues, start_problems
@@ -38,7 +38,9 @@ def _fill(brief, *pairs):
 
 SHORT = (("qoi.text", "exposure after 10 mg"), ("qoi.context_of_use", "support a biowaiver"),
          ("qoi.applications", ["APP-14"]), ("drug.modality", "small_molecule"), ("scope.pbpk_model", "full"),
-         ("scope.site_of_action", "systemic"), ("scope.formulation_types", ["ir_tablet"]), ("scenarios[0].route", "oral"))
+         ("scope.site_of_action", "systemic"), ("scope.formulation_types", ["ir_tablet"]), ("scenarios[0].route", "oral"),
+         ("m15.influence", "the biowaiver rests on the model alone"),
+         ("m15.consequence", "an untested product would reach patients"))
 
 
 def test_start_is_done_when_the_short_brief_the_model_risk_and_the_scope_gates_are_set_with_no_approval(tmp_path):
@@ -152,3 +154,23 @@ def test_a_pathway_the_published_model_places_and_the_proposal_does_not_name_is_
     named = _fill(brief, ("scope.pathways", ["hepatic_metabolism", "renal_filtration"]),
                   ("scope.pathways_stated", ["UGT1A9 glucuronidation", "UGT2B7"]))
     assert pathways_not_named(named, targets) == []
+
+
+def test_why_each_rating_is_what_it_is_needs_a_persons_word():
+    # page review 1 (the owner's decision 1b of 2026-10-29): the agent's draft waits on a person, and so do the proposal's words
+    brief = _fill(empty_brief("Drugol", by="u"), *SHORT[:-2], ("m15.influence_rating", "high"),
+                  ("m15.consequence_rating", "high"), ("acceptance.tier", "high"))
+    unwritten = {i.path: i.message for i in start_issues(brief)}
+    assert unwritten == {"m15.influence": "How the model is used: not written yet (ICH M15 asks why the rating is what it is)",
+                         "m15.consequence": "What a wrong decision means: not written yet (ICH M15 asks why the rating is what "
+                                            "it is)"}
+    drafted = agent_set(brief, "m15.influence", value="the biowaiver rests on the model alone", unit=None, citations=(),
+                        status=FieldStatus.DRAFTED, confidence=None, by="agent:a1")
+    drafted = agent_set(drafted, "m15.consequence", value="an untested product would reach patients", unit=None,
+                        citations=(), status=FieldStatus.EXTRACTED, confidence="A", by="agent:a1")
+    assert {i.path: i.message for i in start_issues(drafted)} == {
+        "m15.influence": "How the model is used: confirm the intake agent's draft, or change it",
+        "m15.consequence": "What a wrong decision means: confirm the proposal's words, or change them"}
+    for path in ("m15.influence", "m15.consequence"):
+        drafted = edit_field(drafted, path, status=FieldStatus.CONFIRMED, by="u")
+    assert start_issues(drafted) == []
