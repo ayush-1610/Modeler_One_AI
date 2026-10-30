@@ -20,6 +20,11 @@ test("the review table, an exclusion with a reason, and the credibility the MAP 
   expect(second.ok(), await second.text()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/plan`);
+  // Start is not finished here, but Inputs has begun (it is done): a step that has begun is never locked
+  await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");
+  await expect(page.getByTestId("step-inputs-locked")).toHaveCount(0);
+  await expect(page.getByTestId("step-inputs").getByRole("link")).toBeVisible();
+  await expect(page.getByTestId("step-run-locked")).toBeVisible();          // Run has not begun: it waits on Start
   const table = page.getByTestId("review-table");
   await expect(table.getByTestId("review-row-phys.logp")).toContainText("1 other source agrees");
   await expect(table.getByTestId("review-row-phys.logp")).toContainText("high");
