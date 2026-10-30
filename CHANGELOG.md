@@ -15,6 +15,20 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — PI-4: a common factor on parallel pathways cannot be fitted through the package's public API (options)
+The owner decided on 2026-10-29 that PI-4 comes next (decision 9).
+- **Finding:** in `ospsuite.parameteridentification` 2.2.0, a `PIParameters` group gives all its parameters one value
+  (`R/PIParameters.R:116`, `:136`), not one factor. So one factor that keeps the parallel pathways' split cannot be
+  fitted with the package's public API. Its objective function is private.
+- **The options:** `docs/plans/2026-10-29-pi-4-parallel-pathways.md`.
+  - (A) ask OSP for a relative group;
+  - (B) our own one-factor fit through the package's private objective, with a golden case and a qualification run;
+  - (C) fit only the weakest-sourced pathway;
+  - (D) keep escalating.
+  - Recommended: A, then B.
+- **The OSP request draft** (`docs/upstream/2026-10-25-osp-pi-log-scale-request.md`) gains the relative group as a
+  second issue. Both stay unsent until the owner has reviewed them.
+
 ### Added — the client data request on Start; the proposal's products and populations where they are used (2b, 3)
 The owner's decisions 2b and 3 of 2026-10-29, after the data checklist and Proposal notes left Start (#104).
 - **The request (2b):** Start's block 5, "What to request from the client", lists only what the client alone holds.
