@@ -15,6 +15,41 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the agent drafts the ICH M15 assessment and a person confirms it (page review 1; UNVERIFIED)
+The owner's decisions 1b and 4 of 2026-10-29, recorded with all 14 answers in `docs/plans/2026-10-23-page-by-page-review.md`
+§4.3.
+- **Before:** the intake agent only extracted. It could quote the proposal's own description of model influence and
+  decision consequence, but never rated them. With no such words, the ratings stood with no reason, and Start did not
+  ask for one.
+- **The draft:** a new agent tool, `draft_risk_assessment`, runs once the question of interest and context of use are
+  recorded.
+  - It suggests both ratings, each with one or two sentences on why, built from those two fields and citing their
+    quotes.
+  - All four values are stored with a new brief status, **`DRAFTED`**: written by an agent from the brief, stated in
+    no document. `DRAFTED` is not a value: `brief.value()` reads it as `None` until a person confirms or changes it.
+  - The suggested ratings are new fields (`m15.influence_suggested`, `m15.consequence_suggested`), filled only by the
+    draft, never by a quote.
+  - The ratings that count, the tier and the justification stay human-only (`HUMAN_ONLY`, unchanged). The agent never
+    writes them.
+  - The proposal's own words (EXTRACTED) and anything a person set are kept over a draft.
+- **Start:** the suggested ratings are preselected in the model risk, and they count once the person saves them.
+  - Under the ratings, **How the model is used** and **What a wrong decision means** each show the draft, marked as
+    one, with **Confirm** and **Change**.
+  - Start is not done until both are in a person's words or confirmed by one. With no agent, the person writes them.
+- **Review & sign:** the credibility block shows both texts to the signer (`ReviewRisk.influence_text`,
+  `consequence_text`; a draft no person confirmed is not shown). They are not yet under the MAP hash: that is a locked
+  `map.py` change, for its own PR.
+- **Impact:** a project whose Start was done but has no M15 texts now shows Start as needing you. With #105, its later
+  steps stay open. The T-56 proof (`deploy/proof/run_t56.py`) now writes both texts in the person's words.
+- **For the SME (`docs/SME_SIGNOFF.md`):** the rating guidance in the agent's prompt, and whether a preselected
+  suggestion anchors the person's rating.
+- **Tests:**
+  - `test_proposal_intake`: the draft, what it refuses, that it stays `DRAFTED`, and a person's word kept.
+  - `test_steps`: written, drafted, extracted and confirmed.
+  - `test_brief_api`: a scripted draft confirmed through `PUT /brief`.
+  - `start-step.spec.ts`: the manual path.
+  - `review-sign.spec.ts`: the signer sees the texts.
+
 ### Fixed — a project that has moved past Start is never locked out of its later steps
 - **The defect (from the Start page PR, #104):** the step bar locked Inputs, Review & sign and Run whenever Start was
   not done. A project whose Start gains a requirement later lost its links to its plan and its campaign, even with a
@@ -483,7 +518,6 @@ Redesign `docs/plans/2026-10-19-p0-p5-redesign.md` §5 and §8 (R5, the owner's 
 - **Impact:** appearance only; no text, testid, class name, API or dependency changed. Light and dark screenshots
   checked on Start, a project's page and the home page. Still below AA, left to the page that owns the sheet:
   `--ink-faint` text in `plan.css`, `review.css`, `brief.css` and `client-data.css`.
-
 
 ### Added — Review & sign shows the applications: the VBE panel, and what the campaign does with each of the brief's (R4c)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3, "VBE, its own panel" and "Other applications"; map rows

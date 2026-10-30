@@ -32,6 +32,8 @@ class FieldStatus(StrEnum):
     CONFIRMED = "CONFIRMED"        # reviewed and kept as it was
     MISSING = "MISSING"            # not stated anywhere yet; a question is raised
     NOT_APPLICABLE = "NOT_APPLICABLE"
+    DRAFTED = "DRAFTED"            # written by an agent from the brief's other fields (no document states it): not a
+                                   # value until a person confirms or changes it (the ICH M15 draft, page review 1)
 
 
 VALUED = {FieldStatus.ENTERED, FieldStatus.EXTRACTED, FieldStatus.RETRIEVED, FieldStatus.COMPUTED,
@@ -162,8 +164,14 @@ FIELDS: tuple[FieldDef, ...] = (
     FieldDef("qoi.context_of_use", "D", "Context of use", required=True),
     FieldDef("qoi.decision", "D", "Decision the model informs"),
     FieldDef("qoi.applications", "D", "Applications", "multi", True, APPLICATIONS),
-    FieldDef("m15.influence", "D", "Model influence (description; rating is human-only)"),
-    FieldDef("m15.consequence", "D", "Consequence of a wrong decision (description; rating is human-only)"),
+    FieldDef("m15.influence", "D", "How the model is used",
+             help="ICH M15 §2.1.5: why the model's influence on the decision is rated as it is; confirmed by a person"),
+    FieldDef("m15.consequence", "D", "What a wrong decision means",
+             help="ICH M15 §2.1.5: why the decision's consequence is rated as it is; confirmed by a person"),
+    FieldDef("m15.influence_suggested", "D", "Model influence suggested by the intake agent", "enum", options=RATINGS,
+             help="a suggestion only: the rating counts once a person saves it"),
+    FieldDef("m15.consequence_suggested", "D", "Decision consequence suggested by the intake agent", "enum",
+             options=RATINGS, help="a suggestion only: the rating counts once a person saves it"),
     FieldDef("m15.influence_rating", "D", "Model influence", "enum", options=RATINGS,
              help="ICH M15 §2.1.5: how much the model's evidence weighs in the decision; rated by a person"),
     FieldDef("m15.consequence_rating", "D", "Decision consequence", "enum", options=RATINGS,
@@ -250,7 +258,7 @@ SHORT_BRIEF = (
     "drug.name", "drug.pubchem_cid", "drug.smiles", "drug.inchikey", "drug.mw_free_base",
     "qoi.text", "qoi.context_of_use", "qoi.applications",
     "m15.influence", "m15.influence_rating", "m15.consequence", "m15.consequence_rating", "acceptance.tier",
-    "m15.risk_justification",
+    "m15.risk_justification", "m15.influence_suggested", "m15.consequence_suggested",
     "drug.modality", "scope.pbpk_model", "scope.site_of_action", "scope.formulation_types", "drug.bcs_class",
     "scope.pathways", "scope.pathways_stated", "scope.nonlinearity", "scope.ehc",
 )
@@ -259,6 +267,9 @@ SHORT_GROUP_FIELDS = {"scenarios": ("route", "food_state")}
 # (`feasibility.scope_gates`) are checked on their own, with their own reasons.
 START_REQUIRED = ("drug.name", "qoi.text", "qoi.context_of_use", "qoi.applications")
 RISK_FIELDS = ("m15.influence_rating", "m15.consequence_rating", "acceptance.tier")
+# Why each rating is what it is (ICH M15 §2.1.5): the intake agent drafts them from the question and context of use, and
+# a person confirms them before Start is done (page review 1, the owner's decision 1b of 2026-10-29).
+RISK_TEXTS = ("m15.influence", "m15.consequence")
 GROUP_BY_ID = {g.id: g for g in GROUPS}
 _PATH = re.compile(r"^(?P<group>[a-z_]+)\[(?P<index>\d+)\]\.(?P<field>[a-z0-9_]+)$")
 
