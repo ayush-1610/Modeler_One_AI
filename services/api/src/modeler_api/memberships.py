@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from modeler_api.part11 import audit_mirror
 from modeler_project import FileProjectStore
+from modeler_project.archive import ProjectArchive
 from modeler_project.members import Memberships
 
 if TYPE_CHECKING:
@@ -22,6 +23,12 @@ if TYPE_CHECKING:
 def memberships_for(settings: Settings, tenant_id: str) -> Memberships:
     store = FileProjectStore(settings.read_root, audit_mirror=audit_mirror(settings))
     return Memberships(store.root, tenant_id, store.audit(tenant_id))
+
+
+def archive_for(settings: Settings, tenant_id: str) -> ProjectArchive:
+    """The tenant's archived projects (page review 1: archive, never delete), audited like the memberships."""
+    store = FileProjectStore(settings.read_root, audit_mirror=audit_mirror(settings))
+    return ProjectArchive(store.root, tenant_id, store.audit(tenant_id))
 
 
 def admit(principal: Principal, settings: Settings) -> Principal:

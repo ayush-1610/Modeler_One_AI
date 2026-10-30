@@ -56,6 +56,11 @@ model, start the project for that drug and, on Inputs, **Take the published OSP 
 generates the analysis plan from your studies (the MS-01 data split), you sign it, and the campaign runs S0 → S7 on
 PK-Sim.
 
+**The Projects page** lists your projects, each with its **History** (its audit trail: every artifact's change, its
+members, and archiving). A project is never deleted: it is a Part 11 record. **Archive** hides a test or finished
+project from the list, with a reason, and keeps everything it holds; it still opens by its address. **Show archived**
+lists them, and **Restore** brings one back, with a reason. A project whose campaign is still running is not archived.
+
 **The Project Document Library** (in the sidebar, under **This project**, while a project is open) lists every document
 of the project: the proposal, its annexes, the client's files, retrieved records. For each it shows who added it (a
 person, an agent or the system), its role, format and pages, its versions, and what the project took from it. Those

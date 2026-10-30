@@ -745,6 +745,45 @@
         "title": "ApprovalView",
         "type": "object"
       },
+      "ArchiveRequest": {
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ArchiveRequest",
+        "type": "object"
+      },
+      "ArchivedView": {
+        "additionalProperties": false,
+        "description": "Who archived a project, when and why (page review 1: archived projects are hidden, never erased).",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "by",
+          "at",
+          "reason"
+        ],
+        "title": "ArchivedView",
+        "type": "object"
+      },
       "ArtifactKind": {
         "description": "What a phase produces (plan §5.2). Order follows the phases.",
         "enum": [
@@ -5558,6 +5597,31 @@
           "errors"
         ],
         "title": "Envelope[PlanSigned]",
+        "type": "object"
+      },
+      "Envelope_ProjectArchiveState_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectArchiveState"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ProjectArchiveState]",
         "type": "object"
       },
       "Envelope_ProjectRecord_": {
@@ -12359,6 +12423,31 @@
         "title": "Product",
         "type": "object"
       },
+      "ProjectArchiveState": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchivedView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "archived"
+        ],
+        "title": "ProjectArchiveState",
+        "type": "object"
+      },
       "ProjectCreate": {
         "properties": {
           "application": {
@@ -12413,6 +12502,80 @@
           "compound"
         ],
         "title": "ProjectCreate",
+        "type": "object"
+      },
+      "ProjectListItem": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchivedView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blinding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlindingChoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compounds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Compounds",
+            "type": "array"
+          },
+          "exploratory": {
+            "default": false,
+            "title": "Exploratory",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "openQuestions": {
+            "title": "Openquestions",
+            "type": "integer"
+          },
+          "pipeline": {
+            "default": false,
+            "title": "Pipeline",
+            "type": "boolean"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionRecord"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "risk": {
+            "title": "Risk",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "compounds",
+          "openQuestions",
+          "risk"
+        ],
+        "title": "ProjectListItem",
         "type": "object"
       },
       "ProjectRecord": {
@@ -12569,7 +12732,7 @@
         "properties": {
           "projects": {
             "items": {
-              "$ref": "#/components/schemas/ProjectRecord"
+              "$ref": "#/components/schemas/ProjectListItem"
             },
             "title": "Projects",
             "type": "array"
@@ -19496,7 +19659,7 @@
     },
     "/api/v1/projects/{project_id}/audit": {
       "get": {
-        "description": "This project's audit events (newest first) and whether the tenant's chain verifies.",
+        "description": "This project's audit events (newest first) and whether the tenant's chain verifies: its artifacts' events, and the\nevents on the project itself (its members, archiving and restoring).",
         "operationId": "get_audit_api_v1_projects__project_id__audit_get",
         "parameters": [
           {
@@ -24575,6 +24738,142 @@
         "summary": "Put System",
         "tags": [
           "write"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}:archive": {
+      "post": {
+        "operationId": "archive_project_api_v1_projects__project_id__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ProjectArchiveState_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}:restore": {
+      "post": {
+        "operationId": "restore_project_api_v1_projects__project_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ProjectArchiveState_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Project",
+        "tags": [
+          "projects"
         ]
       }
     },

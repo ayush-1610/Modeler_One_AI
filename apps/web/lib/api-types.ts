@@ -394,7 +394,8 @@ export interface paths {
         };
         /**
          * Get Audit
-         * @description This project's audit events (newest first) and whether the tenant's chain verifies.
+         * @description This project's audit events (newest first) and whether the tenant's chain verifies: its artifacts' events, and the
+         *     events on the project itself (its members, archiving and restoring).
          */
         get: operations["get_audit_api_v1_projects__project_id__audit_get"];
         put?: never;
@@ -1648,6 +1649,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}:archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Project */
+        post: operations["archive_project_api_v1_projects__project_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}:restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Project */
+        post: operations["restore_project_api_v1_projects__project_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects:initiate": {
         parameters: {
             query?: never;
@@ -2026,6 +2061,23 @@ export interface components {
             ref: components["schemas"]["Ref"];
             /** Signature Id */
             signature_id: string | null;
+        };
+        /** ArchiveRequest */
+        ArchiveRequest: {
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * ArchivedView
+         * @description Who archived a project, when and why (page review 1: archived projects are hidden, never erased).
+         */
+        ArchivedView: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Reason */
+            reason: string;
         };
         /**
          * ArtifactKind
@@ -3728,6 +3780,13 @@ export interface components {
         /** Envelope[PlanSigned] */
         Envelope_PlanSigned_: {
             data: components["schemas"]["PlanSigned"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[ProjectArchiveState] */
+        Envelope_ProjectArchiveState_: {
+            data: components["schemas"]["ProjectArchiveState"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -6167,6 +6226,12 @@ export interface components {
             /** Role */
             role: string;
         };
+        /** ProjectArchiveState */
+        ProjectArchiveState: {
+            archived: components["schemas"]["ArchivedView"] | null;
+            /** Project Id */
+            project_id: string;
+        };
         /** ProjectCreate */
         ProjectCreate: {
             /**
@@ -6195,6 +6260,33 @@ export interface components {
              * @default medium
              */
             risk?: string;
+        };
+        /** ProjectListItem */
+        ProjectListItem: {
+            archived?: components["schemas"]["ArchivedView"] | null;
+            blinding?: components["schemas"]["BlindingChoice"] | null;
+            /** Compounds */
+            compounds: string[];
+            /**
+             * Exploratory
+             * @default false
+             */
+            exploratory?: boolean;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Openquestions */
+            openQuestions: number;
+            /**
+             * Pipeline
+             * @default false
+             */
+            pipeline?: boolean;
+            /** Questions */
+            questions?: components["schemas"]["QuestionRecord"][];
+            /** Risk */
+            risk: string;
         };
         /** ProjectRecord */
         ProjectRecord: {
@@ -6251,7 +6343,7 @@ export interface components {
         /** Projects */
         Projects: {
             /** Projects */
-            projects: components["schemas"]["ProjectRecord"][];
+            projects: components["schemas"]["ProjectListItem"][];
         };
         /**
          * Proposal
@@ -11751,6 +11843,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_SystemView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_project_api_v1_projects__project_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ProjectArchiveState_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_project_api_v1_projects__project_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ProjectArchiveState_"];
                 };
             };
             /** @description Validation Error */

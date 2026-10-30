@@ -86,6 +86,7 @@
 .dialog-title { margin: 0 0 8px; }
 .dialog-title + .muted { margin-top: 0; }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 14px; }
+tr.project-archived td { color: var(--ink-faint); }
 
 /* ---- tabs, a table's labelled scroller, text for screen readers only ---- */
 .tabpanel { display: grid; gap: 16px; align-content: start; min-width: 0; }
