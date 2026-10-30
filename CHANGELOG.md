@@ -40,6 +40,31 @@ The owner's decisions 10–13 of 2026-10-29; plan `docs/plans/2026-10-28-project
   - `test_brief_api`: the route.
   - `library.spec.ts`: sidebar, contribution, search, filter and open.
 
+### Added — the client data request on Start; the proposal's products and populations where they are used (2b, 3)
+The owner's decisions 2b and 3 of 2026-10-29, after the data checklist and Proposal notes left Start (#104).
+- **The request (2b):** Start's block 5, "What to request from the client", lists only what the client alone holds.
+  - These are the data plan's items the client provides (`requirements.client_request`, from the same `client_items`
+    the arrival check reads), each with the application it serves and whether it is required.
+  - It follows the brief as it changes.
+  - **Download the request (.xlsx)** (`GET /projects/{id}/client-data/request.xlsx`) gives the client-data workbook
+    with a first "Request" sheet: each item, why, whether it is required, the product, and the sheet it goes in
+    (`SHEET_FOR_CATEGORY`), or "send as a file".
+  - The reader skips that sheet when the client sends the workbook back, as it skips the README.
+  - Nothing else is listed: the agents find the rest in the documents and the literature.
+- **Products and populations (3):**
+  - The proposal's products are shown on Inputs → Formulations, and its populations on Inputs → Individuals
+    (`components/brief/BriefList.tsx`).
+  - Each item has its source, and is changed, added or removed (with a reason) in place.
+  - The prediction scenarios are already on Review & sign.
+- **API:** `StartBlock.client_request` is new, and so is the download route.
+- **Tests:**
+  - `test_requirements`: the request, what it serves and where it goes.
+  - `test_client_template`: the Request sheet comes first and the reader skips it.
+  - `test_client_api`: the Start list and the download.
+  - `start-step.spec.ts`: the request follows the food-effect application, and downloads.
+  - `client-data-guided.spec.ts`: the ER product on Formulations.
+  - `inputs-workspace.spec.ts`: a population added on Individuals.
+
 ### Added — a project is archived, never deleted (page review 1, decision 5)
 The owner's decision 5 of 2026-10-29 ("archive"). A project is a Part 11 record: its signed MAP, campaigns and audit
 trail cite it.

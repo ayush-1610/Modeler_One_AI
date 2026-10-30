@@ -65,7 +65,7 @@ from modeler_project.evidence import SourceType
 from modeler_project.evidence_register import items as evidence_items
 from modeler_project.feasibility import pathway_suggestions, pathways_not_named, scope_gates
 from modeler_project.library import library_rows
-from modeler_project.requirements import RequirementMatrix, application_additions
+from modeler_project.requirements import RequirementMatrix, application_additions, client_request
 from modeler_project.steps import start_issues, start_problems
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord
@@ -350,6 +350,7 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
     issues = validate_brief(brief)
     runs = agent_jobs.project_runs(getattr(ws.store, "root", None), ws.tenant_id, ws.project_id)
     risk = risk_check(brief)
+    plan = ws.latest(ArtifactKind.REQUIREMENTS, "main")
     return {
         "artifact": version_view(ws, version, with_content=False), "brief": brief.to_content(),
         "issues": [{"code": i.code, "path": i.path, "message": i.message} for i in issues],
@@ -365,7 +366,10 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
                   "pathway_suggestions": pathway_suggestions(),
                   # the published OSP model's enzymes and transporters the proposal does not name (page review 1)
                   "pathways_not_named": pathways_not_named(brief, [i.target for i in evidence_items(ws)
-                                                                   if i.source_type is SourceType.OSP_LIBRARY])},
+                                                                   if i.source_type is SourceType.OSP_LIBRARY]),
+                  # what only the client can send (page review 1, decision 2b): the data plan's client items
+                  "client_request": [line.model_dump() for line in client_request(RequirementMatrix.from_content(plan.content))]
+                  if plan else []},
     }
 
 
