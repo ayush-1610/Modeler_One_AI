@@ -4,7 +4,7 @@
 import type { Narrow, Schema } from "@/lib/api";
 
 // The project, its questions and a compound's CPF view are typed by the API contract (phase 9c).
-export type Project = Schema<"ProjectRecord">;
+export type Project = Schema<"ProjectListItem">;   // a listed project, with whether it is archived (page review 1)
 export type ProjectDetail = Project;
 export type Question = Schema<"QuestionRecord">;
 export type CpfParameter = Schema<"CpfParameterRow">;
