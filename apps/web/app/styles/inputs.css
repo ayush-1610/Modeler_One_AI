@@ -44,3 +44,7 @@
 .observed .card { margin: 10px 0; }
 .access-requests { margin: 0; padding-left: 18px; font-size: 13.5px; }
 .access-requests li { margin: 4px 0; }
+/* Inputs before Start is done (page review 1, decision 7) */
+.inputs-blocked { max-width: 760px; }
+.inputs-blocked h1 { margin-top: 0; }
+.inputs-blocked ul { margin: 6px 0 14px; padding-left: 18px; color: var(--ink-dim); }

@@ -3,6 +3,8 @@
 // & sign. Values and data here are software test data entered through the API, the way a curator would enter them.
 import { expect, test } from "@playwright/test";
 
+import { finishStart } from "./fixtures/inputs";
+
 const AUTH = { Authorization: "Bearer dev" };
 
 test("model inputs flow in from the evidence, are checked, and hand over to Review & sign with no acceptance", async ({ page, request }) => {
@@ -12,6 +14,7 @@ test("model inputs flow in from the evidence, are checked, and hand over to Revi
                  files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nIV infusion study.") } },
   });
   const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);      // Inputs opens once Start is done (page review 1, decision 7)
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
 
   const values: [string, string, number | string, string | null, Record<string, string>][] = [

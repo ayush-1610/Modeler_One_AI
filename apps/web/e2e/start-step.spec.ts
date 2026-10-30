@@ -30,10 +30,11 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await expect(page.getByTestId("start-continue")).toBeDisabled();
   await expect(page.getByTestId("step-inputs-locked")).toBeVisible();
   await expect(page.getByTestId("step-review-locked")).toBeVisible();
-  // reached by its address, Inputs says Start is not finished
+  // reached by its address, Inputs is blocked until Start is done, and says what Start still needs (decision 7)
   await page.goto(startUrl.replace(/\/start$/, "/inputs"));
-  await expect(page.getByTestId("inputs-start-not-done")).toContainText("Start is not finished");
-  await page.goto(startUrl);
+  await expect(page.getByTestId("inputs-blocked")).toContainText("Question of interest: not set yet");
+  await page.getByTestId("inputs-blocked-start").click();
+  await page.waitForURL(/\/start$/);
 
   // the question: set in place, nothing asks why; the record says who set it; each application says what it adds
   const set = async (path: string, value: string) => {
@@ -126,4 +127,5 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await page.getByTestId("start-continue").click();
   await page.waitForURL(/\/inputs$/);
   await expect(page.getByTestId("inputs-start-not-done")).toHaveCount(0);
+  await expect(page.getByTestId("inputs-blocked")).toHaveCount(0);
 });

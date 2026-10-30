@@ -8,6 +8,8 @@ import { join, resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
+import { finishStart } from "./fixtures/inputs";
+
 const REPO = resolve(__dirname, "../../..");
 
 test("client files are read cell by cell, sorted, and what the checklist did not promise is named", async ({ page, request }) => {
@@ -21,6 +23,7 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   });
   expect(started.ok()).toBeTruthy();
   const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);      // Inputs opens once Start is done (page review 1, decision 7)
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: { Authorization: "Bearer dev" } })).ok()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
