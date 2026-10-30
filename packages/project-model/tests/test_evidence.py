@@ -5,7 +5,17 @@ from __future__ import annotations
 import pytest
 
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
-from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, assess, new_id
+from modeler_project.evidence import (
+    GRADE_CHECKS,
+    EvidenceItem,
+    EvidenceState,
+    Extraction,
+    SourceRef,
+    SourceType,
+    assess,
+    grading_rubric,
+    new_id,
+)
 from modeler_project.evidence_register import (
     EvidenceError,
     blocking,
@@ -53,6 +63,58 @@ def test_grades_follow_the_rubric():
     assert rat.confidence == "B" and "species_mismatch: rat" in rat.flags
     impossible = assess(_fu(150, "%"))
     assert any(f.startswith("outside_physical_range") for f in impossible.flags)
+
+
+def _clearance(system: str, source=SourceType.PUBLICATION, **conditions):
+    return EvidenceItem(id=new_id(), req_id="REQ-elim.hepatic", target="elim.hepatic.CYP3A4.clspec", value=12,
+                        unit="µl/min/pmol", source_type=source, quote="CLint was 12 µl/min/pmol",
+                        source=SourceRef(doc_sha256="a" * 64, page=2, locator="Table 2"),
+                        conditions={"system": system, **conditions})
+
+
+@pytest.mark.req("T-30")
+def test_the_grading_rubric_is_versioned_data_and_names_only_checks_the_code_knows():
+    rubric = grading_rubric()
+    assert (rubric.version, rubric.status) == ("0.1", "UNVERIFIED")
+    assert {check for _grade, check, _why in rubric.rules} <= set(GRADE_CHECKS)
+    assert rubric.rules[-1][1] == "always"                               # every item gets a grade
+
+
+@pytest.mark.req("T-30")
+def test_a_value_its_source_calls_predicted_is_graded_as_a_prediction():
+    # rubric 0.1 (the owner's decision 8c, 2026-10-29): an in silico logP reported in a paper is a prediction
+    logp = EvidenceItem(id=new_id(), req_id="REQ-phys.logp", target="phys.logp", value=2.1, unit=None,
+                        source_type=SourceType.PUBLICATION, quote="logP 2.1", source=SourceRef(doc_sha256="a" * 64, page=1),
+                        conditions={"type": "logP", "measured or predicted": "predicted (ACD/Percepta)"})
+    assert assess(logp).confidence == "C"
+    measured = logp.model_copy(update={"conditions": {"type": "logP", "measured or predicted": "measured, shake flask"}})
+    assert assess(measured).confidence == "A"                           # the condition's name is not read, its value is
+
+
+@pytest.mark.req("T-30")
+def test_a_human_in_vitro_value_ranks_below_in_vivo_where_an_in_vivo_value_can_exist():
+    # rubric 0.1 (8c): clearance, transport and permeability; parameters measured only in vitro are not affected
+    in_vitro = assess(_clearance("human liver microsomes (HLM)"))
+    assert in_vitro.confidence == "B" and in_vitro.grade_rubric == "0.1"
+    assert in_vitro.grade_reason == "a human in vitro system, where a human in vivo value can exist"
+    assert assess(_clearance("rCYP3A4 supersomes")).confidence == "B"
+    assert assess(_clearance("IV study in healthy volunteers")).confidence == "A"
+    assert assess(_fu(9, "%")).confidence == "A"                        # fu is measured in vitro by nature: still A
+    assert assess(_clearance("hepatocytes", species="dog")).confidence == "B"
+
+
+@pytest.mark.req("T-30")
+@pytest.mark.parametrize("source", [s for s in SourceType if s is not SourceType.ASSUMPTION])
+@pytest.mark.parametrize("extraction", list(Extraction))
+@pytest.mark.parametrize("system", ["HLM", "IV study", "predicted"])
+def test_a_prediction_is_never_graded_above_a_measured_value(source, extraction, system):
+    # 8c: the grade carries what the status says, so grade and status never point at different parameters (PI-2b)
+    order = "ABCD"
+    measured = assess(_clearance(system, source=source).model_copy(update={"extraction": extraction}))
+    predicted = assess(_clearance("in silico", source=SourceType.PREDICTED))
+    if system != "predicted":
+        assert order.index(measured.confidence) <= order.index(predicted.confidence)
+    assert predicted.confidence == "C"
 
 
 def test_conflicts_coverage_and_the_register_gate(tmp_path):

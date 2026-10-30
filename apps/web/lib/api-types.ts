@@ -4087,6 +4087,16 @@ export interface components {
              * @default []
              */
             flags: string[];
+            /**
+             * Grade Reason
+             * @default
+             */
+            grade_reason: string;
+            /**
+             * Grade Rubric
+             * @default
+             */
+            grade_rubric: string;
             /** Id */
             id: string;
             /**
