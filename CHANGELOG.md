@@ -29,6 +29,16 @@ The owner decided on 2026-10-29 that PI-4 comes next (decision 9).
 - **The OSP request draft** (`docs/upstream/2026-10-25-osp-pi-log-scale-request.md`) gains the relative group as a
   second issue. Both stay unsent until the owner has reviewed them.
 
+### Fixed — a project that has moved past Start is never locked out of its later steps
+- **The defect (from the Start page PR, #104):** the step bar locked Inputs, Review & sign and Run whenever Start was
+  not done. A project whose Start gains a requirement later lost its links to its plan and its campaign, even with a
+  signed MAP or a campaign running. This includes projects created before #104's Start checks, and any later
+  required field.
+- **Now:** only the steps that have not begun wait on Start. A step that has begun (done, running or needing you)
+  always opens.
+- **Test:** `review-sign.spec.ts` checks a project whose Start is not done but whose inputs are: Inputs opens, and
+  Run (not begun) waits on Start. Against the old step bar the check fails (Inputs locked).
+
 ### Changed — the Start page, rebuilt from the owner's marks (page review 1)
 The owner marked the 48 elements of Start between 2026-10-25 and 2026-10-28 (review page `FLcNRsUrnCJcEcDTkDhqzE`,
 collection `decisions`). Plan: `docs/plans/2026-10-23-page-by-page-review.md` §4.
@@ -487,7 +497,6 @@ Redesign `docs/plans/2026-10-19-p0-p5-redesign.md` §5 and §8 (R5, the owner's 
 - **Impact:** appearance only; no text, testid, class name, API or dependency changed. Light and dark screenshots
   checked on Start, a project's page and the home page. Still below AA, left to the page that owns the sheet:
   `--ink-faint` text in `plan.css`, `review.css`, `brief.css` and `client-data.css`.
-
 
 ### Added — Review & sign shows the applications: the VBE panel, and what the campaign does with each of the brief's (R4c)
 - **What** (`docs/plans/2026-10-19-p0-p5-redesign.md` §3.3, "VBE, its own panel" and "Other applications"; map rows
