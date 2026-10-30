@@ -61,6 +61,12 @@ members, and archiving). A project is never deleted: it is a Part 11 record. **A
 project from the list, with a reason, and keeps everything it holds; it still opens by its address. **Show archived**
 lists them, and **Restore** brings one back, with a reason. A project whose campaign is still running is not archived.
 
+**The Project Document Library** (in the sidebar, under **This project**, while a project is open) lists every document
+of the project: the proposal, its annexes, the client's files, retrieved records. For each it shows who added it (a
+person, an agent or the system), its role, format and pages, its versions, and what the project took from it. Those
+contributions are the values, datasets and brief fields that cite the document, each linked to where it is used; a
+document nothing cites says so. Search, filter by role or by who added it, sort, and open a document on its pages.
+
 **From a proposal (Step 1 · Start):** **+ Start from proposal** → name the drug and drop the proposal, its annexes and
 the client's data files in one upload (workbooks go to the client's data on Inputs, every other file to the documents)
 → the Start screen fills the drug's identity from PubChem and, with an agent configured, the brief from the documents.

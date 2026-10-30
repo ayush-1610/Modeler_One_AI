@@ -94,3 +94,10 @@ tr.project-archived td { color: var(--ink-faint); }
 .table-scroll:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0);
   white-space: nowrap; border: 0; }
+
+/* ---- the project document library (components/library/LibraryTable.tsx) ---- */
+.library-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.library-tools input[type="search"] { flex: 1 1 240px; min-width: 0; }
+.library-table td { vertical-align: top; }
+.library-uses { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+.library-uses code { font-size: 12px; overflow-wrap: anywhere; }

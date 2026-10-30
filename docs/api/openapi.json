@@ -3052,6 +3052,62 @@
         "title": "CompoundSpec",
         "type": "object"
       },
+      "ContributionView": {
+        "additionalProperties": false,
+        "description": "One thing the project took from a document (`library.Contribution`).",
+        "properties": {
+          "kind": {
+            "enum": [
+              "value",
+              "dataset",
+              "brief"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "step": {
+            "enum": [
+              "start",
+              "inputs"
+            ],
+            "title": "Step",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "target",
+          "value",
+          "state",
+          "page",
+          "step"
+        ],
+        "title": "ContributionView",
+        "type": "object"
+      },
       "CorrectionRequest": {
         "properties": {
           "conditions": {
@@ -5391,6 +5447,31 @@
           "errors"
         ],
         "title": "Envelope[InputsPage]",
+        "type": "object"
+      },
+      "Envelope_LibraryPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LibraryPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[LibraryPage]",
         "type": "object"
       },
       "Envelope_M15Validation_": {
@@ -8809,6 +8890,96 @@
           "layout"
         ],
         "title": "LayoutRequest",
+        "type": "object"
+      },
+      "LibraryPage": {
+        "additionalProperties": false,
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryRowView"
+            },
+            "title": "Documents",
+            "type": "array"
+          }
+        },
+        "required": [
+          "documents"
+        ],
+        "title": "LibraryPage",
+        "type": "object"
+      },
+      "LibraryRowView": {
+        "additionalProperties": false,
+        "description": "One document of the project library (`library.LibraryRow`), with what it contributed.",
+        "properties": {
+          "added_at": {
+            "title": "Added At",
+            "type": "string"
+          },
+          "added_by": {
+            "title": "Added By",
+            "type": "string"
+          },
+          "contributions": {
+            "items": {
+              "$ref": "#/components/schemas/ContributionView"
+            },
+            "title": "Contributions",
+            "type": "array"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "n_pages": {
+            "title": "N Pages",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "person",
+              "agent",
+              "system"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "versions": {
+            "title": "Versions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sha256",
+          "name",
+          "role",
+          "format",
+          "n_pages",
+          "size_bytes",
+          "added_at",
+          "added_by",
+          "source",
+          "versions",
+          "contributions"
+        ],
+        "title": "LibraryRowView",
         "type": "object"
       },
       "M15Issue": {
@@ -22519,6 +22690,65 @@
         "summary": "Propose Identity",
         "tags": [
           "inputs"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/library": {
+      "get": {
+        "description": "The project's document library (plan 2026-10-28, PR 1): every document with who added it and what cites it.",
+        "operationId": "get_library_api_v1_projects__project_id__library_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LibraryPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Library",
+        "tags": [
+          "brief"
         ]
       }
     },
