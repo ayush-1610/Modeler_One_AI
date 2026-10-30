@@ -90,6 +90,12 @@ export function Credibility({ projectId, view, review, apply }: {
           {(risk.influence || risk.consequence) && <> Start rated model influence <strong>{risk.influence ?? "—"}</strong> and
             decision consequence <strong>{risk.consequence ?? "—"}</strong>{risk.justification ? `: ${risk.justification}` : "."}</>}
         </p>
+        {(risk.influence_text || risk.consequence_text) && (
+          <dl className="m15-why" data-testid="credibility-m15-why">
+            {risk.influence_text && <><dt>How the model is used</dt><dd>{risk.influence_text}</dd></>}
+            {risk.consequence_text && <><dt>What a wrong decision means</dt><dd>{risk.consequence_text}</dd></>}
+          </dl>
+        )}
         <RiskAndBudget projectId={projectId} view={view} apply={apply} />
       </section>
       <AcceptanceCriteria projectId={projectId} review={review} apply={apply} />

@@ -351,7 +351,7 @@ def test_the_review_shows_every_input_with_its_source_and_the_split_and_limitati
     assert studies["iv-250"]["role"] == "S1" and studies["ddi-itra"]["role"] == "SUPPORTIVE"
     assert studies["iv-250"]["demographics"] == "default"
     assert data["risk"] == {"tier": "medium", "set_here": False, "reason": "", "influence": None, "consequence": None,
-                            "justification": None}
+                            "justification": None, "influence_text": None, "consequence_text": None}
     # the budget split and the limitations are the ones the MAP generated from this plan carries
     plan = ModelPlan.from_content(ws.latest(ArtifactKind.MODEL_PLAN, "main").content)
     doc = map_from_plan(plan, current_cpf(ws), catalog_rows(ws))

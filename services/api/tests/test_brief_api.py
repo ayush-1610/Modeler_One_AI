@@ -121,6 +121,55 @@ def test_extraction_with_a_scripted_agent_then_edit_and_preview(client):
 
 
 @pytest.mark.req("T-50")
+def test_the_agents_m15_draft_waits_on_a_person_who_confirms_it_in_place(client):
+    # page review 1 (the owner's decisions 1b and 4 of 2026-10-29): suggested ratings and why, never a value until confirmed
+    c, store = client
+    pid = _initiate(c)
+    sha = next(d["sha256"] for d in c.get(f"/api/v1/projects/{pid}/documents", headers=H).json()["data"]["documents"]
+               if d["role"] == "proposal")
+    why = {"how_the_model_is_used": "The exposure prediction supports dose selection alongside the clinical data",
+           "what_a_wrong_decision_means": "A wrong exposure estimate could expose patients to too high a dose"}
+
+    class Scripted:
+        provider, model = "test", "scripted"
+
+        def __init__(self):
+            self.turns = [[("propose_field", {"path": "qoi.text", "value": "exposure after a single 50 mg oral dose",
+                                              "quote": "predict exposure after a single oral dose of 50 mg", "doc_sha256": sha,
+                                              "page": 1}),
+                           ("propose_field", {"path": "qoi.context_of_use", "value": "healthy adults",
+                                              "quote": "50 mg in healthy adults", "doc_sha256": sha, "page": 1})],
+                          [("draft_risk_assessment", {"influence": "medium", "consequence": "high", **why})], []]
+
+        def complete(self, messages, tools):
+            calls = self.turns.pop(0)
+            return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
+                              tool_calls=tuple(ToolCall(id="c", name=n, arguments=a) for n, a in calls))
+
+    def no_pubchem(name):
+        raise IdentityError("PubChem is not reachable from this host")
+
+    result = brief_api.run_extraction(store, "t1", pid, by="u1", model=Scripted(), fetch_identity=no_pubchem)
+    assert result["status"] == "COMPLETED" and result["accepted"] == 6
+    view = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]
+    fields = view["brief"]["fields"]
+    assert fields["m15.influence_suggested"]["status"] == "DRAFTED" and fields["m15.influence_suggested"]["value"] == "medium"
+    assert fields["m15.influence"]["value"] == why["how_the_model_is_used"]
+    assert fields["m15.influence_rating"]["status"] == "MISSING"           # the rating itself waits on the person
+    issues = [(i["path"], i["message"]) for i in view["start"]["issues"]]
+    assert ("m15.influence", "How the model is used: confirm the intake agent's draft, or change it") in issues
+    assert ("acceptance.tier", "Model influence: not rated yet") in issues   # the rating itself waits on the person
+    confirmed = c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
+        {"path": "m15.influence", "status": "CONFIRMED"},
+        {"path": "m15.consequence", "status": "EDITED", "value": "Too high a dose could harm patients"}]})
+    assert confirmed.status_code == 200, confirmed.text
+    view = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]
+    assert {"m15.influence", "m15.consequence"}.isdisjoint(i["path"] for i in view["start"]["issues"])
+    assert view["brief"]["fields"]["m15.influence"]["status"] == "CONFIRMED"
+    assert view["brief"]["fields"]["m15.influence"]["by"] == "u1"
+
+
+@pytest.mark.req("T-50")
 def test_start_edits_ask_no_reason_refuse_a_risk_outside_its_m15_range_and_keep_the_checklist_current(client):
     """Redesign §3.1: the checklist exists from the start and follows each saved brief; D-28 gates and the ICH M15 risk
     are in the brief's answer; a tier its two ratings do not admit is refused."""
