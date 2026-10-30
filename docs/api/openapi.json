@@ -6894,6 +6894,16 @@
             "title": "Flags",
             "type": "array"
           },
+          "grade_reason": {
+            "default": "",
+            "title": "Grade Reason",
+            "type": "string"
+          },
+          "grade_rubric": {
+            "default": "",
+            "title": "Grade Rubric",
+            "type": "string"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -7020,6 +7030,8 @@
           "extraction",
           "conditions",
           "confidence",
+          "grade_reason",
+          "grade_rubric",
           "flags",
           "purpose",
           "provider",
