@@ -363,3 +363,18 @@ def test_the_data_request_lists_what_only_the_client_sends_on_start_and_download
     assert wb.sheetnames[0] == "Request" and wb["Request"]["A1"].value.startswith("Data request: Exampleamide (p1), ")
     rows = [[cell.value for cell in row] for row in wb["Request"].iter_rows(min_row=5)]
     assert [row[1] for row in rows] == [line.what for line in expected]
+
+
+def test_a_withdrawn_client_file_is_shown_but_not_read_into_the_project(setup):
+    # the document library, PR 2: a withdrawn file is kept and opened, but not classified, read or mapped until restored
+    from modeler_project.documents import DocumentLibrary
+
+    c, ws = setup
+    view = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("raw.xlsx", _raw_workbook(), XLSX))]).json()["data"]
+    sub = view["files"][0]
+    DocumentLibrary(ws).withdraw(sub["sha256"], by="u1", reason="the client sent a corrected file")
+    assert c.get(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Sheet1", headers=H).status_code == 200
+    refused = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}/sheets/Misc:classify", headers=H,
+                     json={"category": "PRODUCT_INFO", "reason": "batch list"})
+    assert refused.status_code == 409 and "the client sent a corrected file" in refused.json()["detail"]
+    assert c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H).status_code == 409

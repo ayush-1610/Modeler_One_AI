@@ -49,6 +49,21 @@ class ContributionView(View):
     step: Literal["start", "inputs"]
 
 
+class RelatesToView(View):
+    """What a document relates to (`documents.RelatesTo`): a step and, optionally, a task within it."""
+
+    step: Literal["start", "inputs", "review", "run"]
+    task: str
+
+
+class WithdrawalView(View):
+    """Who withdrew a document, when and why (`documents.Withdrawal`)."""
+
+    by: str
+    at: str
+    reason: str
+
+
 class LibraryRowView(View):
     """One document of the project library (`library.LibraryRow`), with what it contributed."""
 
@@ -63,10 +78,20 @@ class LibraryRowView(View):
     source: Literal["person", "agent", "system"]
     versions: int
     contributions: list[ContributionView]
+    relates_to: RelatesToView | None
+    withdrawn: WithdrawalView | None
 
 
 class LibraryPage(View):
     documents: list[LibraryRowView]
+
+
+class LibraryEntryView(View):
+    """A document's entry in the library after a change: what it relates to, and its withdrawal if withdrawn."""
+
+    sha256: str
+    relates_to: RelatesToView | None
+    withdrawn: WithdrawalView | None
 
 
 class FigureView(View):

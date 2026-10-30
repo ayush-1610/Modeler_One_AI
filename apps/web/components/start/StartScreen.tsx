@@ -82,8 +82,7 @@ export function StartScreen({ projectId }: { projectId: string }) {
           </p>
         )}
       </div>
-      <DrugAndFiles projectId={projectId} view={view} documents={documents} save={save} open={open} marks={marks}
-                    run={run} busy={busy} onNotice={setNotice} />
+      <DrugAndFiles projectId={projectId} view={view} documents={documents} save={save} open={open} marks={marks} />
       <ShortBrief view={view} save={save} open={open} marks={marks} />
       <RiskPicker key={riskKey} view={view} save={save} open={open} marks={marks} />
       <ScopeGates view={view} save={save} open={open} marks={marks} />

@@ -533,7 +533,8 @@ export interface paths {
         put?: never;
         /**
          * Upload Client Files
-         * @description Store each file; read a filled template at once; triage any other workbook.
+         * @description Store each file; read a filled template at once; triage any other workbook. `step` and `task`: what the files
+         *     relate to (the document library's "Add data" card).
          */
         post: operations["upload_client_files_api_v1_projects__project_id__client_data_post"];
         delete?: never;
@@ -829,7 +830,10 @@ export interface paths {
         /** List Documents */
         get: operations["list_documents_api_v1_projects__project_id__documents_get"];
         put?: never;
-        /** Upload Documents */
+        /**
+         * Upload Documents
+         * @description Store documents in the project's library. `step` and `task`: what they relate to (the "Add data" card).
+         */
         post: operations["upload_documents_api_v1_projects__project_id__documents_post"];
         delete?: never;
         options?: never;
@@ -886,6 +890,47 @@ export interface paths {
         get: operations["document_raw_api_v1_projects__project_id__documents__sha256__raw_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/documents/{sha256}:restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Document
+         * @description Put a withdrawn document back in use, with a reason.
+         */
+        post: operations["restore_document_api_v1_projects__project_id__documents__sha256__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/documents/{sha256}:withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw Document
+         * @description Withdraw a document with a reason (the owner's answer 12): never erased, marked in the library, hidden from the
+         *     agents. The values already taken from it keep their citation; a person rejects them on Inputs if they must go.
+         */
+        post: operations["withdraw_document_api_v1_projects__project_id__documents__sha256__withdraw_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2280,6 +2325,16 @@ export interface components {
         Body_upload_client_files_api_v1_projects__project_id__client_data_post: {
             /** Files */
             files: string[];
+            /**
+             * Step
+             * @default
+             */
+            step?: string;
+            /**
+             * Task
+             * @default
+             */
+            task?: string;
         };
         /** Body_upload_documents_api_v1_projects__project_id__documents_post */
         Body_upload_documents_api_v1_projects__project_id__documents_post: {
@@ -2290,6 +2345,16 @@ export interface components {
              * @default proposal
              */
             role?: string;
+            /**
+             * Step
+             * @default
+             */
+            step?: string;
+            /**
+             * Task
+             * @default
+             */
+            task?: string;
         };
         /** BoundsFinding */
         BoundsFinding: {
@@ -3489,6 +3554,8 @@ export interface components {
             uploaded_by: string;
             /** Warnings */
             warnings: string[];
+            /** Withdrawn */
+            withdrawn: boolean;
         };
         /** Documents */
         Documents: {
@@ -3759,6 +3826,13 @@ export interface components {
         /** Envelope[InputsPage] */
         Envelope_InputsPage_: {
             data: components["schemas"]["InputsPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[LibraryEntryView] */
+        Envelope_LibraryEntryView_: {
+            data: components["schemas"]["LibraryEntryView"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -4948,10 +5022,25 @@ export interface components {
                 };
             };
         };
+        /**
+         * LibraryEntryView
+         * @description A document's entry in the library after a change: what it relates to, and its withdrawal if withdrawn.
+         */
+        LibraryEntryView: {
+            relates_to: components["schemas"]["RelatesToView"] | null;
+            /** Sha256 */
+            sha256: string;
+            withdrawn: components["schemas"]["WithdrawalView"] | null;
+        };
         /** LibraryPage */
         LibraryPage: {
             /** Documents */
             documents: components["schemas"]["LibraryRowView"][];
+        };
+        /** LibraryReason */
+        LibraryReason: {
+            /** Reason */
+            reason: string;
         };
         /**
          * LibraryRowView
@@ -4970,6 +5059,7 @@ export interface components {
             n_pages: number;
             /** Name */
             name: string;
+            relates_to: components["schemas"]["RelatesToView"] | null;
             /** Role */
             role: string;
             /** Sha256 */
@@ -4983,6 +5073,7 @@ export interface components {
             source: "person" | "agent" | "system";
             /** Versions */
             versions: number;
+            withdrawn: components["schemas"]["WithdrawalView"] | null;
         };
         /** M15Issue */
         M15Issue: {
@@ -6669,6 +6760,19 @@ export interface components {
             kind: string;
             /** Version */
             version: number;
+        };
+        /**
+         * RelatesToView
+         * @description What a document relates to (`documents.RelatesTo`): a step and, optionally, a task within it.
+         */
+        RelatesToView: {
+            /**
+             * Step
+             * @enum {string}
+             */
+            step: "start" | "inputs" | "review" | "run";
+            /** Task */
+            task: string;
         };
         /** ReleaseModelRequest */
         ReleaseModelRequest: {
@@ -8524,6 +8628,18 @@ export interface components {
              */
             use_as_suspension?: boolean;
         };
+        /**
+         * WithdrawalView
+         * @description Who withdrew a document, when and why (`documents.Withdrawal`).
+         */
+        WithdrawalView: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Reason */
+            reason: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -10345,6 +10461,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_document_api_v1_projects__project_id__documents__sha256__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                sha256: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryReason"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LibraryEntryView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_document_api_v1_projects__project_id__documents__sha256__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                sha256: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryReason"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LibraryEntryView_"];
                 };
             };
             /** @description Validation Error */

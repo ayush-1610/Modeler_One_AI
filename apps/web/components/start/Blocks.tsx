@@ -5,9 +5,7 @@ import { type ReactNode } from "react";
 
 import { EmptyState, InlineIssue } from "@/components/kit";
 import { FieldRow, NeedsYou, QuestionRow } from "@/components/start/FieldRow";
-import { upload } from "@/lib/api";
 import type { BriefView, DocumentView } from "@/lib/brief";
-import type { useMutation } from "@/lib/hooks";
 import { defOf, recordOf, type Marks, type Open, type Save } from "@/lib/start";
 
 /** One numbered block of the Start screen. */
@@ -70,38 +68,12 @@ export function HiddenMarks({ paths, marks }: { paths: string[]; marks: Marks })
 // the molecular weight is shown on Inputs with its source (page review 1); the InChIKey is kept in the brief, not shown
 const IDENTITY = ["drug.pubchem_cid", "drug.smiles"];
 const OFF_SCREEN = ["drug.mw_free_base", "drug.inchikey"];
-const WORKBOOK = /\.(xlsx|xlsm|xls|csv|tsv)$/i;
-
 /** Block 1: the drug and its identity (PubChem), and the files: named in one line, listed in the project's document
- *  library (its plan, PR 1). Until "Add data" comes to the sidebar (PR 2), files are added here; each goes where its
- *  type says (a workbook to client data, the rest to documents). */
-export function DrugAndFiles({ projectId, view, documents, save, open, marks, run, busy, onNotice }: {
+ *  library. Files are added with "Add data" in the sidebar, at any step (the library plan, PR 2). */
+export function DrugAndFiles({ projectId, view, documents, save, open, marks }: {
   projectId: string; view: BriefView; documents: DocumentView[]; save: Save; open: Open; marks: Marks;
-  run: ReturnType<typeof useMutation>["run"]; busy: boolean; onNotice: (text: string) => void;
 }) {
-  const shown = documents.filter((d) => d.role !== "retrieved_record");
-
-  async function add(list: FileList | null) {
-    if (!list?.length) return;
-    const files = Array.from(list);
-    const toClient = files.filter((f) => WORKBOOK.test(f.name));
-    const toDocs = files.filter((f) => !toClient.includes(f));
-    const notes: string[] = [];
-    if (toDocs.length) {
-      const form = new FormData();
-      form.set("role", "annex");
-      toDocs.forEach((f) => form.append("files", f));
-      const { problem } = await run(() => upload("/api/v1/projects/{project_id}/documents", { project_id: projectId }, form));
-      notes.push(problem ?? `${toDocs.map((f) => f.name).join(", ")}: added as documents; read the proposal again to fill the brief from them`);
-    }
-    if (toClient.length) {
-      const form = new FormData();
-      toClient.forEach((f) => form.append("files", f));
-      const { problem } = await run(() => upload("/api/v1/projects/{project_id}/client-data", { project_id: projectId }, form));
-      notes.push(problem ?? `${toClient.map((f) => f.name).join(", ")}: added as client data, read on Inputs`);
-    }
-    onNotice(notes.join(" · "));
-  }
+  const shown = documents.filter((d) => d.role !== "retrieved_record" && !d.withdrawn);
 
   return (
     <Block n={1} title="The drug and the files" testId="start-drug">
@@ -121,13 +93,7 @@ export function DrugAndFiles({ projectId, view, documents, save, open, marks, ru
             See them in the Project Document Library</Link>, with what each contributed.
         </p>
       )}
-      <div className="row" style={{ marginTop: 10 }}>
-        <label className="btn">
-          Add files
-          <input type="file" multiple hidden disabled={busy} data-testid="start-add-files" onChange={(e) => add(e.target.files)} />
-        </label>
-        <span className="muted" style={{ fontSize: 13 }}>Workbooks go to client data (Inputs), everything else to the documents.</span>
-      </div>
+      <p className="muted start-add-hint">Add more files with <strong>+ Add data</strong> in the sidebar.</p>
     </Block>
   );
 }

@@ -49,13 +49,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body>
         {/* the first Tab stop: past the sidebar to the page (every page renders its own <main>) */}
         <a className="skip-link" href="#content">Skip to the page</a>
-        <div className="app">
-          <Nav user={user} />
-          <div className="content">
-            <span id="content" tabIndex={-1} className="skip-target" />
-            <Providers>{children}</Providers>
+        {/* the sidebar is inside the providers too: its "Add data" card changes the project and refreshes the page */}
+        <Providers>
+          <div className="app">
+            <Nav user={user} />
+            <div className="content">
+              <span id="content" tabIndex={-1} className="skip-target" />
+              {children}
+            </div>
           </div>
-        </div>
+        </Providers>
       </body>
     </html>
   );

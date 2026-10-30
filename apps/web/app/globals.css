@@ -151,6 +151,9 @@ p { max-width: var(--measure); }
 .nav a.active { background: color-mix(in srgb, var(--sim) 12%, transparent); color: var(--brand-ink); font-weight: 600; }
 .nav-project { margin-top: 14px; }
 .nav-heading { display: block; padding: 0 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+.nav-action { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: var(--radius-sm); border: 0;
+  background: none; font: inherit; color: var(--brand-ink); font-weight: 600; cursor: pointer; }
+.nav-action:hover { background: var(--raised); }
 .nav .group { margin-top: 18px; }
 .nav-user { margin-top: 22px; padding: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-dim); }
 .nav-user strong { display: block; color: var(--ink); font-weight: 600; margin: 2px 0 6px; }

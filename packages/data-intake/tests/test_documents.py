@@ -85,6 +85,15 @@ def test_markdown_and_csv_and_xlsx_become_pages():
     assert xlsx.pages[0].text.endswith("[Dissolution row 2] A2=15 | B2=62.5")
 
 
+def test_json_is_quotable_as_written_and_must_parse():
+    data = b'{"compound": "Drugol", "logP": 2.1,\n "fu": 0.09}'
+    doc = extract_document(data, "parameters.json")
+    assert (doc.kind, doc.media_type) == ("json", "application/json")
+    assert doc.pages[0].text == data.decode()                  # the file's own text: a quote is checked against it
+    with pytest.raises(DocumentError, match="not valid JSON"):
+        extract_document(b'{"logP": 2.1,', "broken.json")
+
+
 def test_long_text_is_cut_at_line_boundaries():
     lines = [f"line {i} " + "x" * 90 for i in range(100)]
     doc = extract_document("\n".join(lines).encode(), "long.txt")

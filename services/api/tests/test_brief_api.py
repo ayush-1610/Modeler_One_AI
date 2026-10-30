@@ -398,3 +398,59 @@ def test_the_library_lists_each_document_with_who_added_it_and_what_cites_it(cli
     assert (proposal["name"], proposal["source"], proposal["added_by"], proposal["versions"]) == ("proposal.txt", "person",
                                                                                                     "u1", 1)
     assert proposal["contributions"] == []                     # nothing is read from it yet (agents off)
+
+
+def test_add_data_says_what_a_file_relates_to_and_a_withdrawn_document_is_kept_and_hidden_from_a1(client):
+    # docs/plans/2026-10-28-project-document-library.md, PR 2: the owner's answers 11 (roles + what it relates to) and
+    # 12 (withdrawn with a reason, never erased, hidden from the agents)
+    c, store = client
+    pid = _initiate(c)
+    upload = c.post(f"/api/v1/projects/{pid}/documents", headers=H, data={"role": "annex", "step": "inputs", "task": "Formulations"},
+                    files=[("files", ("f2.md", b"Formulation F2: 50 mg ER tablet.", "text/markdown"))])
+    assert upload.status_code == 201 and upload.json()["data"]["documents"][0]["withdrawn"] is False
+    client_file = c.post(f"/api/v1/projects/{pid}/client-data", headers=H, data={"step": "inputs"},
+                         files=[("files", ("notes.csv", b"time,conc\n1,2\n", "text/csv"))])
+    assert client_file.status_code == 201, client_file.text
+    for data, problem in (({"step": "model"}, "relates to"), ({"task": "Formulations"}, "name the step")):
+        bad = c.post(f"/api/v1/projects/{pid}/documents", headers=H, data={"role": "annex", **data},
+                     files=[("files", ("x.md", b"x", "text/markdown"))])
+        assert bad.status_code == 422 and problem in bad.json()["detail"]
+    rows = {d["name"]: d for d in c.get(f"/api/v1/projects/{pid}/library", headers=H).json()["data"]["documents"]}
+    assert rows["f2.md"]["relates_to"] == {"step": "inputs", "task": "Formulations"}
+    assert rows["notes.csv"]["relates_to"] == {"step": "inputs", "task": ""} and rows["notes.csv"]["role"] == "client_file"
+    assert rows["proposal.txt"]["relates_to"] is None and rows["proposal.txt"]["withdrawn"] is None
+
+    proposal = rows["proposal.txt"]["sha256"]
+    assert c.post(f"/api/v1/projects/{pid}/documents/{proposal}:withdraw", headers=H, json={"reason": ""}).status_code == 422
+    assert c.post(f"/api/v1/projects/{pid}/documents/{'0' * 64}:withdraw", headers=H, json={"reason": "x"}).status_code == 404
+    done = c.post(f"/api/v1/projects/{pid}/documents/{proposal}:withdraw", headers=H, json={"reason": "superseded by v2"})
+    assert done.status_code == 200 and done.json()["data"]["withdrawn"]["reason"] == "superseded by v2"
+    listed = {d["name"]: d for d in c.get(f"/api/v1/projects/{pid}/documents", headers=H).json()["data"]["documents"]}
+    assert listed["proposal.txt"]["withdrawn"] is True and listed["f2.md"]["withdrawn"] is False
+    history = c.get(f"/api/v1/projects/{pid}/audit", headers=H).json()["data"]["events"]
+    assert any(e["action"] == "document.withdraw" and e["reason"] == "superseded by v2" for e in history)
+
+    seen: list[str] = []
+
+    class Scripted:
+        provider, model = "test", "scripted"
+
+        def __init__(self):
+            self.turns = [[("list_documents", {}), ("read_page", {"doc_sha256": proposal, "page": 1})], []]
+
+        def complete(self, messages, tools):
+            seen.extend(str(m.get("content", "")) for m in messages if m.get("role") == "tool")
+            calls = self.turns.pop(0)
+            return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
+                              tool_calls=tuple(ToolCall(id=f"c{i}", name=n, arguments=a) for i, (n, a) in enumerate(calls)))
+
+    def no_pubchem(name):
+        raise IdentityError("PubChem is not reachable from this host")
+
+    brief_api.run_extraction(store, "t1", pid, by="u1", model=Scripted(), fetch_identity=no_pubchem)
+    listing, page = seen[:2]
+    assert "f2.md" in listing and "proposal.txt" not in listing                 # A1 does not see the withdrawn file
+    assert page.startswith("ERROR: no such document page")
+
+    back = c.post(f"/api/v1/projects/{pid}/documents/{proposal}:restore", headers=H, json={"reason": "v2 was withdrawn"})
+    assert back.status_code == 200 and back.json()["data"]["withdrawn"] is None

@@ -1,8 +1,9 @@
 # The project document library (plan)
 
-Status: **agreed** (the owner, 2026-10-29: decisions 10–13). **PR 1, the library page, is built** (2026-10-29);
-PR 2 ("Add data") and PR 3 (agents library first) follow. This plan comes from the owner's marks on the
-Start page review (page review 1, 2026-10-27): rows `b1.files` and `b1.add` (move), and `f.viewer` (move).
+Status: **agreed** (the owner, 2026-10-29: decisions 10–13). **PR 1, the library page, is built** (2026-10-29).
+**PR 2, "Add data" and withdrawal, is built** (2026-10-30). PR 3 (agents library first) follows. This plan comes
+from the owner's marks on the Start page review (page review 1, 2026-10-27): rows `b1.files` and `b1.add` (move), and
+`f.viewer` (move).
 
 ## What the owner asked for
 - **"Add data" in the left sidebar,** directly above a "Project Document Library" entry.
@@ -54,7 +55,9 @@ Start page review (page review 1, 2026-10-27): rows `b1.files` and `b1.add` (mov
    - Start's file list moves here.
 2. **"Add data"**: the sidebar entry and the centred card.
    - Upload, with "what it relates to": a step and, optionally, a task.
-   - It stores that with the document (a new optional field of `DocumentRecord`, unlocked).
+   - It stores that in the library's record, `<root>/<tenant>/projects/<pid>/library.json`, with the withdrawals, each
+     change an audit event. Built differently from the first idea, a new field of `DocumentRecord`: a document's
+     next version would mark the brief and the client data, which derive from the documents, stale.
    - The type is guessed from the file: a workbook goes to client data, the rest to documents; the guess can be
      switched.
    - Start's "Add files" is then removed.

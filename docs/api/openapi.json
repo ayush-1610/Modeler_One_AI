@@ -1189,6 +1189,16 @@
             },
             "title": "Files",
             "type": "array"
+          },
+          "step": {
+            "default": "",
+            "title": "Step",
+            "type": "string"
+          },
+          "task": {
+            "default": "",
+            "title": "Task",
+            "type": "string"
           }
         },
         "required": [
@@ -1210,6 +1220,16 @@
           "role": {
             "default": "proposal",
             "title": "Role",
+            "type": "string"
+          },
+          "step": {
+            "default": "",
+            "title": "Step",
+            "type": "string"
+          },
+          "task": {
+            "default": "",
+            "title": "Task",
             "type": "string"
           }
         },
@@ -4553,6 +4573,10 @@
             },
             "title": "Warnings",
             "type": "array"
+          },
+          "withdrawn": {
+            "title": "Withdrawn",
+            "type": "boolean"
           }
         },
         "required": [
@@ -4565,7 +4589,8 @@
           "size_bytes",
           "warnings",
           "uploaded_at",
-          "uploaded_by"
+          "uploaded_by",
+          "withdrawn"
         ],
         "title": "DocumentView",
         "type": "object"
@@ -5447,6 +5472,31 @@
           "errors"
         ],
         "title": "Envelope[InputsPage]",
+        "type": "object"
+      },
+      "Envelope_LibraryEntryView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LibraryEntryView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[LibraryEntryView]",
         "type": "object"
       },
       "Envelope_LibraryPage_": {
@@ -8892,6 +8942,43 @@
         "title": "LayoutRequest",
         "type": "object"
       },
+      "LibraryEntryView": {
+        "additionalProperties": false,
+        "description": "A document's entry in the library after a change: what it relates to, and its withdrawal if withdrawn.",
+        "properties": {
+          "relates_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelatesToView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "withdrawn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WithdrawalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sha256",
+          "relates_to",
+          "withdrawn"
+        ],
+        "title": "LibraryEntryView",
+        "type": "object"
+      },
       "LibraryPage": {
         "additionalProperties": false,
         "properties": {
@@ -8907,6 +8994,21 @@
           "documents"
         ],
         "title": "LibraryPage",
+        "type": "object"
+      },
+      "LibraryReason": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "LibraryReason",
         "type": "object"
       },
       "LibraryRowView": {
@@ -8940,6 +9042,16 @@
             "title": "Name",
             "type": "string"
           },
+          "relates_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelatesToView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "role": {
             "title": "Role",
             "type": "string"
@@ -8964,6 +9076,16 @@
           "versions": {
             "title": "Versions",
             "type": "integer"
+          },
+          "withdrawn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WithdrawalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -8977,7 +9099,9 @@
           "added_by",
           "source",
           "versions",
-          "contributions"
+          "contributions",
+          "relates_to",
+          "withdrawn"
         ],
         "title": "LibraryRowView",
         "type": "object"
@@ -13485,6 +13609,32 @@
           "version"
         ],
         "title": "Ref",
+        "type": "object"
+      },
+      "RelatesToView": {
+        "additionalProperties": false,
+        "description": "What a document relates to (`documents.RelatesTo`): a step and, optionally, a task within it.",
+        "properties": {
+          "step": {
+            "enum": [
+              "start",
+              "inputs",
+              "review",
+              "run"
+            ],
+            "title": "Step",
+            "type": "string"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "task"
+        ],
+        "title": "RelatesToView",
         "type": "object"
       },
       "ReleaseModelRequest": {
@@ -18426,6 +18576,31 @@
         ],
         "title": "WeibullFormulationSpec",
         "type": "object"
+      },
+      "WithdrawalView": {
+        "additionalProperties": false,
+        "description": "Who withdrew a document, when and why (`documents.Withdrawal`).",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "by",
+          "at",
+          "reason"
+        ],
+        "title": "WithdrawalView",
+        "type": "object"
       }
     }
   },
@@ -20371,7 +20546,7 @@
         ]
       },
       "post": {
-        "description": "Store each file; read a filled template at once; triage any other workbook.",
+        "description": "Store each file; read a filled template at once; triage any other workbook. `step` and `task`: what the files\nrelate to (the document library's \"Add data\" card).",
         "operationId": "upload_client_files_api_v1_projects__project_id__client_data_post",
         "parameters": [
           {
@@ -21605,6 +21780,7 @@
         ]
       },
       "post": {
+        "description": "Store documents in the project's library. `step` and `task`: what they relate to (the \"Add data\" card).",
         "operationId": "upload_documents_api_v1_projects__project_id__documents_post",
         "parameters": [
           {
@@ -21875,6 +22051,162 @@
           }
         },
         "summary": "Document Raw",
+        "tags": [
+          "brief"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/documents/{sha256}:restore": {
+      "post": {
+        "description": "Put a withdrawn document back in use, with a reason.",
+        "operationId": "restore_document_api_v1_projects__project_id__documents__sha256__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryReason"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LibraryEntryView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Document",
+        "tags": [
+          "brief"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/documents/{sha256}:withdraw": {
+      "post": {
+        "description": "Withdraw a document with a reason (the owner's answer 12): never erased, marked in the library, hidden from the\nagents. The values already taken from it keep their citation; a person rejects them on Inputs if they must go.",
+        "operationId": "withdraw_document_api_v1_projects__project_id__documents__sha256__withdraw_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryReason"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LibraryEntryView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Withdraw Document",
         "tags": [
           "brief"
         ]
