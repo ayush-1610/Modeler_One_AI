@@ -4,6 +4,8 @@
 // are test entries, never a model.
 import { expect, type Page, test } from "@playwright/test";
 
+import { finishStart } from "./fixtures/inputs";
+
 const AUTH = { Authorization: "Bearer dev" };
 
 async function shot(page: Page, name: string) {
@@ -17,6 +19,7 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
                  files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nER tablet 50 mg.") } },
   });
   const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);      // Inputs opens once Start is done (page review 1, decision 7)
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
   const add = async (req_id: string, target: string, value: number, extra: Record<string, unknown> = {}, pksim?: number) => {
     const res = await request.post(`/api/v1/projects/${projectId}/evidence`, { headers: AUTH, data: {

@@ -9,6 +9,8 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
+import { finishStart } from "./fixtures/inputs";
+
 const REPO = resolve(__dirname, "../../..");
 const AUTH = { Authorization: "Bearer dev" };
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -26,6 +28,7 @@ test("a client sheet is read and saved on the Studies tab, next to the reading a
                  files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral solution, 10 mg.") } },
   });
   const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);      // Inputs opens once Start is done (page review 1, decision 7)
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
   const upload = await request.post(`/api/v1/projects/${projectId}/client-data`, { headers: AUTH, multipart: {
     files: { name: "Smith2015_Table2.xlsx", mimeType: XLSX, buffer: readFileSync(join(dir, "Smith2015_Table2.xlsx")) } } });

@@ -6,6 +6,8 @@ import { deflateSync } from "node:zlib";
 
 import { expect, test } from "@playwright/test";
 
+import { finishStart } from "./fixtures/inputs";
+
 const W = 800;
 const H = 600;
 const POINTS = [[125, 300], [150, 350], [200, 400]]; // (1 h, 100), (2 h, 75), (4 h, 50) with the axes below
@@ -58,6 +60,7 @@ test("a figure inside a PDF is picked from its figure list, cropped, digitized, 
   });
   expect(started.ok(), await started.text()).toBeTruthy();
   const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);      // Inputs opens once Start is done (page review 1, decision 7)
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: { Authorization: "Bearer dev" } })).ok()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);

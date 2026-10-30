@@ -4,6 +4,8 @@
 // list opens each open item on its tab. Software test data entered through the API and the page, never a model.
 import { expect, type Page, test } from "@playwright/test";
 
+import { finishStart } from "./fixtures/inputs";
+
 const AUTH = { Authorization: "Bearer dev" };
 
 async function shot(page: Page, name: string) {
@@ -17,6 +19,7 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
                  files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral tablet, 7 days.") } },
   });
   const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);      // Inputs opens once Start is done (page review 1, decision 7)
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
   for (const value of [2.29, 2.35]) {                     // within 10 %: one value with two sources, no decision
     const r = await request.post(`/api/v1/projects/${projectId}/evidence`, { headers: AUTH, data: {

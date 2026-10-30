@@ -7,6 +7,31 @@ export const AUTH = { Authorization: "Bearer dev" };
 type Study = { study_id: string; route: string; dose_mg: number; food_state?: string; co_medication?: string };
 type BriefChange = { path: string; value: unknown; unit?: string };
 
+// What Start needs before Inputs opens (page review 1, decision 7): the question and its applications, the ICH M15 model
+// risk with why each rating is what it is, and what is modelled. Entered by a person, as on the Start screen.
+export const START_DONE: BriefChange[] = [
+  { path: "qoi.text", value: "Exposure after the doses studied" },
+  { path: "qoi.context_of_use", value: "Software test project: exercises the pipeline, never a model" },
+  { path: "qoi.applications", value: ["APP-01 model build and verification"] },
+  { path: "m15.influence_rating", value: "medium" }, { path: "m15.consequence_rating", value: "medium" },
+  { path: "acceptance.tier", value: "medium" },
+  { path: "m15.influence", value: "The model supports the decision alongside the clinical data" },
+  { path: "m15.consequence", value: "A wrong prediction would be caught by the next clinical study" },
+  { path: "drug.modality", value: "small_molecule" }, { path: "scope.pbpk_model", value: "full" },
+  { path: "scope.site_of_action", value: "systemic" }, { path: "scope.formulation_types", value: ["solution", "ir_tablet"] },
+  { path: "scenarios[0].route", value: "oral" },
+];
+
+/** Start done through the API, as a person would on the Start screen, so Inputs opens (page review 1, decision 7). */
+export async function finishStart(request: APIRequestContext, projectId: string, extra: BriefChange[] = []) {
+  const done = await request.put(`/api/v1/projects/${projectId}/brief`, { headers: AUTH,
+    data: { changes: [...START_DONE, ...extra].map((c) => ({ ...c, status: "EDITED" })) } });
+  expect(done.ok(), await done.text()).toBeTruthy();
+  const steps = await request.get(`/api/v1/projects/${projectId}/steps`, { headers: AUTH });
+  const start = ((await steps.json()).data.steps as { step: string; state: string; reasons: string[] }[]).find((s) => s.step === "start");
+  expect(start?.state, start?.reasons.join("; ")).toBe("done");
+}
+
 export async function projectWithInputs(request: APIRequestContext, drug: string, studies: Study[],
                                         { assemble = true, brief = [] as BriefChange[] } = {}) {
   const started = await request.post("/api/v1/projects:initiate", {

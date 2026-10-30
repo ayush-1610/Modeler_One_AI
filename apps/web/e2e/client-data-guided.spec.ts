@@ -9,6 +9,8 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
+import { finishStart } from "./fixtures/inputs";
+
 const REPO = resolve(__dirname, "../../..");
 const AUTH = { Authorization: "Bearer dev" };
 
@@ -26,6 +28,7 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
                  files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nER tablet 50 mg, VBE.") } },
   });
   const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);      // Inputs opens once Start is done (page review 1, decision 7)
   const edit = (path: string, value: unknown) => ({ path, value, status: "EDITED", note: "from the proposal" });
   const brief = await request.put(`/api/v1/projects/${projectId}/brief`, { headers: AUTH, data: { reason: "from the proposal", changes: [
     edit("drug.modality", "small_molecule"),

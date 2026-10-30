@@ -56,6 +56,22 @@ is touched.
     opens but is not classified or read. `test_documents`: JSON.
   - `library.spec.ts`: "Add data" from Start, switching a guess, relates-to on the library page, withdraw and restore.
 
+### Changed — Inputs opens once Start is done (page review 1, decision 7)
+The owner's decision 7 of 2026-10-29.
+- **Before:** Inputs, opened by its address before Start was done, showed a red banner and let the person work.
+- **Now:** Inputs that have not begun are blocked until Start is done. The page says what Start still needs and links
+  to it; the workspace is not shown, so nothing is gathered for a question not yet set.
+- **Inputs that have begun stay open,** with the red banner, as in the step bar (#105). A project whose Start gains a
+  requirement later, such as the M15 texts of #106, is never locked out of inputs it already gathered.
+- **A project with no Start** (made through the API without a proposal: scripts, templates, the reference runs) keeps
+  the banner and is never blocked, since it has no Start to finish.
+- **The guard is the page.** The API still accepts inputs before Start is done, as the agents and the reference runs
+  build projects through it.
+- **Tests:**
+  - The browser specs that open Inputs now finish Start first, through the API as a person would (`finishStart` in
+    `e2e/fixtures/inputs.ts`). The helper checks that Start is done.
+  - `start-project.spec.ts` shows Inputs blocked, then open once Start is done.
+
 ### Added — the Project Document Library, PR 1: every document and what the project took from it (decision 10)
 The owner's decisions 10–13 of 2026-10-29; plan `docs/plans/2026-10-28-project-document-library.md`, now agreed.
 - **The page:** `/projects/{id}/library`, reached from the sidebar's new **This project** section while a project is

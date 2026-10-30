@@ -4,6 +4,8 @@
 // from the drug name: the manual path.
 import { expect, test } from "@playwright/test";
 
+import { finishStart } from "./fixtures/inputs";
+
 const PROPOSAL = [
   "# Technical proposal TP-E2E: PBPK model of dapagliflozin",
   "Objective: predict exposure after a single oral dose of 10 mg in healthy adults.",
@@ -11,7 +13,7 @@ const PROPOSAL = [
 ].join("\n");
 const CLIENT_CSV = "study_id,time_h,conc_ng_ml\nEX-101,1,30.4\n";
 
-test("a project starts from its proposal and the client's file in one upload, with no approval", async ({ page }) => {
+test("a project starts from its proposal and the client's file in one upload, with no approval", async ({ page, request }) => {
   await page.goto("/projects/start");
   await page.getByTestId("drug-name").fill("Dapagliflozin");
   await page.getByTestId("proposal-files").setInputFiles([
@@ -30,9 +32,16 @@ test("a project starts from its proposal and the client's file in one upload, wi
   const startUrl = page.url();
   const projectId = /\/projects\/([^/]+)\/start$/.exec(startUrl)![1];
 
+  // Inputs comes after Start (page review 1, decision 7): reached by its address, it says what Start still needs
+  await page.goto(startUrl.replace(/\/start$/, "/inputs"));
+  await expect(page.getByTestId("inputs-blocked")).toContainText("Inputs come after Start");
+  await expect(page.getByTestId("add-open-bind.fu")).toHaveCount(0);
+  await finishStart(request, projectId);
+  await page.reload();
+  await expect(page.getByTestId("inputs-blocked")).toHaveCount(0);
+
   // a value typed into its row on Inputs, with its source: converted and graded by code, and in the model with nothing
   // to accept (D-27)
-  await page.goto(startUrl.replace(/\/start$/, "/inputs"));
   await page.getByTestId("add-open-bind.fu").click();
   const fu = page.getByTestId("add-bind.fu");
   await fu.getByLabel("value for bind.fu").fill("9");
