@@ -40,6 +40,41 @@ The owner's decisions 2b and 3 of 2026-10-29, after the data checklist and Propo
   - `client-data-guided.spec.ts`: the ER product on Formulations.
   - `inputs-workspace.spec.ts`: a population added on Individuals.
 
+### Changed — the evidence grade is a versioned rubric, and a prediction never outgrades a measurement (8c; UNVERIFIED)
+The owner's decision 8c of 2026-10-29: the grade carries what the parameter's status says, so the grade and the status
+no longer point at different parameters (PI-2b, `docs/plans/2026-10-23-parameter-identification-review.md`).
+- **Before:** the A–D grade was code in `evidence.assess`, not SME-governed data.
+  - It already graded a PREDICTED source C, below any measurement.
+  - But a publication reporting an in silico value (a predicted logP, say) was a PUBLICATION source, and graded A.
+  - A human in vitro clearance (microsomes, hepatocytes, recombinant enzymes) got the same A as one from a clinical
+    study.
+  - Only rat, dog, mouse and monkey counted as animal, so a pig or rabbit value could be graded A while flagged
+    `species_mismatch`.
+- **Now:** the rubric is `modeler_project/evidence_grading.yaml` 0.1 (UNVERIFIED), read by `evidence.assess`. Its rules
+  are read in order, and the first that applies gives the grade. It keeps the earlier rules and adds three:
+  - **A value its own source calls predicted is C.** The recorded conditions' values are read for "predicted", "in
+    silico", "QSAR" and "QSPR"; their names are not (`measured or predicted` names a condition).
+  - **A human in vitro value is B where an in vivo value can exist:** clearance (`elim.*`), transport (`transp.*`)
+    and permeability (`perm.*`). Parameters measured only in vitro (logP, pKa, fu, solubility) are not affected.
+  - **More species count as animal** (minipig, pig, rabbit, guinea pig, hamster, cynomolgus, marmoset).
+- **Impact:**
+  - Which source a model input keeps can change where two sources of one kind differ in grade (`source_selection.yaml`
+    orders within a source by grade).
+  - The grade the signed MAP records for PI-2b's choice can change, so a non-identifiable pair may fix the other
+    parameter.
+  - An item is graded when it is proposed. Items already in a project keep their grade, so a project can hold grades
+    from both rubrics.
+  - Each new item records the rule that gave its grade and the rubric version (`EvidenceItem.grade_reason`,
+    `grade_rubric`, new optional fields; empty on items graded before 0.1). The API contract gains both.
+  - No locked file is touched.
+- **For the SME (`docs/SME_SIGNOFF.md`):** the rules and their order, the words, which parameters an in vivo study can
+  measure, and whether a human in vitro value should be B for each of them.
+- **Tests (`test_evidence`):**
+  - the earlier grades, unchanged;
+  - the rubric names only checks the code knows;
+  - each new rule;
+  - over every source type, extraction and system: a prediction is never graded above a measured value.
+
 ### Changed — the agent drafts the ICH M15 assessment and a person confirms it (page review 1; UNVERIFIED)
 The owner's decisions 1b and 4 of 2026-10-29, recorded with all 14 answers in `docs/plans/2026-10-23-page-by-page-review.md`
 §4.3.
