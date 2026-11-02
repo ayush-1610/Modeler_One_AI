@@ -15,6 +15,49 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — PI-4 B1: the engine fits a group of parameters through one factor, and fits on a log scale (2026-11-02)
+`docs/plans/2026-11-02-pi-4b-relative-group.md`, with the owner's answers of 2026-11-02. Locked engine files, in their
+own PR with the owner's approval: `services/engine-worker/r/run_pi.R`, `r/run_job.R`, the new golden case
+`golden/pi_relative_group.R`, `.github/workflows/engine-image.yml`; hashes refreshed.
+- **What changed (science):** a fit spec can now say two new things.
+  - **A group:** `parameters[].group` names an entry of `groups: [{name, min, max, start, scale}]`. Each member is
+    simulated at f × its start, so the split between the members is kept and the data estimate only the factor f. A
+    member's start must be positive, and the group's bounds times that start must stay within the member's own
+    (signed) bounds, or the run stops.
+  - **A log scale:** `scale: "log"` on a parameter or a group. The optimiser then works on log(value), and the
+    Hessian CI is taken on that scale: asymmetric, never below zero, log-normal. The reported CV is the log-normal
+    one, √(exp(sd_log²) − 1), so S6's draw (CV = SD / estimate) has exactly the fitted σ on the log scale.
+- **How:** a subclass of the package's `ParameterIdentification` (2.2.0) overrides its private `.runAlgorithm` and
+  `estimateCI`. The optimiser moves one entry per group and one per ungrouped parameter. The package's own objective
+  function, optimisers and Hessian CI are used unchanged, so σ² = SSR / (n − p) counts the factors, not the members.
+  - The result reports each estimate's `scale`, `group` and `sd_log`, one row per group (factor, SD, CV, CI,
+    members), and correlations between the optimised entries (a group by its name).
+  - The multi-start (`run_job.R`) sets a group's start from `start_values[<group name>]`, and refuses a start for a
+    member, which would change the split.
+  - Only the Hessian CI is supported on this path.
+- **What did not change:** a spec with no group and no log scale (every spec the platform writes today) runs on the
+  package's own `ParameterIdentification`, exactly as before. `fit_spec` does not yet pass the signed scale or any
+  group. So no fit changes until that wiring lands (next PR, B1b; groups in B2), and the MAP's disclosure ("optimised
+  and its CI computed on the linear value") stays true.
+- **The proof (golden, on PK-Sim, in the engine-image qualification gate):** OSP's Aciclovir example, whose kidney
+  has two parallel elimination processes in `Aciclovir.pkml` (ospsuite 12.4.4): glomerular filtration
+  ("GFR fraction" = 1) and first-order tubular secretion (`TSspec`). Its hepatic clearance is 0. The checks:
+  - Profiles are simulated at a known factor of 0.5, with a fixed ±4 % pattern.
+  - The group (linear and log) recovers the factor within 3 %, and keeps the split exactly.
+  - The log CI is symmetric on the log scale and above zero.
+  - Secretion alone on a log scale recovers its value.
+  - A spec as before, and one with `scale: "linear"`, both run on the package's own class with identical results.
+  - Lipophilicity beside the group gets a correlation that names the group.
+  - `REQUIRED_GOLDEN` gains `pi_relative_group`, so an image that fails it cannot be registered.
+- **Fixed (found by the golden case on PK-Sim):** `run_pi.R` mapped each estimate back to its CPF id by the key
+  "<spec simulation id>|<path>". The result reports the parameter's full path, which starts with the simulation's own
+  name, so the key matched only where the pkml's simulation is named by the spec's id, as the platform's are. OSP's
+  Aciclovir.pkml is "Vergin 1995 IV", so its estimates kept their PK-Sim names. Each fitted parameter's full path is
+  now keyed too. Where the old key matched (every platform fit), nothing changes.
+- **Known gap:** near a value of 1, log(value) is near 0 and the package's relative Hessian step (0.1 × |x|) shrinks
+  with it. Only an estimate within 2 × 10⁻⁵ of 1 (in the base unit) falls back to the package's tiny absolute step.
+  It is the package's own rule, and it applies to linear parameters near 0 too.
+
 ### Docs — PI-4 B, fitting parallel pathways through one factor: the design (the owner's choice A + B + D, 2026-11-02)
 `docs/plans/2026-11-02-pi-4b-relative-group.md`. No code changes.
 - **The engine:** a subclass of the package's `ParameterIdentification` overrides the private `.runAlgorithm`, so the

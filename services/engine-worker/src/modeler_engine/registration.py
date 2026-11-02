@@ -16,7 +16,7 @@ from typing import Any
 
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 # The golden scripts that qualify an image; all must pass before a row is written (F-405).
-REQUIRED_GOLDEN = ("roundtrip", "pi_smoke", "tasks")
+REQUIRED_GOLDEN = ("roundtrip", "pi_smoke", "pi_relative_group", "tasks")
 
 
 class RegistrationError(Exception):

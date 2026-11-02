@@ -201,7 +201,7 @@
     },
     {
       "path": ".github/workflows/engine-image.yml",
-      "sha256": "4e81125591d6d6120882ab2a3c94c607b5c135221c68581e459adb94eea79814"
+      "sha256": "23b53703b5fb6a5e5660dde9eff554a102cd5996f5affe559f4e4624d656a5e5"
     },
     {
       "path": "CLAUDE.md",
@@ -452,6 +452,10 @@
       "sha256": "1ea34d6e76c078340cca28501e1b35eb3b158a2d59aee0b41093607f10c52f34"
     },
     {
+      "path": "services/engine-worker/golden/pi_relative_group.R",
+      "sha256": "45c4fe10418585027b668e8693c2c99a495ef77395564d94ed35880c8a2cef42"
+    },
+    {
       "path": "services/engine-worker/golden/pi_smoke.R",
       "sha256": "96b176073bd7fd7df22402a000512684ebd82dacaae2b9bcdc0aa1341217965d"
     },
@@ -485,11 +489,11 @@
     },
     {
       "path": "services/engine-worker/r/run_job.R",
-      "sha256": "4432c8f6770533208dda7866cc133b5b329d14a7243fe6627975dd4d7ec6cc0e"
+      "sha256": "a064bc71d031afed4297f3afce7a0db07f396871dcfc5af582fee1c6228ed3f9"
     },
     {
       "path": "services/engine-worker/r/run_pi.R",
-      "sha256": "3fd621b8b91ec56997863d1d5919433d55788ccee8e52512a0059abe4407b2f5"
+      "sha256": "5b5c19efce0b7764cdcfd6f938eab71ad255357502c1ff3da190c43dddf12359"
     },
     {
       "path": "tests/architecture/boundaries.toml",
