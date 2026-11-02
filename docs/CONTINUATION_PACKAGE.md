@@ -238,16 +238,24 @@ The owner's decisions are recorded in the plans named.
     - **B1 (#120, locked engine):** `run_pi.R` fits groups through one factor and log-scaled parameters on
       log(value), with the CI on that scale. Golden `pi_relative_group.R` on PK-Sim. A spec with neither runs as
       before.
-    - **B1b (after #120):** `fit_spec` passes the signed scale, so every log-scaled fit is optimised on log(value).
+    - **B1b (#121):** `fit_spec` passes the signed scale, so every log-scaled fit is optimised on log(value).
       A start whose engine ignored the scale is not used (`ENGINE_SCALE_IGNORED`). The MAP's log-scale limitation
       is retired. **Rebuild the server's engine image** with B1 before running fits.
-    - **B2a (after #121):** a fit group is a CPF record (locked `cpf/models.py`), signed in the MAP (locked
-      `map.py`), passed to the engine by `fit_spec` and drawn as one factor by the multi-start. The grouped
-      dapagliflozin refit is the reference task `dapagliflozin-refit-grouped`.
-    - **B2b (after B2a):** the person's choice on Review & sign. The estimation plan's "Fitted as one" form asks
-      for the split's source and the reason; the plan's validator checks it; the group reaches the campaign CPF and
-      the MAP. **B3** waits for the SME.
-  - **D:** keep escalating such fits until B2 (today's behaviour).
+    - **B2a (#122):** a fit group is a CPF record (locked `cpf/models.py`), signed in the MAP (locked `map.py`),
+      passed to the engine by `fit_spec` and drawn as one factor by the multi-start. The grouped dapagliflozin
+      refit is the reference task `dapagliflozin-refit-grouped`.
+    - **B2b (#123):** the person's choice on Review & sign. The estimation plan's "Fitted as one" form asks for
+      the split's source and the reason; the plan's validator checks it; the group reaches the campaign CPF and the
+      MAP.
+    - **The dapagliflozin refit on PK-Sim** (reference run 41495102951), with the three hepatic clearances fitted
+      at S1 from the same shifted start:
+      - **Grouped:** factor 0.4565 (95 % CI 0.31–0.672; truth 0.5), all 32 starts agreeing.
+      - **Each on its own:** the clearances came back 67-fold apart, two at their bounds, with CIs over four to five
+        decades.
+      - Both campaigns escalate at S1 on the IV study's Cmax (distribution), which the grouping does not touch
+        (`docs/plans/2026-11-02-pi-4b-relative-group.md`, Status).
+    - **B3** (the rule that proposes a group) waits for the SME.
+  - **D:** such fits still escalate unless a person groups them (B2), until B3.
 
 **Page review 1, the Start page** (`docs/plans/2026-10-23-page-by-page-review.md` §4):
 - **Built:**

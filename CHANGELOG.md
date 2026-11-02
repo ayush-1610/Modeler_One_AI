@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — PI-4 B2: the dapagliflozin refit on PK-Sim, grouped and ungrouped (2026-11-02)
+The owner asked for it on 2026-11-02: "After the golden case passes, run the dapagliflozin refit with the three liver
+clearances as one group." Reference run 41495102951 (B2a's code with B1b's log scale, 32 starts each). It is recorded
+in `docs/plans/2026-11-02-pi-4b-relative-group.md` (Status) and `CONTINUATION_PACKAGE.md` §4.0. No code changes.
+- **The three hepatic clearances fitted as one factor:** 0.4565 (95 % CI 0.31–0.672; truth 0.5). All starts agreed,
+  and the published split was kept (each clearance at 0.913× published).
+- **The same clearances fitted each on its own:** 72 % of the starts agreed. CYP came back 6.7× its published value,
+  UGT1A9 0.1× and UGT2B7 10×; the last two sat at their bounds, with CIs over four to five decades.
+- **Both campaigns escalate at S1**, on the IV study's Cmax (0.44–0.52-fold, distribution). The grouping does not
+  touch it. The refit also shifts the GFR fraction ×2, and the diagnosis did not fit it: that is the likely reason the
+  factor is 0.46, not 0.5.
+
 ### Added — PI-4 B2b: a person fits estimated parameters as one on Review & sign (2026-11-02)
 The owner's answer 2 of 2026-11-02: "a person chooses and signs the group, with a reason that cites where the split
 comes from". It builds on B2a (the CPF and MAP record). No locked file is changed.
