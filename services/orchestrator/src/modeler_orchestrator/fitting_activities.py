@@ -72,6 +72,18 @@ def _num(value) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def _optimised(outcome: FitStartOutcome, request: FitRoundRequest) -> dict[str, float]:
+    """A start's values of what the engine optimised (the request's parameters): a parameter's estimate, or a group's
+    factor (PI-4 B2), whose members' estimates are the factor times their starts."""
+    out: dict[str, float] = {}
+    for p in request.parameters:
+        if p.name in outcome.estimates:
+            out[p.name] = outcome.estimates[p.name]
+        elif (factor := (outcome.groups.get(p.name) or {}).get("factor")) is not None:
+            out[p.name] = factor
+    return out
+
+
 def assess_round(
     request: FitRoundRequest, jobs: list[EngineJob], manifests: list[EngineManifest | None], deadline_reached: bool
 ) -> FitRoundOutcome:
@@ -85,9 +97,10 @@ def assess_round(
             starts.append(FitStartOutcome(index, "CANCELLED_AT_DEADLINE" if deadline_reached else "FAILED"))
             continue
         data = _read_result(manifest)
+        groups = {g["name"]: g for g in data.get("groups") or []}
         # the engine says what scale it applied (run_pi.R, PI-4 B1); an older engine ignores the spec's log scale and
         # fits the linear value, which would contradict the signed MAP: such a start is not used
-        applied = {e["name"]: e.get("scale") for e in data["estimates"]}
+        applied = {e["name"]: e.get("scale") for e in data["estimates"]} | {n: g.get("scale") for n, g in groups.items()}
         missed = [name for name in log_scaled if applied.get(name) != "log"]
         if missed:
             ignored.update(missed)
@@ -103,17 +116,22 @@ def assess_round(
             correlations=[{"a": c["a"], "b": c["b"], "r": r} for c in data.get("correlations") or []
                           if (r := _num(c.get("r"))) is not None],
             ci_error=data.get("ci_error") or None,
+            groups={n: {"factor": _num(g.get("factor")), "sd": _num(g.get("sd")), "cv": _num(g.get("cv")),
+                        "ci_lower": _num(g.get("lowerCI")), "ci_upper": _num(g.get("upperCI"))} for n, g in groups.items()},
         )
         starts.append(outcome)
-        results.append(StartResult(index, estimates, outcome.objective, converged, outcome.evaluations))
+        # the starts are compared on what the engine optimised: each parameter outside a group, and each group's factor
+        results.append(StartResult(index, _optimised(outcome, request), outcome.objective, converged, outcome.evaluations))
 
     # the best converged start (lowest objective, as assess_fit ranks them) brings its CI and correlations, so a pair
     # the data cannot tell apart or an estimate they barely determine is flagged (MS-01 §5: |r| > 0.95)
     converged = [s for s in starts if s.converged and s.objective is not None]
     best = min(converged, key=lambda s: s.objective) if converged else None
     correlations = {(c["a"], c["b"]): c["r"] for c in best.correlations} if best else {}
-    intervals = {name: (u["ci_lower"], u["ci_upper"]) for name, u in (best.uncertainty if best else {}).items()
-                 if u.get("ci_lower") is not None and u.get("ci_upper") is not None}
+    spreads = {**(best.uncertainty if best else {}), **(best.groups if best else {})}
+    intervals = {name: (u["ci_lower"], u["ci_upper"]) for name, u in spreads.items()
+                 if name in {p.name for p in request.parameters}
+                 and u.get("ci_lower") is not None and u.get("ci_upper") is not None}
     assessment = assess_fit(results, _fit_parameters(request), correlations=correlations, confidence_intervals=intervals)
     findings = [f"{f.code}: {f.message}" for f in assessment.findings]
     if best is not None and best.ci_error:

@@ -319,3 +319,27 @@ def test_the_m15_assessment_is_under_the_hash_and_a_map_without_one_hashes_as_be
     changed = assessed.model_copy(update={"risk_assessment": assessment.model_copy(update={"influence_why": "edited"})})
     assert changed.content_sha256() != assessed.content_sha256()          # a changed reason changes what is signed
     assert assessed.sign(printed_name="Dr Lead").signature.content_sha256 == assessed.content_sha256()
+
+
+@pytest.mark.req("T-50")
+def test_a_fit_group_is_signed_under_the_hash_and_a_run_without_it_departs_from_the_map():
+    """PI-4 B2: the parameters a person chose to fit as one, and why, are in the MAP and under its hash; a MAP without
+    a group hashes as before; a campaign CPF whose groups differ from the signed ones is a departure (D-36)."""
+    from pbpk_domain.campaign.map import cpf_differences
+    from pbpk_domain.cpf import CPF
+
+    plain = _map()
+    base = _cpf()
+    ids = [p.id for p in base.parameters if isinstance(p.value, int | float) and p.value > 0][:2]
+    grouped = CPF.model_validate({**base.model_dump(mode="json"), "fit_groups": [{
+        "name": "pair", "members": ids, "reason": "not separable from one profile", "split_source": "in vitro fm"}]})
+    signed = _map(cpf=grouped)
+    [group] = signed.fit_groups
+    assert group.members == tuple(ids) and group.scale == "log" and group.split_source == "in vitro fm"
+    assert plain.fit_groups == () and plain.content_sha256() == "bcffad4a238baf10c01f92d915c2fe4b9c4f119bd3490f463d266cfa9db8cb7c"
+    assert signed.content_sha256() != plain.content_sha256()
+    assert cpf_differences(signed, grouped) == []
+    assert cpf_differences(signed, base) == ["fit group pair: in the signed MAP, not in the campaign's CPF"]
+    wider = CPF.model_validate({**grouped.model_dump(mode="json"),
+                                "fit_groups": [{**grouped.fit_groups[0].model_dump(mode="json"), "upper": 5.0}]})
+    assert cpf_differences(signed, wider) == ["fit group pair: upper 5.0 in the campaign's CPF, 10.0 in the signed MAP"]

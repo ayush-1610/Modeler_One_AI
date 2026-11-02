@@ -89,6 +89,38 @@ def test_cpf_versioning_and_replace() -> None:
     assert cpf.require("bind.fu").numeric_value == 0.02  # original unchanged (immutable)
 
 
+def _grouped(**group) -> CPF:
+    extra = [rec("elim.hepatic.UGT1A9.clspec", 0.4, "l/µmol/min"), rec("elim.hepatic.UGT2B7.clspec", 0.0066, "l/µmol/min")]
+    base = minimal_cpf(extra=extra)
+    return CPF.model_validate({**base.model_dump(mode="json"), "fit_groups": [{
+        "name": "hepatic", "members": ["elim.hepatic.CYP3A4.clspec", "elim.hepatic.UGT1A9.clspec"],
+        "reason": "one IV profile cannot separate the pathways", "split_source": "in vitro fm, HLM (Example 2020)",
+        **group}]})
+
+
+def test_a_fit_group_is_kept_by_each_new_version_and_validated() -> None:
+    """PI-4 B2: parameters fitted as one through a factor, chosen by a person, signed with the MAP."""
+    cpf = _grouped()
+    [group] = cpf.fit_groups
+    assert group.scale.value == "log" and (group.lower, group.upper) == (0.1, 10.0)
+    assert cpf.group_of("elim.hepatic.UGT1A9.clspec") == group and cpf.group_of("bind.fu") is None
+    assert cpf.replace(rec("bind.fu", 0.05)).fit_groups == cpf.fit_groups   # a new version keeps it
+    with pytest.raises(ValueError, match="no parameter 'elim.renal.x' in the CPF"):
+        _grouped(members=["elim.hepatic.CYP3A4.clspec", "elim.renal.x"])
+    with pytest.raises(ValueError, match="0 < lower <= 1 <= upper"):
+        _grouped(lower=2.0, upper=10.0)                                   # the members' current values are factor 1
+    with pytest.raises(ValueError, match="at least 2"):
+        _grouped(members=["elim.hepatic.CYP3A4.clspec"])
+    with pytest.raises(ValueError, match="split_source"):
+        _grouped(split_source="")
+    with pytest.raises(ValueError, match="named like a parameter"):
+        _grouped(name="bind.fu")
+    two = _grouped().model_dump(mode="json")
+    two["fit_groups"].append({**two["fit_groups"][0], "name": "again"})
+    with pytest.raises(ValueError, match="is in two fit groups"):
+        CPF.model_validate(two)
+
+
 def test_duplicate_ids_rejected() -> None:
     with pytest.raises(ValueError, match="duplicate parameter ids"):
         CPF(compound="X", parameters=(rec("phys.mw", 1.0, "g/mol"), rec("phys.mw", 2.0, "g/mol")))

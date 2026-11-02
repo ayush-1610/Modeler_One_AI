@@ -15,6 +15,41 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — PI-4 B2a: a fit group is recorded in the CPF, signed in the MAP and fitted through one factor (2026-11-02)
+`docs/plans/2026-11-02-pi-4b-relative-group.md`, the owner's answer 2 of 2026-11-02: "B2 first: a person chooses and
+signs the group, with a reason that cites where the split comes from". Locked files, with the owner's approval of B2:
+`cpf/models.py` (the CPF schema) and `campaign/map.py`; hashes refreshed. This PR is the record and the run. B2b, next,
+is the person's choice on Review & sign.
+- **The record (science):** `CPF.fit_groups` holds parameters fitted as one: `FitGroup(name, members (≥ 2), lower,
+  upper, scale (log by default), reason, split_source)`.
+  - Each member is simulated at f × its current value, so their split is kept and the data estimate only the factor f.
+  - Validated: the members exist, each is in one group only, a group is not named like a parameter, and the factor's
+    bounds satisfy 0 < lower ≤ 1 ≤ upper (factor 1 is the members' current values). A reason and the split's source
+    are required.
+  - Every new CPF version keeps the groups.
+- **The MAP signs them:** `MapDocument.fit_groups` (`MapFitGroup`). A MAP without a group hashes as before (the pinned
+  hash is unchanged). A campaign CPF whose groups differ from the signed ones (a group on one side only, other members,
+  bounds or scale) is a departure (D-36, `cpf_differences`).
+- **The run:** `fit_spec` writes the CPF's groups for the engine (#120) where two or more members are fitted together.
+  - A member fitted alone, e.g. after MS-01's fix_and_refit fixed the other, is fitted on its own.
+  - The factor's bounds are the group's, narrowed so that f × start stays within each member's own signed bounds.
+  - A member's start must be positive.
+- **The multi-start and the assessment:** the multi-start draws each group's factor in place of its members, so it
+  never changes their split. The starts are compared on what the engine optimised (each ungrouped parameter and each
+  factor), with the factor's CI.
+  - The members' estimates (factor × start) are what the CPF receives.
+  - `FitStartOutcome.groups` carries each factor and its CI. The round summary names the group and its factor.
+  - A correlated pair that names a group is not in the signed parameter table, so the diagnosis escalates it rather
+    than fixing a member (D stands).
+- **The dapagliflozin refit, grouped:** `run_reference.py campaign --group NAME=ID,ID[,ID] --group-reason …
+  --split-source …`, and the reference workflow's task `dapagliflozin-refit-grouped`. Its three hepatic clearances
+  (`elim.hepatic.Hepatic-CYP.clspec`, `UGT1A9`, `UGT2B7`) are fitted as one. The refit shifts all three by the same
+  ×2, so their published split is kept and the factor's truth is 0.5.
+- **Fixture:** `deploy/dev/analytical_engine.py` (a software stand-in, never evidence) fits a group's factor and
+  returns the engine's group rows.
+- **API contract:** the CPF schema gains `fit_groups`; `docs/api/openapi.json` and the web types are regenerated.
+- **Not yet:** a person chooses a group on Review & sign (B2b). Until then a group enters only through the CPF.
+
 ### Changed — PI-4 B1b: a parameter signed with scale "log" is now fitted on log(value) (2026-11-02)
 The owner's answer 1 of 2026-11-02: log scale "applied only when the signed fit policy says `scale: log`". It builds on
 B1 (the engine). No locked file is changed.

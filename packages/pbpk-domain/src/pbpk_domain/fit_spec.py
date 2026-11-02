@@ -117,6 +117,34 @@ def resolve_fit_ids(cpf: CPF, target: str, system: ModelSystem | None = None) ->
     return tuple(p.id for p in cpf.parameters if rx.match(p.id))
 
 
+def _fit_groups(cpf: CPF, parameters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The CPF's fit groups among the parameters this spec fits (PI-4 B2), for run_pi.R: each member is then simulated
+    at f x its start, so the split between the members is kept and one factor f is estimated. A group applies where two
+    or more of its members are fitted together; a member fitted alone (e.g. after MS-01's fix_and_refit fixed the
+    other) is fitted on its own. The factor's bounds are the group's, narrowed so no member leaves its own (signed)
+    bounds: f x start stays within each member's [min, max]. The members' start (f = 1) is always inside."""
+    out: list[dict[str, Any]] = []
+    by_name = {e["name"]: e for e in parameters}
+    for group in cpf.fit_groups:
+        members = [by_name[m] for m in group.members if m in by_name]
+        if len(members) < 2:
+            continue
+        if any(e["start"] <= 0 for e in members):
+            raise FitSpecError(f"fit group {group.name!r}: a member's start must be positive to be scaled by a factor "
+                               f"({', '.join(f'{e['name']} = {e['start']:g}' for e in members)})")
+        lower = max(group.lower, *(e["min"] / e["start"] for e in members))
+        upper = min(group.upper, *(e["max"] / e["start"] for e in members))
+        if not lower < upper:
+            raise FitSpecError(f"fit group {group.name!r}: its members' bounds leave the factor no room "
+                               f"([{lower:g}, {upper:g}])")
+        for e in members:
+            e["group"] = group.name
+            e.pop("scale", None)  # the group's scale applies to its factor
+        out.append({"name": group.name, "min": lower, "max": upper, "start": 1.0,
+                    **({"scale": Scale.LOG.value} if group.scale is Scale.LOG else {})})
+    return out
+
+
 def is_log_scaled(record: ParameterRecord | None) -> bool:
     """Whether a parameter is fitted on a log scale: its fit policy says so (the MAP signs it)."""
     return bool(record and record.fit_policy and record.fit_policy.scale is Scale.LOG)
@@ -223,12 +251,14 @@ def build_fit_spec(
             entry["scale"] = Scale.LOG.value
         parameters.append(entry)
 
+    groups = _fit_groups(cpf, parameters)
     return {
         "algorithm": algorithm,
         "max_evaluations": max_evaluations,
         "seed": seed,
         "simulations": [{"id": s.study_id, "pkml": s.pkml} for s in simulations],
         "parameters": parameters,
+        **({"groups": groups} if groups else {}),
         "output_mappings": [
             {"simulation": s.study_id, "output_path": s.output_path, "scaling": scaling,
              "observed": {**s.observed, "weight": weights[s.study_id]} if s.study_id in weights else s.observed}

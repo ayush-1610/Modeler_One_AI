@@ -778,7 +778,7 @@ def campaign_cpf(plan: ModelPlan, cpf: CPF) -> CPF:
         elif record.id in defaults:
             record = record.model_copy(update={"fit_policy": defaults[record.id]})
         records.append(record)
-    return CPF(compound=cpf.compound, version=cpf.version, parameters=tuple(records), note=cpf.note)
+    return CPF(compound=cpf.compound, version=cpf.version, parameters=tuple(records), note=cpf.note, fit_groups=cpf.fit_groups)
 
 
 def plan_split(plan: ModelPlan) -> SplitResult:

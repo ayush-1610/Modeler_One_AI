@@ -241,7 +241,10 @@ The owner's decisions are recorded in the plans named.
     - **B1b (after #120):** `fit_spec` passes the signed scale, so every log-scaled fit is optimised on log(value).
       A start whose engine ignored the scale is not used (`ENGINE_SCALE_IGNORED`). The MAP's log-scale limitation
       is retired. **Rebuild the server's engine image** with B1 before running fits.
-    - **B2, B3:** next; the dapagliflozin refit with its three hepatic clearances as one group runs after B2.
+    - **B2a (after #121):** a fit group is a CPF record (locked `cpf/models.py`), signed in the MAP (locked
+      `map.py`), passed to the engine by `fit_spec` and drawn as one factor by the multi-start. The grouped
+      dapagliflozin refit is the reference task `dapagliflozin-refit-grouped`.
+    - **B2b:** next, the person's choice on Review & sign. **B3** waits for the SME.
   - **D:** keep escalating such fits until B2 (today's behaviour).
 
 **Page review 1, the Start page** (`docs/plans/2026-10-23-page-by-page-review.md` §4):

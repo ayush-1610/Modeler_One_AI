@@ -145,6 +145,9 @@ class FitStartOutcome:
     # the Hessian CI's correlation of each pair of fitted parameters, [{"a", "b", "r"}]; empty without a CI
     correlations: list[dict] = field(default_factory=list)
     ci_error: str | None = None  # why the engine could not estimate a CI (e.g. covariance not positive definite)
+    # per fit group (PI-4 B2): {"factor", "sd", "cv", "ci_lower", "ci_upper"} of the factor f its members were fitted
+    # through (each member's estimate, in `estimates`, is f x its start)
+    groups: dict[str, dict[str, float | None]] = field(default_factory=dict)
 
 
 @dataclass

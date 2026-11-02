@@ -188,11 +188,13 @@ def _objective(models: dict[str, dict], names: list[str], vector: list[float], o
     return total
 
 
-def _optimize(models, names, bounds, start, observed, *, passes=4, grid=12):
+def _optimize(models, names, bounds, start, observed, *, passes=4, grid=12, expand=None):
     """Deterministic coordinate search: refine each parameter on a shrinking grid. No dependencies, and
-    reproducible, which matters because the platform records the fit as evidence."""
+    reproducible, which matters because the platform records the fit as evidence. ``expand`` maps the searched vector
+    to one value per name (a fit group's factor times each member's start); by default they are the same."""
+    expand = expand or (lambda vector: vector)
     best = list(start)
-    best_obj = _objective(models, names, best, observed)
+    best_obj = _objective(models, names, expand(best), observed)
     evaluations = 1
     spans = [(hi - lo) for lo, hi in bounds]
     for _ in range(passes):
@@ -202,7 +204,7 @@ def _optimize(models, names, bounds, start, observed, *, passes=4, grid=12):
             for j in range(grid + 1):
                 candidate = list(best)
                 candidate[i] = left + (right - left) * j / grid
-                obj = _objective(models, names, candidate, observed)
+                obj = _objective(models, names, expand(candidate), observed)
                 evaluations += 1
                 if obj < best_obj:
                     best_obj, best = obj, candidate
@@ -259,16 +261,34 @@ def main() -> int:
         for om in spec.get("output_mappings", []):
             models.setdefault(om["simulation"], next(iter(models.values()), {}))
         names = [p["name"] for p in spec["parameters"]]
-        bounds = [(float(p["min"]), float(p["max"])) for p in spec["parameters"]]
         start_values = job.get("options", {}).get("start_values") or {}
-        start = [float(start_values.get(p["name"], p["start"])) for p in spec["parameters"]]
-        best, obj, evals = _optimize(models, names, bounds, start, observed)
+        # what run_pi.R optimises (PI-4 B1): each parameter outside a group, and each group's factor (its members at
+        # factor x start, so their split is kept)
+        groups = {g["name"]: g for g in spec.get("groups") or []}
+        free = [p for p in spec["parameters"] if not p.get("group")] + list(groups.values())
+        bounds = [(float(p["min"]), float(p["max"])) for p in free]
+        start = [float(start_values.get(p["name"], p["start"])) for p in free]
+        position = {p["name"]: i for i, p in enumerate(free)}
+
+        def expand(vector):
+            return [vector[position[p["group"]]] * float(p["start"]) if p.get("group") else vector[position[p["name"]]]
+                    for p in spec["parameters"]]
+
+        best_free, obj, evals = _optimize(models, names, bounds, start, observed, expand=expand)
+        best = expand(best_free)
         # the engine's result contract (run_pi.R, PI-4 B1): with a log scale or a group in the spec, every estimate says
-        # the scale it was fitted on; without, none does. This stand-in only echoes it (it fits no log scale).
-        scaled = bool(spec.get("groups")) or any(p.get("scale") == "log" for p in spec["parameters"])
+        # the scale it was fitted on, and each group has a row; without, neither. This stand-in only echoes the scale.
+        scaled = bool(groups) or any(p.get("scale") == "log" for p in spec["parameters"])
+        scale_of = {**{p["name"]: p.get("scale", "linear") for p in spec["parameters"]},
+                    **{p["name"]: groups[p["group"]].get("scale", "linear") for p in spec["parameters"] if p.get("group")}}
         (out_dir / "pi_result.json").write_text(json.dumps({
-            "estimates": [{"name": n, "estimate": v, **({"scale": p.get("scale", "linear")} if scaled else {})}
+            "estimates": [{"name": n, "estimate": v,
+                           **({"scale": scale_of[n]} if scaled else {}),
+                           **({"group": p["group"]} if p.get("group") else {})}
                           for n, v, p in zip(names, best, spec["parameters"])],
+            **({"groups": [{"name": g, "scale": groups[g].get("scale", "linear"), "factor": best_free[position[g]],
+                            "members": [p["name"] for p in spec["parameters"] if p.get("group") == g]} for g in groups]}
+               if groups else {}),
             "objective_value": obj, "convergence": True, "function_evaluations": evals,
         }))
 

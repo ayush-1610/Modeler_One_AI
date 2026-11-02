@@ -165,6 +165,25 @@ _HASHED_WHEN_SET = ("bounds", "plausibility", "grade")
 _COMPARED_WHEN_SET = ("bounds", "plausibility")
 
 
+class MapFitGroup(BaseModel):
+    """Parameters fitted as one through a factor (the CPF's fit group, PI-4 B2), as signed: each member at f x its
+    current value, f within [lower, upper] on ``scale``; why, and where the members' split comes from."""
+
+    model_config = ConfigDict(frozen=True)
+    name: str
+    members: tuple[str, ...]
+    lower: float
+    upper: float
+    scale: str = "log"
+    reason: str
+    split_source: str
+
+
+def map_fit_groups(cpf: CPF) -> tuple[MapFitGroup, ...]:
+    return tuple(MapFitGroup(name=g.name, members=g.members, lower=g.lower, upper=g.upper, scale=g.scale.value,
+                             reason=g.reason, split_source=g.split_source) for g in cpf.fit_groups)
+
+
 class MapStudy(BaseModel):
     model_config = ConfigDict(frozen=True)
     study_id: str
@@ -343,15 +362,18 @@ class MapDocument(BaseModel):
     applications: tuple[MapApplication, ...] = ()
     # the ICH M15 assessment behind `model_risk`, as Start recorded it. Left out of the content hash when unset.
     risk_assessment: MapRiskAssessment | None = None
+    # parameters fitted as one through a factor (PI-4 B2), as a person chose them. Left out of the hash when none.
+    fit_groups: tuple[MapFitGroup, ...] = ()
 
     # --- identity & lifecycle --------------------------------------------------------------------
 
     def content_sha256(self) -> str:
         """Hash of the plan's substance (everything except its status, signature and this hash). A MAP with no
-        application, no parameter bounds or plausibility, no internal target and no M15 assessment hashes as it did
-        before those existed, so the signatures already given stay valid."""
+        application, no parameter bounds or plausibility, no internal target, no M15 assessment and no fit group hashes
+        as it did before those existed, so the signatures already given stay valid."""
         exclude = ({"status", "signature"} | (set() if self.applications else {"applications"})
-                   | (set() if self.risk_assessment is not None else {"risk_assessment"}))
+                   | (set() if self.risk_assessment is not None else {"risk_assessment"})
+                   | (set() if self.fit_groups else {"fit_groups"}))
         content = self.model_dump(mode="json", exclude=exclude)
         for parameter in content["cpf_parameters"]:
             for key in _HASHED_WHEN_SET:
@@ -435,6 +457,15 @@ def cpf_differences(doc: MapDocument, cpf: CPF) -> list[str]:
         changed = [f for f in fields if getattr(mine, f) != getattr(theirs, f)]
         out += [f"{pid}: {f} {_shown(getattr(theirs, f))} in the campaign's CPF, {_shown(getattr(mine, f))} in the "
                 "signed MAP" for f in changed]
+    # the parameters fitted as one (PI-4 B2): a group on one side only, or with other members, bounds or scale
+    signed_groups = {g.name: g for g in doc.fit_groups}
+    run_groups = {g.name: g for g in map_fit_groups(cpf)}
+    out += [f"fit group {n}: in the signed MAP, not in the campaign's CPF" for n in sorted(signed_groups.keys() - run_groups.keys())]
+    out += [f"fit group {n}: in the campaign's CPF, not in the signed MAP" for n in sorted(run_groups.keys() - signed_groups.keys())]
+    for name in sorted(signed_groups.keys() & run_groups.keys()):
+        mine, theirs = signed_groups[name], run_groups[name]
+        out += [f"fit group {name}: {f} {getattr(theirs, f)} in the campaign's CPF, {getattr(mine, f)} in the signed MAP"
+                for f in ("members", "lower", "upper", "scale") if getattr(mine, f) != getattr(theirs, f)]
     return out
 
 
@@ -656,6 +687,7 @@ def generate_map(
         model_system_sha256=system.sha256 if system is not None else None,
         applications=tuple(applications),
         risk_assessment=risk_assessment,
+        fit_groups=map_fit_groups(cpf),
         diagnostics_ruleset_version=diagnostics_ruleset_version,
         acceptance=_acceptance(model_risk, internal_target_pe),
         engine_image_digest=engine_image_digest,

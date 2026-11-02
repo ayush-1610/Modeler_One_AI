@@ -219,7 +219,7 @@ def _claims() -> dict:
             "auth_time": int(time.time())}
 
 
-def campaign(model: str, mode: str, out: Path, *, system: bool = False) -> dict:
+def campaign(model: str, mode: str, out: Path, *, system: bool = False, groups: list[dict] | None = None) -> dict:
     from fastapi.testclient import TestClient
 
     from modeler_api import write_api
@@ -259,6 +259,12 @@ def campaign(model: str, mode: str, out: Path, *, system: bool = False) -> dict:
         _snapshot_path, imported = _import(model)
         fitted_name = model
         cpf, freed = (refit_cpf(imported.cpf) if mode == "refit" else (imported.cpf, {}))
+        if groups:
+            # parameters fitted as one through a factor (PI-4 B2), the person's choice the CPF records and the MAP signs;
+            # validated as any CPF is (its members exist, each in one group, the factor's bounds contain 1)
+            from pbpk_domain.cpf import CPF
+
+            cpf = CPF.model_validate({**cpf.model_dump(mode="json"), "fit_groups": groups})
         compounds = {model: cpf}
     root = tempfile.mkdtemp(prefix=f"ref-{model}-{mode}-")
 
@@ -467,7 +473,18 @@ def main() -> int:
     parser.add_argument("--mode", choices=["as-is", "refit"], default="as-is")
     parser.add_argument("--system", action="store_true", help="the model system (parent, enantiomers, metabolites): round trip every analyte, or run the campaign on it")
     parser.add_argument("--out", type=Path, default=REPO / "reports" / "reference")
+    parser.add_argument("--group", action="append", default=[], metavar="NAME=ID,ID[,ID]",
+                        help="campaign: fit these parameters as one, through one factor (PI-4 B2); repeatable")
+    parser.add_argument("--group-reason", default="", help="why the --group members are fitted as one")
+    parser.add_argument("--split-source", default="", help="where the --group members' split comes from")
     args = parser.parse_args()
+    groups = []
+    for spec in args.group:
+        name, _, members = spec.partition("=")
+        if not (name and members and args.group_reason.strip() and args.split_source.strip()):
+            parser.error("--group needs NAME=ID,ID[,ID], with --group-reason and --split-source")
+        groups.append({"name": name, "members": members.split(","), "reason": args.group_reason,
+                       "split_source": args.split_source})
     args.out = args.out.resolve()  # engine inputs are file:// URIs, which need an absolute path
     args.out.mkdir(parents=True, exist_ok=True)
     if args.step == "roundtrip":
@@ -477,7 +494,7 @@ def main() -> int:
     elif args.step == "vbe":
         result = vbe(args.model, args.out)
     else:
-        result = campaign(args.model, args.mode, args.out, system=args.system)
+        result = campaign(args.model, args.mode, args.out, system=args.system, groups=groups)
     text = summary(args.step, result)
     print(text)
     print(recap(text))
