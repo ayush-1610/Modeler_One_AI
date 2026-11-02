@@ -15,6 +15,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — PI-4 B, fitting parallel pathways through one factor: the design (the owner's choice A + B + D, 2026-11-02)
+`docs/plans/2026-11-02-pi-4b-relative-group.md`. No code changes.
+- **The engine:** a subclass of the package's `ParameterIdentification` overrides the private `.runAlgorithm`, so the
+  package's own optimiser works on one factor per group. The package's own `estimateCI` gives the factor's interval.
+- **The proof:** a golden known-truth case on PK-Sim (OSP's Aciclovir example, GFR and tubular secretion), then the
+  dapagliflozin refit.
+- **Three PRs:**
+  - B1, the engine (locked `run_pi.R`, golden case);
+  - B2, a person chooses a group on Review & sign, signed in the MAP (locked `cpf/models.py`, `map.py`);
+  - B3, the diagnosis proposes it (SME, locked `diag_rules.yaml` 0.7, MS-01).
+- **D stands until then:** such a fit still escalates.
+- **Three questions for the owner:** whether to optimise on a log scale in B1, the order, and the golden model.
+
 ### Docs — `docs/CONTINUATION_PACKAGE.md` §4 brought up to date (2026-11-02)
 The owner asked for it on 2026-11-02 ("yes, update section 4"). No code changes.
 - **New §4.0, "Latest":** what was built from 2026-10-23 to 2026-11-02:
