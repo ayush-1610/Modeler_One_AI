@@ -66,6 +66,24 @@ settle and finalize on one), making sure we select right thing". No locked file 
   - `m15-suggestion.spec.ts`: hidden, then flagged, taken and kept. A fixture writes the suggestion as A1 would, through
     the brief's own functions; the browser flows run with no LLM provider.
 
+### Docs — what "log scale" means in a fit today: a review (the owner's item 2 of 2026-11-02)
+The owner flagged the line "`run_pi.R` fits log-scaled parameters on their linear value" as not sounding right. The
+review is `docs/plans/2026-11-02-log-scale-review.md`. No code changes.
+- **What happens:**
+  - A parameter signed with scale "log" has its multi-start values drawn on a log scale.
+  - The optimiser (`ospsuite.parameteridentification` 2.2.0, through `run_pi.R`) moves its linear value.
+  - The Hessian CI is linear and symmetric, and can reach below zero.
+  - `run_pi.R` never receives the scale.
+  - S6 turns the linear SD into a log-normal.
+  - The residuals are on a log scale, correctly; that is the output mapping, not the parameter.
+- **The gap:** the signed MAP shows `[lo, hi] log` with no word on what it does. The review proposes that the MAP say
+  so, in the locked `map.py` PR (the owner's item 5). It also asks whether option B of PI-4 should optimise on
+  log(value) as well.
+- **The OSP requests (option A):** the OSP desktop parameter identification has both options, Scaling Linear / Log and
+  Use as Factor, per its documentation page (read through a search index; to confirm before posting). The draft now asks
+  for parity.
+- **Corrected:** `docs/CONTINUATION_PACKAGE.md` §4.1 row P5, and finding F3 of the PI review.
+
 ### Added — the Project Document Library, PR 3: the agents read the library first and store open-access papers only (10, 13)
 The owner's answers 10 and 13 of 2026-10-29; plan `docs/plans/2026-10-28-project-document-library.md`, PR 3. No locked
 file is touched. It applies to the literature agents A2 (values) and A3 (observed data), which share these tools.
