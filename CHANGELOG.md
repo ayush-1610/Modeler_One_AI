@@ -28,6 +28,34 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **D stands until then:** such a fit still escalates.
 - **Three questions for the owner:** whether to optimise on a log scale in B1, the order, and the golden model.
 
+### Changed — the signed MAP carries the ICH M15 assessment, and says what a log scale does in a fit (locked `map.py`)
+The owner's item 5 of 2026-11-02 ("yes": the M15 texts under the MAP hash). It is a locked-file change in its own PR:
+`packages/pbpk-domain/src/pbpk_domain/campaign/map.py`, with its hash refreshed in
+`docs/architecture/locked-files.json`. It builds on the M15 disagreement change (item 3).
+- **`MapRiskAssessment`** (new, in `map.py`) holds:
+  - the influence and consequence ratings, each with why (a person's words, or an agent's draft a person confirmed);
+  - why the tier, when the ratings differ;
+  - each rating kept against the intake agent's suggestion, with the person's reason.
+
+  `MapDocument.risk_assessment` is under the content hash when set. A MAP without one hashes exactly as before, so every
+  signature already given stays valid; `test_map` pins the pre-change hash.
+- **From Start to the MAP:** `plan.risk_assessment(brief)` → `Structure.risk_assessment` → `generate_map`. Only a
+  person's word counts: an agent's draft no person confirmed is left empty.
+- **The report:** the MAR's M15 table now fills model influence and decision consequence with their ratings and
+  justifications, and the tier with its justification, from the signed MAP. A MAP without the assessment reports as
+  before.
+- **A log scale, said for what it is** (the review in `docs/plans/2026-11-02-log-scale-review.md`):
+  - Wherever a fitted parameter has scale "log", the MAP's limitations (and Review & sign) say what happens: the
+    multi-start's start values are drawn on a log scale, while the optimiser (`ospsuite.parameteridentification` 2.2.0)
+    and the 95 % CI work on the linear value.
+  - This is `plan.log_scale_limitation`, not locked. It stays until the engine optimises on log(value).
+- **API:** `MapRiskAssessment` in the MAP and plan views. Contract and web types regenerated.
+- **Tests:**
+  - `test_map`: the pre-change hash is pinned, and the assessment is under the hash.
+  - `test_plan`: Start's assessment reaches the MAP, an unconfirmed draft is not signed, and the log-scale limitation
+    is listed.
+  - `test_vbe_report`: the report's M15 table.
+
 ### Changed — the intake agent's suggested M15 rating shows only after the person rates; a difference settles on one
 The owner's item 3 of 2026-11-02: "show after rating, and flag disagreement (but eventually after discussion it must
 settle and finalize on one), making sure we select right thing". No locked file is touched.

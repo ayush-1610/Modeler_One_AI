@@ -9509,6 +9509,16 @@
             "title": "Objective",
             "type": "string"
           },
+          "risk_assessment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapRiskAssessment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "scenarios": {
             "items": {
               "$ref": "#/components/schemas/MapScenario"
@@ -10012,6 +10022,58 @@
           "datasets"
         ],
         "title": "MapReading",
+        "type": "object"
+      },
+      "MapRiskAssessment": {
+        "description": "The ICH M15 model risk assessment (§2.1.5) as Start recorded it, under the MAP's hash (the owner's item 5 of\n2026-11-02): each rating and why it is what it is (a person's words, or an agent's draft a person confirmed), why the\ntier when the two ratings differ, and each rating a person kept against the intake agent's suggestion, with the\nperson's reason.",
+        "properties": {
+          "consequence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consequence"
+          },
+          "consequence_why": {
+            "default": "",
+            "title": "Consequence Why",
+            "type": "string"
+          },
+          "influence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Influence"
+          },
+          "influence_why": {
+            "default": "",
+            "title": "Influence Why",
+            "type": "string"
+          },
+          "kept_against_suggestion": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Kept Against Suggestion",
+            "type": "array"
+          },
+          "tier_justification": {
+            "default": "",
+            "title": "Tier Justification",
+            "type": "string"
+          }
+        },
+        "title": "MapRiskAssessment",
         "type": "object"
       },
       "MapScenario": {
@@ -16634,6 +16696,16 @@
             },
             "title": "Reasons",
             "type": "object"
+          },
+          "risk_assessment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapRiskAssessment"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -16648,6 +16720,7 @@
           "application_codes",
           "assumptions",
           "internal_target_pe",
+          "risk_assessment",
           "locked",
           "reasons"
         ],

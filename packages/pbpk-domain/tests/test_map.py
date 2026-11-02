@@ -300,3 +300,22 @@ def test_the_recorded_criteria_judge_as_the_ruleset_they_were_taken_from():
     ruleset = load_acceptance_ruleset()
     assert m.acceptance.as_ruleset() == {"id": ruleset["id"], "version": ruleset["version"],
                                          "tiers": {"medium": ruleset["tiers"]["medium"]}}
+
+
+def test_the_m15_assessment_is_under_the_hash_and_a_map_without_one_hashes_as_before():
+    # the owner's item 5 of 2026-11-02: why each rating is what it is, signed with the MAP
+    from pbpk_domain.campaign.map import MapRiskAssessment
+
+    plain = _map()
+    assessment = MapRiskAssessment(influence="high", influence_why="the model alone sets the dose", consequence="high",
+                                   consequence_why="a wrong dose harms patients",
+                                   kept_against_suggestion=(("influence rated high; the intake agent suggested medium; "
+                                                             "kept because no clinical study confirms the dose"),))
+    assessed = _map(risk_assessment=assessment)
+    # the hash this MAP had before the assessment existed (computed with main's map.py, 2026-11-02): unchanged
+    assert plain.risk_assessment is None
+    assert plain.content_sha256() == "bcffad4a238baf10c01f92d915c2fe4b9c4f119bd3490f463d266cfa9db8cb7c"
+    assert assessed.content_sha256() != plain.content_sha256()
+    changed = assessed.model_copy(update={"risk_assessment": assessment.model_copy(update={"influence_why": "edited"})})
+    assert changed.content_sha256() != assessed.content_sha256()          # a changed reason changes what is signed
+    assert assessed.sign(printed_name="Dr Lead").signature.content_sha256 == assessed.content_sha256()

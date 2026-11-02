@@ -298,6 +298,21 @@ class MapApplication(BaseModel):
         return out
 
 
+class MapRiskAssessment(BaseModel):
+    """The ICH M15 model risk assessment (§2.1.5) as Start recorded it, under the MAP's hash (the owner's item 5 of
+    2026-11-02): each rating and why it is what it is (a person's words, or an agent's draft a person confirmed), why the
+    tier when the two ratings differ, and each rating a person kept against the intake agent's suggestion, with the
+    person's reason."""
+
+    model_config = ConfigDict(frozen=True)
+    influence: str | None = None
+    influence_why: str = ""
+    consequence: str | None = None
+    consequence_why: str = ""
+    tier_justification: str = ""
+    kept_against_suggestion: tuple[str, ...] = ()
+
+
 class MapDocument(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -326,14 +341,17 @@ class MapDocument(BaseModel):
     model_system_sha256: str | None = None
     # the applications the question of interest pins (T-31, e.g. VBE): each runs at S6 from the final CPF
     applications: tuple[MapApplication, ...] = ()
+    # the ICH M15 assessment behind `model_risk`, as Start recorded it. Left out of the content hash when unset.
+    risk_assessment: MapRiskAssessment | None = None
 
     # --- identity & lifecycle --------------------------------------------------------------------
 
     def content_sha256(self) -> str:
         """Hash of the plan's substance (everything except its status, signature and this hash). A MAP with no
-        application, no parameter bounds or plausibility, and no internal target hashes as it did before those
-        existed, so the signatures already given stay valid."""
-        exclude = {"status", "signature"} | (set() if self.applications else {"applications"})
+        application, no parameter bounds or plausibility, no internal target and no M15 assessment hashes as it did
+        before those existed, so the signatures already given stay valid."""
+        exclude = ({"status", "signature"} | (set() if self.applications else {"applications"})
+                   | (set() if self.risk_assessment is not None else {"risk_assessment"}))
         content = self.model_dump(mode="json", exclude=exclude)
         for parameter in content["cpf_parameters"]:
             for key in _HASHED_WHEN_SET:
@@ -594,11 +612,13 @@ def generate_map(
     applications: tuple[MapApplication, ...] = (),
     internal_target_pe: float | None = None,
     grades: Mapping[str, str] | None = None,
+    risk_assessment: MapRiskAssessment | None = None,
 ) -> MapDocument:
     """Produce the MAP (version 1, DRAFT) from the standard and the campaign's inputs (MS-01 §9).
 
     ``sampling_end_h`` maps a study to its last observed time (hours) so each simulation covers the whole
-    sampled window. ``grades`` maps a CPF id to its source's evidence grade (A–D), recorded in the parameter table."""
+    sampled window. ``grades`` maps a CPF id to its source's evidence grade (A–D), recorded in the parameter table.
+    ``risk_assessment`` is the ICH M15 assessment behind ``model_risk``, as Start recorded it."""
     if diagnostics_ruleset_version is None:
         from pbpk_domain.diagnostics import diag_ruleset_version
 
@@ -635,6 +655,7 @@ def generate_map(
         scenarios=scenarios,
         model_system_sha256=system.sha256 if system is not None else None,
         applications=tuple(applications),
+        risk_assessment=risk_assessment,
         diagnostics_ruleset_version=diagnostics_ruleset_version,
         acceptance=_acceptance(model_risk, internal_target_pe),
         engine_image_digest=engine_image_digest,
