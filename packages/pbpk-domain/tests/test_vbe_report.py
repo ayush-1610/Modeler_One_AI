@@ -54,3 +54,22 @@ def test_a_validated_vbe_shows_the_gate_and_a_vbe_that_did_not_run_says_why():
     assert "**The virtual bioequivalence (vbe-crossover 0.2.0-draft) did not run:** the engine stopped: x" in \
         next(s for s in mar.sections if s.number == "6").body
     assert "not run: the engine stopped: x" in mar.m15_tables[1].technical_criteria
+
+
+def test_the_reports_m15_table_carries_the_maps_assessment_and_a_map_without_one_reports_as_before():
+    # the owner's item 5 of 2026-11-02: the ratings with why, from the signed MAP
+    from pbpk_domain.campaign.map import MapRiskAssessment
+
+    plain = assemble_campaign_mar(map_doc=_map(), final_cpf=_cpf(), stage_evidence={}, prediction={}).m15_tables[0]
+    assert plain.model_influence.rating is None
+    assert plain.model_risk.justification == "Model influence and decision consequence are recorded by the modeler"
+    risk = MapRiskAssessment(influence="medium", influence_why="the model supports the dose with clinical data",
+                             consequence="medium", consequence_why="a wrong dose is caught in the first study",
+                             kept_against_suggestion=(("consequence rated medium; the intake agent suggested high; kept "
+                                                       "because the dose is confirmed clinically"),))
+    table = assemble_campaign_mar(map_doc=_map(risk_assessment=risk), final_cpf=_cpf(), stage_evidence={},
+                                  prediction={}).m15_tables[0]
+    assert (table.model_influence.rating, table.consequence_of_wrong_decision.rating) == ("medium", "medium")
+    assert table.model_influence.justification == "the model supports the dose with clinical data"
+    assert table.consequence_of_wrong_decision.justification.endswith("kept because the dose is confirmed clinically")
+    assert table.model_risk.justification.startswith("model influence and decision consequence are both medium")

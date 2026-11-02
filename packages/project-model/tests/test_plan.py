@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from modeler_project.brief import FieldRecord
 from modeler_project.plan import (
     PlanError,
     Structure,
@@ -17,6 +18,7 @@ from modeler_project.plan import (
     default_map,
     diff,
     hold_fixed,
+    log_scale_limitation,
     map_from_plan,
     place,
     rebase,
@@ -25,6 +27,7 @@ from modeler_project.plan import (
     unlock,
     validate,
 )
+from pbpk_domain.campaign.map import MapRiskAssessment
 from pbpk_domain.cpf.models import (
     CPF,
     EngineBinding,
@@ -74,7 +77,8 @@ def test_the_default_plan_is_ms01_and_its_map_equals_generate_map_on_its_campaig
     # the campaign CPF bounds MS-01's candidates by MS-01's defaults (D-37), and the MAP says so in its limitations
     expected, _ = default_map(campaign_cpf(plan, cpf), ROWS, structure)
     doc = map_from_plan(plan, cpf, ROWS)
-    assert doc.split_limitations == (*expected.split_limitations, *default_fit_limitation(plan, cpf))
+    assert doc.split_limitations == (*expected.split_limitations, *default_fit_limitation(plan, cpf),
+                                     *log_scale_limitation(plan, cpf))
     assert doc.model_copy(update={"split_limitations": expected.split_limitations}).content_sha256() == expected.content_sha256()
 
 
@@ -202,6 +206,9 @@ def test_the_briefs_vbe_application_waits_for_the_persons_inputs_before_the_map(
         def value(self, key):
             return {"qoi.applications": ["APP-14 virtual bioequivalence"], "acceptance.tier": "medium"}.get(key)
 
+        def get(self, key):  # the records (the M15 assessment reads the ratings' times)
+            return FieldRecord(value=self.value(key))
+
     structure = structure_from_brief(Brief())  # type: ignore[arg-type]
     assert structure.applications == (MapApplication.pinned("vbe-crossover"),)  # started with no inputs, none invented
     cpf = _cpf()
@@ -279,6 +286,9 @@ def test_an_internal_target_must_be_stricter_than_the_tier_and_the_signed_map_ca
         def value(self, key):
             return {"acceptance.tier": "medium", "acceptance.internal_target_pe": 20}.get(key)
 
+        def get(self, key):  # the records (the M15 assessment reads the ratings' times)
+            return FieldRecord(value=self.value(key))
+
     structure = structure_from_brief(Brief())  # type: ignore[arg-type]
     assert structure.internal_target_pe == 20 and loosest_internal_target("medium") == pytest.approx(100 / 3)
     cpf = _cpf()
@@ -302,6 +312,9 @@ def test_applications_the_campaign_cannot_run_are_said_at_signing_and_named_amon
         def value(self, key):
             return {"qoi.applications": ["APP-01 model build and verification", "APP-03 enzyme DDI", "APP-12 food effect",
                                          "APP-14 virtual bioequivalence"], "acceptance.tier": "medium"}.get(key)
+
+        def get(self, key):  # the records (the M15 assessment reads the ratings' times)
+            return FieldRecord(value=self.value(key))
 
     structure = structure_from_brief(Brief())  # type: ignore[arg-type]
     assert structure.application_codes == ("APP-01", "APP-03", "APP-12", "APP-14")
@@ -328,3 +341,33 @@ def test_applications_the_campaign_cannot_run_are_said_at_signing_and_named_amon
     assert [v.message for v in validate(single, with_tablets, ROWS) if v.rule == "application"] == [
         ("vbe-crossover: Subjects per trial: at least 2 (a crossover's 90 % confidence interval needs two subjects; the "
          "engine refuses fewer)")]
+
+
+def test_the_signed_map_carries_starts_m15_assessment_and_says_what_a_log_scale_does():
+    # the owner's items 5 and 2 of 2026-11-02: why each rating is what it is, under the MAP's hash; and a log-scaled fit
+    # said for what it is today (docs/plans/2026-11-02-log-scale-review.md)
+    from modeler_project.brief import FieldStatus, empty_brief
+    from modeler_project.brief_ops import agent_set, edit_field
+    from modeler_project.plan import structure_from_brief
+
+    brief = empty_brief("Drugol", by="u")
+    brief = agent_set(brief, "m15.influence_suggested", value="medium", unit=None, citations=(), status=FieldStatus.DRAFTED,
+                      confidence=None, by="agent:a1")
+    brief = agent_set(brief, "m15.consequence", value="a wrong dose harms patients", unit=None, citations=(),
+                      status=FieldStatus.DRAFTED, confidence=None, by="agent:a1")    # a draft no person confirmed
+    for path, value in (("m15.influence_rating", "high"), ("m15.consequence_rating", "high"), ("acceptance.tier", "high"),
+                        ("m15.influence", "the model alone sets the paediatric dose"),
+                        ("m15.influence_differs", "no clinical study confirms the dose")):
+        brief = edit_field(brief, path, value=value, status=FieldStatus.EDITED, by="u")
+    cpf = _cpf()
+    plan = build_default(cpf, ROWS, structure_from_brief(brief))
+    doc = map_from_plan(plan, cpf, ROWS)
+    assert doc.risk_assessment == MapRiskAssessment(
+        influence="high", influence_why="the model alone sets the paediatric dose", consequence="high",
+        consequence_why="",                                                   # an unconfirmed draft is not signed
+        kept_against_suggestion=(("influence rated high; the intake agent suggested medium; kept because no clinical "
+                                  "study confirms the dose"),))
+    assert doc.content_sha256() != doc.model_copy(update={"risk_assessment": None}).content_sha256()
+    [line] = log_scale_limitation(plan, cpf)
+    assert line.startswith("Fitted on a log scale (") and "work on the linear value" in line and line in doc.split_limitations
+    assert structure_from_brief(None).risk_assessment is None                # no Start: none, and the hash as before

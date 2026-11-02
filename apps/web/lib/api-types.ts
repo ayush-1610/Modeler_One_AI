@@ -5236,6 +5236,7 @@ export interface components {
             model_system_sha256?: string | null;
             /** Objective */
             objective: string;
+            risk_assessment?: components["schemas"]["MapRiskAssessment"] | null;
             /** Scenarios */
             scenarios: components["schemas"]["MapScenario"][];
             /** Seeds */
@@ -5397,6 +5398,39 @@ export interface components {
             studies: string[];
             /** Template */
             template: string;
+        };
+        /**
+         * MapRiskAssessment
+         * @description The ICH M15 model risk assessment (§2.1.5) as Start recorded it, under the MAP's hash (the owner's item 5 of
+         *     2026-11-02): each rating and why it is what it is (a person's words, or an agent's draft a person confirmed), why the
+         *     tier when the two ratings differ, and each rating a person kept against the intake agent's suggestion, with the
+         *     person's reason.
+         */
+        MapRiskAssessment: {
+            /** Consequence */
+            consequence?: string | null;
+            /**
+             * Consequence Why
+             * @default
+             */
+            consequence_why?: string;
+            /** Influence */
+            influence?: string | null;
+            /**
+             * Influence Why
+             * @default
+             */
+            influence_why?: string;
+            /**
+             * Kept Against Suggestion
+             * @default []
+             */
+            kept_against_suggestion?: string[];
+            /**
+             * Tier Justification
+             * @default
+             */
+            tier_justification?: string;
         };
         /**
          * MapScenario
@@ -7876,6 +7910,7 @@ export interface components {
             reasons: {
                 [key: string]: string;
             };
+            risk_assessment: components["schemas"]["MapRiskAssessment"] | null;
         };
         /** StructureRequest */
         StructureRequest: {

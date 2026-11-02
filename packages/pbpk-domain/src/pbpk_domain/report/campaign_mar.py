@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 
 from pbpk_domain.campaign.map import MapDocument
 from pbpk_domain.cpf.models import CPF
-from pbpk_domain.m15 import AssessmentTable, RatedElement
+from pbpk_domain.m15 import AssessmentTable, RatedElement, Rating
 from pbpk_domain.report.mar import (
     Evidence,
     MarDocument,
@@ -147,6 +147,33 @@ def _history_table(entries: Sequence[Mapping]) -> TableRef:
 
 def _pct(value: float) -> str:
     return f"{100 * value:.0f} %"
+
+
+def _m15_ratings(map_doc: MapDocument) -> dict[str, RatedElement]:
+    """The M15 table's ratings from the signed MAP: with the assessment Start recorded (the owner's item 5 of
+    2026-11-02), model influence and decision consequence each with why, and the tier with its justification; a MAP
+    signed before the assessment was carried reports the tier alone, as it did."""
+    risk = map_doc.risk_assessment
+    if risk is None:
+        return {"model_risk": RatedElement(description="from the signed MAP", rating=map_doc.model_risk,
+                                           justification="Model influence and decision consequence are recorded by the "
+                                                         "modeler")}
+    kept = {line.split(" ", 1)[0]: line for line in risk.kept_against_suggestion}
+
+    def rated(dimension: str, description: str, rating: str | None, why: str) -> RatedElement:
+        reason = "; ".join(x for x in (why, kept.get(dimension, "")) if x)
+        return RatedElement(description=description, rating=Rating(rating) if rating else None, justification=reason)
+
+    same = risk.influence is not None and risk.influence == risk.consequence
+    tier_why = risk.tier_justification or (f"model influence and decision consequence are both {risk.influence}, which "
+                                           "gives this tier (ICH M15 §2.1.5)" if same else "")
+    return {
+        "model_influence": rated("influence", "How much the model weighs in the decision (from the signed MAP)",
+                                 risk.influence, risk.influence_why),
+        "consequence_of_wrong_decision": rated("consequence", "What a wrong decision would mean (from the signed MAP)",
+                                               risk.consequence, risk.consequence_why),
+        "model_risk": RatedElement(description="from the signed MAP", rating=map_doc.model_risk, justification=tier_why),
+    }
 
 
 def _vbe_parts(vbe: Mapping, tables: list[TableRef], limitations: list[str]) -> list[str]:
@@ -359,8 +386,7 @@ def assemble_campaign_mar(
     )
     m15 = AssessmentTable(
         question_of_interest=map_doc.objective, context_of_use=map_doc.context_of_use,
-        model_risk=RatedElement(description="from the signed MAP", rating=map_doc.model_risk,
-                                justification="Model influence and decision consequence are recorded by the modeler"),
+        **_m15_ratings(map_doc),
         technical_criteria=f"Acceptance ruleset {map_doc.acceptance.ruleset}, tier {map_doc.acceptance.tier}"
                            + (f", internal target |PE| ≤ {target:g} % for the internal groups (MS-01 §8)"
                               if target is not None else "")

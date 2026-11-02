@@ -99,7 +99,9 @@ later needs something again.
   configured, it suggests ratings too, but nothing is preselected: its suggestion shows only once you have saved your
   own. A rating that matches is noted. A rating that differs is flagged, and Start waits until it settles on one:
   **Take** the suggestion (then save the model risk), or **Keep** yours and say why. A later rating or a new suggestion
-  asks again, and Review & sign shows the signer a rating kept against the suggestion, with the reason. The tier's acceptance
+  asks again, and Review & sign shows the signer a rating kept against the suggestion, with the reason. The signed MAP
+  carries the whole assessment (the ratings, why each, why the tier, any rating kept), and the report's ICH M15 table
+  shows it. The tier's acceptance
   criteria show beside it. Under the ratings, say why each is what it is: **How the model is used** and **What a wrong
   decision means**. With an agent, it drafts both from the question and context of use; **Confirm** or **Change** each.
   Start is not done until both are in your words or confirmed by you, and Review & sign shows them to the signer. An
