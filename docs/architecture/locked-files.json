@@ -493,7 +493,7 @@
     },
     {
       "path": "services/engine-worker/r/run_pi.R",
-      "sha256": "cbf64f9a97371ed059be45df85743665aed8d04685d7ef54b1f44ec4d9327a0a"
+      "sha256": "5b5c19efce0b7764cdcfd6f938eab71ad255357502c1ff3da190c43dddf12359"
     },
     {
       "path": "tests/architecture/boundaries.toml",
