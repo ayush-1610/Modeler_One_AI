@@ -28,6 +28,18 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **D stands until then:** such a fit still escalates.
 - **Three questions for the owner:** whether to optimise on a log scale in B1, the order, and the golden model.
 
+### Docs — `docs/CONTINUATION_PACKAGE.md` §4 brought up to date (2026-11-02)
+The owner asked for it on 2026-11-02 ("yes, update section 4"). No code changes.
+- **New §4.0, "Latest":** what was built from 2026-10-23 to 2026-11-02:
+  - the parameter identification review, PI-1 to PI-4, and the owner's PI-4 choice (A + B + D);
+  - page review 1 (Start) and the owner's answers of 2026-11-02;
+  - the document library;
+  - what was open when it was written (#115, #116, #117, merged the same day) and what comes next.
+- **Rows updated:** P0, P1 and P2 of the start-up pipeline table, the Web platform row, the redesign row, and a new
+  task-status row for the parameter identification review. No stage changed status.
+- **The page-review plan** records the owner's answers of 2026-11-02 (§4.4).
+- **The session table** at the end of this file gains this session's row.
+
 ### Changed — the signed MAP carries the ICH M15 assessment, and says what a log scale does in a fit (locked `map.py`)
 The owner's item 5 of 2026-11-02 ("yes": the M15 texts under the MAP hash). It is a locked-file change in its own PR:
 `packages/pbpk-domain/src/pbpk_domain/campaign/map.py`, with its hash refreshed in
@@ -4765,3 +4777,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
+| 2026-10-23 → 11-02 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date |
