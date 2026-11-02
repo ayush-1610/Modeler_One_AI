@@ -26,7 +26,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
-from modeler_project.brief import APPLICATIONS, ProjectBrief
+from modeler_project.brief import APPLICATIONS, ProjectBrief, rating_disagreements
 from modeler_project.estimation import fit_findings, ms01_default
 from modeler_project.estimation import rule as bounds_rule
 from modeler_project.workspace import Workspace
@@ -38,6 +38,7 @@ from pbpk_domain.campaign.map import (
     STAGE_PLAN,
     MapApplication,
     MapDocument,
+    MapRiskAssessment,
     generate_map,
     training_stages,
 )
@@ -151,6 +152,8 @@ class Structure(BaseModel):
     # a stricter project target than the tier, |prediction error| at most this % (MS-01 §8; brief
     # acceptance.internal_target_pe). The MAP records it, and the verdicts apply it to the internal groups (R4d)
     internal_target_pe: float | None = Field(default=None, gt=0, lt=100)
+    # the ICH M15 assessment behind the tier, as Start recorded it: the MAP carries it under its hash (2026-11-02)
+    risk_assessment: MapRiskAssessment | None = None
     locked: tuple[str, ...] = ()                  # structure keys a person set (userLocked)
     reasons: dict[str, str] = Field(default_factory=dict)
 
@@ -285,6 +288,22 @@ def _target(value: Any) -> float | None:
     return target if 0 < target < 100 else None
 
 
+def risk_assessment(brief: ProjectBrief | None) -> MapRiskAssessment | None:
+    """The ICH M15 assessment Start recorded (the owner's item 5 of 2026-11-02): the ratings, why each is what it is,
+    why the tier, and each rating kept against the intake agent's suggestion. Only a person's word counts: an agent's
+    draft no person confirmed reads as empty, as the brief's values do. None when Start has none of it yet."""
+    if brief is None:
+        return None
+    text = lambda path: str(brief.value(path) or "")
+    kept = tuple(f"{d.dimension} rated {d.rating}; the intake agent suggested {d.suggested}; "
+                 + (f"kept because {d.reason}" if d.settled else "not settled at Start")
+                 for d in rating_disagreements(brief))
+    assessment = MapRiskAssessment(influence=brief.value("m15.influence_rating"), influence_why=text("m15.influence"),
+                                   consequence=brief.value("m15.consequence_rating"), consequence_why=text("m15.consequence"),
+                                   tier_justification=text("m15.risk_justification"), kept_against_suggestion=kept)
+    return assessment if assessment != MapRiskAssessment() else None
+
+
 def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility: bool = False) -> Structure:
     """The plan's structure as the brief states it (each a default a person may change with a reason)."""
     apps = applications(brief)
@@ -299,7 +318,7 @@ def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility:
                                         if a in _RUNNABLE_TEMPLATES),
                      application_codes=tuple(sorted(apps)),
                      assumptions=tuple(str(a) for a in ((brief.value("notes.assumptions") if brief else None) or ())),
-                     internal_target_pe=_target(target))
+                     internal_target_pe=_target(target), risk_assessment=risk_assessment(brief))
 
 
 def map_limitations(plan: ModelPlan, violations: list[Violation]) -> tuple[str, ...]:
@@ -360,7 +379,7 @@ def default_map(cpf: CPF, rows: list[dict[str, Any]], structure: Structure, *,
                        model_risk=Rating(structure.model_risk or "medium"), engine_image_digest=ENGINE_DIGEST,
                        software_versions={"ospsuite": "12.4.4"}, sampling_end_h=_sampling_end_h(rows),
                        campaign_budget_seconds=structure.campaign_budget_seconds, applications=structure.applications,
-                       internal_target_pe=internal_target_pe, grades=grades)
+                       internal_target_pe=internal_target_pe, grades=grades, risk_assessment=structure.risk_assessment)
     return doc, split
 
 
@@ -746,6 +765,20 @@ def default_fit_limitation(plan: ModelPlan, cpf: CPF) -> tuple[str, ...]:
     return (line,)
 
 
+def log_scale_limitation(plan: ModelPlan, cpf: CPF) -> tuple[str, ...]:
+    """What a log scale does in a fit today, said in the MAP wherever a fitted parameter has one
+    (docs/plans/2026-11-02-log-scale-review.md): ospsuite.parameteridentification 2.2.0 has no parameter transform, so
+    only the multi-start's start values are drawn on a log scale; the optimiser and the confidence interval work on the
+    linear value. Said until the engine optimises on log(value)."""
+    logged = [r.id for r in campaign_cpf(plan, cpf).parameters if r.fit_policy and r.fit_policy.scale is Scale.LOG]
+    if not logged:
+        return ()
+    line = (f"Fitted on a log scale ({', '.join(logged)}): the start values of the multi-start are drawn on a log scale; "
+            "the optimiser (ospsuite.parameteridentification 2.2.0) and the 95 % confidence interval work on the linear "
+            "value, so the interval is symmetric and S6 draws a log-normal from its SD")
+    return (line,)
+
+
 def campaign_cpf(plan: ModelPlan, cpf: CPF) -> CPF:
     """CPF v1 with the plan's fit choices, and MS-01's default for every other fit candidate (D-37), as fit policies
     (status and values unchanged)."""
@@ -778,7 +811,8 @@ def map_from_plan(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, expl
     if blocking(violations):
         raise PlanError("the plan has open rule violations: " + "; ".join(v.message for v in blocking(violations)))
     split = plan_split(plan)
-    limits = (*map_limitations(plan, violations if acknowledged_limitations else []), *default_fit_limitation(plan, cpf))
+    limits = (*map_limitations(plan, violations if acknowledged_limitations else []), *default_fit_limitation(plan, cpf),
+              *log_scale_limitation(plan, cpf))
     split = split.model_copy(update={"limitations": limits})
     doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=split,
                          internal_target_pe=plan.structure.internal_target_pe, grades=grades)
