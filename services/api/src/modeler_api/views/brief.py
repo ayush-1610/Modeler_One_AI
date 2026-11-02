@@ -187,6 +187,16 @@ class ScopeGateView(View):
     supported: str
 
 
+class RatingDisagreementView(View):
+    """A person's M15 rating that differs from the intake agent's suggestion (`brief.rating_disagreements`)."""
+
+    dimension: Literal["influence", "consequence"]
+    rating: str
+    suggested: str
+    settled: bool                  # kept by the person, with the reason, after both were last set
+    reason: str
+
+
 class RiskView(View):
     allowed: list[str] | None      # the tiers ICH M15 §2.1.5 admits for the two ratings; None until both are rated
     problems: list[str]
@@ -194,6 +204,7 @@ class RiskView(View):
     criteria: dict[str, str]        # tier -> what its verdicts ask ("AUC within 1.5-fold and …, in 80 % of studies")
     target_max: dict[str, float]    # tier -> the loosest internal target |PE| % it admits (MS-01 §8)
     ruleset: str                    # the acceptance ruleset the criteria come from, with its status
+    disagreements: list[RatingDisagreementView]  # shown once the person has rated (the owner, 2026-11-02)
 
 
 class StartIssueView(View):

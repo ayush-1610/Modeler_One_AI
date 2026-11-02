@@ -176,6 +176,10 @@ FIELDS: tuple[FieldDef, ...] = (
              help="ICH M15 §2.1.5: how much the model's evidence weighs in the decision; rated by a person"),
     FieldDef("m15.consequence_rating", "D", "Decision consequence", "enum", options=RATINGS,
              help="ICH M15 §2.1.5: what a wrong decision would mean for the patient; rated by a person"),
+    FieldDef("m15.influence_differs", "D", "Why the influence rating differs from the intake agent's suggestion",
+             help="written by a person who keeps their rating against the agent's suggestion (the owner, 2026-11-02)"),
+    FieldDef("m15.consequence_differs", "D", "Why the consequence rating differs from the intake agent's suggestion",
+             help="written by a person who keeps their rating against the agent's suggestion (the owner, 2026-11-02)"),
     FieldDef("acceptance.stated", "D", "Acceptance criteria as written in the proposal"),
     FieldDef("acceptance.tier", "D", "Model risk tier (human-confirmed)", "enum", options=RATINGS),
     FieldDef("m15.risk_justification", "D", "Why this model risk",
@@ -258,8 +262,8 @@ SHORT_BRIEF = (
     "drug.name", "drug.pubchem_cid", "drug.smiles", "drug.inchikey", "drug.mw_free_base",
     "qoi.text", "qoi.context_of_use", "qoi.applications",
     "m15.influence", "m15.influence_rating", "m15.consequence", "m15.consequence_rating", "acceptance.tier",
-    "m15.risk_justification", "m15.influence_suggested", "m15.consequence_suggested",
-    "drug.modality", "scope.pbpk_model", "scope.site_of_action", "scope.formulation_types", "drug.bcs_class",
+    "m15.risk_justification", "m15.influence_suggested", "m15.consequence_suggested", "m15.influence_differs",
+    "m15.consequence_differs", "drug.modality", "scope.pbpk_model", "scope.site_of_action", "scope.formulation_types", "drug.bcs_class",
     "scope.pathways", "scope.pathways_stated", "scope.nonlinearity", "scope.ehc",
 )
 SHORT_GROUP_FIELDS = {"scenarios": ("route", "food_state")}
@@ -465,6 +469,41 @@ class RiskCheck:
     allowed: tuple[str, ...] | None    # the tiers ICH M15 admits for the two ratings; None until both are rated
     problems: tuple[str, ...]          # what Start still needs on the model risk
     refused: str | None                # a tier outside `allowed`: an edit that leads here is refused
+
+
+@dataclass(frozen=True)
+class RatingDisagreement:
+    """A person's rating and the intake agent's suggestion for it, when they differ (the owner, 2026-11-02: the
+    suggestion is shown once the person has rated; a difference is flagged and settles on one rating)."""
+
+    dimension: Literal["influence", "consequence"]
+    rating: str
+    suggested: str
+    settled: bool          # the person kept their rating and said why, after both were last set
+    reason: str
+
+
+_PERSON_WORD = (FieldStatus.ENTERED, FieldStatus.EDITED, FieldStatus.CONFIRMED)
+
+
+def rating_disagreements(brief: ProjectBrief) -> list[RatingDisagreement]:
+    """Each M15 rating that differs from the intake agent's suggestion. It settles on one rating: the person takes the
+    suggestion (and there is no difference left), or keeps their rating and says why. The reason holds for the pair it
+    was written for: a later rating or a later suggestion asks again."""
+    out = []
+    for dimension in ("influence", "consequence"):
+        rating, suggested = brief.get(f"m15.{dimension}_rating"), brief.get(f"m15.{dimension}_suggested")
+        if rating.value not in RATINGS or suggested.status is not FieldStatus.DRAFTED or suggested.value not in RATINGS:
+            continue
+        if rating.value == suggested.value:
+            continue
+        reason = brief.get(f"m15.{dimension}_differs")
+        latest = max((r.at for r in (rating, suggested) if r.at is not None), default=None)
+        settled = (bool(str(reason.value or "").strip()) and reason.status in _PERSON_WORD
+                   and (latest is None or (reason.at is not None and reason.at >= latest)))
+        out.append(RatingDisagreement(dimension=dimension, rating=str(rating.value), suggested=str(suggested.value),  # type: ignore[arg-type]
+                                      settled=settled, reason=str(reason.value or "") if settled else ""))
+    return out
 
 
 def admitted_tiers() -> dict[str, list[str]]:

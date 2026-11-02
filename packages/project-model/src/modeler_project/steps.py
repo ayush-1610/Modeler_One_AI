@@ -19,6 +19,7 @@ from modeler_project.brief import (
     FieldStatus,
     ProjectBrief,
     definition_of,
+    rating_disagreements,
     risk_check,
 )
 from modeler_project.feasibility import scope_gates
@@ -62,7 +63,8 @@ class StartIssue(BaseModel):
 
 def start_issues(brief: ProjectBrief) -> list[StartIssue]:
     """What Start still needs (redesign §3.1): the question and its applications, the model risk (ICH M15, never
-    assumed) with why each rating is what it is (in a person's words, or an agent's draft a person confirmed), an
+    assumed) with why each rating is what it is (in a person's words, or an agent's draft a person confirmed), a rating
+    that differs from the intake agent's suggestion settled on one (taken, or kept with a reason), an
     internal target no looser than its tier (MS-01 §8), the scope gates (D-28: anything the builder cannot model is
     refused here), and the open questions on the short brief. Proposal notes never hold Start up."""
     issues = [StartIssue(path=path, message=f"{definition_of(path).label}: not set yet") for path in START_REQUIRED
@@ -76,6 +78,12 @@ def start_issues(brief: ProjectBrief) -> list[StartIssue]:
             issues.append(StartIssue(path=path, message=f"{label}: confirm the intake agent's draft, or change it"))
         elif record.status not in _PERSON:
             issues.append(StartIssue(path=path, message=f"{label}: confirm the proposal's words, or change them"))
+    for d in rating_disagreements(brief):   # the agent's suggestion, once the person has rated (the owner, 2026-11-02)
+        if not d.settled:
+            label = definition_of(f"m15.{d.dimension}_rating").label
+            issues.append(StartIssue(path=f"m15.{d.dimension}_differs",
+                                     message=f"{label}: you rated {d.rating}, the intake agent suggested {d.suggested}. "
+                                             "Take the suggestion, or keep your rating and say why"))
     target, tier = brief.value("acceptance.internal_target_pe"), brief.value("acceptance.tier")
     if target not in (None, "") and tier:
         widest = loosest_internal_target(str(tier))
