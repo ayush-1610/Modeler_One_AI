@@ -28,8 +28,9 @@ are specific clearances, Km and Vmax, permeabilities and transporter activities.
 - the Hessian CI is symmetric in the value, while the uncertainty of such parameters is multiplicative.
 
 Estimating such parameters on a log scale is common practice: log-normal parameters in Monolix, exponential
-parameterisation in NONMEM, and the logarithmic scaling the OSP desktop parameter identification offers per
-parameter.
+parameterisation in NONMEM. The OSP desktop parameter identification already offers it: each identification parameter
+has a Scaling, Linear or Log, and Log needs a minimum value above 0. This request asks for the same option in the R
+package.
 
 **What happens today (v2.2.0)**
 
@@ -99,7 +100,9 @@ A `PIParameters` with several parameters gives all of them one value:
   value", and takes its start value from the first parameter.
 - `setValue` (`:136`) writes that one value into every parameter of the group.
 
-Parallel pathways have different start values, so a shared value cannot keep their split. A relative group cannot be
+Parallel pathways have different start values, so a shared value cannot keep their split. The OSP desktop parameter
+identification has this as "Use as Factor": several simulation parameters attached to one identification parameter are
+varied together, each multiplied by the same factor. This request asks for the same option in the R package. A relative group cannot be
 built from the public API, because the optimiser's values go straight to `SimulationBatch$addRunValues`
 (`R/ParameterIdentification.R:549`, `:448`). The first request describes the same constraint.
 
@@ -122,8 +125,12 @@ As for the first request: testing on our qualification cases, and a pull request
 ## Notes for the owner (not part of the request)
 - **What it tells OSP:** only what the request itself states, namely the package's public behaviour and our
   failed-subclass finding. It contains no project data, compound data or internal names.
-- **Check before posting:** the request says the OSP desktop parameter identification (PK-Sim / MoBi) offers
-  logarithmic scaling per parameter. Please confirm that in the desktop version you use, or drop that clause.
+- **Check before posting:** both requests now say the OSP desktop parameter identification has these options (Scaling
+  Linear / Log, and Use as Factor). That is taken from the OSP documentation page on parameter identification, read
+  through a search index (the build session cannot open docs.open-systems-pharmacology.org). Please confirm it on the
+  page, or in the desktop version you use, before posting (`docs/plans/2026-11-02-log-scale-review.md`).
+- **The owner's decision 2026-11-02 (PI-4: A + B + D):** request A is posted once reviewed. B, our own driver, can also
+  optimise on a log scale, and the review asks whether to include that.
 - **Once posted:** we adopt the transform only after it is released, pinned and re-qualified in the engine image (a
   locked Dockerfile change, its own PR). Until then the fits stay linear, with the log-sampled multi-start.
 - **Revisit option (a)** (our own log-space optimisation in `run_pi.R`) only if `POORLY_DETERMINED` or `NO_CI`
