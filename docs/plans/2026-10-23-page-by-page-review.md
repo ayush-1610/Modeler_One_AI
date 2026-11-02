@@ -143,3 +143,18 @@ as they are (a) and the proposal (b).
 | 12 | Withdraw, never delete | yes | As planned |
 | 13 | Papers agents may store | open-access only | Paywalled papers stay references, unless the owner uploads them |
 | 14 | The OSP log-scale request | the owner will review | Unsent until then |
+
+### 4.4 The owner's answers (2026-11-02)
+The owner answered the open points of 2026-10-30: "1: A+B+D, 2: [the log-scale line] not sounding correct, need detail
+and proper review, 3: show after rating, and flag disagreement (but eventually after discussion it must settle and
+finalize on one), making sure we select right thing, 4: No. all inputs in inputs page, start page will structure the
+project for modeling and context of use, 5: yes".
+
+| # | Question | Answer | What follows |
+|---|---|---|---|
+| 1 | PI-4 | A + B + D | A: the OSP requests, posted once the owner confirms them; B: our own one-factor driver (locked engine PR); D: escalate meanwhile |
+| 2 | "`run_pi.R` fits log-scaled parameters on their linear value" | review it properly | #115: `docs/plans/2026-11-02-log-scale-review.md` |
+| 3 | The agent's suggested M15 ratings | after rating; a difference flagged and settled on one | #116 (replaces answer 4 of 2026-10-29: no longer preselected) |
+| 4 | An "arrived" mark on the client request | no | Arrival is followed on Inputs; Start structures the project |
+| 5 | The M15 texts under the MAP hash | yes | #117 (locked `map.py`) |
+
