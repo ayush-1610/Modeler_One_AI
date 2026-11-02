@@ -21,7 +21,7 @@ The owner asked for it on 2026-11-02 ("yes, update section 4"). No code changes.
   - the parameter identification review, PI-1 to PI-4, and the owner's PI-4 choice (A + B + D);
   - page review 1 (Start) and the owner's answers of 2026-11-02;
   - the document library;
-  - what is open (#115, #116, #117) and what comes next.
+  - what was open when it was written (#115, #116, #117, merged the same day) and what comes next.
 - **Rows updated:** P0, P1 and P2 of the start-up pipeline table, the Web platform row, the redesign row, and a new
   task-status row for the parameter identification review. No stage changed status.
 - **The page-review plan** records the owner's answers of 2026-11-02 (§4.4).
