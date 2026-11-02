@@ -23,7 +23,7 @@ SERVER_ENV = ROOT / "deploy" / "server" / "_env.sh"
 def _registration() -> dict:
     catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
     return build_engine_image_registration(digest="sha256:" + "0" * 64, catalog=catalog, benchmark={},
-                                           golden={"roundtrip": True, "pi_smoke": True, "tasks": True})
+                                           golden={"roundtrip": True, "pi_smoke": True, "pi_relative_group": True, "tasks": True})
 
 
 def test_qualified_engine_id_is_the_catalogs():

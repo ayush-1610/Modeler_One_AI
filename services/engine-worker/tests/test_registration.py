@@ -14,7 +14,7 @@ CATALOG = {
     "process_types": ["MetabolizationSpecific_FirstOrder", "GlomerularFiltration"],
 }
 BENCHMARK = {"seconds_per_simulation": 0.506, "cores": 48}
-GOLDEN_OK = {"roundtrip": True, "pi_smoke": True, "tasks": True}
+GOLDEN_OK = {"roundtrip": True, "pi_smoke": True, "pi_relative_group": True, "tasks": True}
 
 
 def test_registration_record_has_schema_fields():
@@ -47,13 +47,13 @@ def test_bad_digest_is_rejected():
 def test_failed_golden_gate_blocks_registration():
     with pytest.raises(RegistrationError, match="golden gate failed for: tasks"):
         build_engine_image_registration(digest=DIGEST, catalog=CATALOG, benchmark=BENCHMARK,
-                                        golden={"roundtrip": True, "pi_smoke": True, "tasks": False})
+                                        golden={"roundtrip": True, "pi_smoke": True, "pi_relative_group": True, "tasks": False})
 
 
 def test_missing_golden_result_is_rejected():
     with pytest.raises(RegistrationError, match="golden results missing for: tasks"):
         build_engine_image_registration(digest=DIGEST, catalog=CATALOG, benchmark=BENCHMARK,
-                                        golden={"roundtrip": True, "pi_smoke": True})
+                                        golden={"roundtrip": True, "pi_smoke": True, "pi_relative_group": True})
 
 
 def test_catalog_without_engine_block_is_rejected():

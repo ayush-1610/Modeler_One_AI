@@ -307,7 +307,17 @@ run_task <- function() {
     starts <- job$options$start_values
     for (i in seq_along(spec$parameters)) {
       value <- starts[[spec$parameters[[i]]$name]]
-      if (!is.null(value)) spec$parameters[[i]]$start <- value
+      if (is.null(value)) next
+      # a grouped parameter's start is the split the group keeps: a start is drawn for the group's factor instead
+      if (!is.null(group_of(spec$parameters[[i]]))) {
+        stop(sprintf("start value for '%s', a member of group '%s': draw the group's factor instead",
+                     spec$parameters[[i]]$name, group_of(spec$parameters[[i]])))
+      }
+      spec$parameters[[i]]$start <- value
+    }
+    for (i in seq_along(spec$groups)) {
+      value <- starts[[spec$groups[[i]]$name]]
+      if (!is.null(value)) spec$groups[[i]]$start <- value
     }
     spec$start_index <- job$options$start_index
     spec$seed <- job$options$seed

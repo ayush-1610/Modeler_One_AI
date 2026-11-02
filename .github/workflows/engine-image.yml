@@ -54,6 +54,8 @@ jobs:
           run() { docker run --rm -v "$PWD/artifacts:/out" modeler-engine:ci "$@"; }
           echo "== golden round trip";  run Rscript /engine/golden/golden_roundtrip.R /engine/golden/example_snapshot.json /out/golden
           echo "== fitting smoke";      run Rscript /engine/golden/pi_smoke.R /out/pi_smoke
+          # groups and log scales on known truth (Aciclovir's filtration and tubular secretion, PI-4 B1)
+          echo "== relative group";     run Rscript /engine/golden/pi_relative_group.R /out/pi_relative_group
           echo "== engine tasks";       run Rscript /engine/golden/golden_tasks.R
           echo "== benchmark";          run Rscript /engine/benchmark.R "" "" 400 /out/benchmark.json
           # PK-Sim's own Weibull release curve: one published simulation dosing the OSP Dapagliflozin IC tablet
@@ -69,7 +71,7 @@ jobs:
           PY
           echo "== weibull curve";      run Rscript /engine/golden/weibull_check.R /out/weibull/snapshot.json /out/weibull
           # every golden script exited 0 (set -e); record the gate result for the registration step
-          printf '{"roundtrip": true, "pi_smoke": true, "tasks": true}\n' > artifacts/golden.json
+          printf '{"roundtrip": true, "pi_smoke": true, "pi_relative_group": true, "tasks": true}\n' > artifacts/golden.json
 
       - name: Install uv for the Weibull comparison
         uses: astral-sh/setup-uv@v5

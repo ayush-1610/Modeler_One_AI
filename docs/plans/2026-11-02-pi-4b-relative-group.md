@@ -1,6 +1,6 @@
 # PI-4 B: fitting parallel pathways through one factor (design)
 
-Status: **design for the owner** (2026-11-02). The owner chose PI-4 **A + B + D** on 2026-11-02
+Status: **approved by the owner, 2026-11-02 (answers below); B1 built.** The owner chose PI-4 **A + B + D** on 2026-11-02
 (`docs/plans/2026-10-29-pi-4-parallel-pathways.md`):
 - **A:** ask OSP for a relative group (`docs/upstream/2026-10-25-osp-pi-log-scale-request.md`).
 - **B:** build it ourselves now. This plan covers B.
@@ -71,3 +71,35 @@ from one IV study, and every 95 % CI is wider than its estimate. A group fits on
 2. **The order:** B2 lets a person choose the group before any rule does, and B3 (the rule) waits for the SME. Agreed?
 3. **The golden case's model:** proposed is OSP's Aciclovir example, already in `golden/pi_smoke.R`. Its renal
    clearance has two parallel pathways, GFR and tubular secretion. Or another model you prefer?
+
+## The owner's answers (2026-11-02)
+1. **Log scale: yes, in B1**, applied only when the signed fit policy says `scale: log`. A spec without a scale runs
+   exactly as today. The golden cases cover log and linear, with and without groups.
+2. **Order: agreed.** B2 first: a person chooses and signs the group, with a reason that cites where the split comes
+   from. B3, the automatic rule, waits for the SME and stays UNVERIFIED. Escalation (D) stays until then.
+3. **Golden model: Aciclovir**, provided its model really has filtration and a separate tubular secretion process.
+   Check it against the engine files first; otherwise use another OSP example with two parallel elimination
+   processes. Never add a pathway to the model. After the golden case passes, run the dapagliflozin refit with the
+   three liver clearances as one group.
+
+**Checked (2026-11-02):** `Aciclovir.pkml` as shipped by ospsuite 12.4.4 (`inst/extdata`, release commit `4f37d444`,
+the engine image's pin) holds two separate processes in `Neighborhoods|Kidney_pls_Kidney_ur|Aciclovir`:
+- `Glomerular Filtration-GFR-Aciclovir`, with "GFR fraction" = 1;
+- `Renal Clearances-TS-Aciclovir` (`TubularSecretion_FirstOrder`), with `TSspec` in 1/min, computed from "Tubular
+  secretion" = 0.412 l/min.
+
+Its only other elimination, `Aciclovir-Total Hepatic Clearance-Test`, has a plasma clearance of 0. So Aciclovir is
+the golden model, unchanged.
+
+## Status
+- **B1, the engine:** built. The spec's `groups`, the per-parameter and per-group `scale`, the result's per-group
+  rows, and `golden/pi_relative_group.R` in the qualification gate. No platform fit changes yet.
+- **B1b, the signed scale reaches the engine (next):**
+  - `fit_spec` passes each parameter's signed `scale`;
+  - the platform checks the result echoes it (an older engine ignores it);
+  - the MAP's log-scale limitation is then replaced by what the engine does.
+- **B2, a person chooses the group:** as planned, with a reason that cites where the split comes from (the owner's
+  answer 2). The dapagliflozin refit with its three hepatic clearances as one group runs through the platform there
+  (`deploy/reference/run_reference.py`, the person's choice in place of a rule): the group reaches the fit spec only
+  through the CPF.
+- **B3:** waits for the SME.
