@@ -1,6 +1,6 @@
 # PI-4 B: fitting parallel pathways through one factor (design)
 
-Status: **approved by the owner, 2026-11-02 (answers below); B1, B1b and B2a built.** The owner chose PI-4 **A + B + D** on 2026-11-02
+Status: **approved by the owner, 2026-11-02 (answers below); B1, B1b, B2a and B2b built.** The owner chose PI-4 **A + B + D** on 2026-11-02
 (`docs/plans/2026-10-29-pi-4-parallel-pathways.md`):
 - **A:** ask OSP for a relative group (`docs/upstream/2026-10-25-osp-pi-log-scale-request.md`).
 - **B:** build it ourselves now. This plan covers B.
@@ -118,6 +118,7 @@ the golden model, unchanged.
   - **The dapagliflozin refit, grouped:** the reference workflow's task `dapagliflozin-refit-grouped`
     (`run_reference.py --group`). Its three hepatic clearances are fitted as one factor; the refit's ×2 shift keeps
     their published split, so the factor's truth is 0.5.
-  - **B2b, the person's choice on Review & sign:** next. It covers the estimation plan's group form (members, the
-    factor's bounds, the reason and the split's source), the plan's validator and the API.
+  - **B2b, the person's choice on Review & sign:** built. It adds the estimation plan's "Fitted as one" form
+    (members, the factor's bounds and scale, the split's source and the reason, both required), the plan's validator
+    and the API. Its groups reach the campaign CPF, so the MAP signs them.
 - **B3:** waits for the SME.

@@ -244,7 +244,9 @@ The owner's decisions are recorded in the plans named.
     - **B2a (after #121):** a fit group is a CPF record (locked `cpf/models.py`), signed in the MAP (locked
       `map.py`), passed to the engine by `fit_spec` and drawn as one factor by the multi-start. The grouped
       dapagliflozin refit is the reference task `dapagliflozin-refit-grouped`.
-    - **B2b:** next, the person's choice on Review & sign. **B3** waits for the SME.
+    - **B2b (after B2a):** the person's choice on Review & sign. The estimation plan's "Fitted as one" form asks
+      for the split's source and the reason; the plan's validator checks it; the group reaches the campaign CPF and
+      the MAP. **B3** waits for the SME.
   - **D:** keep escalating such fits until B2 (today's behaviour).
 
 **Page review 1, the Start page** (`docs/plans/2026-10-23-page-by-page-review.md` §4):

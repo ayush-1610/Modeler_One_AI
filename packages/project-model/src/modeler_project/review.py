@@ -177,10 +177,18 @@ def estimation_rows(plan: ModelPlan, cpf: CPF, table: list[dict[str, Any]]) -> l
             "diagnosis_may_fit": ({"stages": list(default.stage), "lower": default.lower, "upper": default.upper,
                                    "scale": default.scale.value} if default else None),
             "held_fixed": {"by": hold.by, "reason": hold.reason} if hold else None,
+            "group": next((name for name, g in plan.fit_groups.items() if record.id in g.members), None),
             "proposal": proposed_bounds(record).to_content(),
             "findings": [{"severity": sev, "rule": rule, "message": message} for sev, rule, message in findings],
         })
     return sorted(out, key=lambda r: (r["estimated"] is None, r["diagnosis_may_fit"] is None, not r["candidate_at"], r["id"]))
+
+
+def fit_group_rows(plan: ModelPlan) -> list[dict[str, Any]]:
+    """The estimated parameters a person fits as one (PI-4 B2): members, the factor's bounds and scale, why, and where
+    the members' split comes from."""
+    return [{"name": name, "members": list(g.members), "lower": g.lower, "upper": g.upper, "scale": g.scale,
+             "reason": g.reason, "split_source": g.split_source, "by": g.by} for name, g in sorted(plan.fit_groups.items())]
 
 
 def bounds_rule_view() -> dict[str, str]:

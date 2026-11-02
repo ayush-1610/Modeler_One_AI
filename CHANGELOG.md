@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — PI-4 B2b: a person fits estimated parameters as one on Review & sign (2026-11-02)
+The owner's answer 2 of 2026-11-02: "a person chooses and signs the group, with a reason that cites where the split
+comes from". It builds on B2a (the CPF and MAP record). No locked file is changed.
+- **The plan:** `ModelPlan.fit_groups` (`FitGroupChoice`: members, the factor's bounds and scale, reason, split source,
+  by). `set_group` adds a group, or takes it back.
+  - **Refused when made:** a member that is not estimated, a member already in another group, a bad name, bounds that
+    leave out 1, or a missing reason or split source.
+  - **The validator** blocks the signature while a group cannot be fitted: a member is no longer estimated, its start
+    value is not positive, or the members share no stage.
+  - **The campaign CPF** carries the groups (`campaign_cpf`), so the MAP signs them (B2a) and the run fits them.
+  - **The change list** says which parameters are fitted as one, with what factor, and where their split comes from.
+- **The API:** `PUT /projects/{id}/plan/groups/{name}` (members, lower, upper, scale, split_source, reason) and
+  `POST …/groups/{name}:remove` (reason).
+  - After the MAP is signed, either one is a deviation (D-14).
+  - The review page gains `fit_groups`; each estimation row gains `group`. Contract and web types regenerated.
+- **Review & sign:** the estimation plan's "Fitted as one" section.
+  - It lists each group: members, factor, split source, why, who.
+  - The form picks two or more estimated parameters and names the group. It asks for the split's source and the
+    reason; the button stays disabled until both are given.
+  - Each grouped row says "as one with <group>", and "Fit them each on its own" takes a group back, with a reason.
+- **Escalation stays (D):** no rule proposes a group yet. That is B3, which waits for the SME.
+
 ### Added — PI-4 B2a: a fit group is recorded in the CPF, signed in the MAP and fitted through one factor (2026-11-02)
 `docs/plans/2026-11-02-pi-4b-relative-group.md`, the owner's answer 2 of 2026-11-02: "B2 first: a person chooses and
 signs the group, with a reason that cites where the split comes from". Locked files, with the owner's approval of B2:

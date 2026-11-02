@@ -35,6 +35,11 @@ export const planApi = {
     send("post", "/api/v1/projects/{project_id}/plan/fits/{parameter}:hold", { project_id: projectId, parameter }, { reason }),
   release: (projectId: string, parameter: string, reason: string) =>
     send("post", "/api/v1/projects/{project_id}/plan/fits/{parameter}:release", { project_id: projectId, parameter }, { reason }),
+  // estimated parameters fitted as one, through one factor (PI-4 B2)
+  group: (projectId: string, name: string, group: Schema<"GroupRequest">) =>
+    send("put", "/api/v1/projects/{project_id}/plan/groups/{name}", { project_id: projectId, name }, group),
+  ungroup: (projectId: string, name: string, reason: string) =>
+    send("post", "/api/v1/projects/{project_id}/plan/groups/{name}:remove", { project_id: projectId, name }, { reason }),
   structure: (projectId: string, key: Schema<"StructureRequest">["key"], value: unknown, reason: string) =>
     send("put", "/api/v1/projects/{project_id}/plan/structure", project(projectId), { key, value, reason }),
   acknowledge: (projectId: string, violationId: string, reason: string) =>

@@ -485,3 +485,41 @@ def test_the_review_shows_each_application_its_inputs_and_what_is_still_missing(
     assert values["n_trials"] == 100 and values["variability"][0]["cv_percent"] == 30 and values["observed_be"] is None
     assert vbe["formulations"] == [] and all("is not a CPF formulation" in p for p in vbe["problems"])
     assert len(vbe["problems"]) == 2                                   # only the two formulations are left to give
+
+
+def test_estimated_parameters_are_fitted_as_one_with_a_reason_and_the_split_s_source(setup):
+    """PI-4 B2 (the owner, 2026-11-02): a person chooses a group of estimated parameters, fitted through one factor
+    that keeps their split, with why and where the split comes from; the plan shows it and the validator checks it."""
+    c, _ws, _root = setup
+    members = ["elim.renal.gfr_fraction", "bind.fu"]
+    body = {"members": members, "split_source": "the review's fractions (Review 2020)", "reason": "one IV profile"}
+    early = c.put("/api/v1/projects/p1/plan/groups/renal", headers=H, json=body)
+    assert early.status_code == 422 and "estimate" in early.json()["detail"]          # estimated parameters only
+    for pid in members:
+        fitted = c.put(f"/api/v1/projects/p1/plan/fits/{pid}", headers=H, json={
+            "stages": ["S1"], "lower": 0.1, "upper": 1.0, "scale": "log", "reason": "uncertain"})
+        assert fitted.status_code == 200, fitted.text
+    assert c.put("/api/v1/projects/p1/plan/groups/renal", headers=H,
+                 json={**body, "split_source": ""}).status_code == 422                  # the split's source is required
+    assert c.put("/api/v1/projects/p1/plan/groups/renal", headers=H, json={**body, "lower": 2}).status_code == 422
+    grouped = c.put("/api/v1/projects/p1/plan/groups/renal", headers=H, json=body)
+    assert grouped.status_code == 200, grouped.text
+    view = grouped.json()["data"]
+    assert not [v for v in view["violations"] if v["rule"] == "fit-group"]
+    assert next(d for d in view["diff"] if d["kind"] == "group")["to"].startswith(
+        "elim.renal.gfr_fraction, bind.fu fitted as one, factor [0.1, 10] log; split from the review's fractions")
+    review = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]
+    assert review["fit_groups"] == [{"name": "renal", "members": members, "lower": 0.1, "upper": 10.0, "scale": "log",
+                                     "reason": "one IV profile", "split_source": "the review's fractions (Review 2020)",
+                                     "by": review["fit_groups"][0]["by"]}]
+    assert {r["id"]: r["group"] for r in review["estimation"] if r["id"] in members} == dict.fromkeys(members, "renal")
+    twice = c.put("/api/v1/projects/p1/plan/groups/again", headers=H, json=body)
+    assert twice.status_code == 422 and "already in another group" in twice.json()["detail"]
+    # a member no longer estimated: the validator blocks the signature until it is estimated or the group goes
+    unfit = c.post("/api/v1/projects/p1/plan/fits/bind.fu:remove", headers=H, json={"reason": "measured after all"}).json()["data"]
+    assert any(v["rule"] == "fit-group" and v["severity"] == "error" and "bind.fu not estimated" in v["message"]
+               for v in unfit["violations"])
+    gone = c.post("/api/v1/projects/p1/plan/groups/renal:remove", headers=H, json={"reason": "fu is measured"})
+    assert gone.status_code == 200
+    assert c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]["fit_groups"] == []
+    assert c.post("/api/v1/projects/p1/plan/groups/renal:remove", headers=H, json={"reason": "x"}).status_code == 422

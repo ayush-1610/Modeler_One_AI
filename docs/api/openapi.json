@@ -4033,6 +4033,7 @@
             "enum": [
               "role",
               "fit",
+              "group",
               "structure"
             ],
             "title": "Kind",
@@ -6657,6 +6658,17 @@
             ],
             "title": "Grade"
           },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
           "held_fixed": {
             "anyOf": [
               {
@@ -6723,6 +6735,7 @@
           "candidate_at",
           "diagnosis_may_fit",
           "held_fixed",
+          "group",
           "proposal",
           "findings"
         ],
@@ -7865,6 +7878,135 @@
         "title": "FitGroup",
         "type": "object"
       },
+      "FitGroupChoice": {
+        "additionalProperties": false,
+        "description": "Estimated parameters a person fits as one, through one factor (PI-4 B2): each at f x its start value, so their\nsplit is kept. Why (``reason``) and where the split comes from (``split_source``, e.g. the in vitro fractions\nmetabolised and their reference) are required; both are signed with the MAP.",
+        "properties": {
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "lower": {
+            "default": 0.1,
+            "title": "Lower",
+            "type": "number"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 2,
+            "title": "Members",
+            "type": "array"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "scale": {
+            "default": "log",
+            "enum": [
+              "linear",
+              "log"
+            ],
+            "title": "Scale",
+            "type": "string"
+          },
+          "split_source": {
+            "minLength": 1,
+            "title": "Split Source",
+            "type": "string"
+          },
+          "upper": {
+            "default": 10.0,
+            "title": "Upper",
+            "type": "number"
+          }
+        },
+        "required": [
+          "members",
+          "lower",
+          "upper",
+          "scale",
+          "reason",
+          "split_source",
+          "by"
+        ],
+        "title": "FitGroupChoice",
+        "type": "object"
+      },
+      "FitGroupRow": {
+        "additionalProperties": false,
+        "description": "Estimated parameters a person fits as one, through one factor (PI-4 B2, `review.fit_group_rows`).",
+        "properties": {
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Lower"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "scale": {
+            "enum": [
+              "linear",
+              "log"
+            ],
+            "title": "Scale",
+            "type": "string"
+          },
+          "split_source": {
+            "title": "Split Source",
+            "type": "string"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Upper"
+          }
+        },
+        "required": [
+          "name",
+          "members",
+          "lower",
+          "upper",
+          "scale",
+          "reason",
+          "split_source",
+          "by"
+        ],
+        "title": "FitGroupRow",
+        "type": "object"
+      },
       "FitPolicy": {
         "additionalProperties": false,
         "properties": {
@@ -7986,6 +8128,54 @@
           "gfr_fraction"
         ],
         "title": "GlomerularFiltration",
+        "type": "object"
+      },
+      "GroupRequest": {
+        "properties": {
+          "lower": {
+            "default": 0.1,
+            "title": "Lower",
+            "type": "number"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 2,
+            "title": "Members",
+            "type": "array"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "scale": {
+            "default": "log",
+            "enum": [
+              "linear",
+              "log"
+            ],
+            "title": "Scale",
+            "type": "string"
+          },
+          "split_source": {
+            "minLength": 1,
+            "title": "Split Source",
+            "type": "string"
+          },
+          "upper": {
+            "default": 10.0,
+            "title": "Upper",
+            "type": "number"
+          }
+        },
+        "required": [
+          "members",
+          "split_source",
+          "reason"
+        ],
+        "title": "GroupRequest",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -11231,6 +11421,13 @@
             "title": "Fit Candidates",
             "type": "object"
           },
+          "fit_groups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FitGroupChoice"
+            },
+            "title": "Fit Groups",
+            "type": "object"
+          },
           "fits": {
             "additionalProperties": {
               "$ref": "#/components/schemas/FitChoice"
@@ -11300,6 +11497,7 @@
           "placements",
           "fits",
           "held_fixed",
+          "fit_groups",
           "structure",
           "default_rationale",
           "default_limitations",
@@ -14342,6 +14540,13 @@
             "title": "Estimation",
             "type": "array"
           },
+          "fit_groups": {
+            "items": {
+              "$ref": "#/components/schemas/FitGroupRow"
+            },
+            "title": "Fit Groups",
+            "type": "array"
+          },
           "limitations": {
             "items": {
               "type": "string"
@@ -14390,6 +14595,7 @@
           "stages",
           "limitations",
           "estimation",
+          "fit_groups",
           "bounds_rule",
           "validation",
           "acceptance",
@@ -23959,6 +24165,162 @@
           }
         },
         "summary": "Remove Fit",
+        "tags": [
+          "plan"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/plan/groups/{name}": {
+      "put": {
+        "description": "Estimated parameters fitted as one, through one factor (PI-4 B2): each at f x its start value, so their split\nis kept. Why, and where the split comes from, are required and signed with the MAP.",
+        "operationId": "put_group_api_v1_projects__project_id__plan_groups__name__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Group",
+        "tags": [
+          "plan"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/plan/groups/{name}:remove": {
+      "post": {
+        "description": "A group taken back: its members are fitted each on its own again.",
+        "operationId": "remove_group_api_v1_projects__project_id__plan_groups__name__remove_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PlanPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Group",
         "tags": [
           "plan"
         ]
