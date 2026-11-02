@@ -92,8 +92,15 @@ Its only other elimination, `Aciclovir-Total Hepatic Clearance-Test`, has a plas
 the golden model, unchanged.
 
 ## Status
-- **B1, the engine:** built. The spec's `groups`, the per-parameter and per-group `scale`, the result's per-group
-  rows, and `golden/pi_relative_group.R` in the qualification gate. No platform fit changes yet.
+- **B1, the engine (#120):** built. The spec's `groups`, the per-parameter and per-group `scale`, the result's
+  per-group rows, and `golden/pi_relative_group.R` in the qualification gate. No platform fit changes in B1.
+  - **The golden case passed on PK-Sim** (engine-image run 41467498164, ospsuite 12.4.4, PK-Sim 12.3.173), with a
+    known factor of 0.5:
+    - the group, linear: 0.5008 (95 % CI 0.4952–0.5064);
+    - the group, log: 0.5008 (0.4952–0.5065);
+    - secretion alone, log: TSspec 0.47176 1/min (0.46397–0.47967) against a truth of 0.47062;
+    - with no scale and with "linear": identical, on the package's own class;
+    - lipophilicity beside the group: factor 0.5032, r(Lipophilicity, renal) = 0.958.
 - **B1b, the signed scale reaches the engine:** built.
   - `fit_spec` passes each parameter's signed `scale`, and the multi-start draws on the scale the spec gives.
   - The platform checks the result echoes it: an older engine ignores it, and its start is not used
