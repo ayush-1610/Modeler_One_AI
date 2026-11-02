@@ -49,6 +49,11 @@ own PR with the owner's approval: `services/engine-worker/r/run_pi.R`, `r/run_jo
   - A spec as before, and one with `scale: "linear"`, both run on the package's own class with identical results.
   - Lipophilicity beside the group gets a correlation that names the group.
   - `REQUIRED_GOLDEN` gains `pi_relative_group`, so an image that fails it cannot be registered.
+- **Fixed (found by the golden case on PK-Sim):** `run_pi.R` mapped each estimate back to its CPF id by the key
+  "<spec simulation id>|<path>". The result reports the parameter's full path, which starts with the simulation's own
+  name, so the key matched only where the pkml's simulation is named by the spec's id, as the platform's are. OSP's
+  Aciclovir.pkml is "Vergin 1995 IV", so its estimates kept their PK-Sim names. Each fitted parameter's full path is
+  now keyed too. Where the old key matched (every platform fit), nothing changes.
 - **Known gap:** near a value of 1, log(value) is near 0 and the package's relative Hessian step (0.1 × |x|) shrinks
   with it. Only an estimate within 2 × 10⁻⁵ of 1 (in the base unit) falls back to the package's tiny absolute step.
   It is the package's own rule, and it applies to linear parameters near 0 too.

@@ -237,6 +237,7 @@ PI_NAMESPACE <- asNamespace("ospsuite.parameteridentification")
 TransformedParameterIdentification <- R6::R6Class(
   "TransformedParameterIdentification",
   inherit = ParameterIdentification,
+  cloneable = FALSE,   # as its superclass
   private = list(
     .free = NULL,
     .freeObjective = function() {
@@ -301,8 +302,10 @@ run_parameter_identification <- function(spec_path, out_dir) {
   # unit (a JSON null re-serialised by R comes back as an empty list, hence the strict string check).
   has_unit <- function(u) is.character(u) && length(u) == 1 && nzchar(u)
   base_factor <- list()  # parameter name -> multiply a base-unit value by this to get the CPF's unit
+  id_by_path <- list()   # a fitted parameter's full PK-Sim path, as the result reports it -> the CPF id (below)
   parameters <- lapply(spec$parameters, function(p) {
     objects <- lapply(p$paths, function(x) getParameter(path = x$path, container = simulations[[x$simulation]]))
+    for (o in objects) id_by_path[[o$fullPath]] <<- p$name
     pi_parameter <- PIParameters$new(parameters = objects)
     to_base <- function(v) if (has_unit(p$unit)) toBaseUnit(objects[[1]], as.numeric(v), p$unit) else as.numeric(v)
     base_factor[[p$name]] <<- if (has_unit(p$unit)) toUnit(objects[[1]], 1, p$unit) else 1
@@ -355,8 +358,9 @@ run_parameter_identification <- function(spec_path, out_dir) {
   # Map each estimated parameter back to the CPF id the platform fit (spec$parameters[[i]]$name), matched by
   # the PK-Sim parameter path, so the result is keyed by the CPF id (what apply_fit_estimates expects) rather
   # than the PK-Sim parameter name. The original name is kept as pksim_name.
-  # The result reports each path prefixed with its simulation id ("<sim>|<parameter path>").
-  id_by_path <- list()
+  # The result reports each parameter's full path: its simulation's root container, then the parameter path. That is
+  # "<sim>|<parameter path>" where the pkml's simulation is named by the spec's id (the platform's), and the
+  # simulation's own name otherwise (e.g. OSP's Aciclovir.pkml, "Vergin 1995 IV"): both are keyed.
   for (p in spec$parameters) for (x in p$paths) id_by_path[[paste0(x$simulation, "|", x$path)]] <- p$name
 
   output <- list(
