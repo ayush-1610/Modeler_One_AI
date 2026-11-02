@@ -96,7 +96,10 @@ later needs something again.
   - Nonlinearity and enterohepatic recycling are yes / no / not stated. "No" to nonlinearity means linear PK, so Km and
     Vmax are not asked for.
 - **Model risk (ICH M15):** rate model influence and decision consequence, then save the tier they admit. With an agent
-  configured, its suggested ratings are preselected; they count only once you save them. The tier's acceptance
+  configured, it suggests ratings too, but nothing is preselected: its suggestion shows only once you have saved your
+  own. A rating that matches is noted. A rating that differs is flagged, and Start waits until it settles on one:
+  **Take** the suggestion (then save the model risk), or **Keep** yours and say why. A later rating or a new suggestion
+  asks again, and Review & sign shows the signer a rating kept against the suggestion, with the reason. The tier's acceptance
   criteria show beside it. Under the ratings, say why each is what it is: **How the model is used** and **What a wrong
   decision means**. With an agent, it drafts both from the question and context of use; **Confirm** or **Change** each.
   Start is not done until both are in your words or confirmed by you, and Review & sign shows them to the signer. An

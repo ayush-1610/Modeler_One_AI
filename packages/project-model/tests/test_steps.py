@@ -6,8 +6,8 @@ from __future__ import annotations
 import pytest
 
 from modeler_project import ArtifactKind, FileProjectStore, Workspace
-from modeler_project.brief import FieldStatus, add_question, empty_brief, risk_check
-from modeler_project.brief_ops import agent_set, edit_field
+from modeler_project.brief import FieldStatus, add_question, empty_brief, rating_disagreements, risk_check
+from modeler_project.brief_ops import EditError, agent_set, edit_field
 from modeler_project.feasibility import check, pathways_not_named, scope_gates
 from modeler_project.map_artifact import MapArtifact, MapSignature
 from modeler_project.steps import project_steps, run_step, start_issues, start_problems
@@ -174,3 +174,41 @@ def test_why_each_rating_is_what_it_is_needs_a_persons_word():
     for path in ("m15.influence", "m15.consequence"):
         drafted = edit_field(drafted, path, status=FieldStatus.CONFIRMED, by="u")
     assert start_issues(drafted) == []
+
+
+def _suggest(brief, influence, consequence):
+    for path, value in (("m15.influence_suggested", influence), ("m15.consequence_suggested", consequence)):
+        brief = agent_set(brief, path, value=value, unit=None, citations=(), status=FieldStatus.DRAFTED, confidence=None,
+                          by="agent:a1")
+    return brief
+
+
+def test_a_rating_that_differs_from_the_agents_suggestion_settles_on_one(tmp_path):
+    """The owner, 2026-11-02: the suggestion is shown once the person has rated; a difference is flagged, and Start waits
+    until it settles on one rating: the suggestion taken, or the person's rating kept with a reason."""
+    rated = _fill(_suggest(empty_brief("Drugol", by="u"), "medium", "high"), *SHORT, ("m15.influence_rating", "high"),
+                  ("m15.consequence_rating", "high"), ("acceptance.tier", "high"))
+    (differs,) = rating_disagreements(rated)
+    assert (differs.dimension, differs.rating, differs.suggested, differs.settled) == ("influence", "high", "medium", False)
+    assert [(i.path, i.message) for i in start_issues(rated)] == [(
+        "m15.influence_differs",
+        ("Model influence: you rated high, the intake agent suggested medium. Take the suggestion, or keep your rating "
+         "and say why"))]
+    # taken: no difference left (the tier follows the ratings, as always)
+    taken = _fill(rated, ("m15.influence_rating", "medium"), ("m15.risk_justification", "a wrong dose would harm"))
+    assert rating_disagreements(taken) == [] and start_problems(taken) == []
+    # kept, with the person's reason: settled
+    kept = _fill(rated, ("m15.influence_differs", "the model alone sets the paediatric dose"))
+    (settled,) = rating_disagreements(kept)
+    assert settled.settled and settled.reason == "the model alone sets the paediatric dose" and start_problems(kept) == []
+    # a new suggestion, or a new rating, asks again: the reason was for the earlier pair
+    assert not rating_disagreements(_suggest(kept, "low", "high"))[0].settled
+    rerated = _fill(kept, ("m15.consequence_rating", "medium"), ("m15.influence_rating", "low"),
+                    ("m15.risk_justification", "low influence"), ("acceptance.tier", "low"))
+    assert {(d.dimension, d.settled) for d in rating_disagreements(rerated)} == {("influence", False), ("consequence", False)}
+    # not rated yet: nothing to compare, the suggestion stays out of sight
+    assert rating_disagreements(_suggest(empty_brief("Drugol", by="u"), "medium", "high")) == []
+    # the reason is the person's word: an agent cannot write it
+    with pytest.raises(EditError, match="set by a person only"):
+        agent_set(rated, "m15.influence_differs", value="agreed", unit=None, citations=(), status=FieldStatus.DRAFTED,
+                  confidence=None, by="agent:a1")

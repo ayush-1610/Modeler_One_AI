@@ -13359,6 +13359,45 @@
         "title": "Rating",
         "type": "string"
       },
+      "RatingDisagreementView": {
+        "additionalProperties": false,
+        "description": "A person's M15 rating that differs from the intake agent's suggestion (`brief.rating_disagreements`).",
+        "properties": {
+          "dimension": {
+            "enum": [
+              "influence",
+              "consequence"
+            ],
+            "title": "Dimension",
+            "type": "string"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "settled": {
+            "title": "Settled",
+            "type": "boolean"
+          },
+          "suggested": {
+            "title": "Suggested",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dimension",
+          "rating",
+          "suggested",
+          "settled",
+          "reason"
+        ],
+        "title": "RatingDisagreementView",
+        "type": "object"
+      },
       "ReadBefore": {
         "additionalProperties": false,
         "properties": {
@@ -14243,6 +14282,13 @@
             ],
             "title": "Justification"
           },
+          "kept": {
+            "items": {
+              "$ref": "#/components/schemas/RatingDisagreementView"
+            },
+            "title": "Kept",
+            "type": "array"
+          },
           "reason": {
             "title": "Reason",
             "type": "string"
@@ -14274,7 +14320,8 @@
           "reason",
           "influence",
           "consequence",
-          "justification"
+          "justification",
+          "kept"
         ],
         "title": "ReviewRisk",
         "type": "object"
@@ -14663,6 +14710,13 @@
             "title": "Criteria",
             "type": "object"
           },
+          "disagreements": {
+            "items": {
+              "$ref": "#/components/schemas/RatingDisagreementView"
+            },
+            "title": "Disagreements",
+            "type": "array"
+          },
           "problems": {
             "items": {
               "type": "string"
@@ -14688,7 +14742,8 @@
           "admitted",
           "criteria",
           "target_max",
-          "ruleset"
+          "ruleset",
+          "disagreements"
         ],
         "title": "RiskView",
         "type": "object"

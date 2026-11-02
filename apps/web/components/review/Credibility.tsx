@@ -5,7 +5,7 @@
 // will sign them (D-31: no per-stage overrides, more time is a larger budget signed again); the limitations are the
 // ones the MAP names. A study can be left out with a reason, and taken back.
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { InlineIssue } from "@/components/kit";
 import { RiskAndBudget } from "@/components/plan/RiskAndBudget";
@@ -90,10 +90,20 @@ export function Credibility({ projectId, view, review, apply }: {
           {(risk.influence || risk.consequence) && <> Start rated model influence <strong>{risk.influence ?? "—"}</strong> and
             decision consequence <strong>{risk.consequence ?? "—"}</strong>{risk.justification ? `: ${risk.justification}` : "."}</>}
         </p>
-        {(risk.influence_text || risk.consequence_text) && (
+        {(risk.influence_text || risk.consequence_text || risk.kept.length > 0) && (
           <dl className="m15-why" data-testid="credibility-m15-why">
             {risk.influence_text && <><dt>How the model is used</dt><dd>{risk.influence_text}</dd></>}
             {risk.consequence_text && <><dt>What a wrong decision means</dt><dd>{risk.consequence_text}</dd></>}
+            {/* a rating kept against the intake agent's suggestion, with the person's reason (2026-11-02) */}
+            {risk.kept.map((k) => (
+              <Fragment key={k.dimension}>
+                <dt>{k.dimension === "influence" ? "Influence" : "Consequence"} rated {k.rating}</dt>
+                <dd data-testid={`credibility-kept-${k.dimension}`}>
+                  {k.settled ? <>the intake agent suggested {k.suggested}; kept because {k.reason}</>
+                    : <>the intake agent suggested {k.suggested}; not settled at Start yet</>}
+                </dd>
+              </Fragment>
+            ))}
           </dl>
         )}
         <RiskAndBudget projectId={projectId} view={view} apply={apply} />

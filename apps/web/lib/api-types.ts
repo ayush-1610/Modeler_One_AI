@@ -6667,6 +6667,25 @@ export interface components {
          * @enum {string}
          */
         Rating: "low" | "medium" | "high";
+        /**
+         * RatingDisagreementView
+         * @description A person's M15 rating that differs from the intake agent's suggestion (`brief.rating_disagreements`).
+         */
+        RatingDisagreementView: {
+            /**
+             * Dimension
+             * @enum {string}
+             */
+            dimension: "influence" | "consequence";
+            /** Rating */
+            rating: string;
+            /** Reason */
+            reason: string;
+            /** Settled */
+            settled: boolean;
+            /** Suggested */
+            suggested: string;
+        };
         /** ReadBefore */
         ReadBefore: {
             /** Datasets */
@@ -6995,6 +7014,8 @@ export interface components {
             influence_text?: string | null;
             /** Justification */
             justification: string | null;
+            /** Kept */
+            kept: components["schemas"]["RatingDisagreementView"][];
             /** Reason */
             reason: string;
             /** Set Here */
@@ -7095,6 +7116,8 @@ export interface components {
             criteria: {
                 [key: string]: string;
             };
+            /** Disagreements */
+            disagreements: components["schemas"]["RatingDisagreementView"][];
             /** Problems */
             problems: string[];
             /** Ruleset */

@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the intake agent's suggested M15 rating shows only after the person rates; a difference settles on one
+The owner's item 3 of 2026-11-02: "show after rating, and flag disagreement (but eventually after discussion it must
+settle and finalize on one), making sure we select right thing". No locked file is touched.
+- **No anchoring:** the agent's suggested influence and consequence (decision 4 of 2026-10-29) are no longer preselected.
+  Before the person has saved a rating, Start says only that a suggestion exists.
+- **Once rated:** a matching suggestion is noted. A different one is flagged on the rating, and Start is not done
+  until it settles on one rating:
+  - **Take** the suggestion: it is picked, and saved with the tier like any rating;
+  - **Keep** the person's rating and say why: new fields `m15.influence_differs` and `m15.consequence_differs`.
+    They are human-only, so an agent cannot write them.
+- **The reason holds for the pair it was written for:** it counts only when it is newer than both the rating and the
+  suggestion. A later rating or a new suggestion asks again (`brief.rating_disagreements`).
+- **Review & sign** shows the signer a rating kept against the suggestion, with the reason (`ReviewRisk.kept`). The
+  MAP's M15 section carries it once the locked `map.py` change (the owner's item 5) is made.
+- **API:** `RiskView.disagreements` and `ReviewRisk.kept` (`RatingDisagreementView`). Contract and web types
+  regenerated.
+- **Tests:**
+  - `test_steps`: take, keep, asked again after a new rating or suggestion; nothing shown before rating; an agent cannot
+    write the reason.
+  - `test_brief_api`: the disagreement view and its issue, then settled. `test_plan_api`: `kept`.
+  - `m15-suggestion.spec.ts`: hidden, then flagged, taken and kept. A fixture writes the suggestion as A1 would, through
+    the brief's own functions; the browser flows run with no LLM provider.
+
 ### Docs — what "log scale" means in a fit today: a review (the owner's item 2 of 2026-11-02)
 The owner flagged the line "`run_pi.R` fits log-scaled parameters on their linear value" as not sounding right. The
 review is `docs/plans/2026-11-02-log-scale-review.md`. No code changes.

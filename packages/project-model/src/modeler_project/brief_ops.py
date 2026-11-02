@@ -30,8 +30,10 @@ from modeler_project.workspace import Workspace
 BRIEF_ID = "main"
 
 HUMAN_STATUSES = frozenset({FieldStatus.ENTERED, FieldStatus.EDITED, FieldStatus.CONFIRMED, FieldStatus.NOT_APPLICABLE})
-# Fields only a person may set (ICH M15 ratings are human-only; the tier is confirmed by a person).
-HUMAN_ONLY = frozenset({"acceptance.tier", "m15.influence_rating", "m15.consequence_rating", "m15.risk_justification"})
+# Fields only a person may set (ICH M15 ratings are human-only; the tier is confirmed by a person; why a person's rating
+# differs from the agent's suggestion is the person's word, never the agent's).
+HUMAN_ONLY = frozenset({"acceptance.tier", "m15.influence_rating", "m15.consequence_rating", "m15.risk_justification",
+                        "m15.influence_differs", "m15.consequence_differs"})
 
 
 def locked(brief: ProjectBrief, path: str) -> bool:

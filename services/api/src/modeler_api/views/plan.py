@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from modeler_api.views.brief import RatingDisagreementView
 from modeler_api.views.common import AgentsStatus, Number, StoredContent, VersionView, View
 from modeler_api.views.escalations import SignatureView
 from modeler_project.plan import Deviation, FitChoice, ModelPlan, Role, StudyView, Violation
@@ -230,6 +231,7 @@ class ReviewRisk(View):
     justification: str | None
     influence_text: str | None = None      # why each rating is what it is, as a person wrote or confirmed it at Start
     consequence_text: str | None = None
+    kept: list[RatingDisagreementView]       # a rating that differs from the intake agent's suggestion, and why
 
 
 class BoundsProposalView(View):
