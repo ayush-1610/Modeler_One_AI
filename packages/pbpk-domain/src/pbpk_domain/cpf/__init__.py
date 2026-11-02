@@ -17,6 +17,7 @@ from pbpk_domain.cpf.completeness import CompletenessReport, check_completeness
 from pbpk_domain.cpf.models import (
     CPF,
     EngineBinding,
+    FitGroup,
     FitPolicy,
     ParameterRecord,
     ParameterStatus,
@@ -32,6 +33,7 @@ __all__ = [
     "BuildReport",
     "CompletenessReport",
     "EngineBinding",
+    "FitGroup",
     "FitPolicy",
     "ParameterBinding",
     "ParameterRecord",

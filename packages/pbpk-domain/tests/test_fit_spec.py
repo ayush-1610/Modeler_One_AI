@@ -77,6 +77,37 @@ def test_the_signed_log_scale_reaches_the_engine_and_a_linear_parameter_is_as_be
                        bounds_override={"elim.hepatic.CYP3A4.clspec": (0.0, 10.0)})
 
 
+def _grouped_cpf(**group):
+    base = _cpf()
+    extra = rec("elim.hepatic.UGT1A9.clspec", 0.4, unit="l/µmol/min", status=ParameterStatus.FITTED,
+                binding=EngineBinding(building_block="Compound", process="MetabolizationSpecific_FirstOrder:UGT1A9",
+                                      parameter="CLspec/[Enzyme]", data_source="Optimized"),
+                fit_policy=FitPolicy(stage=("S1",), lower=0.04, upper=4.0, scale="log"))
+    return CPF.model_validate({**base.model_dump(mode="json"),
+                               "parameters": [*base.model_dump(mode="json")["parameters"], extra.model_dump(mode="json")],
+                               "fit_groups": [{"name": "hepatic", "members": ["elim.hepatic.CYP3A4.clspec",
+                                                                             "elim.hepatic.UGT1A9.clspec"],
+                                               "reason": "one profile", "split_source": "in vitro fm", **group}]})
+
+
+def test_a_fit_group_reaches_the_engine_with_a_factor_that_keeps_every_member_within_its_bounds():
+    """PI-4 B2: members fitted together share one factor f (run_pi.R); f's bounds are the group's, narrowed so that
+    f x start stays inside each member's own signed bounds; a member fitted alone is fitted on its own."""
+    ids = ["phys.logp", "elim.hepatic.CYP3A4.clspec", "elim.hepatic.UGT1A9.clspec"]
+    spec = build_fit_spec(_grouped_cpf(), ids, [_sim()])
+    logp, cyp, ugt = spec["parameters"]
+    assert "group" not in logp and cyp["group"] == ugt["group"] == "hepatic"
+    assert "scale" not in cyp and "scale" not in ugt                     # the group's scale applies, to its factor
+    [group] = spec["groups"]
+    # CYP3A4 0.8 in [0.01, 100] and UGT1A9 0.4 in [0.04, 4]: f in [max(0.1, 0.0125, 0.1), min(10, 125, 10)]
+    assert group == {"name": "hepatic", "min": 0.1, "max": 10.0, "start": 1.0, "scale": "log"}
+    narrow = build_fit_spec(_grouped_cpf(lower=0.01, upper=100.0), ids, [_sim()])["groups"][0]
+    assert (narrow["min"], narrow["max"]) == pytest.approx((0.1, 10.0))   # UGT1A9's own bounds hold
+    alone = build_fit_spec(_grouped_cpf(), ["elim.hepatic.CYP3A4.clspec"], [_sim()])
+    assert "groups" not in alone and alone["parameters"][0]["scale"] == "log"
+    assert "groups" not in build_fit_spec(_cpf(), ids[:2], [_sim()])      # no group: the spec as before
+
+
 def test_dimensionless_parameter_carries_no_unit_key():
     """A null unit came back from run_job.R's re-serialisation as {} and ospsuite rejected it (found on PK-Sim)."""
     gfr_bind = EngineBinding(building_block="Compound", process="GlomerularFiltration", parameter="GFR fraction",

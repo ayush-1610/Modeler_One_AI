@@ -2486,6 +2486,11 @@ export interface components {
              * Format: date-time
              */
             created_at?: string;
+            /**
+             * Fit Groups
+             * @default []
+             */
+            fit_groups?: components["schemas"]["FitGroup"][];
             /** Note */
             note?: string | null;
             /**
@@ -4599,6 +4604,36 @@ export interface components {
              */
             userLocked: boolean;
         };
+        /**
+         * FitGroup
+         * @description Parameters fitted as one (PI-4 B, docs/plans/2026-11-02-pi-4b-relative-group.md): each member is simulated at
+         *     f x its current value, so the split between them is kept and the data estimate only the factor f ("Use as Factor"
+         *     in the OSP desktop). A person chooses a group and signs it with the MAP: why the members are fitted as one
+         *     (``reason``) and where their split comes from (``split_source``, e.g. the in vitro fractions metabolised). The
+         *     factor's bounds contain 1, the members' current values.
+         */
+        FitGroup: {
+            /**
+             * Lower
+             * @default 0.1
+             */
+            lower?: number;
+            /** Members */
+            members: string[];
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+            /** @default log */
+            scale?: components["schemas"]["Scale"];
+            /** Split Source */
+            split_source: string;
+            /**
+             * Upper
+             * @default 10
+             */
+            upper?: number;
+        };
         /** FitPolicy */
         FitPolicy: {
             /** Lower */
@@ -5229,6 +5264,11 @@ export interface components {
              *     ]
              */
             escalation_triggers?: string[];
+            /**
+             * Fit Groups
+             * @default []
+             */
+            fit_groups?: components["schemas"]["MapFitGroup"][];
             /** Food Effect In Question */
             food_effect_in_question: boolean;
             model_risk: components["schemas"]["Rating"];
@@ -5265,6 +5305,30 @@ export interface components {
              * @default 1
              */
             version?: number;
+        };
+        /**
+         * MapFitGroup
+         * @description Parameters fitted as one through a factor (the CPF's fit group, PI-4 B2), as signed: each member at f x its
+         *     current value, f within [lower, upper] on ``scale``; why, and where the members' split comes from.
+         */
+        MapFitGroup: {
+            /** Lower */
+            lower: number;
+            /** Members */
+            members: string[];
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Scale
+             * @default log
+             */
+            scale?: string;
+            /** Split Source */
+            split_source: string;
+            /** Upper */
+            upper: number;
         };
         /** MapGenerateRequest */
         MapGenerateRequest: {

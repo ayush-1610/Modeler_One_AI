@@ -392,9 +392,10 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     spec_path = out_dir / f"{snapshot_stem}-pi_spec.json"
     payload = json.dumps(spec, ensure_ascii=False, indent=2).encode("utf-8")
     atomic_write_bytes(spec_path, payload)
-    # the multi-start draws on the scale the spec gives the engine (the signed fit policy's, fit_spec), so they agree
+    # the multi-start draws what the engine optimises, on the scale the spec gives it (the signed fit policy's,
+    # fit_spec): each parameter outside a group, and each group's factor (PI-4 B2) in place of its members
     bounds = [FitParameterBounds(name=p["name"], lower=p["min"], upper=p["max"], log_scale=p.get("scale") == "log")
-              for p in spec["parameters"]]
+              for p in [*(p for p in spec["parameters"] if not p.get("group")), *spec.get("groups", [])]]
     activity.logger.info("build_round_snapshot %s %s round %d: fit request for %s over %d study(ies)",
                          ctx.campaign_id, ctx.stage, ctx.round_index, ",".join(fit_ids), len(simulations))
     return FitRoundRequest(

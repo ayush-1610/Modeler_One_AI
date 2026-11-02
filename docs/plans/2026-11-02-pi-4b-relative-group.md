@@ -1,6 +1,6 @@
 # PI-4 B: fitting parallel pathways through one factor (design)
 
-Status: **approved by the owner, 2026-11-02 (answers below); B1 and B1b built.** The owner chose PI-4 **A + B + D** on 2026-11-02
+Status: **approved by the owner, 2026-11-02 (answers below); B1, B1b and B2a built.** The owner chose PI-4 **A + B + D** on 2026-11-02
 (`docs/plans/2026-10-29-pi-4-parallel-pathways.md`):
 - **A:** ask OSP for a relative group (`docs/upstream/2026-10-25-osp-pi-log-scale-request.md`).
 - **B:** build it ourselves now. This plan covers B.
@@ -107,7 +107,17 @@ the golden model, unchanged.
     (`ENGINE_SCALE_IGNORED`).
   - The MAP's log-scale limitation is retired: "[lo, hi] log" now means what it says.
 - **B2, a person chooses the group:** as planned, with a reason that cites where the split comes from (the owner's
-  answer 2). The dapagliflozin refit with its three hepatic clearances as one group runs through the platform there
-  (`deploy/reference/run_reference.py`, the person's choice in place of a rule): the group reaches the fit spec only
-  through the CPF.
+  answer 2). It is built in two PRs.
+  - **B2a, the record and the run:** built.
+    - `CPF.fit_groups` (name, members, the factor's bounds and scale, reason, split source), signed in the MAP.
+    - `fit_spec` passes the groups, and the multi-start draws the factor.
+    - The round is assessed on the factor, and the members' estimates go to the CPF.
+    - **Deviation from this plan:** the group is a CPF-level record (`CPF.fit_groups`), not a field of each member's
+      fit policy. One record holds the factor's bounds, scale, reason and split source, and it is validated in one
+      place.
+  - **The dapagliflozin refit, grouped:** the reference workflow's task `dapagliflozin-refit-grouped`
+    (`run_reference.py --group`). Its three hepatic clearances are fitted as one factor; the refit's ×2 shift keeps
+    their published split, so the factor's truth is 0.5.
+  - **B2b, the person's choice on Review & sign:** next. It covers the estimation plan's group form (members, the
+    factor's bounds, the reason and the split's source), the plan's validator and the API.
 - **B3:** waits for the SME.

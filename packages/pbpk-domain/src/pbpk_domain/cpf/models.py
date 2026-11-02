@@ -61,6 +61,33 @@ class Plausibility(BaseModel):
         return self
 
 
+class FitGroup(BaseModel):
+    """Parameters fitted as one (PI-4 B, docs/plans/2026-11-02-pi-4b-relative-group.md): each member is simulated at
+    f x its current value, so the split between them is kept and the data estimate only the factor f ("Use as Factor"
+    in the OSP desktop). A person chooses a group and signs it with the MAP: why the members are fitted as one
+    (``reason``) and where their split comes from (``split_source``, e.g. the in vitro fractions metabolised). The
+    factor's bounds contain 1, the members' current values."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$")
+    members: tuple[str, ...] = Field(min_length=2)
+    lower: float = 0.1
+    upper: float = 10.0
+    scale: Scale = Scale.LOG
+    reason: str = Field(min_length=1)
+    split_source: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _check(self) -> FitGroup:
+        if len(set(self.members)) != len(self.members):
+            raise ValueError(f"fit group {self.name!r} names a member twice")
+        if not 0 < self.lower <= 1 <= self.upper or self.lower == self.upper:
+            raise ValueError(f"fit group {self.name!r}: its factor's bounds must satisfy 0 < lower <= 1 <= upper "
+                             f"(the members' current values are factor 1), not [{self.lower:g}, {self.upper:g}]")
+        return self
+
+
 class Provenance(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -168,6 +195,8 @@ class CPF(BaseModel):
     parameters: tuple[ParameterRecord, ...] = ()
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     note: str | None = None
+    # parameters fitted as one through a factor (PI-4 B2): chosen by a person, signed with the MAP
+    fit_groups: tuple[FitGroup, ...] = ()
 
     @model_validator(mode="after")
     def _unique_ids(self) -> CPF:
@@ -175,7 +204,23 @@ class CPF(BaseModel):
         dupes = {i for i in ids if ids.count(i) > 1}
         if dupes:
             raise ValueError(f"duplicate parameter ids in CPF: {', '.join(sorted(dupes))}")
+        names = [g.name for g in self.fit_groups]
+        if len(set(names)) != len(names):
+            raise ValueError("two fit groups share a name")
+        if clash := set(names) & set(ids):
+            raise ValueError(f"a fit group is named like a parameter: {', '.join(sorted(clash))}")
+        seen: dict[str, str] = {}
+        for group in self.fit_groups:
+            for member in group.members:
+                if member not in ids:
+                    raise ValueError(f"fit group {group.name!r}: no parameter {member!r} in the CPF")
+                if member in seen:
+                    raise ValueError(f"{member} is in two fit groups ({seen[member]}, {group.name})")
+                seen[member] = group.name
         return self
+
+    def group_of(self, param_id: str) -> FitGroup | None:
+        return next((g for g in self.fit_groups if param_id in g.members), None)
 
     def get(self, param_id: str) -> ParameterRecord | None:
         return next((p for p in self.parameters if p.id == param_id), None)
@@ -199,6 +244,7 @@ class CPF(BaseModel):
             version=self.version + 1,
             parameters=tuple(by_id.values()),
             note=note,
+            fit_groups=self.fit_groups,
         )
 
     def fittable_at(self, stage: str) -> tuple[ParameterRecord, ...]:

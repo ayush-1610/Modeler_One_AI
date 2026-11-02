@@ -1101,11 +1101,14 @@ def _fit_note(ctx: RoundContext, request, outcome) -> str:
     objective = f"{best.objective:.4g}" if best.objective is not None else "not reported"
     estimates = []
     for p in request.parameters:
-        if p.name not in best.estimates:
+        group = (best.groups or {}).get(p.name)
+        if p.name not in best.estimates and not (group and group.get("factor") is not None):
             continue
-        spread = (best.uncertainty or {}).get(p.name) or {}
+        spread = group or (best.uncertainty or {}).get(p.name) or {}
         lo, hi = spread.get("ci_lower"), spread.get("ci_upper")
-        estimates.append(f"{p.name} {best.estimates[p.name]:.4g}" + (f" [{lo:.3g}, {hi:.3g}]" if lo is not None and hi is not None else ""))
+        # a fit group (PI-4 B2) is reported by its factor: each member's estimate is that factor times its start
+        shown = f"group {p.name} factor {group['factor']:.4g}" if group else f"{p.name} {best.estimates[p.name]:.4g}"
+        estimates.append(shown + (f" [{lo:.3g}, {hi:.3g}]" if lo is not None and hi is not None else ""))
     strong = [c for c in outcome.correlations if abs(c["r"]) > 0.95]
     return (f"{head}; best objective {objective}" + (f" ({'; '.join(flags)})" if flags else "")
             + (f"; estimates (95 % CI): {', '.join(estimates)}" if estimates else "")

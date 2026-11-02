@@ -219,6 +219,40 @@ def test_fit_on_a_molar_profile_declares_the_molar_dimension(tmp_path: Path) -> 
     assert spec["output_mappings"][0]["observed"]["dimension"] == "Concentration (molar)"
 
 
+def test_a_fit_group_s_factor_is_drawn_by_the_multistart_in_place_of_its_members(tmp_path: Path) -> None:
+    """PI-4 B2: two hepatic clearances a person chose to fit as one reach the engine as one factor; the multi-start
+    draws that factor (on its log scale), never a member's start, which would change their split."""
+    cpf_uri, map_uri, observed_uri = _fittable_inputs(tmp_path, with_observed=True)
+    path = Path(cpf_uri.removeprefix("file://"))
+    prov = Provenance(source_type="measured", reference="x")
+    policy = FitPolicy(stage=("S1",), lower=0.01, upper=100.0, scale="log")
+
+    def clspec(enzyme, value):
+        return ParameterRecord(id=f"elim.hepatic.{enzyme}.clspec", value=value, unit="l/µmol/min",
+                               status=ParameterStatus.PREDICTED, provenance=prov, fit_policy=policy,
+                               engine_binding=EngineBinding(building_block="Compound",
+                                                            process=f"MetabolizationSpecific_FirstOrder:{enzyme}",
+                                                            parameter="CLspec/[Enzyme]", data_source="Optimized"))
+
+    base = CPF.model_validate_json(path.read_text(encoding="utf-8"))
+    grouped = CPF.model_validate({**base.model_dump(mode="json"),
+                                  "parameters": [*base.model_dump(mode="json")["parameters"],
+                                                 clspec("CYP3A4", 0.8).model_dump(mode="json"),
+                                                 clspec("UGT1A9", 0.4).model_dump(mode="json")],
+                                  "fit_groups": [{"name": "hepatic", "members": ["elim.hepatic.CYP3A4.clspec",
+                                                                                "elim.hepatic.UGT1A9.clspec"],
+                                                  "reason": "one IV profile", "split_source": "in vitro fm"}]})
+    path.write_text(grouped.model_dump_json(), encoding="utf-8")
+    build = build_round_snapshot(_fit_ctx(cpf_uri, map_uri, observed_uri,
+                                          "fit elim.hepatic.CYP3A4.clspec+elim.hepatic.UGT1A9.clspec+phys.logp"))
+    fr = build.fit_request
+    assert fr is not None
+    assert [(p.name, p.log_scale) for p in fr.parameters] == [("phys.logp", False), ("hepatic", True)]
+    spec = json.loads(Path(fr.base_spec_uri.removeprefix("file://")).read_text())
+    assert [p.get("group") for p in spec["parameters"]] == ["hepatic", "hepatic", None]
+    assert spec["groups"] == [{"name": "hepatic", "min": 0.1, "max": 10.0, "start": 1.0, "scale": "log"}]
+
+
 def test_fit_action_without_observed_profile_has_no_fit_request(tmp_path: Path) -> None:
     cpf_uri, map_uri, _ = _fittable_inputs(tmp_path, with_observed=False)
     build = build_round_snapshot(_fit_ctx(cpf_uri, map_uri, "", "fit phys.logp"))

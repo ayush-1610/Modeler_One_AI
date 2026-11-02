@@ -147,3 +147,41 @@ def test_a_start_whose_engine_ignored_the_signed_log_scale_is_not_used(tmp_path)
                for f in outcome.findings)
     only_old = assess_round(REQUEST, jobs[1:], [old], deadline_reached=False)
     assert not only_old.acceptable and only_old.best_start_index is None
+
+
+def test_a_grouped_fit_is_assessed_on_its_factor_and_its_members_estimates_are_applied(tmp_path):
+    """PI-4 B2: the engine optimises a group's factor in place of its members (run_pi.R). The starts are compared on
+    the factor, its CI and correlations name the group, and the members' estimates (factor x start) are what the CPF
+    receives."""
+    request = FitRoundRequest(
+        round_id="round-g", tenant_id="t1", base_spec_uri="file:///tmp/base.json", base_spec_sha256="a" * 64,
+        parameters=[FitParameterBounds("Lipophilicity", -1.0, 5.0), FitParameterBounds("hepatic", 0.1, 10.0, log_scale=True)],
+        simulations_per_evaluation=12, evaluations_per_start=300, seconds_per_simulation=0.2, cores=48,
+        model_inputs=[EngineInput(name="IV.pkml", uri="file:///tmp/IV.pkml", sha256="b" * 64)],
+    )
+    jobs = plan_jobs(request)[:2]
+    manifests = []
+    for index, (factor, objective, group_scale) in enumerate([(0.5, 10.0, "log"), (0.52, 10.01, "log")]):
+        path = tmp_path / f"start-{index}" / "pi_result.json"
+        path.parent.mkdir()
+        path.write_text(json.dumps({
+            "convergence": True, "objective_value": objective, "function_evaluations": 90,
+            "estimates": [{"name": "Lipophilicity", "estimate": 2.0, "scale": "linear"},
+                          {"name": "cyp", "estimate": 0.4 * factor, "scale": group_scale, "group": "hepatic"},
+                          {"name": "ugt", "estimate": 0.2 * factor, "scale": group_scale, "group": "hepatic"}],
+            "groups": [{"name": "hepatic", "scale": group_scale, "factor": factor, "sd": 0.01, "cv": 0.02,
+                        "lowerCI": factor * 0.96, "upperCI": factor * 1.04, "members": ["cyp", "ugt"]}],
+            "correlations": [{"a": "Lipophilicity", "b": "hepatic", "r": 0.2}],
+        }))
+        manifests.append(EngineManifest(
+            job_id=f"round-g-s{index:03d}", status="SUCCEEDED", engine_id="ospsuite-12.4.4", image_digest="sha256:x",
+            started_at="", finished_at="", inputs={}, outputs=[OutputFile("pi_result.json", path.as_uri(), "c" * 64, 10)],
+            warnings=[], engine_info={}, stderr_tail=""))
+    assert all("hepatic" in j.options["start_values"] and "cyp" not in j.options["start_values"] for j in jobs)
+    outcome = assess_round(request, jobs, manifests, deadline_reached=False)
+    assert outcome.acceptable and outcome.best_start_index == 0 and outcome.starts_agreement == 1.0
+    best = outcome.starts[0]
+    assert best.estimates == {"Lipophilicity": 2.0, "cyp": 0.2, "ugt": 0.1}            # what the CPF receives
+    assert best.groups["hepatic"] == {"factor": 0.5, "sd": 0.01, "cv": 0.02, "ci_lower": 0.48, "ci_upper": 0.52}
+    assert outcome.correlations == [{"a": "Lipophilicity", "b": "hepatic", "r": 0.2}]
+    assert not any(f.startswith("ENGINE_SCALE_IGNORED") for f in outcome.findings)
