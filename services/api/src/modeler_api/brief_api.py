@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -54,6 +55,7 @@ from modeler_project.brief import (
     admitted_tiers,
     catalog,
     empty_brief,
+    rating_disagreements,
     remove_item,
     risk_check,
     validate_brief,
@@ -407,7 +409,8 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
         "start": {"problems": start_problems(brief), "issues": [i.model_dump() for i in start_issues(brief)],
                   "gates": [g.model_dump() for g in scope_gates(brief)],
                   "risk": {"allowed": list(risk.allowed) if risk.allowed else None, "problems": list(risk.problems),
-                           "admitted": admitted_tiers(), **_tier_criteria()},
+                           "admitted": admitted_tiers(), **_tier_criteria(),
+                           "disagreements": [asdict(d) for d in rating_disagreements(brief)]},
                   "applications": _applications_view(),
                   "pathway_suggestions": pathway_suggestions(),
                   # the published OSP model's enzymes and transporters the proposal does not name (page review 1)

@@ -54,19 +54,66 @@ function suggestion(view: BriefView, path: string): Rating {
   return record.status === "DRAFTED" ? (record.value as Rating) : null;
 }
 
-/** What the intake agent suggested for a rating no person has saved yet. */
-function Suggested({ stored, suggested, testId }: { stored: Rating; suggested: Rating; testId: string }) {
-  if (stored || !suggested) return null;
-  return <span className="muted" style={{ fontSize: 12.5 }} data-testid={testId}>suggested by the intake agent: {suggested};
-    it counts once you save it</span>;
+type Disagreement = BriefView["start"]["risk"]["disagreements"][number];
+
+/** The intake agent's suggestion for one rating, shown only once the person has saved theirs (the owner, 2026-11-02: no
+ *  anchoring). The same rating is noted; a different one is flagged and settles on one: the suggestion taken (it is
+ *  picked above, for the person to save with the tier), or the person's rating kept with a reason. */
+function Suggestion({ dimension, stored, suggested, differs, save, marks, onTake }: {
+  dimension: "influence" | "consequence"; stored: Rating; suggested: Rating; differs: Disagreement | undefined;
+  save: Save; marks: Marks; onTake: (rating: string) => void;
+}) {
+  const path = `m15.${dimension}_differs`;
+  const [reason, setReason] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  if (!suggested) return null;
+  const testId = `risk-${dimension}`;
+  if (!stored) {
+    return <span className="muted risk-suggestion" data-testid={`${testId}-suggestion-hidden`}>The intake agent has
+      suggested a rating; it shows once you have saved yours.</span>;
+  }
+  if (!differs) {
+    return <span className="muted risk-suggestion" data-testid={`${testId}-agrees`}>The intake agent suggested the same: {suggested}.</span>;
+  }
+
+  async function keep() {
+    setProblem(await save([{ path, status: "EDITED", value: reason.trim() }]));
+  }
+
+  return (
+    <div className={`risk-differs${differs.settled ? "" : " needs-you"}`} data-testid={`${testId}-differs`}>
+      <span>You rated <strong>{differs.rating}</strong>; the intake agent suggested <strong>{differs.suggested}</strong>.</span>
+      {differs.settled ? (
+        <span className="muted" data-testid={`${testId}-kept`}>Kept {differs.rating}: {differs.reason}</span>
+      ) : (
+        <>
+          <div className="row" style={{ gap: 6 }}>
+            <button type="button" className="btn" data-testid={`${testId}-take`} onClick={() => onTake(differs.suggested)}>
+              Take {differs.suggested}</button>
+            <span className="muted" style={{ fontSize: 12.5 }}>then save the model risk below</span>
+          </div>
+          <label className="muted" style={{ fontSize: 12.5 }} htmlFor={`${testId}-reason`}>or keep {differs.rating}, and say why</label>
+          <textarea id={`${testId}-reason`} rows={2} value={reason} data-testid={`${testId}-reason`}
+                    onChange={(e) => setReason(e.target.value)} />
+          <div className="row">
+            <button type="button" className="btn" disabled={!reason.trim()} data-testid={`${testId}-keep`} onClick={keep}>
+              Keep {differs.rating}</button>
+          </div>
+        </>
+      )}
+      {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
+      <NeedsYou issues={marks.issues(path)} />
+    </div>
+  );
 }
 
 /** The ICH M15 model risk (§2.1.5): the person rates the model's influence and the decision's consequence; the tiers
  *  those ratings admit are offered (the API's table, so the rule lives in one place); different ratings need a reason.
- *  The tier is never assumed (R0): without it the plan cannot be signed. The intake agent's suggested ratings are
- *  preselected, and count only once the person saves them; why each rating is what it is sits under the ratings, the
- *  agent's draft confirmed or changed in place (page review 1, decisions 1b and 4). The tier's acceptance criteria are
- *  shown beside it, and the internal target under it. */
+ *  The tier is never assumed (R0): without it the plan cannot be signed. The intake agent's suggested ratings are not
+ *  preselected: each shows once the person has saved their own, and a difference settles on one rating (the owner,
+ *  2026-11-02; `Suggestion`). Why each rating is what it is sits under the ratings, the agent's draft confirmed or
+ *  changed in place (page review 1, decision 1b). The tier's acceptance criteria are shown beside it, and the internal
+ *  target under it. */
 export function RiskPicker({ view, save, open, marks }: { view: BriefView; save: Save; open: Open; marks: Marks }) {
   const stored = {
     influence: valueOf(view, "m15.influence_rating") as Rating,
@@ -75,8 +122,9 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
     why: (valueOf(view, "m15.risk_justification") as string | null) ?? "",
   };
   const suggested = { influence: suggestion(view, "m15.influence_suggested"), consequence: suggestion(view, "m15.consequence_suggested") };
-  const [influence, setInfluence] = useState<Rating>(stored.influence ?? suggested.influence);
-  const [consequence, setConsequence] = useState<Rating>(stored.consequence ?? suggested.consequence);
+  const [influence, setInfluence] = useState<Rating>(stored.influence);
+  const [consequence, setConsequence] = useState<Rating>(stored.consequence);
+  const differs = (d: string) => view.start.risk.disagreements.find((x) => x.dimension === d);
   const [tier, setTier] = useState<Rating>(stored.tier);
   const [why, setWhy] = useState(stored.why);
   const [problem, setProblem] = useState<string | null>(null);
@@ -112,14 +160,16 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
           <span className="sb-label">Model influence</span>
           <div className="sb-value">
             <Seg options={RATINGS} value={influence} onPick={setInfluence} testId="risk-influence" />
-            <Suggested stored={stored.influence} suggested={suggested.influence} testId="risk-influence-suggested" />
+            <Suggestion dimension="influence" stored={stored.influence} suggested={suggested.influence}
+                        differs={differs("influence")} save={save} marks={marks} onTake={setInfluence} />
           </div>
         </div>
         <div className="risk-row">
           <span className="sb-label">Decision consequence</span>
           <div className="sb-value">
             <Seg options={RATINGS} value={consequence} onPick={setConsequence} testId="risk-consequence" />
-            <Suggested stored={stored.consequence} suggested={suggested.consequence} testId="risk-consequence-suggested" />
+            <Suggestion dimension="consequence" stored={stored.consequence} suggested={suggested.consequence}
+                        differs={differs("consequence")} save={save} marks={marks} onTake={setConsequence} />
           </div>
         </div>
         <div className="risk-row">

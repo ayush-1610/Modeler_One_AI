@@ -167,6 +167,22 @@ def test_the_agents_m15_draft_waits_on_a_person_who_confirms_it_in_place(client)
     assert {"m15.influence", "m15.consequence"}.isdisjoint(i["path"] for i in view["start"]["issues"])
     assert view["brief"]["fields"]["m15.influence"]["status"] == "CONFIRMED"
     assert view["brief"]["fields"]["m15.influence"]["by"] == "u1"
+    # the person rates (the owner, 2026-11-02): influence differs from the suggestion and waits until it settles on one
+    rated = c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
+        {"path": "m15.influence_rating", "status": "EDITED", "value": "high"},
+        {"path": "m15.consequence_rating", "status": "EDITED", "value": "high"},
+        {"path": "acceptance.tier", "status": "EDITED", "value": "high"}]})
+    assert rated.status_code == 200, rated.text
+    view = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]
+    assert view["start"]["risk"]["disagreements"] == [
+        {"dimension": "influence", "rating": "high", "suggested": "medium", "settled": False, "reason": ""}]
+    assert any(i["path"] == "m15.influence_differs" for i in view["start"]["issues"])
+    kept = c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
+        {"path": "m15.influence_differs", "status": "EDITED", "value": "the model alone sets the dose"}]})
+    assert kept.status_code == 200, kept.text
+    view = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]
+    assert view["start"]["risk"]["disagreements"][0]["settled"] is True
+    assert all(i["path"] != "m15.influence_differs" for i in view["start"]["issues"])
 
 
 @pytest.mark.req("T-50")

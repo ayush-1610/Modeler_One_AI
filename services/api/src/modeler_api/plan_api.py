@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
@@ -28,7 +29,7 @@ from modeler_api.part11 import record_signature
 from modeler_api.responses import answers, envelope
 from modeler_api.views.plan import DraftStart, PlacementPreview, PlanPage, PlanSigned, ReviewPage
 from modeler_project import ArtifactKind, ProjectStore, Workspace
-from modeler_project.brief import ProjectBrief
+from modeler_project.brief import ProjectBrief, rating_disagreements
 from modeler_project.dissolution_register import profiles as dissolution_profiles
 from modeler_project.inputs import MAIN as INPUTS_MAIN
 from modeler_project.inputs import catalog_rows, current_cpf, inputs_ready
@@ -236,7 +237,9 @@ def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
                  "justification": brief.value("m15.risk_justification") if brief else None,
                  # a draft no person confirmed reads as None (DRAFTED is not a value)
                  "influence_text": brief.value("m15.influence") if brief else None,
-                 "consequence_text": brief.value("m15.consequence") if brief else None},
+                 "consequence_text": brief.value("m15.consequence") if brief else None,
+                 # a rating kept against the intake agent's suggestion, with the person's reason (2026-11-02)
+                 "kept": [asdict(d) for d in rating_disagreements(brief)] if brief else []},
         "budget_seconds": structure.campaign_budget_seconds,
         "stages": review.stage_budgets(plan, doc),
         "limitations": review.limitations(plan, cpf, violations),
