@@ -1,6 +1,6 @@
 # PI-4 B: fitting parallel pathways through one factor (design)
 
-Status: **approved by the owner, 2026-11-02 (answers below); B1 built.** The owner chose PI-4 **A + B + D** on 2026-11-02
+Status: **approved by the owner, 2026-11-02 (answers below); B1 and B1b built.** The owner chose PI-4 **A + B + D** on 2026-11-02
 (`docs/plans/2026-10-29-pi-4-parallel-pathways.md`):
 - **A:** ask OSP for a relative group (`docs/upstream/2026-10-25-osp-pi-log-scale-request.md`).
 - **B:** build it ourselves now. This plan covers B.
@@ -94,10 +94,11 @@ the golden model, unchanged.
 ## Status
 - **B1, the engine:** built. The spec's `groups`, the per-parameter and per-group `scale`, the result's per-group
   rows, and `golden/pi_relative_group.R` in the qualification gate. No platform fit changes yet.
-- **B1b, the signed scale reaches the engine (next):**
-  - `fit_spec` passes each parameter's signed `scale`;
-  - the platform checks the result echoes it (an older engine ignores it);
-  - the MAP's log-scale limitation is then replaced by what the engine does.
+- **B1b, the signed scale reaches the engine:** built.
+  - `fit_spec` passes each parameter's signed `scale`, and the multi-start draws on the scale the spec gives.
+  - The platform checks the result echoes it: an older engine ignores it, and its start is not used
+    (`ENGINE_SCALE_IGNORED`).
+  - The MAP's log-scale limitation is retired: "[lo, hi] log" now means what it says.
 - **B2, a person chooses the group:** as planned, with a reason that cites where the split comes from (the owner's
   answer 2). The dapagliflozin refit with its three hepatic clearances as one group runs through the platform there
   (`deploy/reference/run_reference.py`, the person's choice in place of a rule): the group reaches the fit spec only

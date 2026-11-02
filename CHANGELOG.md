@@ -15,6 +15,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — PI-4 B1b: a parameter signed with scale "log" is now fitted on log(value) (2026-11-02)
+The owner's answer 1 of 2026-11-02: log scale "applied only when the signed fit policy says `scale: log`". It builds on
+B1 (the engine). No locked file is changed.
+- **What changed (science):** `fit_spec.build_fit_spec` writes `scale: "log"` for each parameter whose fit policy says
+  so. The fit policy is what the MAP signs as "[lo, hi] log".
+  - The engine then optimises log(value), and takes the Hessian CI on that scale. The CI is asymmetric and never below
+    zero, and its CV is log-normal, as S6 draws it.
+  - Most fitted clearances, permeabilities, Km and Vmax are log-scaled (MS-01 §2.2's relative defaults), so most fits
+    change: they move in decades, as the bounds are meant. A linear parameter's spec is unchanged (no `scale` key).
+  - A log-scaled parameter needs a positive lower bound. A bound override that breaks this is refused as a FitSpecError
+    (the fit is not specified) rather than failing in the engine.
+- **One source for the scale:** the multi-start draws on the scale the spec gives the engine (`log_scale` from the
+  spec, not re-derived), so the start values and the optimiser always agree.
+- **A guard for the signed record:** the engine says the scale it applied (B1). A start whose result does not say
+  "log" for a log-scaled parameter is not used, and the round reports `ENGINE_SCALE_IGNORED`. This is what an engine
+  image older than B1 returns: it fitted the linear value, which would contradict the signed MAP. **Rebuild the
+  server's engine image with B1 before running fits.**
+- **The MAP's log-scale limitation is retired** (`plan.log_scale_limitation`, added in #117). "[lo, hi] log" now means
+  what it says. A MAP signed before keeps its text, and a new MAP with log-scaled fits has a new hash.
+- **Fixtures:** `deploy/dev/analytical_engine.py` (a software stand-in, never evidence) echoes the scale as the engine
+  does.
+- **Tests:** `test_fit_spec` (the scale key; the positive-bound refusal), `test_fitting_activities` (an old engine's
+  start is not used), `test_plan` (no log-scale limitation).
+- **Docs:** the log-scale review and the PI review's F3 are marked resolved, and `CONTINUATION_PACKAGE.md` §4.0 is
+  updated.
+
 ### Added — PI-4 B1: the engine fits a group of parameters through one factor, and fits on a log scale (2026-11-02)
 `docs/plans/2026-11-02-pi-4b-relative-group.md`, with the owner's answers of 2026-11-02. Locked engine files, in their
 own PR with the owner's approval: `services/engine-worker/r/run_pi.R`, `r/run_job.R`, the new golden case

@@ -77,12 +77,22 @@ def assess_round(
 ) -> FitRoundOutcome:
     starts: list[FitStartOutcome] = []
     results: list[StartResult] = []
+    ignored: set[str] = set()
+    log_scaled = [p.name for p in request.parameters if p.log_scale]
     for job, manifest in zip(jobs, manifests, strict=True):
         index = job.options["start_index"]
         if manifest is None:
             starts.append(FitStartOutcome(index, "CANCELLED_AT_DEADLINE" if deadline_reached else "FAILED"))
             continue
         data = _read_result(manifest)
+        # the engine says what scale it applied (run_pi.R, PI-4 B1); an older engine ignores the spec's log scale and
+        # fits the linear value, which would contradict the signed MAP: such a start is not used
+        applied = {e["name"]: e.get("scale") for e in data["estimates"]}
+        missed = [name for name in log_scaled if applied.get(name) != "log"]
+        if missed:
+            ignored.update(missed)
+            starts.append(FitStartOutcome(index, "FAILED", manifest=manifest))
+            continue
         estimates = {e["name"]: float(e["estimate"]) for e in data["estimates"]}
         converged = str(data.get("convergence", "")).lower() not in ("false", "0", "failed", "")
         outcome = FitStartOutcome(
@@ -110,6 +120,9 @@ def assess_round(
         findings.append(f"NO_CI: {best.ci_error}; the fitted parameters may not all be identifiable from these data")
     if deadline_reached:
         findings.append("DEADLINE_REACHED: some starts were cancelled at the time budget")
+    if ignored:
+        findings.append(f"ENGINE_SCALE_IGNORED: the engine did not fit {', '.join(sorted(ignored))} on the signed log scale "
+                        "(an engine image older than PI-4 B1); those starts are not used")
     return FitRoundOutcome(
         round_id=request.round_id,
         planned_starts=len(jobs),

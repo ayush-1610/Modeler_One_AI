@@ -66,6 +66,17 @@ def test_build_fit_spec_structure_and_path():
     assert spec["algorithm"] == "BOBYQA"
 
 
+def test_the_signed_log_scale_reaches_the_engine_and_a_linear_parameter_is_as_before():
+    """PI-4 B1b (2026-11-02): run_pi.R optimises log(value) for a parameter whose spec says scale "log". The spec says it
+    exactly where the signed fit policy does; a linear parameter carries no scale key, so its spec is unchanged."""
+    spec = build_fit_spec(_cpf(), ["phys.logp", "elim.hepatic.CYP3A4.clspec"], [_sim()])
+    logp, clspec = spec["parameters"]
+    assert "scale" not in logp and clspec["scale"] == "log"
+    with pytest.raises(FitSpecError, match="a log-scaled fit needs a positive lower bound"):
+        build_fit_spec(_cpf(), ["elim.hepatic.CYP3A4.clspec"], [_sim()],
+                       bounds_override={"elim.hepatic.CYP3A4.clspec": (0.0, 10.0)})
+
+
 def test_dimensionless_parameter_carries_no_unit_key():
     """A null unit came back from run_job.R's re-serialisation as {} and ospsuite rejected it (found on PK-Sim)."""
     gfr_bind = EngineBinding(building_block="Compound", process="GlomerularFiltration", parameter="GFR fraction",

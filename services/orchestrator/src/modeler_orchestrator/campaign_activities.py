@@ -218,14 +218,6 @@ async def resume_campaign(request: CampaignRequest) -> ResumeState:
     return await store.resume(request)
 
 
-def _is_log_scale(cpf, param_id: str, system=None) -> bool:
-    from pbpk_domain.fit_spec import fit_owner
-
-    owner, pid = fit_owner(cpf, param_id, system)
-    record = owner.get(pid)
-    return bool(record and record.fit_policy and record.fit_policy.scale.value == "log")
-
-
 FIT_OPS = ("fit", "fix_and_refit")
 
 
@@ -400,8 +392,8 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
     spec_path = out_dir / f"{snapshot_stem}-pi_spec.json"
     payload = json.dumps(spec, ensure_ascii=False, indent=2).encode("utf-8")
     atomic_write_bytes(spec_path, payload)
-    bounds = [FitParameterBounds(name=p["name"], lower=p["min"], upper=p["max"],
-                                 log_scale=_is_log_scale(cpf, p["name"], system))
+    # the multi-start draws on the scale the spec gives the engine (the signed fit policy's, fit_spec), so they agree
+    bounds = [FitParameterBounds(name=p["name"], lower=p["min"], upper=p["max"], log_scale=p.get("scale") == "log")
               for p in spec["parameters"]]
     activity.logger.info("build_round_snapshot %s %s round %d: fit request for %s over %d study(ies)",
                          ctx.campaign_id, ctx.stage, ctx.round_index, ",".join(fit_ids), len(simulations))
