@@ -118,6 +118,25 @@ the golden model, unchanged.
   - **The dapagliflozin refit, grouped:** the reference workflow's task `dapagliflozin-refit-grouped`
     (`run_reference.py --group`). Its three hepatic clearances are fitted as one factor; the refit's ×2 shift keeps
     their published split, so the factor's truth is 0.5.
+  - **The result on PK-Sim** (reference run 41495102951, 2026-11-02, B2a's code with B1b's log scale, 32 starts).
+    Both runs fit the three hepatic clearances at S1 from the same shifted start:
+
+    | | grouped (one factor) | each on its own (three values) |
+    |---|---|---|
+    | the starts agree | **100 %** | 72 % |
+    | estimate (95 % CI) | factor **0.4565 (0.31–0.672)**; truth 0.5 | CYP 0.963 (0.351–2.64); UGT1A9 0.0399 (0.000216–7.4); UGT2B7 0.0660 (0.000207–21) |
+    | at a bound | none | UGT1A9 at its lower, UGT2B7 at its upper |
+    | each clearance / published | 0.913 for all three (the split kept) | CYP 6.7×, UGT1A9 0.1×, UGT2B7 10× |
+    | AUC / Cmax GMFE after the fit | 1.423 / 2.395 | 1.412 / 2.291 |
+    | what the diagnosis did next | fitted logP (2.35, 2.01–2.69; published 2.67): 1.341 / 1.916 | escalated: a parameter at its bound |
+    | campaign | escalated at S1: the IV study's Cmax 0.52-fold (distribution) | escalated at S1 |
+
+    - **The grouped fit is identifiable:** one factor, with a CI narrower than the estimate.
+    - **The ungrouped fit is not:** the same profile fits about as well with the clearances 67-fold apart, two at
+      their bounds and their CIs spanning four to five decades. This is the non-identifiability B was built for.
+    - **Both escalate at S1 for a reason the grouping does not touch:** the IV study's Cmax is too low (distribution).
+      Also, the refit shifts the GFR fraction ×2 and the diagnosis did not fit it. That likely explains why the
+      factor lands at 0.46 rather than 0.5: the liver compensates for the extra renal clearance.
   - **B2b, the person's choice on Review & sign:** built. It adds the estimation plan's "Fitted as one" form
     (members, the factor's bounds and scale, the split's source and the reason, both required), the plan's validator
     and the API. Its groups reach the campaign CPF, so the MAP signs them.
