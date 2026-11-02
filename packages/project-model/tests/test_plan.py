@@ -18,7 +18,6 @@ from modeler_project.plan import (
     default_map,
     diff,
     hold_fixed,
-    log_scale_limitation,
     map_from_plan,
     place,
     rebase,
@@ -77,8 +76,7 @@ def test_the_default_plan_is_ms01_and_its_map_equals_generate_map_on_its_campaig
     # the campaign CPF bounds MS-01's candidates by MS-01's defaults (D-37), and the MAP says so in its limitations
     expected, _ = default_map(campaign_cpf(plan, cpf), ROWS, structure)
     doc = map_from_plan(plan, cpf, ROWS)
-    assert doc.split_limitations == (*expected.split_limitations, *default_fit_limitation(plan, cpf),
-                                     *log_scale_limitation(plan, cpf))
+    assert doc.split_limitations == (*expected.split_limitations, *default_fit_limitation(plan, cpf))
     assert doc.model_copy(update={"split_limitations": expected.split_limitations}).content_sha256() == expected.content_sha256()
 
 
@@ -368,6 +366,7 @@ def test_the_signed_map_carries_starts_m15_assessment_and_says_what_a_log_scale_
         kept_against_suggestion=(("influence rated high; the intake agent suggested medium; kept because no clinical "
                                   "study confirms the dose"),))
     assert doc.content_sha256() != doc.model_copy(update={"risk_assessment": None}).content_sha256()
-    [line] = log_scale_limitation(plan, cpf)
-    assert line.startswith("Fitted on a log scale (") and "work on the linear value" in line and line in doc.split_limitations
+    # a log scale is what the engine does since PI-4 B1b (it optimises log(value)): no longer a limitation of the MAP
+    assert any(r.fit_policy and r.fit_policy.scale.value == "log" for r in campaign_cpf(plan, cpf).parameters)
+    assert not any("log scale" in line for line in doc.split_limitations)
     assert structure_from_brief(None).risk_assessment is None                # no Start: none, and the hash as before

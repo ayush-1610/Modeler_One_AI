@@ -39,7 +39,8 @@ def manifest_with_result(tmp_path, index, lipo, cl, objective):
                 "convergence": True,
                 "objective_value": objective,
                 "function_evaluations": 250,
-                "estimates": [{"name": "Lipophilicity", "estimate": lipo}, {"name": "CLspec", "estimate": cl}],
+                "estimates": [{"name": "Lipophilicity", "estimate": lipo, "scale": "linear"},
+                              {"name": "CLspec", "estimate": cl, "scale": "log"}],
             }
         )
     )
@@ -73,8 +74,9 @@ def _identifiability_manifest(tmp_path, index, objective, *, correlations=None, 
     path.parent.mkdir()
     result = {
         "convergence": True, "objective_value": objective, "function_evaluations": 120,
-        "estimates": [{"name": "Lipophilicity", "estimate": 2.0, "sd": 0.1, "cv": 0.05, "lowerCI": 1.8, "upperCI": 2.2},
-                      {"name": "CLspec", "estimate": 0.5, "sd": 0.6, "cv": 1.2, "lowerCI": 0.05, "upperCI": 4.8}],
+        "estimates": [{"name": "Lipophilicity", "estimate": 2.0, "sd": 0.1, "cv": 0.05, "lowerCI": 1.8, "upperCI": 2.2,
+                       "scale": "linear"},
+                      {"name": "CLspec", "estimate": 0.5, "sd": 0.6, "cv": 1.2, "lowerCI": 0.05, "upperCI": 4.8, "scale": "log"}],
         "correlations": correlations or [],
     }
     if ci_error:
@@ -126,3 +128,22 @@ def test_a_fit_without_a_ci_says_why(tmp_path):
         deadline_reached=False)
     assert outcome.ci_error.endswith("not positive definite.") and outcome.correlations == []
     assert any(f.startswith("NO_CI: Covariance matrix validity check") for f in outcome.findings)
+
+
+def test_a_start_whose_engine_ignored_the_signed_log_scale_is_not_used(tmp_path):
+    """PI-4 B1b (2026-11-02): the spec passes the signed log scale and the engine says what it applied. An engine image
+    older than B1 ignores the scale and fits the linear value, which would contradict the signed MAP."""
+    jobs = plan_jobs(REQUEST)[:2]
+    honoured = manifest_with_result(tmp_path, 0, 2.00, 0.50, 10.0)
+    old = manifest_with_result(tmp_path, 1, 2.00, 0.50, 9.0)
+    path = tmp_path / "start-1" / "pi_result.json"
+    data = json.loads(path.read_text())
+    for e in data["estimates"]:
+        e.pop("scale")
+    path.write_text(json.dumps(data))
+    outcome = assess_round(REQUEST, jobs, [honoured, old], deadline_reached=False)
+    assert [s.status for s in outcome.starts] == ["SUCCEEDED", "FAILED"] and outcome.best_start_index == 0
+    assert any(f.startswith("ENGINE_SCALE_IGNORED: the engine did not fit CLspec on the signed log scale")
+               for f in outcome.findings)
+    only_old = assess_round(REQUEST, jobs[1:], [old], deadline_reached=False)
+    assert not only_old.acceptable and only_old.best_start_index is None

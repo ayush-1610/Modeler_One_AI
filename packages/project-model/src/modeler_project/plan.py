@@ -765,20 +765,6 @@ def default_fit_limitation(plan: ModelPlan, cpf: CPF) -> tuple[str, ...]:
     return (line,)
 
 
-def log_scale_limitation(plan: ModelPlan, cpf: CPF) -> tuple[str, ...]:
-    """What a log scale does in a fit today, said in the MAP wherever a fitted parameter has one
-    (docs/plans/2026-11-02-log-scale-review.md): ospsuite.parameteridentification 2.2.0 has no parameter transform, so
-    only the multi-start's start values are drawn on a log scale; the optimiser and the confidence interval work on the
-    linear value. Said until the engine optimises on log(value)."""
-    logged = [r.id for r in campaign_cpf(plan, cpf).parameters if r.fit_policy and r.fit_policy.scale is Scale.LOG]
-    if not logged:
-        return ()
-    line = (f"Fitted on a log scale ({', '.join(logged)}): the start values of the multi-start are drawn on a log scale; "
-            "the optimiser (ospsuite.parameteridentification 2.2.0) and the 95 % confidence interval work on the linear "
-            "value, so the interval is symmetric and S6 draws a log-normal from its SD")
-    return (line,)
-
-
 def campaign_cpf(plan: ModelPlan, cpf: CPF) -> CPF:
     """CPF v1 with the plan's fit choices, and MS-01's default for every other fit candidate (D-37), as fit policies
     (status and values unchanged)."""
@@ -811,8 +797,7 @@ def map_from_plan(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, expl
     if blocking(violations):
         raise PlanError("the plan has open rule violations: " + "; ".join(v.message for v in blocking(violations)))
     split = plan_split(plan)
-    limits = (*map_limitations(plan, violations if acknowledged_limitations else []), *default_fit_limitation(plan, cpf),
-              *log_scale_limitation(plan, cpf))
+    limits = (*map_limitations(plan, violations if acknowledged_limitations else []), *default_fit_limitation(plan, cpf))
     split = split.model_copy(update={"limitations": limits})
     doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=split,
                          internal_target_pe=plan.structure.internal_target_pe, grades=grades)

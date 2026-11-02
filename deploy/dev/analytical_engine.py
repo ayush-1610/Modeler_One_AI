@@ -263,8 +263,12 @@ def main() -> int:
         start_values = job.get("options", {}).get("start_values") or {}
         start = [float(start_values.get(p["name"], p["start"])) for p in spec["parameters"]]
         best, obj, evals = _optimize(models, names, bounds, start, observed)
+        # the engine's result contract (run_pi.R, PI-4 B1): with a log scale or a group in the spec, every estimate says
+        # the scale it was fitted on; without, none does. This stand-in only echoes it (it fits no log scale).
+        scaled = bool(spec.get("groups")) or any(p.get("scale") == "log" for p in spec["parameters"])
         (out_dir / "pi_result.json").write_text(json.dumps({
-            "estimates": [{"name": n, "estimate": v} for n, v in zip(names, best)],
+            "estimates": [{"name": n, "estimate": v, **({"scale": p.get("scale", "linear")} if scaled else {})}
+                          for n, v, p in zip(names, best, spec["parameters"])],
             "objective_value": obj, "convergence": True, "function_evaluations": evals,
         }))
 

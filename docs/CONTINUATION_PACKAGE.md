@@ -227,14 +227,22 @@ The owner's decisions are recorded in the plans named.
   - A parameter signed with scale "log" has only its multi-start values drawn on a log scale.
   - The optimiser and the Hessian CI work on the linear value, and `run_pi.R` never receives the scale.
   - The signed MAP did not say so; #117 adds the limitation.
+  - Since B1b, a log-scaled parameter is optimised on log(value) with its CI on that scale, and the limitation is gone.
 - **PI-4** (#110: options). The owner chose **A + B + D** on 2026-11-02:
   - **A:** post the two OSP requests, a log transform and a relative group, as parity with the desktop's Scaling and
     Use as Factor. They are drafted in `docs/upstream/2026-10-25-osp-pi-log-scale-request.md`. The owner confirms the
     desktop sentence, then posts them.
-  - **B:** our own one-factor driver on the package's objective, so a group keeps its split. To build: locked
-    `run_pi.R`, a golden case, a PK-Sim qualification run and the SME.
-    - Open question in #115: should B also optimise on log(value)? Recommended yes.
-  - **D:** keep escalating such fits until then (today's behaviour).
+  - **B:** our own one-factor driver on the package's objective, so a group keeps its split
+    (`docs/plans/2026-11-02-pi-4b-relative-group.md`, #119). The owner's answers of 2026-11-02: log scale in B1 too;
+    B2 (a person chooses and signs the group) before B3 (the SME rule); Aciclovir as the golden model.
+    - **B1 (#120, locked engine):** `run_pi.R` fits groups through one factor and log-scaled parameters on
+      log(value), with the CI on that scale. Golden `pi_relative_group.R` on PK-Sim. A spec with neither runs as
+      before.
+    - **B1b (after #120):** `fit_spec` passes the signed scale, so every log-scaled fit is optimised on log(value).
+      A start whose engine ignored the scale is not used (`ENGINE_SCALE_IGNORED`). The MAP's log-scale limitation
+      is retired. **Rebuild the server's engine image** with B1 before running fits.
+    - **B2, B3:** next; the dapagliflozin refit with its three hepatic clearances as one group runs after B2.
+  - **D:** keep escalating such fits until B2 (today's behaviour).
 
 **Page review 1, the Start page** (`docs/plans/2026-10-23-page-by-page-review.md` §4):
 - **Built:**
@@ -250,7 +258,7 @@ The owner's decisions are recorded in the plans named.
     flagged and settles on one: taken, or kept with a reason.
   - **Item 4:** no "arrived" mark; Start stays as it is.
   - **Item 5 (#117, locked `map.py`):** the MAP carries the M15 assessment under its hash, and
-    the report's M15 table shows it. The MAP also says what a log-scaled fit does.
+    the report's M15 table shows it. The MAP also said what a log-scaled fit did, until B1b made it a true log fit.
 
 **The project document library** (`docs/plans/2026-10-28-project-document-library.md`, complete):
 - #111 the library page;

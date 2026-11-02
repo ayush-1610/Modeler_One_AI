@@ -1,7 +1,9 @@
 # What "log scale" means in a fit today (review)
 
-Status: **review for the owner** (2026-11-02, the owner's item 2: "'our fitting script fits log-scaled parameters on
-their linear value' not sounding correct, need detail and proper review"). Package line numbers are for
+Status: **resolved by PI-4 B1 and B1b** (2026-11-02): a parameter signed with scale "log" is now optimised on
+log(value), with its Hessian CI on that scale (`docs/plans/2026-11-02-pi-4b-relative-group.md`). What follows is the
+review as written, of the behaviour before B1b. (The owner's item 2: "'our fitting script fits log-scaled parameters on
+their linear value' not sounding correct, need detail and proper review".) Package line numbers are for
 `ospsuite.parameteridentification` tag `v2.2.0`, commit `cb9e9e5`, the version the engine image pins.
 
 ## The short answer

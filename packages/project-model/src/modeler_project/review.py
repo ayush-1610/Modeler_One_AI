@@ -40,7 +40,6 @@ from modeler_project.plan import (
     default_fit_limitation,
     default_fits,
     default_map,
-    log_scale_limitation,
     map_limitations,
     plan_split,
 )
@@ -132,7 +131,7 @@ def stage_budgets(plan: ModelPlan, doc: MapDocument) -> list[dict[str, Any]]:
 
 
 def limitations(plan: ModelPlan, cpf: CPF, violations: list[Violation]) -> list[str]:
-    return [*map_limitations(plan, violations), *default_fit_limitation(plan, cpf), *log_scale_limitation(plan, cpf)]
+    return [*map_limitations(plan, violations), *default_fit_limitation(plan, cpf)]
 
 
 # --- the estimation plan (R4b) ------------------------------------------------------------------------------------

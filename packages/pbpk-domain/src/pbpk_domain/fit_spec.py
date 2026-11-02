@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance, Uncertainty
+from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance, Scale, Uncertainty
 from pbpk_domain.pksim_paths import pksim_parameter_path
 
 if TYPE_CHECKING:
@@ -115,6 +115,11 @@ def resolve_fit_ids(cpf: CPF, target: str, system: ModelSystem | None = None) ->
     pattern = "^" + re.escape(target).replace(r"\{enzyme\}", "[^.]+").replace(r"\{name\}", "[^.]+") + "$"
     rx = re.compile(pattern)
     return tuple(p.id for p in cpf.parameters if rx.match(p.id))
+
+
+def is_log_scaled(record: ParameterRecord | None) -> bool:
+    """Whether a parameter is fitted on a log scale: its fit policy says so (the MAP signs it)."""
+    return bool(record and record.fit_policy and record.fit_policy.scale is Scale.LOG)
 
 
 def _bounds(record: ParameterRecord, override: tuple[float, float] | None) -> tuple[float, float]:
@@ -210,6 +215,12 @@ def build_fit_spec(
         # run_job.R's re-serialisation (R writes it back as {}), and ospsuite then rejects the empty "unit".
         if record.unit:
             entry["unit"] = record.unit
+        # The signed fit policy's log scale (MAP bounds "[lo, hi] log"): the engine optimises log(value) and takes the
+        # CI on that scale (run_pi.R, PI-4 B1). A linear parameter carries no scale key, so its spec is as before.
+        if is_log_scaled(record):
+            if lo <= 0:
+                raise FitSpecError(f"{fit_id!r}: a log-scaled fit needs a positive lower bound, not {lo:g}")
+            entry["scale"] = Scale.LOG.value
         parameters.append(entry)
 
     return {
