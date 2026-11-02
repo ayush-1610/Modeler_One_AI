@@ -127,3 +127,41 @@ test("the diagnosis may fit MS-01's candidates within MS-01's defaults unless a 
   await expect(estimation.getByTestId("diagnosis-may-fit-phys.logp")).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("defaults.png"), fullPage: true });
 });
+
+// PI-4 B2 (the owner, 2026-11-02): estimated parameters fitted as one, through one factor that keeps their split; the
+// person says why and where the split comes from, both signed with the MAP, and can take the group back.
+test("estimated parameters are fitted as one, with why and where their split comes from", async ({ page, request }) => {
+  const projectId = await projectWithInputs(request, "Groupamide", [
+    { study_id: "iv-250", route: "iv_infusion", dose_mg: 250 }, { study_id: "po-10", route: "oral", dose_mg: 10 },
+  ]);
+  expect((await request.get(`/api/v1/projects/${projectId}/plan`, { headers: AUTH })).ok()).toBeTruthy();   // built on first read
+  for (const parameter of ["elim.renal.gfr_fraction", "phys.solubility.ref"]) {
+    const fit = await request.put(`/api/v1/projects/${projectId}/plan/fits/${parameter}`, { headers: AUTH,
+      data: { stages: ["S1"], lower: 0.1, upper: 3, scale: "log", reason: "uncertain" } });
+    expect(fit.ok(), await fit.text()).toBeTruthy();
+  }
+
+  await page.goto(`/projects/${projectId}/plan`);
+  const groups = page.getByTestId("fit-groups");
+  await expect(groups).toContainText("No group: each estimated parameter is fitted on its own.");
+  await groups.getByTestId("group-add").click();
+  const form = groups.getByTestId("group-form");
+  await form.getByTestId("group-member-elim.renal.gfr_fraction").check();
+  await form.getByTestId("group-member-phys.solubility.ref").check();
+  await form.getByTestId("group-name").fill("pair");
+  await expect(form.getByTestId("group-save")).toBeDisabled();                    // why, and the split's source, first
+  await form.getByTestId("group-split-source").fill("the review's ratio (Review 2019)");
+  await form.getByTestId("group-reason").fill("one IV profile cannot separate them");
+  await form.getByTestId("group-save").click();
+  const group = groups.getByTestId("fit-group-pair");
+  await expect(group).toContainText("factor [0.1, 10] log");
+  await expect(group).toContainText("Split from: the review's ratio (Review 2019)");
+  await expect(page.getByTestId("grouped-elim.renal.gfr_fraction")).toContainText("as one with pair");
+  await page.screenshot({ path: test.info().outputPath("fit-group.png"), fullPage: true });
+
+  await group.getByTestId("ungroup-pair").click();
+  await group.getByLabel("why fit pair's members each on its own").fill("separable after all");
+  await group.getByRole("button", { name: "Ungroup" }).click();
+  await expect(groups).toContainText("No group: each estimated parameter is fitted on its own.");
+  await expect(page.getByTestId("grouped-elim.renal.gfr_fraction")).toHaveCount(0);
+});

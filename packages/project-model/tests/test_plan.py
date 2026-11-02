@@ -195,6 +195,35 @@ def test_fit_choices_become_fit_policies_of_the_campaign_cpf():
     assert any(v.rule == "fit" and "S1–S3" in v.message for v in validate(bad, cpf, ROWS))
 
 
+def test_a_group_of_estimated_parameters_reaches_the_campaign_cpf_and_is_signed_in_the_map():
+    """PI-4 B2: a person fits estimated parameters as one, through one factor, with why and where their split comes
+    from; the campaign CPF carries the group and the MAP signs it. The validator stops a group that cannot be fitted."""
+    from modeler_project.plan import PlanError, acknowledge, set_group
+
+    cpf = _cpf()
+    plan = build_default(cpf, ROWS, Structure(model_risk="medium"))
+    for pid in ("elim.renal.gfr_fraction", "phys.solubility.ref"):
+        plan = set_fit(plan, pid, {"stages": ("S1",), "lower": 0.1, "upper": 3.0, "scale": "log"}, by="u", reason="uncertain")
+    for v in blocking(validate(plan, cpf, ROWS)):      # the solubility's bounds and stage: said, and acknowledged
+        plan = acknowledge(plan, v.id, by="u", reason="a test pair")
+    grouped = set_group(plan, "pair", {"members": ("elim.renal.gfr_fraction", "phys.solubility.ref"),
+                                      "split_source": "the review's ratio"}, by="u", reason="one IV profile")
+    assert not blocking(validate(grouped, cpf, ROWS))
+    [group] = campaign_cpf(grouped, cpf).fit_groups
+    assert group.members == ("elim.renal.gfr_fraction", "phys.solubility.ref") and group.split_source == "the review's ratio"
+    doc = map_from_plan(grouped, cpf, ROWS)
+    assert [g.name for g in doc.fit_groups] == ["pair"] and doc.fit_groups[0].reason == "one IV profile"
+    assert map_from_plan(plan, cpf, ROWS).fit_groups == ()
+    with pytest.raises(PlanError, match="estimate phys.logp first"):
+        set_group(plan, "other", {"members": ("phys.logp", "phys.solubility.ref"), "split_source": "x"}, by="u", reason="x")
+    # a member estimated at another stage only: never fitted together, so the MAP cannot be signed
+    apart = set_fit(grouped, "phys.solubility.ref", {"stages": ("S2",), "lower": 0.1, "upper": 3.0, "scale": "log"},
+                    by="u", reason="oral")
+    assert any(v.rule == "fit-group" and "common stage" in v.message for v in blocking(validate(apart, cpf, ROWS)))
+    ungrouped = set_group(grouped, "pair", None, by="u", reason="separable after all")
+    assert ungrouped.fit_groups == {} and campaign_cpf(ungrouped, cpf).fit_groups == ()
+
+
 @pytest.mark.req("T-31")
 def test_the_briefs_vbe_application_waits_for_the_persons_inputs_before_the_map():
     from modeler_project.plan import set_structure, structure_from_brief

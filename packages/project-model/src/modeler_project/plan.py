@@ -53,7 +53,7 @@ from pbpk_domain.campaign.split import (
     StudySplit,
     split_studies,
 )
-from pbpk_domain.cpf.models import CPF, FitPolicy, Scale
+from pbpk_domain.cpf.models import CPF, FitGroup, FitPolicy, Scale
 from pbpk_domain.data_origin import REAL_ORIGINS
 from pbpk_domain.fit_spec import resolve_fit_ids
 from pbpk_domain.m15 import Rating
@@ -107,6 +107,22 @@ class FitChoice(BaseModel):
     by: str
     userLocked: bool = True
     reason: str = Field(min_length=1)
+
+
+class FitGroupChoice(BaseModel):
+    """Estimated parameters a person fits as one, through one factor (PI-4 B2): each at f x its start value, so their
+    split is kept. Why (``reason``) and where the split comes from (``split_source``, e.g. the in vitro fractions
+    metabolised and their reference) are required; both are signed with the MAP."""
+
+    model_config = _CONTENT
+
+    members: tuple[str, ...] = Field(min_length=2)
+    lower: float = 0.1
+    upper: float = 10.0
+    scale: Literal["linear", "log"] = "log"
+    reason: str = Field(min_length=1)
+    split_source: str = Field(min_length=1)
+    by: str
 
 
 class Hold(BaseModel):
@@ -206,6 +222,7 @@ class ModelPlan(BaseModel):
     placements: dict[str, Placement]
     fits: dict[str, FitChoice] = Field(default_factory=dict)
     held_fixed: dict[str, Hold] = Field(default_factory=dict)  # MS-01 candidates a person keeps fixed (D-37)
+    fit_groups: dict[str, FitGroupChoice] = Field(default_factory=dict)  # estimated parameters fitted as one (PI-4 B2)
     structure: Structure = Field(default_factory=Structure)
     default_rationale: tuple[str, ...] = ()
     default_limitations: tuple[str, ...] = ()
@@ -543,6 +560,29 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
         trained = [st for st in fit.stages if any(r == st for r in roles.values())]
         if not trained:
             add("warning", "fit-data", pid, f"{pid}: no study trains {', '.join(fit.stages)}, so nothing will fit it")
+    in_group: dict[str, str] = {}
+    for name, group in plan.fit_groups.items():
+        not_estimated = [m for m in group.members if m not in plan.fits]
+        if not_estimated:
+            add("error", "fit-group", name, f"group {name}: {', '.join(not_estimated)} not estimated; a group fits estimated "
+                                            "parameters as one (estimate each, or take it out of the group)")
+        for member in group.members:
+            if member in in_group:
+                add("error", "fit-group", name, f"{member} is in two groups ({in_group[member]}, {name})")
+            in_group[member] = name
+            record = cpf.get(member)
+            if record is None or not isinstance(record.value, int | float) or isinstance(record.value, bool) \
+                    or record.value <= 0:
+                add("error", "fit-group", name, f"group {name}: {member} needs a positive start value, which the factor "
+                                                "scales")
+        estimated = [plan.fits[m] for m in group.members if m in plan.fits]
+        shared = set(FIT_STAGES).intersection(*(set(f.stages) for f in estimated)) if estimated else set()
+        if estimated and not shared:
+            add("error", "fit-group", name, f"group {name}: its members are not estimated at a common stage, so they are "
+                                            "never fitted together")
+        if not 0 < group.lower <= 1 <= group.upper or group.lower == group.upper:
+            add("error", "fit-group", name, f"group {name}: its factor's bounds [{group.lower:g}, {group.upper:g}] must "
+                                            "contain 1 (the members' start values) and be above 0")
     budget = plan.structure.campaign_budget_seconds
     defaults = default_fits(plan, cpf)
     for stage in FIT_STAGES:  # each stage's share of the budget (MS-01), and what a fit at that stage keeps in reserve
@@ -642,6 +682,34 @@ def release(plan: ModelPlan, parameter: str) -> ModelPlan:
     return plan.model_copy(update={"held_fixed": {k: v for k, v in plan.held_fixed.items() if k != parameter}})
 
 
+def set_group(plan: ModelPlan, name: str, group: dict[str, Any] | None, *, by: str, reason: str) -> ModelPlan:
+    """A person fits estimated parameters as one, through one factor (PI-4 B2), saying why (``reason``) and where their
+    split comes from (``split_source``); or takes the group back (``group`` None), and the members are fitted each on
+    its own again."""
+    groups = dict(plan.fit_groups)
+    if group is None:
+        if name not in groups:
+            raise PlanError(f"no group {name!r}")
+        groups.pop(name)
+        return plan.model_copy(update={"fit_groups": groups})
+    if not reason.strip():
+        raise PlanError("a group needs a reason: why its members are fitted as one")
+    try:
+        choice = FitGroupChoice(**group, by=by, reason=reason)
+        # the CPF's own rules (name, members, the factor's bounds) say what a group may be
+        FitGroup(name=name, members=choice.members, lower=choice.lower, upper=choice.upper, scale=Scale(choice.scale),
+                 reason=reason, split_source=choice.split_source)
+    except ValueError as exc:
+        raise PlanError(f"group {name}: {exc}") from exc
+    elsewhere = {m: other for other, g in groups.items() if other != name for m in g.members}
+    if taken := [f"{m} (in {elsewhere[m]})" for m in choice.members if m in elsewhere]:
+        raise PlanError(f"group {name}: already in another group: {', '.join(taken)}")
+    if missing := [m for m in choice.members if m not in plan.fits]:
+        raise PlanError(f"group {name}: estimate {', '.join(missing)} first; a group fits estimated parameters as one")
+    groups[name] = choice
+    return plan.model_copy(update={"fit_groups": groups})
+
+
 def set_structure(plan: ModelPlan, key: str, value: Any, *, by: str, reason: str) -> ModelPlan:
     if key not in Structure.model_fields or key in ("locked", "reasons"):
         raise PlanError(f"{key!r} is not a structure choice")
@@ -712,6 +780,10 @@ def diff(plan: ModelPlan) -> list[dict[str, Any]]:
     for pid, hold in plan.held_fixed.items():
         out.append({"kind": "fit", "target": pid, "from": "MS-01 default", "to": "held fixed", "by": hold.by,
                     "reason": hold.reason, "status": "APPLIED"})
+    for name, group in plan.fit_groups.items():
+        out.append({"kind": "group", "target": name, "from": "each fitted on its own",
+                    "to": f"{', '.join(group.members)} fitted as one, factor [{group.lower:g}, {group.upper:g}] {group.scale}; "
+                          f"split from {group.split_source}", "by": group.by, "reason": group.reason, "status": "APPLIED"})
     for key in plan.structure.locked:
         to = getattr(plan.structure, key)
         if key == "applications":
@@ -778,7 +850,15 @@ def campaign_cpf(plan: ModelPlan, cpf: CPF) -> CPF:
         elif record.id in defaults:
             record = record.model_copy(update={"fit_policy": defaults[record.id]})
         records.append(record)
-    return CPF(compound=cpf.compound, version=cpf.version, parameters=tuple(records), note=cpf.note, fit_groups=cpf.fit_groups)
+    # the person's fit groups (PI-4 B2), signed with the MAP; one whose members the CPF does not hold is left out (the
+    # validator says why, and the MAP cannot be signed until it is fixed)
+    ids = {r.id for r in records}
+    planned = tuple(FitGroup(name=name, members=g.members, lower=g.lower, upper=g.upper, scale=Scale(g.scale),
+                             reason=g.reason, split_source=g.split_source)
+                    for name, g in plan.fit_groups.items() if set(g.members) <= ids)
+    taken = {m for g in planned for m in g.members}
+    groups = (*(g for g in cpf.fit_groups if g.name not in plan.fit_groups and not taken & set(g.members)), *planned)
+    return CPF(compound=cpf.compound, version=cpf.version, parameters=tuple(records), note=cpf.note, fit_groups=groups)
 
 
 def plan_split(plan: ModelPlan) -> SplitResult:

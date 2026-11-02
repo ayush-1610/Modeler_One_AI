@@ -1301,6 +1301,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/plan/groups/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Group
+         * @description Estimated parameters fitted as one, through one factor (PI-4 B2): each at f x its start value, so their split
+         *     is kept. Why, and where the split comes from, are required and signed with the MAP.
+         */
+        put: operations["put_group_api_v1_projects__project_id__plan_groups__name__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/plan/groups/{name}:remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove Group
+         * @description A group taken back: its members are fitted each on its own again.
+         */
+        post: operations["remove_group_api_v1_projects__project_id__plan_groups__name__remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/plan/layout": {
         parameters: {
             query?: never;
@@ -3357,7 +3398,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "role" | "fit" | "structure";
+            kind: "role" | "fit" | "group" | "structure";
             /** Proposal */
             proposal?: string | null;
             /** Reason */
@@ -4173,6 +4214,8 @@ export interface components {
             findings: components["schemas"]["BoundsFinding"][];
             /** Grade */
             grade: string | null;
+            /** Group */
+            group: string | null;
             held_fixed: components["schemas"]["HeldFixed"] | null;
             /** Id */
             id: string;
@@ -4634,6 +4677,63 @@ export interface components {
              */
             upper?: number;
         };
+        /**
+         * FitGroupChoice
+         * @description Estimated parameters a person fits as one, through one factor (PI-4 B2): each at f x its start value, so their
+         *     split is kept. Why (``reason``) and where the split comes from (``split_source``, e.g. the in vitro fractions
+         *     metabolised and their reference) are required; both are signed with the MAP.
+         */
+        FitGroupChoice: {
+            /** By */
+            by: string;
+            /**
+             * Lower
+             * @default 0.1
+             */
+            lower: number;
+            /** Members */
+            members: string[];
+            /** Reason */
+            reason: string;
+            /**
+             * Scale
+             * @default log
+             * @enum {string}
+             */
+            scale: "linear" | "log";
+            /** Split Source */
+            split_source: string;
+            /**
+             * Upper
+             * @default 10
+             */
+            upper: number;
+        };
+        /**
+         * FitGroupRow
+         * @description Estimated parameters a person fits as one, through one factor (PI-4 B2, `review.fit_group_rows`).
+         */
+        FitGroupRow: {
+            /** By */
+            by: string;
+            /** Lower */
+            lower: number;
+            /** Members */
+            members: string[];
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Scale
+             * @enum {string}
+             */
+            scale: "linear" | "log";
+            /** Split Source */
+            split_source: string;
+            /** Upper */
+            upper: number;
+        };
         /** FitPolicy */
         FitPolicy: {
             /** Lower */
@@ -4690,6 +4790,31 @@ export interface components {
              * @default Human
              */
             species?: string;
+        };
+        /** GroupRequest */
+        GroupRequest: {
+            /**
+             * Lower
+             * @default 0.1
+             */
+            lower?: number;
+            /** Members */
+            members: string[];
+            /** Reason */
+            reason: string;
+            /**
+             * Scale
+             * @default log
+             * @enum {string}
+             */
+            scale?: "linear" | "log";
+            /** Split Source */
+            split_source: string;
+            /**
+             * Upper
+             * @default 10
+             */
+            upper?: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -5879,6 +6004,10 @@ export interface components {
             /** Fit Candidates */
             fit_candidates: {
                 [key: string]: string[];
+            };
+            /** Fit Groups */
+            fit_groups: {
+                [key: string]: components["schemas"]["FitGroupChoice"];
             };
             /** Fits */
             fits: {
@@ -7085,6 +7214,8 @@ export interface components {
             counts: components["schemas"]["ReviewCounts"];
             /** Estimation */
             estimation: components["schemas"]["EstimationRow"][];
+            /** Fit Groups */
+            fit_groups: components["schemas"]["FitGroupRow"][];
             /** Limitations */
             limitations: string[];
             risk: components["schemas"]["ReviewRisk"];
@@ -11424,6 +11555,82 @@ export interface operations {
             path: {
                 project_id: string;
                 parameter: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PlanPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_group_api_v1_projects__project_id__plan_groups__name__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PlanPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_group_api_v1_projects__project_id__plan_groups__name__remove_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                name: string;
             };
             cookie?: never;
         };

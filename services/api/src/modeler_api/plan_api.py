@@ -54,6 +54,7 @@ from modeler_project.plan import (
     release,
     save,
     set_fit,
+    set_group,
     set_structure,
     structure_from_brief,
     unlock,
@@ -244,6 +245,7 @@ def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
         "stages": review.stage_budgets(plan, doc),
         "limitations": review.limitations(plan, cpf, violations),
         "estimation": review.estimation_rows(plan, cpf, table),
+        "fit_groups": review.fit_group_rows(plan),
         "bounds_rule": review.bounds_rule_view(),
         "validation": review.validation_plan(doc, studies),
         "acceptance": review.acceptance(plan, doc),
@@ -358,6 +360,37 @@ def release_fit(project_id: str, parameter: str, body: ReasonRequest, principal:
     ws = workspace_for(project_id, principal, store)
     return _change(ws, principal, lambda p: release(p, parameter), f"{parameter} back to MS-01's default: {body.reason}",
                    deviation=("fit released", parameter, "within MS-01's default"))
+
+
+class GroupRequest(BaseModel):
+    members: list[str] = Field(min_length=2)
+    lower: float = 0.1
+    upper: float = 10.0
+    scale: Literal["linear", "log"] = "log"
+    split_source: str = Field(min_length=1)   # where the members' split comes from
+    reason: str = Field(min_length=1)         # why they are fitted as one
+
+
+@router.put("/projects/{project_id}/plan/groups/{name}", **answers(PlanPage))
+def put_group(project_id: str, name: str, body: GroupRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Estimated parameters fitted as one, through one factor (PI-4 B2): each at f x its start value, so their split
+    is kept. Why, and where the split comes from, are required and signed with the MAP."""
+    ws = workspace_for(project_id, principal, store)
+    group = {"members": tuple(body.members), "lower": body.lower, "upper": body.upper, "scale": body.scale,
+             "split_source": body.split_source}
+    return _change(ws, principal, lambda p: set_group(p, name, group, by=principal.user_id, reason=body.reason),
+                   f"group {name} ({', '.join(body.members)}) fitted as one: {body.reason}",
+                   deviation=("group", name, (f"{', '.join(body.members)} fitted as one, factor "
+                                              f"[{body.lower:g}, {body.upper:g}] {body.scale}; split from {body.split_source}")))
+
+
+@router.post("/projects/{project_id}/plan/groups/{name}:remove", **answers(PlanPage))
+def remove_group(project_id: str, name: str, body: ReasonRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """A group taken back: its members are fitted each on its own again."""
+    ws = workspace_for(project_id, principal, store)
+    return _change(ws, principal, lambda p: set_group(p, name, None, by=principal.user_id, reason=body.reason),
+                   f"group {name} removed: {body.reason}",
+                   deviation=("group removed", name, "its members fitted each on its own"))
 
 
 class StructureRequest(BaseModel):

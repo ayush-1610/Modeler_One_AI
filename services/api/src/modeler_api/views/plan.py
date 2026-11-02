@@ -19,7 +19,7 @@ from modeler_project.plan import Deviation, FitChoice, ModelPlan, Role, StudyVie
 class DiffRow(View):
     """A departure from the MS-01 default (`modeler_project.plan.diff`); `proposal` only on a pending A5 proposal."""
 
-    kind: Literal["role", "fit", "structure"]
+    kind: Literal["role", "fit", "group", "structure"]
     target: str
     from_: str = Field(alias="from")
     to: str | bool | list[str] | None      # a role, a fit in words, or a structure value
@@ -290,8 +290,22 @@ class EstimationRow(View):
     candidate_at: list[str]                # the stages MS-01 lets it be fitted at
     diagnosis_may_fit: DefaultFit | None   # no person's fit and not held: MS-01's default bounds it (D-37)
     held_fixed: HeldFixed | None           # a person keeps this candidate fixed (D-37)
+    group: str | None                      # the fit group it is fitted as one with (PI-4 B2), if any
     proposal: BoundsProposalView
     findings: list[BoundsFinding]
+
+
+class FitGroupRow(View):
+    """Estimated parameters a person fits as one, through one factor (PI-4 B2, `review.fit_group_rows`)."""
+
+    name: str
+    members: list[str]
+    lower: Number                          # the factor's bounds; 1 is the members' start values
+    upper: Number
+    scale: Literal["linear", "log"]
+    reason: str                            # why they are fitted as one
+    split_source: str                      # where the members' split comes from
+    by: str
 
 
 class RuleVersion(View):
@@ -399,6 +413,7 @@ class ReviewPage(View):
     stages: list[StageBudget]
     limitations: list[str]
     estimation: list[EstimationRow]
+    fit_groups: list[FitGroupRow]
     bounds_rule: RuleVersion
     validation: list[ValidationStage]
     acceptance: AcceptanceView
