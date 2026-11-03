@@ -38,16 +38,20 @@ sometimes contradictory client data together, with a review where a person confi
     agent proposes another tag, with its quote, when the content disagrees.
   - **No "Client data" area:** client data lands, marked "to confirm", in Compound, Products and dissolution, and
     Clinical studies. Conflicts and questions sit on the card they concern. One "To confirm (n)" counter and filter;
-    a files drawer; the source panel on click. The separate review screen is deferred.
+    a files drawer; the source on click. The separate review screen is deferred.
   - **Confirmation:** client data only, per group with item-level edits; a group with an open conflict or question
     cannot be confirmed. Literature and published-model values keep D-27.
   - **Contradiction rules,** provisional and UNVERIFIED: dose and strength compared after unit conversion, an n
-    difference can be marked explained with a reason, concentrations and dissolution within 10 %.
+    difference can be marked explained, concentrations and dissolution within 10 %.
   - **Product detail** kept as reported, never turned into a model value.
   - **Build order:** I1 tags and the page, I2 confirm inline, I3 across files (with the evaluation from here), I4
     documents, I5 CDISC (earlier if clients send SDTM or ADaM), I6 the evaluation alongside.
   - **Start against Inputs:** options A–D for where tagging happens; A + D recommended, the owner's call.
   - **A clickable mockup** of tagging and the inline confirm cards, linked from the plan.
+- **Revision 3, the owner's comments on the mockup:** tagging on the "Start from proposal" page and in "+ Add data"
+  (A + D agreed; the Start step unchanged); no reasons asked anywhere, a conflict is settled by selecting an option and
+  confirming it; the source opens in a centre peek from an icon at the top right of each card, on every project page;
+  a resolved conflict stays in place with its final value; Excel, CSV, Word and PDF first, CDISC optional.
 
 ### Docs — PI-4 B2: the dapagliflozin refit on PK-Sim, grouped and ungrouped (2026-11-02)
 The owner asked for it on 2026-11-02: "After the golden case passes, run the dapagliflozin refit with the three liver

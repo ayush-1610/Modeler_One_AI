@@ -1,11 +1,11 @@
 # Inputs and client data: page review 2 (plan)
 
-Status: **design revised with the owner's answers** (2026-11-03, revision 2). Page review 2 of
-`docs/plans/2026-10-23-page-by-page-review.md`. One point is still the owner's call: where tagging happens (§3.7).
+Status: **design agreed** (2026-11-03, revision 3, the owner's comments on the mockup). Page review 2 of
+`docs/plans/2026-10-23-page-by-page-review.md`. Building: I1 and I2 first (§4).
 
 **Mockup:** a clickable mockup on the owner's design canvas (private to the owner):
 https://claude.ai/artifact/39yzfdipNQpwmKyZcyked6. Four screens, example data (a made-up drug, Examplazine):
-1. Start a project: upload and tag;
+1. Start from proposal (and "+ Add data" in the sidebar): upload and tag;
 2. Inputs, Clinical studies: confirm inline;
 3. Inputs, Products and dissolution;
 4. Inputs, Compound: client values to confirm.
@@ -77,6 +77,23 @@ https://claude.ai/artifact/39yzfdipNQpwmKyZcyked6. Four screens, example data (a
    - (f) the evaluation set, grown alongside from (c) on.
 6. **Mockup:** yes, of Start tagging and the inline confirm cards with the source panel, first (above).
 
+## The owner's comments on the mockup (2026-11-03), revision 3
+- **Tagging lives on the "Start from proposal" page** (the creation form, `/projects/start`) and in **"+ Add data"** in
+  the left panel, which exists already. The project's Start step is unchanged. Option A + D of §3.7 is agreed.
+- **No reasons asked, anywhere.** A conflict offers its options; the person selects one and then confirms the
+  selection with a final button. The same holds for an explained difference and for an edit.
+- **The source opens in a centre peek:** a modal in the centre of the screen over a dimmed, still-visible page (like
+  Notion's centre peek). It opens from a small icon at the top right of each parameter card, and shows the source with
+  the cell or quote highlighted. **Every project page that shows a source uses it.**
+- **A resolved conflict stays where it was,** showing the final value with the alternative beside it, so the person
+  sees what was decided. It can be changed until the group is confirmed.
+- **File types:** Excel, CSV, Word and PDF are the common and important ones (how sponsors usually store and share
+  formulation and clinical data: LIMS and Empower exports to Excel or PDF for dissolution, Excel or CSV exports for PK
+  concentrations, PDF or Word for CSRs, protocols and validation reports). CDISC `.xpt` is optional, later.
+- **The goal:** the client's data, whatever they send, loaded into the project correctly, clearly and easily. Then the
+  compound's parameters fetched by the literature agent, in the project's context, with better tasks so that every
+  input is found and filled, and the Inputs page ready for the next steps.
+
 ## 1. What exists today
 **The page** (`apps/web/components/inputs/InputsWorkspace.tsx`): five tabs in PK-Sim's building blocks.
 - **Compound:** one row per input, sources and alternatives beneath.
@@ -138,7 +155,8 @@ sheet's reading.
 ## 3. The design
 
 ### 3.1 Upload and tag (mockup screen 1)
-Files are tagged **where they already arrive** (option A, §3.7): the "Start a project" form and "+ Add data".
+Files are tagged **where they already arrive** (option A + D, §3.7, agreed): the "Start from proposal" page and "+ Add
+data" in the left panel. The project's Start step is unchanged.
 - **One upload** for everything: the proposal, its annexes and the client's files.
 - **A tag per file**, from one short list:
   - technical proposal (the brief);
@@ -182,21 +200,26 @@ lands, marked "to confirm", in the domain it belongs to.
 The review happens on the cards, in each domain.
 - **A group** is a study, a product, or a set of compound values from one delivery. It shows "to confirm · n" until
   confirmed, then "confirmed by you · loaded".
-- **Each value** carries its source: the file and the cell, page or quote. **Clicking it opens the source panel** on
-  the right, with the sheet's grid and the cell highlighted, or the page with the quote highlighted.
-- **A conflict card** sits on the card it concerns: the values side by side, each with its source and a "view source".
-  The person keeps one, or says they are different things (two cohorts, a release and a stability run), always with a
-  reason. What the agent noticed that may explain it is shown ("the sheet's title says Stability 6 M"); it never
-  decides.
+- **Each value** carries its source: the file and the cell, page or quote. **A small icon at the top right of each
+  parameter card opens the source in a centre peek:** a modal in the centre of the screen over the dimmed, still-visible
+  page, with the sheet's grid and the cell highlighted, or the page with the quote highlighted. The same peek serves
+  every project page that shows a source (the brief on Start, the inputs, the MAP review).
+- **A conflict card** sits on the card it concerns: the values side by side, each with its source. The person selects
+  one, or that they are different things (two cohorts, a release and a stability run), and confirms the selection with
+  a final button. **No reason is asked.** What the agent noticed that may explain it is shown ("the sheet's title says
+  Stability 6 M"); it never decides.
+- **A resolved conflict stays in place:** the final value, marked "resolved", with the alternative beside it and its
+  source. It can be changed until the group is confirmed.
 - **A question card** asks for the one answer it needs (a paddle speed not stated, an LLOQ missing, a batch no other
   file names, the pH of a Caco-2 run), offering the answer another file gives where one exists.
 - **A difference marked explained:** n dosed against n PK-evaluable is a difference, not a conflict, once the person
-  marks it explained with a reason (§3.5).
-- **Item-level edits:** any item can be edited before the group is confirmed; the change, the old value and the
-  reason are recorded, and code re-checks the item.
+  marks it explained (§3.5).
+- **Item-level edits:** any item can be edited before the group is confirmed; the change and the old value are
+  recorded, and code re-checks the item.
 - **The group confirm** is disabled while any of its items has an open conflict or question, and says how many are
   open. Confirming loads the group (evidence, datasets, profiles, study and product facts) in one audited event (who,
-  when, what, from which files). It is not an electronic signature; the signature stays at the MAP.
+  when, what, the options shown and the one selected, from which files). It is not an electronic signature; the
+  signature, with the person's justification, stays at the MAP.
 - **Afterwards:** a confirmed value shows in its row with its client source. A file sent again is compared with what
   it replaces, and only the changes return to "to confirm".
 - **The literature and the published model** keep D-27: their values flow in with quotes and grades and are reviewed
@@ -268,7 +291,7 @@ on.
 |---|---|
 | Text and categorical (route, food, study design, product, analyte, matrix) | They differ after normalising (case, spacing, known synonyms) |
 | Dose, strength | They differ **after unit conversion** (10 mg and 10000 µg agree) |
-| n | They differ, unless the person marks the difference **explained**, with a reason (n dosed against n PK-evaluable) |
+| n | They differ, unless the person marks the difference **explained** (n dosed against n PK-evaluable) |
 | Concentrations, dissolution | They differ by more than 10 %, as for D-32 |
 
 ### 3.6 Product detail
@@ -277,7 +300,7 @@ on.
 - Only strength, release and the dissolution conditions and profiles feed PK-Sim.
 - **Nothing reported but unused is ever silently turned into a model value.**
 
-### 3.7 Start against Inputs: where tagging happens (the owner's call)
+### 3.7 Start against Inputs: where tagging happens (decided: A + D)
 The owner's answer 4 of 2 November: "all inputs in inputs page, start page will structure the project". Tagging at
 upload splits the flow: upload and tagging at the start, all reading, reviewing and confirming on Inputs.
 
@@ -291,7 +314,7 @@ the client's files in one upload; "+ Add data" takes the rest later. The Start p
 | C | On Inputs, in an intake strip, files uploaded untagged | Holds fully | Starts later, without hints; tagging moves away from the moment the person knows the files best |
 | D | Editable any time, in the files drawer or the Document Library | Holds | A changed tag re-reads only that file |
 
-**Recommended: A + D.** The tag is set at the one moment files are uploaded, which is where the person knows best what
+**Agreed: A + D** (the owner, 2026-11-03). The tag is set at the one moment files are uploaded, which is where the person knows best what
 each file is, and it stays editable later. Answer 4 holds in substance: the Start page structures the project, and
 every value is read, reviewed and confirmed on Inputs. The mockup (screen 1) shows A.
 
@@ -300,16 +323,16 @@ In the owner's order (answer 5).
 
 | PR | What | Locked files |
 |---|---|---|
-| **I1 · Tags and the page** (a) | Tags at upload on the creation form and "+ Add data" (§3.1): the tag list, code's pre-fill, the study name, "needs OCR" for scans, the tag on the document record. The domain rail without a "Client data" area (§3.2): compound sections with plain labels, product cards, study cards with profile charts, populations grouped, settings as one line, search, filters, the files drawer. No new data | None |
-| **I2 · Confirm inline** (b) | For what workbooks give today: "to confirm" on the cards in each domain, the "To confirm (n)" counter and filter, the source panel with highlighted cells, item-level edits with a reason, the group confirm, loading on confirm and its audit event. The agent's tag proposal shown beside the person's | None |
+| **I1 · Tags and the page** (a) | Tags at upload on the "Start from proposal" page and "+ Add data" (§3.1): the tag list, code's pre-fill, the study name, "needs OCR" for scans, the tag on the document record. The domain rail without a "Client data" area (§3.2): compound sections with plain labels, product cards, study cards with profile charts, populations grouped, settings as one line, search, filters, the files drawer, and the centre peek for sources on every project page. No new data | None |
+| **I2 · Confirm inline** (b) | For what workbooks give today: "to confirm" on the cards in each domain, the "To confirm (n)" counter and filter, the source panel with highlighted cells, item-level edits, select-then-confirm for each conflict, resolved conflicts kept in place, the group confirm, loading on confirm and its audit event. The agent's tag proposal shown beside the person's | None |
 | **I3 · Across files** (c) | The study, product and batch registry with aliases, seeded by the study names given at upload. Code's reconciliation: duplicates, contradictions, gaps. The conflict, question and explained-difference cards on the study and product cards. The rules of §3.5 as `client_reconciliation.yaml` 0.1, UNVERIFIED. The evaluation set starts here (f) | None (a new data rule, SME-governed once the SME signs) |
 | **I4 · Documents** (d) | A4 reads client PDF and Word: inventory from the tag, table extraction with verbatim checks, study and product facts, landing as "to confirm" on the cards | None |
-| **I5 · CDISC** (e) | SDTM PC, PP, DM, EX and ADaM ADPC read by code from `.xpt`, with no AI (a new dependency for reading SAS transport files, to be approved). Moves before I4 if clients usually send SDTM or ADaM | None |
+| **I5 · CDISC** (e), optional | SDTM PC, PP, DM, EX and ADaM ADPC read by code from `.xpt`, with no AI (a new dependency for reading SAS transport files, to be approved). Later: Excel, CSV, Word and PDF come first (the owner, 2026-11-03) | None |
 | **I6 · The evaluation** (f) | Built alongside from I3: synthetic deliveries with known answers, the agent's score per stage, one more delivery per build | None |
 
 Each PR: a CHANGELOG entry, the coverage table if a stage changes, tests and a browser test, and a screenshot in the PR.
 
 ## 5. For the owner
-1. **Where tagging happens:** A + D (§3.7), or another option?
-2. **CDISC earlier?** Do your clients usually send SDTM or ADaM? If so, I5 moves before I4.
-3. **The mockup:** comments on the canvas, before I1 and I2 are built.
+Settled on 2026-11-03: tagging (A + D), the file-type order (CDISC optional), the mockup comments. Next: the builds,
+in order, each a PR to `main`; then the literature agent's compound parameters (A2: better tasks, the project's context,
+every needed input found).
