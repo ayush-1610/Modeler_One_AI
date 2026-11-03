@@ -40,6 +40,19 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await expect(page.getByTestId("record-phys.logp")).toContainText("+1 agree");
   await shot(page, "1-compound");
 
+  // the source opens in the centre peek over the dimmed page (plan 2026-11-03 §3.3): a quote and its link
+  await page.getByTestId("peek-phys.logp").click();
+  const peek = page.getByTestId("source-peek");
+  await expect(peek.getByRole("dialog", { name: /Source of/ })).toBeVisible();
+  await expect(peek).toContainText(/logP 2\.(29|35)/);
+  await page.keyboard.press("Escape");
+  await expect(peek).toHaveCount(0);
+
+  // the client's files, in a drawer rather than an area of their own
+  await page.getByTestId("inputs-files").click();
+  await expect(page.getByTestId("inputs-files-drawer")).toContainText("No client file yet");
+  await page.getByTestId("inputs-files-drawer").getByRole("button", { name: "Close" }).click();
+
   // the tabs answer the keyboard: arrows move and select, only the selected tab is in the Tab order, the panel is named
   await expect(page.getByRole("tabpanel", { name: "Compound" })).toBeVisible();
   await page.getByTestId("tab-compound").focus();
@@ -47,7 +60,7 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("tab-formulations")).toBeFocused();
   await expect(page.getByTestId("tab-compound")).toHaveAttribute("tabindex", "-1");
-  await expect(page.getByRole("tabpanel", { name: "Formulations" })).toBeVisible();
+  await expect(page.getByRole("tabpanel", { name: "Products and dissolution" })).toBeVisible();
   await page.keyboard.press("Home");
   await expect(page.getByTestId("tab-compound")).toHaveAttribute("aria-selected", "true");
 

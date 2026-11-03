@@ -170,6 +170,9 @@ class ReviewSource(View):
     doi: str | None = None
     page: int | None = None
     locator: str | None = None
+    doc_sha256: str | None = None          # the stored document, opened in the source peek with the quote marked
+    url: str | None = None
+    pmid: str | None = None
 
 
 class ReviewRow(View):

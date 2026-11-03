@@ -8,7 +8,8 @@ export type Ev = {
   id: string; target: string; value: number | string | null; unit: string | null; value_pksim: number | null;
   unit_pksim: string | null; state: string; confidence: string; flags: string[]; provider: string; source_type: string;
   conditions: Record<string, string>; quote: string;
-  source: { title: string; authors: string; year: number | null; doi: string | null; page: number | null; locator: string | null };
+  source: { title: string; authors: string; year: number | null; doi: string | null; page: number | null; locator: string | null;
+            doc_sha256?: string | null; url?: string | null; pmid?: string | null };
 };
 type DatasetRow = { id: string; study_id: string; purpose: string; origin: string; provider: string; state: string; kind: string;
                     statistics: string[]; series: number };

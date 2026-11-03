@@ -7301,16 +7301,22 @@ export interface components {
         ReviewSource: {
             /** Authors */
             authors?: string | null;
+            /** Doc Sha256 */
+            doc_sha256?: string | null;
             /** Doi */
             doi?: string | null;
             /** Locator */
             locator?: string | null;
             /** Page */
             page?: number | null;
+            /** Pmid */
+            pmid?: string | null;
             /** Title */
             title: string;
             /** Type */
             type: string;
+            /** Url */
+            url?: string | null;
             /** Year */
             year?: number | null;
         };

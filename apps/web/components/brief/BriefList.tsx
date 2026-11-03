@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 
-import { DocumentViewer } from "@/components/brief/DocumentViewer";
 import { InlineIssue } from "@/components/kit";
-import { Dialog } from "@/components/kit/Dialog";
+import { SourcePeek } from "@/components/kit/SourcePeek";
 import { Fields } from "@/components/start/Blocks";
 import { narrow, send } from "@/lib/api";
 import type { BriefView, Citation } from "@/lib/brief";
@@ -86,13 +85,9 @@ export function BriefList({ projectId, group, fields, title, lede, testId }: {
         <button type="button" className="btn" data-testid={`${testId}-add`} onClick={() => setAdding(true)}>Add a {noun}</button>
       )}
       {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
-      {focus && (docs.data?.documents.length ?? 0) > 0 && (
-        <Dialog title="Where the value comes from" size="wide" onClose={() => setFocus(null)} testId={`${testId}-source`}>
-          <DocumentViewer projectId={projectId} documents={docs.data?.documents ?? []} focus={focus} />
-          <div className="dialog-actions">
-            <button type="button" className="btn" onClick={() => setFocus(null)}>Close</button>
-          </div>
-        </Dialog>
+      {focus && (
+        <SourcePeek projectId={projectId} source={{ doc_sha256: focus.sha256, page: focus.page, quote: focus.quote }}
+                    onClose={() => setFocus(null)} />
       )}
     </section>
   );

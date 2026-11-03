@@ -15,6 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Inputs I1b: the domain rail, and every source opens in a centre peek (2026-11-03)
+Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.2–3.3, build I1; the owner's comments on the mockup
+(2026-11-03).
+- **The source peek** (`components/kit/SourcePeek.tsx`): a small icon at the top right of a value's card opens its
+  source in the centre of the screen, over the page, which stays visible behind a dimmed backdrop (like Notion's centre
+  peek). A sheet shows as its grid with the cited cells highlighted; a PDF, Word or text page with the quote marked; a
+  source with no stored file shows its quote and its link. Escape, the backdrop or Close shut it.
+- **Everywhere a source is shown:** each input row on Inputs and each of its sources and alternatives; the source cell of
+  the Review & sign table; the brief's citations on Start and in the product and population lists (they replace the old
+  "Where the value comes from" dialog).
+- **The Inputs page:** the five tabs become a rail of data domains down the left (Compound, Products and dissolution,
+  Clinical studies, Populations and individuals, Simulation settings), with "still missing to run", the readiness checks
+  and where values come from beneath it, so the area takes the page's width. Compound's rows are grouped by building
+  block (identity and physico-chemistry, binding and partitioning, permeability and absorption, elimination by process,
+  transporters and interactions). "The client's files" opens a drawer saying what each file gave, linking to the
+  Document Library.
+- **API:** each input's source, and the review row's, carries the stored document's `doc_sha256` (and `url`, `pmid`), so
+  the peek opens the exact page. `docs/api/openapi.json` updated.
+- **Impact:** display only; no value, selection or rule changes. The tab ids and URLs stay the same.
+
 ### Docs — PI-4 B2: the dapagliflozin refit on PK-Sim, grouped and ungrouped (2026-11-02)
 The owner asked for it on 2026-11-02: "After the golden case passes, run the dapagliflozin refit with the three liver
 clearances as one group." Reference run 41495102951 (B2a's code with B1b's log scale, 32 starts each). It is recorded

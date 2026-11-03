@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { DocumentViewer } from "@/components/brief/DocumentViewer";
-import { Dialog } from "@/components/kit/Dialog";
+import { SourcePeek } from "@/components/kit/SourcePeek";
 import { DrugAndFiles } from "@/components/start/Blocks";
 import { ClientRequest } from "@/components/start/ClientRequest";
 import { RiskPicker } from "@/components/start/RiskPicker";
@@ -101,13 +100,9 @@ export function StartScreen({ projectId }: { projectId: string }) {
           </>
         )}
       </div>
-      {focus && documents.length > 0 && (
-        <Dialog title="Where the value comes from" size="wide" onClose={() => setFocus(null)} testId="start-source-dialog">
-          <DocumentViewer projectId={projectId} documents={documents} focus={focus} />
-          <div className="dialog-actions">
-            <button type="button" className="btn" onClick={() => setFocus(null)}>Close</button>
-          </div>
-        </Dialog>
+      {focus && (
+        <SourcePeek projectId={projectId} source={{ doc_sha256: focus.sha256, page: focus.page, quote: focus.quote }}
+                    onClose={() => setFocus(null)} />
       )}
     </div>
   );
