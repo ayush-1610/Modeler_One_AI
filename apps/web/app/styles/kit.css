@@ -140,3 +140,4 @@ tr.project-archived td { color: var(--ink-faint); }
   background: none; color: var(--ink-dim); cursor: pointer; flex: none; }
 .peek-btn:hover { color: var(--brand-ink); background: var(--raised); border-color: var(--line); }
 .peek-btn:focus-visible { outline: 2px solid var(--sim); outline-offset: 1px; }
+.btn.small { padding: 4px 10px; font-size: 13px; min-height: 32px; }

@@ -10,7 +10,7 @@ read on the Inputs step's Studies tab, and nothing is approved (D-27): the one r
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field, ValidationError
@@ -20,6 +20,7 @@ from modeler_api.deps import Reader, StoreDep, Writer, relates_to_form, version_
 from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import (
     ClientDataPage,
+    ClientReviewPage,
     ClientUpload,
     MapPreview,
     MapReading,
@@ -46,6 +47,9 @@ from modeler_project.client_data import (
     submission,
     submissions,
 )
+from modeler_project.client_review import ReviewError, edit_fact, product_confirmed, reopen, select
+from modeler_project.client_review import confirm as confirm_group
+from modeler_project.client_review import groups as review_groups
 from modeler_project.dataset_register import dataset, decide_dataset, propose_dataset
 from modeler_project.datasets import DatasetError
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
@@ -410,9 +414,86 @@ def propose_release(project_id: str, profile_id: str, body: ReleaseModelRequest,
     """Propose a profile's fit as a formulation's release model: evidence to accept or reject on the Parameters tab
     (which profile represents in vivo release is a planning decision, D-12)."""
     ws = workspace_for(project_id, principal, store)
+    if not product_confirmed(ws, profile_id):
+        raise HTTPException(status_code=409, detail="confirm the product's dissolution data on Inputs first (Products and "
+                                                    "dissolution): the client's data loads once a person confirms it")
     try:
         proposed = propose_release_model(ws, profile_id, formulation=body.formulation, by=principal.user_id)
     except DissolutionRegisterError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({"evidence": [e.id for e in proposed], **_view(ws)})
+
+
+# --- confirm inline (plan 2026-11-03 §3.3): the client's data loads once a person confirms its group -------------
+
+
+def _review(ws: Workspace) -> dict[str, Any]:
+    found = review_groups(ws)
+    return {"groups": found, "to_confirm": sum(1 for g in found if g["state"] == "to_confirm")}
+
+
+@router.get("/projects/{project_id}/client-review", **answers(ClientReviewPage))
+def get_client_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """What the client's files gave, grouped where it belongs (a study, a product, the compound values of a file), each
+    group to confirm or confirmed, with its conflicts and questions settled or open."""
+    return envelope(_review(workspace_for(project_id, principal, store)))
+
+
+class ReviewSelect(BaseModel):
+    group: str = Field(min_length=1)
+    issue: str = Field(min_length=1)
+    option: str | None = None
+    answer: float | None = None
+
+
+class ReviewGroupRef(BaseModel):
+    group: str = Field(min_length=1)
+
+
+class ReviewReopen(ReviewGroupRef):
+    issue: str = Field(min_length=1)
+
+
+class ReviewEdit(ReviewGroupRef):
+    field: Literal["dose_mg", "route", "food_state", "formulation", "n", "lloq"]
+    value: float | str
+
+
+def _act(project_id: str, principal, store, fn) -> dict[str, Any]:
+    ws = workspace_for(project_id, principal, store)
+    try:
+        fn(ws)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    except (ReviewError, DatasetError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
+    return envelope(_review(ws))
+
+
+@router.post("/projects/{project_id}/client-review:select", **answers(ClientReviewPage))
+def select_option(project_id: str, body: ReviewSelect, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Confirm the selection on a conflict or a question (an option, or the value a question asks for); no reason is
+    asked. It stays changeable until the group is confirmed."""
+    return _act(project_id, principal, store, lambda ws: select(ws, body.group, body.issue, by=principal.user_id,
+                                                                option=body.option, answer=body.answer))
+
+
+@router.post("/projects/{project_id}/client-review:reopen", **answers(ClientReviewPage))
+def reopen_issue(project_id: str, body: ReviewReopen, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Change a settled conflict or question before its group is confirmed."""
+    return _act(project_id, principal, store, lambda ws: reopen(ws, body.group, body.issue, by=principal.user_id))
+
+
+@router.post("/projects/{project_id}/client-review:edit", **answers(ClientReviewPage))
+def edit_study_fact(project_id: str, body: ReviewEdit, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """An item-level edit before the group is confirmed: one fact of a study (the audit keeps before and after)."""
+    return _act(project_id, principal, store, lambda ws: edit_fact(ws, body.group, body.field, body.value, by=principal.user_id))
+
+
+@router.post("/projects/{project_id}/client-review:confirm", **answers(ClientReviewPage))
+def confirm_review_group(project_id: str, body: ReviewGroupRef, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Confirm a group: its selections are applied and its datasets and values load into the project, in one audited
+    record. Refused while a conflict or question of the group is open."""
+    return _act(project_id, principal, store, lambda ws: confirm_group(ws, body.group, by=principal.user_id))

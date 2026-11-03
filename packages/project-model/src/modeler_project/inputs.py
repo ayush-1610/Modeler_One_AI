@@ -327,10 +327,11 @@ def _profile(dataset: ObservedDataset) -> dict[str, Any] | None:
 
 def usable_dataset(dataset: ObservedDataset) -> bool:
     """A dataset counts unless excluded (REJECTED, with a reason; D-27); one read from a figure only once the person
-    approved the overlay of its computed points."""
+    approved the overlay of its computed points; one read from a client file only once a person confirmed its study on
+    Inputs (plan 2026-11-03 §3.3)."""
     from modeler_project.datasets import Origin
 
-    if dataset.state is EvidenceState.REJECTED:
+    if dataset.state is EvidenceState.REJECTED or dataset.awaits_client_confirmation():
         return False
     if dataset.origin is Origin.FIGURE_DIGITIZED and dataset.state is not EvidenceState.ACCEPTED:
         return bool(dataset.digitization and dataset.digitization.overlay_approved_by)
@@ -728,4 +729,13 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
     build = checks.get("every planned simulation builds (software)")
     if build and not build["ok"] and not out:
         out.append({"kind": "check", "target": "build", "message": "; ".join(build["detail"]), "items": []})
-    return [{**entry, "tab": _KIND_TAB.get(entry["kind"]) or tab_of(entry["target"])} for entry in out]
+    from modeler_project.client_review import to_confirm  # the client's data loads once a person confirms it
+
+    for group in to_confirm(ws):
+        waiting = f"{group['open']} open item{'s' if group['open'] != 1 else ''} first, then " if group["open"] else ""
+        out.append({"kind": "confirm", "target": group["id"], "tab": group["tab"], "items": [],
+                    "message": f"{group['title']}: {len(group['items'])} item{'s' if len(group['items']) != 1 else ''} "
+                               f"from the client's files wait for you: settle {waiting}confirm the group"
+                    if waiting else f"{group['title']}: {len(group['items'])} item{'s' if len(group['items']) != 1 else ''} "
+                                    "from the client's files wait for your confirmation"})
+    return [{**entry, "tab": entry.get("tab") or _KIND_TAB.get(entry["kind"]) or tab_of(entry["target"])} for entry in out]

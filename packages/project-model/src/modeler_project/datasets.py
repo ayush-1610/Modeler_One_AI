@@ -102,6 +102,11 @@ class ObservedDataset(BaseModel):
     decision_reason: str = ""
     note: str = ""
 
+
+    def awaits_client_confirmation(self) -> bool:
+        """Read from a client file and not yet confirmed by a person: it loads only once its study is confirmed on
+        Inputs (plan 2026-11-03 §3.3). A dataset a person entered is their own confirmation."""
+        return self.origin is Origin.CLIENT and self.extraction != "MANUAL" and self.state is EvidenceState.PROPOSED
     def to_content(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
 

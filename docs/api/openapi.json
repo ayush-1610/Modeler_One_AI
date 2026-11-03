@@ -2529,6 +2529,28 @@
         "title": "ClientFileStarted",
         "type": "object"
       },
+      "ClientReviewPage": {
+        "additionalProperties": false,
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "to_confirm": {
+            "title": "To Confirm",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "groups",
+          "to_confirm"
+        ],
+        "title": "ClientReviewPage",
+        "type": "object"
+      },
       "ClientUpload": {
         "additionalProperties": false,
         "description": "The files just stored (a filled template is read at once), and the page.",
@@ -5081,6 +5103,31 @@
           "errors"
         ],
         "title": "Envelope[ClientDataPage]",
+        "type": "object"
+      },
+      "Envelope_ClientReviewPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientReviewPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ClientReviewPage]",
         "type": "object"
       },
       "Envelope_ClientUpload_": {
@@ -14511,6 +14558,387 @@
         "title": "ReviewCounts",
         "type": "object"
       },
+      "ReviewEdit": {
+        "properties": {
+          "field": {
+            "enum": [
+              "dose_mg",
+              "route",
+              "food_state",
+              "formulation",
+              "n",
+              "lloq"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "group": {
+            "minLength": 1,
+            "title": "Group",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "group",
+          "field",
+          "value"
+        ],
+        "title": "ReviewEdit",
+        "type": "object"
+      },
+      "ReviewFact": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "additionalProperties": true,
+            "title": "Source",
+            "type": "object"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "label",
+          "value",
+          "source"
+        ],
+        "title": "ReviewFact",
+        "type": "object"
+      },
+      "ReviewGroup": {
+        "additionalProperties": false,
+        "description": "A study, a product or a file's compound values, to confirm or confirmed.",
+        "properties": {
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "confirmed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed By"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewFact"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewIssue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "study",
+              "product",
+              "compound"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "open": {
+            "title": "Open",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "to_confirm",
+              "confirmed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "tab": {
+            "title": "Tab",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "tab",
+          "title",
+          "items",
+          "facts",
+          "issues",
+          "state",
+          "open",
+          "confirmed_by",
+          "confirmed_at"
+        ],
+        "title": "ReviewGroup",
+        "type": "object"
+      },
+      "ReviewGroupRef": {
+        "properties": {
+          "group": {
+            "minLength": 1,
+            "title": "Group",
+            "type": "string"
+          }
+        },
+        "required": [
+          "group"
+        ],
+        "title": "ReviewGroupRef",
+        "type": "object"
+      },
+      "ReviewIssue": {
+        "additionalProperties": false,
+        "description": "A conflict, an explainable difference or a question on a group: open until a person confirms a selection.",
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "boolean"
+          },
+          "answered": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "conflict",
+              "difference",
+              "question"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "selected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected"
+          },
+          "selected_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected At"
+          },
+          "selected_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected By"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "text",
+          "options",
+          "answer",
+          "selected",
+          "answered",
+          "selected_by",
+          "selected_at"
+        ],
+        "title": "ReviewIssue",
+        "type": "object"
+      },
+      "ReviewItem": {
+        "additionalProperties": false,
+        "properties": {
+          "conditions": {
+            "additionalProperties": true,
+            "title": "Conditions",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "dataset",
+              "value",
+              "profile"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "source": {
+            "additionalProperties": true,
+            "title": "Source",
+            "type": "object"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "value",
+          "state",
+          "source"
+        ],
+        "title": "ReviewItem",
+        "type": "object"
+      },
+      "ReviewOption": {
+        "additionalProperties": false,
+        "properties": {
+          "datasets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "value",
+          "source",
+          "datasets"
+        ],
+        "title": "ReviewOption",
+        "type": "object"
+      },
       "ReviewPage": {
         "additionalProperties": false,
         "properties": {
@@ -14603,6 +15031,26 @@
           "application_support"
         ],
         "title": "ReviewPage",
+        "type": "object"
+      },
+      "ReviewReopen": {
+        "properties": {
+          "group": {
+            "minLength": 1,
+            "title": "Group",
+            "type": "string"
+          },
+          "issue": {
+            "minLength": 1,
+            "title": "Issue",
+            "type": "string"
+          }
+        },
+        "required": [
+          "group",
+          "issue"
+        ],
+        "title": "ReviewReopen",
         "type": "object"
       },
       "ReviewRisk": {
@@ -14889,6 +15337,48 @@
           "confidence"
         ],
         "title": "ReviewRow",
+        "type": "object"
+      },
+      "ReviewSelect": {
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "group": {
+            "minLength": 1,
+            "title": "Group",
+            "type": "string"
+          },
+          "issue": {
+            "minLength": 1,
+            "title": "Issue",
+            "type": "string"
+          },
+          "option": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option"
+          }
+        },
+        "required": [
+          "group",
+          "issue"
+        ],
+        "title": "ReviewSelect",
         "type": "object"
       },
       "ReviewSource": {
@@ -21617,6 +22107,341 @@
           }
         },
         "summary": "Start Triage",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/client-review": {
+      "get": {
+        "description": "What the client's files gave, grouped where it belongs (a study, a product, the compound values of a file), each\ngroup to confirm or confirmed, with its conflicts and questions settled or open.",
+        "operationId": "get_client_review_api_v1_projects__project_id__client_review_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ClientReviewPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Client Review",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/client-review:confirm": {
+      "post": {
+        "description": "Confirm a group: its selections are applied and its datasets and values load into the project, in one audited\nrecord. Refused while a conflict or question of the group is open.",
+        "operationId": "confirm_review_group_api_v1_projects__project_id__client_review_confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewGroupRef"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ClientReviewPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Review Group",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/client-review:edit": {
+      "post": {
+        "description": "An item-level edit before the group is confirmed: one fact of a study (the audit keeps before and after).",
+        "operationId": "edit_study_fact_api_v1_projects__project_id__client_review_edit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ClientReviewPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Study Fact",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/client-review:reopen": {
+      "post": {
+        "description": "Change a settled conflict or question before its group is confirmed.",
+        "operationId": "reopen_issue_api_v1_projects__project_id__client_review_reopen_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewReopen"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ClientReviewPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reopen Issue",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/client-review:select": {
+      "post": {
+        "description": "Confirm the selection on a conflict or a question (an option, or the value a question asks for); no reason is\nasked. It stays changeable until the group is confirmed.",
+        "operationId": "select_option_api_v1_projects__project_id__client_review_select_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewSelect"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ClientReviewPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Option",
         "tags": [
           "client-data"
         ]
