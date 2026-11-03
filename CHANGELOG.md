@@ -15,6 +15,33 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — Inputs and client data: page review 2, the design (2026-11-03)
+`docs/plans/2026-11-03-inputs-and-client-data.md`. No code changes. The owner asked (2026-11-03) for an Inputs page that
+captures all project data, organised so it scales, and an AI agent that brings scattered, differently organised and
+sometimes contradictory client data together, with a review where a person confirms it before it loads.
+- **What exists:** the five-tab workspace, and the client-data pipeline for workbooks. In that pipeline, code triages,
+  A4 classifies and reads, a person confirms the reading as a reusable recipe, and code applies it. Datasets and
+  dissolution profiles follow, reconciled against the data plan. PDF and Word files are read only for the brief (A1)
+  and parameter values (A2).
+- **Gaps (G1–G7):**
+  - client documents are not read for client data;
+  - there is no picture across files (one study under several names);
+  - contradictions in the client's own data are not flagged;
+  - there is no single staged review;
+  - study and product metadata are thin;
+  - the page's organisation (the notes of 2026-10-23);
+  - CDISC `.xpt` and scanned files are not read.
+- **Design:**
+  - **The page:** a domain rail (client data, compound by building block, products and dissolution, clinical studies,
+    populations, settings) with search and filters.
+  - **The agent:** A4 extended to the whole delivery, in six stages: ingest, inventory, extract, contextualise
+    (a study and product registry with aliases), reconcile (duplicates, contradictions, gaps, by code) and map.
+  - **The review:** "Client data". Files strip, groups, item cards, the source panel with highlighted cells or quotes,
+    conflict and question cards. Nothing loads until a person confirms an item or a group, as an audited event.
+- **Builds I1–I6**, each a PR to `main`, no locked file.
+- **Six questions for the owner,** among them whether the explicit confirmation (a change against D-27) covers client
+  data only, and in what order to build.
+
 ### Docs — PI-4 B2: the dapagliflozin refit on PK-Sim, grouped and ungrouped (2026-11-02)
 The owner asked for it on 2026-11-02: "After the golden case passes, run the dapagliflozin refit with the three liver
 clearances as one group." Reference run 41495102951 (B2a's code with B1b's log scale, 32 starts each). It is recorded
