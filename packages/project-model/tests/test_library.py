@@ -138,3 +138,34 @@ def test_what_an_agent_fetched_says_where_from_and_a_full_text_is_found_before_a
     rows = {r.name: r for r in library_rows(ws)}
     assert rows["fulltext-PMC9.md"].retrieved.pmcid == "PMC9"
     assert [e.reason for e in _audit(ws, "document.retrieve")] == ["Europe PMC, abstract", "Europe PMC, full text"]
+
+
+def test_a_client_files_tag_is_a_hint_code_may_propose_another_and_the_person_keeps_one(ws):
+    # plan 2026-11-03 §3.1: the tag at upload, a proposal read from the content, decided with no reason asked
+    from modeler_intake.file_tags import TagHint
+
+    library = DocumentLibrary(ws)
+    sha = library.add(b"time,conc\n1,2\n", "Data_Q3_final.csv", role="client_file", by="u1").content["sha256"]
+    entry = library.tag(sha, "other", by="u1")
+    assert (entry.tag.kind, entry.tag.by, entry.tag_proposal) == ("other", "u1", None)
+    entry = library.propose_tag(sha, TagHint("clinical", "sheet “Conc” holds individual concentrations"))
+    assert (entry.tag_proposal.kind, entry.tag_proposal.decided, entry.tag_proposal.by) == ("clinical", "open", "code")
+    entry = library.tag(sha, "clinical", by="u1", study="EXZ-101")
+    assert (entry.tag.kind, entry.tag.study, entry.tag_proposal.decided) == ("clinical", "EXZ-101", "used")
+    assert library.propose_tag(sha, TagHint("clinical", "again")) == entry    # the decided proposal is not repeated
+    actions = [r.event.action for r in ws.store.audit("t1").records() if r.event.resource_type == "document"]
+    assert actions.count("document.tag") == 2 and actions.count("document.propose_tag") == 1
+    rows = {r.name: r for r in library_rows(ws)}
+    assert rows["Data_Q3_final.csv"].tag.kind == "clinical" and rows["Data_Q3_final.csv"].needs_ocr is False
+
+
+def test_kept_mine_settles_the_proposal_and_an_image_needs_ocr(ws):
+    from modeler_intake.file_tags import TagHint
+
+    library = DocumentLibrary(ws)
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+    sha = library.add(png, "scan.png", role="client_file", by="u1").content["sha256"]
+    library.tag(sha, "formulation", by="u1")
+    library.propose_tag(sha, TagHint("clinical", "x"))
+    assert library.tag(sha, "formulation", by="u1").tag_proposal.decided == "kept"
+    assert {r.name: r for r in library_rows(ws)}["scan.png"].needs_ocr is True

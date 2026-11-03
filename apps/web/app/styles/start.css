@@ -123,3 +123,16 @@
   border: 1px solid var(--line); font-size: 13.5px; }
 .risk-differs.needs-you { border-color: var(--fail); background: color-mix(in srgb, var(--fail) 5%, transparent); }
 .risk-differs textarea { width: 100%; }
+
+/* tags at upload (plan 2026-11-03 §3.1): the tag and, for a clinical study, which one; the proposals after the upload */
+.tag-lede { margin: 0; font-size: 13px; max-width: var(--measure); }
+.tag-fields { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tag-fields select, .tag-fields input { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--control-border, var(--line));
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); min-height: 32px; }
+.tag-fields input { width: 15em; }
+.tag-proposals { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.tag-proposals li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; }
+.tag-proposal { display: grid; gap: 6px; flex: 1 1 320px; }
+.btn.small { padding: 4px 10px; font-size: 13px; min-height: 32px; }
+.start-check { display: grid; gap: 8px; justify-items: start; }

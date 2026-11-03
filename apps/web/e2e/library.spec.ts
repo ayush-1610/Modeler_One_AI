@@ -55,9 +55,9 @@ test("Add data, from the sidebar at any step, says what each file relates to; a 
       { name: "f2.json", mimeType: "application/json", buffer: Buffer.from('{"formulation": "F2", "strength_mg": 50}') },
       { name: "pk.csv", mimeType: "text/csv", buffer: Buffer.from("time,conc\n1,2\n") },
     ]);
-    await expect(page.getByTestId("add-data-goes-pk.csv")).toHaveValue("client");   // a workbook goes to client data
-    await expect(page.getByTestId("add-data-goes-f2.json")).toHaveValue("annex");
-    await page.getByTestId("add-data-goes-f2.json").selectOption("context");          // the guess is switched
+    await expect(page.getByTestId("add-data-goes-pk.csv")).toHaveValue("client:clinical");   // client data, tagged by its name
+    await expect(page.getByTestId("add-data-goes-f2.json")).toHaveValue("doc:annex");
+    await page.getByTestId("add-data-goes-f2.json").selectOption("doc:context");             // the guess is switched
     await page.getByTestId("add-data-step").selectOption("inputs");
     await page.getByTestId("add-data-task").fill("Formulations");
     await page.screenshot({ path: test.info().outputPath("add-data.png") });

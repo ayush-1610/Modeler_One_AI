@@ -16,7 +16,16 @@ from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field, ValidationError
 
 from modeler_api import agent_jobs, jobs
-from modeler_api.deps import Reader, StoreDep, Writer, relates_to_form, version_view, workspace_for
+from modeler_api.deps import (
+    Reader,
+    StoreDep,
+    Writer,
+    file_tag_view,
+    relates_to_form,
+    tags_form,
+    version_view,
+    workspace_for,
+)
 from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import (
     ClientDataPage,
@@ -120,22 +129,27 @@ def get_client_data(project_id: str, principal: Reader, store: StoreDep) -> dict
 @router.post("/projects/{project_id}/client-data", status_code=201, **answers(ClientUpload))
 async def upload_client_files(project_id: str, principal: Writer, store: StoreDep,
                               files: Annotated[list[UploadFile], File()],
-                              step: Annotated[str, Form()] = "", task: Annotated[str, Form()] = "") -> dict[str, Any]:
+                              step: Annotated[str, Form()] = "", task: Annotated[str, Form()] = "",
+                              tags: Annotated[str, Form()] = "") -> dict[str, Any]:
     """Store each file; read a filled template at once; triage any other workbook. `step` and `task`: what the files
-    relate to (the document library's "Add data" card)."""
+    relate to (the document library's "Add data" card). `tags`: what each file is, per file name (plan 2026-11-03 §3.1);
+    each answer says the tag kept and any other tag code read from the file's content."""
     relates_to = relates_to_form(step, task)
+    given_tags = tags_form(tags)
     ws = workspace_for(project_id, principal, store)
     _, matrix = _matrix(ws)
     library, brief = DocumentLibrary(ws), _brief(ws)
     read = []
     for upload in files:
         try:
-            read.append(ingest(ws, library, await upload.read(), upload.filename or "client-file", by=principal.user_id,
-                               matrix=matrix, brief=brief, relates_to=relates_to))
+            name = upload.filename or "client-file"
+            read.append(ingest(ws, library, await upload.read(), name, by=principal.user_id,
+                               matrix=matrix, brief=brief, relates_to=relates_to, tag=given_tags.get(name)))
         except (DocumentError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=f"{upload.filename}: {exc}") from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
-    return envelope({"read": [{k: r[k] for k in ("id", "file", "template")} for r in read], **_view(ws)})
+    return envelope({"read": [{**{k: r[k] for k in ("id", "file", "template", "sha256")}, **file_tag_view(library, r["sha256"])}
+                              for r in read], **_view(ws)})
 
 
 def _workbook(ws: Workspace, sid: str, *, use: bool = False) -> tuple[dict[str, Any], WorkbookGrid]:

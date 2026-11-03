@@ -534,7 +534,8 @@ export interface paths {
         /**
          * Upload Client Files
          * @description Store each file; read a filled template at once; triage any other workbook. `step` and `task`: what the files
-         *     relate to (the document library's "Add data" card).
+         *     relate to (the document library's "Add data" card). `tags`: what each file is, per file name (plan 2026-11-03 §3.1);
+         *     each answer says the tag kept and any other tag code read from the file's content.
          */
         post: operations["upload_client_files_api_v1_projects__project_id__client_data_post"];
         delete?: never;
@@ -910,6 +911,27 @@ export interface paths {
          * @description Put a withdrawn document back in use, with a reason.
          */
         post: operations["restore_document_api_v1_projects__project_id__documents__sha256__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/documents/{sha256}:tag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tag Document
+         * @description Set or change a client file's tag (plan 2026-11-03 §3.1, option D: editable at any time). It settles an open
+         *     proposal: used when the person took the proposed kind, kept otherwise. No reason is asked.
+         */
+        post: operations["tag_document_api_v1_projects__project_id__documents__sha256__tag_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1803,7 +1825,8 @@ export interface paths {
          * Initiate Project
          * @description P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows
          *     p0-files and p3-upload), then start the extraction. A client file that cannot be read is answered with the reason;
-         *     the project still starts.
+         *     the project still starts. `tags`: what each client file is, per file name (plan 2026-11-03 §3.1); each answer says
+         *     the tag kept and any other tag code read from the file's content.
          */
         post: operations["initiate_project_api_v1_projects_initiate_post"];
         delete?: never;
@@ -2361,6 +2384,11 @@ export interface components {
              * @default
              */
             name?: string;
+            /**
+             * Tags
+             * @default
+             */
+            tags?: string;
         };
         /** Body_upload_client_files_api_v1_projects__project_id__client_data_post */
         Body_upload_client_files_api_v1_projects__project_id__client_data_post: {
@@ -2371,6 +2399,11 @@ export interface components {
              * @default
              */
             step?: string;
+            /**
+             * Tags
+             * @default
+             */
+            tags?: string;
             /**
              * Task
              * @default
@@ -2859,8 +2892,17 @@ export interface components {
             file: string;
             /** Id */
             id: string | null;
+            /**
+             * Needs Ocr
+             * @default false
+             */
+            needs_ocr?: boolean;
             /** Problem */
             problem: string | null;
+            /** Sha256 */
+            sha256?: string | null;
+            tag?: components["schemas"]["FileTagView"] | null;
+            tag_proposal?: components["schemas"]["TagProposalView"] | null;
             /** Template */
             template: boolean;
         };
@@ -4608,6 +4650,23 @@ export interface components {
             /** Width */
             width: number;
         };
+        /**
+         * FileTagView
+         * @description What a client file is, as the person said at upload (`documents.FileTag`): a hint for reading it, not a fact.
+         */
+        FileTagView: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "formulation" | "clinical" | "bioanalytical" | "in_vitro" | "other";
+            /** Study */
+            study: string;
+        };
         /** FirstOrderMetabolism */
         FirstOrderMetabolism: {
             clearance_per_enzyme: components["schemas"]["Measured"];
@@ -5191,6 +5250,8 @@ export interface components {
             retrieved: components["schemas"]["RetrievalView"] | null;
             /** Sha256 */
             sha256: string;
+            tag?: components["schemas"]["FileTagView"] | null;
+            tag_proposal?: components["schemas"]["TagProposalView"] | null;
             withdrawn: components["schemas"]["WithdrawalView"] | null;
         };
         /** LibraryPage */
@@ -5220,6 +5281,11 @@ export interface components {
             n_pages: number;
             /** Name */
             name: string;
+            /**
+             * Needs Ocr
+             * @default false
+             */
+            needs_ocr?: boolean;
             relates_to: components["schemas"]["RelatesToView"] | null;
             retrieved: components["schemas"]["RetrievalView"] | null;
             /** Role */
@@ -5233,6 +5299,8 @@ export interface components {
              * @enum {string}
              */
             source: "person" | "agent" | "system";
+            tag?: components["schemas"]["FileTagView"] | null;
+            tag_proposal?: components["schemas"]["TagProposalView"] | null;
             /** Versions */
             versions: number;
             withdrawn: components["schemas"]["WithdrawalView"] | null;
@@ -6926,6 +6994,18 @@ export interface components {
             file: string;
             /** Id */
             id: string;
+            /**
+             * Needs Ocr
+             * @default false
+             */
+            needs_ocr?: boolean;
+            /**
+             * Sha256
+             * @default
+             */
+            sha256?: string;
+            tag?: components["schemas"]["FileTagView"] | null;
+            tag_proposal?: components["schemas"]["TagProposalView"] | null;
             /** Template */
             template: boolean;
         };
@@ -8675,6 +8755,41 @@ export interface components {
             };
             /** Sha256 */
             sha256: string;
+        };
+        /** TagBody */
+        TagBody: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "formulation" | "clinical" | "bioanalytical" | "in_vitro" | "other";
+            /**
+             * Study
+             * @default
+             */
+            study?: string;
+        };
+        /**
+         * TagProposalView
+         * @description Another tag code read from the file's content, with what prompted it (`documents.TagProposal`).
+         */
+        TagProposalView: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /**
+             * Decided
+             * @enum {string}
+             */
+            decided: "open" | "used" | "kept";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "formulation" | "clinical" | "bioanalytical" | "in_vitro" | "other";
+            /** Why */
+            why: string;
         };
         /**
          * TemplateContent
@@ -10769,6 +10884,44 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["LibraryReason"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LibraryEntryView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tag_document_api_v1_projects__project_id__documents__sha256__tag_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                sha256: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagBody"];
             };
         };
         responses: {
