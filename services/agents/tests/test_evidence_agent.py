@@ -97,7 +97,8 @@ def test_a2_stores_what_it_reads_and_only_verified_values_enter_the_register(tmp
     assert fu.source.title == "Pharmacokinetics of exampleamide" and fu.source.year == 2019
     assert evidence["phys.logp"].source.locator == "Table 2"
     assert len(ws.list(ArtifactKind.ACCESS_REQUEST)) == 1 and outcome.not_found == {"REQ-phys.pka": "exampleamide pKa; europe pmc"}
-    assert json.loads(json.dumps(outcome.usage))["input_tokens"] == 4
+    # the inputs the run left with neither a value nor a "not found" get a second pass (the owner, 2026-11-03)
+    assert json.loads(json.dumps(outcome.usage))["input_tokens"] == 5 and "Second pass" in outcome.summary
 
 
 def test_the_library_comes_first_and_what_an_agent_stores_says_where_it_came_from(tmp_path):
@@ -143,3 +144,51 @@ def test_the_library_comes_first_and_what_an_agent_stores_says_where_it_came_fro
     assert "in the library" not in later["search_literature"](query="exampleamide")
     assert later["read_full_text"](paper_id="111").startswith("WITHDRAWN: a person withdrew this document")
     assert library.entry(sha).withdrawn is not None
+
+
+
+def test_a2_is_told_the_projects_context_and_works_on_the_missing_inputs_first(tmp_path):
+    # the owner, 2026-11-03: the compound's parameters fetched in the project's context, every input found or marked
+    from modeler_agents.research_brief import ProjectFacts, ordered, statuses, task
+    from modeler_project.evidence import EvidenceItem, SourceRef, SourceType, new_id
+    from modeler_project.evidence_register import propose
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    requirements = literature_items(derive(empty_brief("X", by="u")))
+    propose(ws, EvidenceItem(id=new_id(), req_id="REQ-phys.logp", target="phys.logp", value=2.1, unit=None,
+                             source_type=SourceType.REGULATORY_REVIEW, quote="logP 2.1", source=SourceRef(doi="10.1/r")),
+            actor="u")
+    propose(ws, EvidenceItem(id=new_id(), req_id="REQ-bind.fu", target="bind.fu", value=0.3, unit=None,
+                             source_type=SourceType.PREDICTED, quote="fu 0.3 (predicted)", source=SourceRef(url="https://x")),
+            actor="u")
+    status = statuses(requirements, items(ws))
+    assert status["REQ-phys.logp"].status == "covered" and status["REQ-bind.fu"].status == "weak"
+    order = [r.req_id for r in ordered(requirements, status)]
+    assert order.index("REQ-phys.pka") < order.index("REQ-bind.fu") < order.index("REQ-phys.logp")   # missing first
+
+    seen: list[str] = []
+
+    class Listing:
+        provider, model = "test", "s"
+        turn = 0
+
+        def complete(self, messages, tools):
+            self.turn += 1
+            seen.extend(str(m.get("content", "")) for m in messages)
+            calls = [("list_requirements", {})] if self.turn == 1 else []
+            return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
+                              tool_calls=tuple(ToolCall(id=f"c{i}", name=n, arguments=a) for i, (n, a) in enumerate(calls)))
+
+    facts = ProjectFacts(drug="Exampleamide", names=("EXA-101",), routes=("oral",), products=("EXA 10 mg tablet",),
+                         populations=("healthy adults",), pathways=("CYP3A4",))
+    ctx = ResearchContext(ws=ws, library=DocumentLibrary(ws), requirements=requirements, actor="agent:ar_3",
+                          europe_pmc=EuropePMC(transport=httpx.MockTransport(_transport)), facts=facts)
+    outcome = run_research(Listing(), ctx, drug="Exampleamide")
+    opening = task(facts, requirements, status)
+    assert "also: EXA-101" in opening and "Routes: oral" in opening and "Pathways the proposal names: CYP3A4" in opening
+    assert "clinical pharmacology biopharmaceutics review" in opening and "do not stop while one is left" in opening
+    listed = json.loads(next(s for s in seen if s.startswith("[{")))
+    first = listed[0]
+    assert first["status"] == "missing" and first["search_hints"] and first["what_to_do"] == "no value yet: find one"
+    assert next(r for r in listed if r["req_id"] == "REQ-bind.fu")["known"][0].startswith("bind.fu = 0.3")
+    assert "Second pass" in outcome.summary and any("still have neither a proposed value" in s for s in seen)

@@ -197,7 +197,7 @@ def test_a_paper_the_research_agent_stores_is_listed_with_its_source_and_what_is
             self.turns = [[("search_literature", {"query": "exampleamide"})], [("read_full_text", {"paper_id": "111"})], []]
 
         def complete(self, messages, tools):
-            calls = self.turns.pop(0)
+            calls = self.turns.pop(0) if self.turns else []   # the second pass, on what is left, ends at once
             return ChatResult(content="done", finish_reason="", model="s", usage={},
                               tool_calls=tuple(ToolCall(id=f"c{i}", name=n, arguments=a) for i, (n, a) in enumerate(calls)))
 

@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from modeler_agents.llm import ChatModel, Tool, run_tool_loop
+from modeler_agents.research_brief import STATUS_TEXT, ProjectFacts, follow_up, hint_for, ordered, statuses, task
 from modeler_agents.sources import EuropePMC, SourceError
 from modeler_agents.web_search import search_tool
 from modeler_intake.citations import quote_appears_in, value_stated_in_quote
@@ -49,7 +50,9 @@ Rules:
 - If web_search is available, use it to find primary sources (papers, regulatory reviews, labels) that Europe PMC does not
   reach. Each result page is stored; read it with read_page and quote from it. Never cite a value from a search result
   you have not read.
-- When nothing is found for an item after a reasonable search, call mark_not_found with what you searched.
+- Work through list_requirements in its order: missing inputs first, then conflicts, weak values and the client's values to cross-check; an input already covered by a measured value is worth a new source only if it is a regulatory or primary one.
+- Search with the input's hints (list_requirements gives the terms that find it) and with every name of the drug the task gives (codes, synonyms). Prefer human values; record the species when it is not human.
+- When nothing is found for an item after a reasonable search, call mark_not_found with what you searched. Every input ends with a proposed value or a mark_not_found.
 - Call several tools in one turn whenever you can. Finish with a short summary per requirement: found, not found, conflicting."""
 
 
@@ -60,6 +63,7 @@ class ResearchContext:
     requirements: list[RequirementItem]
     actor: str
     europe_pmc: EuropePMC
+    facts: ProjectFacts | None = None      # the brief's facts the search needs (`research_brief.project_facts`)
     proposed: list[str] = field(default_factory=list)
     rejected: list[dict[str, Any]] = field(default_factory=list)
     not_found: dict[str, str] = field(default_factory=dict)
@@ -131,13 +135,18 @@ def propose_value(ctx: ResearchContext, *, req_id: str, target: str, value: Any,
 
 def reading_tools(ctx: ResearchContext, *, kinds: tuple[str, ...] = ("parameter", "formulation", "system")) -> list[Tool]:
     def list_requirements() -> str:
+        """The inputs in the order to work on them, each with its status, what is known and where it is found."""
+        from modeler_project.evidence_register import items
+
+        mine = [r for r in ctx.requirements if r.kind in kinds]
+        status = statuses(mine, items(ctx.ws))
         rows = []
-        for r in ctx.requirements:
-            if r.kind not in kinds:
-                continue
+        for r in ordered(mine, status):
+            s = status[r.req_id]
             rows.append({"req_id": r.req_id, "label": r.label, "target": r.target, "unit_in_pksim": r.unit,
                          "record_conditions": list(r.conditions), "criticality": r.criticality,
-                         "client_item_cross_check": r.cross_check})
+                         "client_item_cross_check": r.cross_check, "status": s.status, "what_to_do": STATUS_TEXT[s.status],
+                         "known": s.known, "search_hints": hint_for(r.target, r.label), "why": ", ".join(r.needed_for)})
         return json.dumps(rows)
 
     def held(paper: Any, kind: str | None = None):
@@ -290,12 +299,35 @@ class ResearchOutcome:
     error: str = ""
 
 
+def unfinished(ctx: ResearchContext) -> list[RequirementItem]:
+    """Inputs that are neither covered nor marked not found, and got no proposal in this run."""
+    from modeler_project.evidence_register import items
+
+    mine = [r for r in ctx.requirements if r.kind in ("parameter", "formulation", "system")]
+    status = statuses(mine, items(ctx.ws))
+    proposed = {e.req_id for e in items(ctx.ws) if e.id in set(ctx.proposed)}
+    return [r for r in ordered(mine, status) if status[r.req_id].status in ("missing", "conflict", "weak")
+            and r.req_id not in proposed and r.req_id not in ctx.not_found]
+
+
 def run_research(model: ChatModel, ctx: ResearchContext, *, drug: str, max_turns: int = 120,
                  log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> ResearchOutcome:
-    user = (f"Drug: {drug}. Find values for every requirement listed by list_requirements "
-            f"({len(ctx.requirements)} items). Start with list_requirements.")
-    outcome = run_tool_loop(model, system=SYSTEM_PROMPT, user=user, tools=build_tools(ctx), max_turns=max_turns,
-                            log_step=log_step)
+    """The search, told the project's context and each input's status; then, while turns remain, a second pass on the
+    inputs the first left with neither a value nor a "not found", so that none is dropped silently."""
+    from modeler_project.evidence_register import items
+
+    facts = ctx.facts or ProjectFacts(drug=drug)
+    mine = [r for r in ctx.requirements if r.kind in ("parameter", "formulation", "system")]
+    first = max(1, (max_turns * 2) // 3)
+    outcome = run_tool_loop(model, system=SYSTEM_PROMPT, user=task(facts, mine, statuses(mine, items(ctx.ws))),
+                            tools=build_tools(ctx), max_turns=first, log_step=log_step)
+    summary, usage = outcome.final_text, dict(outcome.usage)
+    left = unfinished(ctx) if not outcome.error else []
+    if left and max_turns - first > 0:
+        again = run_tool_loop(model, system=SYSTEM_PROMPT, user=follow_up(left), tools=build_tools(ctx),
+                              max_turns=max_turns - first, log_step=log_step)
+        summary = f"{summary}\n\nSecond pass ({len(left)} inputs):\n{again.final_text}"
+        usage = {k: usage.get(k, 0) + again.usage.get(k, 0) for k in {*usage, *again.usage}}
+        outcome = again if again.error else outcome
     return ResearchOutcome(status=outcome.status, proposed=ctx.proposed, rejected=ctx.rejected, not_found=ctx.not_found,
-                           access_requests=ctx.access_requests, summary=outcome.final_text, usage=outcome.usage,
-                           error=outcome.error)
+                           access_requests=ctx.access_requests, summary=summary, usage=usage, error=outcome.error)
