@@ -33,6 +33,41 @@ tasks, so that every input is found and filled.
   a second pass works on the inputs the first left with neither.
 - **Impact:** how A2 searches, not what counts. Every proposal is still checked by code against the page it read, and
   graded and selected as before (D-32). No model or ruleset changes.
+### Changed — Inputs I2: the client's data loads only once a person confirms it, inline (2026-11-03)
+Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.3–3.5, build I2; the owner's answers of 2026-11-03 (confirm
+client data only, per group, with item-level edits; an open conflict or question blocks its group; no reason asked; a
+resolved conflict stays in place with its final value).
+- **What changed (science, data flow):** a dataset or value read from a client file (by code or an agent) no longer
+  counts in the inputs until a person confirms its group. Until then `sources.included` and `inputs.usable_dataset`
+  leave it out, and "still missing to run" lists the group. This narrows D-27 for client data only. Literature and
+  published-model values still flow in and are reviewed at the MAP signature. A value or dataset a person typed in is
+  its own confirmation; a release model computed from a profile is proposed by a person once its product is confirmed
+  (`dissolution/{id}:propose` answers 409 before).
+- **The groups** (`modeler_project.client_review`): a clinical study (its datasets and facts) on Clinical studies, a
+  product (its dissolution profiles) on Products and dissolution, a file's compound values on Compound. Each shows
+  "to confirm" or "confirmed by … · loaded", and every value opens its source in the centre peek.
+- **On the card, never resolved silently:**
+  - **conflicts:** two client files giving one study two doses, routes, food states, formulations or LLOQs; a client
+    value more than 2-fold off a literature or published-model value (compared in the PK-Sim unit);
+  - **an explainable difference:** two subject counts, which the person may mark explained (dosed against PK-evaluable);
+  - **questions:** an oral study with no food state; values below the LLOQ with no LLOQ stated; a value with no automatic
+    unit conversion.
+  - The person selects an option, or gives the value, and confirms the selection; it stays shown as resolved, with its
+    alternatives, and can be changed until the group is confirmed. The group's confirmation is disabled while anything
+    is open.
+- **Confirming** applies the selections (the study's facts set, the client's value kept or set aside) and accepts the
+  group's datasets and values, in one audited record (the CLIENT_SUBMISSION artifact `review`: who, when, the options,
+  the one selected). It is not an electronic signature; the MAP signature stays the one review.
+- **The rule** `client_reconciliation.yaml` 0.1, **UNVERIFIED** for the SME (approved by the owner on 2026-11-03 as a
+  provisional rule): categorical facts compared after normalising, dose after unit conversion, n exact unless
+  explained, 10 % for concentrations and dissolution, 2-fold against the literature.
+- **The page:** "To confirm (n)" at the top of the domain rail counts the groups waiting and filters every area to them.
+- **API:** `GET /projects/{id}/client-review`; `POST …/client-review:select`, `:reopen`, `:edit`, `:confirm`.
+  `docs/api/openapi.json` updated.
+- **Impact:** a project's client datasets and values already accepted keep counting; any only proposed now wait for
+  their group's confirmation. Known gap, for I3: two files giving one study still leave two datasets with one study id
+  (one is used, the readiness check names the duplicate).
+
 ### Added — Inputs I1b: the domain rail, and every source opens in a centre peek (2026-11-03)
 Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.2–3.3, build I1; the owner's comments on the mockup
 (2026-11-03).

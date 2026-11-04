@@ -20,7 +20,7 @@ from typing import Any, Literal
 
 import yaml
 
-from modeler_project.evidence import EvidenceItem, EvidenceState
+from modeler_project.evidence import EvidenceItem, EvidenceState, awaits_client_confirmation
 
 
 @dataclass(frozen=True)
@@ -42,8 +42,9 @@ def rule() -> SelectionRule:
 
 
 def included(item: EvidenceItem) -> bool:
-    """Counts unless excluded (REJECTED, always with the person's reason)."""
-    return item.state is not EvidenceState.REJECTED
+    """Counts unless excluded (REJECTED, always with the person's reason), or read from a client file and not yet
+    confirmed: client data loads once a person confirms its group on Inputs (plan 2026-11-03 §3.3)."""
+    return item.state is not EvidenceState.REJECTED and not awaits_client_confirmation(item)
 
 
 def held(item: EvidenceItem) -> tuple[str, ...]:

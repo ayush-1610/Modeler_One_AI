@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -155,3 +155,68 @@ class ReleaseProposal(ClientDataPage):
     """A profile's fit proposed as release-model evidence: the evidence ids, and the page."""
 
     evidence: list[str]
+
+
+# --- confirm inline (plan 2026-11-03 §3.3): `modeler_project.client_review` ---------------------------------------
+
+
+class ReviewOption(View):
+    id: str
+    label: str
+    value: Any
+    source: dict[str, Any] | None       # where the value comes from (doc_sha256, page, locator, title, quote)
+    datasets: list[str]
+
+
+class ReviewIssue(View):
+    """A conflict, an explainable difference or a question on a group: open until a person confirms a selection."""
+
+    id: str
+    kind: Literal["conflict", "difference", "question"]
+    text: str
+    options: list[ReviewOption]
+    answer: bool                        # the question asks for a value rather than an option
+    selected: str | None
+    answered: float | None
+    selected_by: str | None
+    selected_at: str | None
+
+
+class ReviewItem(View):
+    id: str
+    kind: Literal["dataset", "value", "profile"]
+    label: str
+    value: str
+    state: str
+    source: dict[str, Any]
+    note: str = ""
+    target: str | None = None
+    conditions: dict[str, Any] = Field(default_factory=dict)
+
+
+class ReviewFact(View):
+    field: str
+    label: str
+    value: str
+    source: dict[str, Any]
+
+
+class ReviewGroup(View):
+    """A study, a product or a file's compound values, to confirm or confirmed."""
+
+    id: str
+    kind: Literal["study", "product", "compound"]
+    tab: str
+    title: str
+    items: list[ReviewItem]
+    facts: list[ReviewFact]
+    issues: list[ReviewIssue]
+    state: Literal["to_confirm", "confirmed"]
+    open: int
+    confirmed_by: str | None
+    confirmed_at: str | None
+
+
+class ClientReviewPage(View):
+    groups: list[ReviewGroup]
+    to_confirm: int

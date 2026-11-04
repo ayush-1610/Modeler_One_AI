@@ -15,7 +15,7 @@ type DatasetRow = { id: string; study_id: string; purpose: string; origin: strin
                     statistics: string[]; series: number };
 export type TodoItem = {
   kind: "conflict" | "correct" | "pka" | "missing" | "datasets" | "formulation" | "process" | "unit" | "check" | "review"
-    | "regimen" | "demographics";
+    | "regimen" | "demographics" | "confirm";
   target: string; message: string; items: (Ev | DatasetRow)[]; evidence?: string[];
   suggestions?: { targets: string[]; molecules: string[] };
   identity?: { value: number; unit: string; quote: string; cid: string; name: string } | null;
@@ -25,13 +25,14 @@ export type TodoItem = {
 };
 export type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string) => Promise<string | null>;
 
-export const ORDER = ["conflict", "correct", "pka", "missing", "review", "regimen", "demographics", "datasets", "formulation", "process",
+export const ORDER = ["confirm", "conflict", "correct", "pka", "missing", "review", "regimen", "demographics", "datasets", "formulation", "process",
                "unit", "check"];
 export const TITLE: Record<string, string> = {
   conflict: "Values more than 2-fold apart: keep one", correct: "Filed under the wrong parameter", pka: "pKa: acidic or basic?",
   missing: "Missing for S0", datasets: "Observed data to judge the model on", formulation: "Formulation of the tablet studies",
   process: "Which PK-Sim process carries the pathway", unit: "Unit to convert", check: "Software build",
   review: "Held until you check it", regimen: "Multiple-dose regimen", demographics: "Demographics (D-29)",
+  confirm: "The client's data to confirm",
 };
 export const LABEL: Record<string, string> = {
   "phys.mw": "Molecular weight", "phys.logp": "Lipophilicity", "bind.fu": "Fraction unbound in plasma",
