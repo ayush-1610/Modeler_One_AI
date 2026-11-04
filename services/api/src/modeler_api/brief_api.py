@@ -30,7 +30,17 @@ from pydantic import BaseModel, Field
 from modeler_api import agent_jobs, jobs
 from modeler_api.auth import Principal, require_project
 from modeler_api.config import SettingsDep
-from modeler_api.deps import Reader, StoreDep, Writer, impact_view, relates_to_form, version_view, workspace_for
+from modeler_api.deps import (
+    Reader,
+    StoreDep,
+    Writer,
+    file_tag_view,
+    impact_view,
+    relates_to_form,
+    tags_form,
+    version_view,
+    workspace_for,
+)
 from modeler_api.memberships import record_creator
 from modeler_api.responses import answers, envelope
 from modeler_api.views.brief import (
@@ -46,6 +56,7 @@ from modeler_api.views.brief import (
     ProjectStarted,
 )
 from modeler_intake.documents import DocumentError
+from modeler_intake.file_tags import TagKind
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import (
     APPLICATIONS,
@@ -195,10 +206,13 @@ async def initiate_project(
     name: Annotated[str, Form()] = "",
     context: Annotated[str, Form()] = "",
     extract: Annotated[bool, Form()] = True,
+    tags: Annotated[str, Form()] = "",
 ) -> dict[str, Any]:
     """P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows
     p0-files and p3-upload), then start the extraction. A client file that cannot be read is answered with the reason;
-    the project still starts."""
+    the project still starts. `tags`: what each client file is, per file name (plan 2026-11-03 §3.1); each answer says
+    the tag kept and any other tag code read from the file's content."""
+    given_tags = tags_form(tags)
     read, write = projects
     title = name.strip() or f"{drug_name.strip()} PBPK"
     project_id = _slug(title)
@@ -226,7 +240,7 @@ async def initiate_project(
     version = save_brief(ws, brief, actor=principal.user_id, reason="project started",
                          derived_from=[d.ref for d in documents])
     refresh_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
-    read_files = [_read_client_file(ws, library, brief, filename, data, by=principal.user_id)
+    read_files = [_read_client_file(ws, library, brief, filename, data, by=principal.user_id, tag=given_tags.get(filename))
                   for filename, data in client_payloads]
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     return envelope({"project_id": project_id, "name": title, "documents": [_document_view(d) for d in documents],
@@ -234,15 +248,17 @@ async def initiate_project(
 
 
 def _read_client_file(ws: Workspace, library: DocumentLibrary, brief: ProjectBrief, filename: str, data: bytes, *,
-                      by: str) -> dict[str, Any]:
+                      by: str, tag: tuple[TagKind, str] | None = None) -> dict[str, Any]:
     """One client file given at project start, read into Inputs like an upload there (`client_data.ingest`)."""
     version = ws.latest(ArtifactKind.REQUIREMENTS, "main")
     matrix = RequirementMatrix.from_content(version.content) if version else None
     try:
-        read = ingest(ws, library, data, filename, by=by, matrix=matrix, brief=brief)
+        read = ingest(ws, library, data, filename, by=by, matrix=matrix, brief=brief, tag=tag)
     except (DocumentError, ValueError) as exc:
         return {"file": filename, "id": None, "template": False, "problem": str(exc)}
-    return {"file": read["file"], "id": read["id"], "template": read["template"], "problem": None}
+    return {"file": read["file"], "id": read["id"], "template": read["template"], "problem": None, "sha256": read["sha256"],
+            **file_tag_view(library, read["sha256"])}
+
 
 
 # --- documents -----------------------------------------------------------------------------------------------
@@ -305,6 +321,24 @@ def withdraw_document(project_id: str, sha256: str, body: LibraryReason, princip
     library = DocumentLibrary(workspace_for(project_id, principal, store))
     try:
         return envelope(_entry_view(sha256, library.withdraw(sha256, by=principal.user_id, reason=body.reason)))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="no such document") from exc
+    except LibraryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class TagBody(BaseModel):
+    kind: TagKind
+    study: str = Field(default="", max_length=80)
+
+
+@router.post("/projects/{project_id}/documents/{sha256}:tag", **answers(LibraryEntryView))
+def tag_document(project_id: str, sha256: str, body: TagBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Set or change a client file's tag (plan 2026-11-03 §3.1, option D: editable at any time). It settles an open
+    proposal: used when the person took the proposed kind, kept otherwise. No reason is asked."""
+    library = DocumentLibrary(workspace_for(project_id, principal, store))
+    try:
+        return envelope(_entry_view(sha256, library.tag(sha256, body.kind, by=principal.user_id, study=body.study)))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="no such document") from exc
     except LibraryError as exc:

@@ -34,6 +34,27 @@ Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.2–3.3, build I1; th
 - **API:** each input's source, and the review row's, carries the stored document's `doc_sha256` (and `url`, `pmid`), so
   the peek opens the exact page. `docs/api/openapi.json` updated.
 - **Impact:** display only; no value, selection or rule changes. The tab ids and URLs stay the same.
+### Added — Inputs I1a: each client file is tagged at upload (2026-11-03)
+Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.1, build I1; the owner's answers of 2026-11-03 (tagging on the
+"Start from proposal" page and in "+ Add data", option A + D; no reason asked).
+- **What changed:**
+  - **"Start from proposal"** (`/projects/start`, the page formerly headed "Start a project") tags every file: the
+    proposal or an annex (read for the brief), or client data, which is formulation or dissolution, a clinical study
+    (and which one, pre-filled from a study code in the name), bioanalytical, in vitro or physico-chemistry, or other.
+  - **"+ Add data"** takes the same tags beside its documents (annex, paper, context, proposal, other).
+  - **The tag is a hint, not a fact.** Code pre-fills it from the name (`modeler_intake.file_tags`, mirrored in
+    `apps/web/lib/fileTags.ts`). Once the file is read, code proposes another tag when the content says otherwise,
+    quoting what prompted it: a workbook's sheet classification and its header cell, or a document's words and page.
+    The person uses the proposal or keeps their tag, in one click, after the upload; nothing is re-tagged silently.
+  - **The Library shows and changes a client file's tag** at any time (option D), with any open proposal, and marks scans
+    and images "needs OCR" so nothing is skipped silently.
+  - **Stored** in the library's record (`library.json`, `LibraryEntry.tag` and `tag_proposal`), audited as
+    `document.tag` and `document.propose_tag`. A file uploaded without tags is tagged by code from its name.
+- **API:** `tags` (a JSON object keyed by file name) on `projects:initiate` and `client-data` uploads; each answer gives
+  the file's `sha256`, `tag`, `tag_proposal` and `needs_ocr`. New `POST /projects/{id}/documents/{sha256}:tag`. The library
+  rows carry the tag. `docs/api/openapi.json` updated.
+- **Impact:** what is read from a file does not change yet; the tags are the hints the client-data agent uses from I2 on.
+  The project's Start step is unchanged.
 ### Docs — Inputs and client data: page review 2, the design (2026-11-03, revised with the owner's answers)
 `docs/plans/2026-11-03-inputs-and-client-data.md`. No code changes. The owner asked (2026-11-03) for an Inputs page that
 captures all project data, organised so it scales, and an AI agent that brings scattered, differently organised and

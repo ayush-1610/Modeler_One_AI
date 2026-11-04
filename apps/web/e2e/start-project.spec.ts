@@ -20,7 +20,8 @@ test("a project starts from its proposal and the client's file in one upload, wi
     { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
     { name: "client-pk.csv", mimeType: "text/csv", buffer: Buffer.from(CLIENT_CSV) },
   ]);
-  await expect(page.getByLabel("What client-pk.csv is")).toHaveValue("client");
+  await expect(page.getByLabel("What client-pk.csv is")).toHaveValue("clinical");      // the tag read from the name
+  await expect(page.getByLabel("What proposal.md is")).toHaveValue("proposal");
   await page.getByTestId("start-project").click();
 
   await page.waitForURL(/\/projects\/[^/]+\/start$/);
@@ -59,3 +60,35 @@ test("a project starts from its proposal and the client's file in one upload, wi
   await expect(page.getByText("brief/main").first()).toBeVisible();
   await expect(page.getByText("hash chain verifies")).toBeVisible();
 });
+
+test("each file is tagged at upload, and a tag the content contradicts is proposed and decided in one click",
+  async ({ page }) => {
+    // plan 2026-11-03 §3.1 (the owner, 2026-11-03): tags on the "Start from proposal" page; a hint, not a fact; no reason
+    await page.goto("/projects/start");
+    await page.getByTestId("drug-name").fill("Tagamide");
+    await page.getByTestId("proposal-files").setInputFiles([
+      { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
+      { name: "Data_Q3_final.csv", mimeType: "text/csv",
+        buffer: Buffer.from("Subject,Time (h),Conc (ng/mL)\n101-001,1,39.8\n101-001,2,50.1\n") },
+      { name: "EXZ-101_dosing.csv", mimeType: "text/csv", buffer: Buffer.from("arm,dose_mg\nA,10\n") },
+    ]);
+    await expect(page.getByLabel("What Data_Q3_final.csv is")).toHaveValue("other");       // the name says nothing
+    await expect(page.getByLabel("What EXZ-101_dosing.csv is")).toHaveValue("clinical");
+    await expect(page.getByLabel("Which study EXZ-101_dosing.csv belongs to")).toHaveValue("EXZ-101");
+    await page.screenshot({ path: test.info().outputPath("start-from-proposal-tags.png"), fullPage: true });
+    await page.getByTestId("start-project").click();
+
+    const proposal = page.getByTestId("tag-proposal-Data_Q3_final.csv");
+    await expect(proposal).toContainText("The content suggests “Clinical study”");
+    await expect(proposal).toContainText("Subject");                                      // what prompted it, quoted
+    await page.screenshot({ path: test.info().outputPath("start-tag-proposal.png"), fullPage: true });
+    await page.getByTestId("tag-use-Data_Q3_final.csv").click();
+    await expect(proposal).toContainText("Tag now “Clinical study”");
+    await page.getByTestId("start-continue").click();
+    await page.waitForURL(/\/projects\/[^/]+\/start$/);
+
+    await page.getByTestId("nav-library").click();
+    await expect(page.getByTestId("library-tag-select-Data_Q3_final.csv")).toHaveValue("clinical");
+    await page.getByTestId("library-tag-select-EXZ-101_dosing.csv").selectOption("formulation");   // option D: any time
+    await expect(page.getByTestId("library-tag-select-EXZ-101_dosing.csv")).toHaveValue("formulation");
+  });
