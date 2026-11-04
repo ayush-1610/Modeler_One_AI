@@ -99,6 +99,25 @@ class RunSummary(View):
     summary: dict[str, Any]
 
 
+class FileTagView(View):
+    """What a client file is, as the person said at upload (`documents.FileTag`): a hint for reading it, not a fact."""
+
+    kind: Literal["formulation", "clinical", "bioanalytical", "in_vitro", "other"]
+    study: str
+    by: str
+    at: str
+
+
+class TagProposalView(View):
+    """Another tag code read from the file's content, with what prompted it (`documents.TagProposal`)."""
+
+    kind: Literal["formulation", "clinical", "bioanalytical", "in_vitro", "other"]
+    why: str
+    by: str
+    at: str
+    decided: Literal["open", "used", "kept"]
+
+
 class DocumentView(View):
     id: str
     sha256: str

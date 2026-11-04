@@ -1172,6 +1172,11 @@
             "default": "",
             "title": "Name",
             "type": "string"
+          },
+          "tags": {
+            "default": "",
+            "title": "Tags",
+            "type": "string"
           }
         },
         "required": [
@@ -1193,6 +1198,11 @@
           "step": {
             "default": "",
             "title": "Step",
+            "type": "string"
+          },
+          "tags": {
+            "default": "",
+            "title": "Tags",
             "type": "string"
           },
           "task": {
@@ -2504,6 +2514,11 @@
             ],
             "title": "Id"
           },
+          "needs_ocr": {
+            "default": false,
+            "title": "Needs Ocr",
+            "type": "boolean"
+          },
           "problem": {
             "anyOf": [
               {
@@ -2514,6 +2529,37 @@
               }
             ],
             "title": "Problem"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileTagView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tag_proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TagProposalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "template": {
             "title": "Template",
@@ -7778,6 +7824,43 @@
         "title": "FigureView",
         "type": "object"
       },
+      "FileTagView": {
+        "additionalProperties": false,
+        "description": "What a client file is, as the person said at upload (`documents.FileTag`): a hint for reading it, not a fact.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "formulation",
+              "clinical",
+              "bioanalytical",
+              "in_vitro",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "study": {
+            "title": "Study",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "study",
+          "by",
+          "at"
+        ],
+        "title": "FileTagView",
+        "type": "object"
+      },
       "FirstOrderMetabolism": {
         "additionalProperties": false,
         "properties": {
@@ -9266,6 +9349,26 @@
             "title": "Sha256",
             "type": "string"
           },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileTagView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tag_proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TagProposalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "withdrawn": {
             "anyOf": [
               {
@@ -9349,6 +9452,11 @@
             "title": "Name",
             "type": "string"
           },
+          "needs_ocr": {
+            "default": false,
+            "title": "Needs Ocr",
+            "type": "boolean"
+          },
           "relates_to": {
             "anyOf": [
               {
@@ -9389,6 +9497,26 @@
             ],
             "title": "Source",
             "type": "string"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileTagView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tag_proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TagProposalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "versions": {
             "title": "Versions",
@@ -13858,6 +13986,36 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "needs_ocr": {
+            "default": false,
+            "title": "Needs Ocr",
+            "type": "boolean"
+          },
+          "sha256": {
+            "default": "",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileTagView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tag_proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TagProposalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "template": {
             "title": "Template",
@@ -18992,6 +19150,79 @@
         "title": "SystemView",
         "type": "object"
       },
+      "TagBody": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "formulation",
+              "clinical",
+              "bioanalytical",
+              "in_vitro",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "study": {
+            "default": "",
+            "maxLength": 80,
+            "title": "Study",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "TagBody",
+        "type": "object"
+      },
+      "TagProposalView": {
+        "additionalProperties": false,
+        "description": "Another tag code read from the file's content, with what prompted it (`documents.TagProposal`).",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "decided": {
+            "enum": [
+              "open",
+              "used",
+              "kept"
+            ],
+            "title": "Decided",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "formulation",
+              "clinical",
+              "bioanalytical",
+              "in_vitro",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "why",
+          "by",
+          "at",
+          "decided"
+        ],
+        "title": "TagProposalView",
+        "type": "object"
+      },
       "TemplateContent": {
         "additionalProperties": false,
         "description": "A starting point in full. The CPF and the studies are the template's own documents, in the upload shapes they\nare sent back in (a reference model's CPF, the blank one's empty parameters; studies with their origin).",
@@ -21594,7 +21825,7 @@
         ]
       },
       "post": {
-        "description": "Store each file; read a filled template at once; triage any other workbook. `step` and `task`: what the files\nrelate to (the document library's \"Add data\" card).",
+        "description": "Store each file; read a filled template at once; triage any other workbook. `step` and `task`: what the files\nrelate to (the document library's \"Add data\" card). `tags`: what each file is, per file name (plan 2026-11-03 §3.1);\neach answer says the tag kept and any other tag code read from the file's content.",
         "operationId": "upload_client_files_api_v1_projects__project_id__client_data_post",
         "parameters": [
           {
@@ -23512,6 +23743,84 @@
           }
         },
         "summary": "Restore Document",
+        "tags": [
+          "brief"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/documents/{sha256}:tag": {
+      "post": {
+        "description": "Set or change a client file's tag (plan 2026-11-03 §3.1, option D: editable at any time). It settles an open\nproposal: used when the person took the proposed kind, kept otherwise. No reason is asked.",
+        "operationId": "tag_document_api_v1_projects__project_id__documents__sha256__tag_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LibraryEntryView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tag Document",
         "tags": [
           "brief"
         ]
@@ -26862,7 +27171,7 @@
     },
     "/api/v1/projects:initiate": {
       "post": {
-        "description": "P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows\np0-files and p3-upload), then start the extraction. A client file that cannot be read is answered with the reason;\nthe project still starts.",
+        "description": "P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows\np0-files and p3-upload), then start the extraction. A client file that cannot be read is answered with the reason;\nthe project still starts. `tags`: what each client file is, per file name (plan 2026-11-03 §3.1); each answer says\nthe tag kept and any other tag code read from the file's content.",
         "operationId": "initiate_project_api_v1_projects_initiate_post",
         "parameters": [
           {

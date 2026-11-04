@@ -21,7 +21,16 @@ from pydantic import BaseModel, ConfigDict
 from modeler_project.artifacts import ArtifactKind
 from modeler_project.brief import ProjectBrief
 from modeler_project.dataset_register import datasets
-from modeler_project.documents import DocumentLibrary, RelatesTo, Retrieval, Withdrawal, document_id, document_record
+from modeler_project.documents import (
+    DocumentLibrary,
+    FileTag,
+    RelatesTo,
+    Retrieval,
+    TagProposal,
+    Withdrawal,
+    document_id,
+    document_record,
+)
 from modeler_project.evidence_register import items as evidence_items
 from modeler_project.workspace import Workspace
 
@@ -58,6 +67,9 @@ class LibraryRow(BaseModel):
     relates_to: RelatesTo | None = None
     withdrawn: Withdrawal | None = None
     retrieved: Retrieval | None = None      # where an agent took it from, and whether the full text is held (PR 3)
+    tag: FileTag | None = None              # a client file's tag, and another one code proposes (plan 2026-11-03 §3.1)
+    tag_proposal: TagProposal | None = None
+    needs_ocr: bool = False                 # a scan or an image: not read until OCR is added
 
 
 def _source(by: str) -> Literal["person", "agent", "system"]:
@@ -114,5 +126,6 @@ def library_rows(ws: Workspace) -> list[LibraryRow]:
             size_bytes=record.size_bytes, added_at=first.created_at.isoformat(), added_by=first.created_by,
             source=_source(first.created_by), versions=len(history) or 1, contributions=tuple(cited.get(record.sha256, ())),
             relates_to=entry.relates_to if entry else None, withdrawn=entry.withdrawn if entry else None,
-            retrieved=entry.retrieved if entry else None))
+            retrieved=entry.retrieved if entry else None, tag=entry.tag if entry else None,
+            tag_proposal=entry.tag_proposal if entry else None, needs_ocr=record.needs_ocr))
     return sorted(rows, key=lambda r: r.added_at)

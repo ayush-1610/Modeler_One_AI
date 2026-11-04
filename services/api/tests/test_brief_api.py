@@ -470,3 +470,52 @@ def test_add_data_says_what_a_file_relates_to_and_a_withdrawn_document_is_kept_a
 
     back = c.post(f"/api/v1/projects/{pid}/documents/{proposal}:restore", headers=H, json={"reason": "v2 was withdrawn"})
     assert back.status_code == 200 and back.json()["data"]["withdrawn"] is None
+
+
+def test_files_are_tagged_at_upload_code_proposes_another_tag_and_the_person_keeps_one(client):
+    # plan 2026-11-03 §3.1 (the owner, 2026-11-03): tags on the "Start from proposal" page and in "+ Add data"; a hint
+    # for reading the file, not a fact; another tag from the content, quoted; changed later with no reason asked
+    import io
+    import json
+
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Conc"
+    sheet.append(["Subject", "Time (h)", "Conc (ng/mL)"])
+    sheet.append(["101-001", 1, 39.8])
+    raw = io.BytesIO()
+    book.save(raw)
+    c, _ = client
+    tags = {"Data_Q3_final.xlsx": {"kind": "other"}, "EXZ-101_notes.csv": {"kind": "clinical", "study": "EXZ-101"}}
+    started = c.post("/api/v1/projects:initiate", headers=H,
+                     data={"drug_name": "Exampleamide", "extract": "false", "tags": json.dumps(tags)},
+                     files=[("files", ("proposal.txt", PROPOSAL, "text/plain")),
+                            ("client_files", ("Data_Q3_final.xlsx", raw.getvalue(), "application/octet-stream")),
+                            ("client_files", ("EXZ-101_notes.csv", b"time,conc\n1,2\n", "text/csv"))])
+    assert started.status_code == 201, started.text
+    files = {f["file"]: f for f in started.json()["data"]["client_files"]}
+    data_q3, notes = files["Data_Q3_final.xlsx"], files["EXZ-101_notes.csv"]
+    assert data_q3["tag"]["kind"] == "other" and data_q3["tag"]["by"] == "u1"
+    assert data_q3["tag_proposal"]["kind"] == "clinical" and "“Conc”" in data_q3["tag_proposal"]["why"]
+    assert (notes["tag"]["kind"], notes["tag"]["study"]) == ("clinical", "EXZ-101") and data_q3["needs_ocr"] is False
+    pid = started.json()["data"]["project_id"]
+    rows = {d["name"]: d for d in c.get(f"/api/v1/projects/{pid}/library", headers=H).json()["data"]["documents"]}
+    sha = rows["Data_Q3_final.xlsx"]["sha256"]
+    assert rows["Data_Q3_final.xlsx"]["tag_proposal"]["decided"] == "open"
+
+    used = c.post(f"/api/v1/projects/{pid}/documents/{sha}:tag", headers=H, json={"kind": "clinical", "study": "EXZ-101"})
+    assert used.status_code == 200, used.text
+    assert used.json()["data"]["tag"]["study"] == "EXZ-101" and used.json()["data"]["tag_proposal"]["decided"] == "used"
+    assert c.post(f"/api/v1/projects/{pid}/documents/{sha}:tag", headers=H, json={"kind": "lab"}).status_code == 422
+    assert c.post(f"/api/v1/projects/{pid}/documents/{'0' * 64}:tag", headers=H, json={"kind": "other"}).status_code == 404
+
+    added = c.post(f"/api/v1/projects/{pid}/client-data", headers=H,
+                   data={"step": "inputs", "tags": json.dumps({"diss.csv": {"kind": "formulation"}})},
+                   files=[("files", ("diss.csv", b"time,dissolved\n10,41\n", "text/csv"))])
+    assert added.status_code == 201, added.text
+    assert added.json()["data"]["read"][0]["tag"]["kind"] == "formulation"
+    bad = c.post(f"/api/v1/projects/{pid}/client-data", headers=H, data={"tags": "{not json"},
+                 files=[("files", ("x.csv", b"a\n1\n", "text/csv"))])
+    assert bad.status_code == 422 and "tags" in bad.json()["detail"]
