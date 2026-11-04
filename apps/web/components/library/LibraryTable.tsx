@@ -7,6 +7,8 @@
 // PR 2: what each document relates to (a step and, optionally, a task), and withdrawal with a reason (answer 12): a
 // withdrawn document stays here, marked, and the agents no longer use it; it can be restored, with a reason too.
 // PR 3: what an agent fetched says where from (with its link) and whether the full text or only the abstract is held.
+// A client file's tag (plan 2026-11-03 §3.1, option D): changed here at any time, with no reason asked; another tag the
+// content suggests is shown with what prompted it, to use or keep; a scan or an image is marked "needs OCR".
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -16,6 +18,7 @@ import { EmptyState, InlineIssue } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
 import { RELATED_STEPS } from "@/components/library/AddData";
 import { send, type Schema } from "@/lib/api";
+import { TAG_KINDS, TAG_LABELS, type TagKind, tagLabel } from "@/lib/fileTags";
 import { useMutation, useResource } from "@/lib/hooks";
 import { STEP_ROUTES, type StepId } from "@/lib/pipeline";
 
@@ -62,6 +65,41 @@ function RelatesTo({ projectId, row }: { projectId: string; row: Row }) {
       <Link href={STEP_ROUTES[r.step as StepId](projectId)}>{STEP_LABEL[r.step] ?? r.step}</Link>
       {r.task && <div className="muted" style={{ fontSize: 12 }}>{r.task}</div>}
     </>
+  );
+}
+
+/** A client file's tag, changeable at any time; the content's proposal beside it; a scan marked for OCR. */
+function TagCell({ projectId, row }: { projectId: string; row: Row }) {
+  const { run, busy } = useMutation();
+  const [problem, setProblem] = useState<string | null>(null);
+  if (row.role !== "client_file") return row.needs_ocr ? <div><span className="chip medium">needs OCR</span></div> : null;
+  const proposal = row.tag_proposal?.decided === "open" ? row.tag_proposal : null;
+
+  async function retag(kind: TagKind) {
+    const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/documents/{sha256}:tag",
+      { project_id: projectId, sha256: row.sha256 }, { kind, study: kind === "clinical" ? row.tag?.study ?? "" : "" }));
+    setProblem(problem);
+  }
+
+  return (
+    <div className="library-tag" data-testid={`library-tag-${row.name}`}>
+      <select aria-label={`Tag of ${row.name}`} value={row.tag?.kind ?? "other"} disabled={busy}
+              data-testid={`library-tag-select-${row.name}`} onChange={(e) => retag(e.target.value as TagKind)}>
+        {TAG_KINDS.map((kind) => <option key={kind} value={kind}>{TAG_LABELS[kind]}</option>)}
+      </select>
+      {row.tag?.study && <div className="muted" style={{ fontSize: 12 }}>{row.tag.study}</div>}
+      {row.needs_ocr && <div><span className="chip medium">needs OCR</span></div>}
+      {proposal && (
+        <div className="library-tag-proposal">
+          The content suggests “{tagLabel(proposal.kind)}”: {proposal.why}.{" "}
+          <button type="button" className="link-btn" disabled={busy} data-testid={`library-tag-use-${row.name}`}
+                  onClick={() => retag(proposal.kind)}>Use it</button>{" · "}
+          <button type="button" className="link-btn" disabled={busy}
+                  onClick={() => retag(row.tag?.kind ?? "other")}>Keep “{tagLabel(row.tag?.kind)}”</button>
+        </div>
+      )}
+      {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
+    </div>
   );
 }
 
@@ -186,7 +224,7 @@ export function LibraryTable({ projectId }: { projectId: string }) {
         <div className="table-scroll">
           <table className="library-table">
             <thead>
-              <tr><th>Document</th><th>Added</th><th>Role</th><th>Relates to</th><th>Format</th><th className="num">Versions</th>
+              <tr><th>Document</th><th>Added</th><th>Role and tag</th><th>Relates to</th><th>Format</th><th className="num">Versions</th>
                 <th>Data extracted / project contribution</th><th><span className="sr-only">Actions</span></th></tr>
             </thead>
             <tbody>
@@ -204,7 +242,7 @@ export function LibraryTable({ projectId }: { projectId: string }) {
                   <td>{r.source === "person" ? r.added_by : r.source === "agent" ? `agent (${r.added_by.slice(6)})` : "system"}
                     <div className="muted" style={{ fontSize: 12 }}>{r.added_at.slice(0, 10)}</div>
                     <Retrieved row={r} /></td>
-                  <td>{ROLE[r.role] ?? r.role}</td>
+                  <td>{ROLE[r.role] ?? r.role}<TagCell projectId={projectId} row={r} /></td>
                   <td><RelatesTo projectId={projectId} row={r} /></td>
                   <td>{r.format} · {r.n_pages} p.</td>
                   <td className="num">{r.versions}</td>

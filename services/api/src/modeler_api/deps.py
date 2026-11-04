@@ -7,6 +7,7 @@ rule B3 and coupling C3). A router imports from here; this module defines no rou
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException
@@ -15,9 +16,10 @@ from pydantic import ValidationError
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep, get_settings
 from modeler_api.part11 import audit_mirror
+from modeler_intake.file_tags import TAG_KINDS, TagKind
 from modeler_project import ArtifactKind, ArtifactVersion, FileProjectStore, ProjectStore, Workspace
 from modeler_project import blinding as blind
-from modeler_project.documents import RelatesTo
+from modeler_project.documents import DocumentLibrary, RelatesTo, document_record
 
 READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer")
 WRITE_ROLES = ("modeler-curator", "modeler-reviewer")
@@ -136,6 +138,37 @@ def blinding_view(ws: Workspace) -> dict[str, Any]:
     state = blind.setting(project_record(ws), model_risk(ws))
     return {**state, "map_signed": blind.map_signed(ws), "blinded": sorted(blinded_studies(ws)),
             "external": sorted(blind.external_studies(ws))}
+
+
+def tags_form(raw: str) -> dict[str, tuple[TagKind, str]]:
+    """The tags given with an upload, per file name (plan 2026-11-03 §3.1): a JSON object
+    `{"<file name>": {"kind": "clinical", "study": "EXZ-101"}}`. A file not named is tagged by code from its name."""
+    if not raw.strip():
+        return {}
+    try:
+        given = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=422, detail=f"tags: not JSON ({exc.msg})") from exc
+    if not isinstance(given, dict):
+        raise HTTPException(status_code=422, detail="tags: give an object keyed by file name")
+    out: dict[str, tuple[TagKind, str]] = {}
+    for name, tag in given.items():
+        kind = tag.get("kind") if isinstance(tag, dict) else None
+        if kind not in TAG_KINDS:
+            raise HTTPException(status_code=422, detail=f"tags: {name}: kind must be one of {', '.join(TAG_KINDS)}")
+        study = str(tag.get("study") or "").strip()
+        if len(study) > 80:
+            raise HTTPException(status_code=422, detail=f"tags: {name}: the study name is longer than 80 characters")
+        out[name] = (kind, study)
+    return out
+
+
+def file_tag_view(library: DocumentLibrary, sha256: str) -> dict[str, Any]:
+    """A client file's tag, the other tag code proposes, and whether it needs OCR, for an upload's answer."""
+    entry, version = library.entry(sha256), library.by_sha(sha256)
+    return {"tag": entry.tag.model_dump(mode="json") if entry.tag else None,
+            "tag_proposal": entry.tag_proposal.model_dump(mode="json") if entry.tag_proposal else None,
+            "needs_ocr": bool(version and document_record(version).needs_ocr)}
 
 
 def relates_to_form(step: str, task: str) -> RelatesTo | None:

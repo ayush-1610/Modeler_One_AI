@@ -6,7 +6,16 @@ from typing import Any
 
 from pydantic import Field
 
-from modeler_api.views.common import AgentsStatus, DataPlanStatus, Number, StoredContent, VersionView, View
+from modeler_api.views.common import (
+    AgentsStatus,
+    DataPlanStatus,
+    FileTagView,
+    Number,
+    StoredContent,
+    TagProposalView,
+    VersionView,
+    View,
+)
 
 
 class ReconciledRow(View):
@@ -54,6 +63,10 @@ class ReadFile(View):
     id: str
     file: str
     template: bool
+    sha256: str = ""                              # the stored file, to change its tag (`documents/{sha256}:tag`)
+    tag: FileTagView | None = None                # what the person said it is (plan 2026-11-03 §3.1)
+    tag_proposal: TagProposalView | None = None   # another tag code read from its content, to use or keep
+    needs_ocr: bool = False
 
 
 class ClientUpload(ClientDataPage):

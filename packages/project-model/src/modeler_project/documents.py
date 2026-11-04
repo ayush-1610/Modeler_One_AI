@@ -9,7 +9,9 @@ agents' keyword search. Retrieved database records (e.g. a PubChem answer) are s
 The library's own record (docs/plans/2026-10-28-project-document-library.md, PRs 2 and 3; the owner's answers 11–13 of
 2026-10-29) is kept beside the artifacts in ``<root>/<tenant>/projects/<pid>/library.json``: what each document relates
 to (a step and, optionally, a task), whether a person withdrew it, and, for what an agent fetched, where from and whether
-the full text or only the abstract is held (agents store open-access full text only). A withdrawn document is never erased: the table
+the full text or only the abstract is held (agents store open-access full text only), and, for a client file, its tag:
+what the person said it is at upload, and the other tag code proposes when the content says otherwise (plan
+2026-11-03 §3.1). A withdrawn document is never erased: the table
 marks it, the values already taken from it keep their citation, and the agents' view of the library
 (``DocumentLibrary(ws, for_agents=True)``) no longer lists, searches or reads it. It is not a new version of the
 DOCUMENT artifact, because the brief and the client data derive from the documents and a new version would mark them
@@ -28,6 +30,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_intake.documents import extract_document
+from modeler_intake.file_tags import TagHint, TagKind
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
 from modeler_project.workspace import Workspace
 from pbpk_domain.atomic_io import atomic_write_text, file_lock
@@ -75,6 +78,30 @@ class Retrieval(BaseModel):
     at: str
 
 
+class FileTag(BaseModel):
+    """What a client file is, at a high level, as the person said at upload (or code read from its name when nobody
+    did): a hint for reading it, not a fact (plan 2026-11-03 §3.1)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: TagKind
+    study: str = Field(default="", max_length=80)    # the study a clinical file belongs to, when the person named it
+    by: str
+    at: str
+
+
+class TagProposal(BaseModel):
+    """Another tag, read by code from the file's content, with what prompted it; the person keeps one."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: TagKind
+    why: str
+    by: str
+    at: str
+    decided: Literal["open", "used", "kept"] = "open"
+
+
 class LibraryEntry(BaseModel):
     """The library's record of one document, beside its DOCUMENT artifact."""
 
@@ -83,6 +110,8 @@ class LibraryEntry(BaseModel):
     relates_to: RelatesTo | None = None
     withdrawn: Withdrawal | None = None
     retrieved: Retrieval | None = None
+    tag: FileTag | None = None
+    tag_proposal: TagProposal | None = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +148,11 @@ class DocumentRecord(BaseModel):
     def to_content(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
 
+    @property
+    def needs_ocr(self) -> bool:
+        """A scan or an image: no text to read or quote until OCR is added (flagged, never skipped silently)."""
+        return self.kind == "image" or any("OCR" in w for w in self.warnings)
+
 
 def document_record(version: ArtifactVersion) -> DocumentRecord:
     return DocumentRecord.model_validate(version.content)
@@ -132,6 +166,11 @@ class DocumentLibrary:
         self._pages: dict[str, list[str]] = {}
         root = getattr(ws.store, "root", None)
         self._ledger = Path(root) / ws.tenant_id / "projects" / ws.project_id / "library.json" if root else None
+
+    @property
+    def has_record(self) -> bool:
+        """Whether this store keeps the library's record (relates to, withdrawal, tags) beside the artifacts."""
+        return self._ledger is not None
 
     def add(self, data: bytes, filename: str, *, role: DocumentRole, by: str, note: str = "",
             relates_to: RelatesTo | None = None) -> ArtifactVersion:
@@ -229,6 +268,33 @@ class DocumentLibrary:
         if not reason.strip():
             raise LibraryError("say why the document is restored (the reason is kept in the audit trail)")
         return self._change(sha256, by=by, action="document.restore", reason=reason.strip(), withdrawn=None)
+
+    def tag(self, sha256: str, kind: TagKind, *, by: str, study: str = "") -> LibraryEntry:
+        """Set a client file's tag (at upload, or changed later in the library). An open proposal is settled by it: used
+        when the person took the proposed kind, kept otherwise. No reason is asked (the owner, 2026-11-03)."""
+        self._known(sha256)
+        entry = self.entry(sha256)
+        tag = FileTag(kind=kind, study=study.strip(), by=by, at=datetime.now(UTC).isoformat())
+        fields: dict[str, Any] = {"tag": tag}
+        if entry.tag is not None and (entry.tag.kind, entry.tag.study) == (tag.kind, tag.study):
+            fields.pop("tag")
+        if (proposal := entry.tag_proposal) is not None and proposal.decided == "open" and by != "code":
+            fields["tag_proposal"] = proposal.model_copy(update={"decided": "used" if kind == proposal.kind else "kept"})
+        if not fields:
+            return entry
+        return self._change(sha256, by=by, action="document.tag", reason=None, **fields)
+
+    def propose_tag(self, sha256: str, hint: TagHint, *, by: str = "code") -> LibraryEntry:
+        """Record the tag the content suggests when it differs from the file's tag; the same proposal is not repeated
+        once the person decided it."""
+        self._known(sha256)
+        entry = self.entry(sha256)
+        if entry.tag is not None and entry.tag.kind == hint.kind:
+            return entry
+        if entry.tag_proposal is not None and entry.tag_proposal.kind == hint.kind:
+            return entry
+        proposal = TagProposal(kind=hint.kind, why=hint.why, by=by, at=datetime.now(UTC).isoformat())
+        return self._change(sha256, by=by, action="document.propose_tag", reason=hint.why, tag_proposal=proposal)
 
     def record_retrieval(self, sha256: str, retrieval: Retrieval) -> LibraryEntry:
         """Record where an agent took a document from. The first retrieval is kept: the same bytes fetched again are the

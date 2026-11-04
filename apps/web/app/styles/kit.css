@@ -117,3 +117,9 @@ tr.project-archived td { color: var(--ink-faint); }
 .add-data-relates { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 10px; }
 @media (max-width: 560px) { .add-data-relates { grid-template-columns: 1fr; } }
 .add-data-done { margin-top: 10px; font-size: 14px; }
+
+/* a client file's tag in the library (plan 2026-11-03 §3.1, option D) */
+.library-tag { display: grid; gap: 4px; margin-top: 4px; }
+.library-tag select { font: inherit; font-size: 12.5px; padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); max-width: 15em; }
+.library-tag-proposal { font-size: 12px; color: var(--warn-ink); max-width: 28em; }
