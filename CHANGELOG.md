@@ -15,6 +15,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — A2, the literature agent: told the project's context, each input's status, and where inputs are found (2026-11-03)
+The owner asked (2026-11-03) that the compound's parameters be fetched properly, in the project's context, with better
+tasks, so that every input is found and filled.
+- **The project's context** (`modeler_agents.research_brief.project_facts`, from the brief): the drug's other names
+  and codes, its modality and BCS class, the scenarios' routes and populations, the products, the applications, the
+  pathways the proposal names and the question of interest. A2's opening task carries them, so it searches by every name
+  and looks for values that fit the project (human data, the dosage forms, the pathways that matter).
+- **Each input's status**, worked out by code from the evidence register: missing, conflicting (more than 2-fold),
+  weak (only a C/D or predicted value), the client's (a cross-check), or covered by a measured value. `list_requirements`
+  hands the inputs over in that order (required before optional), each with what is known, what to do and why it is
+  needed, so the turns go to the missing inputs first.
+- **Where each kind of PBPK input is found** (`SEARCH_HINTS`): the terms that find fu, B/P, logP, pKa, solubility,
+  permeability, fe in urine, renal and hepatic clearance, fm, CLint, Km/Vmax, biliary excretion and transporters, and the
+  regulatory documents to look in first (FDA clinical pharmacology and biopharmaceutics review, EMA EPAR, label §12.3).
+- **No input dropped silently:** every input must end with a proposed value or a `mark_not_found`; when turns remain,
+  a second pass works on the inputs the first left with neither.
+- **Impact:** how A2 searches, not what counts. Every proposal is still checked by code against the page it read, and
+  graded and selected as before (D-32). No model or ruleset changes.
 ### Changed — Inputs I2: the client's data loads only once a person confirms it, inline (2026-11-03)
 Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.3–3.5, build I2; the owner's answers of 2026-11-03 (confirm
 client data only, per group, with item-level edits; an open conflict or question blocks its group; no reason asked; a

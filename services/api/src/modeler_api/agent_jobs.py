@@ -109,14 +109,16 @@ def proposal_intake(model, *, library, brief, actor: str, context_note: str, max
 
 
 def literature_research(model, *, agent: Literal["A2", "A3"], ws, library, requirements, actor: str, drug: str,
-                        max_turns: int, log_step, europe_pmc=None):
-    """A2 (parameter values) or A3 (observed clinical data) over the data plan's literature items."""
+                        max_turns: int, log_step, europe_pmc=None, brief=None):
+    """A2 (parameter values) or A3 (observed clinical data) over the data plan's literature items. `brief`: the
+    project's brief, whose facts (other names of the drug, routes, products, populations, pathways) shape the search."""
     from modeler_agents.evidence_agent import ResearchContext, run_research
     from modeler_agents.observed_data_agent import run_observed_data
+    from modeler_agents.research_brief import project_facts
     from modeler_agents.sources import EuropePMC
 
     ctx = ResearchContext(ws=ws, library=library, requirements=requirements, actor=actor,
-                          europe_pmc=europe_pmc or EuropePMC())
+                          europe_pmc=europe_pmc or EuropePMC(), facts=project_facts(brief, drug))
     runner = run_research if agent == "A2" else run_observed_data
     return runner(model, ctx, drug=drug, max_turns=max_turns, log_step=log_step)
 

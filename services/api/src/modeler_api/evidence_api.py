@@ -103,13 +103,15 @@ def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
     ws = Workspace(store, tenant_id, project_id)
     _, matrix = _matrix(ws)
     brief_version = ws.latest(ArtifactKind.BRIEF, "main")
-    drug = ProjectBrief.from_content(brief_version.content).drug_name if brief_version else project_id
+    brief = ProjectBrief.from_content(brief_version.content) if brief_version else None
+    drug = brief.drug_name if brief else project_id
     run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
                               agent="A2-literature" if agent == "A2" else "A3-observed-data", model=model,
                               max_turns=max_turns)
     outcome = agent_jobs.literature_research(model, agent=agent, ws=ws, library=DocumentLibrary(ws, for_agents=True),
                                              requirements=literature_items(matrix), actor=run.actor, drug=drug,
-                                             max_turns=max_turns, log_step=run.log_step, europe_pmc=europe_pmc)
+                                             max_turns=max_turns, log_step=run.log_step, europe_pmc=europe_pmc,
+                                             brief=brief)
     summary = {"proposed": len(outcome.proposed), "rejected": len(outcome.rejected), "not_found": outcome.not_found,
                "access_requests": len(outcome.access_requests), "summary": outcome.summary[:4000], "error": outcome.error}
     run.finish(outcome, summary)
