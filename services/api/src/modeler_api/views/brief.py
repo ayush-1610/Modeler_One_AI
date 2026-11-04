@@ -6,7 +6,16 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from modeler_api.views.common import AgentsStatus, DocumentView, ImpactView, RunSummary, VersionView, View
+from modeler_api.views.common import (
+    AgentsStatus,
+    DocumentView,
+    FileTagView,
+    ImpactView,
+    RunSummary,
+    TagProposalView,
+    VersionView,
+    View,
+)
 
 
 class ExtractionStart(View):
@@ -23,6 +32,10 @@ class ClientFileStarted(View):
     id: str | None
     template: bool
     problem: str | None
+    sha256: str | None = None                     # the stored file, to change its tag (`documents/{sha256}:tag`)
+    tag: FileTagView | None = None                # what the person said it is (plan 2026-11-03 §3.1)
+    tag_proposal: TagProposalView | None = None   # another tag code read from its content, to use or keep
+    needs_ocr: bool = False                       # a scan or an image: not read until OCR is added
 
 
 class ProjectStarted(View):
@@ -94,6 +107,9 @@ class LibraryRowView(View):
     relates_to: RelatesToView | None
     withdrawn: WithdrawalView | None
     retrieved: RetrievalView | None
+    tag: FileTagView | None = None
+    tag_proposal: TagProposalView | None = None
+    needs_ocr: bool = False
 
 
 class LibraryPage(View):
@@ -107,6 +123,8 @@ class LibraryEntryView(View):
     relates_to: RelatesToView | None
     withdrawn: WithdrawalView | None
     retrieved: RetrievalView | None
+    tag: FileTagView | None = None
+    tag_proposal: TagProposalView | None = None
 
 
 class FigureView(View):

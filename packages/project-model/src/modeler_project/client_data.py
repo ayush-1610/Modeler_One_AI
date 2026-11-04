@@ -26,6 +26,7 @@ from pathlib import PurePath
 from typing import Any
 
 from modeler_intake.client_template import ClientWorkbook, Row, read_client_workbook
+from modeler_intake.file_tags import TagKind, default_tag, from_pages, from_triage
 from modeler_intake.grid import read_workbook_bytes
 from modeler_intake.triage import SheetTriage, triage
 from modeler_project.artifacts import ArtifactKind
@@ -295,15 +296,20 @@ def _brief_mismatches(read: ClientWorkbook, brief: ProjectBrief | None) -> list[
 
 def ingest(ws: Workspace, library: DocumentLibrary, data: bytes, filename: str, *, by: str,
            matrix: RequirementMatrix | None = None, brief: ProjectBrief | None = None,
-           relates_to: RelatesTo | None = None) -> dict[str, Any]:
+           relates_to: RelatesTo | None = None, tag: tuple[TagKind, str] | None = None) -> dict[str, Any]:
     """Store one client file and read what can be read without a person's mapping. Uploading the same bytes again
-    returns the earlier submission unchanged. `relates_to`: what the file relates to, as the person adding it said."""
+    returns the earlier submission unchanged. `relates_to`: what the file relates to, as the person adding it said.
+    `tag`: what the person said the file is, and the study it belongs to (plan 2026-11-03 §3.1); untagged, code reads it
+    from the name. Once read, code proposes another tag when the content says otherwise."""
     from modeler_project.dataset_register import propose_dataset
     from modeler_project.evidence_register import propose
 
     doc = library.add(data, filename, role="client_file", by=by, relates_to=relates_to)
     sha = doc.content["sha256"]
     sid = submission_id(sha)
+    if library.has_record and (tag is not None or library.entry(sha).tag is None):
+        kind, study = tag if tag is not None else (default_tag(filename), "")
+        library.tag(sha, kind, by=by if tag is not None else "code", study=study)
     existing = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
     if existing is not None:
         return existing.content | {"id": sid, "repeat": True}
@@ -331,6 +337,10 @@ def ingest(ws: Workspace, library: DocumentLibrary, data: bytes, filename: str, 
             content["issues"] = [asdict(i) for i in issues]
     ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, derived_from=[doc.ref], actor=by,
               reason=f"client file {content['file']}" + (" (template)" if content["template"] else ""))
+    if library.has_record and not content["template"]:   # the template holds every kind of data: nothing to propose
+        hint = from_triage(content["triage"]) if content["triage"] else from_pages(library.pages(sha))
+        if hint is not None:
+            library.propose_tag(sha, hint)
     if content["dissolution"]:
         from modeler_project.dissolution_register import rebuild
 
