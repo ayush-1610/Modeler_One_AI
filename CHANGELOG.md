@@ -33,6 +33,43 @@ tasks, so that every input is found and filled.
   a second pass works on the inputs the first left with neither.
 - **Impact:** how A2 searches, not what counts. Every proposal is still checked by code against the page it read, and
   graded and selected as before (D-32). No model or ruleset changes.
+### Docs — Inputs and client data: page review 2, the design (2026-11-03, revised with the owner's answers)
+`docs/plans/2026-11-03-inputs-and-client-data.md`. No code changes. The owner asked (2026-11-03) for an Inputs page that
+captures all project data, organised so it scales, and an AI agent that brings scattered, differently organised and
+sometimes contradictory client data together, with a review where a person confirms it before it loads.
+- **What exists:** the five-tab workspace, and the client-data pipeline for workbooks. In that pipeline, code triages,
+  A4 classifies and reads, a person confirms the reading as a reusable recipe, and code applies it. Datasets and
+  dissolution profiles follow, reconciled against the data plan. PDF and Word files are read only for the brief (A1)
+  and parameter values (A2).
+- **Gaps (G1–G8):**
+  - client documents are not read for client data;
+  - there is no picture across files (one study under several names);
+  - contradictions in the client's own data are not flagged;
+  - there is no confirm step for client data beyond one sheet;
+  - study and product metadata are thin;
+  - the page's organisation (the notes of 2026-10-23);
+  - CDISC `.xpt` and scanned files are not read;
+  - files arrive untagged.
+- **Revision 2, from the owner's answers:**
+  - **Tags at upload:** each file is tagged on the creation form and in "+ Add data" (formulation or dissolution,
+    clinical study with an optional name, bioanalytical, in vitro or physico-chemistry, other). Tags are hints: the
+    agent proposes another tag, with its quote, when the content disagrees.
+  - **No "Client data" area:** client data lands, marked "to confirm", in Compound, Products and dissolution, and
+    Clinical studies. Conflicts and questions sit on the card they concern. One "To confirm (n)" counter and filter;
+    a files drawer; the source on click. The separate review screen is deferred.
+  - **Confirmation:** client data only, per group with item-level edits; a group with an open conflict or question
+    cannot be confirmed. Literature and published-model values keep D-27.
+  - **Contradiction rules,** provisional and UNVERIFIED: dose and strength compared after unit conversion, an n
+    difference can be marked explained, concentrations and dissolution within 10 %.
+  - **Product detail** kept as reported, never turned into a model value.
+  - **Build order:** I1 tags and the page, I2 confirm inline, I3 across files (with the evaluation from here), I4
+    documents, I5 CDISC (earlier if clients send SDTM or ADaM), I6 the evaluation alongside.
+  - **Start against Inputs:** options A–D for where tagging happens; A + D recommended, the owner's call.
+  - **A clickable mockup** of tagging and the inline confirm cards, linked from the plan.
+- **Revision 3, the owner's comments on the mockup:** tagging on the "Start from proposal" page and in "+ Add data"
+  (A + D agreed; the Start step unchanged); no reasons asked anywhere, a conflict is settled by selecting an option and
+  confirming it; the source opens in a centre peek from an icon at the top right of each card, on every project page;
+  a resolved conflict stays in place with its final value; Excel, CSV, Word and PDF first, CDISC optional.
 
 ### Docs — PI-4 B2: the dapagliflozin refit on PK-Sim, grouped and ungrouped (2026-11-02)
 The owner asked for it on 2026-11-02: "After the golden case passes, run the dapagliflozin refit with the three liver
