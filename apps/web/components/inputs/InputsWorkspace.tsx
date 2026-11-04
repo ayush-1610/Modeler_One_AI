@@ -7,6 +7,7 @@ import { BriefList } from "@/components/brief/BriefList";
 import { Dissolution } from "@/components/client/ClientFiles";
 import type { View as ClientView } from "@/components/client/types";
 import { Banner, InlineIssue, PageShell, SidePanel } from "@/components/kit";
+import { Dialog } from "@/components/kit/Dialog";
 import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
@@ -18,9 +19,12 @@ import { LABEL, ORDER, type Run, TITLE, type TodoItem } from "./InputsTodo";
 import { AccessRequests } from "./ObservedDatasets";
 import { type Options, StudiesTab } from "./StudiesTab";
 
+// The data domains down the left (plan 2026-11-03 §3.2): the client's data lands in its home (Products and dissolution,
+// Clinical studies, Compound), never in an area of its own. The ids stay those of PK-Sim's building blocks.
 export type Tab = "compound" | "formulations" | "individuals" | "settings" | "studies";
-const TABS: [Tab, string][] = [["compound", "Compound"], ["formulations", "Formulations"], ["individuals", "Individuals"],
-                               ["settings", "Simulation settings"], ["studies", "Studies"]];
+const TABS: [Tab, string][] = [["compound", "Compound"], ["formulations", "Products and dissolution"],
+                               ["studies", "Clinical studies"], ["individuals", "Populations and individuals"],
+                               ["settings", "Simulation settings"]];
 const TAB_LABEL = Object.fromEntries(TABS) as Record<Tab, string>;
 const SOLID = ["ir_tablet", "ir_capsule", "mr", "suspension"];
 
@@ -47,6 +51,42 @@ function FormulationChoice({ study, options, projectId, run }: { study: string; 
   );
 }
 
+type ClientFile = ClientView["files"][number];
+
+/** What each of the client's files gave (plan 2026-11-03 §3.2): a drawer over the page, not an area of its own; the
+ *  Document Library holds the files themselves. */
+function FilesDrawer({ projectId, files, onClose }: { projectId: string; files: ClientFile[]; onClose: () => void }) {
+  const gave = (f: ClientFile) => {
+    const parts = [
+      f.template ? "the client-data template, read cell by cell" : "",
+      f.datasets?.length ? `${f.datasets.length} dataset${f.datasets.length === 1 ? "" : "s"}` : "",
+      f.evidence?.length ? `${f.evidence.length} value${f.evidence.length === 1 ? "" : "s"}` : "",
+      f.dissolution?.length || f.mappings?.some((m) => m.dissolution_records) ? "dissolution data" : "",
+      f.triage?.length && !f.template ? `${f.triage.length} sheet${f.triage.length === 1 ? "" : "s"} sorted` : "",
+    ].filter(Boolean);
+    return parts.length ? parts.join(" · ") : "stored; nothing read from it yet";
+  };
+  return (
+    <Dialog title="The client's files" size="peek" onClose={onClose} testId="inputs-files-drawer" dismiss>
+      <p className="muted peek-where">What each file gave this project. The files themselves are in the{" "}
+        <Link href={`/projects/${encodeURIComponent(projectId)}/library`}>Document Library</Link>.</p>
+      <div className="peek-body">
+        {files.length === 0 ? <p className="muted">No client file yet: add them with “+ Add data”.</p> : (
+          <ul className="files-drawer">
+            {files.map((f) => (
+              <li key={f.id} data-testid={`inputs-file-${f.file}`}>
+                <span className="peek-file">{f.file}</span>
+                <span className="muted">{gave(f)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="dialog-actions"><button type="button" className="btn" onClick={onClose}>Close</button></div>
+    </Dialog>
+  );
+}
+
 /** Step 2 · Inputs (redesign §3.2): one workspace in PK-Sim's building blocks. Values flow in from every source not
  *  excluded and the source-selection rule keeps one per input (D-32); the side list says what is still missing to run,
  *  and each item opens where it is settled. Nothing is accepted here: the one review is at the MAP signature (D-27). */
@@ -57,6 +97,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
   const mutation = useMutation();
   const [tab, setTab] = useState<Tab>(TABS.some(([id]) => id === initialTab) ? initialTab : "compound");
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [drawer, setDrawer] = useState(false);
   const assembled = useRef(false);
   const view = page.data;
 
@@ -125,8 +166,16 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
           </button>
         </>
       )}
-      side={(
-        <>
+    >
+      {notice && <Banner tone={notice.ok ? "ok" : "err"} testId="inputs-notice">{notice.text}</Banner>}
+      <div className="inputs-layout">
+      <Tabs label="Input areas" prefix="inputs" value={tab} onChange={setTab} vertical
+            tabs={TABS.map(([id, label]) => ({ id, label, count: forTab(id).length, testId: `tab-${id}` }))}>
+        <button type="button" className="btn rail-files" onClick={() => setDrawer(true)} data-testid="inputs-files"
+                aria-haspopup="dialog">
+          The client&apos;s files <span className="chip neutral">{client.data?.files.length ?? 0}</span>
+        </button>
+        <div className="rail-side">
           {todo.length > 0 ? (
             <SidePanel title={`Still missing to run (${todo.length})`} tone="warn" testId="still-missing">
               <ul className="missing-list">
@@ -161,18 +210,15 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
             </SidePanel>
           )}
           <SidePanel title="Where values come from">
-            <p style={{ margin: 0, fontSize: 13 }}>The client&apos;s files and figures (Studies), the literature agent, PubChem and the
+            <p style={{ margin: 0, fontSize: 13 }}>The client&apos;s files and figures, the literature agent, PubChem and the
               published OSP model of the drug. Where several give a value, the client&apos;s comes first, then the literature by grade.</p>
           </SidePanel>
-        </>
-      )}
-    >
-      {notice && <Banner tone={notice.ok ? "ok" : "err"} testId="inputs-notice">{notice.text}</Banner>}
-      <Tabs label="PK-Sim building blocks" prefix="inputs" value={tab} onChange={setTab}
-            tabs={TABS.map(([id, label]) => ({ id, label, count: forTab(id).length, testId: `tab-${id}` }))} />
+        </div>
+      </Tabs>
+      <div className="inputs-area">
 
       {tab === "compound" && (
-        <TabPanel prefix="inputs" id="compound"><InputRows rows={rows("compound")} todo={forTab("compound")} projectId={projectId} run={run}
+        <TabPanel prefix="inputs" id="compound"><InputRows rows={rows("compound")} todo={forTab("compound")} projectId={projectId} run={run} grouped
                    empty="The compound's values appear here as the client's files, the literature and PubChem fill them." />
           <AccessRequests projectId={projectId} run={run} /></TabPanel>
       )}
@@ -257,6 +303,9 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
                     onIndividuals={() => setTab("individuals")} client={client.data ?? undefined}
                     onSaved={(m) => setNotice({ ok: true, text: m })} /></TabPanel>
       )}
+      </div>
+      </div>
+      {drawer && <FilesDrawer projectId={projectId} files={client.data?.files ?? []} onClose={() => setDrawer(false)} />}
     </PageShell>
   );
 }

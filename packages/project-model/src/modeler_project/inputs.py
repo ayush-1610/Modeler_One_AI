@@ -585,7 +585,7 @@ def evidence_view(item: EvidenceItem) -> dict[str, Any]:
             "flags": list(dict.fromkeys([*item.flags, *review_flags(item)])),
             "provider": item.provider, "source_type": item.source_type.value, "conditions": item.conditions,
             "source": {"title": s.title, "authors": s.authors, "year": s.year, "doi": s.doi, "page": s.page,
-                       "locator": s.locator},
+                       "locator": s.locator, "doc_sha256": s.doc_sha256, "url": s.url, "pmid": s.pmid},
             "quote": item.quote[:300], "extraction": item.extraction.value, "proposed_by": item.proposed_by,
             "decided_by": item.decided_by}
 
