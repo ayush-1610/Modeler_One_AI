@@ -56,6 +56,18 @@ test("a client sheet is read and saved on the Studies tab, next to the reading a
 
   await expect(page.getByTestId("inputs-notice")).toContainText("Mean PK: 1 dataset(s) for Smith2015 saved");
   await expect(sheets.getByTestId("sheet-Mean PK")).toContainText("read ✓");
+
+  // what the sheet gave waits on its study's card until a person confirms it (plan 2026-11-03 §3.3)
+  const study = page.getByTestId("group-study:Smith2015");
+  await expect(study).toContainText("To confirm");
+  await expect(page.getByTestId("study-Smith2015")).toHaveCount(0);           // not in the project yet
+  await expect(page.getByTestId("to-confirm-count")).not.toHaveText("0");
+  await study.getByTestId("peek-group-study:Smith2015").click();               // its source, in the centre peek
+  await expect(page.getByTestId("source-peek")).toBeVisible();
+  await page.getByTestId("source-peek-close").click();
+  await shot(page, "2-study-to-confirm");
+  await study.getByTestId("confirm-study:Smith2015").click();
+  await expect(study).toContainText("Confirmed by");
   await expect(page.getByTestId("study-Smith2015")).toBeVisible();
-  await shot(page, "2-studies-after-save");
+  await shot(page, "3-studies-after-confirm");
 });

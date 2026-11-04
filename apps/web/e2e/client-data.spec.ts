@@ -47,9 +47,14 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   await notes.getByRole("button", { name: "Set" }).click();
   await expect(raw.getByTestId("sheet-Notes")).toContainText("product info");
 
-  // dissolution, on the Formulations tab: each profile fitted (PK-Sim Weibull), test vs reference compared by f2
+  // dissolution, on Products and dissolution: each profile fitted (PK-Sim Weibull), test vs reference compared by f2
   await page.getByTestId("tab-formulations").click();
   await expect(page.getByTestId("f2-row")).toContainText("similar");
+  // the client's product is confirmed first, inline: its data load only then (plan 2026-11-03 §3.3)
+  const product = page.locator("[data-testid^='group-product:']", { hasText: "Test 10 mg" });
+  await expect(product).toContainText("To confirm");
+  await product.locator("[data-testid^='confirm-product:']").click();
+  await expect(product).toContainText("Confirmed by");
   const testProfile = page.locator("tr[data-testid^='profile-']", { hasText: "Test 10 mg" });
   await expect(testProfile).toContainText("t50 18 min");
   await testProfile.getByPlaceholder("formulation name").fill("Test10");

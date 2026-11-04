@@ -168,6 +168,12 @@ def test_dissolution_profiles_are_shown_and_a_fit_is_proposed_as_a_release_model
     view = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("diss.xlsx", _save(wb), XLSX))]).json()["data"]
     profile = view["dissolution"]["profiles"][0]
     assert profile["release_model"] == "Weibull" and profile["fit"]["t50_min"] == pytest.approx(25.0, rel=0.01)
+    early = c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H, json={"formulation": "Tab10"})
+    assert early.status_code == 409 and "confirm the product" in early.json()["detail"]   # plan 2026-11-03 §3.3
+    product = next(g for g in c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"]
+                   if g["kind"] == "product")
+    confirmed = c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": product["id"]})
+    assert confirmed.status_code == 200, confirmed.text
     r = c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H, json={"formulation": "Tab10"})
     assert r.status_code == 201 and len(r.json()["data"]["evidence"]) == 4
     targets = {e["target"] for e in c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["evidence"]}
@@ -378,3 +384,38 @@ def test_a_withdrawn_client_file_is_shown_but_not_read_into_the_project(setup):
                      json={"category": "PRODUCT_INFO", "reason": "batch list"})
     assert refused.status_code == 409 and "the client sent a corrected file" in refused.json()["detail"]
     assert c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H).status_code == 409
+
+
+
+def test_the_clients_data_is_confirmed_inline_by_group_with_no_reason_asked(setup):
+    # plan 2026-11-03 §3.3 (the owner, 2026-11-03): a group loads once a person confirms it; an open question blocks it;
+    # the selection is confirmed with no reason; a settled question stays shown with its answer
+    c, ws = setup
+    from modeler_project.dataset_register import propose_dataset
+    from modeler_project.datasets import ObservedDataset, Origin, Series, new_dataset_id
+    from modeler_project.evidence import SourceRef
+
+    propose_dataset(ws, ObservedDataset(
+        id=new_dataset_id(), kind="profile", study={"study_id": "EX-7", "route": "oral", "dose_mg": 10, "n": 12,
+                                                    "n_timepoints": 3, "statistic": "mean"},
+        analyte="parent", matrix="plasma", time_unit="h", unit="ng/ml",
+        series=(Series(name="mean", statistic="arithmetic_mean", times=(1, 2, 6), values=(40.0, 30.0, 10.0)),),
+        origin=Origin.CLIENT, extraction="CELL", provider="CLIENT", source=SourceRef(title="pk.csv"), quote="row"), actor="u")
+    page = c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]
+    group = next(g for g in page["groups"] if g["id"] == "study:EX-7")
+    assert page["to_confirm"] >= 1 and group["state"] == "to_confirm" and group["open"] == 1
+    blocked = c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": group["id"]})
+    assert blocked.status_code == 409 and "settle 1 open item" in blocked.json()["detail"]
+    food = group["issues"][0]
+    picked = c.post("/api/v1/projects/p1/client-review:select", headers=H,
+                    json={"group": group["id"], "issue": food["id"], "option": "fasted"})
+    assert picked.status_code == 200, picked.text
+    after = next(g for g in picked.json()["data"]["groups"] if g["id"] == group["id"])
+    assert after["issues"][0]["selected"] == "fasted" and after["open"] == 0            # settled, and still shown
+    todo = c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["todo"]
+    assert any(t["kind"] == "confirm" and t["target"] == group["id"] and t["tab"] == "studies" for t in todo)
+    done = c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": group["id"]})
+    assert done.status_code == 200
+    confirmed = next(g for g in done.json()["data"]["groups"] if g["id"] == group["id"])
+    assert confirmed["state"] == "confirmed" and confirmed["confirmed_by"] == "u1"
+    assert c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": "study:nope"}).status_code == 404

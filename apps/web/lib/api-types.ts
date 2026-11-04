@@ -666,6 +666,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/client-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Client Review
+         * @description What the client's files gave, grouped where it belongs (a study, a product, the compound values of a file), each
+         *     group to confirm or confirmed, with its conflicts and questions settled or open.
+         */
+        get: operations["get_client_review_api_v1_projects__project_id__client_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/client-review:confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Review Group
+         * @description Confirm a group: its selections are applied and its datasets and values load into the project, in one audited
+         *     record. Refused while a conflict or question of the group is open.
+         */
+        post: operations["confirm_review_group_api_v1_projects__project_id__client_review_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/client-review:edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit Study Fact
+         * @description An item-level edit before the group is confirmed: one fact of a study (the audit keeps before and after).
+         */
+        post: operations["edit_study_fact_api_v1_projects__project_id__client_review_edit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/client-review:reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reopen Issue
+         * @description Change a settled conflict or question before its group is confirmed.
+         */
+        post: operations["reopen_issue_api_v1_projects__project_id__client_review_reopen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/client-review:select": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Select Option
+         * @description Confirm the selection on a conflict or a question (an option, or the value a question asks for); no reason is
+         *     asked. It stays changeable until the group is confirmed.
+         */
+        post: operations["select_option_api_v1_projects__project_id__client_review_select_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/compounds/{compound}/cpf": {
         parameters: {
             query?: never;
@@ -2906,6 +3009,13 @@ export interface components {
             /** Template */
             template: boolean;
         };
+        /** ClientReviewPage */
+        ClientReviewPage: {
+            /** Groups */
+            groups: components["schemas"]["ReviewGroup"][];
+            /** To Confirm */
+            to_confirm: number;
+        };
         /**
          * ClientUpload
          * @description The files just stored (a filled template is read at once), and the page.
@@ -3802,6 +3912,13 @@ export interface components {
         /** Envelope[ClientDataPage] */
         Envelope_ClientDataPage_: {
             data: components["schemas"]["ClientDataPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[ClientReviewPage] */
+        Envelope_ClientReviewPage_: {
+            data: components["schemas"]["ClientReviewPage"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -7283,6 +7400,143 @@ export interface components {
             /** Open */
             open: number;
         };
+        /** ReviewEdit */
+        ReviewEdit: {
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "dose_mg" | "route" | "food_state" | "formulation" | "n" | "lloq";
+            /** Group */
+            group: string;
+            /** Value */
+            value: number | string;
+        };
+        /** ReviewFact */
+        ReviewFact: {
+            /** Field */
+            field: string;
+            /** Label */
+            label: string;
+            /** Source */
+            source: {
+                [key: string]: unknown;
+            };
+            /** Value */
+            value: string;
+        };
+        /**
+         * ReviewGroup
+         * @description A study, a product or a file's compound values, to confirm or confirmed.
+         */
+        ReviewGroup: {
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /** Confirmed By */
+            confirmed_by: string | null;
+            /** Facts */
+            facts: components["schemas"]["ReviewFact"][];
+            /** Id */
+            id: string;
+            /** Issues */
+            issues: components["schemas"]["ReviewIssue"][];
+            /** Items */
+            items: components["schemas"]["ReviewItem"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "study" | "product" | "compound";
+            /** Open */
+            open: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "to_confirm" | "confirmed";
+            /** Tab */
+            tab: string;
+            /** Title */
+            title: string;
+        };
+        /** ReviewGroupRef */
+        ReviewGroupRef: {
+            /** Group */
+            group: string;
+        };
+        /**
+         * ReviewIssue
+         * @description A conflict, an explainable difference or a question on a group: open until a person confirms a selection.
+         */
+        ReviewIssue: {
+            /** Answer */
+            answer: boolean;
+            /** Answered */
+            answered: number | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "conflict" | "difference" | "question";
+            /** Options */
+            options: components["schemas"]["ReviewOption"][];
+            /** Selected */
+            selected: string | null;
+            /** Selected At */
+            selected_at: string | null;
+            /** Selected By */
+            selected_by: string | null;
+            /** Text */
+            text: string;
+        };
+        /** ReviewItem */
+        ReviewItem: {
+            /** Conditions */
+            conditions?: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "dataset" | "value" | "profile";
+            /** Label */
+            label: string;
+            /**
+             * Note
+             * @default
+             */
+            note?: string;
+            /** Source */
+            source: {
+                [key: string]: unknown;
+            };
+            /** State */
+            state: string;
+            /** Target */
+            target?: string | null;
+            /** Value */
+            value: string;
+        };
+        /** ReviewOption */
+        ReviewOption: {
+            /** Datasets */
+            datasets: string[];
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Source */
+            source: {
+                [key: string]: unknown;
+            } | null;
+            /** Value */
+            value: unknown;
+        };
         /** ReviewPage */
         ReviewPage: {
             acceptance: components["schemas"]["AcceptanceView"];
@@ -7307,6 +7561,13 @@ export interface components {
             studies: components["schemas"]["ReviewStudy"][];
             /** Validation */
             validation: components["schemas"]["ValidationStage"][];
+        };
+        /** ReviewReopen */
+        ReviewReopen: {
+            /** Group */
+            group: string;
+            /** Issue */
+            issue: string;
         };
         /**
          * ReviewRisk
@@ -7373,6 +7634,17 @@ export interface components {
             unit: string | null;
             /** Value */
             value: number | string | null;
+        };
+        /** ReviewSelect */
+        ReviewSelect: {
+            /** Answer */
+            answer?: number | null;
+            /** Group */
+            group: string;
+            /** Issue */
+            issue: string;
+            /** Option */
+            option?: string | null;
         };
         /**
          * ReviewSource
@@ -10357,6 +10629,187 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_TriageStart_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_client_review_api_v1_projects__project_id__client_review_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ClientReviewPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_review_group_api_v1_projects__project_id__client_review_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewGroupRef"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ClientReviewPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_study_fact_api_v1_projects__project_id__client_review_edit_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ClientReviewPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopen_issue_api_v1_projects__project_id__client_review_reopen_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewReopen"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ClientReviewPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    select_option_api_v1_projects__project_id__client_review_select_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewSelect"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ClientReviewPage_"];
                 };
             };
             /** @description Validation Error */

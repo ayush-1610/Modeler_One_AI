@@ -1,0 +1,36 @@
+# When two values from the client's own files contradict each other (docs/plans/2026-11-03-inputs-and-client-data.md
+# §3.5; the owner's answer 3 of 2026-11-03). A contradiction is shown on the card it concerns and never resolved
+# silently: the person selects one value, or says they are different things, and confirms the selection.
+#
+# PROVISIONAL: UNVERIFIED until the SME signs. Read by modeler_project.client_review; a change here is a science change
+# (CHANGELOG entry, version bump, the owner's approval).
+version: "0.1"
+status: UNVERIFIED
+
+# Text and categorical facts (route, food state, formulation, analyte, matrix): they contradict when they differ after
+# normalising (case, spacing, these synonyms).
+categorical:
+  fields: [route, food_state, formulation]
+  synonyms:
+    po: oral
+    per os: oral
+    intravenous: iv
+    i.v.: iv
+    fasting: fasted
+    fed state: fed
+
+# Dose and strength: compared after unit conversion (10 mg and 10000 µg agree); they contradict when they differ.
+exact_after_conversion:
+  fields: [dose_mg]
+
+# Subject counts: exact; a difference is not a conflict once the person marks it explained (n dosed against n
+# PK-evaluable is real and common).
+explainable:
+  fields: [n]
+
+# Concentrations, dissolution and in vitro values: they agree within this fraction (as D-32's agreement).
+relative_tolerance: 0.10
+
+# A client value against a value from the literature or a published model: further apart than this ratio, they
+# conflict, as D-32 (`source_selection.yaml`).
+conflict_fold: 2.0

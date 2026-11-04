@@ -301,3 +301,12 @@ def flag_conflicts(items: list[EvidenceItem], *, fold: float = 2.0) -> list[Evid
                 base.append(f"conflict >{fold:g}-fold with {', '.join(p.id for p in far)}")
         out.append(item.model_copy(update={"flags": tuple(base)}))
     return out
+
+
+def awaits_client_confirmation(item: EvidenceItem) -> bool:
+    """A value read from a client file, by code or an agent, that no person has confirmed yet. It loads into the inputs
+    only once its group is confirmed on Inputs (plan 2026-11-03 §3.3; the owner, 2026-11-03: client data is confirmed
+    explicitly before it loads). A value a person typed in is their own confirmation; a release model computed from a
+    confirmed product's profile is proposed by a person (its product is confirmed first)."""
+    return (item.provider == "CLIENT" and item.extraction not in (Extraction.MANUAL, Extraction.COMPUTED)
+            and item.state is EvidenceState.PROPOSED)

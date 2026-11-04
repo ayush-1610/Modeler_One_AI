@@ -39,6 +39,7 @@ from modeler_project.workspace import Workspace
 from pbpk_domain.issues import Issue
 
 REGISTER = "register"
+REVIEW = "review"           # modeler_project.client_review: selections and confirmations on Inputs
 SPREADSHEETS = (".xlsx", ".xlsm", ".xls", ".csv")
 _STATISTIC = {"arithmetic_mean": "arithmetic_mean", "geometric_mean": "geometric_mean", "median": "median"}
 _ERROR_KIND = {"SD": "SD", "SE": "SE", "CV%": "CV%"}
@@ -56,7 +57,27 @@ def submission_id(sha256: str) -> str:
 
 
 def submissions(ws: Workspace) -> list[dict[str, Any]]:
-    return [v.content | {"id": v.id} for v in ws.list(ArtifactKind.CLIENT_SUBMISSION) if v.id != REGISTER]
+    """Every client file's record (not the P3 register, nor the record of what a person confirmed on Inputs)."""
+    return [v.content | {"id": v.id} for v in ws.list(ArtifactKind.CLIENT_SUBMISSION) if v.id not in (REGISTER, REVIEW)]
+
+
+def review_record(ws: Workspace) -> dict[str, Any]:
+    """What a person selected and confirmed on Inputs (`modeler_project.client_review`), kept beside the client files."""
+    version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, REVIEW)
+    return dict(version.content) if version else {"selections": {}, "confirmations": {}}
+
+
+def update_review(ws: Workspace, change: Any, *, by: str) -> dict[str, Any]:
+    """Change the review record under its lock: `change(content)` returns the new content and the reason (or None for
+    no change). Versioned and audited like every artifact."""
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, REVIEW):
+        content = review_record(ws)
+        changed = change(content)
+        if changed is None:
+            return content
+        new, reason = changed
+        ws.commit(ArtifactKind.CLIENT_SUBMISSION, REVIEW, new, actor=by, reason=reason)
+        return new
 
 
 def submission(ws: Workspace, sid: str) -> dict[str, Any] | None:

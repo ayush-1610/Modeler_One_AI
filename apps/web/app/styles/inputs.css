@@ -72,3 +72,46 @@
 @media (max-width: 900px) { .rail-nav { max-width: none; } }
 .input-block { display: grid; gap: 10px; margin-bottom: 18px; }
 .input-block-title { margin: 4px 0 0; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
+
+/* the client's data, confirmed inline (plan 2026-11-03 §3.3) */
+.rail-confirm { order: -1; display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
+.rail-confirm .chip { background: var(--raised); color: var(--ink-dim); }
+.rail-confirm.waiting { border-color: color-mix(in srgb, var(--warn) 60%, var(--line)); background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  color: var(--warn-ink); }
+.rail-confirm.waiting .chip { background: var(--warn-ink); color: var(--surface); }
+.rail-confirm[aria-pressed="true"] { outline: 2px solid var(--warn-ink); outline-offset: 1px; }
+.confirm-groups { display: grid; gap: 14px; margin-bottom: 20px; }
+.confirm-group { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 14px 16px; display: grid; gap: 10px; }
+.confirm-group.to-confirm { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.confirm-head { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+.confirm-title { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.confirm-title h3 { margin: 0; font-size: 17px; }
+.confirm-facts, .confirm-items { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line-soft, var(--line)); border-radius: var(--radius-sm); }
+.confirm-row { display: grid; grid-template-columns: minmax(120px, 0.9fr) minmax(0, 2fr) 32px; gap: 10px; align-items: center;
+  padding: 6px 10px; border-bottom: 1px solid var(--line-soft, var(--line)); }
+.confirm-row:last-child { border-bottom: 0; }
+.confirm-row dt, .confirm-item-label { color: var(--ink-dim); font-size: 13px; }
+.confirm-row dd { margin: 0; }
+.confirm-item-value { overflow-wrap: anywhere; font-size: 14px; }
+.issue { border-radius: var(--radius-sm); padding: 10px 12px; display: grid; gap: 8px; border: 1.5px solid var(--line); }
+.issue.conflict { border-color: color-mix(in srgb, var(--fail) 55%, var(--line)); background: color-mix(in srgb, var(--fail) 6%, var(--surface)); }
+.issue.difference { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+.issue.question { border-color: color-mix(in srgb, var(--sim) 45%, var(--line)); background: color-mix(in srgb, var(--sim) 6%, var(--surface)); }
+.issue.settled { border-style: solid; border-color: var(--line); background: var(--raised); }
+.issue-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.issue-text { font-weight: 600; font-size: 14px; }
+.chip.issue-chip.conflict { color: var(--surface); background: var(--fail-ink); }
+.chip.issue-chip.difference { color: var(--surface); background: var(--warn-ink); }
+.chip.issue-chip.question { color: var(--surface); background: var(--brand-ink); }
+.issue-options { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+.issue-option { display: grid; grid-template-columns: auto minmax(0, 1fr) 32px; gap: 8px; align-items: center; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; min-height: 44px; }
+.issue-option.on { border-color: var(--sim); box-shadow: 0 0 0 1px var(--sim) inset; }
+.issue-answer { display: grid; gap: 4px; font-size: 13px; max-width: 16em; }
+.issue-answer input { font: inherit; padding: 6px 8px; border: 1px solid var(--control-border); border-radius: var(--radius-sm); }
+.issue-final { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.issue-alternatives { margin: 0; padding-left: 18px; font-size: 13px; }
+.issue-alternatives li { display: flex; gap: 6px; align-items: center; }
+.confirm-foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding-top: 8px;
+  border-top: 1px solid var(--line-soft, var(--line)); }
+.confirm-foot .btn { min-height: 44px; }

@@ -13,6 +13,7 @@ import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api
 import { useMutation, useResource } from "@/lib/hooks";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 
+import { ConfirmGroups } from "./ClientConfirm";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
 import { LABEL, ORDER, type Run, TITLE, type TodoItem } from "./InputsTodo";
@@ -98,6 +99,8 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
   const [tab, setTab] = useState<Tab>(TABS.some(([id]) => id === initialTab) ? initialTab : "compound");
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [drawer, setDrawer] = useState(false);
+  const [onlyToConfirm, setOnlyToConfirm] = useState(false);
+  const review = useResource("/api/v1/projects/{project_id}/client-review", { project_id: projectId });
   const assembled = useRef(false);
   const view = page.data;
 
@@ -121,7 +124,19 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
   if (!view) return <p className="muted">Loading the inputs…</p>;
 
   const todo = [...view.todo].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
+  // the client's data, by the domain it lands in (plan 2026-11-03 §3.3); "To confirm" shows only what waits for you
+  const toConfirm = review.data?.to_confirm ?? 0;
+  const groupsFor = (t: Tab) => (review.data?.groups ?? []).filter((g) => g.tab === t && (!onlyToConfirm || g.state === "to_confirm"));
+  const confirmHere = (t: Tab) => (
+    <>
+      <ConfirmGroups projectId={projectId} groups={groupsFor(t)} run={run} />
+      {onlyToConfirm && groupsFor(t).length === 0 && <p className="muted" data-testid="nothing-to-confirm">Nothing from the client
+        waits for you in this area.</p>}
+    </>
+  );
   const forTab = (t: Tab) => todo.filter((i) => (i.tab ?? "compound") === t);
+  // a group to confirm is settled on its own card, above the panel: listed on the side, not twice in the panel
+  const panelTodo = (t: Tab) => forTab(t).filter((i) => i.kind !== "confirm");
   const rows = (t: Tab) => (view.compound as Row[]).filter((r) => r.tab === t);
   const readiness = view.readiness?.content;
   const options = view.study_options as Options;
@@ -171,6 +186,11 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
       <div className="inputs-layout">
       <Tabs label="Input areas" prefix="inputs" value={tab} onChange={setTab} vertical
             tabs={TABS.map(([id, label]) => ({ id, label, count: forTab(id).length, testId: `tab-${id}` }))}>
+        <button type="button" className={`btn rail-confirm${toConfirm ? " waiting" : ""}`} aria-pressed={onlyToConfirm}
+                data-testid="to-confirm" onClick={() => setOnlyToConfirm(!onlyToConfirm)}>
+          <span>{onlyToConfirm ? "Showing what to confirm" : "To confirm"}</span>
+          <span className="chip" data-testid="to-confirm-count">{toConfirm}</span>
+        </button>
         <button type="button" className="btn rail-files" onClick={() => setDrawer(true)} data-testid="inputs-files"
                 aria-haspopup="dialog">
           The client&apos;s files <span className="chip neutral">{client.data?.files.length ?? 0}</span>
@@ -182,7 +202,8 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
                 {todo.map((t, i) => (
                   <li key={`${t.kind}-${t.target}-${i}`}>
                     <button type="button" className="link-btn" onClick={() => open(t)} data-testid={`missing-${t.kind}-${t.target}`}>
-                      {TITLE[t.kind]}{t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : ""}
+                      {TITLE[t.kind]}{t.kind === "confirm" ? ` · ${(review.data?.groups ?? []).find((g) => g.id === t.target)?.title ?? t.target}`
+                        : t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : ""}
                     </button>
                     <span className="muted"> · {TAB_LABEL[(t.tab ?? "compound") as Tab]}</span>
                   </li>
@@ -218,18 +239,20 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
       <div className="inputs-area">
 
       {tab === "compound" && (
-        <TabPanel prefix="inputs" id="compound"><InputRows rows={rows("compound")} todo={forTab("compound")} projectId={projectId} run={run} grouped
+        <TabPanel prefix="inputs" id="compound">{confirmHere("compound")}
+          {!onlyToConfirm && <><InputRows rows={rows("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
                    empty="The compound's values appear here as the client's files, the literature and PubChem fill them." />
-          <AccessRequests projectId={projectId} run={run} /></TabPanel>
+          <AccessRequests projectId={projectId} run={run} /></>}</TabPanel>
       )}
 
       {tab === "formulations" && (
-        <TabPanel prefix="inputs" id="formulations">
+        <TabPanel prefix="inputs" id="formulations">{confirmHere("formulations")}
+          {!onlyToConfirm && <>
           <BriefList projectId={projectId} group="products" testId="inputs-products"
                      fields={["name", "role", "dosage_form", "strength", "release", "attributes"]}
                      title="The products the proposal names"
                      lede="Each product is built as its own formulation; the data plan asks for its dissolution and, for a test and its reference, the study that compares them." />
-          <InputRows rows={rows("formulations")} todo={forTab("formulations")} projectId={projectId} run={run}
+          <InputRows rows={rows("formulations")} todo={panelTodo("formulations")} projectId={projectId} run={run}
                      empty="No formulation yet: a solution needs none; a tablet's release comes from its dissolution profile or the literature." />
           {used.some((s) => SOLID.includes(String(s.facts.formulation))) && (
             <section className="card">
@@ -252,6 +275,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
             <Dissolution projectId={projectId} d={client.data.dissolution}
                          act={async (fn) => run(fn, "The release model is proposed; its values flow into the formulation.")} />
           )}
+          </>}
         </TabPanel>
       )}
 
@@ -261,8 +285,8 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
                      fields={["kind", "age_range", "sex", "ethnicity", "impairment_class", "genotype", "species"]}
                      title="The populations the proposal names"
                      lede="The populations the predictions are made for; each study below is simulated in its own individual." />
-          {forTab("individuals").filter((t) => t.kind !== "demographics").length > 0 && (
-            <InputRows rows={[]} todo={forTab("individuals").filter((t) => t.kind !== "demographics")} projectId={projectId} run={run} empty="" />
+          {panelTodo("individuals").filter((t) => t.kind !== "demographics").length > 0 && (
+            <InputRows rows={[]} todo={panelTodo("individuals").filter((t) => t.kind !== "demographics")} projectId={projectId} run={run} empty="" />
           )}
           <h3>Each study&apos;s individual</h3>
           <StudyIndividuals studies={studies} projectId={projectId} run={run} options={options} />
@@ -274,7 +298,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
 
       {tab === "settings" && (
         <TabPanel prefix="inputs" id="settings">
-          <InputRows rows={rows("settings")} todo={forTab("settings")} projectId={projectId} run={run}
+          <InputRows rows={rows("settings")} todo={panelTodo("settings")} projectId={projectId} run={run}
                      empty="The calculation methods are PK-Sim's defaults unless the published model sets them." />
           <section className="card">
             <h3 style={{ marginTop: 0 }}>Solver settings</h3>
@@ -299,9 +323,9 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
       )}
 
       {tab === "studies" && (
-        <TabPanel prefix="inputs" id="studies"><StudiesTab studies={studies} todo={forTab("studies")} projectId={projectId} run={run} options={options}
+        <TabPanel prefix="inputs" id="studies">{confirmHere("studies")}{!onlyToConfirm && <StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
                     onIndividuals={() => setTab("individuals")} client={client.data ?? undefined}
-                    onSaved={(m) => setNotice({ ok: true, text: m })} /></TabPanel>
+                    onSaved={(m) => setNotice({ ok: true, text: m })} />}</TabPanel>
       )}
       </div>
       </div>
