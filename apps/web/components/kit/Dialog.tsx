@@ -13,11 +13,14 @@ const FOCUSABLE = [
   "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-export function Dialog({ title, onClose, size, above, testId, children }: {
+export function Dialog({ title, onClose, size, above, dismiss, testId, children }: {
   title: ReactNode;
   /** What Escape does. Leave it out for a dialog that must be answered with its buttons. */
   onClose?: () => void;
-  size?: "narrow" | "wide";
+  /** "peek": the source peek, in the centre over the dimmed, still-visible page (plan 2026-11-03 §3.3). */
+  size?: "narrow" | "wide" | "peek";
+  /** A click on the backdrop closes it too (the source peek: nothing in it is lost by closing). */
+  dismiss?: boolean;
   /** Open over another dialog (the signing step-up opens over an escalation's decision). */
   above?: boolean;
   testId?: string;
@@ -49,7 +52,8 @@ export function Dialog({ title, onClose, size, above, testId, children }: {
   };
 
   return (
-    <div className={`dialog-backdrop${above ? " step-up" : ""}`} data-testid={testId} onKeyDown={onKeyDown}>
+    <div className={`dialog-backdrop${above ? " step-up" : ""}${size === "peek" ? " peek" : ""}`} data-testid={testId}
+         onKeyDown={onKeyDown} onMouseDown={dismiss ? (e) => { if (e.target === e.currentTarget) close.current?.(); } : undefined}>
       <div ref={panel} className={`dialog${size ? ` ${size}` : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <h2 id={titleId} className="dialog-title">{title}</h2>
         {children}

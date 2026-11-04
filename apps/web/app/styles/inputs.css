@@ -14,8 +14,10 @@
 .input-row + .input-row { margin-top: 8px; }
 .input-row.conflict, .input-row.missing { border-left: 3px solid var(--fail); }
 .input-row.held { border-left: 3px solid var(--warn); }
-.input-head { display: grid; grid-template-columns: minmax(150px, 1.3fr) minmax(90px, 0.8fr) minmax(140px, 1.6fr) auto; gap: 10px;
+.input-head { display: grid; grid-template-columns: minmax(150px, 1.3fr) minmax(90px, 0.8fr) minmax(140px, 1.6fr) auto 32px; gap: 10px;
   align-items: baseline; }
+.input-peek { align-self: start; justify-self: end; margin: -4px -6px 0 0; }
+.source-line-head { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
 .input-name { display: grid; min-width: 0; }
 .input-name code { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .input-value { font-variant-numeric: tabular-nums; }
@@ -37,6 +39,7 @@
 .add-data ul { margin: 0 0 6px; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
 @media (max-width: 720px) {
   .input-head { grid-template-columns: 1fr 1fr; }
+  .input-peek { grid-row: 1; grid-column: 2; }
   .input-state { text-align: left; }
 }
 .observed { margin-top: 18px; }
@@ -52,3 +55,20 @@
 .brief-list .note-item { border-top: 1px solid var(--line); padding: 8px 0; }
 .brief-list .note-item.adding { background: color-mix(in srgb, var(--sim) 5%, var(--surface)); padding: 8px; border-radius: var(--radius-sm); }
 .brief-list > .btn { margin-top: 6px; }
+
+/* the domains down the left (plan 2026-11-03 §3.2): a rail that stacks above the area on a phone */
+.inputs-layout { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.inputs-area { flex: 999 1 520px; min-width: 0; }
+.rail-nav { flex: 1 1 230px; max-width: 280px; display: grid; gap: 10px; align-content: start; }
+.rail-side { display: grid; gap: 10px; }
+.tabs.rail { flex-direction: column; gap: 2px; border-bottom: 0; margin: 0; padding: 6px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); }
+.tabs.rail button { display: flex; justify-content: space-between; align-items: center; text-align: left; margin: 0;
+  border-bottom: 0; border-radius: var(--radius-sm); padding: 9px 10px; min-height: 40px; }
+.tabs.rail button.active { background: color-mix(in srgb, var(--sim) 12%, var(--surface)); color: var(--brand-ink); }
+.rail-files { display: flex; justify-content: space-between; align-items: center; }
+.files-drawer { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.files-drawer li { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+@media (max-width: 900px) { .rail-nav { max-width: none; } }
+.input-block { display: grid; gap: 10px; margin-bottom: 18px; }
+.input-block-title { margin: 4px 0 0; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }

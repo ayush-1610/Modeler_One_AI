@@ -16,20 +16,27 @@ export type TabItem<T extends string> = {
 const tabId = (prefix: string, id: string) => `${prefix}-tab-${id}`;
 const panelId = (prefix: string, id: string) => `${prefix}-panel-${id}`;
 
-export function Tabs<T extends string>({ label, prefix, tabs, value, onChange }: {
+export function Tabs<T extends string>({ label, prefix, tabs, value, onChange, vertical, children }: {
   label: string; prefix: string; tabs: TabItem<T>[]; value: T; onChange: (id: T) => void;
+  /** A rail down the side (the Inputs domains, plan 2026-11-03 §3.2): Up and Down move too. */
+  vertical?: boolean;
+  /** Shown under the tabs in a rail (a counter, a button). */
+  children?: ReactNode;
 }) {
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const at = tabs.findIndex((t) => t.id === value);
-    const to = e.key === "ArrowRight" ? (at + 1) % tabs.length : e.key === "ArrowLeft" ? (at - 1 + tabs.length) % tabs.length
+    const next = e.key === "ArrowRight" || (vertical && e.key === "ArrowDown");
+    const back = e.key === "ArrowLeft" || (vertical && e.key === "ArrowUp");
+    const to = next ? (at + 1) % tabs.length : back ? (at - 1 + tabs.length) % tabs.length
       : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
     if (to < 0) return;
     e.preventDefault();
     onChange(tabs[to].id);
     document.getElementById(tabId(prefix, tabs[to].id))?.focus();
   };
-  return (
-    <div className="tabs" role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+  const list = (
+    <div className={vertical ? "tabs rail" : "tabs"} role="tablist" aria-label={label} onKeyDown={onKeyDown}
+         aria-orientation={vertical ? "vertical" : undefined}>
       {tabs.map((t) => (
         <button key={t.id} type="button" role="tab" id={tabId(prefix, t.id)} aria-selected={value === t.id}
                 aria-controls={panelId(prefix, t.id)} tabIndex={value === t.id ? 0 : -1}
@@ -40,6 +47,7 @@ export function Tabs<T extends string>({ label, prefix, tabs, value, onChange }:
       ))}
     </div>
   );
+  return vertical ? <nav className="rail-nav" aria-label={label}>{list}{children}</nav> : list;
 }
 
 /** The selected tab's content. */

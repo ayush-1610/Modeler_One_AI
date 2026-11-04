@@ -118,6 +118,28 @@ tr.project-archived td { color: var(--ink-faint); }
 @media (max-width: 560px) { .add-data-relates { grid-template-columns: 1fr; } }
 .add-data-done { margin-top: 10px; font-size: 14px; }
 
+/* ---- the source peek (components/kit/SourcePeek.tsx; plan 2026-11-03 §3.3): centre of the screen, the page dimmed behind ---- */
+.dialog-backdrop.peek { background: rgba(18, 32, 43, 0.38); }
+.dialog.peek { width: min(980px, 100%); height: min(82vh, 900px); display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 24px 64px rgba(18, 32, 43, 0.28); }
+.dialog.peek .dialog-actions { margin-top: 4px; }
+.peek-where { margin: 0; font-size: 13px; }
+.peek-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.peek-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.peek-file { font-family: var(--font-mono), monospace; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.peek-body .doc-page { margin: 0; flex: 1; }
+.peek-quote { margin: 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--raised); font-size: 14px; line-height: 1.6; }
+.peek-grid { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.peek-grid table { border-collapse: collapse; font-family: var(--font-mono), monospace; font-size: 12.5px; min-width: 100%; }
+.peek-grid th, .peek-grid td { border: 1px solid var(--line); padding: 4px 8px; white-space: nowrap; text-align: left; }
+.peek-grid thead th, .peek-grid tbody th { background: var(--raised); color: var(--ink-dim); font-weight: 500; position: sticky; top: 0; }
+.peek-grid tbody th { position: sticky; left: 0; top: auto; }
+.peek-grid td.cited { background: color-mix(in srgb, var(--obs) 22%, var(--surface)); outline: 2px solid var(--obs); outline-offset: -2px;
+  color: var(--ink); font-weight: 600; }
+.peek-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid transparent;
+  background: none; color: var(--ink-dim); cursor: pointer; flex: none; }
+.peek-btn:hover { color: var(--brand-ink); background: var(--raised); border-color: var(--line); }
+.peek-btn:focus-visible { outline: 2px solid var(--sim); outline-offset: 1px; }
 /* a client file's tag in the library (plan 2026-11-03 §3.1, option D) */
 .library-tag { display: grid; gap: 4px; margin-top: 4px; }
 .library-tag select { font: inherit; font-size: 12.5px; padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm);

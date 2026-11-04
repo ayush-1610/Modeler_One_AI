@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { EmptyState, InlineIssue } from "@/components/kit";
+import { PeekButton } from "@/components/kit/SourcePeek";
 import type { useMutation } from "@/lib/hooks";
 import {
   CONFIDENCE_CHIP, FILTERS, matches, reviewApi, STATE_LABEL, type Filter, type ReviewPage, type ReviewRow,
@@ -96,7 +97,11 @@ export function ReviewTable({ projectId, review, run, busy }: { projectId: strin
                     </td>
                     <td className="num">{value(r)}</td>
                     <td className="review-source">
-                      <div>{where(r)}</div>
+                      <div className="review-source-head">
+                        <span>{where(r)}</span>
+                        <PeekButton projectId={projectId} source={r.source ? { ...r.source, quote: r.quote } : null}
+                                    label={r.id} testId={`peek-${r.id}`} />
+                      </div>
                       {r.quote && <q title={r.quote}>{r.quote.length > 140 ? `${r.quote.slice(0, 137)}…` : r.quote}</q>}
                       {(r.agreeing > 0 || r.alternatives > 0) && (
                         <div className="muted review-note">

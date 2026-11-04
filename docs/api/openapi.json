@@ -15064,6 +15064,17 @@
             ],
             "title": "Authors"
           },
+          "doc_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Sha256"
+          },
           "doi": {
             "anyOf": [
               {
@@ -15097,6 +15108,17 @@
             ],
             "title": "Page"
           },
+          "pmid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pmid"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -15104,6 +15126,17 @@
           "type": {
             "title": "Type",
             "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
           },
           "year": {
             "anyOf": [

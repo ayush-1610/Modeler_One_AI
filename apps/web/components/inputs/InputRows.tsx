@@ -5,6 +5,8 @@ import { useState } from "react";
 import { EmptyState } from "@/components/kit";
 import { send, type Schema } from "@/lib/api";
 
+import { PeekButton } from "@/components/kit/SourcePeek";
+
 import { Decide, type Ev, LABEL, type Run, Source, TodoAction, TodoCard, type TodoItem, Value } from "./InputsTodo";
 
 export type Row = Schema<"CompoundRow">;
@@ -63,7 +65,11 @@ function SourceLine({ e, projectId, run }: { e: Ev; projectId: string; run: Run 
   const [reason, setReason] = useState("");
   return (
     <li className="source-line">
-      <Source e={e} />
+      <div className="source-line-head">
+        <Source e={e} />
+        <PeekButton projectId={projectId} source={{ ...e.source, quote: e.quote }} label={`${e.target} (${e.id})`}
+                    testId={`peek-${e.id}`} />
+      </div>
       <div className="row" style={{ gap: 6, marginTop: 4 }}>
         <input placeholder="why exclude it" value={reason} onChange={(x) => setReason(x.target.value)} style={{ flex: 1, minWidth: 160 }}
                aria-label={`reason to exclude ${e.id}`} />
@@ -76,11 +82,14 @@ function SourceLine({ e, projectId, run }: { e: Ev; projectId: string; run: Run 
   );
 }
 
-function AlternativeLine({ a }: { a: Alternative }) {
+function AlternativeLine({ a, projectId }: { a: Alternative; projectId: string }) {
+  const e = ev(a);
   return (
     <li className="source-line">
       <div className="row" style={{ gap: 8 }}>
-        <Value e={ev(a)} />
+        <Value e={e} />
+        <PeekButton projectId={projectId} source={{ ...e.source, quote: e.quote }} label={`${e.target} (${e.id})`}
+                    testId={`peek-${e.id}`} />
         <span className={`chip ${a.relation === "conflicts" ? "high" : "medium"}`}>
           {a.relation === "conflicts" ? "more than 2-fold apart" : `differs by ${a.differs_pct} %`}
         </span>
@@ -137,6 +146,10 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
           <span className={`chip ${state}`}>{label}</span>
           {row.binding && <div className="muted" style={{ fontSize: 12 }} title={row.binding.parameter ?? ""}>{row.binding.process ?? row.binding.parameter}</div>}
         </div>
+        <div className="input-peek">
+          {kept && <PeekButton projectId={projectId} source={{ ...kept.source, quote: kept.quote }} label={LABEL[row.id] ?? row.id}
+                               testId={`peek-${row.id}`} />}
+        </div>
       </div>
       {row.candidates.length > 0 && !items.some((t) => t.kind === "process") && <ChooseProcess row={row} projectId={projectId} run={run} />}
       {items.map((t) => (
@@ -159,7 +172,7 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
         <ul className="sources">
           {row.sources.map(ev).map((e) => <SourceLine key={e.id} e={e} projectId={projectId} run={run} />)}
           {row.alternatives.length > 0 && <li className="muted" style={{ fontSize: 12 }}>Not used (listed for the review):</li>}
-          {row.alternatives.map((a) => <AlternativeLine key={a.id} a={a} />)}
+          {row.alternatives.map((a) => <AlternativeLine key={a.id} a={a} projectId={projectId} />)}
         </ul>
       )}
       {adding && <AddValue row={row} projectId={projectId} run={run} />}
@@ -167,19 +180,40 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
   );
 }
 
+// The compound's building blocks (plan 2026-11-03 §3.2), by the CPF id's family; an id no family names is "Other".
+const BLOCKS: [string, RegExp][] = [
+  ["Identity and physico-chemistry", /^phys\./],
+  ["Binding and partitioning", /^(bind|dist)\./],
+  ["Permeability and absorption", /^(perm|abs|gi)\./],
+  ["Elimination, by process", /^(elim|metab|clear)\./],
+  ["Transporters and interactions", /^(trans|ddi|inhib|induct)\./],
+];
+const blockOf = (id: string) => BLOCKS.find(([, rule]) => rule.test(id))?.[0] ?? "Other";
+
 /** The model inputs of one tab, each in its row, with what waits on a person settled where it is. Items about no row
- *  of the tab (a placeholder parameter, a build) come first. */
-export function InputRows({ rows, todo, projectId, run, empty }: {
-  rows: Row[]; todo: TodoItem[]; projectId: string; run: Run; empty: string;
+ *  of the tab (a placeholder parameter, a build) come first. `grouped`: the compound's rows under their building
+ *  blocks, each block's open rows first. */
+export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
+  rows: Row[]; todo: TodoItem[]; projectId: string; run: Run; empty: string; grouped?: boolean;
 }) {
   const ids = new Set(rows.map((r) => r.id));
   const loose = todo.filter((t) => !ids.has(t.target));
+  const sorted = [...rows].sort((a, b) => FIRST.indexOf(a.state) - FIRST.indexOf(b.state));
+  const one = (r: Row) => <InputRow key={r.id} row={r} items={todo.filter((t) => t.target === r.id)} projectId={projectId} run={run} />;
+  const blocks = [...BLOCKS.map(([name]) => name), "Other"]
+    .map((name) => [name, sorted.filter((r) => blockOf(r.id) === name)] as const).filter(([, list]) => list.length);
   return (
     <>
       {loose.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}
       {rows.length === 0 && loose.length === 0
         ? <EmptyState title="Nothing on this tab yet">{empty}</EmptyState>
-        : [...rows].sort((a, b) => FIRST.indexOf(a.state) - FIRST.indexOf(b.state)).map((r) => <InputRow key={r.id} row={r} items={todo.filter((t) => t.target === r.id)} projectId={projectId} run={run} />)}
+        : grouped ? blocks.map(([name, list]) => (
+          <section key={name} className="input-block" aria-label={name} data-testid={`block-${name}`}>
+            <h3 className="input-block-title">{name}
+              {list.some((r) => r.state !== "kept") && <span className="muted"> · {list.filter((r) => r.state !== "kept").length} open</span>}</h3>
+            {list.map(one)}
+          </section>
+        )) : sorted.map(one)}
     </>
   );
 }
