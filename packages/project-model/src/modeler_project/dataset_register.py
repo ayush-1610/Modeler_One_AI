@@ -91,6 +91,21 @@ def set_study_facts(ws: Workspace, dataset_id: str, *, changes: dict[str, Any], 
     return updated
 
 
+def rename_study(ws: Workspace, dataset_id: str, study_id: str, *, by: str, reason: str) -> ObservedDataset:
+    """Give a dataset's study another id, with the reason (plan 2026-11-03 §3.4, build I3): a person said two names are
+    one study (the client's files call it differently), or that two profiles under one id are two arms. Audited like
+    every change; the facts are kept."""
+    if not study_id.strip() or not reason.strip():
+        raise DatasetError("give the study id and the reason")
+    dataset = _latest(ws, dataset_id)
+    if dataset.study.get("study_id") == study_id:
+        return dataset
+    updated = check_dataset(dataset.model_copy(update={"study": {**dataset.study, "study_id": study_id.strip()}}))
+    ws.commit(ArtifactKind.DATASET, dataset_id, updated.to_content(), actor=by,
+              reason=f"study id {dataset.study.get('study_id')} -> {study_id.strip()}: {reason}")
+    return updated
+
+
 def approve_overlay(ws: Workspace, dataset_id: str, *, by: str) -> ObservedDataset:
     dataset = _latest(ws, dataset_id)
     if dataset.digitization is None:

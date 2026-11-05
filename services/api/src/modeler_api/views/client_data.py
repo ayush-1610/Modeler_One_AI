@@ -172,7 +172,7 @@ class ReviewIssue(View):
     """A conflict, an explainable difference or a question on a group: open until a person confirms a selection."""
 
     id: str
-    kind: Literal["conflict", "difference", "question"]
+    kind: Literal["conflict", "difference", "question", "link"]   # link: are two names of a study the same study
     text: str
     options: list[ReviewOption]
     answer: bool                        # the question asks for a value rather than an option
@@ -192,6 +192,7 @@ class ReviewItem(View):
     note: str = ""
     target: str | None = None
     conditions: dict[str, Any] = Field(default_factory=dict)
+    duplicate_of: str | None = None     # the same profile as another file's (within the rule's tolerance): loads once
 
 
 class ReviewFact(View):
@@ -211,6 +212,7 @@ class ReviewGroup(View):
     items: list[ReviewItem]
     facts: list[ReviewFact]
     issues: list[ReviewIssue]
+    notes: list[str] = Field(default_factory=list)   # what code linked or found the same across files (I3)
     state: Literal["to_confirm", "confirmed"]
     open: int
     confirmed_by: str | None

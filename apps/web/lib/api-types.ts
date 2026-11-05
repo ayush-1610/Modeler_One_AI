@@ -7447,6 +7447,8 @@ export interface components {
              * @enum {string}
              */
             kind: "study" | "product" | "compound";
+            /** Notes */
+            notes?: string[];
             /** Open */
             open: number;
             /**
@@ -7479,7 +7481,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "conflict" | "difference" | "question";
+            kind: "conflict" | "difference" | "question" | "link";
             /** Options */
             options: components["schemas"]["ReviewOption"][];
             /** Selected */
@@ -7497,6 +7499,8 @@ export interface components {
             conditions?: {
                 [key: string]: unknown;
             };
+            /** Duplicate Of */
+            duplicate_of?: string | null;
             /** Id */
             id: string;
             /**

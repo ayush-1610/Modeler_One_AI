@@ -56,13 +56,33 @@ def _content(profile: Profile, sources: list[str]) -> dict[str, Any]:
     }
 
 
+def by_file(ws: Workspace) -> dict[ProfileKey, list[tuple[Profile, str, str]]]:
+    """Each profile (same product, batch and conditions) with the client files that give it, oldest file first: the
+    profile as that file gives it, the file's submission id and its name."""
+    from modeler_project.client_data import submissions
+
+    out: dict[ProfileKey, list[tuple[Profile, str, str]]] = {}
+    versions = [ws.latest(ArtifactKind.CLIENT_SUBMISSION, sub["id"]) for sub in submissions(ws)
+                if sub.get("dissolution") or sub.get("dissolution_records")]
+    first_seen = {v.id: ws.versions(ArtifactKind.CLIENT_SUBMISSION, v.id)[0].created_at for v in versions}
+    for version in sorted(versions, key=lambda v: first_seen[v.id]):
+        from_rows, _p1 = profiles_from_rows(version.content.get("dissolution", []))
+        from_records, _p2 = profiles_from_records(version.content.get("dissolution_records", []))
+        for profile in from_rows + from_records:
+            out.setdefault(profile.key, []).append((profile, version.id, version.content["file"]))
+    return out
+
+
 def rebuild(ws: Workspace, *, by: str) -> list[dict[str, Any]]:
     """Profiles and comparisons from every client file (idempotent: unchanged content keeps its version). When a profile
-    (same product, batch and conditions) arrives in a later file too, the later file's data replace the earlier."""
-    from modeler_project.client_data import submissions
+    (same product, batch and conditions) arrives in a later file too, the later file's data replace the earlier, unless
+    a person selected the file to keep on Inputs (plan 2026-11-03 §3.4, I3: a contradiction is settled by a person and
+    the choice is kept in the review record's `profile_sources`)."""
+    from modeler_project.client_data import review_record, submissions
 
     latest: dict[ProfileKey, tuple[Profile, Any]] = {}
     problems: list[str] = []
+    keep = review_record(ws).get("profile_sources", {})
     versions = [ws.latest(ArtifactKind.CLIENT_SUBMISSION, sub["id"]) for sub in submissions(ws)
                 if sub.get("dissolution") or sub.get("dissolution_records")]
     first_seen = {v.id: ws.versions(ArtifactKind.CLIENT_SUBMISSION, v.id)[0].created_at for v in versions}
@@ -72,6 +92,11 @@ def rebuild(ws: Workspace, *, by: str) -> list[dict[str, Any]]:
         problems += [f"{version.content['file']}: {p}" for p in p1 + p2]
         for profile in from_rows + from_records:
             if profile.key in latest:
+                kept = keep.get(profile_id(profile.key))
+                if kept == latest[profile.key][1].id:
+                    problems.append(f"{profile.key.label()}: {latest[profile.key][1].content['file']} kept over "
+                                    f"{version.content['file']} (selected on Inputs)")
+                    continue
                 problems.append(f"{profile.key.label()}: {version.content['file']} replaces {latest[profile.key][1].content['file']}")
             latest[profile.key] = (profile, version)
     if not latest:

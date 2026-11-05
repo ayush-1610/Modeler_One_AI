@@ -78,7 +78,42 @@ test("a study two client files contradict is settled on its card, then confirmed
   await expect(card.getByTestId("issue-final-study:EX-101|dose_mg")).toHaveText("10");   // still shown, final
   await expect(page.getByTestId("study-EX-101")).toBeVisible();                          // loaded into the project
   await shot(page, "3-confirmed-and-loaded");
+  // the two files give the same profile (I3): it loads once, with both files named on the card
+  await expect(card.getByTestId("notes-study:EX-101")).toContainText("gives the same profile");
   const ev = await (await request.get(`/api/v1/projects/${projectId}/evidence`, { headers: AUTH })).json();
   const doses = (ev.data.datasets as { study: { dose_mg: number }; state: string }[]).map((d) => [d.study.dose_mg, d.state]);
-  expect(doses).toEqual([[10, "ACCEPTED"], [10, "ACCEPTED"]]);                           // the selection is applied
+  expect(doses.sort()).toEqual([[10, "ACCEPTED"], [10, "REJECTED"]]);                    // the dose applied; loaded once
+});
+
+test("a study the client named at upload is linked to the sheet's other name once the person says so", async ({ page, request }) => {
+  // plan 2026-11-03 §3.4 (I3): the tag's study name seeds the registry; the link is asked, never assumed
+  const dir = mkdtempSync(join(tmpdir(), "link-"));
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "conflict_workbooks.py"), dir], { cwd: REPO });
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Linkamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral tablet, 10 mg.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);
+  expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
+  const up = await request.post(`/api/v1/projects/${projectId}/client-data`, { headers: AUTH, multipart: {
+    tags: JSON.stringify({ "EX-101_protocol_PK.xlsx": { kind: "clinical", study: "EXZ-101" } }),
+    files: { name: "EX-101_protocol_PK.xlsx", mimeType: XLSX, buffer: readFileSync(join(dir, "EX-101_protocol_PK.xlsx")) } } });
+  expect(up.status(), await up.text()).toBe(201);
+
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
+  await page.getByTestId("tab-studies").click();
+  const card = page.getByTestId("group-study:EX-101");
+  const link = card.getByTestId("issue-link|EX-101");
+  await expect(link).toContainText("tagged at upload as study EXZ-101");
+  await expect(card.getByTestId("confirm-study:EX-101")).toBeDisabled();
+  await shot(page, "4-link-question");
+  await link.getByRole("radio", { name: /Yes: EX-101 is EXZ-101/ }).check();
+  await link.getByTestId("issue-confirm-link|EX-101").click();
+  const linked = page.getByTestId("group-study:EXZ-101");                          // regrouped under the study's name
+  await expect(linked).toContainText("Resolved");
+  await expect(linked.getByTestId("notes-study:EXZ-101")).toContainText("Also called EX-101");
+  await linked.getByTestId("confirm-study:EXZ-101").click();
+  await expect(linked).toContainText("Confirmed by");
+  await expect(page.getByTestId("study-EXZ-101")).toBeVisible();                  // in the project under the study's name
+  await shot(page, "5-linked-and-confirmed");
 });

@@ -20,6 +20,7 @@ type Option = Schema<"ReviewOption">;
 
 const KIND: Record<Issue["kind"], [string, string]> = {
   conflict: ["Conflict", "conflict"], difference: ["Differs", "difference"], question: ["Question", "question"],
+  link: ["Same study?", "question"],
 };
 
 function src(s: Record<string, unknown> | null | undefined): PeekSource | null {
@@ -126,6 +127,12 @@ function GroupCard({ projectId, group, run }: { projectId: string; group: Group;
         </div>
         <PeekButton projectId={projectId} source={src(first)} label={group.title} testId={`peek-group-${group.id}`} />
       </header>
+
+      {(group.notes ?? []).length > 0 && (
+        <ul className="confirm-notes" data-testid={`notes-${group.id}`}>
+          {(group.notes ?? []).map((n) => <li key={n}>{n}</li>)}
+        </ul>
+      )}
 
       {group.facts.length > 0 && (
         <dl className="confirm-facts">

@@ -15,6 +15,35 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Inputs I3: one study across files, a profile given twice loaded once, differing profiles a conflict (2026-11-05)
+Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.3–3.4, build I3 (and the start of I6, the evaluation set). The
+owner asked (2026-11-03) that the client's data, whatever form it comes in, load correctly, clearly and easily.
+- **One study, whatever the files call it.** Study ids that differ only in case, spaces or punctuation ("EX-202",
+  "ex 202") form one group, named by the first spelling in sort order; the card notes "Also called … in the client's
+  files". When a file was tagged at upload with a study name its sheet does not use, the card asks "Same study?"; a
+  "yes" links the two at once (the group regroups under the tagged name) and can be undone until the group is
+  confirmed. Confirming renames every kept dataset to the group's study id (`dataset_register.rename_study`, audited).
+- **The same profile from two files loads once.** Two files' profiles of one study, of the same analyte and matrix,
+  that agree at every shared time within the tolerance of `client_reconciliation.yaml` (10 %) are one dataset (one
+  file's own datasets, such as individual and mean data or parent and metabolite, are never compared as rivals): the
+  card notes which files give it, and confirming rejects the copy with that reason, so it is never fitted twice.
+- **Differing profiles are a conflict.** Beyond the tolerance, the person selects the first file's profile, the
+  second's, or "both" (different arms or cohorts: each kept under its own id, `<study>-2`, …); the one not selected is
+  rejected with the reason.
+- **Dissolution given by two files:** the same product's profile within the tolerance is kept once (noted); beyond it,
+  a conflict with one option per file, showing its points. The selected file's profile is the one the product register
+  keeps (`dissolution_register.rebuild` reads `profile_sources` from the review record), so the release model is built
+  from what the person chose.
+- **Notes stay on the card** ("found the same" and "also called"), and are recorded with the group's confirmation.
+- **The evaluation set** (`modeler_project.delivery_eval`, test `test_delivery_eval.py`): five synthetic client
+  deliveries with a known answer (two doses and two subject counts, a profile sent twice, one study written two ways,
+  a tagged study name its sheet calls otherwise, dissolution 14 points apart), each run through the real path (library,
+  tags, ingest, review) and scored on what was found, missed and flagged unexpectedly. All five are found perfectly.
+  Real deliveries are scored the same way with an answer a person writes.
+- **Impact (science, data flow):** two identical client profiles no longer count twice in a fit; a differing profile
+  is no longer kept silently next to another; the person's choice of dissolution file decides the release model's
+  data. No ruleset change: the tolerance and fold are the existing `client_reconciliation.yaml` 0.1 (UNVERIFIED).
+  API: `ReviewIssue.kind` gains `link`, `ReviewItem.duplicate_of`, `ReviewGroup.notes` (`docs/api/openapi.json`).
 ### Changed — A2, the literature agent: told the project's context, each input's status, and where inputs are found (2026-11-03)
 The owner asked (2026-11-03) that the compound's parameters be fetched properly, in the project's context, with better
 tasks, so that every input is found and filled.
@@ -5046,4 +5075,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-02 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files |
