@@ -15,6 +15,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from modeler_api import agent_jobs, jobs
+from modeler_api.compound_jobs import SOURCES_AGENT, CodeRunner, run_compound_job, run_research_job
 from modeler_api.config import SettingsDep
 from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
 from modeler_api.reference_models import TEMPLATES, model_name, snapshot
@@ -28,7 +29,7 @@ from modeler_api.views.evidence import (
     ResearchStart,
 )
 from modeler_intake.documents import DocumentError
-from modeler_project import ArtifactKind, ProjectStore, Workspace
+from modeler_project import ArtifactKind, Workspace
 from modeler_project.brief import ProjectBrief
 from modeler_project.dataset_register import (
     approve_overlay,
@@ -56,7 +57,7 @@ from modeler_project.evidence_register import (
 )
 from modeler_project.inputs import refresh_inputs
 from modeler_project.published_model import propose_published_model
-from modeler_project.requirements import RequirementMatrix, literature_items
+from modeler_project.requirements import RequirementMatrix
 
 router = APIRouter(prefix="/api/v1", tags=["evidence"])
 
@@ -115,50 +116,40 @@ def get_literature_run(project_id: str, principal: Reader, store: StoreDep) -> d
     root = getattr(ws.store, "root", None)
     runs = [r for r in agent_jobs.project_runs(root, ws.tenant_id, ws.project_id) if r["agent"].startswith(("A2", "A3"))]
     last = runs[0] if runs else None
+    sources = next((r for r in runs if r["agent"] == SOURCES_AGENT), None)
     turns = proposed = 0
     if last is not None and root is not None:
         turns = sum(1 for s in agent_jobs.run_steps(root, last["run_id"]) if s.get("kind") == "model_turn")
         proposed = sum(1 for e in items(ws) if e.proposed_by == f"agent:{last['run_id']}")
     return envelope({"running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "research"),
                      "run": {k: last.get(k) for k in _RUN_KEYS} if last else None, "turns": turns,
-                     "max_turns": (last.get("budget") or {}).get("max_turns") if last else None, "proposed": proposed})
-
-
-def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, model, europe_pmc=None,
-                     max_turns: int = 120, agent: Literal["A2", "A3"] = "A2") -> dict[str, Any]:
-    """A2 (parameter values) or A3 (observed clinical data) over the data plan's literature items."""
-    ws = Workspace(store, tenant_id, project_id)
-    _, matrix = _matrix(ws)
-    brief_version = ws.latest(ArtifactKind.BRIEF, "main")
-    brief = ProjectBrief.from_content(brief_version.content) if brief_version else None
-    drug = brief.drug_name if brief else project_id
-    run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
-                              agent="A2-literature" if agent == "A2" else "A3-observed-data", model=model,
-                              max_turns=max_turns)
-    outcome = agent_jobs.literature_research(model, agent=agent, ws=ws, library=DocumentLibrary(ws, for_agents=True),
-                                             requirements=literature_items(matrix), actor=run.actor, drug=drug,
-                                             max_turns=max_turns, log_step=run.log_step, europe_pmc=europe_pmc,
-                                             brief=brief)
-    summary = {"proposed": len(outcome.proposed), "rejected": len(outcome.rejected), "not_found": outcome.not_found,
-               "access_requests": len(outcome.access_requests), "summary": outcome.summary[:4000], "error": outcome.error}
-    run.finish(outcome, summary)
-    refresh_inputs(ws, by=run.actor)   # what the agent found flows into the inputs (D-27)
-    return {"run_id": run.run_id, "status": outcome.status, **summary}
+                     "max_turns": (last.get("budget") or {}).get("max_turns") if last else None, "proposed": proposed,
+                     "sources": {k: sources.get(k) for k in _RUN_KEYS} if sources else None})
 
 
 @router.post("/projects/{project_id}/evidence:research", status_code=202, **answers(ResearchStart))
 def start_research(project_id: str, principal: Writer, store: StoreDep, agent: Literal["A2", "A3"] = "A2") -> dict[str, Any]:
-    """Run A2 (values) or, with ``?agent=A3``, the observed-data agent, in the background."""
+    """Run the structured sources then A2 (values) or, with ``?agent=A3``, the observed-data agent, in the background.
+    With agents off, the structured sources alone (code, no AI; plan 2026-11-05 §3.3)."""
     ws = workspace_for(project_id, principal, store)
     _matrix(ws)
-    model = agent_jobs.require_chat_model("agents are off: enter the evidence by hand (Add a value)")
+    if agent == "A3":
+        model = agent_jobs.require_chat_model("agents are off: enter the evidence by hand (Add a value)")
+    else:
+        model, problem = agent_jobs.chat_model()
+        if problem:
+            raise HTTPException(status_code=409, detail=problem)
 
     def job() -> None:
-        run_research_job(store, principal.tenant_id, project_id, model=model, agent=agent)
+        if agent == "A3":
+            run_research_job(store, principal.tenant_id, project_id, model=model, agent=agent)
+        else:
+            run_compound_job(store, principal.tenant_id, project_id, model=model)
 
     jobs.start(store, principal.tenant_id, project_id, "research", job, busy="a literature run is already in progress",
                name=f"research-{project_id}")
-    return envelope({"started": True, "provider": model.provider, "model": model.model})
+    shown = model or CodeRunner()
+    return envelope({"started": True, "provider": shown.provider, "model": shown.model})
 
 
 class PublishedModelRequest(BaseModel):

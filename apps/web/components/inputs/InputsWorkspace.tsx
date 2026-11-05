@@ -56,12 +56,42 @@ function FormulationChoice({ study, options, projectId, run }: { study: string; 
 
 type ClientFile = ClientView["files"][number];
 type LiteratureRun = Schema<"LiteratureRun">;
+type SourceRead = { name: string; ok: boolean; detail: string; title?: string; url?: string; values: number };
+const SOURCES_AGENT = "A2-sources";
+
+/** What the free structured sources gave the compound (plan 2026-11-05 §3.3): each source with what it is and how many
+ *  values it gave; a source not reached says why; what was left for the literature agent and the person. */
+function SourcesRead({ run }: { run: NonNullable<LiteratureRun["sources"]> }) {
+  const summary = run.summary as { sources?: SourceRead[]; notes?: string[] };
+  const sources = summary.sources ?? [];
+  if (!sources.length) return null;
+  return (
+    <section className="sources-read" data-testid="sources-read">
+      <h3>Read by code from the structured sources <span className="muted">{new Date(run.started_at).toLocaleString()}</span></h3>
+      <ul>
+        {sources.map((s) => (
+          <li key={s.name} data-testid={`source-${s.name}`}>
+            <span className={`chip ${s.ok ? (s.values ? "low" : "neutral") : "medium"}`}>{s.ok ? plural(s.values, "value") : "not read"}</span>{" "}
+            <strong>{s.name}</strong>{" "}
+            {s.ok && s.url ? <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a> : null}{" "}
+            <span className="muted">{s.ok ? s.detail.replace(/^CID \d+;?\s*/, "") : s.detail}</span>
+          </li>
+        ))}
+      </ul>
+      {(summary.notes ?? []).length > 0 && <ul className="flags">{summary.notes!.map((n) => <li key={n}>{n}</li>)}</ul>}
+    </section>
+  );
+}
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** The literature agent at work (plan 2026-11-05 §3.3): how long, how far into its budget, and what it found so far;
  *  in place of a red "already running". */
 function LiteratureProgress({ r }: { r: LiteratureRun }) {
   const minutes = r.run ? Math.max(0, Math.round((Date.now() - new Date(r.run.started_at).getTime()) / 60000)) : null;
+  if (r.run?.agent === SOURCES_AGENT && !r.run.finished_at) {
+    return <Banner tone="ok" testId="literature-progress">Reading PubChem, the FDA label and ChEMBL for the compound&apos;s
+      values; then the literature agent searches what is still missing.</Banner>;
+  }
   return (
     <Banner tone="ok" testId="literature-progress">
       The literature agent is searching{minutes !== null ? ` (${minutes} min so far)` : ""}: turn {r.turns}
@@ -160,7 +190,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
 
   async function askLiterature() {
     const problem = await run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }),
-                              "The literature agent is searching; its values flow into the rows when it finishes.");
+                              "PubChem, the FDA label and ChEMBL are being read; then the literature agent searches what is still missing.");
     if (problem && /already in progress/.test(problem)) {   // started elsewhere: its progress is shown, not a refusal
       setNotice(null);
       await refresh();
@@ -238,8 +268,9 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
               Take the published OSP model&apos;s values
             </button>
           ))}
-          <button type="button" className="btn" data-testid="ask-literature" disabled={running} onClick={() => void askLiterature()}>
-            {running ? "The literature agent is searching…" : "Ask the literature for what is missing"}
+          <button type="button" className="btn" data-testid="ask-literature" disabled={running} onClick={() => void askLiterature()}
+                  title="PubChem, the FDA label and ChEMBL by code, then the literature agent (when agents are on)">
+            {running ? "Searching the sources…" : "Search the sources and the literature"}
           </button>
         </>
       )}
@@ -299,15 +330,16 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
             </SidePanel>
           )}
           <SidePanel title="Where values come from">
-            <p style={{ margin: 0, fontSize: 13 }}>The client&apos;s files and figures, the literature agent, PubChem and the
-              published OSP model of the drug. Where several give a value, the client&apos;s comes first, then the literature by grade.</p>
+            <p style={{ margin: 0, fontSize: 13 }}>The client&apos;s files and figures; PubChem, the FDA label and ChEMBL, read by
+              code at the project&apos;s start; the literature agent; and the published OSP model of the drug. Where several give a value, the client&apos;s comes first, then the literature by grade.</p>
           </SidePanel>
         </div>
       </Tabs>
       <div className="inputs-area">
 
       {tab === "compound" && (
-        <TabPanel prefix="inputs" id="compound">{bar("compound")}{confirmHere("compound")}
+        <TabPanel prefix="inputs" id="compound">{bar("compound")}
+          {!onlyToConfirm && literature.data?.sources && <SourcesRead run={literature.data.sources} />}{confirmHere("compound")}
           {!onlyToConfirm && <><InputRows rows={rows("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
                    empty="The compound's values appear here as the client's files, the literature and PubChem fill them." />
           <AccessRequests projectId={projectId} run={run} /></>}{filesHere("compound")}</TabPanel>

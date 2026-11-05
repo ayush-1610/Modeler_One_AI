@@ -124,6 +124,22 @@ def literature_research(model, *, agent: Literal["A2", "A3"], ws, library, requi
     return runner(model, ctx, drug=drug, max_turns=max_turns, log_step=log_step)
 
 
+def structured_clients() -> tuple[Any, Any, Any]:
+    """The free structured sources' clients (PubChem, openFDA, ChEMBL); tests replace this to answer offline."""
+    from modeler_agents.structured_sources import ChEMBL, OpenFDA, PubChem
+
+    return PubChem(), OpenFDA(), ChEMBL()
+
+
+def compound_sources(*, ws, library, requirements, drug: str, actor: str, log_step):
+    """The compound's values from PubChem, the FDA label and ChEMBL, proposed by code (plan 2026-11-05 §3.3)."""
+    from modeler_agents.compound_sources import read_compound_sources
+
+    pubchem, openfda, chembl = structured_clients()
+    return read_compound_sources(ws, library, requirements, drug=drug, actor=actor, pubchem=pubchem, openfda=openfda,
+                                 chembl=chembl, log_step=log_step)
+
+
 def sheet_triage(model, *, workbook, sheets, actor: str, max_turns: int, log_step):
     """A4 on the sheets code left undecided: (context with the accepted and rejected classifications, outcome)."""
     from modeler_agents.sheet_triage import TriageContext, run_triage

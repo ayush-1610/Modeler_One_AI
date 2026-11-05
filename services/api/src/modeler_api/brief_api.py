@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from modeler_api import agent_jobs, jobs
 from modeler_api.auth import Principal, require_project
+from modeler_api.compound_jobs import start_compound_job
 from modeler_api.config import SettingsDep
 from modeler_api.deps import (
     Reader,
@@ -243,6 +244,8 @@ async def initiate_project(
     read_files = [_read_client_file(ws, library, brief, filename, data, by=principal.user_id, tag=given_tags.get(filename))
                   for filename, data in client_payloads]
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
+    if extract:   # the compound's values from the start, while the person and A1 work on Start (plan 2026-11-05 §3.3)
+        start_compound_job(store, principal.tenant_id, project_id)
     return envelope({"project_id": project_id, "name": title, "documents": [_document_view(d) for d in documents],
                      "client_files": read_files, "brief_version": version.version, "extraction": extraction})
 

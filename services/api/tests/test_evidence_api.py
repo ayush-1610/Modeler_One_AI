@@ -50,8 +50,13 @@ def test_manual_evidence_needs_a_source_and_is_graded(setup):
     item = ok.json()["data"]
     assert ok.status_code == 201 and item["value_pksim"] == pytest.approx(0.09) and item["state"] == "PROPOSED"
 
-    refused = c.post("/api/v1/projects/p1/evidence:research", headers=H)
+    # agents off: the structured sources alone, by code (plan 2026-11-05 §3.3); A3 still needs a model
+    started = c.post("/api/v1/projects/p1/evidence:research", headers=H)
+    assert started.status_code == 202 and started.json()["data"]["provider"] == "code"
+    refused = c.post("/api/v1/projects/p1/evidence:research?agent=A3", headers=H)
     assert refused.status_code == 409 and "agents are off" in refused.json()["detail"]
+    from modeler_api import jobs
+    _wait_until_idle(jobs, _ws.store, "p1")
 
     view = c.post(f"/api/v1/projects/p1/evidence/{item['id']}:decide", headers=H,
                   json={"state": "ACCEPTED", "reason": "FDA review table 3"}).json()["data"]
@@ -217,7 +222,7 @@ def test_the_literature_runs_progress_is_answered_small_for_the_page_to_follow(s
     c, ws = setup
     idle = c.get("/api/v1/projects/p1/literature-run", headers=H)
     assert idle.status_code == 200, idle.text
-    assert idle.json()["data"] == {"running": False, "run": None, "turns": 0, "max_turns": None, "proposed": 0}
+    assert idle.json()["data"] == {"running": False, "run": None, "turns": 0, "max_turns": None, "proposed": 0, "sources": None}
 
     class Configured:
         provider, model = "test", "scripted"
@@ -240,3 +245,30 @@ def test_the_literature_runs_progress_is_answered_small_for_the_page_to_follow(s
     now = c.get("/api/v1/projects/p1/literature-run", headers=H).json()["data"]
     assert now["running"] and now["run"]["run_id"] == run.run_id and now["run"]["finished_at"] is None
     assert (now["turns"], now["max_turns"], now["proposed"]) == (3, 40, 1)
+
+
+def test_the_compound_sources_run_at_the_start_and_their_values_flow_in(setup, monkeypatch):
+    """Build B (plan 2026-11-05 §3.3): PubChem, the FDA label and ChEMBL are read by code when the search starts (at the
+    project's start, or on Inputs), before the literature agent; the page shows what each gave."""
+    from modeler_agents.evals import structured_answers
+    from modeler_api import agent_jobs, jobs
+    from modeler_api.compound_jobs import start_compound_job
+    from modeler_project.brief import empty_brief as brief_for
+
+    c, ws = setup
+    ws.commit(ArtifactKind.BRIEF, "main", brief_for(structured_answers.DRUG, by="u1").to_content(), actor="u1", reason="drug")
+    monkeypatch.setattr(agent_jobs, "structured_clients", structured_answers.clients)
+    assert start_compound_job(ws.store, "t1", "p1")                         # agents off: the sources alone
+    _wait_until_idle(jobs, ws.store, "p1")
+    view = c.get("/api/v1/projects/p1/literature-run", headers=H).json()["data"]
+    assert not view["running"] and view["run"]["agent"] == "A2-sources" and view["proposed"] == 8
+    assert [(s["name"], s["values"]) for s in view["sources"]["summary"]["sources"]] == [
+        ("PubChem", 5), ("FDA label", 1), ("ChEMBL", 2)]
+    evidence = c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["evidence"]
+    assert {e["target"] for e in evidence} >= {"phys.mw", "phys.logp", "bind.fu", "phys.solubility.ref", "phys.pka.acid.1"}
+    # stored, not assembled: Inputs has not begun, so it stays blocked until Start is done (decision 7)
+    assert ws.latest(ArtifactKind.READINESS, "main") is None
+    assert c.post("/api/v1/projects/p1/inputs:assemble", headers=H).status_code == 200   # as the page does when opened
+    inputs = c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]
+    mw = next(r for r in inputs["compound"] if r["id"] == "phys.mw")
+    assert mw["state"] == "kept" and mw["value"] == 393.9                    # flowed in, no click (D-27)

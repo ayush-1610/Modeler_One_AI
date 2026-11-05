@@ -121,3 +121,7 @@
 .files-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; }
 .files-bar .btn { min-height: 36px; }
 .rail-files > span:first-child { text-align: left; }
+/* what the structured sources gave the compound at the project's start (plan 2026-11-05 §3.3) */
+.sources-read { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; }
+.sources-read h3 { margin: 0 0 6px; font-size: 14px; }
+.sources-read ul:not(.flags) { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }

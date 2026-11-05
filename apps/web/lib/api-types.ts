@@ -1176,7 +1176,8 @@ export interface paths {
         put?: never;
         /**
          * Start Research
-         * @description Run A2 (values) or, with ``?agent=A3``, the observed-data agent, in the background.
+         * @description Run the structured sources then A2 (values) or, with ``?agent=A3``, the observed-data agent, in the background.
+         *     With agents off, the structured sources alone (code, no AI; plan 2026-11-05 §3.3).
          */
         post: operations["start_research_api_v1_projects__project_id__evidence_research_post"];
         delete?: never;
@@ -5454,8 +5455,9 @@ export interface components {
         };
         /**
          * LiteratureRun
-         * @description Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run, the turns it has
-         *     taken of its budget, and the values it has proposed so far (they flow into the inputs when it finishes).
+         * @description Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run (the structured
+         *     sources' reading is one, `A2-sources`), the turns it has taken of its budget, the values it has proposed so far (they
+         *     flow into the inputs when it finishes), and what the structured sources gave.
          */
         LiteratureRun: {
             /** Max Turns */
@@ -5465,6 +5467,7 @@ export interface components {
             run: components["schemas"]["RunSummary"] | null;
             /** Running */
             running: boolean;
+            sources?: components["schemas"]["RunSummary"] | null;
             /** Turns */
             turns: number;
         };

@@ -52,14 +52,16 @@ class ResearchStart(View):
 
 
 class LiteratureRun(View):
-    """Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run, the turns it has
-    taken of its budget, and the values it has proposed so far (they flow into the inputs when it finishes)."""
+    """Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run (the structured
+    sources' reading is one, `A2-sources`), the turns it has taken of its budget, the values it has proposed so far (they
+    flow into the inputs when it finishes), and what the structured sources gave."""
 
     running: bool
     run: RunSummary | None
     turns: int
     max_turns: int | None
     proposed: int
+    sources: RunSummary | None = None     # the latest reading of the structured sources (its summary: each source)
 
 
 class PublishedModelTaken(View):

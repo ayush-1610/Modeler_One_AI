@@ -1,6 +1,6 @@
 # The client's data, reviewed where it belongs, and agents that work from the start (plan, 2026-11-05)
 
-Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; build A done).
+Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A and B done).
 Follows `2026-11-03-inputs-and-client-data.md` (I1–I4c, merged), whose
 builds made the parts work one by one; the owner's use of them on a real delivery (14 files: BE workbooks, dissolution
 profiling workbooks, the technical proposal) shows that together they do not yet give a clear, usable page. I5 (CDISC)
@@ -123,8 +123,12 @@ will check the builder with their own files later (q4), so the builds use the up
    - The literature agent's progress replaces the red "already running": how long, its turn of the budget, the values
      proposed so far (`GET /projects/{id}/literature-run`, small, asked every 5 s while it runs); its end is said once.
    - Moved to B: the molecular weight from PubChem as an input (it belongs with the other structured sources).
-2. **B, compound values from the start (M):** structured sources by code, started at project creation, then A2 on what
-   is still missing, budgeted, with its progress (§3.3; q2, q3).
+2. **B, compound values from the start (M): built** (branch `inputs-r2-compound-sources`). PubChem (PUG REST and
+   PUG-View), the FDA label (openFDA) and ChEMBL are read by code when the project starts; what each states plainly is
+   proposed, quoted from the stored answer and graded; the literature agent then searches what is still missing (60
+   turns when it starts on its own). With agents off, the sources alone. The Compound tab shows what each source gave.
+   Not in B: DailyMed's own service (openFDA serves the same labels), a time budget per input and parallel searches for
+   A2 (step 0's measurements first), and reusing another project's values for the same drug (the person's consent).
 3. **C, the intake pipeline and the data cards (L):** automatic reading on upload (§3.1), "this is…" and "belongs
    to…" for each sheet and card, and one card per study and per product with its chart, points, metadata, statistics
    and files, reviewed one by one (§3.2; q5).

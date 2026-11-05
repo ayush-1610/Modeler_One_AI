@@ -9579,7 +9579,7 @@
       },
       "LiteratureRun": {
         "additionalProperties": false,
-        "description": "Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run, the turns it has\ntaken of its budget, and the values it has proposed so far (they flow into the inputs when it finishes).",
+        "description": "Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run (the structured\nsources' reading is one, `A2-sources`), the turns it has taken of its budget, the values it has proposed so far (they\nflow into the inputs when it finishes), and what the structured sources gave.",
         "properties": {
           "max_turns": {
             "anyOf": [
@@ -9609,6 +9609,16 @@
           "running": {
             "title": "Running",
             "type": "boolean"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "turns": {
             "title": "Turns",
@@ -24435,7 +24445,7 @@
     },
     "/api/v1/projects/{project_id}/evidence:research": {
       "post": {
-        "description": "Run A2 (values) or, with ``?agent=A3``, the observed-data agent, in the background.",
+        "description": "Run the structured sources then A2 (values) or, with ``?agent=A3``, the observed-data agent, in the background.\nWith agents off, the structured sources alone (code, no AI; plan 2026-11-05 §3.3).",
         "operationId": "start_research_api_v1_projects__project_id__evidence_research_post",
         "parameters": [
           {
