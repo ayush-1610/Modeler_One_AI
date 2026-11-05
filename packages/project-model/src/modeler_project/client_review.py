@@ -162,8 +162,8 @@ def _profile_difference(a: ObservedDataset, b: ObservedDataset) -> float | None:
 
 
 def _doc_source(fact: dict[str, Any]) -> dict[str, Any]:
-    return {"doc_sha256": fact["doc_sha256"], "page": fact["page"], "locator": f"p. {fact['page']}", "title": fact["file"],
-            "quote": str(fact.get("quote", ""))[:600]}
+    return {"doc_sha256": fact["doc_sha256"], "page": fact["page"], "locator": fact.get("locator") or f"p. {fact['page']}",
+            "title": fact["file"], "quote": str(fact.get("quote", ""))[:600]}
 
 
 def _lloq_in(value: float, unit: str, target: str) -> float | None:
@@ -464,17 +464,20 @@ def _link_targets(links: list[dict[str, Any]], used: set[str]) -> dict[str, dict
     return out
 
 
-def _link_issue(scope: str, raw: str, said: dict[str, Any], what: str) -> tuple[str, str, str, str, list[dict[str, Any]]]:
-    text = f"{said['file']} (p. {said['page']}) says “{said['quote'][:200]}”: is {raw} the same {what} as {said['named']}?"
+def _link_issue(scope: str, raw: str, said: dict[str, Any], what: str,
+                shown: str | None = None) -> tuple[str, str, str, str, list[dict[str, Any]]]:
+    """A "same product?" or "same batch?" question; `raw` is the key its answer is kept under, `shown` the name."""
+    name = shown or raw
+    text = f"{said['file']} (p. {said['page']}) says “{said['quote'][:200]}”: is {name} the same {what} as {said['named']}?"
     return scope, raw, "link", text, [
-        {"id": "same", "label": f"Yes: {raw} is {said['named']}", "value": said["named"], "source": _doc_source(said),
+        {"id": "same", "label": f"Yes: {name} is {said['named']}", "value": said["named"], "source": _doc_source(said),
          "datasets": []},
-        {"id": "different", "label": f"No: {raw} is another {what}", "value": None, "source": None, "datasets": []}]
+        {"id": "different", "label": f"No: {name} is another {what}", "value": None, "source": None, "datasets": []}]
 
 
 def _product_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, Any]]:
     from modeler_project.client_data import document_compositions, document_links
-    from modeler_project.dissolution_register import by_file, profile_id, profiles
+    from modeler_project.dissolution_register import batch_alias_key, by_file, profile_id, profiles
 
     tolerance = float(rule()["relative_tolerance"])
     content = record(ws)
@@ -511,8 +514,9 @@ def _product_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str,
         batches = {str(p["key"].get("batch") or "") for p in members} | {
             str(prof.key.batch or "") for p in members for prof, _s, _n in files_of.get(p["id"], [])}
         for raw in sorted(batches):
-            if raw in batch_links and _key(batch_links[raw]["named"]) != _key(raw):
-                issues.append(_issue(*_link_issue("blink", raw, batch_links[raw], "batch"), selections))
+            if raw in batch_links and _key(batch_links[raw]["named"]) != _key(raw):   # linked within this product only
+                issues.append(_issue(*_link_issue("blink", batch_alias_key(_key(product), raw), batch_links[raw], "batch",
+                                                  shown=raw), selections))
         for p in members:
             note = "; ".join(p.get("flags", []))
             files = given.get(p["id"], [])

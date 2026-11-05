@@ -254,6 +254,27 @@ def _datasets_from_template(read: ClientWorkbook, *, library: DocumentLibrary, s
     return out
 
 
+# the template's demographics columns (Studies sheet) as the study facts the review knows (document_reading's names)
+_DEMOGRAPHIC_COLUMNS = {"age_mean": "age_mean", "age_min": "age_min", "age_max": "age_max", "weight_mean_kg": "weight_mean",
+                        "percent_female": "female_percent", "ethnicity": "ethnicity"}
+
+
+def _demographic_facts(read: ClientWorkbook, *, library: DocumentLibrary, sha: str) -> list[dict[str, Any]]:
+    """Each study arm's demographics as the template's Studies sheet gives them (D-29), quoted from their row: on Inputs
+    they are the study's facts, and a person chooses the individual's PK-Sim population and sex before they set it
+    (`client_review`), as for a document's. Before I4c these columns were only noted on the dataset."""
+    out = []
+    for row in read.sheet("Studies"):
+        page, line = _row_line(library, sha, "Studies", row.row)
+        for column, fact in _DEMOGRAPHIC_COLUMNS.items():
+            value = row.values.get(column)
+            if value in (None, "") or page is None:
+                continue
+            out.append({"study_id": _arm_id(*_arm(row)), "fact": fact, "sets": {fact: value}, "shown": str(value),
+                        "page": page, "quote": line, "locator": row.cells.get(column, row.locator)})
+    return out
+
+
 def _requirement_for(parameter: str, matrix: RequirementMatrix | None) -> RequirementItem | None:
     """The data-plan item a client row names: by its id, label or target exactly, else the most specific target that
     the parameter id falls under (``elim.hepatic.CYP3A4.clint`` under ``elim``)."""
@@ -359,7 +380,8 @@ def ingest(ws: Workspace, library: DocumentLibrary, data: bytes, filename: str, 
                 content["evidence"].append(propose(ws, item, actor=by, requirement=requirement, value_in_quote=True).id)
             content.update(template=True, dissolution=_kept_rows(read, "Dissolution"), products=_kept_rows(read, "Product"),
                            urine_feces=_kept_rows(read, "Urine_Feces"), studies=_kept_rows(read, "Studies"),
-                           brief_mismatches=_brief_mismatches(read, brief), other_sheets=read.other_sheets)
+                           brief_mismatches=_brief_mismatches(read, brief), other_sheets=read.other_sheets,
+                           study_facts=_demographic_facts(read, library=library, sha=sha))
             content["issues"] = [asdict(i) for i in issues]
     elif content["kind"] in READABLE_DOCUMENTS:
         tag = library.entry(sha).tag if library.has_record else None
@@ -445,7 +467,8 @@ def record_document_reading(ws: Workspace, sid: str, *, facts: list[dict[str, An
 
 
 def document_facts(ws: Workspace) -> list[dict[str, Any]]:
-    """Every study fact read from a client document, with its file: what `client_review` compares across files."""
+    """Every study fact read from a client file, with the file: a document's (the reading agent's, quoted) and the
+    template's demographics columns (I4c). What `client_review` compares across files."""
     return [{**f, "sid": sub["id"], "file": sub["file"], "doc_sha256": sub["sha256"]}
             for sub in submissions(ws) for f in sub.get("study_facts", [])]
 
