@@ -332,6 +332,8 @@ In the owner's order (answer 5).
 
 Each PR: a CHANGELOG entry, the coverage table if a stage changes, tests and a browser test, and a screenshot in the PR.
 
+**Progress (2026-11-05).** I1 (#126, #127), I2 (#128) and A2's tasking (#129) are merged. I3 is in its PR: study aliases (ids written differently, a link asked when an upload tag names the study otherwise), a profile given twice loaded once, differing profiles and dissolution a conflict, and the first five deliveries of I6. **Deviation:** product and batch aliases (a product or batch written two ways) move to after I4, since the names they are matched by come from the documents I4 reads (a protocol's "also known as", a certificate of analysis); in I3 a product is matched by its exact name, as the dissolution register keys it.
+
 ## 5. For the owner
 Settled on 2026-11-03: tagging (A + D), the file-type order (CDISC optional), the mockup comments. Next: the builds,
 in order, each a PR to `main`; then the literature agent's compound parameters (A2: better tasks, the project's context,

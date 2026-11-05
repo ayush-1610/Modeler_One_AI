@@ -14845,6 +14845,13 @@
             "title": "Kind",
             "type": "string"
           },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
           "open": {
             "title": "Open",
             "type": "integer"
@@ -14923,7 +14930,8 @@
             "enum": [
               "conflict",
               "difference",
-              "question"
+              "question",
+              "link"
             ],
             "title": "Kind",
             "type": "string"
@@ -14994,6 +15002,17 @@
             "additionalProperties": true,
             "title": "Conditions",
             "type": "object"
+          },
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of"
           },
           "id": {
             "title": "Id",

@@ -14,10 +14,19 @@ until the group is confirmed. The rules for what counts as a contradiction are p
 
 The record of selections and confirmations is the CLIENT_SUBMISSION artifact `review`, versioned and audited like any
 other. A file sent again brings new proposed items, and only those return the group to "to confirm".
+
+Across files (build I3, plan §3.4 stage 4–5): one study is often in several files under several names. Ids that differ
+only in case, spaces or punctuation are one study; a file tagged at upload with a study name its sheet does not use asks
+whether the two are the same (the person's answer links them, and the datasets take the study's name when the group is
+confirmed). Two files giving one study's profile are compared point by point: within the rule's tolerance they are a
+duplicate and load once, with both files named; beyond it they are a conflict on the card (one file's profile, the
+other's, or two arms kept under their own ids). A dissolution profile two files give is compared the same way on its
+product's card, and the file a person keeps is the one the register builds from.
 """
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -87,23 +96,129 @@ def _shown(value: Any, unit: str | None = None) -> str:
     return f"{text} {unit}".strip() if unit else text
 
 
+def _key(study_id: Any) -> str:
+    """A study id as code compares it: case, spaces and punctuation do not make another study."""
+    return re.sub(r"[^A-Z0-9]", "", str(study_id).upper())
+
+
+def _tagged_studies(ws: Workspace) -> dict[str, str]:
+    """The study each clinical file was tagged with at upload, by the file's hash (plan §3.1)."""
+    from modeler_project.documents import DocumentLibrary
+
+    library = DocumentLibrary(ws)
+    if not library.has_record:
+        return {}
+    return {sha: e.tag.study for sha, e in library.entries().items() if e.tag and e.tag.kind == "clinical" and e.tag.study}
+
+
+def _canonical(raw_ids: list[str], aliases: dict[str, str]) -> dict[str, str]:
+    """Each study id the files use, mapped to the one name its study goes by: a name a person linked it to, else the
+    first spelling of the same id."""
+    first: dict[str, str] = {}
+    for target in sorted(set(aliases.values())):
+        first.setdefault(_key(target), target)
+    out = {}
+    for raw in sorted(raw_ids):
+        target = aliases.get(raw, raw)
+        out[raw] = first.setdefault(_key(target), target)
+    return out
+
+
+def _file(d: ObservedDataset) -> str:
+    return d.source.doc_sha256 or d.source.title or d.id
+
+
+def _profile_difference(a: ObservedDataset, b: ObservedDataset) -> float | None:
+    """The largest relative difference between two profiles at the times both give, series by series (by name, or the
+    one series each has); None when they cannot be compared (other units, times or subjects)."""
+    if (a.unit or "").lower() != (b.unit or "").lower() or a.time_unit != b.time_unit:
+        return None
+    named_a, named_b = {s.name: s for s in a.series}, {s.name: s for s in b.series}
+    pairs = [(named_a[n], named_b[n]) for n in named_a if n in named_b]
+    if not pairs and len(a.series) == 1 and len(b.series) == 1:
+        pairs = [(a.series[0], b.series[0])]
+    differences = []
+    for x, y in pairs:
+        at = dict(zip(y.times, y.values, strict=True))
+        for time, value in zip(x.times, x.values, strict=True):
+            other = at.get(time)
+            if value is None or other is None or max(abs(value), abs(other)) == 0:
+                continue
+            differences.append(abs(value - other) / max(abs(value), abs(other)))
+    return max(differences) if differences else None
+
+
 def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, Any]]:
     from modeler_project.dataset_register import datasets
 
+    content = record(ws)
+    aliases = content.get("aliases", {})
+    tagged = _tagged_studies(ws)
+    tolerance = float(rule()["relative_tolerance"])
+    client = [d for d in datasets(ws) if _client_dataset(d) and d.state is not EvidenceState.REJECTED]
+    canon = _canonical([str(d.study.get("study_id", d.id)) for d in client], aliases)
     by_study: dict[str, list[ObservedDataset]] = defaultdict(list)
-    for d in datasets(ws):
-        if _client_dataset(d) and d.state is not EvidenceState.REJECTED:
-            by_study[str(d.study.get("study_id", d.id))].append(d)
+    for d in client:
+        by_study[canon[str(d.study.get("study_id", d.id))]].append(d)
     groups = []
     for study_id, members in sorted(by_study.items()):
         gid = f"study:{study_id}"
+        members = sorted(members, key=lambda d: (d.source.title or "", d.id))
+        notes: list[str] = []
+        names = sorted({str(d.study.get("study_id")) for d in members} - {study_id})
+        if names:
+            notes.append(f"Also called {', '.join(names)} in the client's files: one study, {study_id}")
+        duplicate_of: dict[str, str] = {}
+        issues: list[dict[str, Any]] = []
+        profiles = [d for d in members if d.kind == "profile"]
+        for i, d in enumerate(profiles):
+            # only another file's profile of the same analyte and matrix is a rival: one file's datasets of a study are
+            # different things (individual and mean, parent and metabolite)
+            rivals = [e for e in profiles[:i] if e.id not in duplicate_of and (e.analyte, e.matrix) == (d.analyte, d.matrix)
+                      and _file(e) != _file(d)]
+            if not rivals:
+                continue
+            same = next((e for e in rivals if (x := _profile_difference(e, d)) is not None and x <= tolerance), None)
+            anchor = same or rivals[0]
+            difference = _profile_difference(anchor, d)
+            file_a, file_b = anchor.source.title or anchor.id, d.source.title or d.id
+            if same is not None:
+                duplicate_of[d.id] = anchor.id
+                notes.append(f"{file_b} gives the same profile as {file_a} (within {tolerance:.0%}): it loads once, "
+                             "with both files named")
+                continue
+            what = (f"The profiles in {file_a} and {file_b} differ by up to {difference:.0%} (more than {tolerance:.0%})"
+                    if difference is not None else f"The profiles in {file_a} and {file_b} cannot be compared (other units, "
+                    "times or subjects)")
+            issues.append(_issue(gid, f"profile:{d.id}", "conflict", what, [
+                {"id": "first", "label": f"{file_a}'s profile", "value": anchor.id, "source": _source(anchor.source, anchor.quote),
+                 "datasets": [anchor.id]},
+                {"id": "second", "label": f"{file_b}'s profile", "value": d.id, "source": _source(d.source, d.quote),
+                 "datasets": [d.id]},
+                {"id": "both", "label": "Different arms or cohorts: keep both, each under its own id", "value": None,
+                 "source": None, "datasets": []}], selections))
         items = [{"id": d.id, "kind": "dataset", "label": f"{d.kind} · {len(d.series) or len(d.reported)} "
                   f"{'series' if d.kind == 'profile' else 'PK parameters'} · {d.analyte}, {d.matrix}",
                   "value": f"{d.unit}, time in {d.time_unit}", "state": d.state.value,
+                  "note": f"the same as {next(m.source.title for m in members if m.id == duplicate_of[d.id])}: loads once"
+                  if d.id in duplicate_of else "", "duplicate_of": duplicate_of.get(d.id),
                   "source": _source(d.source, d.quote)} for d in members]
-        facts, issues = [], []
+        for raw in sorted({str(d.study.get("study_id")) for d in members}):
+            named = next((tagged[d.source.doc_sha256] for d in members if str(d.study.get("study_id")) == raw
+                          and d.source.doc_sha256 in tagged), None)
+            if named and _key(named) != _key(raw):
+                file = next(d.source.title for d in members if str(d.study.get("study_id")) == raw)
+                issues.append(_issue("link", raw, "link",
+                                     f"{file} was tagged at upload as study {named}; its sheet calls the study {raw}. "
+                                     "Are they the same study?",
+                                     [{"id": "same", "label": f"Yes: {raw} is {named}", "value": named, "source": None,
+                                       "datasets": []},
+                                      {"id": "different", "label": f"No: {raw} is another study", "value": None,
+                                       "source": None, "datasets": []}], selections))
+        facts = []
         for field, label in FACT_LABEL.items():
-            given = [(d, d.study.get(field)) for d in members if d.study.get(field) is not None]
+            given = [(d, d.study.get(field)) for d in members if d.study.get(field) is not None and d.id not in duplicate_of]
+            given += [(d, d.study.get(field)) for d in members if d.study.get(field) is not None and d.id in duplicate_of]
             distinct: dict[Any, list[ObservedDataset]] = defaultdict(list)
             for d, value in given:
                 distinct[_normal(field, value)].append(d)
@@ -131,7 +246,7 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
                 issues.append(_issue(gid, f"lloq:{d.id}", "question",
                                      f"Values below the LLOQ, and no LLOQ stated: give it in {d.unit}",
                                      [], selections, answer=True))
-        groups.append(_group(gid, "study", f"Study {study_id}", items, facts, issues, ws))
+        groups.append(_group(gid, "study", f"Study {study_id}", items, facts, issues, ws, notes=notes))
     return groups
 
 
@@ -181,21 +296,56 @@ def _compound_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str
     return groups
 
 
-def _product_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, Any]]:
-    from modeler_project.dissolution_register import profiles
+def _dissolution_difference(a: Any, b: Any) -> float | None:
+    """The largest relative difference between two dissolution profiles' means at the times both give, where at least
+    10 % has dissolved (below that a relative difference says nothing); None when no time is shared."""
+    at = dict(zip(b.times_min, b.mean, strict=True))
+    differences = [abs(m - at[t]) / max(m, at[t]) for t, m in zip(a.times_min, a.mean, strict=True)
+                   if t in at and max(m, at[t]) >= 10]
+    return max(differences) if differences else None
 
+
+def _points(profile: Any) -> str:
+    return ", ".join(f"{m:.0f} % at {t:g} min" for t, m in list(zip(profile.times_min, profile.mean, strict=True))[1:4])
+
+
+def _product_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, Any]]:
+    from modeler_project.dissolution_register import by_file, profile_id, profiles
+
+    tolerance = float(rule()["relative_tolerance"])
+    given = {profile_id(key): files for key, files in by_file(ws).items() if len(files) > 1}
     by_product: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for p in profiles(ws):
         by_product[str(p["key"].get("product") or "product")].append(p)
     groups = []
     for product, members in sorted(by_product.items()):
         gid = f"product:{product}"
-        items = [{"id": p["id"], "kind": "profile", "label": p["label"],
-                  "value": f"{len(p['times_min'])} times to {max(p['times_min'], default=0):g} min · n = {p['n']}",
-                  "state": "PROPOSED", "note": "; ".join(p.get("flags", [])),
-                  "source": {"doc_sha256": None, "page": None, "locator": ", ".join(p.get("cells", [])[:3]),
-                             "title": ", ".join(p.get("files", [])), "quote": ""}} for p in members]
-        groups.append(_group(gid, "product", product, items, [], [], ws, versions={p["id"]: p["version"] for p in members}))
+        notes: list[str] = []
+        issues: list[dict[str, Any]] = []
+        items = []
+        for p in members:
+            note = "; ".join(p.get("flags", []))
+            files = given.get(p["id"], [])
+            if files:
+                first = files[0][0]
+                worst = max((d for later, _s, _n in files[1:] if (d := _dissolution_difference(first, later)) is not None),
+                            default=None)
+                names = [name for _p, _s, name in files]
+                if worst is not None and worst <= tolerance:
+                    notes.append(f"{p['label']}: given by {', '.join(names)} (within {tolerance:.0%}): kept once")
+                else:
+                    what = (f"{p['label']}: {', '.join(names)} differ by up to {worst:.0%} (more than {tolerance:.0%})"
+                            if worst is not None else f"{p['label']}: {', '.join(names)} share no time to compare")
+                    issues.append(_issue(gid, f"profile:{p['id']}", "conflict", what, [
+                        {"id": sid, "label": f"{name}: {_points(prof)}", "value": sid, "source": None,
+                         "datasets": []} for prof, sid, name in files], selections))
+            items.append({"id": p["id"], "kind": "profile", "label": p["label"],
+                          "value": f"{len(p['times_min'])} times to {max(p['times_min'], default=0):g} min · n = {p['n']}",
+                          "state": "PROPOSED", "note": note,
+                          "source": {"doc_sha256": None, "page": None, "locator": ", ".join(p.get("cells", [])[:3]),
+                                     "title": ", ".join(p.get("files", [])), "quote": ""}})
+        groups.append(_group(gid, "product", product, items, [], issues, ws, versions={p["id"]: p["version"] for p in members},
+                             notes=notes))
     return groups
 
 
@@ -209,7 +359,8 @@ def _issue(gid: str, key: str, kind: str, text: str, options: list[dict[str, Any
 
 
 def _group(gid: str, kind: GroupKind, title: str, items: list[dict[str, Any]], facts: list[dict[str, Any]],
-           issues: list[dict[str, Any]], ws: Workspace, versions: dict[str, int] | None = None) -> dict[str, Any]:
+           issues: list[dict[str, Any]], ws: Workspace, versions: dict[str, int] | None = None,
+           notes: list[str] | None = None) -> dict[str, Any]:
     confirmation = record(ws)["confirmations"].get(gid)
     if kind == "product":
         confirmed = confirmation is not None and all(confirmation.get("versions", {}).get(i["id"]) == v
@@ -222,9 +373,10 @@ def _group(gid: str, kind: GroupKind, title: str, items: list[dict[str, Any]], f
         recorded = confirmation.get("issues", [])
         known = {i["id"] for i in recorded}
         issues = recorded + [i for i in issues if i["id"] not in known]
+        notes = list(dict.fromkeys([*confirmation.get("notes", []), *(notes or [])]))
     open_issues = [i for i in issues if i["selected"] is None and i["answered"] is None]
     return {"id": gid, "kind": kind, "tab": TAB[kind], "title": title, "items": items, "facts": facts, "issues": issues,
-            "state": "confirmed" if confirmed else "to_confirm", "open": len(open_issues),
+            "notes": notes or [], "state": "confirmed" if confirmed else "to_confirm", "open": len(open_issues),
             "confirmed_by": confirmation.get("by") if confirmation and confirmed else None,
             "confirmed_at": confirmation.get("at") if confirmation and confirmed else None}
 
@@ -268,9 +420,28 @@ def select(ws: Workspace, gid: str, issue_id: str, *, by: str, option: str | Non
             raise ReviewError(f"choose one of the options: {', '.join(o['id'] for o in issue['options'])}")
         chosen = {"option": option}
     shown = chosen.get("option") or chosen.get("answer")
-    update_review(ws, lambda content: ({**content, "selections": {**content["selections"], issue_id: {
-        **chosen, "group": gid, "by": by, "at": datetime.now(UTC).isoformat()}}}, f"{issue['text']}: selected {shown}"), by=by)
-    return _find(ws, gid)
+    linked = _linked(issue, chosen)
+
+    def change(content: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        new = {**content, "selections": {**content["selections"], issue_id: {
+            **chosen, "group": gid, "by": by, "at": datetime.now(UTC).isoformat()}}}
+        if issue["kind"] == "link":   # a link regroups at once: the study's datasets join the study they are
+            raw = issue_id.split("|", 1)[1]
+            aliases = {k: v for k, v in content.get("aliases", {}).items() if k != raw}
+            new["aliases"] = {**aliases, **({raw: linked} if linked else {})}
+        return new, f"{issue['text']}: selected {shown}"
+
+    update_review(ws, change, by=by)
+    return next((g for g in groups(ws) if g["id"] == gid), None) or _find(ws, f"study:{_canonical([linked], {})[linked]}"
+                                                                         if linked else gid)
+
+
+def _linked(issue: dict[str, Any], chosen: dict[str, Any]) -> str | None:
+    """The study a link question's answer names, when the answer is "the same study"."""
+    if issue["kind"] != "link":
+        return None
+    option = next((o for o in issue["options"] if o["id"] == chosen.get("option")), None)
+    return str(option["value"]) if option and option["value"] else None
 
 
 def reopen(ws: Workspace, gid: str, issue_id: str, *, by: str) -> dict[str, Any]:
@@ -278,10 +449,17 @@ def reopen(ws: Workspace, gid: str, issue_id: str, *, by: str) -> dict[str, Any]
     group = _find(ws, gid)
     if group["state"] == "confirmed":
         raise ReviewError(f"{group['title']} is confirmed already")
-    update_review(ws, lambda content: None if issue_id not in content["selections"] else (
-        {**content, "selections": {k: v for k, v in content["selections"].items() if k != issue_id}},
-        f"{issue_id}: selection reopened"), by=by)
-    return _find(ws, gid)
+    def change(content: dict[str, Any]) -> tuple[dict[str, Any], str] | None:
+        if issue_id not in content["selections"]:
+            return None
+        new = {**content, "selections": {k: v for k, v in content["selections"].items() if k != issue_id}}
+        if issue_id.startswith("link|"):
+            raw = issue_id.split("|", 1)[1]
+            new["aliases"] = {k: v for k, v in content.get("aliases", {}).items() if k != raw}
+        return new, f"{issue_id}: selection reopened"
+
+    update_review(ws, change, by=by)
+    return next((g for g in groups(ws) if g["id"] == gid), None) or group
 
 
 def edit_fact(ws: Workspace, gid: str, field: str, value: Any, *, by: str) -> dict[str, Any]:
@@ -302,7 +480,7 @@ def edit_fact(ws: Workspace, gid: str, field: str, value: Any, *, by: str) -> di
 def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
     """Confirm a group: its selections are applied, then its datasets and values are accepted and load into the
     inputs, in one audited record. Refused while any conflict or question of the group is open."""
-    from modeler_project.dataset_register import decide_dataset, set_study_facts
+    from modeler_project.dataset_register import decide_dataset, rename_study, set_study_facts
     from modeler_project.evidence_register import choose, decide
 
     group = _find(ws, gid)
@@ -314,9 +492,30 @@ def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
     accepted_value: dict[str, float] = {}
     rejected: set[str] = set()
     kept: set[str] = set()
+    arms: list[str] = []
+    profile_sources: dict[str, str] = {}
+    study_id = gid.split(":", 1)[1]
     for issue in group["issues"]:
         chosen = content["selections"][issue["id"]]
         key = issue["id"].split("|", 1)[1]
+        if issue["kind"] == "link":
+            continue                      # applied when it was selected: the datasets are in this group already
+        if group["kind"] == "study" and key.startswith("profile:"):
+            other = key.split(":", 1)[1]
+            first = next(o["value"] for o in issue["options"] if o["id"] == "first")
+            if chosen["option"] == "both":
+                arms.append(other)
+                continue
+            dropped = other if chosen["option"] == "first" else first
+            kept_id = first if dropped == other else other
+            if dropped not in rejected:   # one file's profile may lose to two others
+                decide_dataset(ws, dropped, state=EvidenceState.REJECTED, by=by,
+                               reason=f"on Inputs, the profile of {kept_id} was selected over this one (they differ)")
+                rejected.add(dropped)
+            continue
+        if group["kind"] == "product":
+            profile_sources[key.split(":", 1)[1]] = chosen["option"]
+            continue
         if group["kind"] == "study":
             field, _, only = key.partition(":")
             if chosen.get("answer") is not None:
@@ -338,6 +537,30 @@ def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
                        "the client's value", by=by)
                 rejected.add(evidence_id)
     for item in group["items"]:
+        if item["kind"] == "dataset" and item.get("duplicate_of") and item["id"] not in rejected:
+            decide_dataset(ws, item["id"], state=EvidenceState.REJECTED, by=by,
+                           reason=f"the same profile as {item['duplicate_of']} (within the tolerance of "
+                                  "client_reconciliation.yaml): loaded once, both files named")
+            rejected.add(item["id"])
+    for n, other in enumerate(arms, start=2):
+        rename_study(ws, other, f"{study_id}-{n}", by=by, reason="another arm or cohort of the study, said on Inputs")
+    if group["kind"] == "study":   # one study, one name: the one the person linked it to, or its first spelling
+        from modeler_project.dataset_register import dataset as current
+
+        for item in group["items"]:
+            found = current(ws, item["id"])
+            if item["id"] in rejected or item["id"] in arms or found is None or found.study.get("study_id") == study_id:
+                continue
+            rename_study(ws, item["id"], study_id, by=by,
+                         reason=f"{found.study.get('study_id')} is study {study_id} (linked on Inputs)")
+    if profile_sources:
+        from modeler_project.dissolution_register import rebuild
+
+        update_review(ws, lambda content: ({**content, "profile_sources": {**content.get("profile_sources", {}),
+                                                                          **profile_sources}},
+                                           f"{group['title']}: the file kept for {len(profile_sources)} profile(s)"), by=by)
+        rebuild(ws, by=by)
+    for item in group["items"]:
         if item["state"] != EvidenceState.PROPOSED.value or item["id"] in rejected | kept:
             continue
         if item["kind"] == "dataset":
@@ -348,7 +571,7 @@ def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
                    unit_pksim=None)
     entry = {"by": by, "at": datetime.now(UTC).isoformat(), "items": [i["id"] for i in group["items"]],
              "selections": {i["id"]: content["selections"].get(i["id"]) for i in group["issues"]},
-             "issues": group["issues"]}   # kept, so each settled conflict stays shown with its final value
+             "issues": group["issues"], "notes": group["notes"]}   # kept: each settled conflict stays shown
     if group["kind"] == "product":
         from modeler_project.dissolution_register import profiles
 
