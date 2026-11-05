@@ -15,6 +15,15 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — the client's data reviewed where it belongs, and agents that work from the start: the plan (2026-11-05)
+`docs/plans/2026-11-05-client-data-review-and-agents.md`, revision 1, for the owner's answers. The owner used I1–I4c on a
+real delivery (14 files) and found the Inputs page unclear: every file under Clinical studies, dissolution never on
+Products, no data shown as data, nothing to re-categorise, the compound agent slow and thin, and the Start agent leaving
+the context of use, applications, formulation types, routes and model risk empty. The plan gives the cause of each (from
+the code), the target, the design (an intake pipeline that reads every file on arrival and places it; study and product
+cards with charts, points, metadata and statistics; compound values from structured sources at project creation; Start
+fields proposed and pre-selected), six builds, and six questions. I5 (CDISC) is set aside until later. No behaviour
+change.
 ### Changed — code's first reading of a client sheet: all eleven layouts of the evaluation set, up from five (2026-11-05)
 `modeler_intake.sheet_form.suggest`, the filling a person sees before anything else (and the reading agent corrects).
 Measured on `modeler_intake.reading_eval`: **11 of 11 layouts read exactly by code alone, from 5**, and no sheet now
