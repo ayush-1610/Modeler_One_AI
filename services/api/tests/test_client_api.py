@@ -486,3 +486,25 @@ def test_a_client_pdf_is_read_by_the_agent_and_its_data_wait_on_inputs(setup, mo
     assert dose["value"] == "10" and dose["source"]["page"] == 1 and dose["source"]["quote"] == quote
     run = c.get(f"/api/v1/projects/p1/agent-runs/{result['run_id']}", headers=H).json()["data"]
     assert run["run"]["agent"] == "A4-document-reading"
+
+
+def test_each_file_carries_its_tag_which_places_it_and_a_changed_tag_moves_it(setup):
+    """Plan 2026-11-05 §3.1 (the owner, 2026-11-05: every file went under Clinical studies): the page shows each client
+    file in the area of its data, by its tag; another kind read from its content is offered; a changed tag moves it."""
+    import json
+
+    c, _ws = setup
+    tags = {"Data_Q3.xlsx": {"kind": "formulation", "study": ""}}       # as added on Products and dissolution
+    up = c.post("/api/v1/projects/p1/client-data", headers=H, data={"tags": json.dumps(tags)},
+                files=[("files", ("Data_Q3.xlsx", _raw_workbook(), XLSX)),
+                       ("files", ("Dissolution pH 6.8 notes.md", b"# Dissolution\nUSP 2, 50 rpm", "text/markdown"))])
+    assert up.status_code == 201, up.text
+    files = {f["file"]: f for f in c.get("/api/v1/projects/p1/client-data", headers=H).json()["data"]["files"]}
+    data_q3, notes = files["Data_Q3.xlsx"], files["Dissolution pH 6.8 notes.md"]
+    assert (data_q3["tag"]["kind"], data_q3["tag"]["by"]) == ("formulation", "u1")
+    assert data_q3["tag_proposal"]["kind"] == "clinical" and data_q3["tag_proposal"]["decided"] == "open"
+    assert (notes["tag"]["kind"], notes["tag"]["by"]) == ("formulation", "code")        # untagged: its name's
+    moved = c.post(f"/api/v1/projects/p1/documents/{data_q3['sha256']}:tag", headers=H, json={"kind": "clinical"})
+    assert moved.status_code == 200, moved.text
+    after = {f["file"]: f for f in c.get("/api/v1/projects/p1/client-data", headers=H).json()["data"]["files"]}["Data_Q3.xlsx"]
+    assert after["tag"]["kind"] == "clinical" and after["tag_proposal"]["decided"] == "used"

@@ -42,9 +42,13 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
-  await page.getByTestId("client-upload").setInputFiles(["230-23 Fasting Reference.xlsx", "230-23 Fasting Test.xlsx",
+  await page.getByTestId("client-upload-studies").setInputFiles(["230-23 Fasting Reference.xlsx", "230-23 Fasting Test.xlsx",
     "Dissolution Test pH 6.8.xlsx", "Dissolution RLD pH 6.8.xlsx", "Nichols2012 IV 50 mg 5 h infusion.xlsx"].map((f) => join(dir, f)));
   await expect(page.getByText("5 files stored.")).toBeVisible();
+  // each file in the area of its data (plan 2026-11-05 §3.1): the dissolution workbooks, named so, on Products and dissolution
+  await expect(page.getByTestId("inputs-notice")).toContainText("Dissolution Test pH 6.8.xlsx is shown on Products and dissolution, by its name");
+  await expect(page.getByTestId("studies-client-files")).toContainText("(3)");
+  await expect(page.getByTestId("client-file-Dissolution Test pH 6.8.xlsx")).toHaveCount(0);
   await shot(page, "1-uploaded");
 
   // the BE reference arm: times across the top, Mean / SD rows left out, the LLOQ quoted from the footnote
@@ -88,7 +92,9 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await reader2.getByRole("button", { name: "Save these data" }).click();
   await expect(page.getByText(/230-23-TEST saved/)).toBeVisible();
 
-  // dissolution: the test product named as in the brief, its conditions quoted from the title
+  // dissolution, on Products and dissolution: the test product named as in the brief, its conditions quoted from the title
+  await page.getByTestId("tab-formulations").click();
+  await expect(page.getByTestId("formulations-client-files")).toContainText("(2)");
   for (const [file, role, product] of [["Dissolution Test pH 6.8.xlsx", "TEST", ""], ["Dissolution RLD pH 6.8.xlsx", "RLD", "Reference product 50 mg"]]) {
     await page.getByTestId(`client-file-${file}`).getByRole("button", { name: "Read this sheet" }).click();
     const r = page.getByTestId("reader-pH 6.8");
@@ -102,7 +108,6 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
     await r.getByRole("button", { name: "Save these data" }).click();
     await expect(page.getByText(/pH 6.8: 96 dissolution values saved/)).toBeVisible();
   }
-  await page.getByTestId("tab-formulations").click();
   await expect(page.getByTestId("f2-row")).toBeVisible();
   // the proposal's products are shown where they are built (page review 1, decision 3), with who set them
   await expect(page.getByTestId("inputs-products-0")).toContainText("Desvenlafaxine succinate ER Tablets");

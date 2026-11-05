@@ -51,6 +51,17 @@ class ResearchStart(View):
     model: str
 
 
+class LiteratureRun(View):
+    """Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run, the turns it has
+    taken of its budget, and the values it has proposed so far (they flow into the inputs when it finishes)."""
+
+    running: bool
+    run: RunSummary | None
+    turns: int
+    max_turns: int | None
+    proposed: int
+
+
 class PublishedModelTaken(View):
     """What taking a published OSP model as a source proposed: its values and datasets, those it had already given,
     and what it left out, with why."""

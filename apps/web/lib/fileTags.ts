@@ -49,6 +49,22 @@ export function tagsField(files: { file: File; tag: FileTag; study: string }[]):
   return JSON.stringify(tags);
 }
 
+/** The Inputs areas that hold a client's files (plan 2026-11-05 §3.1): each file is shown in the area of its data. */
+export type DataTab = "compound" | "formulations" | "studies";
+/** Where a file of each tag is shown; "other" is listed in the files view only, until the person says what it is. */
+export const TAG_TAB: Record<TagKind, DataTab | null> = {
+  formulation: "formulations", in_vitro: "compound", clinical: "studies", bioanalytical: "studies", other: null,
+};
+/** The tag a file added in an area takes when its name says nothing (a name that says what it is wins: a dissolution
+ *  workbook added on Clinical studies is still shown on Products and dissolution). */
+export const TAB_TAG: Record<DataTab, TagKind> = { compound: "in_vitro", formulations: "formulation", studies: "clinical" };
+
+/** The tag of a file added in an area: what its name says, else the area's. */
+export function tagFor(name: string, tab: DataTab): TagKind {
+  const guess = guessTag(name);
+  return guess === "proposal" || guess === "other" ? TAB_TAG[tab] : guess;
+}
+
 export function tagLabel(kind: TagKind | null | undefined): string {
   return kind ? TAG_LABELS[kind] : "not tagged";
 }

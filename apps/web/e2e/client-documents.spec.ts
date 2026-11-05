@@ -41,8 +41,20 @@ test("a Word synopsis is read for its study's facts, and its dose against the PK
     ids[name] = (await up.json()).data.read[0].id;
   }
 
-  // before the reading: code's inventory of the synopsis, and the agent's button (off: no LLM provider here)
+  // a file nobody tagged, whose name and first pages do not say what it is, waits in the files view until the person
+  // says; then it is shown in the area of its data (plan 2026-11-05 §3.1)
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
+  await expect(page.getByTestId("files-unplaced")).toHaveText("1 to place");
+  await expect(page.getByTestId("document-EX-301_synopsis.docx")).toHaveCount(0);
+  await page.getByTestId("inputs-files").click();
+  const drawer = page.getByTestId("inputs-files-drawer");
+  await expect(drawer.getByTestId("inputs-file-EX-301_synopsis.docx")).toContainText("not placed: say what it is");
+  await drawer.getByLabel("what EX-301_synopsis.docx is").selectOption("clinical");
+  await expect(page.getByTestId("inputs-notice")).toContainText("EX-301_synopsis.docx: clinical study, shown on Clinical studies");
+  await drawer.getByTestId("open-file-EX-301_synopsis.docx").click();
+  await expect(page.getByTestId("files-unplaced")).toHaveCount(0);
+
+  // before the reading: code's inventory of the synopsis, and the agent's button (off: no LLM provider here)
   await page.getByTestId("tab-studies").click();
   const doc = page.getByTestId("document-EX-301_synopsis.docx");
   await expect(doc).toContainText("Code found project data on 1 page");

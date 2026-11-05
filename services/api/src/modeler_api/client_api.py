@@ -90,10 +90,12 @@ def _view(ws: Workspace) -> dict[str, Any]:
     recon = reconcile(ws, matrix)
     register = ws.latest(ArtifactKind.CLIENT_SUBMISSION, REGISTER)
     reading = jobs.running(ws.store, ws.tenant_id, ws.project_id, "reading")
+    library = DocumentLibrary(ws)
     return {
         "template": TEMPLATE_ID,
         "data_plan": {"version": matrix_version.version, "status": ws.status(matrix_version).value},
-        "files": submissions(ws),
+        # each file with its tag, which places it on the tab of its data (plan 2026-11-05 §3.1), and code's other reading
+        "files": [f | file_tag_view(library, f["sha256"]) for f in submissions(ws)],
         "reconciliation": recon.to_content(),
         "dissolution": {"profiles": profiles(ws), **comparisons(ws)},
         "register": version_view(ws, register, with_content=False) if register else None,

@@ -69,3 +69,9 @@
 .doc-inventory li .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
 .doc-read { font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--sim) 6%, var(--surface)); }
 .doc-read details { margin-top: 4px; }
+/* what a file is, changeable on its card and in the files view; code's other reading of it, to use or keep */
+.file-tag { display: grid; gap: 6px; margin: 6px 0 2px; font-size: 13px; }
+.file-tag select { font-size: 13px; }
+.tag-proposal { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 6px 10px;
+                border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
+.tag-proposal > span:first-child { flex: 1 1 260px; }
