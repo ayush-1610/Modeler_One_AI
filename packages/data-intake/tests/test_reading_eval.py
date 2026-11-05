@@ -34,10 +34,12 @@ def test_code_alone_reads_these_sheets_today():
     """The baseline the reading agent is measured against (code's first filling, unchanged by a person). A change to
     `suggest` that moves this list is a change in what a person must correct: update the list with the CHANGELOG."""
     scores = {s.case: s for s in evaluate(suggest_reader)}
-    assert sorted(n for n, s in scores.items() if s.exact) == [
-        "dissolution-vessels", "geometric-mean", "long-subject-time", "published-mean", "wide-subjects"]
-    # two sheets read without a problem but with the wrong values: what a person must catch today
-    assert {n for n, s in scores.items() if s.fields["read"] and not s.fields["values"]} == {"decimal-comma", "report-table"}
+    # all eleven since 2026-11-05 (5 before): subject columns headed "Subj 1", a unit and n in a note, decimal commas,
+    # an SD column that says its unit, times across as numbers under an ID column, "NS" for no sample, and a Mean
+    # row's n where code finds it is the mean of the subjects above it
+    assert sorted(n for n, s in scores.items() if s.exact) == sorted(c.name for c in CASES)
+    # no sheet reads without a problem but with the wrong values: what a person would have to catch
+    assert {n for n, s in scores.items() if s.fields["read"] and not s.fields["values"]} == set()
 
 
 def test_the_cases_are_json_safe_for_the_run_record():
