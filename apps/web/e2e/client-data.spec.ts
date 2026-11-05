@@ -31,7 +31,7 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   await page.getByTestId("download-template").click();
   expect((await download).suggestedFilename()).toBe("ModelerOne_ClientData_v1.xlsx");
 
-  await page.getByTestId("client-upload").setInputFiles([join(dir, "client-template-filled.xlsx"), join(dir, "client-raw.xlsx")]);
+  await page.getByTestId("client-upload-studies").setInputFiles([join(dir, "client-template-filled.xlsx"), join(dir, "client-raw.xlsx")]);
   const filled = page.getByTestId("client-file-client-template-filled.xlsx");
   await expect(filled).toContainText("client-data template");
   await expect(filled).toContainText("1 dataset");

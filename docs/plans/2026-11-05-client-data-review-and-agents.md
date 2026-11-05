@@ -1,6 +1,7 @@
 # The client's data, reviewed where it belongs, and agents that work from the start (plan, 2026-11-05)
 
-Status: **draft for the owner** (revision 1). Follows `2026-11-03-inputs-and-client-data.md` (I1–I4c, merged), whose
+Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; build A done).
+Follows `2026-11-03-inputs-and-client-data.md` (I1–I4c, merged), whose
 builds made the parts work one by one; the owner's use of them on a real delivery (14 files: BE workbooks, dissolution
 profiling workbooks, the technical proposal) shows that together they do not yet give a clear, usable page. I5 (CDISC)
 is set aside until later (the owner, 2026-11-05).
@@ -45,7 +46,7 @@ is set aside until later (the owner, 2026-11-05).
 5. On Start, every field the proposal speaks to, directly or by implication, is proposed and pre-selected, each with
    the quote it rests on, for the person to confirm or change.
 
-## 3. The design (for the owner's comments; a clickable mockup follows the answers to §5)
+## 3. The design (built directly, no mockup first: §5 q6)
 
 ### 3.1 One intake pipeline: every client file read on arrival, landing where it belongs
 - **On upload, from anywhere**, each file goes through the same steps in the background, and the page shows its progress:
@@ -103,22 +104,51 @@ is set aside until later (the owner, 2026-11-05).
 - A1 is measured on real proposals (its evaluation set, P1's open item) so "nominal" becomes a number.
 
 ## 4. The build, in steps (each a PR to `main`, each with its browser test and screenshots)
-0. **Diagnose on the server** (with the owner): the A1 and A2 run logs of this project, the server model's time per
-   turn, and the 14 files themselves, to confirm §1 and size §3.3.
-1. **Quick fixes (S):** files placed on the tab their tag names; "add files" on Clinical studies and Products; the
-   compound's molecular weight from PubChem as an input; A2's "already running" shown as progress.
-2. **The intake pipeline (L):** automatic reading on upload (§3.1), the files view, "this is…" and "belongs to…".
-3. **The data cards (L):** study and product cards with charts, points, metadata and statistics (§3.2).
-4. **Compound from the start (M):** structured sources by code, auto-start at project creation, A2 budgeted with
-   progress (§3.3).
-5. **Start proposals (M):** A1's implied fields and pre-selected ratings (§3.4), after §5 q1.
-6. **The evaluation grows:** messy deliveries (the owner's real files, de-identified, and synthetic ones modelled on
-   them) scored end to end: placed right, read right, cleaned with a record, nothing silent.
+Revision 2 (the owner's answers, §5): built directly, no mockup first (q6); the owner tests each build and sends
+corrections. Step 0 (diagnose on the server) waits for the owner: the session cannot reach the server, and the owner
+will check the builder with their own files later (q4), so the builds use the uploaded files and synthetic ones.
+1. **A, quick fixes (S): built** (branch `inputs-r1-files-by-tab`).
+   - Each client file is shown on the area its tag names: formulation on Products and dissolution, in vitro on
+     Compound, clinical and bioanalytical on Clinical studies. A file tagged "other" whose content code reads as another
+     kind is shown where that reading puts it, with the reading on its card ("Its content reads as clinical study: sheet
+     “Sheet1” holds individual concentrations… Use it / Keep"); kept "other", it waits in the files view, which the rail
+     counts ("1 to place").
+   - "This file is…" on every file card and in the files view; a changed tag moves the file at once.
+   - "Add files" at the top of Clinical studies, Products and dissolution, and Compound. A file takes the area's tag
+     unless its name says what it is (a deviation from §3.1's "the tab sets its tag", recorded here: a workbook named
+     "Dissolution …" dropped on Clinical studies still goes to Products and dissolution, which is the owner's first
+     complaint); the notice names each file that went elsewhere and why.
+   - The files view (the rail's "The client's files") lists every file with what it is, what it gave and "Open on
+     <area>", which opens the area at the file.
+   - The literature agent's progress replaces the red "already running": how long, its turn of the budget, the values
+     proposed so far (`GET /projects/{id}/literature-run`, small, asked every 5 s while it runs); its end is said once.
+   - Moved to B: the molecular weight from PubChem as an input (it belongs with the other structured sources).
+2. **B, compound values from the start (M):** structured sources by code, started at project creation, then A2 on what
+   is still missing, budgeted, with its progress (§3.3; q2, q3).
+3. **C, the intake pipeline and the data cards (L):** automatic reading on upload (§3.1), "this is…" and "belongs
+   to…" for each sheet and card, and one card per study and per product with its chart, points, metadata, statistics
+   and files, reviewed one by one (§3.2; q5).
+4. **D, Start proposals (M):** A1's implied fields with their quotes, and the M15 ratings pre-selected with the
+   agent's reasons (§3.4; q1).
+5. **The evaluation grows:** messy deliveries (the owner's own files, which the owner will use to check the builder,
+   and synthetic ones modelled on them) scored end to end: placed right, read right, cleaned with a record, nothing
+   silent.
 
-A clickable mockup of §3.1–3.2 (the files view, a study card, a product card, re-categorising) comes before steps 2–3,
-for the owner's comments, as for the previous plan.
+## 5. Questions for the owner, and the answers (2026-11-05)
+Answers, in the owner's words where quoted:
+1. **Pre-select, with the reason.** "preselect (with reason, why?)": the agent's rating is pre-selected and its reason
+   shown beside it; the person confirms or changes it. This reverses the decision of 2026-10-29 (#116).
+2. **Sources:** "all of these and other which are accepted by FDA, or regulatory bodies and which are peer revise
+   sources. ignore which ask for licenses." PubChem, openFDA / DailyMed labels, ChEMBL and other free regulatory or
+   peer-reviewed sources; none that needs a licence (no DrugBank).
+3. **Yes, start at project creation**, for now: "the goal is to get the data in place faster and correctly with
+   sources"; load and cost are looked at later.
+4. **Real files:** the owner has other data to check the builder with afterwards; for now, build and test with the
+   uploaded files or synthetic ones.
+5. **One by one:** "one by one study/product/data", easy to review, each clearly told apart from the others.
+6. **Build directly**, no mockup: the owner tests and sends corrections.
 
-## 5. Questions for the owner
+The questions as asked:
 1. **Pre-selected ratings:** on 2026-10-29 you chose to hide the agent's M15 suggestion until you rate, so it does not
    anchor you. Pre-selecting it reverses that. Pre-select (you confirm or change), or keep it hidden?
 2. **Structured sources** the server may use for compound values: PubChem (in use), openFDA / DailyMed labels, ChEMBL,

@@ -207,3 +207,36 @@ def test_a_paper_the_research_agent_stores_is_listed_with_its_source_and_what_is
     assert row["source"] == "agent" and row["role"] == "paper"
     assert {k: row["retrieved"][k] for k in ("source", "held", "pmid", "doi", "url")} == {
         "source": "Europe PMC", "held": "full_text", "pmid": "111", "doi": "10.1/oa", "url": "https://doi.org/10.1/oa"}
+
+
+def test_the_literature_runs_progress_is_answered_small_for_the_page_to_follow(setup, monkeypatch):
+    """Plan 2026-11-05 §3.3: the Inputs page shows the literature agent's progress (turns of its budget, values proposed
+    so far) in place of a red "already running"."""
+    from modeler_api import agent_jobs, jobs
+
+    c, ws = setup
+    idle = c.get("/api/v1/projects/p1/literature-run", headers=H)
+    assert idle.status_code == 200, idle.text
+    assert idle.json()["data"] == {"running": False, "run": None, "turns": 0, "max_turns": None, "proposed": 0}
+
+    class Configured:
+        provider, model = "test", "scripted"
+
+    run = agent_jobs.AgentRun(ws.store.root, tenant_id="t1", project_id="p1", agent="A2-literature", model=Configured(),
+                              max_turns=40)
+    for turn in (1, 2, 3):
+        run.log_step({"type": "model_turn", "turn": turn})
+        run.log_step({"type": "tool_result", "turn": turn, "tool": "search", "result": "…"})
+    c.post("/api/v1/projects/p1/evidence", headers=H, json={
+        "req_id": "REQ-bind.fu", "target": "bind.fu", "value": 9.0, "unit": "%", "source_type": "REGULATORY_REVIEW",
+        "doi": "10.1/fda-review"})                                      # a person's value: not the agent's
+    from modeler_project.evidence import EvidenceItem, SourceRef, SourceType
+    from modeler_project.evidence_register import propose
+
+    propose(ws, EvidenceItem(id="ev-agent1", req_id="REQ-bind.fu", target="bind.fu", value=8.0, unit="%",
+                             source_type=SourceType.PUBLICATION, source=SourceRef(doi="10.1/paper"), quote="fu was 8%"),
+            actor=run.actor)
+    monkeypatch.setattr(jobs, "running", lambda store, tenant, project, kind: kind == "research")
+    now = c.get("/api/v1/projects/p1/literature-run", headers=H).json()["data"]
+    assert now["running"] and now["run"]["run_id"] == run.run_id and now["run"]["finished_at"] is None
+    assert (now["turns"], now["max_turns"], now["proposed"]) == (3, 40, 1)

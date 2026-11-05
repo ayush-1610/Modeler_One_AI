@@ -19,7 +19,14 @@ from modeler_api.config import SettingsDep
 from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
 from modeler_api.reference_models import TEMPLATES, model_name, snapshot
 from modeler_api.responses import answers, envelope
-from modeler_api.views.evidence import EvidenceChoice, EvidenceCorrection, EvidencePage, PublishedModelTaken, ResearchStart
+from modeler_api.views.evidence import (
+    EvidenceChoice,
+    EvidenceCorrection,
+    EvidencePage,
+    LiteratureRun,
+    PublishedModelTaken,
+    ResearchStart,
+)
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
@@ -95,6 +102,26 @@ def _view(ws: Workspace) -> dict[str, Any]:
 @router.get("/projects/{project_id}/evidence", **answers(EvidencePage))
 def get_evidence(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
     return envelope(_view(workspace_for(project_id, principal, store)))
+
+
+_RUN_KEYS = ("run_id", "agent", "status", "provider", "model", "started_at", "finished_at", "summary")
+
+
+@router.get("/projects/{project_id}/literature-run", **answers(LiteratureRun))
+def get_literature_run(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """Where the literature agent stands, for the Inputs page to show its progress while it searches (plan 2026-11-05
+    §3.3), in place of "already running". Small, so the page can ask every few seconds."""
+    ws = workspace_for(project_id, principal, store)
+    root = getattr(ws.store, "root", None)
+    runs = [r for r in agent_jobs.project_runs(root, ws.tenant_id, ws.project_id) if r["agent"].startswith(("A2", "A3"))]
+    last = runs[0] if runs else None
+    turns = proposed = 0
+    if last is not None and root is not None:
+        turns = sum(1 for s in agent_jobs.run_steps(root, last["run_id"]) if s.get("kind") == "model_turn")
+        proposed = sum(1 for e in items(ws) if e.proposed_by == f"agent:{last['run_id']}")
+    return envelope({"running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "research"),
+                     "run": {k: last.get(k) for k in _RUN_KEYS} if last else None, "turns": turns,
+                     "max_turns": (last.get("budget") or {}).get("max_turns") if last else None, "proposed": proposed})
 
 
 def run_research_job(store: ProjectStore, tenant_id: str, project_id: str, *, model, europe_pmc=None,

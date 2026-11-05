@@ -51,6 +51,12 @@ export function useResource<R extends RouteFor<"get">, T = Data<R, "get">>(
   return { data: result.data ?? null, problem: result.error?.message ?? null };
 }
 
+/** Read the page's resources again, after a refusal that says the server moved on (a run already going elsewhere). */
+export function useRefresh() {
+  const client = useQueryClient();
+  return useCallback(() => client.invalidateQueries(), [client]);
+}
+
 /** The outcome of a change: the answer's data, or the API's reason it refused. */
 export type Outcome<T> = { data: T | null; problem: string | null };
 

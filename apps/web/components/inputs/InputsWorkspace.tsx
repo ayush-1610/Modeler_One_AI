@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { BriefList } from "@/components/brief/BriefList";
-import { Dissolution } from "@/components/client/ClientFiles";
+import { type Act, Dissolution, FileTagLine, type Retag, retagCall } from "@/components/client/ClientFiles";
 import type { View as ClientView } from "@/components/client/types";
 import { Banner, InlineIssue, PageShell, SidePanel } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
 import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
-import { useMutation, useResource } from "@/lib/hooks";
+import { TAG_LABELS } from "@/lib/fileTags";
+import { useMutation, useRefresh, useResource } from "@/lib/hooks";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 
 import { ConfirmGroups } from "./ClientConfirm";
@@ -19,6 +20,7 @@ import { InputRows, type Row } from "./InputRows";
 import { LABEL, ORDER, type Run, TITLE, type TodoItem } from "./InputsTodo";
 import { AccessRequests } from "./ObservedDatasets";
 import { type Options, StudiesTab } from "./StudiesTab";
+import { AREA_LABEL, fileArea, FilesBar, FilesHere, whereShown } from "./TabFiles";
 
 // The data domains down the left (plan 2026-11-03 §3.2): the client's data lands in its home (Products and dissolution,
 // Clinical studies, Compound), never in an area of its own. The ids stay those of PK-Sim's building blocks.
@@ -53,10 +55,28 @@ function FormulationChoice({ study, options, projectId, run }: { study: string; 
 }
 
 type ClientFile = ClientView["files"][number];
+type LiteratureRun = Schema<"LiteratureRun">;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-/** What each of the client's files gave (plan 2026-11-03 §3.2): a drawer over the page, not an area of its own; the
- *  Document Library holds the files themselves. */
-function FilesDrawer({ projectId, files, onClose }: { projectId: string; files: ClientFile[]; onClose: () => void }) {
+/** The literature agent at work (plan 2026-11-05 §3.3): how long, how far into its budget, and what it found so far;
+ *  in place of a red "already running". */
+function LiteratureProgress({ r }: { r: LiteratureRun }) {
+  const minutes = r.run ? Math.max(0, Math.round((Date.now() - new Date(r.run.started_at).getTime()) / 60000)) : null;
+  return (
+    <Banner tone="ok" testId="literature-progress">
+      The literature agent is searching{minutes !== null ? ` (${minutes} min so far)` : ""}: turn {r.turns}
+      {r.max_turns ? ` of at most ${r.max_turns}` : ""}, {plural(r.proposed, "value")} proposed so far. They flow into the rows
+      when it finishes; you can keep working meanwhile.
+    </Banner>
+  );
+}
+
+/** What each of the client's files gave and what it is (plan 2026-11-03 §3.2, 2026-11-05 §3.1): a drawer over the page,
+ *  not an area of its own; each file opens in the area of its data, and a file not placed yet says so. The Document
+ *  Library holds the files themselves. */
+function FilesDrawer({ projectId, files, onClose, onRetag, onOpen }: {
+  projectId: string; files: ClientFile[]; onClose: () => void; onRetag: Retag; onOpen: (area: Tab, file: ClientFile) => void;
+}) {
   const gave = (f: ClientFile) => {
     const parts = [
       f.template ? "the client-data template, read cell by cell" : "",
@@ -76,8 +96,15 @@ function FilesDrawer({ projectId, files, onClose }: { projectId: string; files: 
           <ul className="files-drawer">
             {files.map((f) => (
               <li key={f.id} data-testid={`inputs-file-${f.file}`}>
-                <span className="peek-file">{f.file}</span>
+                <div className="spread">
+                  <span className="peek-file">{f.file}</span>
+                  {fileArea(f) ? (
+                    <button type="button" className="link-btn" data-testid={`open-file-${f.file}`}
+                            onClick={() => onOpen(fileArea(f) as Tab, f)}>Open on {AREA_LABEL[fileArea(f)!]}</button>
+                  ) : <span className="chip medium">not placed: say what it is</span>}
+                </div>
                 <span className="muted">{gave(f)}</span>
+                <FileTagLine file={f} onRetag={onRetag} />
               </li>
             ))}
           </ul>
@@ -101,7 +128,11 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
   const [drawer, setDrawer] = useState(false);
   const [onlyToConfirm, setOnlyToConfirm] = useState(false);
   const review = useResource("/api/v1/projects/{project_id}/client-review", { project_id: projectId });
+  const literature = useResource("/api/v1/projects/{project_id}/literature-run", { project_id: projectId },
+    { poll: (d) => d.running, interval: 5000 });
+  const refresh = useRefresh();
   const assembled = useRef(false);
+  const searching = useRef(false);
   const view = page.data;
 
   const run: Run = async <T,>(fn: () => Promise<Envelope<T>>, ok: string) => {
@@ -109,6 +140,32 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
     setNotice(problem ? { ok: false, text: problem } : ok ? { ok: true, text: ok } : null);
     return problem;
   };
+
+  // a file's tag places it in the area of its data (plan 2026-11-05 §3.1): changed, the file moves there
+  const retag: Retag = (file, kind) => run(retagCall(projectId, file, kind),
+                                           `${file.file}: ${TAG_LABELS[kind].toLowerCase()}, ${whereShown(kind)}.`);
+  const clientAct: Act = (fn) => run(fn, "");
+  const clientSaved = async (m: string) => setNotice({ ok: true, text: m });
+
+  // the literature agent's end is said once, with what it found, when the page saw it searching
+  const running = literature.data?.running ?? false;
+  useEffect(() => {
+    if (running) searching.current = true;
+    else if (searching.current && literature.data) {
+      searching.current = false;
+      setNotice({ ok: true, text: `The literature agent finished: ${plural(literature.data.proposed, "value")} proposed, in the rows below.` });
+      void refresh();
+    }
+  }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function askLiterature() {
+    const problem = await run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }),
+                              "The literature agent is searching; its values flow into the rows when it finishes.");
+    if (problem && /already in progress/.test(problem)) {   // started elsewhere: its progress is shown, not a refusal
+      setNotice(null);
+      await refresh();
+    }
+  }
 
   // the inputs follow every change on the server; a page opened after a change upstream (the brief) assembles them once
   const stale = view && (!view.readiness || view.readiness.status === "STALE");
@@ -143,6 +200,13 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
   const studies = view.studies;
   const used = studies.filter((s) => !s.excluded);
   const formulations = view.compound.filter((r) => /^form\.[^.]+\.type$/.test(r.id) && r.state === "kept").map((r) => r.id.split(".")[1]);
+  const unplaced = (client.data?.files ?? []).filter((f) => !fileArea(f)).length;
+  const bar = (t: "compound" | "formulations" | "studies") => !onlyToConfirm && (
+    <FilesBar tab={t} projectId={projectId} client={client.data ?? undefined} run={run} />
+  );
+  const filesHere = (t: "compound" | "formulations") => !onlyToConfirm && (
+    <FilesHere tab={t} projectId={projectId} client={client.data ?? undefined} act={clientAct} onRetag={retag} onSaved={clientSaved} />
+  );
 
   // a published OSP model of the drug as a source (in place of the old Quick start): its values and datasets flow in,
   // ranked below the client and the literature (D-32), and the person checks them at the review like any other
@@ -174,15 +238,14 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
               Take the published OSP model&apos;s values
             </button>
           ))}
-          <button type="button" className="btn" data-testid="ask-literature"
-                  onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }),
-                                          "The literature agent is searching; its values flow into the rows.")}>
-            Ask the literature for what is missing
+          <button type="button" className="btn" data-testid="ask-literature" disabled={running} onClick={() => void askLiterature()}>
+            {running ? "The literature agent is searching…" : "Ask the literature for what is missing"}
           </button>
         </>
       )}
     >
       {notice && <Banner tone={notice.ok ? "ok" : "err"} testId="inputs-notice">{notice.text}</Banner>}
+      {running && literature.data && <LiteratureProgress r={literature.data} />}
       <div className="inputs-layout">
       <Tabs label="Input areas" prefix="inputs" value={tab} onChange={setTab} vertical
             tabs={TABS.map(([id, label]) => ({ id, label, count: forTab(id).length, testId: `tab-${id}` }))}>
@@ -193,7 +256,12 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
         </button>
         <button type="button" className="btn rail-files" onClick={() => setDrawer(true)} data-testid="inputs-files"
                 aria-haspopup="dialog">
-          The client&apos;s files <span className="chip neutral">{client.data?.files.length ?? 0}</span>
+          <span>The client&apos;s files</span>
+          <span className="row" style={{ gap: 4 }}>
+            {unplaced > 0 && <span className="chip medium" data-testid="files-unplaced" title="files no area shows yet: say what each is">
+              {unplaced} to place</span>}
+            <span className="chip neutral">{client.data?.files.length ?? 0}</span>
+          </span>
         </button>
         <div className="rail-side">
           {todo.length > 0 ? (
@@ -239,14 +307,14 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
       <div className="inputs-area">
 
       {tab === "compound" && (
-        <TabPanel prefix="inputs" id="compound">{confirmHere("compound")}
+        <TabPanel prefix="inputs" id="compound">{bar("compound")}{confirmHere("compound")}
           {!onlyToConfirm && <><InputRows rows={rows("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
                    empty="The compound's values appear here as the client's files, the literature and PubChem fill them." />
-          <AccessRequests projectId={projectId} run={run} /></>}</TabPanel>
+          <AccessRequests projectId={projectId} run={run} /></>}{filesHere("compound")}</TabPanel>
       )}
 
       {tab === "formulations" && (
-        <TabPanel prefix="inputs" id="formulations">{confirmHere("formulations")}
+        <TabPanel prefix="inputs" id="formulations">{bar("formulations")}{confirmHere("formulations")}
           {!onlyToConfirm && <>
           <BriefList projectId={projectId} group="products" testId="inputs-products"
                      fields={["name", "role", "dosage_form", "strength", "release", "attributes"]}
@@ -275,7 +343,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
             <Dissolution projectId={projectId} d={client.data.dissolution}
                          act={async (fn) => run(fn, "The release model is proposed; its values flow into the formulation.")} />
           )}
-          </>}
+          </>}{filesHere("formulations")}
         </TabPanel>
       )}
 
@@ -323,13 +391,19 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
       )}
 
       {tab === "studies" && (
-        <TabPanel prefix="inputs" id="studies">{confirmHere("studies")}{!onlyToConfirm && <StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
-                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined}
+        <TabPanel prefix="inputs" id="studies">{bar("studies")}{confirmHere("studies")}{!onlyToConfirm && <StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
+                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} onRetag={retag}
                     onSaved={(m) => setNotice({ ok: true, text: m })} />}</TabPanel>
       )}
       </div>
       </div>
-      {drawer && <FilesDrawer projectId={projectId} files={client.data?.files ?? []} onClose={() => setDrawer(false)} />}
+      {drawer && <FilesDrawer projectId={projectId} files={client.data?.files ?? []} onClose={() => setDrawer(false)} onRetag={retag}
+                              onOpen={(area, f) => {
+                                setDrawer(false);
+                                setOnlyToConfirm(false);
+                                setTab(area);
+                                window.setTimeout(() => document.getElementById(`client-file-${f.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
+                              }} />}
     </PageShell>
   );
 }

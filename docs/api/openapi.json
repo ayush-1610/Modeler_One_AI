@@ -5626,6 +5626,31 @@
         "title": "Envelope[LibraryPage]",
         "type": "object"
       },
+      "Envelope_LiteratureRun_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LiteratureRun"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[LiteratureRun]",
+        "type": "object"
+      },
       "Envelope_M15Validation_": {
         "additionalProperties": false,
         "properties": {
@@ -9550,6 +9575,54 @@
           "retrieved"
         ],
         "title": "LibraryRowView",
+        "type": "object"
+      },
+      "LiteratureRun": {
+        "additionalProperties": false,
+        "description": "Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run, the turns it has\ntaken of its budget, and the values it has proposed so far (they flow into the inputs when it finishes).",
+        "properties": {
+          "max_turns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Turns"
+          },
+          "proposed": {
+            "title": "Proposed",
+            "type": "integer"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "turns": {
+            "title": "Turns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "running",
+          "run",
+          "turns",
+          "max_turns",
+          "proposed"
+        ],
+        "title": "LiteratureRun",
         "type": "object"
       },
       "M15Issue": {
@@ -24802,6 +24875,65 @@
         "summary": "Get Library",
         "tags": [
           "brief"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/literature-run": {
+      "get": {
+        "description": "Where the literature agent stands, for the Inputs page to show its progress while it searches (plan 2026-11-05\n§3.3), in place of \"already running\". Small, so the page can ask every few seconds.",
+        "operationId": "get_literature_run_api_v1_projects__project_id__literature_run_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LiteratureRun_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Literature Run",
+        "tags": [
+          "evidence"
         ]
       }
     },

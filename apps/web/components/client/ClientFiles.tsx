@@ -5,6 +5,7 @@ import { useState } from "react";
 import { PeekButton } from "@/components/kit/SourcePeek";
 import { Card } from "@/components/ui";
 import { send, type Envelope, type Schema } from "@/lib/api";
+import { TAG_KINDS, TAG_LABELS, type TagKind } from "@/lib/fileTags";
 
 import { SheetReader, type Study } from "./SheetReader";
 import {
@@ -13,6 +14,42 @@ import {
 } from "./types";
 
 export type Act = <T>(fn: () => Promise<Envelope<T>>) => Promise<string | null>;
+/** Say what a file is (its tag), which moves it to the area of Inputs that holds that data (plan 2026-11-05 §3.1). */
+export type Retag = (file: ClientFile, kind: TagKind) => Promise<string | null>;
+
+/** The call that sets a client file's tag (`documents/{sha256}:tag`); a clinical file keeps the study it names. */
+export const retagCall = (projectId: string, file: ClientFile, kind: TagKind) => () =>
+  send("post", "/api/v1/projects/{project_id}/documents/{sha256}:tag", { project_id: projectId, sha256: file.sha256 },
+       { kind, study: kind === "clinical" ? file.tag?.study ?? "" : "" });
+
+/** What a file is, changeable at any time, and the other kind code read from its content, to use or keep. */
+export function FileTagLine({ file, onRetag }: { file: ClientFile; onRetag: Retag }) {
+  const [error, setError] = useState<string | null>(null);
+  const proposal = file.tag_proposal?.decided === "open" ? file.tag_proposal : null;
+  const retag = async (kind: TagKind) => setError(await onRetag(file, kind));
+  return (
+    <div className="file-tag" data-testid={`file-tag-${file.file}`}>
+      <label className="row" style={{ gap: 6 }}>
+        <span className="muted">This file is</span>
+        <select value={file.tag?.kind ?? ""} aria-label={`what ${file.file} is`} onChange={(e) => void retag(e.target.value as TagKind)}>
+          {!file.tag && <option value="" disabled>not said yet</option>}
+          {TAG_KINDS.map((k) => <option key={k} value={k}>{TAG_LABELS[k]}</option>)}
+        </select>
+      </label>
+      {proposal && (
+        <div className="tag-proposal" data-testid={`tag-proposal-${file.file}`}>
+          <span>Its content reads as <strong>{TAG_LABELS[proposal.kind].toLowerCase()}</strong>: {proposal.why}.</span>
+          <span className="row" style={{ gap: 8 }}>
+            <button type="button" className="btn" onClick={() => void retag(proposal.kind)}>Use it</button>
+            {file.tag && <button type="button" className="linkish" onClick={() => void retag(file.tag!.kind)}>
+              Keep {TAG_LABELS[file.tag.kind].toLowerCase()}</button>}
+          </span>
+        </div>
+      )}
+      {error && <div className="banner err">{error}</div>}
+    </div>
+  );
+}
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 type Category = Schema<"Classification">["category"];
@@ -111,8 +148,9 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
   );
 }
 
-function FileCard({ projectId, file, agents, running, agentReading, act, reading, setReading, onSaved, last, remember }: {
-  projectId: string; file: ClientFile; agents: boolean; running: boolean; agentReading: boolean; act: Act; reading: string | null;
+function FileCard({ projectId, file, agents, running, agentReading, act, onRetag, reading, setReading, onSaved, last, remember }: {
+  projectId: string; file: ClientFile; agents: boolean; running: boolean; agentReading: boolean; act: Act; onRetag?: Retag;
+  reading: string | null;
   setReading: (sheet: string | null) => void; onSaved: (message: string) => Promise<void>;
   last: { form: SheetForm; study: Study } | null; remember: (s: { form: SheetForm; study: Study }) => void;
 }) {
@@ -122,7 +160,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, reading
   const undecided = file.triage.some((t) => t.category === "OTHER" && t.by === "code");
   const unread = file.triage.filter((t) => READABLE.has(t.category) && !read.has(t.sheet)).length;
   return (
-    <div className="file-card" data-testid={`client-file-${file.file}`}>
+    <div className="file-card" data-testid={`client-file-${file.file}`} id={`client-file-${file.id}`}>
       <div className="spread">
         <div className="row">
           <strong>{file.file}</strong>
@@ -147,6 +185,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, reading
           )}
         </div>
       </div>
+      {onRetag && <FileTagLine file={file} onRetag={onRetag} />}
       {!spreadsheet && READABLE_DOCUMENTS.has(file.kind) && (
         <DocumentReading projectId={projectId} file={file} agents={agents} running={running} agentReading={agentReading} act={act} />
       )}
@@ -280,17 +319,17 @@ export function Dissolution({ projectId, d, act }: {
 
 
 /** The client's files: each sheet with what it holds and whether it is read, the agent's proposed readings, and the reader
- *  opened on one sheet, on the Inputs step's Studies tab (redesign §3.2). */
-export function ClientFiles({ projectId, view, act, onSaved }: {
-  projectId: string; view: View; act: Act; onSaved: (message: string) => Promise<void>;
+ *  opened on one sheet. Shown on the area of Inputs each file's tag names (plan 2026-11-05 §3.1): `files`, the area's. */
+export function ClientFiles({ projectId, view, files, act, onRetag, onSaved }: {
+  projectId: string; view: View; files?: ClientFile[]; act: Act; onRetag?: Retag; onSaved: (message: string) => Promise<void>;
 }) {
   const [reading, setReading] = useState<{ file: string; sheet: string } | null>(null);
   const [last, setLast] = useState<{ form: SheetForm; study: Study } | null>(null);
   return (
     <>
-      {view.files.map((f) => (
+      {(files ?? view.files).map((f) => (
         <FileCard key={f.id} projectId={projectId} file={f} agents={view.agents.enabled} running={view.running}
-                  agentReading={view.reading} act={act} reading={reading?.file === f.id ? reading.sheet : null}
+                  agentReading={view.reading} act={act} onRetag={onRetag} reading={reading?.file === f.id ? reading.sheet : null}
                   setReading={(sheet) => setReading(sheet ? { file: f.id, sheet } : null)}
                   onSaved={onSaved} last={last} remember={setLast} />
       ))}

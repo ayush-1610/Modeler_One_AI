@@ -1299,6 +1299,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/literature-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Literature Run
+         * @description Where the literature agent stands, for the Inputs page to show its progress while it searches (plan 2026-11-05
+         *     §3.3), in place of "already running". Small, so the page can ask every few seconds.
+         */
+        get: operations["get_literature_run_api_v1_projects__project_id__literature_run_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/members": {
         parameters: {
             query?: never;
@@ -4051,6 +4072,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[LiteratureRun] */
+        Envelope_LiteratureRun_: {
+            data: components["schemas"]["LiteratureRun"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[M15Validation] */
         Envelope_M15Validation_: {
             data: components["schemas"]["M15Validation"];
@@ -5423,6 +5451,22 @@ export interface components {
             /** Versions */
             versions: number;
             withdrawn: components["schemas"]["WithdrawalView"] | null;
+        };
+        /**
+         * LiteratureRun
+         * @description Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run, the turns it has
+         *     taken of its budget, and the values it has proposed so far (they flow into the inputs when it finishes).
+         */
+        LiteratureRun: {
+            /** Max Turns */
+            max_turns: number | null;
+            /** Proposed */
+            proposed: number;
+            run: components["schemas"]["RunSummary"] | null;
+            /** Running */
+            running: boolean;
+            /** Turns */
+            turns: number;
         };
         /** M15Issue */
         M15Issue: {
@@ -11901,6 +11945,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_LibraryPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_literature_run_api_v1_projects__project_id__literature_run_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LiteratureRun_"];
                 };
             };
             /** @description Validation Error */
