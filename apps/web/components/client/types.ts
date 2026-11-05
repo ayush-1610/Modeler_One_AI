@@ -20,7 +20,7 @@ export type ClientFile = {
 };
 export type InventoryItem = { page: number; holds: string; label: string; line: string };
 export type DocumentRead = { run_id: string | null; by: string; datasets: string[]; facts: number; dissolution_rows: number;
-                             links: number; refused: string[]; digitization: string[]; summary: string };
+                             links: number; compositions?: number; refused: string[]; digitization: string[]; summary: string };
 /** The file kinds the reading agent reads for data (modeler_project.client_data.READABLE_DOCUMENTS). */
 export const READABLE_DOCUMENTS = new Set(["pdf", "docx"]);
 export type Reconciled = Schema<"ReconciledRow">;

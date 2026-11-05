@@ -85,7 +85,11 @@ def inventory(pages: list[str], tag: str = "other") -> list[InventoryItem]:
 
 # --- the checks ----------------------------------------------------------------------------------------------------
 
-FACT_FIELDS = ("dose", "n", "route", "food_state", "formulation", "design", "lloq")
+FACT_FIELDS = ("dose", "n", "route", "food_state", "formulation", "design", "lloq",
+               # the subjects' demographics (D-29): numbers for the study's individual, and hints for the person's choice
+               # of its PK-Sim population and sex (a person chooses those: §3.3)
+               "age_mean", "age_min", "age_max", "weight_mean", "height_mean", "females", "female_percent", "ethnicity")
+DEMOGRAPHIC_FIELDS = ("age_mean", "age_min", "age_max", "weight_mean", "height_mean", "females", "female_percent", "ethnicity")
 CHOICES: dict[str, tuple[str, ...]] = {
     "route": ("oral", "iv_bolus", "iv_infusion"),
     "food_state": ("fasted", "fed"),
@@ -120,6 +124,10 @@ _MG_PER: dict[str, float] = {"mg": 1.0, "g": 1000.0, "µg": 0.001}
 _DOSE_UNIT = re.compile(r"(?<![a-zµμ])(mg/kg|mg|g|µg|μg|ug|mcg)(?![a-z])", re.IGNORECASE)
 _CONC_UNIT = re.compile(r"(?<![a-zµμ])((?:ng|pg|µg|μg|ug|mg|nmol|µmol|μmol|umol|pmol)\s*/\s*(?:ml|l|dl))(?![a-z])", re.IGNORECASE)
 _TOKEN = re.compile(r"[a-z0-9µμ]+(?:\.[0-9]+)?", re.IGNORECASE)
+
+
+_AGE = re.compile(r"\bage[ds]?\b|\byears?\b|\byrs?\b", re.IGNORECASE)
+_FEMALE = re.compile(r"\bfemales?\b|\bwom[ae]n\b", re.IGNORECASE)
 
 
 class FactError(ValueError):
@@ -189,6 +197,32 @@ def check_fact(field: str, value: Any, unit: str | None, quote: str) -> dict[str
         if number != int(number) or not value_stated_in_quote(number, quote):
             raise FactError(f"the quote must state the number of subjects, {value}")
         return {"n": int(number)}
+    if field in ("age_mean", "age_min", "age_max"):
+        number = _number(value, "age")
+        if not value_stated_in_quote(number, quote) or not _AGE.search(normalize_for_match(quote)):
+            raise FactError(f"the quote must state the age {number:g} (years)")
+        return {field: number}
+    if field in ("weight_mean", "height_mean"):
+        number = _number(value, field.split("_")[0])
+        unit_word = "kg" if field == "weight_mean" else "cm"
+        if (unit or unit_word).strip().lower() != unit_word:
+            raise FactError(f"{field.split('_')[0]} in {unit_word}, as the file states it (code converts nothing here)")
+        if not value_stated_in_quote(number, quote) or not re.search(rf"\b{unit_word}\b", normalize_for_match(quote), re.IGNORECASE):
+            raise FactError(f"the quote must state {number:g} {unit_word}")
+        return {field: number}
+    if field in ("females", "female_percent"):
+        number = float(value) if isinstance(value, int | float) or str(value).replace(".", "", 1).isdigit() else -1.0
+        if number < 0 or (field == "females" and number != int(number)) or (field == "female_percent" and number > 100):
+            raise FactError(f"{field} must be {'a count' if field == 'females' else 'a percentage'}")
+        text = normalize_for_match(quote)
+        if not value_stated_in_quote(number, quote) or not _FEMALE.search(text) or (field == "female_percent" and "%" not in text):
+            raise FactError(f"the quote must state {number:g}{' %' if field == 'female_percent' else ''} women or females")
+        return {field: int(number) if field == "females" else number}
+    if field == "ethnicity":
+        written = str(value).strip()
+        if not written or not text_in(written, quote):
+            raise FactError(f"the quote must write the ethnicity {written!r} as the file does")
+        return {"ethnicity": written}
     if field == "lloq":
         number = _number(value, "LLOQ")
         units = {re.sub(r"\s", "", u).lower() for u in _CONC_UNIT.findall(normalize_for_match(quote))}
@@ -210,3 +244,15 @@ def check_quote(page_text: str | None, quote: str) -> str | None:
     if not quote_appears_in(page_text, quote):
         return "the quote is not on that page verbatim"
     return None
+
+
+def check_component(name: str, amount: Any, unit: str, quote: str) -> dict[str, Any]:
+    """One line of a product's composition as the file reports it (§3.6: shown, not used by the model): the quote
+    writes the component and states its amount with its unit."""
+    written = str(name).strip()
+    number = _number(amount, "amount")
+    if not written or not text_in(written, quote):
+        raise FactError(f"the quote must write the component {written!r}")
+    if not value_stated_in_quote(number, quote) or re.sub(r"\s", "", unit or "").lower() not in re.sub(r"\s", "", normalize_for_match(quote)).lower():
+        raise FactError(f"the quote must state {number:g} {unit}")
+    return {"name": written, "amount": number, "unit": str(unit).strip()}

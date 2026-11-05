@@ -18,6 +18,8 @@ type Group = Schema<"ReviewGroup">;
 type Issue = Schema<"ReviewIssue">;
 type Option = Schema<"ReviewOption">;
 
+// a link question asks whether two names are one study, product or batch (by the issue's scope: link, plink, blink)
+const LINK_LABEL: Record<string, string> = { link: "Same study?", plink: "Same product?", blink: "Same batch?" };
 const KIND: Record<Issue["kind"], [string, string]> = {
   conflict: ["Conflict", "conflict"], difference: ["Differs", "difference"], question: ["Question", "question"],
   link: ["Same study?", "question"],
@@ -36,7 +38,7 @@ function itemLabel(label: string, target?: string | null) {
 function IssueCard({ projectId, group, issue, run }: { projectId: string; group: Group; issue: Issue; run: Run }) {
   const [option, setOption] = useState<string>("");   // nothing preselected: the person chooses
   const [answer, setAnswer] = useState("");
-  const [kind, tone] = KIND[issue.kind];
+  const [kind, tone] = issue.kind === "link" ? [LINK_LABEL[issue.id.split("|")[0]] ?? "Same?", "question"] : KIND[issue.kind];
   const settled = issue.selected !== null || issue.answered !== null;
   const confirmed = group.state === "confirmed";
   const chosen = issue.options.find((o) => o.id === issue.selected);

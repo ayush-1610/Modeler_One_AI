@@ -93,7 +93,8 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
         <div className="doc-read" data-testid={`document-read-${file.file}`}>
           <strong>Read by the agent:</strong>{" "}
           {[[last.datasets.length, "dataset"], [last.facts, "study fact"], [last.dissolution_rows, "dissolution row"],
-            [last.links, "study-name link"], [last.digitization.length, "figure for a person to digitize"]]
+            [last.links, "name link"], [last.compositions ?? 0, "composition"],
+            [last.digitization.length, "figure for a person to digitize"]]
             .filter(([n]) => Number(n) > 0).map(([n, w]) => plural(Number(n), String(w))).join(" · ") || "nothing code accepted"}.
           {" "}Each is shown in its study or product and loads only once a person confirms it there.
           {last.refused.length > 0 && (

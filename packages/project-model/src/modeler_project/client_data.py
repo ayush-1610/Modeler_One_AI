@@ -407,10 +407,11 @@ def record_reading(ws: Workspace, sid: str, *, sheet: str, form: dict[str, Any],
 
 def record_document_reading(ws: Workspace, sid: str, *, facts: list[dict[str, Any]], dissolution: list[dict[str, Any]],
                             links: list[dict[str, Any]], datasets: list[str], refused: list[str], digitization: list[str],
-                            summary: str, run_id: str | None, by: str) -> dict[str, Any]:
+                            summary: str, run_id: str | None, by: str,
+                            compositions: list[dict[str, Any]] = ()) -> dict[str, Any]:
     """What the reading agent read from one client PDF or Word file, every item quoted and checked by code (plan
-    2026-11-03 §3.4, I4): study facts, dissolution rows, links between two names of one study, the datasets it proposed,
-    and what code refused. A later reading of the same file replaces the earlier: its facts, rows and links go, and the
+    2026-11-03 §3.4, I4): study facts, dissolution rows, links between two names of one study, product or batch, a
+    product's composition as reported, the datasets it proposed, and what code refused. A later reading of the same file replaces the earlier: its facts, rows and links go, and the
     earlier reading's datasets a person has not confirmed are set aside. Nothing here loads: each item waits on Inputs
     until a person confirms its group."""
     from modeler_project.dataset_register import dataset as current
@@ -428,8 +429,9 @@ def record_document_reading(ws: Workspace, sid: str, *, facts: list[dict[str, An
                 decide_dataset(ws, dataset_id, state=EvidenceState.REJECTED, by=by,
                                reason=f"replaced by a later reading of {content['file']}")
         read = {"run_id": run_id, "by": by, "datasets": datasets, "facts": len(facts), "dissolution_rows": len(dissolution),
-                "links": len(links), "refused": refused[:50], "digitization": digitization, "summary": summary[:2000]}
-        content.update(study_facts=facts, dissolution=dissolution, study_links=links,
+                "links": len(links), "compositions": len(compositions), "refused": refused[:50], "digitization": digitization,
+                "summary": summary[:2000]}
+        content.update(study_facts=facts, dissolution=dissolution, study_links=links, compositions=list(compositions),
                        datasets=[*[d for d in content.get("datasets", []) if d not in earlier], *datasets],
                        document_reads=[*content.get("document_reads", []), read])
         ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,
@@ -448,10 +450,16 @@ def document_facts(ws: Workspace) -> list[dict[str, Any]]:
             for sub in submissions(ws) for f in sub.get("study_facts", [])]
 
 
-def document_links(ws: Workspace) -> list[dict[str, Any]]:
-    """Every pair of names a client document says are one study, quoted, with its file."""
+def document_links(ws: Workspace, kind: str = "study") -> list[dict[str, Any]]:
+    """Every pair of names a client document says are one study (or product, or batch), quoted, with its file."""
     return [{**link, "sid": sub["id"], "file": sub["file"], "doc_sha256": sub["sha256"]}
-            for sub in submissions(ws) for link in sub.get("study_links", [])]
+            for sub in submissions(ws) for link in sub.get("study_links", []) if link.get("kind", "study") == kind]
+
+
+def document_compositions(ws: Workspace) -> list[dict[str, Any]]:
+    """Every product composition a client document reports (shown, not used by the model), with its file."""
+    return [{**c, "sid": sub["id"], "file": sub["file"], "doc_sha256": sub["sha256"]}
+            for sub in submissions(ws) for c in sub.get("compositions", [])]
 
 
 def datasets_from_observations(observations: list[Any], *, study: dict[str, Any], sha: str, filename: str,

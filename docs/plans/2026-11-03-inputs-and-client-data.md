@@ -336,6 +336,8 @@ Each PR: a CHANGELOG entry, the coverage table if a stage changes, tests and a b
 
 **Progress (2026-11-05, later).** I3 is merged (#130). I4 is in its PR: code's page inventory of a client PDF or Word file, and the reading agent's proposals (study facts, concentration and NCA tables, dissolution tables, study-name links, figures to digitize), each checked by code against its page and landing in its study or product to confirm. **Deviation:** demographics and composition are listed by the inventory but not yet proposed as values (the study record's demographics and the product card's "as reported" composition follow); scans stay unread until OCR.
 
+**Progress (2026-11-05, I4b).** I4 is merged (#131). I4b is in its PR: the demographics (the person chooses the PK-Sim population and sex; D-29), the composition as reported (§3.6), and product and batch names matched across files with "Same product?" / "Same batch?" from a document's words. This closes the deviations recorded for I3 and I4, except OCR. Next: the reading agent scored on the server's model once `main` is deployed; I5 (CDISC) only with the owner's approval of its dependency.
+
 ## 5. For the owner
 Settled on 2026-11-03: tagging (A + D), the file-type order (CDISC optional), the mockup comments. Next: the builds,
 in order, each a PR to `main`; then the literature agent's compound parameters (A2: better tasks, the project's context,

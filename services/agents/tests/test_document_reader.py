@@ -176,3 +176,76 @@ def test_a_study_only_a_document_describes_is_confirmed_as_its_facts_stand(tmp_p
     read_and_record(Scripted([[("propose_study_facts", {"study_id": "EX-501", "facts": FACTS[1]["facts"][:1]})]]), ws,
                     DocumentLibrary(ws), sub["id"], actor="agent:again")
     assert review.groups(ws)[0]["state"] == "to_confirm"
+
+
+# --- I4b: demographics, composition, one product or batch however the files write it ---------------------------------
+
+
+def _delivered(tmp_path, name):
+    """A delivery of the evaluation set read into a workspace, its documents read as a perfect reader would."""
+    ws = _ws(tmp_path)
+
+    def reader(ws, library, sid, file):
+        read_and_record(Scripted([list(file.reading)]), ws, library, sid, actor="agent:eval")
+
+    score(next(d for d in DELIVERIES if d.name == name), ws, read_documents=reader)
+    return ws
+
+
+def test_a_documents_demographics_become_the_studys_individual_once_a_person_chooses_its_population_and_sex(tmp_path):
+    from modeler_project.inputs_view import _demographics_state
+
+    ws = _delivered(tmp_path, "a Word synopsis giving the subjects' demographics")
+    group = next(g for g in review.groups(ws) if g["id"] == "study:EX-302")
+    shown = {f["field"]: f["value"] for f in group["facts"]}
+    assert shown["demographics.age_mean"] == "31.5" and shown["demographics.weight_mean"] == "76.2"
+    assert shown["demographics.ethnicity"] == "Caucasian" and shown["demographics.females"] == "0"
+    population = next(i for i in group["issues"] if i["id"].endswith("demographics:population"))
+    sex = next(i for i in group["issues"] if i["id"].endswith("demographics:sex"))
+    assert "says “Caucasian”" in population["text"] and "European_ICRP_2002" in [o["id"] for o in population["options"]]
+    assert "0 women" in sex["text"]
+    assert not any(i["id"].endswith("demographics:age_years") for i in group["issues"])     # the synopsis states the age
+    with pytest.raises(review.ReviewError, match="settle 2 open items"):
+        review.confirm(ws, group["id"], by="u")
+    review.select(ws, group["id"], population["id"], option="European_ICRP_2002", by="u")
+    review.select(ws, group["id"], sex["id"], option="MALE", by="u")
+    review.confirm(ws, group["id"], by="u")
+    (found,) = [d for d in datasets(ws) if d.study.get("study_id") == "EX-302"]
+    assert found.study["demographics"] == {"population": "European_ICRP_2002", "sex": "MALE", "age_years": 31.5,
+                                           "age_min": 24, "age_max": 41, "weight_kg": 76.2}
+    assert found.demographics_choice == "entered"
+    assert _demographics_state({**found.study, "demographics_choice": found.demographics_choice}) == "entered"   # D-29
+
+
+def test_a_batch_a_certificate_names_by_its_lot_number_is_one_batch_once_a_person_says_so(tmp_path):
+    from modeler_project.dissolution_register import profiles
+
+    ws = _delivered(tmp_path, "a certificate naming the batch by its lot number, with the composition")
+    assert len(profiles(ws)) == 2                                             # B1 and 4711: two batches until linked
+    group = next(g for g in review.groups(ws) if g["id"] == "product:Test 10 mg tablet")
+    link = next(i for i in group["issues"] if i["id"] == "blink|4711")
+    assert "certificate.pdf (p. 1)" in link["text"] and "batch 4711 (B1)" in link["text"]
+    assert {f["label"]: f["value"] for f in group["facts"]}["Lactose monohydrate"] == "89 mg (filler)"
+    group = review.select(ws, group["id"], link["id"], option="same", by="u")
+    (merged,) = profiles(ws)                                                   # one batch: one profile, two files
+    assert any("kept once" in n for n in group["notes"]) and merged["files"]
+    group = review.reopen(ws, group["id"], link["id"], by="u")
+    assert len(profiles(ws)) == 2                                             # said otherwise: two again
+
+
+def test_one_product_written_two_ways_is_one_profile_and_its_composition_alone_is_confirmed(tmp_path):
+    from modeler_project.dissolution_register import profiles
+
+    ws = _delivered(tmp_path, "one product written two ways in two workbooks, the same profile")
+    (profile,) = profiles(ws)
+    assert profile["files"] == ["release_v2.xlsx"]                            # the later file's data, the first file's id
+    library = DocumentLibrary(ws)
+    pages = [["Composition of the Reference 20 mg capsule", "Drug X 20 mg (active)"]]
+    sub = ingest(ws, library, synthetic_pdf(pages), "reference.pdf", by="u", tag=("formulation", ""))
+    read_and_record(Scripted([[("propose_composition", {
+        "product": "Reference 20 mg capsule", "product_quote": pages[0][0], "page": 1,
+        "components": [{"name": "Drug X", "amount": 20, "unit": "mg", "quote": "Drug X 20 mg (active)"}]})]]),
+        ws, library, sub["id"], actor="agent:test")
+    group = next(g for g in review.groups(ws) if g["id"] == "product:Reference 20 mg capsule")
+    assert group["items"] == [] and group["facts"][0]["value"] == "20 mg" and group["state"] == "to_confirm"
+    assert review.confirm(ws, group["id"], by="u")["state"] == "confirmed"

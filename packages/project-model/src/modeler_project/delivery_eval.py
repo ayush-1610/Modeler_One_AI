@@ -133,8 +133,8 @@ def _pk(study_id: str, values: tuple[float, ...], n: int = 12) -> list[tuple]:
                                                                                               strict=True)]
 
 
-def _diss(at_30: float) -> list[tuple]:
-    return [("Test 10 mg tablet", "TEST", 10, "B1", "USP 2 paddle", 50, "phosphate", 6.8, 900, 37, None, t, "min", v, v + 1, v - 1)
+def _diss(at_30: float, *, product: str = "Test 10 mg tablet", batch: str = "B1") -> list[tuple]:
+    return [(product, "TEST", 10, batch, "USP 2 paddle", 50, "phosphate", 6.8, 900, 37, None, t, "min", v, v + 1, v - 1)
             for t, v in ((15, 55), (30, at_30), (45, 97))]
 
 
@@ -145,6 +145,14 @@ SYNOPSIS = ["Clinical study synopsis: Study EX-301",
             "Population: Twelve healthy subjects (n = 12) were dosed and completed the study."]
 PROTOCOL = ["Clinical Study Protocol", "Protocol EXZ-101 (Study 101)",
             "12 healthy subjects receive a single oral dose of 10 mg in the fasted state."]
+DEMOGRAPHICS = ["Clinical study synopsis: Study EX-302",
+                "Subjects: Twelve healthy Caucasian subjects (12 men, 0 women) aged 24 to 41 years (mean age 31.5 years).",
+                "Their mean body weight was 76.2 kg."]
+CERTIFICATE = ["Certificate of analysis: Test 10 mg tablet, batch 4711 (B1)",
+               "Composition per tablet:", "Drug X 10 mg (active)", "Lactose monohydrate 89 mg (filler)",
+               "Magnesium stearate 1 mg (lubricant)",
+               "Dissolution: USP 2 paddle at 50 rpm, 900 mL phosphate buffer pH 6.8, test product",
+               "Time (min) Mean % dissolved (SD) n", "15 56.0 (2.0) 6", "30 84.0 (3.1) 6", "45 97.0 (1.2) 6"]
 DISSOLUTION_REPORT = ["Dissolution report", "Product: Test 10 mg tablet, batch B1 (test product)",
                       "Apparatus: USP 2 paddle at 50 rpm", "Medium: 900 mL phosphate buffer pH 6.8, 37 C",
                       "Time (min) Mean % dissolved (SD) n", "15 55.0 (2.0) 6", "30 71.0 (3.1) 6", "45 97.0 (1.2) 6"]
@@ -210,6 +218,51 @@ DELIVERIES: tuple[Delivery, ...] = (
                                  {"time": 30, "mean": 71, "sd": 3.1, "quote": "30 71.0 (3.1) 6"},
                                  {"time": 45, "mean": 97, "sd": 1.2, "quote": "45 97.0 (1.2) 6"}]}),)),
     ), groups=("product:Test 10 mg tablet",), flags=("product:Test 10 mg tablet|profile:conflict",)),
+    Delivery("a Word synopsis giving the subjects' demographics", (
+        DeliveryFile("EX-302_PK.xlsx", _template(studies=[_study("EX-302")], summary=_pk("EX-302", PK))),
+        DeliveryFile("EX-302_synopsis.docx", lambda: synthetic_docx(DEMOGRAPHICS), tag=("clinical", "EX-302"), reading=(
+            ("propose_study_facts", {"study_id": "EX-302", "facts": [
+                {"fact": "age_mean", "value": 31.5, "page": 1, "quote": "(mean age 31.5 years)"},
+                {"fact": "age_min", "value": 24, "page": 1, "quote": "aged 24 to 41 years"},
+                {"fact": "age_max", "value": 41, "page": 1, "quote": "aged 24 to 41 years"},
+                {"fact": "weight_mean", "value": 76.2, "unit": "kg", "page": 1, "quote": "mean body weight was 76.2 kg"},
+                {"fact": "females", "value": 0, "page": 1, "quote": "(12 men, 0 women)"},
+                {"fact": "ethnicity", "value": "Caucasian", "page": 1, "quote": "Twelve healthy Caucasian subjects"}]}),)),
+    ), groups=("study:EX-302",), flags=("study:EX-302|demographics:question",)),
+    Delivery("one product written two ways in two workbooks, the same profile", (
+        DeliveryFile("release.xlsx", _template(dissolution=_diss(85))),
+        DeliveryFile("release_v2.xlsx", _template(dissolution=_diss(85, product="TEST 10 MG Tablet"))),
+    ), groups=("product:TEST 10 MG Tablet",),
+       notes=("product:TEST 10 MG Tablet|kept once", "product:TEST 10 MG Tablet|Also called Test 10 mg tablet")),
+    Delivery("a certificate naming the batch by its lot number, with the composition", (
+        DeliveryFile("release.xlsx", _template(dissolution=_diss(85))),
+        DeliveryFile("certificate.pdf", lambda: synthetic_pdf([CERTIFICATE]), tag=("formulation", ""), reading=(
+            ("propose_link", {"kind": "batch", "names": ["4711", "B1"], "page": 1, "quote": CERTIFICATE[0]}),
+            ("propose_composition", {"product": "Test 10 mg tablet", "product_quote": CERTIFICATE[0], "page": 1,
+                                     "components": [
+                                         {"name": "Drug X", "amount": 10, "unit": "mg", "function": "active",
+                                          "quote": "Drug X 10 mg (active)"},
+                                         {"name": "Lactose monohydrate", "amount": 89, "unit": "mg", "function": "filler",
+                                          "quote": "Lactose monohydrate 89 mg (filler)"},
+                                         {"name": "Magnesium stearate", "amount": 1, "unit": "mg", "function": "lubricant",
+                                          "quote": "Magnesium stearate 1 mg (lubricant)"}]}),
+            ("propose_dissolution", {
+                "product": "Test 10 mg tablet", "product_quote": CERTIFICATE[0], "page": 1, "time_unit": "min",
+                "header_quote": "Time (min) Mean % dissolved (SD) n", "n": 6,
+                "conditions": [
+                    {"field": "role", "value": "TEST", "quote": CERTIFICATE[5]},
+                    {"field": "strength_mg", "value": 10, "quote": CERTIFICATE[0]},
+                    {"field": "batch", "value": "4711", "quote": CERTIFICATE[0]},
+                    {"field": "apparatus", "value": "USP 2 paddle", "quote": CERTIFICATE[5]},
+                    {"field": "rpm", "value": 50, "quote": CERTIFICATE[5]},
+                    {"field": "medium", "value": "phosphate", "quote": CERTIFICATE[5]},
+                    {"field": "ph", "value": 6.8, "quote": CERTIFICATE[5]},
+                    {"field": "volume_ml", "value": 900, "quote": CERTIFICATE[5]}],
+                "rows": [{"time": 15, "mean": 56, "sd": 2.0, "quote": "15 56.0 (2.0) 6"},
+                         {"time": 30, "mean": 84, "sd": 3.1, "quote": "30 84.0 (3.1) 6"},
+                         {"time": 45, "mean": 97, "sd": 1.2, "quote": "45 97.0 (1.2) 6"}]}),)),
+    ), groups=("product:Test 10 mg tablet",), flags=("blink|4711:link",),
+       notes=("product:Test 10 mg tablet|Composition as certificate.pdf reports it",)),
 )
 
 

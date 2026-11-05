@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import asdict
 from typing import Any
 
@@ -56,20 +57,54 @@ def _content(profile: Profile, sources: list[str]) -> dict[str, Any]:
     }
 
 
-def by_file(ws: Workspace) -> dict[ProfileKey, list[tuple[Profile, str, str]]]:
-    """Each profile (same product, batch and conditions) with the client files that give it, oldest file first: the
-    profile as that file gives it, the file's submission id and its name."""
+def _name(name: str, aliases: dict[str, str]) -> str:
+    """A product or batch name as the register matches it: the name a person linked it to, then case, spaces and
+    punctuation aside (plan 2026-11-03 §3.4: one product or batch, however the files write it)."""
+    return re.sub(r"[^A-Z0-9]", "", str(aliases.get(name, name)).upper())
+
+
+def identity(key: ProfileKey, aliases: dict[str, dict[str, str]] | None = None) -> tuple[Any, ...]:
+    """What makes two profiles one: the same product and batch (by `_name`), role, strength and test conditions."""
+    aliases = aliases or {}
+    def text(v: Any) -> str:
+        return " ".join(str(v or "").lower().split())
+
+    return (_name(key.product, aliases.get("product", {})), key.role.upper(), key.strength_mg,
+            _name(key.batch, aliases.get("batch", {})), text(key.apparatus), key.rpm, text(key.medium), key.ph, key.volume_ml)
+
+
+def _aliases(ws: Workspace) -> dict[str, dict[str, str]]:
+    from modeler_project.client_data import review_record
+
+    record = review_record(ws)
+    return {"product": record.get("product_aliases", {}), "batch": record.get("batch_aliases", {})}
+
+
+def _given(ws: Workspace) -> list[tuple[Profile, Any]]:
+    """Every profile each client file gives, oldest file first, with the file's record."""
     from modeler_project.client_data import submissions
 
-    out: dict[ProfileKey, list[tuple[Profile, str, str]]] = {}
     versions = [ws.latest(ArtifactKind.CLIENT_SUBMISSION, sub["id"]) for sub in submissions(ws)
                 if sub.get("dissolution") or sub.get("dissolution_records")]
     first_seen = {v.id: ws.versions(ArtifactKind.CLIENT_SUBMISSION, v.id)[0].created_at for v in versions}
+    out = []
     for version in sorted(versions, key=lambda v: first_seen[v.id]):
         from_rows, _p1 = profiles_from_rows(version.content.get("dissolution", []))
         from_records, _p2 = profiles_from_records(version.content.get("dissolution_records", []))
-        for profile in from_rows + from_records:
-            out.setdefault(profile.key, []).append((profile, version.id, version.content["file"]))
+        out += [(profile, version) for profile in from_rows + from_records]
+    return out
+
+
+def by_file(ws: Workspace) -> dict[ProfileKey, list[tuple[Profile, str, str]]]:
+    """Each profile (same product, batch and conditions, however the files write the names) with the client files that
+    give it, oldest file first: the profile as that file gives it, the file's submission id and its name. Keyed by the
+    first file's key, whose id the register keeps."""
+    aliases = _aliases(ws)
+    first: dict[tuple[Any, ...], ProfileKey] = {}
+    out: dict[ProfileKey, list[tuple[Profile, str, str]]] = {}
+    for profile, version in _given(ws):
+        key = first.setdefault(identity(profile.key, aliases), profile.key)
+        out.setdefault(key, []).append((profile, version.id, version.content["file"]))
     return out
 
 
@@ -80,38 +115,46 @@ def rebuild(ws: Workspace, *, by: str) -> list[dict[str, Any]]:
     the choice is kept in the review record's `profile_sources`)."""
     from modeler_project.client_data import review_record, submissions
 
-    latest: dict[ProfileKey, tuple[Profile, Any]] = {}
+    latest: dict[tuple[Any, ...], tuple[Profile, Any]] = {}
+    first: dict[tuple[Any, ...], ProfileKey] = {}       # the id stays the first file's, however later files write it
     problems: list[str] = []
     keep = review_record(ws).get("profile_sources", {})
-    versions = [ws.latest(ArtifactKind.CLIENT_SUBMISSION, sub["id"]) for sub in submissions(ws)
-                if sub.get("dissolution") or sub.get("dissolution_records")]
-    first_seen = {v.id: ws.versions(ArtifactKind.CLIENT_SUBMISSION, v.id)[0].created_at for v in versions}
-    for version in sorted(versions, key=lambda v: first_seen[v.id]):
-        from_rows, p1 = profiles_from_rows(version.content.get("dissolution", []))
-        from_records, p2 = profiles_from_records(version.content.get("dissolution_records", []))
-        problems += [f"{version.content['file']}: {p}" for p in p1 + p2]
-        for profile in from_rows + from_records:
-            if profile.key in latest:
-                kept = keep.get(profile_id(profile.key))
-                if kept == latest[profile.key][1].id:
-                    problems.append(f"{profile.key.label()}: {latest[profile.key][1].content['file']} kept over "
-                                    f"{version.content['file']} (selected on Inputs)")
-                    continue
-                problems.append(f"{profile.key.label()}: {version.content['file']} replaces {latest[profile.key][1].content['file']}")
-            latest[profile.key] = (profile, version)
+    aliases = _aliases(ws)
+    for sub in submissions(ws):
+        if sub.get("dissolution") or sub.get("dissolution_records"):
+            version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sub["id"])
+            _r, p1 = profiles_from_rows(version.content.get("dissolution", []))
+            _d, p2 = profiles_from_records(version.content.get("dissolution_records", []))
+            problems += [f"{version.content['file']}: {p}" for p in p1 + p2]
+    for profile, version in _given(ws):
+        same = identity(profile.key, aliases)
+        key = first.setdefault(same, profile.key)
+        if same in latest:
+            kept = keep.get(profile_id(key))
+            if kept == latest[same][1].id:
+                problems.append(f"{key.label()}: {latest[same][1].content['file']} kept over "
+                                f"{version.content['file']} (selected on Inputs)")
+                continue
+            problems.append(f"{key.label()}: {version.content['file']} replaces {latest[same][1].content['file']}")
+        latest[same] = (profile, version)
     if not latest:
         return []
     out = []
-    for profile, version in latest.values():
-        saved = ws.commit(ArtifactKind.DISSOLUTION, profile_id(profile.key), _content(profile, [version.content["file"]]),
+    for same, (profile, version) in latest.items():
+        saved = ws.commit(ArtifactKind.DISSOLUTION, profile_id(first[same]), _content(profile, [version.content["file"]]),
                           derived_from=[version.ref], actor=by, reason=f"profile {profile.key.label()}")
         out.append(saved.content | {"id": saved.id})
-    built = [p for p, _v in latest.values()]
+    built_ids = {profile_id(k) for k in first.values()}
+    for stale in ws.list(ArtifactKind.DISSOLUTION):   # a spelling now matched to another's profile is retired, not erased
+        if stale.id not in built_ids and stale.id != COMPARISONS and not stale.content.get("retired"):
+            ws.commit(ArtifactKind.DISSOLUTION, stale.id, {**stale.content, "retired": "the same product and batch as "
+                      "another profile, written another way: merged into it"}, actor=by, reason=f"profile {stale.id} merged")
+    built = [(p, profile_id(first[same])) for same, (p, _v) in latest.items()]
     pairs = []
-    for test in (p for p in built if p.key.role == "TEST"):
-        for reference in (p for p in built if p.key.role in REFERENCE_ROLES):
+    for test, test_id in ((p, i) for p, i in built if p.key.role == "TEST"):
+        for reference, reference_id in ((p, i) for p, i in built if p.key.role in REFERENCE_ROLES):
             if test.key.condition() == reference.key.condition():
-                pairs.append({"test": profile_id(test.key), "reference": profile_id(reference.key),
+                pairs.append({"test": test_id, "reference": reference_id,
                               "condition": f"{test.key.medium}" + (f" pH {test.key.ph:g}" if test.key.ph is not None else ""),
                               **f2(test, reference).to_content()})
     used = sorted({v.ref for _p, v in latest.values()}, key=lambda r: r.id)
@@ -121,7 +164,8 @@ def rebuild(ws: Workspace, *, by: str) -> list[dict[str, Any]]:
 
 
 def profiles(ws: Workspace) -> list[dict[str, Any]]:
-    return [v.content | {"id": v.id, "version": v.version} for v in ws.list(ArtifactKind.DISSOLUTION) if v.id != COMPARISONS]
+    return [v.content | {"id": v.id, "version": v.version} for v in ws.list(ArtifactKind.DISSOLUTION)
+            if v.id != COMPARISONS and not v.content.get("retired")]
 
 
 def comparisons(ws: Workspace) -> dict[str, Any]:
@@ -136,7 +180,7 @@ def propose_release_model(ws: Workspace, pid: str, *, formulation: str, by: str)
     from modeler_project.evidence_register import propose
 
     version = ws.latest(ArtifactKind.DISSOLUTION, pid)
-    if version is None or pid == COMPARISONS:
+    if version is None or pid == COMPARISONS or version.content.get("retired"):
         raise DissolutionRegisterError(f"no dissolution profile {pid}")
     name = formulation.strip()
     if not name or "." in name:

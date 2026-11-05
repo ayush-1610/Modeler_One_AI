@@ -30,6 +30,7 @@ from modeler_intake.document_reading import (
     CHOICES,
     FACT_FIELDS,
     FactError,
+    check_component,
     check_fact,
     check_quote,
     name_key,
@@ -47,6 +48,7 @@ from modeler_project.workspace import Workspace
 from pbpk_domain.dissolution import profiles_from_rows
 
 PAGE_CHARS = 8000
+LINK_KINDS = ("study", "product", "batch")
 FIND_LINES = 12
 _TIME_WORDS = {"h": ("h", "hr", "hrs", "hour", "hours"), "min": ("min", "mins", "minute", "minutes"),
                "d": ("d", "day", "days")}
@@ -59,11 +61,12 @@ SYSTEM_PROMPT = """You read one file a pharmaceutical client sent for a PBPK mod
 Work from the inventory of pages you are given; read_page reads a page, find looks for words across the file.
 
 Propose with:
-- propose_study_facts: a study's facts, each {fact, value, unit, page, quote}. fact is one of dose (value and unit: mg, g, µg, mcg or mg/kg), n (subjects dosed or evaluated, as the file says), route (oral, iv_bolus, iv_infusion), food_state (fasted, fed), formulation (solution, suspension, ir_tablet, ir_capsule, mr, other), design (SD single dose, MD multiple dose), lloq (value and its unit, e.g. ng/mL). The quote is copied exactly from that page and states the value: the number with its unit, or the words that say the category ("after an overnight fast", "film-coated tablet", "30-minute intravenous infusion"). Use the study's name exactly as the file writes it.
+- propose_study_facts: a study's facts, each {fact, value, unit, page, quote}. fact is one of dose (value and unit: mg, g, µg, mcg or mg/kg), n (subjects dosed or evaluated, as the file says), route (oral, iv_bolus, iv_infusion), food_state (fasted, fed), formulation (solution, suspension, ir_tablet, ir_capsule, mr, other), design (SD single dose, MD multiple dose), lloq (value and its unit, e.g. ng/mL); and the subjects' demographics: age_mean, age_min, age_max (years), weight_mean (kg), height_mean (cm), females (a count) or female_percent, ethnicity (as written, e.g. "Caucasian"). The quote is copied exactly from that page and states the value: the number with its unit, or the words that say the category ("after an overnight fast", "film-coated tablet", "30-minute intravenous infusion"). Use the study's name exactly as the file writes it.
 - propose_profile: a concentration-time TABLE of a study, one call per series (each dose group, each analyte); every row {time, value, error, quote} with a quote copied from that table row on that page (it must contain the time and the value), and header_quote, a line of the table that states the time unit and the concentration unit. Values below the LLOQ are null. Record the study's facts first: a profile needs the study's dose, n and route.
 - propose_pk_table: NCA results (Cmax, AUC, tmax, t1/2) of a study, each quoted.
 - propose_dissolution: a dissolution TABLE of one product under one set of conditions: product and product_quote (a line naming it), conditions [{field, value, page, quote}] for role (TEST, RLD, REFERENCE), strength_mg, batch, apparatus, rpm, medium, ph, volume_ml as the file states them, header_quote stating the time unit and %, and rows {time, mean, sd, quote}.
-- propose_link: when the file says two names are one study (a protocol number and a study code), with the quote that says so.
+- propose_composition: a product's composition as the file reports it (shown to the reviewer, not used by the model): product and product_quote, and components [{name, amount, unit, function, quote}], each quote writing the component and its amount.
+- propose_link: when the file says two names are one study (a protocol number and a study code), one product (a code and a trade name) or one batch (a batch and a lot number): kind study, product or batch, with the quote that says so.
 - request_digitization: data shown only in a FIGURE; never read numbers off a figure.
 
 Rules: a quote is at least 12 characters, so quote a table row whole. Never compute, convert or guess a number; copy units as written. If a fact is not stated, leave it out and say so in your summary. A proposal the program refuses comes back with the reason: fix it or leave it. Call several tools in one turn when you can. Finish with a short summary: what you proposed, what the file does not state, what is only in figures."""
@@ -84,6 +87,7 @@ class DocumentContext:
     datasets: list[str] = field(default_factory=list)
     refused: list[str] = field(default_factory=list)
     digitization: list[str] = field(default_factory=list)
+    compositions: list[dict[str, Any]] = field(default_factory=list)
 
     def pages(self) -> list[str]:
         return self.library.pages(self.sha)
@@ -371,19 +375,47 @@ def propose_dissolution(ctx: DocumentContext, *, product: str, product_quote: st
     return f"ACCEPTED {what}: {len(out)} times, medium {values['medium']}"
 
 
-def propose_link(ctx: DocumentContext, *, names: Any, page: int, quote: str) -> str:
+def propose_link(ctx: DocumentContext, *, names: Any, page: int, quote: str, kind: str = "study") -> str:
     names = _parse(names)
     if not isinstance(names, list) or len(names) != 2:
         return "ERROR: names is a list of the two names"
+    if kind not in LINK_KINDS:
+        return f"ERROR: kind is one of {', '.join(LINK_KINDS)}"
     a, b = (str(n).strip() for n in names)
-    what = f"link {a} = {b}"
+    what = f"{kind} link {a} = {b}"
     problem = check_quote(ctx.page(page), quote)
     if problem:
         return ctx.refuse(what, problem)
     if name_key(a) == name_key(b) or not names_in(quote, a, b):
         return ctx.refuse(what, "the quote must write both names, and they must differ")
-    ctx.links.append({"names": [a, b], "page": int(page), "quote": quote})
-    return f"ACCEPTED {what}: a person is asked whether they are one study"
+    ctx.links.append({"kind": kind, "names": [a, b], "page": int(page), "quote": quote})
+    return f"ACCEPTED {what}: a person is asked whether they are one {kind}"
+
+
+def propose_composition(ctx: DocumentContext, *, product: str, product_quote: str, page: int, components: Any) -> str:
+    components = _parse(components)
+    what = f"composition of {product} (p. {page})"
+    text = ctx.page(page)
+    problem = check_quote(text, product_quote)
+    if problem or not names_in(product_quote, product):
+        return ctx.refuse(what, f"product_quote: {problem or 'it must name the product as written'}")
+    if not isinstance(components, list) or not components:
+        return ctx.refuse(what, "components must be a non-empty list")
+    lines = []
+    for index, c in enumerate(components):
+        c = c if isinstance(c, dict) else {}
+        quote = str(c.get("quote", ""))
+        problem = check_quote(text, quote)
+        try:
+            if problem:
+                raise FactError(problem)
+            line = check_component(str(c.get("name", "")), c.get("amount"), str(c.get("unit", "")), quote)
+        except FactError as exc:
+            return ctx.refuse(what, f"component {index}: {exc}")
+        lines.append({**line, "function": str(c.get("function") or "").strip(), "quote": quote})
+    ctx.compositions.append({"product": product.strip(), "page": int(page), "product_quote": product_quote,
+                             "components": lines})
+    return f"ACCEPTED {what}: {len(lines)} components, shown on the product's card as reported"
 
 
 def build_tools(ctx: DocumentContext) -> list[Tool]:
@@ -434,9 +466,16 @@ def build_tools(ctx: DocumentContext) -> list[Tool]:
                      "time": num, "mean": num, "sd": num, "quote": s}, "required": ["time", "mean", "quote"]}}},
               "required": ["product", "product_quote", "page", "time_unit", "header_quote", "rows", "conditions"]},
              lambda **kw: propose_dissolution(ctx, **kw)),
-        Tool("propose_link", "Two names the file gives one study, with the quote that says so.",
-             {"type": "object", "properties": {"names": {"type": "array", "items": s}, "page": i, "quote": s},
+        Tool("propose_link", "Two names the file gives one study, product or batch, with the quote that says so.",
+             {"type": "object", "properties": {"names": {"type": "array", "items": s}, "page": i, "quote": s,
+                                               "kind": {"type": "string", "enum": list(LINK_KINDS)}},
               "required": ["names", "page", "quote"]}, lambda **kw: propose_link(ctx, **kw)),
+        Tool("propose_composition", "A product's composition as the file reports it (not used by the model), quoted.",
+             {"type": "object", "properties": {
+                 "product": s, "product_quote": s, "page": i, "components": {"type": "array", "items": {
+                     "type": "object", "properties": {"name": s, "amount": num, "unit": s, "function": s, "quote": s},
+                     "required": ["name", "amount", "unit", "quote"]}}},
+              "required": ["product", "product_quote", "page", "components"]}, lambda **kw: propose_composition(ctx, **kw)),
         Tool("request_digitization", "Hand data shown only in a figure to a person for digitization.",
              {"type": "object", "properties": {"page": i, "figure": s, "what": s}, "required": ["page", "figure", "what"]},
              request_digitization),
@@ -490,5 +529,5 @@ def read_and_record(model: ChatModel, ws: Workspace, library: DocumentLibrary, s
                             log_step=log_step)
     record_document_reading(ws, sid, facts=ctx.facts, dissolution=ctx.dissolution, links=ctx.links, datasets=ctx.datasets,
                             refused=ctx.refused, digitization=ctx.digitization, summary=outcome.final_text, run_id=run_id,
-                            by=actor)
+                            by=actor, compositions=ctx.compositions)
     return ctx, outcome
