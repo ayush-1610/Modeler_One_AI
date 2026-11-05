@@ -205,15 +205,16 @@ def test_a_sheet_is_shown_with_a_suggested_form_and_read_from_the_form(setup):
     form = sheet["form"]
     assert form["layout"] == "times_across" and form["subject_column"] == "A" and form["last_data_row"] == 4
     assert form["constants"]["study_id"] == "230-23-REF" and form["lloq"] == 1.0
-    assert any("'NS'" in n for n in sheet["notes"])
+    assert any("'NS'" in n for n in sheet["notes"]) and form["missing_tokens"] == ["NS"]   # read as no sample by code
 
-    # "NS" is not a number: the preview names the cell, and nothing is kept
+    # unmarked, "NS" is not a number: the preview names the cell, and nothing is kept
     assert form["mean_row"] == 5
     form["mean_n"] = 2                        # the Mean row under the subjects is read as the study's mean profile
     study = {"n": 2, "design": "SD", "crossover": True, "purpose": "external_validation"}
-    preview = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"form": form, "study": study}).json()["data"]
+    unmarked = {**form, "missing_tokens": []}
+    preview = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H,
+                     json={"form": unmarked, "study": study}).json()["data"]
     assert not preview["ready"] and [i["location"] for i in preview["issues"]] == ["Reference!H4"]
-    form["missing_tokens"] = ["NS"]
     preview = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:map", headers=H, json={"form": form, "study": study}).json()["data"]
     assert preview["ready"] and preview["concentrations"] == 11 + 4 and preview["recipe"]["tables"][0]["time_row"] == 2
     sample = preview["sample"]

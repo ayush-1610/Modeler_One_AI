@@ -202,3 +202,63 @@ def test_the_form_fills_only_recipe_constant_keys(build, filename, sheet):
                            products=[{"name": "Desvenlafaxine succinate ER Tablets", "role": "TEST"}])
     assert form.constants and set(form.constants) <= set(CONSTANT_KEYS)
     RecipeProposal.model_validate(to_proposal(form, grid.sheets[sheet]))
+
+
+# --- what code reads itself, and where it must not (2026-11-05) -------------------------------------------------------
+
+
+def _sheet(rows, name="client.xlsx", title="Sheet1"):
+    def build(wb):
+        ws = wb.active
+        ws.title = title
+        for row in rows:
+            ws.append(row)
+
+    return _grid(build, name).sheets[title]
+
+
+def test_a_mean_row_that_is_not_the_mean_of_the_subjects_above_it_gives_no_n():
+    """The Mean row's n is the subjects above it only when code finds their mean at every time; a Mean of more subjects
+    than the sheet shows is left for a person (never guessed)."""
+    rows = [["Subject", "0.5", "1", "2", "4"], ["S1", 10.0, 20.0, 30.0, 20.0], ["S2", 12.0, 22.0, 34.0, 18.0],
+            ["Mean", 11.0, 21.0, 32.0, 19.0]]
+    assert suggest(_sheet(rows))[0].mean_n == 2
+    rows[-1] = ["Mean (all 24 subjects)", 14.0, 25.0, 31.0, 22.0]
+    assert suggest(_sheet(rows))[0].mean_n is None
+
+
+def test_decimal_commas_are_read_but_not_a_thousands_separator():
+    commas = [["Time (h)", "Conc (ng/mL)"], ["0,5", "12,4"], ["1", "30,5"], ["2", "41,2"]]
+    form, notes = suggest(_sheet(commas))
+    assert form.decimal_comma and "decimal commas" in notes[0] and form.first_data_row == 2
+    thousands = [["Time (h)", "Conc (pg/mL)"], [0.5, "1,234"], [1, "2,468"], [2, "3,702"]]
+    assert not suggest(_sheet(thousands))[0].decimal_comma
+
+
+def test_a_column_per_subject_is_not_a_column_of_subject_ids():
+    wide = [["Time (h)", "Subj 1", "Subj 2", "Subj 3"], [0.5, 10, 11, 12], [1, 20, 21, 22], [2, 15, 16, 17]]
+    form = suggest(_sheet(wide))[0]
+    assert form.subject_column is None and form.value_columns == ["B", "C", "D"]
+    long = [["Subject", "Time (h)", "Conc (ng/mL)"], ["S1", 0.5, 10], ["S1", 1, 20], ["S2", 0.5, 11], ["S2", 1, 21]]
+    assert suggest(_sheet(long))[0].subject_column == "A"
+
+
+def test_an_n_is_read_from_a_note_only_for_summary_values_and_not_over_an_n_column():
+    note = [["Time (h)", "Mean", "SD"], [0.5, 12.0, 3.0], [1, 30.0, 7.0], [2, 41.0, 9.0], [], ["Values in ng/mL; n = 16."]]
+    form = suggest(_sheet(note))[0]
+    assert form.constants["n"] == "16" and any(e.field == "n" and e.quote == "n = 16" for e in form.evidence)
+    column = [["Time (h)", "Mean (ng/mL)", "SD", "N"], [0.5, 12.0, 3.0, 14], [1, 30.0, 7.0, 14], [], ["n = 16 dosed"]]
+    form = suggest(_sheet(column))[0]
+    assert form.n_column == "D" and "n" not in form.constants
+    individual = [["Time (h)", "Subj 1", "Subj 2"], [0.5, 10, 11], [1, 20, 21], [], ["n = 2"]]
+    assert "n" not in suggest(_sheet(individual))[0].constants
+
+
+def test_no_sample_tokens_are_marked_but_ambiguous_ones_are_left_to_a_person():
+    wide = [["Time (h)", "Subj 1", "Subj 2"], [0.5, 10, "NS"], [1, 20, 21], [2, 15, 16]]
+    form = suggest(_sheet(wide))[0]
+    assert form.value_columns == ["B", "C"] and form.missing_tokens == ["NS"]    # a column with "NS" is still a subject
+    across = [["Subject", "0.5", "1", "2", "4"], ["S1", 10, "NS", 30, 20], ["S2", 12, 22, "NA", 18], ["S3", "ND", 21, 31, 19]]
+    form, notes = suggest(_sheet(across))
+    assert form.missing_tokens == ["NS"] and form.below_lloq_tokens == ["ND"]   # ND: not detected, as before
+    assert any("'NA'" in n and "mark them" in n for n in notes)                  # NA: named for a person, not decided

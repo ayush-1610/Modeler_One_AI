@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — code's first reading of a client sheet: all eleven layouts of the evaluation set, up from five (2026-11-05)
+`modeler_intake.sheet_form.suggest`, the filling a person sees before anything else (and the reading agent corrects).
+Measured on `modeler_intake.reading_eval`: **11 of 11 layouts read exactly by code alone, from 5**, and no sheet now
+reads without a problem but with the wrong values (2 before). What it now reads:
+- a column per subject headed "Subj 1", "Patient 03" is a subject's values, not a column of subject ids (it read one
+  subject as the ids before);
+- an "n = 16" written in a note or title is the n of summary values with no n column, quoted from its cell (never for
+  individual values, never over an n column);
+- numbers written with decimal commas and stored as text ("12,4"), as European exports write them; a thousands
+  separator ("1,234") is not taken for one;
+- an SD or n column that says its unit ("SD (ng/mL)");
+- times across as plain numbers under an "ID" column (that row is the header, not data);
+- "NS", "no sample", "not sampled", "missing" as no sample (an "NA" is still named for a person to decide; "ND" stays
+  below the LLOQ, as before);
+- the n of a Mean row under the subjects, only when code finds that it is their mean at every time (a Mean of more
+  subjects than the sheet shows gives no n).
+- **Impact:** less for a person to correct on a client sheet. The reading agent's measured gain over code shrinks with
+  it: its server score (6/11 alone, 8/11 with code's filling, 2026-10-22) predates this, and the set needs new layouts to
+  keep measuring (T-21's 30). Every reading is still checked by code and saved by a person (R3c); no value is guessed.
 ### Changed — Inputs I4c: the template's demographics become the study's individual; a batch is linked within its product (2026-11-05)
 The two gaps recorded with I4b.
 - **The template's demographics (D-29).** The client-data template's Studies sheet has columns for the subjects' mean,
@@ -5156,4 +5175,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11 |

@@ -58,6 +58,9 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await reader.getByLabel("formulation", { exact: true }).selectOption("mr");
   await reader.getByLabel("subjects", { exact: true }).fill("6");
   await reader.getByLabel("study purpose", { exact: true }).selectOption("external_validation");
+  // "NS" is read as no sample by code's first filling (2026-11-05); cleared, the NS cell is named as not a number
+  await expect(reader.getByLabel("no sample texts", { exact: true })).toHaveValue("NS");
+  await reader.getByLabel("no sample texts", { exact: true }).fill("");
   await reader.getByRole("button", { name: "Check what will be read" }).click();
   await expect(reader.getByTestId("read-result")).toContainText("Not a number");      // the NS cell, named with its cell
   await reader.getByLabel("no sample texts", { exact: true }).fill("NS");

@@ -36,14 +36,24 @@ _TIME_HEADER = re.compile(r"\btime\b|\bhours?\b|\bhrs?\b|\bnominal\b|\bsampling\
                           re.IGNORECASE)
 _SUBJECT = re.compile(r"\bsubj(?:ect)?s?\b|\bvolunteer|\bpatient|\bsubject\s*(?:no|id|number)|^id$|^no\.?$|\bs\.? ?no\b",
                       re.IGNORECASE)
+# "Subj 1", "Subject 2", "Patient 03", "Vol. 4": one subject's values in a column of their own (wide), not a column of ids
+_SUBJECT_N = re.compile(r"^\s*(?:subj(?:ect)?|volunteer|vol|patient|pt)\.?\s*(?:no\.?|#)?\s*[a-z]?\d+\s*$", re.IGNORECASE)
+# "n = 16" in a note or a title: the subjects behind summary values, quoted from its cell
+_N_STATED = re.compile(r"(?<![a-z])n\s*=\s*(\d{1,4})\b", re.IGNORECASE)
 _VESSEL = re.compile(r"\bvessel|\bunit\s*\d|^v\s*\d+$|^\d{1,2}$|\bjar\b|\btablet\s*\d", re.IGNORECASE)
 _PERIOD = re.compile(r"\bperiod\b|\bpd\b", re.IGNORECASE)
 _SUMMARY = re.compile(r"\bmean\b|\bavg\b|\baverage\b|\bsd\b|\bs\.d\.|\bstd\b|\bcv\b|%\s*cv|\brsd\b|\bmin\b\.?$|\bmax\b|\bmedian\b",
                       re.IGNORECASE)
 _SUMMARY_ROW = re.compile(r"^(arith\w*\.? ?mean|geo\w*\.? ?mean|mean|average|sd|s\.d\.|std\.?( ?dev\.?)?|cv ?%?|% ?cv|rsd|min|"
                           r"max|median|n|sum|total)\b", re.IGNORECASE)
-_SD = re.compile(r"^\s*(sd|s\.d\.|std\.?(\s*dev\.?)?|standard deviation)\s*$", re.IGNORECASE)
-_N = re.compile(r"^\s*(n|no\. of subjects|number of subjects)\s*$", re.IGNORECASE)
+# an SD or N column may say its unit: "SD (ng/mL)", "n (subjects)"
+_SD = re.compile(r"^\s*(sd|s\.d\.|std\.?(\s*dev\.?)?|standard deviation)\s*(\([^)]*\))?\s*$", re.IGNORECASE)
+_N = re.compile(r"^\s*(n|no\. of subjects|number of subjects)\s*(\([^)]*\))?\s*$", re.IGNORECASE)
+# a cell that says no sample was taken (never a value, never below the LLOQ); "NA" is ambiguous, left to a person ("ND",
+# not detected, is a below-LLOQ token)
+MISSING_TOKENS = ("NS", "N.S.", "NO SAMPLE", "NOT SAMPLED", "MISSING")
+_COMMA_NUMBER = re.compile(r"^\s*-?\d+,\d+\s*$")
+_COMMA_DECIMAL = re.compile(r"^\s*-?\d+,(\d{1,2}|\d{4,})\s*$")    # not 1,234: that may be a thousands separator
 _CONC_HEADER = re.compile(r"conc|ng/ml|µg/ml|ug/ml|ng/l|nmol|plasma|serum|value|result|dissolved|release", re.IGNORECASE)
 _LLOQ = re.compile(r"(?:lloq|lower limit of quantification|below|blq\s*[:=<]?|bql\s*[:=<]?)\D{0,25}?(\d+(?:\.\d+)?)\s*"
                    r"(pg|ng|µg|ug)\s*/\s*(ml|l)", re.IGNORECASE)
@@ -129,9 +139,12 @@ def _texts(grid: SheetGrid, rows: range) -> list[tuple[str, str]]:
 
 
 def _is_number(value: Any) -> bool:
+    """A cell a data column may hold: a number, a below-LLOQ token, or a no-sample token."""
     if isinstance(value, bool):
         return False
     if isinstance(value, int | float):
+        return True
+    if isinstance(value, str) and value.strip().upper() in MISSING_TOKENS:
         return True
     try:
         parse_numeric(value, below_lloq_tokens=DEFAULT_BELOW_LLOQ_TOKENS)
@@ -168,7 +181,44 @@ def _last_data_row(grid: SheetGrid, first: int) -> tuple[int, str]:
     return last, ""
 
 
-_HEADER_WORD = re.compile(r"subj|volunteer|patient|pre-?\s?dos|\btime\b|vessel|period|sequence|treatment", re.IGNORECASE)
+_HEADER_WORD = re.compile(r"subj|volunteer|patient|pre-?\s?dos|\btime\b|vessel|period|sequence|treatment|^\s*id\s*$",
+                          re.IGNORECASE)
+
+
+def _decimal_comma(grid: SheetGrid) -> bool:
+    """Numbers written with decimal commas and stored as text ("12,4"), as exports from European systems are."""
+    texts = [c.value for c in grid.cells.values() if c.row <= SCAN_ROWS and isinstance(c.value, str)]
+    return sum(bool(_COMMA_DECIMAL.match(t)) for t in texts) >= 2
+
+
+def _with_points(grid: SheetGrid) -> SheetGrid:
+    """The sheet as code reads it when its numbers have decimal commas: "12,4" read as 12.4, every cell where it was."""
+    from dataclasses import replace
+
+    cells = {k: replace(c, value=float(c.value.strip().replace(",", "."))) if isinstance(c.value, str)
+             and _COMMA_NUMBER.match(c.value) else c for k, c in grid.cells.items()}
+    return SheetGrid(name=grid.name, max_row=grid.max_row, max_column=grid.max_column, cells=cells)
+
+
+def _mean_n(grid: SheetGrid, subjects: list[list[Any]], mean: list[Any]) -> int | None:
+    """How many subjects a Mean row (or column) summarises, when code can show it: at every time with data, the mean
+    of the subjects' values is the Mean written (to its rounding). None when it is not, or cannot be checked."""
+    checked = 0
+    for index, written in enumerate(mean):
+        if not _is_plain(written):
+            continue
+        values = [float(row[index]) for row in subjects if index < len(row) and _is_plain(row[index])]
+        if not values:
+            continue
+        computed = sum(values) / len(values)
+        if abs(computed - float(written)) > max(0.06, 0.01 * abs(float(written))):
+            return None
+        checked += 1
+    return len(subjects) if checked >= 3 else None
+
+
+def _is_plain(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 def _mean_row(grid: SheetGrid, start: int) -> tuple[int, Statistic] | None:
@@ -220,6 +270,10 @@ def suggest(grid: SheetGrid, *, category: str = "", filename: str = "", drug: st
     """A first filling of the form, and what was found (or not) in words. Never a reading: a person checks it."""
     notes: list[str] = []
     names = _plain_names(filename, grid.name)
+    comma = _decimal_comma(grid)
+    if comma:
+        grid = _with_points(grid)
+        notes.append("Numbers are written with decimal commas (12,4): read as 12.4.")
     first = _first_data_row(grid)
     if first is None:
         return SheetForm(sheet=grid.name), [("No block of numbers found in the first rows: this sheet may not hold data "
@@ -236,7 +290,7 @@ def suggest(grid: SheetGrid, *, category: str = "", filename: str = "", drug: st
     time_header = any(_TIME_HEADER.search(head[c]) for c in columns)
     across = [] if time_header else [c for c in columns if header and (
         _is_time_header(grid.cell(header, c).value, "h") or _is_time_header(grid.cell(header, c).value, "min"))]
-    form = SheetForm(sheet=grid.name, kind=kind, header_row=header, first_data_row=first)
+    form = SheetForm(sheet=grid.name, kind=kind, header_row=header, first_data_row=first, decimal_comma=comma)
     letter = get_column_letter
     if len(across) >= 3:
         form.layout = "times_across"
@@ -256,13 +310,19 @@ def suggest(grid: SheetGrid, *, category: str = "", filename: str = "", drug: st
                 form.mean_row, form.mean_statistic = mean
                 notes.append(f"Row {form.mean_row} ({as_text(grid.cell(form.mean_row, columns[0]).value)}) is read as the "
                              "mean profile, next to the subjects.")
+                if form.mean_statistic == "arithmetic_mean":
+                    form.mean_n = _mean_n(grid, [[grid.cell(r, c).value for c in across] for r in range(first, last + 1)],
+                                          [grid.cell(form.mean_row, c).value for c in across])
+                    if form.mean_n:
+                        notes.append(f"The Mean row is the mean of the {form.mean_n} subjects above it (code checked it "
+                                     f"at every time): n = {form.mean_n} for the mean profile.")
     else:
         time = next((c for c in columns if _TIME_HEADER.search(head[c])), None) or next(
             (c for c in columns if all(_is_number(grid.cell(r, c).value) for r in range(first, last + 1))), None)
         if time is None:
             notes.append("No time column found: choose it.")
         form.time_column = letter(time) if time else None
-        subject = next((c for c in columns if c != time and _SUBJECT.search(head[c])), None)
+        subject = next((c for c in columns if c != time and _SUBJECT.search(head[c]) and not _SUBJECT_N.match(head[c])), None)
         form.subject_column = letter(subject) if subject else None
         sd = next((c for c in columns if _SD.match(head[c])), None)
         n = next((c for c in columns if _N.match(head[c])), None)
@@ -356,6 +416,13 @@ def suggest(grid: SheetGrid, *, category: str = "", filename: str = "", drug: st
             form.lloq = float(lloq[1].group(1))
             evidence.append(Evidence(cell=lloq[0], quote=lloq[1].group(0).strip(), supports=f"LLOQ {form.lloq:g}",
                                      field="lloq", value=f"{form.lloq:g}"))
+        if form.statistic != "individual" and not form.n_column:
+            stated = _find(grid, everything, _N_STATED)
+            if stated:
+                form.constants["n"] = stated[1].group(1)
+                evidence.append(Evidence(cell=stated[0], quote=stated[1].group(0).strip(), supports=f"n {stated[1].group(1)}",
+                                         field="n", value=stated[1].group(1)))
+                notes.append(f"n = {stated[1].group(1)} is read from {stated[0]}: check it is the subjects behind these values.")
 
     # what the data cells say besides numbers
     tokens = sorted({as_text(grid.cell(r, c).value) for r in range(first, last + 1) for c in
@@ -363,7 +430,10 @@ def suggest(grid: SheetGrid, *, category: str = "", filename: str = "", drug: st
                      and not _is_plain_number(as_text(grid.cell(r, c).value))})
     blq = {t.upper() for t in DEFAULT_BELOW_LLOQ_TOKENS}
     form.below_lloq_tokens = [t for t in tokens if t.upper() in blq or t.startswith("<")]
-    other = [t for t in tokens if t not in form.below_lloq_tokens]
+    form.missing_tokens = [t for t in tokens if t.strip().upper() in MISSING_TOKENS]
+    if form.missing_tokens:
+        notes.append(f"Cells say {', '.join(repr(t) for t in form.missing_tokens)}: read as no sample (no value at that time).")
+    other = [t for t in tokens if t not in form.below_lloq_tokens and t not in form.missing_tokens]
     if form.below_lloq_tokens and form.lloq is None and kind == "concentration_time":
         notes.append(f"Cells say {', '.join(repr(t) for t in form.below_lloq_tokens[:4])}: enter the LLOQ (it is not in the sheet).")
     if other:
