@@ -123,9 +123,9 @@ def synthetic_docx(paragraphs: list[str]) -> bytes:
     return out.getvalue()
 
 
-def _study(study_id: str, *, dose: float = 10, n: int = 12) -> dict[str, Any]:
+def _study(study_id: str, *, dose: float = 10, n: int = 12, **more: Any) -> dict[str, Any]:
     return {"study_id": study_id, "design": "SD", "population": "healthy", "n": n, "route": "oral", "dose": dose,
-            "dose_unit": "mg", "formulation": "ir_tablet", "food_state": "fasted", "lloq": 0.5, "lloq_unit": "ng/ml"}
+            "dose_unit": "mg", "formulation": "ir_tablet", "food_state": "fasted", "lloq": 0.5, "lloq_unit": "ng/ml", **more}
 
 
 def _pk(study_id: str, values: tuple[float, ...], n: int = 12) -> list[tuple]:
@@ -229,6 +229,12 @@ DELIVERIES: tuple[Delivery, ...] = (
                 {"fact": "females", "value": 0, "page": 1, "quote": "(12 men, 0 women)"},
                 {"fact": "ethnicity", "value": "Caucasian", "page": 1, "quote": "Twelve healthy Caucasian subjects"}]}),)),
     ), groups=("study:EX-302",), flags=("study:EX-302|demographics:question",)),
+    Delivery("a template giving the subjects' demographics on its Studies sheet", (
+        DeliveryFile("EX-303_template.xlsx", _template(studies=[_study("EX-303", age_mean=33, age_min=21, age_max=45,
+                                                                       weight_mean_kg=74.5, percent_female=50,
+                                                                       ethnicity="Asian")],
+                                                       summary=_pk("EX-303", PK))),
+    ), groups=("study:EX-303",), flags=("study:EX-303|demographics:question",)),
     Delivery("one product written two ways in two workbooks, the same profile", (
         DeliveryFile("release.xlsx", _template(dissolution=_diss(85))),
         DeliveryFile("release_v2.xlsx", _template(dissolution=_diss(85, product="TEST 10 MG Tablet"))),
@@ -261,7 +267,7 @@ DELIVERIES: tuple[Delivery, ...] = (
                 "rows": [{"time": 15, "mean": 56, "sd": 2.0, "quote": "15 56.0 (2.0) 6"},
                          {"time": 30, "mean": 84, "sd": 3.1, "quote": "30 84.0 (3.1) 6"},
                          {"time": 45, "mean": 97, "sd": 1.2, "quote": "45 97.0 (1.2) 6"}]}),)),
-    ), groups=("product:Test 10 mg tablet",), flags=("blink|4711:link",),
+    ), groups=("product:Test 10 mg tablet",), flags=("blink|TEST10MGTABLET|4711:link",),
        notes=("product:Test 10 mg tablet|Composition as certificate.pdf reports it",)),
 )
 

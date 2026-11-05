@@ -63,14 +63,22 @@ def _name(name: str, aliases: dict[str, str]) -> str:
     return re.sub(r"[^A-Z0-9]", "", str(aliases.get(name, name)).upper())
 
 
+def batch_alias_key(product_key: str, batch: str) -> str:
+    """Where a person's "same batch" answer is kept: a batch name is linked within its product (I4c)."""
+    return f"{product_key}|{batch}"
+
+
 def identity(key: ProfileKey, aliases: dict[str, dict[str, str]] | None = None) -> tuple[Any, ...]:
-    """What makes two profiles one: the same product and batch (by `_name`), role, strength and test conditions."""
+    """What makes two profiles one: the same product and batch (by `_name`; a batch linked within its product), role,
+    strength and test conditions."""
     aliases = aliases or {}
+    product = _name(key.product, aliases.get("product", {}))
+    batches = {k.split("|", 1)[1]: v for k, v in aliases.get("batch", {}).items() if k.split("|", 1)[0] == product}
     def text(v: Any) -> str:
         return " ".join(str(v or "").lower().split())
 
-    return (_name(key.product, aliases.get("product", {})), key.role.upper(), key.strength_mg,
-            _name(key.batch, aliases.get("batch", {})), text(key.apparatus), key.rpm, text(key.medium), key.ph, key.volume_ml)
+    return (product, key.role.upper(), key.strength_mg, _name(key.batch, batches), text(key.apparatus), key.rpm,
+            text(key.medium), key.ph, key.volume_ml)
 
 
 def _aliases(ws: Workspace) -> dict[str, dict[str, str]]:

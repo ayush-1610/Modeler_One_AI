@@ -15,6 +15,22 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Inputs I4c: the template's demographics become the study's individual; a batch is linked within its product (2026-11-05)
+The two gaps recorded with I4b.
+- **The template's demographics (D-29).** The client-data template's Studies sheet has columns for the subjects' mean,
+  youngest and oldest age, mean weight, share of women and ethnicity. Until now they were only noted on the dataset.
+  They are now the study's facts on Inputs, each quoted from its row with its cell, exactly as a document's are: the
+  card asks a person for the individual's PK-Sim population (the sheet's ethnicity shown) and sex (its share of women
+  shown), and confirming sets the individual as entered. A template and a document that give different numbers are a
+  conflict. A template uploaded before this change keeps its earlier record (the columns noted on the dataset); the
+  same bytes uploaded again return that record unchanged, so a person enters those studies' individuals on Individuals.
+- **A batch is linked within its product.** "Same batch?" asks about a batch name of one product, and the answer links
+  it there only (`dissolution_register.batch_alias_key`): batch 4711 of the test product is not made B1 of the
+  reference product. The question's id carries the product.
+- **The evaluation set:** a twelfth delivery (a template with the subjects' demographics); all twelve are found whole.
+- **Impact (science, data flow):** a study read from the template now reaches D-29 with its own demographics, once a
+  person chooses the population and sex, instead of being entered by hand on Individuals. No ruleset, locked file or
+  API schema change.
 ### Added — Inputs I4b: the subjects' demographics and a product's composition read from documents; one product or batch however the files write it (2026-11-05)
 Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.4 and §3.6, the deviations recorded for I3 and I4.
 - **Demographics (D-29).** The reading agent may also quote the subjects' mean, youngest and oldest age (years), mean
@@ -5140,4 +5156,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics |

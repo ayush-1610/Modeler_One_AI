@@ -147,7 +147,7 @@ function GroupCard({ projectId, group, run }: { projectId: string; group: Group;
               <dt>{f.label}</dt>
               <dd>{f.value}
                 {(f.fills ?? []).length > 0 && (
-                  <span className="muted"> · from {String(f.source.title ?? "a document")}, p. {String(f.source.page ?? "?")}:
+                  <span className="muted"> · from {String(f.source.title ?? "a client file")}, {String(f.source.locator ?? `p. ${f.source.page}`)}:
                     set on {plural((f.fills ?? []).length, "dataset")} on confirm</span>
                 )}
               </dd>

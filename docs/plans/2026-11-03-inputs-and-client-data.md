@@ -338,6 +338,8 @@ Each PR: a CHANGELOG entry, the coverage table if a stage changes, tests and a b
 
 **Progress (2026-11-05, I4b).** I4 is merged (#131). I4b is in its PR: the demographics (the person chooses the PK-Sim population and sex; D-29), the composition as reported (§3.6), and product and batch names matched across files with "Same product?" / "Same batch?" from a document's words. This closes the deviations recorded for I3 and I4, except OCR. Next: the reading agent scored on the server's model once `main` is deployed; I5 (CDISC) only with the owner's approval of its dependency.
 
+**Progress (2026-11-05, I4c).** I4b is merged (#132). I4c: the template's demographics columns become the study's facts (the individual set once a person chooses population and sex), and a batch link holds within its product.
+
 ## 5. For the owner
 Settled on 2026-11-03: tagging (A + D), the file-type order (CDISC optional), the mockup comments. Next: the builds,
 in order, each a PR to `main`; then the literature agent's compound parameters (A2: better tasks, the project's context,

@@ -300,3 +300,27 @@ def test_the_same_dissolution_profile_from_two_files_is_kept_once_with_a_note(tm
     ingest(ws, library, copy.getvalue(), "diss_b.xlsx", by="u", matrix=matrix, brief=brief)
     product = next(g for g in review.groups(ws) if g["kind"] == "product")
     assert product["issues"] == [] and any("kept once" in n for n in product["notes"])
+
+
+def test_the_templates_demographics_become_the_individual_once_a_person_chooses_its_population_and_sex(tmp_path):
+    """I4c: the Studies sheet's age, weight, share of women and ethnicity are the study's facts, quoted from their row;
+    the person chooses the PK-Sim population and the sex (D-29), and confirming sets the individual as entered."""
+    from modeler_project.delivery_eval import DELIVERIES
+
+    ws, library, *_ = _project(tmp_path)
+    delivery = next(d for d in DELIVERIES if d.name == "a template giving the subjects' demographics on its Studies sheet")
+    (file,) = delivery.files
+    ingest(ws, library, file.build(), file.name, by="u")
+    group = next(g for g in review.groups(ws) if g["id"] == "study:EX-303")
+    age = next(f for f in group["facts"] if f["field"] == "demographics.age_mean")
+    assert age["value"] == "33" and age["source"]["title"] == "EX-303_template.xlsx" and "Studies" in age["source"]["locator"]
+    population = next(i for i in group["issues"] if i["id"].endswith("demographics:population"))
+    sex = next(i for i in group["issues"] if i["id"].endswith("demographics:sex"))
+    assert "says “Asian”" in population["text"] and "50 % women" in sex["text"]
+    review.select(ws, group["id"], population["id"], option="Asian_Tanaka_1996", by="u")
+    review.select(ws, group["id"], sex["id"], option="FEMALE", by="u")
+    review.confirm(ws, group["id"], by="u")
+    (found,) = [d for d in datasets(ws) if d.study["study_id"] == "EX-303"]
+    assert found.study["demographics"] == {"population": "Asian_Tanaka_1996", "sex": "FEMALE", "age_years": 33,
+                                           "age_min": 21, "age_max": 45, "weight_kg": 74.5}
+    assert found.demographics_choice == "entered"

@@ -223,7 +223,7 @@ def test_a_batch_a_certificate_names_by_its_lot_number_is_one_batch_once_a_perso
     ws = _delivered(tmp_path, "a certificate naming the batch by its lot number, with the composition")
     assert len(profiles(ws)) == 2                                             # B1 and 4711: two batches until linked
     group = next(g for g in review.groups(ws) if g["id"] == "product:Test 10 mg tablet")
-    link = next(i for i in group["issues"] if i["id"] == "blink|4711")
+    link = next(i for i in group["issues"] if i["id"] == "blink|TEST10MGTABLET|4711")     # linked within its product
     assert "certificate.pdf (p. 1)" in link["text"] and "batch 4711 (B1)" in link["text"]
     assert {f["label"]: f["value"] for f in group["facts"]}["Lactose monohydrate"] == "89 mg (filler)"
     group = review.select(ws, group["id"], link["id"], option="same", by="u")
@@ -231,6 +231,23 @@ def test_a_batch_a_certificate_names_by_its_lot_number_is_one_batch_once_a_perso
     assert any("kept once" in n for n in group["notes"]) and merged["files"]
     group = review.reopen(ws, group["id"], link["id"], by="u")
     assert len(profiles(ws)) == 2                                             # said otherwise: two again
+
+
+def test_a_batch_linked_in_one_product_is_not_linked_in_another(tmp_path):
+    from modeler_project.delivery_eval import _diss, _template
+    from modeler_project.dissolution_register import identity, profiles
+    from pbpk_domain.dissolution import ProfileKey
+
+    ws = _delivered(tmp_path, "a certificate naming the batch by its lot number, with the composition")
+    group = next(g for g in review.groups(ws) if g["id"] == "product:Test 10 mg tablet")
+    review.select(ws, group["id"], "blink|TEST10MGTABLET|4711", option="same", by="u")
+    ingest(ws, DocumentLibrary(ws), _template(dissolution=_diss(60, product="Reference 10 mg tablet", batch="4711"))(),
+           "reference.xlsx", by="u")
+    aliases = {"batch": review.record(ws)["batch_aliases"]}
+    key = {"role": "TEST", "strength_mg": 10, "apparatus": "", "rpm": 50, "medium": "phosphate", "ph": 6.8, "volume_ml": 900}
+    assert identity(ProfileKey(product="Test 10 mg tablet", batch="4711", **key), aliases)[3] == "B1"
+    assert identity(ProfileKey(product="Reference 10 mg tablet", batch="4711", **key), aliases)[3] == "4711"
+    assert {p["key"]["product"] for p in profiles(ws)} == {"Test 10 mg tablet", "Reference 10 mg tablet"}
 
 
 def test_one_product_written_two_ways_is_one_profile_and_its_composition_alone_is_confirmed(tmp_path):
