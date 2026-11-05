@@ -15,6 +15,34 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Inputs I4b: the subjects' demographics and a product's composition read from documents; one product or batch however the files write it (2026-11-05)
+Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.4 and §3.6, the deviations recorded for I3 and I4.
+- **Demographics (D-29).** The reading agent may also quote the subjects' mean, youngest and oldest age (years), mean
+  weight (kg), mean height (cm), the women among them (a count or a percentage) and their ethnicity as written; code
+  checks each against its quote. On the study's card they are facts with their page and quote. For the study's
+  datasets with no individual yet, the card asks a person for **the PK-Sim population database** (the document's
+  ethnicity shown, "says “Caucasian”") and **the sex** (the document's share of women shown), and for the mean age
+  when no document states it: mapping an ethnicity to a population, and a mixed study to one sex, is a modelling choice,
+  never the agent's. Confirming sets the individual (population, sex, age with its range, weight, height) on those
+  datasets as entered, so the study meets D-29. Two documents that give different numbers are a conflict.
+- **Composition (§3.6).** The agent may quote a product's composition (each component, its amount and unit, its
+  function); code checks each line. It is shown on the product's card "as reported, not used by the model", each line
+  opening its source; a product only a document's composition describes is a card of its own. A changed composition
+  returns the card to "to confirm".
+- **One product, one batch.** The dissolution register now matches a profile's product and batch by their names with
+  case, spaces and punctuation aside ("Test 10 mg tablet" and "TEST 10 MG Tablet"), and by the names a person linked.
+  A profile two spellings give is one profile (I3's comparison then finds it the same, "kept once", or a conflict); it
+  keeps the first file's id, and the other spelling's profile is marked retired, never erased. The card notes "Also
+  called …". A document saying two names are one product or batch ("batch 4711 (B1)") asks "Same product?" or
+  "Same batch?" with the quote; the answer links them at once and can be undone until the card is confirmed.
+- **The evaluation set** grows by three deliveries (a synopsis's demographics, a product written two ways in two
+  workbooks, a certificate naming the batch by its lot number with the composition); all eleven are found whole, the
+  document ones through the agent's real tools with a perfect reader's reading.
+- **Impact (science, data flow):** a client study's individual can now come from the client's own document, with the
+  population and sex chosen by a person; two spellings of a product or batch no longer make two profiles (f2 and the
+  release model see one). No ruleset or locked file changes; no API schema change.
+- **Known gap:** the template's age, weight and share of women (columns of its Studies sheet) are still only noted on
+  the dataset, not proposed as the individual; batch links are by name across products.
 ### Added — Inputs I4: a client's PDF or Word file read for its data, every value quoted and checked by code (2026-11-05)
 Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.4, build I4. The owner asked (2026-11-03) that whatever the
 client sends load correctly, clearly and easily; Excel, Word, PDF and CSV first. Until now a client's PDF or Word file was
@@ -5112,4 +5140,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names |

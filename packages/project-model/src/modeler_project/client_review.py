@@ -50,6 +50,11 @@ GroupKind = Literal["study", "product", "compound"]
 TAB: dict[str, str] = {"study": "studies", "product": "formulations", "compound": "compound"}
 FACT_LABEL = {"dose_mg": "Dose (mg)", "route": "Route", "food_state": "Food state", "formulation": "Formulation",
               "n": "Subjects (n)", "lloq": "LLOQ"}
+DEMOGRAPHIC_LABEL = {"age_mean": ("Age (years), mean", "age_years"), "age_min": ("Age (years), youngest", "age_min"),
+                     "age_max": ("Age (years), oldest", "age_max"), "weight_mean": ("Weight (kg), mean", "weight_kg"),
+                     "height_mean": ("Height (cm), mean", "height_cm")}
+HINT_LABEL = {"females": "Women (n)", "female_percent": "Women (%)", "ethnicity": "Ethnicity, as written"}
+ALIASES = {"link": "aliases", "plink": "product_aliases", "blink": "batch_aliases"}   # by link issue: the record's alias list
 FORMULATION_LABEL = {"ir_tablet": "Tablet (immediate release)", "ir_capsule": "Capsule (immediate release)",
                      "solution": "Solution", "suspension": "Suspension", "mr": "Modified release", "other": "Other"}
 CONFIRMED_REASON = "confirmed on Inputs with its group"
@@ -202,6 +207,57 @@ def _givers(field: str, members: list[ObservedDataset], duplicate_of: dict[str, 
     return out
 
 
+def _demographics(gid: str, members: list[ObservedDataset], study_facts: list[dict[str, Any]], facts: list[dict[str, Any]],
+                  selections: dict[str, Any]) -> list[dict[str, Any]]:
+    """A document's demographics of the study's subjects (D-29): its numbers shown as facts (two documents that differ
+    are a conflict), and, for the study's datasets with no individual yet, the person's choice of its PK-Sim population
+    and sex (with what the document says), and its mean age when no document states it. Confirming sets the individual
+    as entered (`confirm`)."""
+    from modeler_project.datasets import HUMAN_POPULATIONS
+
+    issues = []
+    lacking = [d.id for d in members if not d.study.get("demographics") and d.demographics_choice != "healthy_adult_default"]
+    hints: dict[str, tuple[Any, dict[str, Any]]] = {}
+    for field in (*DEMOGRAPHIC_LABEL, *HINT_LABEL):
+        given = [(f["sets"][field], _doc_source(f)) for f in study_facts if field in f["sets"]]
+        distinct: dict[Any, tuple[Any, dict[str, Any]]] = {}
+        for value, source in given:
+            distinct.setdefault(str(value).strip().lower() if field == "ethnicity" else round(float(value), 9), (value, source))
+        if not distinct:
+            continue
+        label = DEMOGRAPHIC_LABEL[field][0] if field in DEMOGRAPHIC_LABEL else HINT_LABEL[field]
+        if len(distinct) > 1 and field in DEMOGRAPHIC_LABEL:
+            issues.append(_issue(gid, f"demographics:{field}", "conflict",
+                                 f"{label}: the client's files give {len(distinct)} values",
+                                 [{"id": f"v{i}", "label": _shown(v), "value": v, "source": src, "datasets": lacking}
+                                  for i, (v, src) in enumerate(distinct.values())], selections))
+            continue
+        value, source = next(iter(distinct.values()))
+        hints[field] = (value, source)
+        facts.append({"field": f"demographics.{field}", "label": label, "value": _shown(value), "source": source,
+                      "stored": value, "fills": lacking if field in DEMOGRAPHIC_LABEL else []})
+    if not lacking or not any(f in hints or f"{gid}|demographics:{f}" in (i["id"] for i in issues) for f in DEMOGRAPHIC_LABEL):
+        return issues
+    said = (f": {hints['ethnicity'][1]['title']} says “{hints['ethnicity'][0]}”" if "ethnicity" in hints else
+            ": the client's files do not say")
+    issues.append(_issue(gid, "demographics:population", "question",
+                         f"The study's individual: which PK-Sim population database{said}",
+                         [{"id": p, "label": p.replace("_", " "), "value": p, "source": None, "datasets": lacking}
+                          for p in HUMAN_POPULATIONS], selections))
+    women = (f"{hints['females'][0]} women" if "females" in hints else
+             f"{hints['female_percent'][0]:g} % women" if "female_percent" in hints else "")
+    issues.append(_issue(gid, "demographics:sex", "question",
+                         "The study's individual: male or female" + (f" ({women}, as the client's files say)" if women else ""),
+                         [{"id": "MALE", "label": "Male", "value": "MALE", "source": None, "datasets": lacking},
+                          {"id": "FEMALE", "label": "Female", "value": "FEMALE", "source": None, "datasets": lacking}],
+                         selections))
+    if "age_mean" not in hints and f"{gid}|demographics:age_mean" not in (i["id"] for i in issues):
+        issues.append(_issue(gid, "demographics:age_years", "question",
+                             "The study's individual: the subjects' mean age (years), which the client's files do not state",
+                             [], selections, answer=True))
+    return issues
+
+
 def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, Any]]:
     from modeler_project.client_data import document_facts, document_links
     from modeler_project.dataset_register import datasets
@@ -318,6 +374,7 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
                 lacking = [d.id for d in members if d.study.get(field) is None]   # a document's fact fills them on confirm
                 facts.append({"field": field, "label": label, "value": shown, "source": source, "stored": value,
                               "fills": lacking if any(not g[2] for g in given) else []})
+        issues += _demographics(gid, members, study_facts, facts, selections)
         given_by_doc = {k for f in study_facts for k in f["sets"]}
         for d in members:
             if d.study.get("route") == "oral" and not d.study.get("food_state") and "food_state" not in given_by_doc:
@@ -397,20 +454,65 @@ def _points(profile: Any) -> str:
     return ", ".join(f"{m:.0f} % at {t:g} min" for t, m in list(zip(profile.times_min, profile.mean, strict=True))[1:4])
 
 
+def _link_targets(links: list[dict[str, Any]], used: set[str]) -> dict[str, dict[str, Any]]:
+    """A document's pairs of names, each asked on the name the data use, linking it to the other name."""
+    out: dict[str, dict[str, Any]] = {}
+    for link in links:
+        a, b = str(link["names"][0]), str(link["names"][1])
+        raw, named = (b, a) if b in used and a not in used else (a, b)
+        out.setdefault(raw, {**link, "named": named})
+    return out
+
+
+def _link_issue(scope: str, raw: str, said: dict[str, Any], what: str) -> tuple[str, str, str, str, list[dict[str, Any]]]:
+    text = f"{said['file']} (p. {said['page']}) says “{said['quote'][:200]}”: is {raw} the same {what} as {said['named']}?"
+    return scope, raw, "link", text, [
+        {"id": "same", "label": f"Yes: {raw} is {said['named']}", "value": said["named"], "source": _doc_source(said),
+         "datasets": []},
+        {"id": "different", "label": f"No: {raw} is another {what}", "value": None, "source": None, "datasets": []}]
+
+
 def _product_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, Any]]:
+    from modeler_project.client_data import document_compositions, document_links
     from modeler_project.dissolution_register import by_file, profile_id, profiles
 
     tolerance = float(rule()["relative_tolerance"])
-    given = {profile_id(key): files for key, files in by_file(ws).items() if len(files) > 1}
+    content = record(ws)
+    files_of = {profile_id(key): files for key, files in by_file(ws).items()}
+    given = {pid: files for pid, files in files_of.items() if len(files) > 1}
+    found, compositions = profiles(ws), document_compositions(ws)
+    raw_of = {p["id"]: str(p["key"].get("product") or "product") for p in found}
+    spellings = {pid: {str(prof.key.product or "product") for prof, _s, _n in files} for pid, files in files_of.items()}
+    canon = _canonical([*raw_of.values(), *(n for names in spellings.values() for n in names),
+                        *(str(c["product"]) for c in compositions)], content.get("product_aliases", {}))
     by_product: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for p in profiles(ws):
-        by_product[str(p["key"].get("product") or "product")].append(p)
+    for p in found:
+        by_product[canon[raw_of[p["id"]]]].append(p)
+    composed: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for c in compositions:
+        composed[canon[str(c["product"])]].append(c)
+    product_links = _link_targets(document_links(ws, "product"), {n for names in spellings.values() for n in names})
+    batch_links = _link_targets(document_links(ws, "batch"), {str(prof.key.batch or "") for files in files_of.values()
+                                                              for prof, _s, _n in files})
     groups = []
-    for product, members in sorted(by_product.items()):
+    for product in sorted(set(by_product) | set(composed)):
+        members, comps = by_product.get(product, []), composed.get(product, [])
         gid = f"product:{product}"
         notes: list[str] = []
         issues: list[dict[str, Any]] = []
         items = []
+        names = sorted({raw_of[p["id"]] for p in members} | {n for p in members for n in spellings.get(p["id"], ())}
+                       | {str(c["product"]) for c in comps})
+        if len(names) > 1 or names[0] != product:
+            notes.append(f"Also called {', '.join(n for n in names if n != product)} in the client's files: one product, {product}")
+        for raw in names:
+            if raw in product_links and _key(product_links[raw]["named"]) != _key(raw):
+                issues.append(_issue(*_link_issue("plink", raw, product_links[raw], "product"), selections))
+        batches = {str(p["key"].get("batch") or "") for p in members} | {
+            str(prof.key.batch or "") for p in members for prof, _s, _n in files_of.get(p["id"], [])}
+        for raw in sorted(batches):
+            if raw in batch_links and _key(batch_links[raw]["named"]) != _key(raw):
+                issues.append(_issue(*_link_issue("blink", raw, batch_links[raw], "batch"), selections))
         for p in members:
             note = "; ".join(p.get("flags", []))
             files = given.get(p["id"], [])
@@ -418,12 +520,12 @@ def _product_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str,
                 first = files[0][0]
                 worst = max((d for later, _s, _n in files[1:] if (d := _dissolution_difference(first, later)) is not None),
                             default=None)
-                names = [name for _p, _s, name in files]
+                names_given = [name for _p, _s, name in files]
                 if worst is not None and worst <= tolerance:
-                    notes.append(f"{p['label']}: given by {', '.join(names)} (within {tolerance:.0%}): kept once")
+                    notes.append(f"{p['label']}: given by {', '.join(names_given)} (within {tolerance:.0%}): kept once")
                 else:
-                    what = (f"{p['label']}: {', '.join(names)} differ by up to {worst:.0%} (more than {tolerance:.0%})"
-                            if worst is not None else f"{p['label']}: {', '.join(names)} share no time to compare")
+                    what = (f"{p['label']}: {', '.join(names_given)} differ by up to {worst:.0%} (more than {tolerance:.0%})"
+                            if worst is not None else f"{p['label']}: {', '.join(names_given)} share no time to compare")
                     issues.append(_issue(gid, f"profile:{p['id']}", "conflict", what, [
                         {"id": sid, "label": f"{name}: {_points(prof)}", "value": sid, "source": None,
                          "datasets": []} for prof, sid, name in files], selections))
@@ -432,8 +534,16 @@ def _product_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str,
                           "state": "PROPOSED", "note": note,
                           "source": {"doc_sha256": None, "page": None, "locator": ", ".join(p.get("cells", [])[:3]),
                                      "title": ", ".join(p.get("files", [])), "quote": ""}})
-        groups.append(_group(gid, "product", product, items, [], issues, ws, versions={p["id"]: p["version"] for p in members},
-                             notes=notes))
+        facts = [{"field": f"composition.{line['name']}", "label": line["name"],
+                  "value": f"{line['amount']:g} {line['unit']}" + (f" ({line['function']})" if line.get("function") else ""),
+                  "source": {"doc_sha256": c["doc_sha256"], "page": c["page"], "locator": f"p. {c['page']}", "title": c["file"],
+                             "quote": line["quote"]}, "stored": None, "fills": []}
+                 for c in comps for line in c["components"]]
+        if comps:
+            notes.append(f"Composition as {', '.join(sorted({c['file'] for c in comps}))} reports it: shown for the "
+                         "reviewer and the report, not used by the model")
+        groups.append(_group(gid, "product", product, items, facts, issues, ws,
+                             versions={p["id"]: p["version"] for p in members}, notes=notes))
     return groups
 
 
@@ -456,7 +566,8 @@ def _group(gid: str, kind: GroupKind, title: str, items: list[dict[str, Any]], f
     confirmation = record(ws)["confirmations"].get(gid)
     if kind == "product":
         confirmed = confirmation is not None and all(confirmation.get("versions", {}).get(i["id"]) == v
-                                                     for i, v in ((i, (versions or {})[i["id"]]) for i in items))
+                                                     for i, v in ((i, (versions or {})[i["id"]]) for i in items)) \
+            and confirmation.get("facts", []) == _fact_list(facts)
         for i in items:
             i["state"] = "ACCEPTED" if confirmed else "PROPOSED"
     elif not items:     # a study only a document's facts describe (I4): confirmed while they are the facts confirmed
@@ -520,14 +631,27 @@ def select(ws: Workspace, gid: str, issue_id: str, *, by: str, option: str | Non
         new = {**content, "selections": {**content["selections"], issue_id: {
             **chosen, "group": gid, "by": by, "at": datetime.now(UTC).isoformat()}}}
         if issue["kind"] == "link":   # a link regroups at once: the study's datasets join the study they are
-            raw = issue_id.split("|", 1)[1]
-            aliases = {k: v for k, v in content.get("aliases", {}).items() if k != raw}
-            new["aliases"] = {**aliases, **({raw: linked} if linked else {})}
+            scope, raw = issue_id.split("|", 1)
+            key = ALIASES[scope]
+            aliases = {k: v for k, v in content.get(key, {}).items() if k != raw}
+            new[key] = {**aliases, **({raw: linked} if linked else {})}
         return new, f"{issue['text']}: selected {shown}"
 
     update_review(ws, change, by=by)
-    return next((g for g in groups(ws) if g["id"] == gid), None) or _find(ws, f"study:{_canonical([linked], {})[linked]}"
-                                                                         if linked else gid)
+    return _after_link(ws, gid, issue_id, linked, by=by)
+
+
+def _after_link(ws: Workspace, gid: str, issue_id: str, linked: str | None, *, by: str) -> dict[str, Any]:
+    """The group after a selection: a product or batch link rebuilds the dissolution register (the two names' profiles
+    become one), and a link may move the group under the linked name."""
+    scope = issue_id.split("|", 1)[0]
+    if scope in ("plink", "blink"):
+        from modeler_project.dissolution_register import rebuild
+
+        rebuild(ws, by=by)
+    found = {g["id"]: g for g in groups(ws)}
+    target = f"{'study' if scope == 'link' else 'product'}:{linked}" if linked and scope != "blink" else gid
+    return found.get(gid) or found.get(target) or _find(ws, gid)
 
 
 def _linked(issue: dict[str, Any], chosen: dict[str, Any]) -> str | None:
@@ -547,12 +671,16 @@ def reopen(ws: Workspace, gid: str, issue_id: str, *, by: str) -> dict[str, Any]
         if issue_id not in content["selections"]:
             return None
         new = {**content, "selections": {k: v for k, v in content["selections"].items() if k != issue_id}}
-        if issue_id.startswith("link|"):
-            raw = issue_id.split("|", 1)[1]
-            new["aliases"] = {k: v for k, v in content.get("aliases", {}).items() if k != raw}
+        scope, _, raw = issue_id.partition("|")
+        if scope in ALIASES:
+            new[ALIASES[scope]] = {k: v for k, v in content.get(ALIASES[scope], {}).items() if k != raw}
         return new, f"{issue_id}: selection reopened"
 
     update_review(ws, change, by=by)
+    if issue_id.split("|", 1)[0] in ("plink", "blink"):
+        from modeler_project.dissolution_register import rebuild
+
+        rebuild(ws, by=by)
     return next((g for g in groups(ws) if g["id"] == gid), None) or group
 
 
@@ -588,12 +716,19 @@ def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
     kept: set[str] = set()
     arms: list[str] = []
     profile_sources: dict[str, str] = {}
+    demographics: dict[str, Any] = {}
     study_id = gid.split(":", 1)[1]
     for issue in group["issues"]:
         chosen = content["selections"][issue["id"]]
         key = issue["id"].split("|", 1)[1]
         if issue["kind"] == "link":
             continue                      # applied when it was selected: the datasets are in this group already
+        if key.startswith("demographics:"):
+            what = key.split(":", 1)[1]
+            option = next((o for o in issue["options"] if o["id"] == chosen.get("option")), None)
+            demographics[DEMOGRAPHIC_LABEL[what][1] if what in DEMOGRAPHIC_LABEL else what] = (
+                chosen["answer"] if chosen.get("answer") is not None else option["value"] if option else None)
+            continue
         if group["kind"] == "study" and key.startswith("profile:"):
             other = key.split(":", 1)[1]
             first = next(o["value"] for o in issue["options"] if o["id"] == "first")
@@ -641,8 +776,9 @@ def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
     if group["kind"] == "study":   # a document's fact fills the datasets that lack it (I4), as the card showed
         for fact in group["facts"]:
             for dataset_id in fact.get("fills", []):
-                if dataset_id not in rejected:
+                if dataset_id not in rejected and not fact["field"].startswith("demographics."):
                     set_study_facts(ws, dataset_id, changes={fact["field"]: fact["stored"]}, by=by)
+        _set_demographics(ws, group, demographics, rejected, by=by)
     if group["kind"] == "study":   # one study, one name: the one the person linked it to, or its first spelling
         from modeler_project.dataset_register import dataset as current
 
@@ -680,6 +816,22 @@ def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
                                        f"{group['title']} confirmed: {len(group['items'])} items load into the project"), by=by)
     # a group whose every value was set aside for another source has nothing left to show
     return next((g for g in groups(ws) if g["id"] == gid), {**group, "state": "confirmed", "open": 0, "confirmed_by": by})
+
+
+def _set_demographics(ws: Workspace, group: dict[str, Any], chosen: dict[str, Any], rejected: set[str], *, by: str) -> None:
+    """The study's individual (D-29) from a document's demographics and the person's choice of population and sex, set
+    as entered on each of the study's datasets that had none."""
+    from modeler_project.dataset_register import set_study_facts
+
+    if "population" not in chosen or "sex" not in chosen:
+        return
+    numbers = {DEMOGRAPHIC_LABEL[f["field"].split(".", 1)[1]][1]: f["stored"] for f in group["facts"]
+               if f["field"].split(".", 1)[-1] in DEMOGRAPHIC_LABEL and f["field"].startswith("demographics.")}
+    individual = {**numbers, **{k: v for k, v in chosen.items() if v is not None}}
+    lacking = next(o["datasets"] for i in group["issues"] if i["id"].endswith("|demographics:population") for o in i["options"])
+    for dataset_id in lacking:
+        if dataset_id not in rejected:
+            set_study_facts(ws, dataset_id, changes={"demographics": individual}, by=by)
 
 
 def product_confirmed(ws: Workspace, profile_id: str) -> bool:

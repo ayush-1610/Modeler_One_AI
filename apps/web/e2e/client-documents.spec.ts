@@ -82,3 +82,51 @@ test("a Word synopsis is read for its study's facts, and its dose against the PK
   expect(datasets.filter((d: { state: string }) => d.state === "ACCEPTED").map((d: { study: { dose_mg: number } }) => d.study.dose_mg))
     .toEqual([10]);
 });
+
+test("a synopsis's demographics become the study's individual once the person chooses its population and sex", async ({ page, request }) => {
+  // I4b: the document gives the numbers, quoted; the person chooses the PK-Sim population and the sex (D-29)
+  const delivery = "a Word synopsis giving the subjects' demographics";
+  const dir = mkdtempSync(join(tmpdir(), "demographics-"));
+  const fixture = join(__dirname, "fixtures", "document_reading.py");
+  execFileSync("uv", ["run", "python", fixture, "write", dir, delivery], { cwd: REPO });
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Demographamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral tablet, 10 mg.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);
+  expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
+  const ids: Record<string, string> = {};
+  for (const name of ["EX-302_PK.xlsx", "EX-302_synopsis.docx"]) {
+    const up = await request.post(`/api/v1/projects/${projectId}/client-data`, { headers: AUTH, multipart: {
+      files: { name, mimeType: TYPES[name.split(".").pop()!], buffer: readFileSync(join(dir, name)) } } });
+    expect(up.status(), await up.text()).toBe(201);
+    ids[name] = (await up.json()).data.read[0].id;
+  }
+  execFileSync("uv", ["run", "python", fixture, "read", join(process.env.E2E_DATA_DIR!, "read-root"), projectId,
+                      ids["EX-302_synopsis.docx"], delivery], { cwd: REPO });
+
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
+  await page.getByTestId("tab-studies").click();
+  const card = page.getByTestId("group-study:EX-302");
+  await expect(card.getByTestId("fact-study:EX-302-demographics.age_mean")).toContainText("31.5");
+  await expect(card.getByTestId("fact-study:EX-302-demographics.weight_mean")).toContainText("set on 1 dataset on confirm");
+  const population = card.getByTestId("issue-study:EX-302|demographics:population");
+  await expect(population).toContainText("says “Caucasian”");
+  const sex = card.getByTestId("issue-study:EX-302|demographics:sex");
+  await expect(sex).toContainText("0 women");
+  await shot(page, "3-demographics-to-choose");
+
+  await population.getByTestId("issue-option-study:EX-302|demographics:population-European_ICRP_2002").check();
+  await population.getByTestId("issue-confirm-study:EX-302|demographics:population").click();
+  await expect(population).toContainText("Resolved");
+  await sex.getByTestId("issue-option-study:EX-302|demographics:sex-MALE").check();
+  await sex.getByTestId("issue-confirm-study:EX-302|demographics:sex").click();
+  await expect(sex).toContainText("Resolved");
+  await card.getByTestId("confirm-study:EX-302").click();
+  await expect(card).toContainText("Confirmed by");
+  await shot(page, "4-demographics-confirmed");
+  const ev = await (await request.get(`/api/v1/projects/${projectId}/evidence`, { headers: AUTH })).json();
+  const study = (ev.data.datasets as { study: { demographics?: Record<string, unknown> } }[])[0].study;
+  expect(study.demographics).toEqual({ population: "European_ICRP_2002", sex: "MALE", age_years: 31.5, age_min: 24,
+                                       age_max: 41, weight_kg: 76.2 });
+});
