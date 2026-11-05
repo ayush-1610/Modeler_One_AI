@@ -2,7 +2,7 @@
 
 The client-data template is downloaded, filled and uploaded; it is read with no AI into CLIENT datasets and evidence.
 Any other workbook is triaged sheet by sheet (by code, then agent A4 for the sheets code cannot decide); A4 then proposes
-how to read each data sheet (checked by code), and a sheet is read once a person checks and confirms its reading. PDF, Word, CSV and Markdown files are stored as citable documents. The
+how to read each data sheet (checked by code), and a sheet is read once a person checks and confirms its reading. PDF, Word, CSV and Markdown files are stored as citable documents; A4 also reads a client's PDF or Word file for its data (I4). The
 view reconciles what arrived with what the data checklist says the client provides; Start's checklist ticks it off. It is
 read on the Inputs step's Studies tab, and nothing is approved (D-27): the one review is at the MAP signature.
 """
@@ -45,6 +45,7 @@ from modeler_intake.triage import SheetCategory, SheetTriage
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import (
+    READABLE_DOCUMENTS,
     REGISTER,
     ClientDataError,
     datasets_from_observations,
@@ -259,6 +260,27 @@ def run_reading_job(store: ProjectStore, tenant_id: str, project_id: str, sid: s
     return {"status": "COMPLETED", "sheets": results}
 
 
+def run_document_job(store: ProjectStore, tenant_id: str, project_id: str, sid: str, *, model,
+                     max_turns: int = 30) -> dict[str, Any]:
+    """A4 reads one client PDF or Word file for project data (plan 2026-11-03 §3.4, I4): study facts, profiles, NCA
+    tables, dissolution profiles and links between two names of a study, each quoted and checked by code. What code
+    accepted is recorded on the file and waits on Inputs, in its study or product, until a person confirms it."""
+    ws = Workspace(store, tenant_id, project_id)
+    if submission(ws, sid) is None:
+        raise ClientDataError(f"no client file {sid}")
+    brief = _brief(ws)
+    run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
+                              agent="A4-document-reading", model=model, max_turns=max_turns)
+    ctx, outcome = agent_jobs.document_reading(model, ws=ws, library=DocumentLibrary(ws), sid=sid,
+                                               drug=brief.drug_name if brief else "", actor=run.actor, run_id=run.run_id,
+                                               max_turns=max_turns, log_step=run.log_step)
+    summary = {"datasets": len(ctx.datasets), "facts": len(ctx.facts), "dissolution_rows": len(ctx.dissolution),
+               "links": len(ctx.links), "refused": len(ctx.refused), "summary": outcome.final_text[:2000],
+               "error": outcome.error}
+    run.finish(outcome, summary)
+    return {"run_id": run.run_id, "status": outcome.status, **summary}
+
+
 class ReadingRequest(BaseModel):
     sheets: list[str] = Field(default_factory=list)       # none named: every data sheet not read yet
 
@@ -266,8 +288,13 @@ class ReadingRequest(BaseModel):
 @router.post("/projects/{project_id}/client-data/{sid}:read", status_code=202, **answers(TriageStart))
 def start_reading(project_id: str, sid: str, principal: Writer, store: StoreDep, body: ReadingRequest | None = None) -> dict[str, Any]:
     """A4 proposes how to read the file's data sheets, in the background; each proposal is checked by code and waits on
-    its sheet for the person to check and save (nothing is read into the project until then)."""
+    its sheet for the person to check and save (nothing is read into the project until then). A client PDF or Word file
+    is read for its study facts, profiles, NCA tables, dissolution and study-name links instead (I4); what code accepts
+    waits on Inputs, in its study or product, until a person confirms it."""
     ws = workspace_for(project_id, principal, store)
+    found = submission(ws, sid)
+    if found is not None and found.get("kind") in READABLE_DOCUMENTS:
+        return _start_document_reading(ws, found, sid, principal, store)
     content, workbook = _workbook(ws, sid, use=True)
     sheets = body.sheets if body else []
     if content.get("template"):
@@ -284,6 +311,23 @@ def start_reading(project_id: str, sid: str, principal: Writer, store: StoreDep,
 
     jobs.start(store, principal.tenant_id, project_id, "reading", job, busy="a reading run is already in progress",
                name=f"reading-{project_id}")
+    return envelope({"status": "RUNNING"})
+
+
+def _start_document_reading(ws: Workspace, content: dict[str, Any], sid: str, principal: Any, store: Any) -> dict[str, Any]:
+    library = DocumentLibrary(ws)
+    if (withdrawn := library.entry(content["sha256"]).withdrawn) is not None:
+        raise HTTPException(status_code=409, detail=f"{content['file']} was withdrawn ({withdrawn.reason}); "
+                                                    "restore it in the Project Document Library to read it")
+    if not any(page.strip() for page in library.pages(content["sha256"])):
+        raise HTTPException(status_code=409, detail=f"{content['file']} has no text to read (a scan needs OCR)")
+    model = agent_jobs.require_chat_model("agents are off: enter what the file states with the forms on Inputs")
+
+    def job() -> None:
+        run_document_job(store, principal.tenant_id, ws.project_id, sid, model=model)
+
+    jobs.start(store, principal.tenant_id, ws.project_id, "reading", job, busy="a reading run is already in progress",
+               name=f"reading-{ws.project_id}")
     return envelope({"status": "RUNNING"})
 
 

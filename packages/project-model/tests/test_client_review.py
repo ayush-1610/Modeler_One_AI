@@ -24,7 +24,7 @@ pytestmark = pytest.mark.req("T-47")
 
 
 def _client_dataset(ws, study: dict, *, file: str = "pk.xlsx") -> ObservedDataset:
-    d = ObservedDataset(id=new_dataset_id(), kind="profile", study={"n_timepoints": 3, "statistic": "mean", **study},
+    d = ObservedDataset(id=new_dataset_id(), kind="profile", study={"n_timepoints": 3, "statistic": "mean", "formulation": "ir_tablet", **study},
                         analyte="parent", matrix="plasma", time_unit="h", unit="ng/ml",
                         series=(Series(name="mean", statistic="arithmetic_mean", times=(1, 2, 6), values=(40.0, 30.0, 10.0)),),
                         origin=Origin.CLIENT, extraction="CELL", provider="CLIENT",
@@ -94,7 +94,8 @@ def test_two_files_giving_one_study_two_doses_block_it_until_a_selection_is_conf
 def test_an_oral_study_with_no_food_state_and_values_below_the_lloq_ask_their_questions(tmp_path):
     ws, *_ = _project(tmp_path)
     d = ObservedDataset(id=new_dataset_id(), kind="profile", study={"study_id": "EX-2", "route": "oral", "dose_mg": 10,
-                                                                     "n": 12, "n_timepoints": 3, "statistic": "mean"},
+                                                                     "n": 12, "n_timepoints": 3, "statistic": "mean",
+                                                                     "formulation": "ir_tablet"},
                         analyte="parent", matrix="plasma", time_unit="h", unit="ng/ml",
                         series=(Series(name="mean", statistic="arithmetic_mean", times=(1, 2, 6), values=(40.0, 30.0, None)),),
                         origin=Origin.CLIENT, extraction="CELL", provider="CLIENT",
@@ -159,7 +160,7 @@ def _profile(ws, study_id: str, values: tuple, *, file: str, doc: str | None = N
              series: str = "mean") -> ObservedDataset:
     d = ObservedDataset(id=new_dataset_id(), kind="profile",
                         study={"study_id": study_id, "route": "oral", "food_state": "fasted", "dose_mg": 10, "n": 12,
-                               "n_timepoints": 3, "statistic": "mean"},
+                               "n_timepoints": 3, "statistic": "mean", "formulation": "ir_tablet"},
                         analyte=analyte, matrix="plasma", time_unit="h", unit="ng/ml",
                         series=(Series(name=series, statistic="arithmetic_mean", times=(1, 2, 6), values=values),),
                         origin=Origin.CLIENT, extraction="CELL", provider="CLIENT",

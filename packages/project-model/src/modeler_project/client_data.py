@@ -9,7 +9,10 @@ An uploaded file is stored as a document first (the cells become quotable rows),
   that use them (T-48 dissolution, T-49 inputs);
 * any other workbook is triaged sheet by sheet (`modeler_intake.triage`); its data are read once a person confirms a
   mapping recipe for a sheet;
-* PDF, Word, CSV and Markdown files are documents the literature agents and people read and cite (owner, §3 #15).
+* PDF, Word, CSV and Markdown files are documents the literature agents and people read and cite (owner, §3 #15). A
+  client's PDF or Word file is also listed by code, page by page, for the project data it seems to hold (its
+  inventory), and the reading agent (A4, build I4) proposes its study facts, profiles, NCA tables, dissolution
+  profiles and study-name links, each quoted and checked by code; they wait on Inputs until a person confirms them.
 
 Every file is a CLIENT_SUBMISSION artifact. Reconciliation is computed when read: per client item of the data plan,
 delivered / partial / missing / not available, and what was delivered that the plan did not promise. The P3 register
@@ -26,6 +29,7 @@ from pathlib import PurePath
 from typing import Any
 
 from modeler_intake.client_template import ClientWorkbook, Row, read_client_workbook
+from modeler_intake.document_reading import inventory
 from modeler_intake.file_tags import TagKind, default_tag, from_pages, from_triage
 from modeler_intake.grid import read_workbook_bytes
 from modeler_intake.triage import SheetTriage, triage
@@ -41,6 +45,7 @@ from pbpk_domain.issues import Issue
 REGISTER = "register"
 REVIEW = "review"           # modeler_project.client_review: selections and confirmations on Inputs
 SPREADSHEETS = (".xlsx", ".xlsm", ".xls", ".csv")
+READABLE_DOCUMENTS = ("pdf", "docx")   # the kinds the reading agent reads for data (plan 2026-11-03 §3.4, I4)
 _STATISTIC = {"arithmetic_mean": "arithmetic_mean", "geometric_mean": "geometric_mean", "median": "median"}
 _ERROR_KIND = {"SD": "SD", "SE": "SE", "CV%": "CV%"}
 _PROMISED_COUNT = re.compile(r"\b(\d+|two|three|four|five|six)\s+(?:dissolution\s+)?(?:media|medium|buffers?|ph\s+values?|conditions)",
@@ -356,6 +361,9 @@ def ingest(ws: Workspace, library: DocumentLibrary, data: bytes, filename: str, 
                            urine_feces=_kept_rows(read, "Urine_Feces"), studies=_kept_rows(read, "Studies"),
                            brief_mismatches=_brief_mismatches(read, brief), other_sheets=read.other_sheets)
             content["issues"] = [asdict(i) for i in issues]
+    elif content["kind"] in READABLE_DOCUMENTS:
+        tag = library.entry(sha).tag if library.has_record else None
+        content["inventory"] = [i.to_content() for i in inventory(library.pages(sha), tag.kind if tag else "other")]
     ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, derived_from=[doc.ref], actor=by,
               reason=f"client file {content['file']}" + (" (template)" if content["template"] else ""))
     if library.has_record and not content["template"]:   # the template holds every kind of data: nothing to propose
@@ -395,6 +403,55 @@ def record_reading(ws: Workspace, sid: str, *, sheet: str, form: dict[str, Any],
         content = {**version.content, "readings": readings}
         ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by, reason=f"{sheet}: reading proposed by {by}")
     return content | {"id": sid}
+
+
+def record_document_reading(ws: Workspace, sid: str, *, facts: list[dict[str, Any]], dissolution: list[dict[str, Any]],
+                            links: list[dict[str, Any]], datasets: list[str], refused: list[str], digitization: list[str],
+                            summary: str, run_id: str | None, by: str) -> dict[str, Any]:
+    """What the reading agent read from one client PDF or Word file, every item quoted and checked by code (plan
+    2026-11-03 §3.4, I4): study facts, dissolution rows, links between two names of one study, the datasets it proposed,
+    and what code refused. A later reading of the same file replaces the earlier: its facts, rows and links go, and the
+    earlier reading's datasets a person has not confirmed are set aside. Nothing here loads: each item waits on Inputs
+    until a person confirms its group."""
+    from modeler_project.dataset_register import dataset as current
+    from modeler_project.dataset_register import decide_dataset
+
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, sid):
+        version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
+        if version is None:
+            raise ClientDataError(f"no client file {sid}")
+        content = dict(version.content)
+        earlier = [i for r in content.get("document_reads", []) for i in r.get("datasets", [])]
+        for dataset_id in earlier:
+            found = current(ws, dataset_id)
+            if dataset_id not in datasets and found is not None and found.state is EvidenceState.PROPOSED:
+                decide_dataset(ws, dataset_id, state=EvidenceState.REJECTED, by=by,
+                               reason=f"replaced by a later reading of {content['file']}")
+        read = {"run_id": run_id, "by": by, "datasets": datasets, "facts": len(facts), "dissolution_rows": len(dissolution),
+                "links": len(links), "refused": refused[:50], "digitization": digitization, "summary": summary[:2000]}
+        content.update(study_facts=facts, dissolution=dissolution, study_links=links,
+                       datasets=[*[d for d in content.get("datasets", []) if d not in earlier], *datasets],
+                       document_reads=[*content.get("document_reads", []), read])
+        ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,
+                  reason=f"{content['file']} read: {len(datasets)} datasets, {len(facts)} study facts, "
+                         f"{len(dissolution)} dissolution rows, {len(links)} links; {len(refused)} refused by code")
+    if dissolution or any(r.get("dissolution_rows") for r in version.content.get("document_reads", [])):
+        from modeler_project.dissolution_register import rebuild
+
+        rebuild(ws, by=by)
+    return content | {"id": sid}
+
+
+def document_facts(ws: Workspace) -> list[dict[str, Any]]:
+    """Every study fact read from a client document, with its file: what `client_review` compares across files."""
+    return [{**f, "sid": sub["id"], "file": sub["file"], "doc_sha256": sub["sha256"]}
+            for sub in submissions(ws) for f in sub.get("study_facts", [])]
+
+
+def document_links(ws: Workspace) -> list[dict[str, Any]]:
+    """Every pair of names a client document says are one study, quoted, with its file."""
+    return [{**link, "sid": sub["id"], "file": sub["file"], "doc_sha256": sub["sha256"]}
+            for sub in submissions(ws) for link in sub.get("study_links", [])]
 
 
 def datasets_from_observations(observations: list[Any], *, study: dict[str, Any], sha: str, filename: str,

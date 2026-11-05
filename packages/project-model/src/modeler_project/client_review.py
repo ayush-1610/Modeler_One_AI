@@ -22,6 +22,12 @@ confirmed). Two files giving one study's profile are compared point by point: wi
 duplicate and load once, with both files named; beyond it they are a conflict on the card (one file's profile, the
 other's, or two arms kept under their own ids). A dissolution profile two files give is compared the same way on its
 product's card, and the file a person keeps is the one the register builds from.
+
+Documents (build I4): the facts the reading agent quoted from a client's PDF or Word file (a protocol's dose, route,
+food state, n) join the comparison of their study's facts, so a protocol and a PK sheet that disagree are a conflict
+on the card; a fact the datasets lack is shown with its page and quote and fills them when the group is confirmed. A
+study only a document describes is a group of its facts. A document that says two names are one study ("Protocol
+EXZ-101 (Study 101)") asks whether they are, with the quote.
 """
 
 from __future__ import annotations
@@ -44,6 +50,8 @@ GroupKind = Literal["study", "product", "compound"]
 TAB: dict[str, str] = {"study": "studies", "product": "formulations", "compound": "compound"}
 FACT_LABEL = {"dose_mg": "Dose (mg)", "route": "Route", "food_state": "Food state", "formulation": "Formulation",
               "n": "Subjects (n)", "lloq": "LLOQ"}
+FORMULATION_LABEL = {"ir_tablet": "Tablet (immediate release)", "ir_capsule": "Capsule (immediate release)",
+                     "solution": "Solution", "suspension": "Suspension", "mr": "Modified release", "other": "Other"}
 CONFIRMED_REASON = "confirmed on Inputs with its group"
 
 
@@ -148,7 +156,54 @@ def _profile_difference(a: ObservedDataset, b: ObservedDataset) -> float | None:
     return max(differences) if differences else None
 
 
+def _doc_source(fact: dict[str, Any]) -> dict[str, Any]:
+    return {"doc_sha256": fact["doc_sha256"], "page": fact["page"], "locator": f"p. {fact['page']}", "title": fact["file"],
+            "quote": str(fact.get("quote", ""))[:600]}
+
+
+def _lloq_in(value: float, unit: str, target: str) -> float | None:
+    """A document's LLOQ in a dataset's unit, when both are mass or both molar concentrations (else None: not compared)."""
+    from pbpk_domain.units import UnitError, is_molar, umol_per_l_per
+
+    try:
+        if is_molar(unit) != is_molar(target):
+            return None
+        return value * umol_per_l_per(unit, 1.0) / umol_per_l_per(target, 1.0)
+    except UnitError:
+        return None
+
+
+def _givers(field: str, members: list[ObservedDataset], duplicate_of: dict[str, str],
+            facts: list[dict[str, Any]]) -> list[tuple[Any, dict[str, Any], list[str], str]]:
+    """Who gives a study fact, as (value, source, datasets, as shown): each document fact first (build I4: its quote
+    states the value), then each dataset (a duplicate file's copy last). A document's LLOQ is compared in the datasets'
+    unit when they share one."""
+    out: list[tuple[Any, dict[str, Any], list[str], str]] = []
+    units = {d.unit for d in members}
+    for f in facts:
+        value = f["sets"].get(field)
+        if value is None:
+            continue
+        shown = _shown(value)
+        if field == "lloq":
+            if len(units) > 1:
+                continue
+            if units:
+                value = _lloq_in(float(value), f["sets"].get("lloq_unit", ""), next(iter(units)))
+                if value is None:
+                    continue
+                value = round(value, 9)
+            shown = f"{_shown(value)} {next(iter(units)) if units else f['sets'].get('lloq_unit', '')}".strip()
+        out.append((value, _doc_source(f), [], shown))
+    ordered = [d for d in members if d.id not in duplicate_of] + [d for d in members if d.id in duplicate_of]
+    out += [(d.study[field], _source(d.source, d.quote), [d.id],
+             f"{_shown(d.study[field])} {d.unit}" if field == "lloq" else _shown(d.study[field]))
+            for d in ordered if d.study.get(field) is not None]
+    return out
+
+
 def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, Any]]:
+    from modeler_project.client_data import document_facts, document_links
     from modeler_project.dataset_register import datasets
 
     content = record(ws)
@@ -156,18 +211,36 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
     tagged = _tagged_studies(ws)
     tolerance = float(rule()["relative_tolerance"])
     client = [d for d in datasets(ws) if _client_dataset(d) and d.state is not EvidenceState.REJECTED]
-    canon = _canonical([str(d.study.get("study_id", d.id)) for d in client], aliases)
+    doc_facts = document_facts(ws)
+    canon = _canonical([*(str(d.study.get("study_id", d.id)) for d in client), *(str(f["study_id"]) for f in doc_facts)],
+                       aliases)
     by_study: dict[str, list[ObservedDataset]] = defaultdict(list)
     for d in client:
         by_study[canon[str(d.study.get("study_id", d.id))]].append(d)
+    facts_by_study: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for f in doc_facts:
+        facts_by_study[canon[str(f["study_id"])]].append(f)
+    # a document saying two names are one study (build I4): asked on the group whose data use the name, linking it to
+    # the other name; once a person answered, the alias stands
+    data_names = {str(d.study.get("study_id")) for d in client}
+    linked_by_doc: dict[str, dict[str, Any]] = {}
+    for link in document_links(ws):
+        a, b = str(link["names"][0]), str(link["names"][1])
+        raw, named = (b, a) if b in data_names and a not in data_names else (a, b)
+        linked_by_doc.setdefault(raw, {**link, "named": named})
     groups = []
-    for study_id, members in sorted(by_study.items()):
+    for study_id in sorted(set(by_study) | set(facts_by_study)):
+        members, study_facts = by_study.get(study_id, []), facts_by_study.get(study_id, [])
         gid = f"study:{study_id}"
         members = sorted(members, key=lambda d: (d.source.title or "", d.id))
+        raw_names = {str(d.study.get("study_id")) for d in members} | {str(f["study_id"]) for f in study_facts}
         notes: list[str] = []
-        names = sorted({str(d.study.get("study_id")) for d in members} - {study_id})
+        names = sorted(raw_names - {study_id})
         if names:
             notes.append(f"Also called {', '.join(names)} in the client's files: one study, {study_id}")
+        if not members:
+            notes.append("No concentration data from the client for this study yet: its facts are read from "
+                         f"{', '.join(sorted({f['file'] for f in study_facts}))}")
         duplicate_of: dict[str, str] = {}
         issues: list[dict[str, Any]] = []
         profiles = [d for d in members if d.kind == "profile"]
@@ -203,30 +276,37 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
                   "note": f"the same as {next(m.source.title for m in members if m.id == duplicate_of[d.id])}: loads once"
                   if d.id in duplicate_of else "", "duplicate_of": duplicate_of.get(d.id),
                   "source": _source(d.source, d.quote)} for d in members]
-        for raw in sorted({str(d.study.get("study_id")) for d in members}):
+        for raw in sorted(raw_names):
             named = next((tagged[d.source.doc_sha256] for d in members if str(d.study.get("study_id")) == raw
                           and d.source.doc_sha256 in tagged), None)
-            if named and _key(named) != _key(raw):
+            said = linked_by_doc.get(raw) if not named else None
+            named = named or (said["named"] if said else None)
+            if not named or _key(named) == _key(raw):
+                continue
+            if said:
+                text = (f"{said['file']} (p. {said['page']}) says “{said['quote'][:200]}”: is {raw} the same study as "
+                        f"{named}?")
+                source = _doc_source(said)
+            else:
                 file = next(d.source.title for d in members if str(d.study.get("study_id")) == raw)
-                issues.append(_issue("link", raw, "link",
-                                     f"{file} was tagged at upload as study {named}; its sheet calls the study {raw}. "
-                                     "Are they the same study?",
-                                     [{"id": "same", "label": f"Yes: {raw} is {named}", "value": named, "source": None,
-                                       "datasets": []},
-                                      {"id": "different", "label": f"No: {raw} is another study", "value": None,
-                                       "source": None, "datasets": []}], selections))
+                text = f"{file} was tagged at upload as study {named}; its sheet calls the study {raw}. Are they the same study?"
+                source = None
+            issues.append(_issue("link", raw, "link", text,
+                                 [{"id": "same", "label": f"Yes: {raw} is {named}", "value": named, "source": source,
+                                   "datasets": []},
+                                  {"id": "different", "label": f"No: {raw} is another study", "value": None,
+                                   "source": None, "datasets": []}], selections))
         facts = []
         for field, label in FACT_LABEL.items():
-            given = [(d, d.study.get(field)) for d in members if d.study.get(field) is not None and d.id not in duplicate_of]
-            given += [(d, d.study.get(field)) for d in members if d.study.get(field) is not None and d.id in duplicate_of]
-            distinct: dict[Any, list[ObservedDataset]] = defaultdict(list)
-            for d, value in given:
-                distinct[_normal(field, value)].append(d)
+            given = _givers(field, members, duplicate_of, study_facts)
+            distinct: dict[Any, list[tuple[Any, dict[str, Any], list[str], str]]] = defaultdict(list)
+            for giver in given:
+                distinct[_normal(field, giver[0])].append(giver)
             if len(distinct) > 1:
                 explainable = field in rule()["explainable"]["fields"]
-                options = [{"id": f"v{i}", "label": _shown(ds[0].study[field]), "value": ds[0].study[field],
-                            "source": _source(ds[0].source, ds[0].quote), "datasets": [d.id for d in ds]}
-                           for i, (_v, ds) in enumerate(distinct.items())]
+                options = [{"id": f"v{i}", "label": gs[0][3], "value": gs[0][0], "source": gs[0][1],
+                            "datasets": [d for g in gs for d in g[2]]}
+                           for i, (_v, gs) in enumerate(distinct.items())]
                 options.append({"id": "explained" if explainable else "different",
                                 "label": "Explained: dosed and PK-evaluable counts differ" if explainable
                                 else "They are different things: each file keeps its own value",
@@ -234,15 +314,23 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
                 issues.append(_issue(gid, field, "difference" if explainable else "conflict",
                                      f"{label}: the client's files give {len(distinct)} values", options, selections))
             elif given:
-                d, value = given[0]
-                facts.append({"field": field, "label": label, "value": _shown(value), "source": _source(d.source, d.quote)})
+                value, source, _ds, shown = given[0]
+                lacking = [d.id for d in members if d.study.get(field) is None]   # a document's fact fills them on confirm
+                facts.append({"field": field, "label": label, "value": shown, "source": source, "stored": value,
+                              "fills": lacking if any(not g[2] for g in given) else []})
+        given_by_doc = {k for f in study_facts for k in f["sets"]}
         for d in members:
-            if d.study.get("route") == "oral" and not d.study.get("food_state"):
+            if d.study.get("route") == "oral" and not d.study.get("food_state") and "food_state" not in given_by_doc:
                 issues.append(_issue(gid, f"food_state:{d.id}", "question", "Oral study with no food state: fasted or fed?",
                                      [{"id": "fasted", "label": "Fasted", "value": "fasted", "source": None, "datasets": [d.id]},
                                       {"id": "fed", "label": "Fed", "value": "fed", "source": None, "datasets": [d.id]}],
                                      selections))
-            if d.kind == "profile" and d.study.get("lloq") is None and any(v is None for s in d.series for v in s.values):
+            if d.study.get("route") == "oral" and not d.study.get("formulation") and "formulation" not in given_by_doc:
+                issues.append(_issue(gid, f"formulation:{d.id}", "question", "Oral study with no dosage form: which one?",
+                                     [{"id": v, "label": FORMULATION_LABEL[v], "value": v, "source": None, "datasets": [d.id]}
+                                      for v in FORMULATION_LABEL], selections))
+            if (d.kind == "profile" and d.study.get("lloq") is None and "lloq" not in given_by_doc
+                    and any(v is None for s in d.series for v in s.values)):
                 issues.append(_issue(gid, f"lloq:{d.id}", "question",
                                      f"Values below the LLOQ, and no LLOQ stated: give it in {d.unit}",
                                      [], selections, answer=True))
@@ -358,6 +446,10 @@ def _issue(gid: str, key: str, kind: str, text: str, options: list[dict[str, Any
             "selected_by": chosen.get("by") if chosen else None, "selected_at": chosen.get("at") if chosen else None}
 
 
+def _fact_list(facts: list[dict[str, Any]]) -> list[list[str]]:
+    return [[f["field"], f["value"]] for f in facts]
+
+
 def _group(gid: str, kind: GroupKind, title: str, items: list[dict[str, Any]], facts: list[dict[str, Any]],
            issues: list[dict[str, Any]], ws: Workspace, versions: dict[str, int] | None = None,
            notes: list[str] | None = None) -> dict[str, Any]:
@@ -367,8 +459,10 @@ def _group(gid: str, kind: GroupKind, title: str, items: list[dict[str, Any]], f
                                                      for i, v in ((i, (versions or {})[i["id"]]) for i in items))
         for i in items:
             i["state"] = "ACCEPTED" if confirmed else "PROPOSED"
+    elif not items:     # a study only a document's facts describe (I4): confirmed while they are the facts confirmed
+        confirmed = confirmation is not None and confirmation.get("facts") == _fact_list(facts)
     else:
-        confirmed = bool(items) and not any(i["state"] == EvidenceState.PROPOSED.value for i in items)
+        confirmed = not any(i["state"] == EvidenceState.PROPOSED.value for i in items)
     if confirmed and confirmation:   # as they were settled, in their order; anything new after them
         recorded = confirmation.get("issues", [])
         known = {i["id"] for i in recorded}
@@ -544,6 +638,11 @@ def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
             rejected.add(item["id"])
     for n, other in enumerate(arms, start=2):
         rename_study(ws, other, f"{study_id}-{n}", by=by, reason="another arm or cohort of the study, said on Inputs")
+    if group["kind"] == "study":   # a document's fact fills the datasets that lack it (I4), as the card showed
+        for fact in group["facts"]:
+            for dataset_id in fact.get("fills", []):
+                if dataset_id not in rejected:
+                    set_study_facts(ws, dataset_id, changes={fact["field"]: fact["stored"]}, by=by)
     if group["kind"] == "study":   # one study, one name: the one the person linked it to, or its first spelling
         from modeler_project.dataset_register import dataset as current
 
@@ -571,7 +670,8 @@ def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
                    unit_pksim=None)
     entry = {"by": by, "at": datetime.now(UTC).isoformat(), "items": [i["id"] for i in group["items"]],
              "selections": {i["id"]: content["selections"].get(i["id"]) for i in group["issues"]},
-             "issues": group["issues"], "notes": group["notes"]}   # kept: each settled conflict stays shown
+             "issues": group["issues"], "notes": group["notes"],   # kept: each settled conflict stays shown
+             "facts": _fact_list(group["facts"])}
     if group["kind"] == "product":
         from modeler_project.dissolution_register import profiles
 

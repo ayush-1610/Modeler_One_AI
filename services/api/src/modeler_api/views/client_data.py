@@ -200,6 +200,8 @@ class ReviewFact(View):
     label: str
     value: str
     source: dict[str, Any]
+    stored: Any = None                  # the value as the study record keeps it
+    fills: list[str] = Field(default_factory=list)   # datasets lacking it that a document's fact fills on confirm (I4)
 
 
 class ReviewGroup(View):

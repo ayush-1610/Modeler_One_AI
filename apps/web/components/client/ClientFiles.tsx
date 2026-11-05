@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 
+import { PeekButton } from "@/components/kit/SourcePeek";
 import { Card } from "@/components/ui";
 import { send, type Envelope, type Schema } from "@/lib/api";
 
 import { SheetReader, type Study } from "./SheetReader";
 import {
-  CATEGORY_LABEL, type ClientFile, DATA_SHEETS, type Profile, READABLE, type SheetForm, type Triage, type View, readSheets,
+  CATEGORY_LABEL, type ClientFile, DATA_SHEETS, type Profile, READABLE, READABLE_DOCUMENTS, type SheetForm, type Triage,
+  type View, readSheets,
 } from "./types";
 
 export type Act = <T>(fn: () => Promise<Envelope<T>>) => Promise<string | null>;
@@ -52,6 +54,62 @@ function SheetLine({ t, read, proposed, onRead, onClassify }: {
   );
 }
 
+/** A client PDF or Word file (I4): the pages code found holding project data, each opening in the centre peek with its
+ * line highlighted; the reading agent's button; and what its last reading proposed and what code refused. What it
+ * proposed waits on Inputs, in its study or product, until a person confirms it. */
+function DocumentReading({ projectId, file, agents, running, agentReading, act }: {
+  projectId: string; file: ClientFile; agents: boolean; running: boolean; agentReading: boolean; act: Act;
+}) {
+  const [notice, setNotice] = useState<string | null>(null);
+  const items = file.inventory ?? [];
+  const last = (file.document_reads ?? []).at(-1);
+  return (
+    <div className="doc-reading" data-testid={`document-${file.file}`}>
+      <div className="spread">
+        <span className="muted">
+          {items.length > 0 ? `Code found project data on ${new Set(items.map((i) => i.page)).size} page${new Set(items.map((i) => i.page)).size === 1 ? "" : "s"}:`
+                            : "Code found no page that clearly holds project data; the agent can still look through the file."}
+        </span>
+        <button className={`btn${last ? "" : " primary"}`} disabled={!agents || running} data-testid={`read-doc-${file.file}`}
+                title={agents ? "Agent A4 reads the file; code checks every value against its page" : "agents are off"}
+                onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:read",
+                                                                    { project_id: projectId, sid: file.id }, {}))
+                  ?? "Agent A4 is reading the file. What code accepts appears in its study or product, to confirm.")}>
+          {agentReading ? "Reading…" : last ? "Read again (agent)" : "Read the data in this file (agent)"}
+        </button>
+      </div>
+      {items.length > 0 && (
+        <ul className="doc-inventory">
+          {items.map((i) => (
+            <li key={`${i.page}-${i.holds}`} data-testid={`inventory-${i.page}-${i.holds}`}>
+              <span className="chip neutral">p. {i.page}</span> {i.label} <span className="muted">“{i.line}”</span>
+              <PeekButton projectId={projectId} label={`${file.file}, p. ${i.page}`}
+                          source={{ doc_sha256: file.sha256, page: i.page, quote: i.line, title: file.file, locator: `p. ${i.page}` }} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {last && (
+        <div className="doc-read" data-testid={`document-read-${file.file}`}>
+          <strong>Read by the agent:</strong>{" "}
+          {[[last.datasets.length, "dataset"], [last.facts, "study fact"], [last.dissolution_rows, "dissolution row"],
+            [last.links, "study-name link"], [last.digitization.length, "figure for a person to digitize"]]
+            .filter(([n]) => Number(n) > 0).map(([n, w]) => plural(Number(n), String(w))).join(" · ") || "nothing code accepted"}.
+          {" "}Each is shown in its study or product and loads only once a person confirms it there.
+          {last.refused.length > 0 && (
+            <details>
+              <summary>{plural(last.refused.length, "proposal")} refused by code</summary>
+              <ul className="flags">{last.refused.map((r, k) => <li key={k}>{r}</li>)}</ul>
+            </details>
+          )}
+          {last.summary && <p className="muted" style={{ margin: "4px 0 0" }}>{last.summary}</p>}
+        </div>
+      )}
+      {notice && <div className="banner ok">{notice}</div>}
+    </div>
+  );
+}
+
 function FileCard({ projectId, file, agents, running, agentReading, act, reading, setReading, onSaved, last, remember }: {
   projectId: string; file: ClientFile; agents: boolean; running: boolean; agentReading: boolean; act: Act; reading: string | null;
   setReading: (sheet: string | null) => void; onSaved: (message: string) => Promise<void>;
@@ -88,7 +146,12 @@ function FileCard({ projectId, file, agents, running, agentReading, act, reading
           )}
         </div>
       </div>
-      {!spreadsheet && <p className="muted" style={{ margin: "4px 0" }}>Kept as a citable document: the literature agents and you can quote it.</p>}
+      {!spreadsheet && READABLE_DOCUMENTS.has(file.kind) && (
+        <DocumentReading projectId={projectId} file={file} agents={agents} running={running} agentReading={agentReading} act={act} />
+      )}
+      {!spreadsheet && !READABLE_DOCUMENTS.has(file.kind) && (
+        <p className="muted" style={{ margin: "4px 0" }}>Kept as a citable document: the literature agents and you can quote it.</p>
+      )}
       {file.template && <p className="muted" style={{ margin: "4px 0" }}>The client-data template is read automatically, cell by cell.</p>}
       {spreadsheet && !file.template && (
         <table style={{ marginTop: 6 }}>

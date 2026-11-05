@@ -397,7 +397,7 @@ def test_the_clients_data_is_confirmed_inline_by_group_with_no_reason_asked(setu
 
     propose_dataset(ws, ObservedDataset(
         id=new_dataset_id(), kind="profile", study={"study_id": "EX-7", "route": "oral", "dose_mg": 10, "n": 12,
-                                                    "n_timepoints": 3, "statistic": "mean"},
+                                                    "n_timepoints": 3, "statistic": "mean", "formulation": "ir_tablet"},
         analyte="parent", matrix="plasma", time_unit="h", unit="ng/ml",
         series=(Series(name="mean", statistic="arithmetic_mean", times=(1, 2, 6), values=(40.0, 30.0, 10.0)),),
         origin=Origin.CLIENT, extraction="CELL", provider="CLIENT", source=SourceRef(title="pk.csv"), quote="row"), actor="u")
@@ -419,3 +419,69 @@ def test_the_clients_data_is_confirmed_inline_by_group_with_no_reason_asked(setu
     confirmed = next(g for g in done.json()["data"]["groups"] if g["id"] == group["id"])
     assert confirmed["state"] == "confirmed" and confirmed["confirmed_by"] == "u1"
     assert c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": "study:nope"}).status_code == 404
+
+
+# --- I4: a client's PDF or Word file read for its data ----------------------------------------------------------------
+
+
+def test_a_client_pdf_is_read_by_the_agent_and_its_data_wait_on_inputs(setup, monkeypatch):
+    """I4: the PDF's pages are listed by code at upload; :read starts the reading agent on it (409 while agents are off);
+    what code accepts lands in its study group, to confirm, with the page and quote it came from."""
+    from modeler_agents.llm import ChatResult, ToolCall
+    from modeler_api import agent_jobs, client_api, jobs
+    from modeler_project.delivery_eval import synthetic_pdf
+
+    c, ws = setup
+    pdf = synthetic_pdf([["Clinical Study Synopsis: Study EX-7",
+                          ("Twelve healthy subjects (n = 12) received a single oral dose of 10 mg as one tablet after an "
+                           "overnight fast.")]])
+    sub = c.post("/api/v1/projects/p1/client-data", headers=H,
+                 files=[("files", ("EX-7 synopsis.pdf", pdf, "application/pdf"))]).json()["data"]["files"][0]
+    page = c.get("/api/v1/projects/p1/client-data", headers=H).json()["data"]
+    listed = next(f for f in page["files"] if f["id"] == sub["id"])
+    assert listed["inventory"][0]["page"] == 1 and listed["inventory"][0]["holds"] == "design"
+    off = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H)
+    assert off.status_code == 409 and "agents are off" in off.json()["detail"]
+
+    class Configured:
+        provider, model = "test", "scripted"
+
+    calls, run_document_job = [], client_api.run_document_job
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(client_api, "run_document_job", lambda *args, **kwargs: calls.append(args))
+    started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H)
+    assert started.status_code == 202 and started.json()["data"] == {"status": "RUNNING"}
+    for _ in range(200):
+        if not jobs.running(ws.store, "t1", "p1", "reading"):
+            break
+        time.sleep(0.01)
+    assert calls and calls[0][3] == sub["id"]
+
+    quote = "a single oral dose of 10 mg"
+
+    class Scripted:
+        provider, model = "test", "scripted"
+
+        def __init__(self):
+            self.turns = [[("propose_study_facts", {"study_id": "EX-7", "facts": [
+                {"fact": "dose", "value": 10, "unit": "mg", "page": 1, "quote": quote},
+                {"fact": "dose", "value": 20, "unit": "mg", "page": 1, "quote": quote}]})], []]
+
+        def complete(self, messages, tools):
+            calls = self.turns.pop(0)
+            return ChatResult(content="one study's dose", finish_reason="", model="s",
+                              usage={"input_tokens": 1, "output_tokens": 1},
+                              tool_calls=tuple(ToolCall(id=str(i), name=n, arguments=a) for i, (n, a) in enumerate(calls)))
+
+    result = run_document_job(ws.store, "t1", "p1", sub["id"], model=Scripted())
+    assert (result["facts"], result["refused"], result["status"]) == (1, 1, "COMPLETED")
+    page = c.get("/api/v1/projects/p1/client-data", headers=H).json()["data"]
+    read = next(f for f in page["files"] if f["id"] == sub["id"])["document_reads"][-1]
+    assert read["run_id"] == result["run_id"] and "must state the dose 20 mg" in read["refused"][0]
+    review = c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]
+    group = next(g for g in review["groups"] if g["id"] == "study:EX-7")
+    assert group["state"] == "to_confirm" and group["items"] == []                    # a study only the synopsis describes
+    dose = next(f for f in group["facts"] if f["field"] == "dose_mg")
+    assert dose["value"] == "10" and dose["source"]["page"] == 1 and dose["source"]["quote"] == quote
+    run = c.get(f"/api/v1/projects/p1/agent-runs/{result['run_id']}", headers=H).json()["data"]
+    assert run["run"]["agent"] == "A4-document-reading"

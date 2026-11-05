@@ -62,3 +62,10 @@
 .sample { font-size: 12px; }
 .sample th, .sample td { padding: 3px 8px; }
 .recipe { max-height: 260px; overflow: auto; font-size: 11px; background: var(--bg); padding: 8px; border-radius: var(--radius-sm); margin: 0; }
+/* a client PDF or Word file (I4): code's inventory of its pages and the agent's last reading */
+.doc-reading { margin-top: 6px; display: grid; gap: 6px; }
+.doc-inventory { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
+.doc-inventory li { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.doc-inventory li .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+.doc-read { font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--sim) 6%, var(--surface)); }
+.doc-read details { margin-top: 4px; }
