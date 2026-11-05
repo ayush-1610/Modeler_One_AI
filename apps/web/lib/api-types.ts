@@ -640,7 +640,9 @@ export interface paths {
         /**
          * Start Reading
          * @description A4 proposes how to read the file's data sheets, in the background; each proposal is checked by code and waits on
-         *     its sheet for the person to check and save (nothing is read into the project until then).
+         *     its sheet for the person to check and save (nothing is read into the project until then). A client PDF or Word file
+         *     is read for its study facts, profiles, NCA tables, dissolution and study-name links instead (I4); what code accepts
+         *     waits on Inputs, in its study or product, until a person confirms it.
          */
         post: operations["start_reading_api_v1_projects__project_id__client_data__sid__read_post"];
         delete?: never;
@@ -7416,12 +7418,16 @@ export interface components {
         ReviewFact: {
             /** Field */
             field: string;
+            /** Fills */
+            fills?: string[];
             /** Label */
             label: string;
             /** Source */
             source: {
                 [key: string]: unknown;
             };
+            /** Stored */
+            stored?: unknown;
             /** Value */
             value: string;
         };

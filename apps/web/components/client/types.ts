@@ -14,7 +14,15 @@ export type ClientFile = {
   brief_mismatches: string[]; other_sheets: string[]; mappings?: Mapping[];
   // the reading agent's checked proposals, by sheet, waiting for a person to check and save (R3c)
   readings?: Record<string, { form: unknown; notes: string[]; by: string; run_id: string | null }>;
+  // a PDF or Word file (I4): what code found on its pages, and each reading of it by the agent
+  inventory?: InventoryItem[];
+  document_reads?: DocumentRead[];
 };
+export type InventoryItem = { page: number; holds: string; label: string; line: string };
+export type DocumentRead = { run_id: string | null; by: string; datasets: string[]; facts: number; dissolution_rows: number;
+                             links: number; refused: string[]; digitization: string[]; summary: string };
+/** The file kinds the reading agent reads for data (modeler_project.client_data.READABLE_DOCUMENTS). */
+export const READABLE_DOCUMENTS = new Set(["pdf", "docx"]);
 export type Reconciled = Schema<"ReconciledRow">;
 export type Fit = { t50_min: number | null; shape: number | null; lag_min: number; se_t50: number | null; se_shape: number | null;
                     rmse_percent: number | null; n_points: number; converged: boolean; note: string; engine_confirmed: boolean };

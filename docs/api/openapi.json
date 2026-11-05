@@ -14762,6 +14762,13 @@
             "title": "Field",
             "type": "string"
           },
+          "fills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fills",
+            "type": "array"
+          },
           "label": {
             "title": "Label",
             "type": "string"
@@ -14770,6 +14777,9 @@
             "additionalProperties": true,
             "title": "Source",
             "type": "object"
+          },
+          "stored": {
+            "title": "Stored"
           },
           "value": {
             "title": "Value",
@@ -22212,7 +22222,7 @@
     },
     "/api/v1/projects/{project_id}/client-data/{sid}:read": {
       "post": {
-        "description": "A4 proposes how to read the file's data sheets, in the background; each proposal is checked by code and waits on\nits sheet for the person to check and save (nothing is read into the project until then).",
+        "description": "A4 proposes how to read the file's data sheets, in the background; each proposal is checked by code and waits on\nits sheet for the person to check and save (nothing is read into the project until then). A client PDF or Word file\nis read for its study facts, profiles, NCA tables, dissolution and study-name links instead (I4); what code accepts\nwaits on Inputs, in its study or product, until a person confirms it.",
         "operationId": "start_reading_api_v1_projects__project_id__client_data__sid__read_post",
         "parameters": [
           {

@@ -15,6 +15,43 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Inputs I4: a client's PDF or Word file read for its data, every value quoted and checked by code (2026-11-05)
+Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.4, build I4. The owner asked (2026-11-03) that whatever the
+client sends load correctly, clearly and easily; Excel, Word, PDF and CSV first. Until now a client's PDF or Word file was
+only a citable document: no study design, dose or PK table was read out of it (gap G1).
+- **Code's inventory** (`modeler_intake.document_reading.inventory`, no AI): at upload, each page that seems to hold
+  project data (a concentration table, NCA results, a dissolution table, the design and dosing, demographics,
+  composition, the bioanalytical method, a figure), with the page's own line that says so, in the order the file's tag
+  asks for. Shown on the file's card, each line opening in the centre peek.
+- **The reading agent** (A4 · client documents, `modeler_agents.document_reader`; `POST …/client-data/{sid}:read` on a
+  PDF or Word file) proposes a study's facts (dose, route, food state, dosage form, design, n, LLOQ), concentration
+  tables, NCA results, dissolution tables with their conditions, two names the file gives one study, and figures for a
+  person to digitize. **Code checks every proposal against its page:** the quote is on the page verbatim and states the
+  number with its unit, or a word that says the category ("overnight fast", "30-minute intravenous infusion"); a study is
+  named as the file writes it; a table's units stand on a quoted header and every row's quote holds its time and value;
+  a profile needs its study's dose, n and route quoted first. Code converts the dose to mg (µg, mcg, g); the agent
+  computes nothing. What code refuses is told to the agent and kept with the reading. A later reading of the file
+  replaces the earlier one (its unconfirmed datasets set aside).
+- **Where it lands, to confirm:** profiles and NCA tables as client datasets (extraction TABLE) in their study;
+  dissolution in its product, compared with the other files' (I3); a study's facts join the comparison of the study's
+  facts, so **a protocol's dose against a PK sheet's is a conflict on the card**, each value with its page and quote; a
+  fact the study's datasets lack (an LLOQ, a food state) is shown with its source and set on them when the group is
+  confirmed, instead of asking for it; a study only a document describes is a group of its facts; "Protocol EXZ-101
+  (Study 101)" asks "Same study?" with the quote. Nothing loads until a person confirms the group (I2).
+- **Changed (science, data flow):** an oral client dataset with no dosage form now asks for it on the card (it was
+  validated as a solution by the study record's default). Template and sheet readings always state it; a document's
+  dataset may not.
+- **The evaluation set** grows by three deliveries with documents (a Word synopsis whose dose contradicts the PK sheet, a
+  PDF protocol naming the study by its protocol number, a PDF dissolution report contradicting a workbook). Each holds
+  the reading a perfect reader makes; the tests run it through the agent's real tools, so the answer is known to pass
+  code's checks, and all three are then found whole. The server's model is scored against the same answers
+  (`delivery_eval.score(..., read_documents=…)`); that score is not taken yet.
+- **API:** `:read` on a PDF or Word file starts the document reading (409 while agents are off, or for a file with no
+  text); `ReviewFact` gains `stored` and `fills`; a client file's record carries `inventory`, `study_facts`,
+  `study_links` and `document_reads` (`docs/api/openapi.json`).
+- **Known gap:** scans need OCR and are not read; a profile whose dose, n or route only another file states is not
+  recorded from the document (the agent says so in its summary); demographics and composition are listed by the
+  inventory but not yet proposed as values.
 ### Changed — Inputs I3: one study across files, a profile given twice loaded once, differing profiles a conflict (2026-11-05)
 Plan `docs/plans/2026-11-03-inputs-and-client-data.md` §3.3–3.4, build I3 (and the start of I6, the evaluation set). The
 owner asked (2026-11-03) that the client's data, whatever form it comes in, load correctly, clearly and easily.
@@ -5075,4 +5112,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents |

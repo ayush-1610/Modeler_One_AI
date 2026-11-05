@@ -334,6 +334,8 @@ Each PR: a CHANGELOG entry, the coverage table if a stage changes, tests and a b
 
 **Progress (2026-11-05).** I1 (#126, #127), I2 (#128) and A2's tasking (#129) are merged. I3 is in its PR: study aliases (ids written differently, a link asked when an upload tag names the study otherwise), a profile given twice loaded once, differing profiles and dissolution a conflict, and the first five deliveries of I6. **Deviation:** product and batch aliases (a product or batch written two ways) move to after I4, since the names they are matched by come from the documents I4 reads (a protocol's "also known as", a certificate of analysis); in I3 a product is matched by its exact name, as the dissolution register keys it.
 
+**Progress (2026-11-05, later).** I3 is merged (#130). I4 is in its PR: code's page inventory of a client PDF or Word file, and the reading agent's proposals (study facts, concentration and NCA tables, dissolution tables, study-name links, figures to digitize), each checked by code against its page and landing in its study or product to confirm. **Deviation:** demographics and composition are listed by the inventory but not yet proposed as values (the study record's demographics and the product card's "as reported" composition follow); scans stay unread until OCR.
+
 ## 5. For the owner
 Settled on 2026-11-03: tagging (A + D), the file-type order (CDISC optional), the mockup comments. Next: the builds,
 in order, each a PR to `main`; then the literature agent's compound parameters (A2: better tasks, the project's context,

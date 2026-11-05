@@ -23,6 +23,8 @@ const KIND: Record<Issue["kind"], [string, string]> = {
   link: ["Same study?", "question"],
 };
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
 function src(s: Record<string, unknown> | null | undefined): PeekSource | null {
   return s ? (s as PeekSource) : null;
 }
@@ -113,7 +115,9 @@ function IssueCard({ projectId, group, issue, run }: { projectId: string; group:
 
 function GroupCard({ projectId, group, run }: { projectId: string; group: Group; run: Run }) {
   const confirmed = group.state === "confirmed";
-  const first = group.items[0]?.source;
+  const first = group.items[0]?.source ?? group.facts[0]?.source;
+  const count = group.items.length ? `${group.items.length} item${group.items.length === 1 ? "" : "s"}`
+                                   : `${group.facts.length} fact${group.facts.length === 1 ? "" : "s"}`;
   const noun = group.kind === "study" ? "study" : group.kind === "product" ? "product" : "values";
   return (
     <article className={`confirm-group ${confirmed ? "confirmed" : "to-confirm"}`} data-testid={`group-${group.id}`}
@@ -123,7 +127,7 @@ function GroupCard({ projectId, group, run }: { projectId: string; group: Group;
           <h3>{group.title}</h3>
           {confirmed
             ? <span className="chip low">Confirmed by {group.confirmed_by ?? "a person"} · loaded</span>
-            : <span className="chip medium">To confirm · {group.items.length} item{group.items.length === 1 ? "" : "s"}</span>}
+            : <span className="chip medium">To confirm · {count}</span>}
         </div>
         <PeekButton projectId={projectId} source={src(first)} label={group.title} testId={`peek-group-${group.id}`} />
       </header>
@@ -137,8 +141,14 @@ function GroupCard({ projectId, group, run }: { projectId: string; group: Group;
       {group.facts.length > 0 && (
         <dl className="confirm-facts">
           {group.facts.map((f) => (
-            <div key={f.field} className="confirm-row">
-              <dt>{f.label}</dt><dd>{f.value}</dd>
+            <div key={f.field} className="confirm-row" data-testid={`fact-${group.id}-${f.field}`}>
+              <dt>{f.label}</dt>
+              <dd>{f.value}
+                {(f.fills ?? []).length > 0 && (
+                  <span className="muted"> · from {String(f.source.title ?? "a document")}, p. {String(f.source.page ?? "?")}:
+                    set on {plural((f.fills ?? []).length, "dataset")} on confirm</span>
+                )}
+              </dd>
               <PeekButton projectId={projectId} source={src(f.source)} label={`${group.title}: ${f.label}`} />
             </div>
           ))}
@@ -167,7 +177,7 @@ function GroupCard({ projectId, group, run }: { projectId: string; group: Group;
                   onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:confirm",
                                                      { project_id: projectId }, { group: group.id }),
                                           `${group.title}: confirmed and loaded into the project.`)}>
-            Confirm {group.kind === "study" ? group.title.replace(/^Study /, "") : noun} · {group.items.length} item{group.items.length === 1 ? "" : "s"}
+            Confirm {group.kind === "study" ? group.title.replace(/^Study /, "") : noun} · {count}
           </button>
         </footer>
       )}
