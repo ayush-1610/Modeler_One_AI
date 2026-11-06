@@ -248,13 +248,13 @@ def read(proposal: Proposal, model_for: Callable[[Proposal, str], Any], *, max_t
     from modeler_agents.proposal_intake import IntakeContext, run_proposal_intake
     from modeler_project import FileProjectStore, Workspace
     from modeler_project.brief import empty_brief
-    from modeler_project.documents import DocumentLibrary
+    from modeler_project.documents import DocumentLibrary, document_record
 
     with tempfile.TemporaryDirectory() as root:
         library = DocumentLibrary(Workspace(FileProjectStore(root), "eval", "p1"))
         doc = library.add(proposal.text.encode(), "proposal.md", role="proposal", by="eval")
         ctx = IntakeContext(library=library, brief=empty_brief(proposal.drug, by="eval"), actor="agent:eval")
-        return run_proposal_intake(model_for(proposal, doc.content["sha256"]), ctx, max_turns=max_turns).brief
+        return run_proposal_intake(model_for(proposal, document_record(doc).sha256), ctx, max_turns=max_turns).brief
 
 
 def score(proposal: Proposal, brief: Any) -> Score:
