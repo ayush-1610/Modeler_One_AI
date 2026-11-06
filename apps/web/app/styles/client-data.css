@@ -75,3 +75,51 @@
 .tag-proposal { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 6px 10px;
                 border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
 .tag-proposal > span:first-child { flex: 1 1 260px; }
+
+/* A dataset as data on its study's card (plan 2026-11-05 §3.2, build C). Series hues: the validated categorical palette
+   (dataviz reference, checked on these surfaces: light passes with a contrast warning, relieved by the legend and the
+   table of points; dark passes all checks). Past eight series (subjects), one neutral ink, never generated hues. */
+:root {
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948;
+  --series-neutral: color-mix(in srgb, var(--ink-dim) 60%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+}
+.dataset-view { display: grid; gap: 8px; margin: 4px 0 10px; padding: 10px 12px; border: 1px solid var(--line-soft, var(--line));
+                border-radius: var(--radius-sm); background: var(--surface); }
+.profile-chart { margin: 0; }
+.profile-chart svg { width: 100%; height: auto; max-width: 640px; display: block; }
+.profile-chart-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+.profile-chart .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.profile-chart .seg button { border: 0; background: transparent; color: var(--ink-dim); padding: 2px 10px; font-size: 12px; cursor: pointer; }
+.profile-chart .seg button[aria-pressed="true"] { background: var(--raised, var(--line)); color: var(--ink); }
+.profile-chart .grid line { stroke: var(--line); stroke-width: 1; }
+.profile-chart text { fill: var(--ink-dim); font-size: 11px; }
+.profile-chart .axis-label { fill: var(--ink-dim); font-size: 11px; }
+.profile-chart .lloq line { stroke: var(--ink-faint); stroke-dasharray: 4 3; }
+.profile-chart .series polyline { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.profile-chart .series.many polyline { stroke-width: 1; }
+.profile-chart .series .pt { fill: currentColor; stroke: var(--surface); stroke-width: 2; }
+.profile-chart .series .whisker { stroke: currentColor; stroke-width: 1.5; }
+.profile-chart .series .blq { fill: var(--surface); stroke: currentColor; stroke-width: 1.5; }
+.profile-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+.profile-legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.profile-legend .swatch.blq { background: var(--surface); border: 1.5px solid var(--ink-dim); border-radius: 50%; }
+.dataset-stats { display: grid; gap: 8px; }
+.dataset-stats table, .dataset-points table { font-size: 12px; }
+.dataset-stats caption { caption-side: top; text-align: left; font-size: 12px; color: var(--ink-dim); padding-bottom: 2px; }
+.dataset-points summary { cursor: pointer; font-size: 13px; color: var(--ink-dim); }
+/* one study or product at a time (the owner's answer of 2026-11-05): an index, and the cards past the open one folded */
+.group-index { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.group-index button { font-size: 12px; }
+.confirm-group.folded .confirm-head { margin-bottom: 0; }
+.group-index .btn.primary .muted { color: inherit; opacity: 0.85; }

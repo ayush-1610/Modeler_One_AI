@@ -43,6 +43,14 @@ test("a study two client files contradict is settled on its card, then confirmed
   await expect(card).toContainText("Settle 2 open items first");
   const dose = card.getByTestId("issue-study:EX-101|dose_mg");
   await expect(dose).toContainText("Dose (mg): the client's files give 2 values");
+  // each dataset as data (build C): its profile drawn, code's statistics from its points, the table of points
+  const data = card.getByTestId("dataset-view").first();
+  await expect(data.getByTestId("profile-chart")).toBeVisible();
+  await expect(data.getByTestId("dataset-stats")).toContainText("Cmax");
+  await data.getByTestId("chart-log").click();
+  await expect(data.getByTestId("profile-chart").locator("svg")).toHaveAttribute("aria-label", /log scale/);
+  await data.getByText(/^Table of points/).click();
+  await expect(data.getByTestId("dataset-points")).toBeVisible();
   await shot(page, "1-study-with-a-conflict");
 
   // select the protocol's dose and confirm the selection: no reason asked; it stays in place, resolved

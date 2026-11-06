@@ -182,6 +182,31 @@ class ReviewIssue(View):
     selected_at: str | None
 
 
+class SeriesPoints(View):
+    """One series of a dataset, as the card draws and tabulates it, with code's statistics of a profile."""
+
+    name: str
+    statistic: str
+    times: list[Number]
+    values: list[Number | None]                # None: below the LLOQ, or withheld (blinded, D-15)
+    error: list[Number] | None
+    error_kind: str
+    n: int | None
+    stats: dict[str, Number | None] | None     # pbpk_domain.nca: c_max, t_max, auc_last, t_last, t_half, auc_inf, points, blq
+
+
+class DatasetPoints(View):
+    """A dataset's points on its study's card (plan 2026-11-05 §3.2, `modeler_project.dataset_points`)."""
+
+    kind: str
+    time_unit: str
+    unit: str
+    lloq: Number | None
+    blinded: bool
+    series: list[SeriesPoints]
+    reported: list[dict[str, Any]]
+
+
 class ReviewItem(View):
     id: str
     kind: Literal["dataset", "value", "profile"]
@@ -193,6 +218,8 @@ class ReviewItem(View):
     target: str | None = None
     conditions: dict[str, Any] = Field(default_factory=dict)
     duplicate_of: str | None = None     # the same profile as another file's (within the rule's tolerance): loads once
+    data: DatasetPoints | None = None    # a dataset's points and code's statistics (build C), as the viewer may see them
+    release: StoredContent | None = None  # a dissolution profile as the register gives it: points, CV, fit, conditions
 
 
 class ReviewFact(View):
