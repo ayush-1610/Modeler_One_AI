@@ -1,6 +1,6 @@
 # The client's data, reviewed where it belongs, and agents that work from the start (plan, 2026-11-05)
 
-Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B, C1, C2, D and F done).
+Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B, C1, C2, D, F and G done).
 Follows `2026-11-03-inputs-and-client-data.md` (I1–I4c, merged), whose
 builds made the parts work one by one; the owner's use of them on a real delivery (14 files: BE workbooks, dissolution
 profiling workbooks, the technical proposal) shows that together they do not yet give a clear, usable page. I5 (CDISC)
@@ -155,9 +155,10 @@ will check the builder with their own files later (q4), so the builds use the up
      reviewed by an SME), applies without saving (the owner, later on 2026-11-06: "apply the 10% target automatically
      without saving"; `plan.applied_internal_target`). A person changes it, or says there is none.
    Not in D: A1's evaluation on real proposals (P1's open item).
-5. **The evaluation grows:** messy deliveries (the owner's own files, which the owner will use to check the builder,
-   and synthetic ones modelled on them) scored end to end: placed right, read right, cleaned with a record, nothing
-   silent.
+5. **The evaluation grows: built (G,** branch `eval-g-deliveries`**).** Messy deliveries scored end to end, placed right,
+   read right, cleaned with a record, nothing silent (`modeler_project.arrival_eval`): four synthetic ones modelled on
+   CRO deliveries, first scored 18 of 36, now 36 of 36 after five fixes to code's reading that the score showed. The
+   owner's own files are scored the same way on the server, with the answer a person writes for them (q4: later).
 
 ## 5. Questions for the owner, and the answers (2026-11-05)
 Answers, in the owner's words where quoted:
