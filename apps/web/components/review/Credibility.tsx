@@ -50,7 +50,8 @@ function AcceptanceCriteria({ projectId, review, apply }: { projectId: string; r
       <div className="internal-target" data-testid="internal-target">
         <strong>Internal target</strong>{" "}
         {a.internal_target_pe !== null
-          ? <>|prediction error| ≤ {a.internal_target_pe} %{a.target_set_here ? ", set here" : ", from the brief"}.</>
+          ? <>|prediction error| ≤ {a.internal_target_pe} %{a.target_set_here ? ", set here" : a.target_default
+              ? ", the default (no one set one; UNVERIFIED)" : ", from the brief"}.</>
           : "none: the tier's limits apply."}
         {a.loosest_target_pe !== null && <span className="muted"> A target may be stricter than the tier, at most {a.loosest_target_pe} % here.</span>}
         <div className="row" style={{ gap: 6, marginTop: 6 }}>

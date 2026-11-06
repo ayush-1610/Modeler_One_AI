@@ -26,7 +26,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
-from modeler_project.brief import APPLICATIONS, ProjectBrief, rating_disagreements
+from modeler_project.brief import (
+    APPLICATIONS,
+    DEFAULT_INTERNAL_TARGET_PE,
+    FieldStatus,
+    ProjectBrief,
+    rating_disagreements,
+)
 from modeler_project.estimation import fit_findings, ms01_default
 from modeler_project.estimation import rule as bounds_rule
 from modeler_project.workspace import Workspace
@@ -168,6 +174,8 @@ class Structure(BaseModel):
     # a stricter project target than the tier, |prediction error| at most this % (MS-01 §8; brief
     # acceptance.internal_target_pe). The MAP records it, and the verdicts apply it to the internal groups (R4d)
     internal_target_pe: float | None = Field(default=None, gt=0, lt=100)
+    # a person said there is no internal target (the brief's NOT_APPLICABLE): the default does not apply
+    no_internal_target: bool = False
     # the ICH M15 assessment behind the tier, as Start recorded it: the MAP carries it under its hash (2026-11-02)
     risk_assessment: MapRiskAssessment | None = None
     locked: tuple[str, ...] = ()                  # structure keys a person set (userLocked)
@@ -321,11 +329,27 @@ def risk_assessment(brief: ProjectBrief | None) -> MapRiskAssessment | None:
     return assessment if assessment != MapRiskAssessment() else None
 
 
+TargetSource = Literal["set", "default", "none"]
+
+
+def applied_internal_target(structure: Structure) -> tuple[float | None, TargetSource]:
+    """The internal target the plan applies (MS-01 §8), and where it comes from: one a person set (on Start, or on the
+    plan) or a document stated; none when a person said there is none (on Start, or by emptying it on the plan);
+    otherwise the default, 10 % (the owner, 2026-11-06: "apply the 10 % target automatically without saving";
+    UNVERIFIED, not reviewed by an SME), never looser than the tier. With no tier there is none: it is never assumed."""
+    if structure.internal_target_pe is not None:
+        return structure.internal_target_pe, "set"
+    if "internal_target_pe" in structure.locked or structure.no_internal_target or structure.model_risk is None:
+        return None, "none"
+    return min(DEFAULT_INTERNAL_TARGET_PE, loosest_internal_target(structure.model_risk)), "default"
+
+
 def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility: bool = False) -> Structure:
     """The plan's structure as the brief states it (each a default a person may change with a reason)."""
     apps = applications(brief)
     tier = brief.value("acceptance.tier") if brief else None
     target = brief.value("acceptance.internal_target_pe") if brief else None
+    none = bool(brief) and brief.get("acceptance.internal_target_pe").status is FieldStatus.NOT_APPLICABLE
     return Structure(objective=str((brief.value("qoi.text") if brief else None) or Structure().objective),
                      context_of_use=str((brief.value("qoi.context_of_use") if brief else None) or Structure().context_of_use),
                      model_risk=tier if tier in ("low", "medium", "high") else None,
@@ -335,7 +359,7 @@ def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility:
                                         if a in _RUNNABLE_TEMPLATES),
                      application_codes=tuple(sorted(apps)),
                      assumptions=tuple(str(a) for a in ((brief.value("notes.assumptions") if brief else None) or ())),
-                     internal_target_pe=_target(target), risk_assessment=risk_assessment(brief))
+                     internal_target_pe=_target(target), no_internal_target=none, risk_assessment=risk_assessment(brief))
 
 
 def map_limitations(plan: ModelPlan, violations: list[Violation]) -> tuple[str, ...]:
@@ -611,11 +635,11 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
     if plan.structure.model_risk is None:
         add("error", "risk", "model_risk", "Set the model risk (low, medium or high): it decides the acceptance criteria "
                                            "every round is judged by (ICH M15), and it is never assumed")
-    elif plan.structure.internal_target_pe is not None:
+    elif (target := applied_internal_target(plan.structure)[0]) is not None:
         widest = loosest_internal_target(plan.structure.model_risk)
-        if plan.structure.internal_target_pe > widest + 1e-9:
+        if target > widest + 1e-9:
             add("error", "target", "internal_target_pe",
-                f"The internal target |prediction error| ≤ {plan.structure.internal_target_pe:g} % is looser than the "
+                f"The internal target |prediction error| ≤ {target:g} % is looser than the "
                 f"{plan.structure.model_risk} tier, which allows at most {widest:.1f} %: MS-01 §8 allows a stricter "
                 "target only")
     return out
@@ -880,7 +904,7 @@ def map_from_plan(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, expl
     limits = (*map_limitations(plan, violations if acknowledged_limitations else []), *default_fit_limitation(plan, cpf))
     split = split.model_copy(update={"limitations": limits})
     doc, _ = default_map(campaign_cpf(plan, cpf), rows, plan.structure, split=split,
-                         internal_target_pe=plan.structure.internal_target_pe, grades=grades)
+                         internal_target_pe=applied_internal_target(plan.structure)[0], grades=grades)
     return doc
 
 

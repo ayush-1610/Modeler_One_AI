@@ -12,36 +12,49 @@ const RATINGS = ["low", "medium", "high"];
 type Rating = string | null;
 
 /** The internal target (MS-01 §8): a stricter |prediction error| the internal comparisons must also meet, never looser
- *  than the tier. An acceptance criterion, so it sits under the tier (page review 1), not in the notes. Until a person
- *  saves one, the default (10 %, the owner, 2026-11-06) is offered in the box; none applies until it is saved. */
+ *  than the tier. An acceptance criterion, so it sits under the tier (page review 1), not in the notes. Where no one set
+ *  one, the default (10 %) applies without saving (the owner, 2026-11-06; `plan.internal_target`): changed here it is the
+ *  person's; emptied, there is none (NOT_APPLICABLE), and "Use the default" brings it back. */
 function InternalTarget({ view, save, marks, tier }: { view: BriefView; save: Save; marks: Marks; tier: Rating }) {
   const path = "acceptance.internal_target_pe";
   const stored = valueOf(view, path) as number | null;
+  const none = recordOf(view, path).status === "NOT_APPLICABLE";
   const widest = tier ? view.start.risk.target_max[tier] : null;
-  // offered at the default until a person saves one (the owner, 2026-11-06); never looser than the tier
-  const offered = Math.min(view.start.risk.target_default, widest ?? Infinity);
-  const [text, setText] = useState(stored == null ? String(offered) : String(stored));
+  const fallback = Math.min(view.start.risk.target_default, widest ?? Infinity);   // never looser than the tier
+  const shown = stored != null ? String(stored) : none ? "" : String(fallback);
+  const [text, setText] = useState(shown);
   const [problem, setProblem] = useState<string | null>(null);
-  const changed = text.trim() !== (stored == null ? "" : String(stored));
+  const changed = text.trim() !== shown;
+  const isDefault = stored == null && !none;
 
-  async function commit() {
-    const change: BriefChange = text.trim() ? { path, status: "EDITED", value: Number(text) } : { path, status: "MISSING" };
+  async function commit(change: BriefChange) {
     setProblem(await save([change]));
   }
 
   return (
     <div className={`risk-row${marks.issues(path).length ? " needs-you" : ""}`} data-testid="risk-target">
-      <label className="sb-label" htmlFor="risk-target-input">Internal target (optional)</label>
+      <label className="sb-label" htmlFor="risk-target-input">Internal target</label>
       <div className="sb-value">
         <div className="row" style={{ gap: 6, alignItems: "center" }}>
           <span className="muted">|prediction error| at most</span>
-          <input id="risk-target-input" type="number" min={0} step="any" value={text} style={{ width: 90 }}
+          <input id="risk-target-input" type="number" min={0} step="any" value={text} style={{ width: 90 }} placeholder="none"
                  data-testid="risk-target-input" onChange={(e) => setText(e.target.value)} />
           <span className="muted">%</span>
-          <button type="button" className="btn" disabled={!changed} data-testid="risk-target-save" onClick={commit}>Save</button>
-          {stored == null && text.trim() === String(offered) && (
+          <button type="button" className="btn" disabled={!changed} data-testid="risk-target-save"
+                  onClick={() => void commit(text.trim() ? { path, status: "EDITED", value: Number(text) } : { path, status: "NOT_APPLICABLE" })}>
+            Save
+          </button>
+          {isDefault && !changed && (
             <span className="risk-preselected risk-default" data-testid="risk-target-default">
-              <span className="chip medium">default</span><span>save to keep it, or change it</span>
+              <span className="chip medium">default</span>
+              <span>{tier ? "applied; change it, or empty it for none" : "applies once the model risk is saved"}</span>
+            </span>
+          )}
+          {none && !changed && (
+            <span className="risk-preselected risk-default" data-testid="risk-target-none">
+              <span>none: the tier&apos;s limits alone</span>
+              <button type="button" className="btn small" data-testid="risk-target-use-default"
+                      onClick={() => void commit({ path, status: "MISSING" })}>Use the default ({view.start.risk.target_default} %)</button>
             </span>
           )}
         </div>
