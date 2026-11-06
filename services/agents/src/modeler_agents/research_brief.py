@@ -174,6 +174,17 @@ def task(facts: ProjectFacts, requirements: list[RequirementItem], status: dict[
             f"{REGULATORY.replace('<drug>', facts.drug)} Start with list_requirements.")
 
 
+def one_input(facts: ProjectFacts, requirement: RequirementItem, status: InputStatus) -> str:
+    """The opening message of one input's own search (plan 2026-11-05 §3.3: a search per input, side by side): the
+    project, that input and where it stands, and the rule that it ends with a value or a "not found"."""
+    known = f" Known so far: {'; '.join(status.known)}." if status.known else ""
+    return (f"{facts.text()}\n\n"
+            f"Find a value for one input only: {requirement.req_id} ({requirement.label}, target {requirement.target}): "
+            f"{STATUS_TEXT.get(status.status, status.status)}.{known} Other inputs are searched by others at the same time: "
+            "leave them. End with a proposed value or a mark_not_found that says what you searched. "
+            f"{REGULATORY.replace('<drug>', facts.drug)} Start with list_requirements for its hints.")
+
+
 def follow_up(requirements: list[RequirementItem]) -> str:
     """The second pass, on what the first left without a value or a "not found"."""
     listed = "; ".join(f"{r.req_id} ({r.label})" for r in requirements)

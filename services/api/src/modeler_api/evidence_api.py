@@ -27,6 +27,8 @@ from modeler_api.views.evidence import (
     LiteratureRun,
     PublishedModelTaken,
     ResearchStart,
+    ValueReused,
+    ValueReusePage,
 )
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, Workspace
@@ -58,8 +60,23 @@ from modeler_project.evidence_register import (
 from modeler_project.inputs import refresh_inputs
 from modeler_project.published_model import propose_published_model
 from modeler_project.requirements import RequirementMatrix
+from modeler_project.value_reuse import offer_view, reuse, same_drug
+from modeler_storage.filestore import FileReadStore
 
 router = APIRouter(prefix="/api/v1", tags=["evidence"])
+
+
+def _brief_of(ws: Workspace) -> ProjectBrief | None:
+    version = ws.latest(ArtifactKind.BRIEF, "main")
+    return ProjectBrief.from_content(version.content) if version else None
+
+
+def _openable(principal: Any, settings: Any) -> dict[str, str]:
+    """The tenant's projects this person may open, by id, with their names (the Projects page's list)."""
+    if not settings.read_root:
+        return {}
+    return {p["id"]: str(p.get("name") or p["id"]) for p in FileReadStore(settings.read_root).list_projects(principal.tenant_id)
+            if p.get("id") and ("*" in principal.projects or p["id"] in principal.projects)}
 
 
 def _matrix(ws: Workspace) -> tuple[Any, RequirementMatrix]:
@@ -465,3 +482,39 @@ def decide_on_dataset(project_id: str, dataset_id: str, body: Decision, principa
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope(_view(ws))
+
+
+@router.get("/projects/{project_id}/value-reuse", **answers(ValueReusePage))
+def get_value_reuse(project_id: str, principal: Reader, store: StoreDep, settings: SettingsDep) -> dict[str, Any]:
+    """The person's other projects of the same drug and what each found that this project does not hold yet (plan
+    2026-11-05 §3.3): literature and public-source values only."""
+    ws = workspace_for(project_id, principal, store)
+    mine, offers = _brief_of(ws), []
+    for pid, name in _openable(principal, settings).items():
+        other = Workspace(store, principal.tenant_id, pid)
+        if pid != project_id and same_drug(mine, _brief_of(other)) and (offer := offer_view(ws, other, name=name)):
+            offers.append(offer)
+    return envelope({"offers": offers})
+
+
+class ReuseRequest(BaseModel):
+    project_id: str = Field(min_length=1)          # the other project whose values the person chooses to reuse
+
+
+@router.post("/projects/{project_id}/value-reuse", **answers(ValueReused))
+def post_value_reuse(project_id: str, body: ReuseRequest, principal: Writer, store: StoreDep,
+                     settings: SettingsDep) -> dict[str, Any]:
+    """Reuse here, with the person's consent (this call), the values another project of the same drug found: each
+    proposed anew with its source and quote, its document copied, to decide like any value."""
+    ws = workspace_for(project_id, principal, store)
+    names = _openable(principal, settings)
+    if body.project_id == project_id or body.project_id not in names:
+        raise HTTPException(status_code=404, detail="no other project of yours with that id")
+    other = workspace_for(body.project_id, principal, store)
+    if not same_drug(_brief_of(ws), _brief_of(other)):
+        raise HTTPException(status_code=409, detail="that project is about another drug: its values are not reused here")
+    _version, matrix = _matrix(ws)
+    ids = reuse(ws, other, project_name=names[body.project_id], by=principal.user_id,
+                requirements={r.req_id: r for r in matrix.items})
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
+    return envelope({"reused": len(ids), "ids": ids})

@@ -86,3 +86,22 @@ class EvidenceCorrection(EvidencePage):
     """A corrected copy of a value, and the page."""
 
     corrected: EvidenceItem
+
+
+class ValueReuseOffer(View):
+    """Another project of the same drug the person can open, and the literature and public-source values it holds that
+    this one does not (plan 2026-11-05 §3.3; a client's data never leaves its project)."""
+
+    project_id: str
+    name: str
+    values: int
+    what: list[str]                       # "phys.logp (PubChem)" …, the first twelve
+
+
+class ValueReusePage(View):
+    offers: list[ValueReuseOffer]
+
+
+class ValueReused(View):
+    reused: int
+    ids: list[str]                        # the new proposals here, each to decide like any value

@@ -1,6 +1,6 @@
 # The client's data, reviewed where it belongs, and agents that work from the start (plan, 2026-11-05)
 
-Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B, C1, C2, D, F, G and H done).
+Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B, C1, C2, D, F, G, H and I done; step 0 waits on the server).
 Follows `2026-11-03-inputs-and-client-data.md` (I1–I4c, merged), whose
 builds made the parts work one by one; the owner's use of them on a real delivery (14 files: BE workbooks, dissolution
 profiling workbooks, the technical proposal) shows that together they do not yet give a clear, usable page. I5 (CDISC)
@@ -129,6 +129,10 @@ will check the builder with their own files later (q4), so the builds use the up
    turns when it starts on its own). With agents off, the sources alone. The Compound tab shows what each source gave.
    Not in B: DailyMed's own service (openFDA serves the same labels), a time budget per input and parallel searches for
    A2 (step 0's measurements first), and reusing another project's values for the same drug (the person's consent).
+   **Built in I** (branch `compound-i-parallel`, the owner, 2026-11-06: "finish the remaining tasks"): A2 searches each
+   open input in its own conversation, four side by side, 12 turns each, within the run's budget; another project's
+   literature and public-source values for the same drug are offered on Compound and reused with the person's consent
+   ("Use them", per project), never a client's. The turn and worker numbers wait on step 0's measurements to be tuned.
 3. **C, the intake pipeline and the data cards (L)**, in two parts:
    - **C1, the data cards: built** (branch `inputs-r3-data-cards`). Each study's card shows each dataset as data
      (chart, linear or log; code's NCA statistics; the client's reported PK; the table of points); each product's card

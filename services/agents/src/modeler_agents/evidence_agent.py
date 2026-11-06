@@ -16,13 +16,24 @@ came from and whether its full text (open access only) or only its abstract is h
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 from modeler_agents.llm import ChatModel, Tool, run_tool_loop
-from modeler_agents.research_brief import STATUS_TEXT, ProjectFacts, follow_up, hint_for, ordered, statuses, task
+from modeler_agents.research_brief import (
+    STATUS_TEXT,
+    ProjectFacts,
+    follow_up,
+    hint_for,
+    one_input,
+    ordered,
+    statuses,
+    task,
+)
 from modeler_agents.sources import EuropePMC, SourceError
 from modeler_agents.web_search import search_tool
 from modeler_intake.citations import quote_appears_in, value_stated_in_quote
@@ -331,3 +342,79 @@ def run_research(model: ChatModel, ctx: ResearchContext, *, drug: str, max_turns
         outcome = again if again.error else outcome
     return ResearchOutcome(status=outcome.status, proposed=ctx.proposed, rejected=ctx.rejected, not_found=ctx.not_found,
                            access_requests=ctx.access_requests, summary=summary, usage=usage, error=outcome.error)
+
+
+# The search per input, side by side (plan 2026-11-05 §3.3: "search per input in parallel, cap turns per input"). What
+# takes the time is the server model's turns (§1); the tools are quick, so they run one at a time across the searches.
+WORKERS = 4                 # searches side by side (load and cost are looked at later: the owner, 2026-11-05 §5 q3)
+TURNS_PER_INPUT = 12        # one input's own search, at most
+
+
+def _one_at_a_time(tools: list[Tool], lock: threading.Lock) -> list[Tool]:
+    """The tools, each call run alone across the parallel searches: they read and write the project's registers and
+    library, which take one writer at a time."""
+    def guard(handler: Callable[..., str]) -> Callable[..., str]:
+        def run(**kwargs: Any) -> str:
+            with lock:
+                return handler(**kwargs)
+        return run
+
+    return [Tool(t.name, t.description, t.parameters, guard(t.handler)) for t in tools]
+
+
+def run_research_per_input(model: ChatModel, ctx: ResearchContext, *, drug: str, max_turns: int = 120,
+                           workers: int = WORKERS, turns_per_input: int = TURNS_PER_INPUT,
+                           log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> ResearchOutcome:
+    """Each open input (missing, conflicting or weak) searched in its own conversation, `workers` at a time, each told
+    the project and that one input, with its own cap of turns; an input already covered (by the structured sources, the
+    client) is not searched again. The turns spent never exceed `max_turns`: the inputs beyond the budget wait for the
+    next run, said so. Then, with the turns left, one pass on any input left with neither a value nor a "not found", so
+    that none is dropped silently (as `run_research`)."""
+    from modeler_project.evidence_register import items
+
+    facts = ctx.facts or ProjectFacts(drug=drug)
+    mine = [r for r in ctx.requirements if r.kind in ("parameter", "formulation", "system")]
+    status = statuses(mine, items(ctx.ws))
+    open_inputs = [r for r in ordered(mine, status) if status[r.req_id].status in ("missing", "conflict", "weak")]
+    if not open_inputs:
+        return ResearchOutcome(status="COMPLETED", proposed=ctx.proposed, rejected=ctx.rejected, not_found=ctx.not_found,
+                               access_requests=ctx.access_requests, summary="Every input has a value: nothing to search.",
+                               usage={"input_tokens": 0, "output_tokens": 0})
+    per = max(3, min(turns_per_input, max_turns // len(open_inputs)))
+    chosen = open_inputs[: max(1, max_turns // per)]
+    tool_lock, log_lock = threading.Lock(), threading.Lock()
+    tools = _one_at_a_time(build_tools(ctx), tool_lock)
+
+    def logged(step: dict[str, Any]) -> None:
+        with log_lock:
+            log_step(step)
+
+    def search(requirement: RequirementItem):
+        return requirement, run_tool_loop(model, system=SYSTEM_PROMPT, user=one_input(facts, requirement, status[requirement.req_id]),
+                                          tools=tools, max_turns=per, log_step=logged)
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        done = list(pool.map(search, chosen))
+    usage: dict[str, int] = {}
+    for _r, o in done:
+        for k, v in o.usage.items():
+            usage[k] = usage.get(k, 0) + v
+    lines = [f"{r.req_id}: {(o.final_text or o.error or o.status).strip()[:300]}" for r, o in done]
+    if len(chosen) < len(open_inputs):
+        lines.append(f"{len(open_inputs) - len(chosen)} more inputs wait for the next search (the turns of this one are spent): "
+                     + ", ".join(r.req_id for r in open_inputs[len(chosen):]))
+    errors = [o.error for _r, o in done if o.error]
+    left = [r for r in unfinished(ctx) if r in chosen] if not errors else []
+    remaining = max_turns - sum(o.turns for _r, o in done)
+    final = done[-1][1]
+    if left and remaining > 0:
+        again = run_tool_loop(model, system=SYSTEM_PROMPT, user=follow_up(left), tools=tools, max_turns=remaining,
+                              log_step=logged)
+        lines.append(f"Second pass ({len(left)} inputs): {again.final_text.strip()[:600]}")
+        usage = {k: usage.get(k, 0) + again.usage.get(k, 0) for k in {*usage, *again.usage}}
+        final = again
+    status_ = "COMPLETED" if not errors and final.status == "COMPLETED" else ("LLM_UNAVAILABLE" if any(
+        o.status == "LLM_UNAVAILABLE" for _r, o in done) else "INCOMPLETE")
+    return ResearchOutcome(status=status_, proposed=ctx.proposed, rejected=ctx.rejected, not_found=ctx.not_found,
+                           access_requests=ctx.access_requests, summary="\n".join(lines), usage=usage,
+                           error=errors[0] if errors else "")

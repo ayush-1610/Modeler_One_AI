@@ -192,3 +192,39 @@ def test_a2_is_told_the_projects_context_and_works_on_the_missing_inputs_first(t
     assert first["status"] == "missing" and first["search_hints"] and first["what_to_do"] == "no value yet: find one"
     assert next(r for r in listed if r["req_id"] == "REQ-bind.fu")["known"][0].startswith("bind.fu = 0.3")
     assert "Second pass" in outcome.summary and any("still have neither a proposed value" in s for s in seen)
+
+
+def test_a2_searches_each_open_input_in_its_own_conversation_side_by_side(tmp_path):
+    """Plan 2026-11-05 §3.3: a search per input, in parallel, with a cap of turns per input; the turns spent never exceed
+    the run's budget, and the inputs beyond it are said to wait for the next search."""
+    import re
+    import threading
+
+    from modeler_agents.evidence_agent import run_research_per_input
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    requirements = [r for r in literature_items(derive(empty_brief("X", by="u"))) if r.kind == "parameter"]
+    ctx = ResearchContext(ws=ws, library=DocumentLibrary(ws), requirements=requirements, actor="agent:ar_9",
+                          europe_pmc=EuropePMC(transport=httpx.MockTransport(_transport)))
+    two_at_once = threading.Barrier(2, timeout=10)      # opens only when two searches are in flight together
+    seen: list[str] = []
+
+    class PerInput:
+        provider, model = "test", "per-input"
+
+        def complete(self, messages, tools):
+            req = re.search(r"one input only: (\S+)", messages[1]["content"]).group(1)
+            if any(m.get("role") == "tool" for m in messages):
+                return ChatResult(content=f"{req}: not found", finish_reason="", model="s", usage={"input_tokens": 1},
+                                  tool_calls=())
+            seen.append(req)
+            if len(seen) <= 2:
+                two_at_once.wait()
+            return ChatResult(content="", finish_reason="", model="s", usage={"input_tokens": 1}, tool_calls=(
+                ToolCall(id="1", name="mark_not_found", arguments={"req_id": req, "searched": f"{req}: europe pmc"}),))
+
+    budget = 2 * 3 * 3                                    # three inputs' worth of turns at the floor of 3 turns each
+    outcome = run_research_per_input(PerInput(), ctx, drug="Exampleamide", max_turns=budget, workers=4)
+    assert len(requirements) > 3 and len(seen) == len(set(seen)) == budget // 3     # one conversation per input, within budget
+    assert set(outcome.not_found) == set(seen) and outcome.status == "COMPLETED"
+    assert "more inputs wait for the next search" in outcome.summary

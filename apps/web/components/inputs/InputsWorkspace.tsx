@@ -21,6 +21,7 @@ import { LABEL, ORDER, type Run, TITLE, type TodoItem } from "./InputsTodo";
 import { AccessRequests } from "./ObservedDatasets";
 import { type Options, StudiesTab } from "./StudiesTab";
 import { AREA_LABEL, fileArea, FilesBar, FilesHere, whereShown } from "./TabFiles";
+import { ValueReuse } from "./ValueReuse";
 
 // The data domains down the left (plan 2026-11-03 §3.2): the client's data lands in its home (Products and dissolution,
 // Clinical studies, Compound), never in an area of its own. The ids stay those of PK-Sim's building blocks.
@@ -340,7 +341,8 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
       {tab === "compound" && (
         <TabPanel prefix="inputs" id="compound">{bar("compound")}
           {!onlyToConfirm && literature.data?.sources && <SourcesRead run={literature.data.sources} />}{confirmHere("compound")}
-          {!onlyToConfirm && <><InputRows rows={rows("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
+          {!onlyToConfirm && <><ValueReuse projectId={projectId} run={run} />
+          <InputRows rows={rows("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
                    empty="The compound's values appear here as the client's files, the literature and PubChem fill them." />
           <AccessRequests projectId={projectId} run={run} /></>}{filesHere("compound")}</TabPanel>
       )}
