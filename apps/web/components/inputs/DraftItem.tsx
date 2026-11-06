@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 
+import { CleaningRecord, type CleaningLine } from "@/components/client/CleaningRecord";
 import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
 
@@ -17,6 +18,7 @@ type Offer = { value: string; label: string; source: PeekSource };
 type Draft = {
   sid: string; sheet: string; kind: "concentration_time" | "dissolution"; needs: string[]; labels: Record<string, string>;
   answers: Record<string, string>; problems: string[]; notes: string[]; offers: Record<string, Offer[]>;
+  by?: string; cleaning?: CleaningLine[];
 };
 
 const CHOICES: Record<string, [string, string][]> = {
@@ -44,10 +46,11 @@ export function DraftItem({ projectId, item, run }: { projectId: string; item: I
       {item.data && <DatasetView data={item.data} label={item.label} />}
       {draft.notes.length > 0 && (
         <details className="draft-notes">
-          <summary>What code read in the sheet</summary>
+          <summary>What {draft.by && draft.by !== "code" ? "the reading agent" : "code"} read in the sheet</summary>
           <ul>{draft.notes.map((n) => <li key={n}>{n}</li>)}</ul>
         </details>
       )}
+      <CleaningRecord lines={draft.cleaning} testId={`cleaning-${draft.sheet}`} />
       {draft.problems.length > 0 && <ul className="flags" data-testid="draft-problems">{draft.problems.map((p) => <li key={p}>{p}</li>)}</ul>}
       {asked.length > 0 && (
         <fieldset className="draft-form">

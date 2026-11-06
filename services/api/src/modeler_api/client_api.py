@@ -29,7 +29,7 @@ from modeler_api.deps import (
     version_view,
     workspace_for,
 )
-from modeler_api.intake_jobs import read_documents_later, run_document_job, unread_documents
+from modeler_api.intake_jobs import read_later, run_document_job
 from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import (
     ClientDataPage,
@@ -159,8 +159,9 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
         except (DocumentError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=f"{upload.filename}: {exc}") from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
-    # each PDF or Word file read by the agent on arrival, when agents are on (plan 2026-11-05 §3.1, build C2)
-    read_documents_later(store, principal.tenant_id, project_id, unread_documents(read))
+    # what code could not do, by the agent on arrival, when agents are on (plan 2026-11-05 §3.1): each PDF or Word file
+    # read for its data, the sheets code could not sort, each sheet whose code reading has a problem
+    read_later(store, principal.tenant_id, project_id, [r["id"] for r in read if r.get("id") and not r.get("repeat")])
     return envelope({"read": [{**{k: r[k] for k in ("id", "file", "template", "sha256")}, **file_tag_view(library, r["sha256"])}
                               for r in read], **_view(ws)})
 

@@ -137,3 +137,22 @@ def test_a_problem_the_card_asks_about_is_not_repeated_and_each_is_said_once(ws)
     sub = ingest(ws, library, _be_arm(), "230-23 Fasting Reference.xlsx", by="u")
     problems = submission(ws, sub["id"])["readings"]["Sheet1"]["problems"]
     assert not any("number of subjects" in p for p in problems) and len(problems) == len(set(problems))
+
+
+def test_the_reading_agents_clean_and_complete_reading_is_saved_at_once(ws):
+    # build F: a reading the agent proposes replaces code's when its check is clean, and is saved when it needs nothing
+    from modeler_intake.sheet_form import SheetForm
+    from modeler_project.sheet_intake import adopt_agent_reading
+
+    library = DocumentLibrary(ws)
+    sub = ingest(ws, library, _dissolution(), "Dissolution Test pH 6.8.xlsx", by="u")
+    code = submission(ws, sub["id"])["readings"]["pH 6.8"]
+    form = SheetForm.model_validate(code["form"])
+    named = form.model_copy(update={"constants": {**form.constants, "product": "Exampleamide ER Tablets 50 mg", "role": "TEST"}})
+    workbook = read_workbook_bytes(_dissolution(), "Dissolution Test pH 6.8.xlsx")
+    done = adopt_agent_reading(ws, library, sub["id"], workbook, "pH 6.8", named, ["the product is named in the title"],
+                               by="agent:ar_1", run_id="ar_1")
+    assert done == {"adopted": True, "saved": []} and len(profiles(ws)) == 1          # a dissolution sheet makes no dataset
+    kept = submission(ws, sub["id"])["readings"]["pH 6.8"]
+    assert kept["by"] == "agent:ar_1" and kept["needs"] == [] and kept["cleaning"][0]["text"].startswith("Above the table")
+    assert not [g for g in review.groups(ws) if g["kind"] == "sheet"]                  # on its product's card, to confirm

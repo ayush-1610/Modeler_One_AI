@@ -1,6 +1,6 @@
 # The client's data, reviewed where it belongs, and agents that work from the start (plan, 2026-11-05)
 
-Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B, C1, C2 and D done).
+Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B, C1, C2, D and F done).
 Follows `2026-11-03-inputs-and-client-data.md` (I1–I4c, merged), whose
 builds made the parts work one by one; the owner's use of them on a real delivery (14 files: BE workbooks, dissolution
 profiling workbooks, the technical proposal) shows that together they do not yet give a clear, usable page. I5 (CDISC)
@@ -138,8 +138,12 @@ will check the builder with their own files later (q4), so the builds use the up
      arrival and kept as a draft; a complete one saved at once, to confirm on its card; one that needs the study's facts
      waits on its study's card, drawn, asking only those (a document's value offered with its quote); "this is…" (a sheet
      called data) reads it at once; "belongs to…" is the study id asked when the sheet names none; client PDF and Word
-     files go to A4 on arrival (agents on). Not in C2: A4 on a sheet whose code reading has a problem, run on its own
-     (still the "Read the data sheets (agent)" button), and a record of every cell ignored (code's notes are shown).
+     files go to A4 on arrival (agents on). Not in C2, built in F (branch `intake-f-agent-and-record`): with agents
+     on, A4 sorts on arrival the sheets code could not, and reads again each sheet whose code reading has a problem; its
+     reading replaces code's only when its check is clean, and is saved at once when nothing is left to ask; one it
+     cannot resolve leaves code's, saying so. Every reading says what it left out and changed, cell by cell (the title
+     and notes, empty rows, columns not read, no-sample and BLQ cells, text that is not a number, decimal commas read),
+     on its card and in the files view (`modeler_intake.cleaning`).
 4. **D, Start proposals (M): built** (branch `start-d-proposals`). A1 drafts what a proposal implies rather than states
    (the question of interest, context of use, applications, formulation types and each scenario's route) with the
    quote that implies it and why (`propose_implied`); each is shown in place, pre-selected, with Confirm, and Start waits

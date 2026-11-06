@@ -1,7 +1,8 @@
 // T-47: each client sheet read by code on arrival (build C2, plan 2026-11-05 §3.1; the owner, 2026-11-05: "the agent must
 // recognise, clean and bring everything into the project"). A sheet that needs nothing more is saved at once and waits
 // on its product's card; a BE arm waits on its study's card, drawn, asking only what the sheet does not say. The
-// workbooks are written by a Python helper (software test data, never a model).
+// workbooks are written by a Python helper (software test data, never a model). Each reading says what it left out
+// and changed (build F).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -45,6 +46,12 @@ test("sheets are read on arrival: a complete one waits on its product, a BE arm 
   await expect(card.getByTestId("confirm-study:230-23-REF")).toBeDisabled();
   await expect(draft.getByTestId("need-n")).toBeVisible();
   await expect(draft.getByTestId("need-dose")).toHaveCount(0);                       // "50 mg" in the title: read
+  // what the reading left out and changed, cell by cell (build F: "nothing silently")
+  const cleaning = draft.getByTestId("cleaning-Sheet1");
+  await cleaning.locator("summary").click();
+  await expect(cleaning).toContainText("below the LLOQ (“BLQ”): kept as below the LLOQ, not as zero");
+  await expect(cleaning).toContainText("Below the table");
+  await expect(page.getByTestId("client-file-230-23 Fasting Reference.xlsx").getByTestId("sheet-cleaning-Sheet1")).toHaveCount(1);
   await shot(page, "1-be-arm-to-finish");
   await draft.getByTestId("need-n").fill("6");
   await draft.getByTestId("need-formulation").selectOption("mr");

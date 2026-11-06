@@ -7,6 +7,7 @@ import { Card } from "@/components/ui";
 import { send, type Envelope, type Schema } from "@/lib/api";
 import { TAG_KINDS, TAG_LABELS, type TagKind } from "@/lib/fileTags";
 
+import { CleaningRecord } from "./CleaningRecord";
 import { SheetReader, type Study } from "./SheetReader";
 import {
   CATEGORY_LABEL, type ClientFile, DATA_SHEETS, type Profile, READABLE, READABLE_DOCUMENTS, type SheetForm, type Triage,
@@ -55,8 +56,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 type Category = Schema<"Classification">["category"];
 
 /** A sheet's line: what it holds, whether it was read, and the button that reads it. */
-function SheetLine({ t, read, proposed, byCode, onRead, onClassify }: {
+function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify }: {
   t: Triage; read: number | undefined; proposed: boolean; byCode: string[] | null; onRead: () => void;
+  reading: NonNullable<ClientFile["readings"]>[string] | undefined;
   onClassify: (category: Category, reason: string) => Promise<string | null>;
 }) {
   const [changing, setChanging] = useState(false);
@@ -70,6 +72,7 @@ function SheetLine({ t, read, proposed, byCode, onRead, onClassify }: {
       <td>
         <span className={`chip ${t.category === "OTHER" ? "medium" : data ? "brand" : "neutral"}`}>{CATEGORY_LABEL[t.category] ?? t.category.toLowerCase()}</span>
         {t.evidence_quote && <div className="muted" style={{ fontSize: 12 }}>“{t.evidence_quote}” {t.evidence_cell.split("!")[1]}</div>}
+        <CleaningRecord lines={reading?.cleaning} testId={`sheet-cleaning-${t.sheet}`} />
         {!changing && <button className="linkish" onClick={() => setChanging(true)}>change</button>}
         {changing && (
           <div className="row" style={{ gap: 4, marginTop: 4 }}>
@@ -84,8 +87,8 @@ function SheetLine({ t, read, proposed, byCode, onRead, onClassify }: {
         {error && <div className="banner err">{error}</div>}
       </td>
       <td>{read ? <span className="chip low">read ✓{read > 1 ? ` (${read})` : ""}</span>
-               : byCode ? <span className="chip medium" title="code read the sheet on arrival; what it does not say is asked on its study's or product's card">
-                   read by code · {byCode.length} to give on its card</span>
+               : byCode ? <span className="chip medium" title="read on arrival; what the sheet does not say is asked on its study's or product's card">
+                   read by {reading?.by === "code" ? "code" : "the reading agent"} · {byCode.length} to give on its card</span>
                : proposed ? <span className="chip brand" title="checked by code; open it, check it and save">reading proposed</span>
                : data ? <span className="chip medium">not read yet</span> : <span className="muted" style={{ fontSize: 12 }}>no data to read</span>}</td>
       <td className="num"><button className={`btn${!read && data ? " primary" : ""}`} onClick={onRead}>{read ? "Read again" : "Read this sheet"}</button></td>
@@ -201,7 +204,8 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
           <tbody>
             {file.triage.map((t) => (
               <SheetLine key={t.sheet} t={t} read={read.get(t.sheet)} proposed={Boolean(file.readings?.[t.sheet])}
-                         byCode={file.readings?.[t.sheet]?.by === "code" && file.readings[t.sheet].needs?.length ? file.readings[t.sheet].needs ?? null : null}
+                         byCode={file.readings?.[t.sheet]?.needs?.length ? file.readings[t.sheet].needs ?? null : null}
+                         reading={file.readings?.[t.sheet]}
                          onRead={() => setReading(reading === t.sheet ? null : t.sheet)}
                          onClassify={(category, reason) => act(() => send(
                            "post", "/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}:classify",

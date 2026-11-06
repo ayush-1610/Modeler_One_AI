@@ -18,7 +18,8 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from modeler_intake.grid import WorkbookGrid
+from modeler_intake.cleaning import record as cleaning_record
+from modeler_intake.grid import SheetGrid, WorkbookGrid
 from modeler_intake.recipe_review import MappingReview, RecipeProposal, review_proposal
 from modeler_intake.sheet_form import SheetForm, suggest, to_proposal
 from modeler_project import Workspace
@@ -176,10 +177,21 @@ def _problems(checked: MappingReview | None, wanted: list[str]) -> list[str]:
     return [p for p in found if not any(a in p for a in asked)]
 
 
-def _draft(form: SheetForm, notes: list[str], checked: MappingReview | None) -> dict[str, Any]:
+def cleaning(grid: SheetGrid | None, form: SheetForm, checked: MappingReview | None) -> list[dict[str, Any]]:
+    """What the reading left out of the sheet and what it changed, cell by cell (§3.1 step 4: "nothing silently")."""
+    if grid is None:
+        return []
+    observations = [*(checked.concentrations if checked else ()), *(checked.dissolution if checked else ())]
+    read = {o.source.cells["value"] for o in observations if "value" in o.source.cells}
+    below = {o.source.cells["value"] for o in (checked.concentrations if checked else ())
+             if o.below_lloq and "value" in o.source.cells}
+    return [line.to_content() for line in cleaning_record(grid, form, read, below)]
+
+
+def _draft(form: SheetForm, notes: list[str], checked: MappingReview | None, grid: SheetGrid | None = None) -> dict[str, Any]:
     wanted = needs(form)
     return {"form": form.model_dump(mode="json"), "notes": notes, "by": CODE, "run_id": None, "needs": wanted,
-            "problems": _problems(checked, wanted),
+            "problems": _problems(checked, wanted), "cleaning": cleaning(grid, form, checked),
             "points": _points(checked, form) if checked and form.kind == "concentration_time" else None}
 
 
@@ -219,7 +231,7 @@ def read_on_arrival(ws: Workspace, library: DocumentLibrary, sid: str, workbook:
                 checked = review(workbook, form, recipe_id=f"{sid}-draft-{sheet}")
             except ValueError:
                 checked = None
-        drafts[sheet] = _draft(form, notes, checked)
+        drafts[sheet] = _draft(form, notes, checked, workbook.sheets[sheet])
         if not drafts[sheet]["needs"]:
             ready.append((sheet, form, checked))
     if not drafts:
@@ -233,6 +245,54 @@ def read_on_arrival(ws: Workspace, library: DocumentLibrary, sid: str, workbook:
             _commit_drafts(ws, sid, {sheet: {**drafts[sheet], "problems": [str(exc)]}}, by=by,
                            reason=f"{sheet}: not saved ({exc})")
     return {"saved": saved, "waiting": {s: d["needs"] for s, d in drafts.items() if s not in saved}}
+
+
+ON_THE_SHEET = ("value_columns", "time_column")
+
+
+def has_problem(draft: dict[str, Any]) -> bool:
+    """A code reading the reading agent may do better: its check found a problem, or code could not tell which columns
+    hold the values or the times. Facts the sheet does not state (the number of subjects …) are a person's to give."""
+    return bool(draft.get("problems")) or any(n in ON_THE_SHEET for n in draft.get("needs", []))
+
+
+def agent_could_not(ws: Workspace, sid: str, sheet: str, code: dict[str, Any], *, by: str, run_id: str, why: str) -> None:
+    """Code's draft stays, saying the reading agent tried and why it could not resolve it (it is not tried again)."""
+    note = f"The reading agent read this sheet too and could not resolve it: {why}. Open the sheet to read it."
+    _commit_drafts(ws, sid, {sheet: {**code, "notes": [*code.get("notes", []), note], "agent_tried": run_id}},
+                   by=by, reason=f"{sheet}: the reading agent could not resolve it; code's reading stays")
+
+
+def adopt_agent_reading(ws: Workspace, library: DocumentLibrary, sid: str, workbook: WorkbookGrid, sheet: str,
+                        form: SheetForm, notes: list[str], *, by: str, run_id: str) -> dict[str, Any]:
+    """The reading agent's reading of a sheet whose code reading had a problem (plan 2026-11-05 §3.1 step 3): checked by
+    code like any reading; it replaces code's draft only when its check is clean, and is then saved at once when it needs
+    nothing more (its datasets to confirm on Inputs). Otherwise code's draft stays, saying the agent tried and why it
+    could not resolve it. {"adopted": bool, "saved": dataset ids}."""
+    from modeler_project.client_data import submission
+
+    content = submission(ws, sid) or {}
+    code = (content.get("readings") or {}).get(sheet)
+    checked = None
+    if form.value_columns:
+        try:
+            checked = review(workbook, form, recipe_id=f"{sid}-agent-{sheet}")
+        except ValueError:
+            checked = None
+    draft = {**_draft(form, notes, checked, workbook.sheets[sheet]), "by": by, "run_id": run_id}
+    if checked is None or has_problem(draft):
+        if code is not None:
+            agent_could_not(ws, sid, sheet, code, by=by, run_id=run_id,
+                            why="; ".join(draft["problems"][:2]) or "it could not tell which columns hold the values either")
+        return {"adopted": False, "saved": []}
+    _commit_drafts(ws, sid, {sheet: draft}, by=by, reason=f"{sheet}: read by the reading agent (code's reading had a problem)")
+    if draft["needs"]:
+        return {"adopted": True, "saved": []}
+    try:
+        return {"adopted": True, "saved": finish(ws, library, sid, sheet, {}, by=by)}
+    except SheetIntakeError as exc:          # a complete reading code will not save waits on its card, with why
+        _commit_drafts(ws, sid, {sheet: {**draft, "problems": [str(exc)]}}, by=by, reason=f"{sheet}: not saved ({exc})")
+        return {"adopted": True, "saved": []}
 
 
 def _answer(form: SheetForm, answers: dict[str, Any]) -> SheetForm:
@@ -289,13 +349,15 @@ def finish(ws: Workspace, library: DocumentLibrary, sid: str, sheet: str, answer
     workbook = read_workbook_bytes(path.read_bytes(), content["file"])
     if left:
         checked = review(workbook, form, recipe_id=f"{sid}-draft-{sheet}") if form.value_columns else None
-        _commit_drafts(ws, sid, {sheet: {**_draft(form, draft.get("notes", []), checked), "by": draft.get("by", CODE)}},
+        _commit_drafts(ws, sid, {sheet: {**_draft(form, draft.get("notes", []), checked, workbook.sheets[sheet]),
+                                         "by": draft.get("by", CODE), "run_id": draft.get("run_id")}},
                        by=by, reason=f"{sheet}: answered {', '.join(sorted(answers))}; still needs {', '.join(left)}")
         return []
     sent, study = _request(form)
     checked = review(workbook, sent, recipe_id=f"{sid}-r{len(content.get('mappings', [])) + 1}")
     ids = keep(ws, library, sid, content, checked, study=study, by=by)
-    _commit_drafts(ws, sid, {sheet: {**draft, "form": form.model_dump(mode="json"), "needs": [], "problems": []}}, by=by,
+    _commit_drafts(ws, sid, {sheet: {**draft, "form": form.model_dump(mode="json"), "needs": [], "problems": [],
+                                     "cleaning": cleaning(workbook.sheets[sheet], sent, checked)}}, by=by,
                    reason=f"{sheet}: read, {len(ids)} dataset(s) to confirm")
     return ids
 
@@ -317,6 +379,7 @@ def drafts(ws: Workspace) -> list[dict[str, Any]]:
                         "kind": "dissolution" if form.kind == "dissolution" else "concentration_time",
                         "study_id": (form.constants.get("study_id") or "").strip(), "needs": draft["needs"],
                         "problems": draft.get("problems", []), "notes": draft.get("notes", []), "by": draft.get("by", CODE),
+                        "cleaning": draft.get("cleaning", []),
                         "answers": {**{k: form.constants[k] for k in CONSTANT_ANSWERS if form.constants.get(k)},
                                     **{k: form.study[k] for k in STUDY_ANSWERS if form.study.get(k)}},
                         "points": draft.get("points")})
