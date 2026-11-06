@@ -287,9 +287,9 @@ def evaluate(model_for: Callable[[Proposal, str], Any]) -> list[Score]:
 def report(scores: list[Score]) -> str:
     total = sum(s.checks for s in scores)
     right = sum(len(s.right) for s in scores)
-    lines = [f"{right} of {total} fields right ({100 * right / total:.0f} %); "
-             f"{sum(len(s.wrong) for s in scores)} wrong, {sum(len(s.missed) for s in scores)} missed, "
-             f"{sum(len(s.invented) for s in scores)} invented, {sum(len(s.status) for s in scores)} recorded as the wrong kind"]
+    counts = {kind: sum(len(getattr(s, kind)) for s in scores) for kind in ("wrong", "missed", "invented", "status")}
+    lines = [(f"{right} of {total} fields right ({100 * right / total:.0f} %); {counts['wrong']} wrong, "
+              f"{counts['missed']} missed, {counts['invented']} invented, {counts['status']} recorded as the wrong kind")]
     for s in scores:
         lines.append(f"  {s.proposal}: {len(s.right)}/{s.checks}")
         lines += [f"    {kind}: {item}" for kind in ("wrong", "missed", "invented", "status") for item in getattr(s, kind)]
