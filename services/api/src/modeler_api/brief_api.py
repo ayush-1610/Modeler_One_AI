@@ -62,6 +62,7 @@ from modeler_intake.file_tags import TagKind
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import (
     APPLICATIONS,
+    DEFAULT_INTERNAL_TARGET_PE,
     BriefPathError,
     FieldStatus,
     ProjectBrief,
@@ -451,7 +452,7 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
         "start": {"problems": start_problems(brief), "issues": [i.model_dump() for i in start_issues(brief)],
                   "gates": [g.model_dump() for g in scope_gates(brief)],
                   "risk": {"allowed": list(risk.allowed) if risk.allowed else None, "problems": list(risk.problems),
-                           "admitted": admitted_tiers(), **_tier_criteria(),
+                           "admitted": admitted_tiers(), **_tier_criteria(), "target_default": DEFAULT_INTERNAL_TARGET_PE,
                            "disagreements": [asdict(d) for d in rating_disagreements(brief)]},
                   "applications": _applications_view(),
                   "pathway_suggestions": pathway_suggestions(),

@@ -97,8 +97,10 @@ def test_a1_drafts_the_m15_assessment_for_a_person_to_confirm(library):
     sha = library.documents()[0].content["sha256"]
     why_influence = "The food-effect label claim rests on the model, with no fed study of the new tablet"
     why_consequence = "A wrong fed prediction would misdose patients taking the tablet with meals"
+    why_tier = "The label claim rests on the model alone, so the stricter risk, high, is the one to judge it by"
     draft = ("draft_risk_assessment", {"influence": "high", "how_the_model_is_used": why_influence,
-                                       "consequence": "medium", "what_a_wrong_decision_means": why_consequence})
+                                       "consequence": "medium", "what_a_wrong_decision_means": why_consequence,
+                                       "why_this_tier": why_tier})
     model = Scripted([
         [draft],                                                          # refused: nothing to draft from yet
         [("propose_field", {"path": "qoi.text", "value": "predict the food effect of the 10 mg IR tablet",
@@ -108,6 +110,7 @@ def test_a1_drafts_the_m15_assessment_for_a_person_to_confirm(library):
          ("propose_field", {"path": "m15.influence_suggested", "value": "low", "quote": "PBPK model of dapagliflozin",
                             "doc_sha256": sha, "page": 1})],                # refused: suggestions come only from the draft
         [("draft_risk_assessment", {**draft[1], "influence": "very high"})],  # refused whole: not a rating
+        [("draft_risk_assessment", {**draft[1], "why_this_tier": "stricter"})],  # refused whole: the ratings differ, no reason
         [draft, ("propose_field", {"path": "m15.influence_rating", "value": "high", "quote": "PBPK model of dapagliflozin",
                                    "doc_sha256": sha, "page": 1})],           # the rating itself stays human-only
         [],
@@ -115,9 +118,11 @@ def test_a1_drafts_the_m15_assessment_for_a_person_to_confirm(library):
     ctx = IntakeContext(library=library, brief=empty_brief("Dapagliflozin", by="u1"), actor="agent:ar_2")
     outcome = run_proposal_intake(model, ctx)
     b = outcome.brief
-    assert [r["code"] for r in outcome.rejected] == ["NOTHING_TO_DRAFT_FROM", "DRAFT_ONLY", "INVALID_VALUE", "HUMAN_ONLY"]
+    assert [r["code"] for r in outcome.rejected] == ["NOTHING_TO_DRAFT_FROM", "DRAFT_ONLY", "INVALID_VALUE", "NO_TIER_REASON",
+                                                     "HUMAN_ONLY"]
     for path, value in (("m15.influence_suggested", "high"), ("m15.consequence_suggested", "medium"),
-                        ("m15.influence", why_influence), ("m15.consequence", why_consequence)):
+                        ("m15.influence", why_influence), ("m15.consequence", why_consequence),
+                        ("m15.risk_justification", why_tier)):     # the stricter tier's reason (the owner, 2026-11-06)
         record = b.get(path)
         assert record.status is FieldStatus.DRAFTED and record.value == value and b.value(path) is None
         assert [c.quote for c in record.citations] == ["predict the food effect of the 10 mg immediate-release tablet",

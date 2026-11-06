@@ -7832,6 +7832,8 @@ export interface components {
             problems: string[];
             /** Ruleset */
             ruleset: string;
+            /** Target Default */
+            target_default: number;
             /** Target Max */
             target_max: {
                 [key: string]: number;

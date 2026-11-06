@@ -69,10 +69,17 @@ def test_people_lock_fields_and_agents_cannot_overwrite_them():
     with pytest.raises(EditError, match="person only"):
         agent_set(brief, "acceptance.tier", value="high", unit=None, citations=_cite(), status=FieldStatus.EXTRACTED,
                   confidence="A", by="agent:a1")
-    for path in ("m15.influence_rating", "m15.consequence_rating", "m15.risk_justification"):
+    for path in ("m15.influence_rating", "m15.consequence_rating"):
         with pytest.raises(EditError, match="person only"):
             agent_set(brief, path, value="high", unit=None, citations=_cite(), status=FieldStatus.EXTRACTED,
                       confidence="A", by="agent:a1")
+    # why the stricter tier fits: an agent drafts it (the owner, 2026-11-06), never sets it; a draft is not a value
+    with pytest.raises(EditError, match="drafted by an agent only"):
+        agent_set(brief, "m15.risk_justification", value="the label rests on the model", unit=None, citations=_cite(),
+                  status=FieldStatus.EXTRACTED, confidence="A", by="agent:a1")
+    drafted = agent_set(brief, "m15.risk_justification", value="the label rests on the model", unit=None, citations=_cite(),
+                        status=FieldStatus.DRAFTED, confidence=None, by="agent:a1")
+    assert drafted.get("m15.risk_justification").status is FieldStatus.DRAFTED and drafted.value("m15.risk_justification") is None
 
 
 def test_an_edit_needs_no_reason_and_answers_the_fields_open_question():

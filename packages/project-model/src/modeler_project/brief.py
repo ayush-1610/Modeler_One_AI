@@ -506,6 +506,12 @@ def rating_disagreements(brief: ProjectBrief) -> list[RatingDisagreement]:
     return out
 
 
+# The internal target Start offers until a person saves one (the owner, 2026-11-06): |prediction error| at most 10 %,
+# within the loosest every tier admits (MS-01 §8: 20 % at high). Not reviewed by an SME (UNVERIFIED); offered only: a
+# person saves it or changes it, and until then no internal target applies.
+DEFAULT_INTERNAL_TARGET_PE = 10.0
+
+
 def admitted_tiers() -> dict[str, list[str]]:
     """Every pair of ratings ("influence/consequence") with the tiers ICH M15 §2.1.5 admits for it: the picker shows
     them as the person rates, so the rule lives here only."""
