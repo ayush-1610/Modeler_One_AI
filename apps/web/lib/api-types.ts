@@ -1926,6 +1926,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/value-reuse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Value Reuse
+         * @description The person's other projects of the same drug and what each found that this project does not hold yet (plan
+         *     2026-11-05 §3.3): literature and public-source values only.
+         */
+        get: operations["get_value_reuse_api_v1_projects__project_id__value_reuse_get"];
+        put?: never;
+        /**
+         * Post Value Reuse
+         * @description Reuse here, with the person's consent (this call), the values another project of the same drug found: each
+         *     proposed anew with its source and quote, its document copied, to decide like any value.
+         */
+        post: operations["post_value_reuse_api_v1_projects__project_id__value_reuse_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}:archive": {
         parameters: {
             query?: never;
@@ -4334,6 +4360,20 @@ export interface components {
         Envelope_Union_PlanPage__PlacementPreview__: {
             /** Data */
             data: components["schemas"]["PlanPage"] | components["schemas"]["PlacementPreview"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[ValueReusePage] */
+        Envelope_ValueReusePage_: {
+            data: components["schemas"]["ValueReusePage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[ValueReused] */
+        Envelope_ValueReused_: {
+            data: components["schemas"]["ValueReused"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -7476,6 +7516,11 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** ReuseRequest */
+        ReuseRequest: {
+            /** Project Id */
+            project_id: string;
+        };
         /** RevealRequest */
         RevealRequest: {
             /** Reason */
@@ -9383,6 +9428,33 @@ export interface components {
             Source?: string | null;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * ValueReuseOffer
+         * @description Another project of the same drug the person can open, and the literature and public-source values it holds that
+         *     this one does not (plan 2026-11-05 §3.3; a client's data never leaves its project).
+         */
+        ValueReuseOffer: {
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string;
+            /** Values */
+            values: number;
+            /** What */
+            what: string[];
+        };
+        /** ValueReusePage */
+        ValueReusePage: {
+            /** Offers */
+            offers: components["schemas"]["ValueReuseOffer"][];
+        };
+        /** ValueReused */
+        ValueReused: {
+            /** Ids */
+            ids: string[];
+            /** Reused */
+            reused: number;
         };
         /**
          * VersionView
@@ -13303,6 +13375,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_SystemView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_value_reuse_api_v1_projects__project_id__value_reuse_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ValueReusePage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_value_reuse_api_v1_projects__project_id__value_reuse_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReuseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ValueReused_"];
                 };
             };
             /** @description Validation Error */

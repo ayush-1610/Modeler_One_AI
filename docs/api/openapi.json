@@ -6492,6 +6492,56 @@
         "title": "Envelope[Union[PlanPage, PlacementPreview]]",
         "type": "object"
       },
+      "Envelope_ValueReusePage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ValueReusePage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ValueReusePage]",
+        "type": "object"
+      },
+      "Envelope_ValueReused_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ValueReused"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ValueReused]",
+        "type": "object"
+      },
       "Envelope_VersionView_": {
         "additionalProperties": false,
         "properties": {
@@ -14818,6 +14868,20 @@
         "title": "RetrievalView",
         "type": "object"
       },
+      "ReuseRequest": {
+        "properties": {
+          "project_id": {
+            "minLength": 1,
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "ReuseRequest",
+        "type": "object"
+      },
       "RevealRequest": {
         "properties": {
           "reason": {
@@ -20057,6 +20121,78 @@
           }
         },
         "title": "ValueOrigin",
+        "type": "object"
+      },
+      "ValueReuseOffer": {
+        "additionalProperties": false,
+        "description": "Another project of the same drug the person can open, and the literature and public-source values it holds that\nthis one does not (plan 2026-11-05 §3.3; a client's data never leaves its project).",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "values": {
+            "title": "Values",
+            "type": "integer"
+          },
+          "what": {
+            "items": {
+              "type": "string"
+            },
+            "title": "What",
+            "type": "array"
+          }
+        },
+        "required": [
+          "project_id",
+          "name",
+          "values",
+          "what"
+        ],
+        "title": "ValueReuseOffer",
+        "type": "object"
+      },
+      "ValueReusePage": {
+        "additionalProperties": false,
+        "properties": {
+          "offers": {
+            "items": {
+              "$ref": "#/components/schemas/ValueReuseOffer"
+            },
+            "title": "Offers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "offers"
+        ],
+        "title": "ValueReusePage",
+        "type": "object"
+      },
+      "ValueReused": {
+        "additionalProperties": false,
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          },
+          "reused": {
+            "title": "Reused",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reused",
+          "ids"
+        ],
+        "title": "ValueReused",
         "type": "object"
       },
       "VersionView": {
@@ -27539,6 +27675,132 @@
         "summary": "Put System",
         "tags": [
           "write"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/value-reuse": {
+      "get": {
+        "description": "The person's other projects of the same drug and what each found that this project does not hold yet (plan\n2026-11-05 §3.3): literature and public-source values only.",
+        "operationId": "get_value_reuse_api_v1_projects__project_id__value_reuse_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ValueReusePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Value Reuse",
+        "tags": [
+          "evidence"
+        ]
+      },
+      "post": {
+        "description": "Reuse here, with the person's consent (this call), the values another project of the same drug found: each\nproposed anew with its source and quote, its document copied, to decide like any value.",
+        "operationId": "post_value_reuse_api_v1_projects__project_id__value_reuse_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReuseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ValueReused_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Value Reuse",
+        "tags": [
+          "evidence"
         ]
       }
     },

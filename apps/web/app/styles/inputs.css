@@ -141,3 +141,8 @@
 .draft-need label { min-width: 180px; color: var(--ink-dim); }
 .draft-need input, .draft-need select { min-width: 160px; }
 .draft-offer { display: inline-flex; align-items: center; gap: 2px; }
+
+/* build I: the same drug's values in the person's other projects, reused with their consent */
+.value-reuse { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.value-reuse h3 { margin: 0 0 4px; font-size: 14px; }
+.value-reuse ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; }

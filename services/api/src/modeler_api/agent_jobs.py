@@ -113,14 +113,15 @@ def literature_research(model, *, agent: Literal["A2", "A3"], ws, library, requi
                         max_turns: int, log_step, europe_pmc=None, brief=None):
     """A2 (parameter values) or A3 (observed clinical data) over the data plan's literature items. `brief`: the
     project's brief, whose facts (other names of the drug, routes, products, populations, pathways) shape the search."""
-    from modeler_agents.evidence_agent import ResearchContext, run_research
+    from modeler_agents.evidence_agent import ResearchContext, run_research_per_input
     from modeler_agents.observed_data_agent import run_observed_data
     from modeler_agents.research_brief import project_facts
     from modeler_agents.sources import EuropePMC
 
     ctx = ResearchContext(ws=ws, library=library, requirements=requirements, actor=actor,
                           europe_pmc=europe_pmc or EuropePMC(), facts=project_facts(brief, drug))
-    runner = run_research if agent == "A2" else run_observed_data
+    # A2 searches each open input in its own conversation, side by side (plan 2026-11-05 §3.3)
+    runner = run_research_per_input if agent == "A2" else run_observed_data
     return runner(model, ctx, drug=drug, max_turns=max_turns, log_step=log_step)
 
 
