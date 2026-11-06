@@ -131,13 +131,14 @@ p { max-width: var(--measure); }
 
 .sidebar {
   width: 236px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line);
-  padding: 22px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  padding: 18px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; transition: width 200ms var(--ease);
 }
-.brand { display: flex; gap: 9px; align-items: center; font-weight: 600; font-size: 15px;
-         letter-spacing: -0.01em; margin-bottom: 22px; }
+.brand { display: flex; gap: 9px; align-items: center; font-weight: 600; font-size: 15px; min-height: 32px;
+         letter-spacing: -0.01em; margin: 0 2px 18px 4px; }
 /* the mark is a decaying curve — the shape the whole product is about */
 .brand-mark {
-  width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
   background:
     radial-gradient(circle at 18% 22%, var(--sim) 0 2.2px, transparent 2.4px),
     radial-gradient(circle at 44% 46%, var(--sim) 0 2.2px, transparent 2.4px),
@@ -145,19 +146,44 @@ p { max-width: var(--measure); }
     var(--raised);
   border: 1px solid var(--line);
 }
-.nav a { display: block; padding: 7px 10px; border-radius: var(--radius-sm); color: var(--ink-dim);
-         font-weight: 500; text-decoration: none; transition: background 120ms var(--ease), color 120ms var(--ease); }
-.nav a:hover { background: var(--raised); color: var(--ink); }
+.brand .nav-text { flex: 1; min-width: 0; white-space: nowrap; }
+.nav-collapse { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border: 0; border-radius: var(--radius-sm);
+  background: none; color: var(--ink-dim); cursor: pointer; }
+.nav-collapse:hover { background: var(--raised); color: var(--ink); }
+.nav { display: grid; gap: 2px; }
+.nav a, .nav-action { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px;
+  border-radius: var(--radius-sm); color: var(--ink-dim); font: inherit; font-weight: 500; text-decoration: none; text-align: left;
+  border: 0; background: none; cursor: pointer; white-space: nowrap;
+  transition: background 120ms var(--ease), color 120ms var(--ease); }
+.nav a:hover, .nav-action:hover { background: var(--raised); color: var(--ink); }
 .nav a.active { background: color-mix(in srgb, var(--sim) 12%, transparent); color: var(--brand-ink); font-weight: 600; }
-.nav-project { margin-top: 14px; }
-.nav-heading { display: block; padding: 0 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
-.nav-action { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: var(--radius-sm); border: 0;
-  background: none; font: inherit; color: var(--brand-ink); font-weight: 600; cursor: pointer; }
-.nav-action:hover { background: var(--raised); }
-.nav .group { margin-top: 18px; }
-.nav-user { margin-top: 22px; padding: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-dim); }
+/* the current page's bar, at the sidebar's inner edge */
+.nav a.active::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--sim); }
+.nav-icon { flex-shrink: 0; }
+.nav .nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nav-action { color: var(--brand-ink); font-weight: 600; }
+.nav-badge { min-width: 20px; padding: 1px 6px; border-radius: 999px; text-align: center; font-size: 11.5px; font-weight: 600;
+  background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn-ink); }
+.nav-project { margin-top: 16px; }
+.nav-heading { display: block; padding: 0 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-quiet); white-space: nowrap; }
+.nav-foot { margin-top: auto; padding-top: 18px; display: grid; gap: 10px; }
+.nav-user { display: flex; gap: 10px; align-items: flex-start; padding: 10px 4px 0; border-top: 1px solid var(--line);
+  font-size: 13px; color: var(--ink-dim); }
 .nav-user strong { display: block; color: var(--ink); font-weight: 600; margin: 2px 0 6px; }
 .nav-user a { color: var(--brand-ink); }
+.nav-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%;
+  font-size: 12px; font-weight: 600; color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 14%, var(--surface)); }
+/* collapsed: a rail of icons; the names stay for screen readers and show as the links' titles */
+.sidebar.collapsed { width: 64px; }
+.sidebar.collapsed .nav-text, .sidebar.collapsed .nav-heading, .sidebar.collapsed .theme-toggle {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sidebar.collapsed .brand { flex-direction: column; gap: 10px; margin-left: 0; margin-right: 0; }
+.sidebar.collapsed .nav a, .sidebar.collapsed .nav-action { justify-content: center; padding: 9px 0; }
+.sidebar.collapsed .nav-badge { position: absolute; top: 2px; right: 2px; min-width: 16px; padding: 0 4px; font-size: 10px; }
+.sidebar.collapsed .nav-user { justify-content: center; padding-left: 0; padding-right: 0; }
+.sidebar.collapsed .nav-project { border-top: 1px solid var(--line); padding-top: 10px; }
 /* The skip link: off screen until a keyboard reaches it, then over the sidebar's top corner. Its target is a zero-size
  * point at the start of the page, so focus lands there and the next Tab goes to the page's first control. */
 .skip-link { position: absolute; left: 12px; top: -60px; z-index: 70; padding: 8px 14px; border-radius: var(--radius-sm);
@@ -262,7 +288,12 @@ tbody tr:last-child td { border-bottom: none; }
   .cols-2, .cols-intake { grid-template-columns: 1fr; }
   .app { flex-direction: column; }
   .content { padding: 20px 16px 48px; }
-  .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); }
+  .sidebar, .sidebar.collapsed { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); }
+  .nav-collapse { display: none; }
+  .sidebar.collapsed .nav-text, .sidebar.collapsed .nav-heading, .sidebar.collapsed .theme-toggle {
+    position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .sidebar.collapsed .brand { flex-direction: row; }
+  .sidebar.collapsed .nav a, .sidebar.collapsed .nav-action { justify-content: flex-start; padding: 8px 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

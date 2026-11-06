@@ -55,6 +55,7 @@ test("a project starts from its proposal and the client's file in one upload, wi
 
   // the history is opened from the Projects page (page review 1), no longer from the step bar
   await page.goto("/");
+  await page.getByTestId("dash-view-list").click();                                  // the dashboard's record view
   await page.getByTestId(`project-history-${projectId}`).click();
   await page.waitForURL(/\/history$/);
   await expect(page.getByText("brief/main").first()).toBeVisible();

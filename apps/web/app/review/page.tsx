@@ -32,7 +32,7 @@ export default async function ReviewInbox() {
           <>
             <table>
               <thead>
-                <tr><th>Parameter</th><th className="num">Value</th><th>Citation</th><th>Agent</th><th></th></tr>
+                <tr><th>Parameter</th><th className="num">Value</th><th>Citation</th><th>Agent</th></tr>
               </thead>
               <tbody>
                 {proposals.map((p) => (
@@ -44,19 +44,13 @@ export default async function ReviewInbox() {
                       <div className="muted" style={{ fontSize: 12 }}>{p.reference}</div>
                     </td>
                     <td className="muted">{p.agent}</td>
-                    <td>
-                      <div className="row">
-                        <button className="btn primary">Accept</button>
-                        <button className="btn">Reject</button>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-              Every proposal carries an exact citation checked deterministically; a curator accepts or rejects each one
-              before it can enter a model.
+              Every proposal carries an exact citation checked deterministically. A value enters a model only when a curator
+              takes it on the project&apos;s Inputs step; this list does not accept or reject on its own.
             </p>
           </>
         )}

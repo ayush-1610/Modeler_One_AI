@@ -15,6 +15,31 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the dashboard and the sidebar, from the "Modeler One App" design (2026-11-06)
+Plan `docs/plans/2026-11-06-app-design-merge.md` (the owner, 2026-11-06: review the Claude Design mockup, then merge it
+with the app, keeping what the backend supports and dropping what is not important). Phase A of three; web only, no API
+change.
+- **The first screen is a dashboard** (`/`, `components/dashboard/Dashboard.tsx`): the design's head (eyebrow, title,
+  lede, "+ New project"), four numbers that are also filters (projects and compounds, campaigns running, projects
+  waiting on a person, open questions), search, and Cards / List. A card shows the project's four steps read from
+  `GET /projects/{id}/steps`, what waits and why, its risk and the next action, and opens the step that waits. List is
+  the existing table, so archive, restore (with a reason) and History are unchanged. Beside them: "Needs your
+  attention" (open escalations, agent proposals, every step waiting on a person, each a link) and "Risk across
+  programs".
+- **The sidebar** (`components/Nav.tsx`): grouped (*Work*: Projects, Start from proposal, Review inbox with the count
+  of open escalations and proposals; *This project*: Add data, Project Document Library, and now History), icons, and a
+  button that collapses it to a rail and back (kept in the browser). Link names, test ids and the skip link are kept.
+- **Review inbox:** the Accept / Reject buttons on agent proposals are removed. They had no handler and no API route
+  behind them; the page now says a value enters a model when a curator takes it on Inputs.
+- **Not adopted from the design, with why** (plan §2.2): the decorative "Simulation, live" curve and the hashed
+  sparklines (they read as PBPK evidence and are not: `CLAUDE.md`, results only from real PK-Sim); a password on
+  every signature (Part 11 step-up from the token, never a password); a global parameter library, Settings and a
+  cross-project activity feed (no backend yet: plan §4 lists the three API gaps); hover-to-open sidebar; the design's
+  blue chrome and light-only theme (the app's tokens keep colour for meaning and support dark).
+- Impact: the home page reads each project's steps (one call per non-archived project) until the project list
+  carries them (plan §4, gap 3). E2E: `dashboard.spec.ts` added; `projects-archive` and `start-project` open the List
+  view before using the table.
+
 ### Changed — Compound I: the literature search per input, side by side; another project's values reused with consent (2026-11-06)
 Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.3 and what B left (the owner, 2026-11-05: "the compound
 agent is far too slow"; §5 q3: start at once, load and cost looked at later).
@@ -5436,3 +5461,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
 | 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) F (the reading agent on arrival for what code could not; every reading's record of what it left out) G (messy deliveries scored end to end, 36 of 36 after five fixes to code's reading) H (A1's evaluation set; its live score needs the server's model) and I (the literature search per input, side by side; another project's values reused with consent) |
+| 2026-11-06 (cloud session, branch `claude/exciting-shannon-1phqoq`) | per commit trailer | Review of the Claude Design "Modeler One App" mockup against the app and the API; the merge plan (`docs/plans/2026-11-06-app-design-merge.md`); phase A: the dashboard and the grouped, collapsible sidebar |

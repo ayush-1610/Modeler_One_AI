@@ -72,7 +72,7 @@
 .table-scroll table { min-width: 560px; }
 
 /* ---- the theme toggle (sidebar) ---- */
-.theme-toggle { display: inline-flex; margin-top: 18px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.theme-toggle { display: inline-flex; justify-self: start; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
 .theme-toggle button { font: inherit; font-size: 12px; padding: 5px 10px; border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; }
 .theme-toggle button + button { border-left: 1px solid var(--line); }
 /* the box clips the outline, so the focus ring is drawn inside it */
