@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Inputs C1: each study and product of the client's data shown as data, reviewed one at a time (2026-11-06)
+Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.2, build C (first part). The owner, 2026-11-05: "no data
+points, no graph, no metadata, no statistics, no separation"; review "one by one study/product/data".
+- **A study's card shows each dataset as data:** the profile drawn (each series a line, mean ± its SD or SE as
+  whiskers, points below the LLOQ as open markers on the LLOQ line, linear or log scale; past eight series, the
+  subjects in one neutral ink), code's statistics of each profile series, the PK the client reported beside them, and
+  the table of points. The statistics are the platform's own NCA (`pbpk_domain.nca`, T-18: Cmax, tmax, AUC0–last by
+  linear-up / log-down, t½ from the log-linear tail, AUC0–∞), computed from the points with those below the LLOQ left
+  out and counted; they describe what the client sent and decide nothing (`modeler_project.dataset_points`). A blinded
+  dataset (D-15) shows its times only, with no statistics.
+- **A product's card shows each dissolution profile as data:** the mean % dissolved with its spread (SD from the CV),
+  PK-Sim's Weibull fit as the register computes it, the conditions, and the table of points.
+- **One at a time:** with more than three studies or products in an area, an index names each with its state, the first
+  to confirm is open and the others folded; confirming it opens the next; any opens from the index.
+- **Fixed (from build A):** the client-data template sent with no tag is shown with the studies again (it holds every
+  kind of data), not as a file "to place".
+- API: `ReviewItem.data` (`DatasetPoints`, `SeriesPoints`) and `ReviewItem.release`; the OpenAPI snapshot and the web
+  types are refreshed. Series colours: the validated categorical palette, checked on this app's light and dark
+  surfaces (light passes with a contrast warning, relieved by the legend and the table of points).
+Impact: no science change: nothing is read, loaded or accepted differently; the statistics are shown, not used.
+
 ### Added — Inputs B: the compound's values from free structured sources, read by code from the project's start (2026-11-05)
 Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.3, build B. The owner: the compound agent took 20–25
 minutes without basic compound details that should take seconds; start it as soon as the project starts; sources
@@ -5243,4 +5264,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area) and B (compound values from structured sources at the start) |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) and C1 (each study and product as data, one at a time) |

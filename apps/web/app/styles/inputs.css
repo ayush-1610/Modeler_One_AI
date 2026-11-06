@@ -125,3 +125,7 @@
 .sources-read { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; }
 .sources-read h3 { margin: 0 0 6px; font-size: 14px; }
 .sources-read ul:not(.flags) { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+/* a dataset's row with its data below it (build C): the row keeps its rule, the data sits inside the item */
+.confirm-items > li:not(:last-child) { border-bottom: 1px solid var(--line-soft, var(--line)); }
+.confirm-items > li > .confirm-row { border-bottom: 0; }
+.confirm-dataset .dataset-view { margin: 0 10px 10px; }

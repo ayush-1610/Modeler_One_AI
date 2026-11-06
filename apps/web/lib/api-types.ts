@@ -3425,6 +3425,28 @@ export interface components {
              */
             unit?: string;
         };
+        /**
+         * DatasetPoints
+         * @description A dataset's points on its study's card (plan 2026-11-05 §3.2, `modeler_project.dataset_points`).
+         */
+        DatasetPoints: {
+            /** Blinded */
+            blinded: boolean;
+            /** Kind */
+            kind: string;
+            /** Lloq */
+            lloq: number | null;
+            /** Reported */
+            reported: {
+                [key: string]: unknown;
+            }[];
+            /** Series */
+            series: components["schemas"]["SeriesPoints"][];
+            /** Time Unit */
+            time_unit: string;
+            /** Unit */
+            unit: string;
+        };
         /** Decision */
         Decision: {
             /** Reason */
@@ -7552,6 +7574,7 @@ export interface components {
             conditions?: {
                 [key: string]: unknown;
             };
+            data?: components["schemas"]["DatasetPoints"] | null;
             /** Duplicate Of */
             duplicate_of?: string | null;
             /** Id */
@@ -7568,6 +7591,10 @@ export interface components {
              * @default
              */
             note?: string;
+            /** Release */
+            release?: {
+                [key: string]: unknown;
+            } | null;
             /** Source */
             source: {
                 [key: string]: unknown;
@@ -7993,6 +8020,30 @@ export interface components {
             time: number;
             /** Value */
             value: number;
+        };
+        /**
+         * SeriesPoints
+         * @description One series of a dataset, as the card draws and tabulates it, with code's statistics of a profile.
+         */
+        SeriesPoints: {
+            /** Error */
+            error: (number)[] | null;
+            /** Error Kind */
+            error_kind: string;
+            /** N */
+            n: number | null;
+            /** Name */
+            name: string;
+            /** Statistic */
+            statistic: string;
+            /** Stats */
+            stats: {
+                [key: string]: number | null;
+            } | null;
+            /** Times */
+            times: (number)[];
+            /** Values */
+            values: (number | null)[];
         };
         /**
          * Sex

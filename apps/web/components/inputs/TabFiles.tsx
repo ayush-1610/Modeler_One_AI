@@ -25,9 +25,12 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** The area a client file is shown in, by its tag; a file tagged "other" whose content code reads as another kind is
  *  shown where that reading puts it, with the reading on its card to use or keep (kept "other", it is listed in the
- *  files view only). A file with no tag (a store that keeps no library record) stays on Clinical studies, as before. */
+ *  files view only). A file with no tag (a store that keeps no library record), or the client-data template tagged
+ *  "other", stays on Clinical studies, as before. */
 export function fileArea(file: ClientFile): DataTab | null {
   if (!file.tag) return "studies";
+  // the client-data template holds every kind of data, read cell by cell: shown with the studies unless tagged otherwise
+  if (file.template && file.tag.kind === "other") return "studies";
   const reading = file.tag_proposal?.decided === "open" ? file.tag_proposal.kind : null;
   return TAG_TAB[file.tag.kind === "other" && reading ? reading : file.tag.kind];
 }

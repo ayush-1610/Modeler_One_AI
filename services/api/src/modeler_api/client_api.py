@@ -20,7 +20,9 @@ from modeler_api.deps import (
     Reader,
     StoreDep,
     Writer,
+    blinded_studies,
     file_tag_view,
+    redact,
     relates_to_form,
     tags_form,
     version_view,
@@ -60,6 +62,7 @@ from modeler_project.client_data import (
 from modeler_project.client_review import ReviewError, edit_fact, product_confirmed, reopen, select
 from modeler_project.client_review import confirm as confirm_group
 from modeler_project.client_review import groups as review_groups
+from modeler_project.dataset_points import card_points
 from modeler_project.dataset_register import dataset, decide_dataset, propose_dataset
 from modeler_project.datasets import DatasetError
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
@@ -490,6 +493,14 @@ def propose_release(project_id: str, profile_id: str, body: ReleaseModelRequest,
 
 def _review(ws: Workspace) -> dict[str, Any]:
     found = review_groups(ws)
+    hidden = blinded_studies(ws)
+    register = {p["id"]: p for p in profiles(ws)}
+    for group in found:   # each dataset and profile as data on its card (build C), as the viewer may see it (D-15)
+        for item in group["items"]:
+            if item["kind"] == "dataset" and (d := dataset(ws, item["id"])) is not None:
+                item["data"] = card_points(redact(ws, ArtifactKind.DATASET, d.to_content(), hidden))
+            elif item["kind"] == "profile" and item["id"] in register:
+                item["release"] = register[item["id"]]
     return {"groups": found, "to_confirm": sum(1 for g in found if g["state"] == "to_confirm")}
 
 

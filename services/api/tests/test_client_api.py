@@ -172,6 +172,8 @@ def test_dissolution_profiles_are_shown_and_a_fit_is_proposed_as_a_release_model
     assert early.status_code == 409 and "confirm the product" in early.json()["detail"]   # plan 2026-11-03 §3.3
     product = next(g for g in c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"]
                    if g["kind"] == "product")
+    shown = next(i for i in product["items"] if i["kind"] == "profile")["release"]     # drawn on its card (build C)
+    assert shown["times_min"] == list(times) and shown["fit"]["t50_min"] == profile["fit"]["t50_min"]
     confirmed = c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": product["id"]})
     assert confirmed.status_code == 200, confirmed.text
     r = c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H, json={"formulation": "Tab10"})
@@ -508,3 +510,24 @@ def test_each_file_carries_its_tag_which_places_it_and_a_changed_tag_moves_it(se
     assert moved.status_code == 200, moved.text
     after = {f["file"]: f for f in c.get("/api/v1/projects/p1/client-data", headers=H).json()["data"]["files"]}["Data_Q3.xlsx"]
     assert after["tag"]["kind"] == "clinical" and after["tag_proposal"]["decided"] == "used"
+
+
+def test_a_study_card_carries_each_datasets_points_and_codes_statistics(setup):
+    """Build C (plan 2026-11-05 §3.2; the owner: "no data points, no graph, no statistics"): each dataset on its study's
+    card with its points and the platform's NCA of each profile series."""
+    c, _ws = setup
+    wb = load_workbook(io.BytesIO(c.get("/api/v1/client-data/template.xlsx", headers=H).content))
+    header = [x.value.rstrip("*") for x in wb["Studies"][1]]
+    values = {"study_id": "CL-1", "design": "SD", "population": "healthy", "n": 12, "route": "oral", "dose": 10,
+              "dose_unit": "mg", "formulation": "ir_tablet", "food_state": "fasted"}
+    wb["Studies"].append([values.get(h) for h in header])
+    for t, v in ((0.5, 20.0), (1, 41.0), (2, 30.5), (4, 12.0)):
+        wb["PK_Summary"].append(["CL-1", None, t, "h", "arithmetic_mean", v, None, None, 12, "ng/ml"])
+    assert c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("client.xlsx", _save(wb), XLSX))]).status_code == 201
+    group = next(g for g in c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"] if g["id"] == "study:CL-1")
+    (item,) = [i for i in group["items"] if i["kind"] == "dataset"]
+    data = item["data"]
+    assert (data["kind"], data["unit"], data["time_unit"], data["blinded"]) == ("profile", "ng/ml", "h", False)
+    (series,) = data["series"]
+    assert series["times"] == [0.5, 1, 2, 4] and series["values"] == [20.0, 41.0, 30.5, 12.0]
+    assert series["stats"]["c_max"] == 41.0 and series["stats"]["t_max"] == 1 and series["stats"]["points"] == 4

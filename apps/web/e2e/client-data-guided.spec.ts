@@ -109,6 +109,10 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
     await expect(page.getByText(/pH 6.8: 96 dissolution values saved/)).toBeVisible();
   }
   await expect(page.getByTestId("f2-row")).toBeVisible();
+  // each product's dissolution as data on its card (build C): the profile, its spread and the Weibull fit
+  await expect(page.getByTestId("release-view").first()).toBeVisible();
+  await expect(page.getByTestId("release-fit").first()).toContainText("Weibull fit: t50");
+  await shot(page, "4-product-card");
   // the proposal's products are shown where they are built (page review 1, decision 3), with who set them
   await expect(page.getByTestId("inputs-products-0")).toContainText("Desvenlafaxine succinate ER Tablets");
   await expect(page.getByTestId("inputs-products-0")).toContainText("set by");

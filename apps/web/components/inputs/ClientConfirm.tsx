@@ -12,6 +12,9 @@ import { useState } from "react";
 import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
 
+import type { Profile } from "@/components/client/types";
+
+import { DatasetView, ReleaseView } from "./DatasetView";
 import { LABEL, type Run } from "./InputsTodo";
 
 type Group = Schema<"ReviewGroup">;
@@ -115,24 +118,35 @@ function IssueCard({ projectId, group, issue, run }: { projectId: string; group:
   );
 }
 
-function GroupCard({ projectId, group, run }: { projectId: string; group: Group; run: Run }) {
+function GroupCard({ projectId, group, run, folded, onToggle }: {
+  projectId: string; group: Group; run: Run; folded?: boolean; onToggle?: () => void;
+}) {
   const confirmed = group.state === "confirmed";
   const first = group.items[0]?.source ?? group.facts[0]?.source;
   const count = group.items.length ? `${group.items.length} item${group.items.length === 1 ? "" : "s"}`
                                    : `${group.facts.length} fact${group.facts.length === 1 ? "" : "s"}`;
   const noun = group.kind === "study" ? "study" : group.kind === "product" ? "product" : "values";
   return (
-    <article className={`confirm-group ${confirmed ? "confirmed" : "to-confirm"}`} data-testid={`group-${group.id}`}
-             aria-label={group.title}>
+    <article className={`confirm-group ${confirmed ? "confirmed" : "to-confirm"}${folded ? " folded" : ""}`}
+             data-testid={`group-${group.id}`} id={`group-${group.id}`} aria-label={group.title}>
       <header className="confirm-head">
         <div className="confirm-title">
           <h3>{group.title}</h3>
           {confirmed
             ? <span className="chip low">Confirmed by {group.confirmed_by ?? "a person"} · loaded</span>
             : <span className="chip medium">To confirm · {count}</span>}
+          {folded && group.open > 0 && <span className="chip high">{plural(group.open, "open item")}</span>}
         </div>
-        <PeekButton projectId={projectId} source={src(first)} label={group.title} testId={`peek-group-${group.id}`} />
+        <div className="row" style={{ gap: 6 }}>
+          {onToggle && (
+            <button type="button" className="btn small" aria-expanded={!folded} data-testid={`toggle-${group.id}`} onClick={onToggle}>
+              {folded ? "Open" : "Fold"}
+            </button>
+          )}
+          <PeekButton projectId={projectId} source={src(first)} label={group.title} testId={`peek-group-${group.id}`} />
+        </div>
       </header>
+      {!folded && <>
 
       {(group.notes ?? []).length > 0 && (
         <ul className="confirm-notes" data-testid={`notes-${group.id}`}>
@@ -158,10 +172,14 @@ function GroupCard({ projectId, group, run }: { projectId: string; group: Group;
       )}
       <ul className="confirm-items">
         {group.items.map((i) => (
-          <li key={i.id} className="confirm-row" data-testid={`item-${i.id}`}>
-            <span className="confirm-item-label">{itemLabel(i.label, i.target)}</span>
-            <span className="confirm-item-value">{i.value}{i.note && <span className="muted"> · {i.note}</span>}</span>
-            <PeekButton projectId={projectId} source={src(i.source)} label={itemLabel(i.label, i.target)} testId={`peek-item-${i.id}`} />
+          <li key={i.id} className={i.data || i.release ? "confirm-dataset" : undefined} data-testid={`item-${i.id}`}>
+            <div className="confirm-row">
+              <span className="confirm-item-label">{itemLabel(i.label, i.target)}</span>
+              <span className="confirm-item-value">{i.value}{i.note && <span className="muted"> · {i.note}</span>}</span>
+              <PeekButton projectId={projectId} source={src(i.source)} label={itemLabel(i.label, i.target)} testId={`peek-item-${i.id}`} />
+            </div>
+            {i.data && <DatasetView data={i.data} label={`${group.title}: ${itemLabel(i.label, i.target)}`} />}
+            {i.release && <ReleaseView p={i.release as Profile} />}
           </li>
         ))}
       </ul>
@@ -183,18 +201,44 @@ function GroupCard({ projectId, group, run }: { projectId: string; group: Group;
           </button>
         </footer>
       )}
+      </>}
     </article>
   );
 }
 
-/** The client's data of one domain, each group to confirm or confirmed. */
+// past this many groups in an area, one is open at a time (the owner, 2026-11-05: "one by one study/product/data")
+const ONE_BY_ONE = 3;
+
+/** The client's data of one domain, each group to confirm or confirmed. With more than three, an index names each
+ *  and one group is open at a time: the first to confirm, then the next once it is confirmed; any can be opened. */
 export function ConfirmGroups({ projectId, groups, run }: { projectId: string; groups: Group[]; run: Run }) {
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
   if (!groups.length) return null;
   const open = groups.filter((g) => g.state === "to_confirm").length;
+  const oneByOne = groups.length > ONE_BY_ONE;
+  const current = groups.find((g) => g.state === "to_confirm") ?? groups[0];
+  const isOpen = (g: Group) => toggled[g.id] ?? (!oneByOne || g.id === current.id);
+  const show = (g: Group) => {
+    setToggled({ ...toggled, [g.id]: true });
+    window.setTimeout(() => document.getElementById(`group-${g.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
+  };
   return (
     <section className="confirm-groups" aria-label="The client's data" data-testid="client-groups">
       <h2 className="input-block-title">The client&apos;s data{open ? ` · ${open} to confirm` : " · confirmed"}</h2>
-      {groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} />)}
+      {oneByOne && (
+        <nav className="group-index" aria-label="Each study or product" data-testid="group-index">
+          {groups.map((g) => (
+            <button key={g.id} type="button" className={`btn small${g.id === current.id ? " primary" : ""}`} onClick={() => show(g)}
+                    data-testid={`index-${g.id}`}>
+              {g.title} <span className="muted">· {g.state === "confirmed" ? "confirmed" : g.open ? `${g.open} open` : "to confirm"}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+      {groups.map((g) => (
+        <GroupCard key={g.id} projectId={projectId} group={g} run={run} folded={!isOpen(g)}
+                   onToggle={oneByOne ? () => setToggled({ ...toggled, [g.id]: !isOpen(g) }) : undefined} />
+      ))}
     </section>
   );
 }

@@ -3714,6 +3714,68 @@
         "title": "DatasetBody",
         "type": "object"
       },
+      "DatasetPoints": {
+        "additionalProperties": false,
+        "description": "A dataset's points on its study's card (plan 2026-11-05 §3.2, `modeler_project.dataset_points`).",
+        "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lloq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lloq"
+          },
+          "reported": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Reported",
+            "type": "array"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesPoints"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "time_unit": {
+            "title": "Time Unit",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "time_unit",
+          "unit",
+          "lloq",
+          "blinded",
+          "series",
+          "reported"
+        ],
+        "title": "DatasetPoints",
+        "type": "object"
+      },
       "Decision": {
         "properties": {
           "reason": {
@@ -15096,6 +15158,16 @@
             "title": "Conditions",
             "type": "object"
           },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DatasetPoints"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "duplicate_of": {
             "anyOf": [
               {
@@ -15128,6 +15200,18 @@
             "default": "",
             "title": "Note",
             "type": "string"
+          },
+          "release": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release"
           },
           "source": {
             "additionalProperties": true,
@@ -16557,6 +16641,123 @@
           "value"
         ],
         "title": "SeriesPoint",
+        "type": "object"
+      },
+      "SeriesPoints": {
+        "additionalProperties": false,
+        "description": "One series of a dataset, as the card draws and tabulates it, with code's statistics of a profile.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "error_kind": {
+            "title": "Error Kind",
+            "type": "string"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "statistic": {
+            "title": "Statistic",
+            "type": "string"
+          },
+          "stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stats"
+          },
+          "times": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "title": "Times",
+            "type": "array"
+          },
+          "values": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "statistic",
+          "times",
+          "values",
+          "error",
+          "error_kind",
+          "n",
+          "stats"
+        ],
+        "title": "SeriesPoints",
         "type": "object"
       },
       "Sex": {
