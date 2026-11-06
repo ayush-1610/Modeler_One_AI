@@ -3,6 +3,8 @@
 
 import type { Narrow, Schema } from "@/lib/api";
 
+import type { CleaningLine } from "./CleaningRecord";
+
 export type Triage = { sheet: string; category: string; evidence_cell: string; evidence_quote: string; by: string; note: string };
 export type IssueRow = { code: string; location: string; message: string };
 export type KeptRow = { row: number; values: Record<string, unknown>; cells: Record<string, string> };
@@ -14,7 +16,10 @@ export type ClientFile = {
   brief_mismatches: string[]; other_sheets: string[]; mappings?: Mapping[];
   // the reading agent's checked proposals, by sheet, waiting for a person to check and save (R3c)
   // code's own reading on arrival (build C2) carries what it still needs; the agent's is checked like a person's
-  readings?: Record<string, { form: unknown; notes: string[]; by: string; run_id: string | null; needs?: string[] }>;
+  // the reading agent reads again, on arrival, a sheet whose code reading has a problem (build F); each reading says
+  // what it left out and changed (`cleaning`)
+  readings?: Record<string, { form: unknown; notes: string[]; by: string; run_id: string | null; needs?: string[];
+                              problems?: string[]; cleaning?: CleaningLine[]; agent_tried?: string }>;
   // a PDF or Word file (I4): what code found on its pages, and each reading of it by the agent
   inventory?: InventoryItem[];
   document_reads?: DocumentRead[];

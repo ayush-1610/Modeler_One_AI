@@ -426,7 +426,9 @@ def _draft_item(d: dict[str, Any], study_facts: list[dict[str, Any]]) -> dict[st
             "source": {"doc_sha256": d["sha256"], "page": None, "locator": d["sheet"], "title": d["file"], "quote": ""},
             "draft": {"sid": d["sid"], "sheet": d["sheet"], "kind": d["kind"], "needs": d["needs"],
                       "labels": {n: NEED_LABEL.get(n, n) for n in d["needs"]}, "answers": d["answers"],
-                      "problems": d["problems"], "notes": d["notes"], "offers": offers, "points": d.get("points")}}
+                      "problems": d["problems"], "notes": d["notes"], "offers": offers, "points": d.get("points"),
+                      # who read it, and what the reading left out and changed (build F: "nothing silently")
+                      "by": d["by"], "cleaning": d.get("cleaning", [])}}
 
 
 def _sheet_groups(ws: Workspace) -> list[dict[str, Any]]:

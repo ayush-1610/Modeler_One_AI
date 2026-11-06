@@ -123,3 +123,9 @@
 .group-index button { font-size: 12px; }
 .confirm-group.folded .confirm-head { margin-bottom: 0; }
 .group-index .btn.primary .muted { color: inherit; opacity: 0.85; }
+
+/* build F: what a reading left out and changed, cell by cell */
+.cleaning-record { font-size: 12.5px; margin-top: 4px; }
+.cleaning-record summary { cursor: pointer; color: var(--ink-dim); }
+.cleaning-record ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.cleaning-cells { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11.5px; }

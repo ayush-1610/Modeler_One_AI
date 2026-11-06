@@ -595,3 +595,78 @@ def test_a_client_document_is_read_by_the_agent_on_arrival_when_agents_are_on(se
             break
         time.sleep(0.01)
     assert calls == [up.json()["data"]["read"][0]["id"]]
+
+
+def _nc_workbook(last: float = 12.3) -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Reference"
+    ws.append(["Study 230-23: plasma desvenlafaxine (ng/mL), 50 mg, fasting"])
+    ws.append(["Subject No.", "Period", "Pre-dose", "1.00", "2.00", "4.00 h", "8.00", "24.00"])
+    ws.append(["001", "I", "BLQ", 40.5, 80.2, 95.0, 60.1, last])
+    ws.append(["002", "II", "BLQ", 35.0, 70.4, 88.8, 55.5, "n.c."])
+    ws.append([])
+    ws.append(["BLQ: below 1.0 ng/mL; n.c.: not collected"])
+    return _save(wb)
+
+
+class _Reader:
+    """A4 as a script: the turns' tool calls, then done."""
+
+    provider, model = "test", "scripted"
+
+    def __init__(self, turns):
+        self.turns = list(turns)
+
+    def complete(self, messages, tools):
+        from modeler_agents.llm import ChatResult, ToolCall
+
+        calls = self.turns.pop(0) if self.turns else []
+        return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
+                          tool_calls=tuple(ToolCall(id=str(i), name=n, arguments=a) for i, (n, a) in enumerate(calls)))
+
+
+@pytest.mark.req("T-47")
+def test_the_reading_agent_does_on_arrival_what_code_could_not(setup):
+    """Plan 2026-11-05 §3.1, build F: with agents on, a sheet code could not sort is sorted, and one whose code reading
+    has a problem is read again by the agent. The agent's reading replaces code's only when its check is clean; one it
+    cannot resolve leaves code's, saying so, and is not tried again. Each reading says what it left out (the record)."""
+    from modeler_api import intake_jobs
+    from modeler_project.client_data import submission
+
+    c, ws = setup
+    files = c.post("/api/v1/projects/p1/client-data", headers=H,      # agents off here: nothing runs in the background
+                   files=[("files", ("230-23 Fasting Reference.xlsx", _nc_workbook(), XLSX)),
+                          ("files", ("raw.xlsx", _raw_workbook(), XLSX))]).json()["data"]["read"]
+    sid, raw = files[0]["id"], files[1]["id"]
+    code = submission(ws, sid)["readings"]["Reference"]
+    assert code["by"] == "code" and code["problems"] == ["'n.c.' is not a number"]
+    assert intake_jobs.problem_sheets(submission(ws, sid)) == ["Reference"]
+    assert any(line["kind"] == "ignored" and "n.c." in line["text"] for line in code["cleaning"])
+
+    fixed = {**code["form"], "missing_tokens": ["n.c."]}
+    result = intake_jobs.run_arrival_job(ws.store, "t1", "p1", sid, model=_Reader([[("propose_reading", {"form": fixed})]]))
+    assert [(r["sheet"], r["adopted"], r["saved"]) for r in result["read"]] == [("Reference", True, [])]  # facts still to give
+    agent = submission(ws, sid)["readings"]["Reference"]
+    assert agent["by"].startswith("agent:") and agent["problems"] == [] and set(agent["needs"]) == {"n", "formulation", "purpose"}
+    assert any(line["kind"] == "no_sample" and "n.c." in line["text"] for line in agent["cleaning"])
+    assert intake_jobs.problem_sheets(submission(ws, sid)) == []
+    (item,) = [i for g in c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"]
+               for i in g["items"] if i["kind"] == "draft" and i["draft"]["sid"] == sid]
+    assert item["draft"]["by"].startswith("agent:") and item["draft"]["cleaning"]
+
+    # the agent's reading has the same problem: code's stays, said so, and the sheet is not tried again
+    other = c.post("/api/v1/projects/p1/client-data", headers=H,
+                   files=[("files", ("230-24 Fasting Reference.xlsx", _nc_workbook(last=11.9), XLSX))]).json()["data"]["read"][0]["id"]
+    unresolved = intake_jobs.run_arrival_job(ws.store, "t1", "p1", other,
+                                             model=_Reader([[("propose_reading", {"form": submission(ws, other)["readings"]["Reference"]["form"]})]]))
+    assert [(r["sheet"], r["adopted"]) for r in unresolved["read"]] == [("Reference", False)]
+    stays = submission(ws, other)["readings"]["Reference"]
+    assert stays["by"] == "code" and stays["agent_tried"] and "read this sheet too and could not resolve it" in stays["notes"][-1]
+    assert intake_jobs.problem_sheets(submission(ws, other)) == []
+
+    # a sheet code could not sort: the agent sorts it with a header quote
+    sort = [[("classify_sheet", {"sheet": "Misc", "category": "PRODUCT_INFO", "cell": "Misc!A1",
+                                 "quote": "Shipped with the courier"})]]
+    assert intake_jobs.run_arrival_job(ws.store, "t1", "p1", raw, model=_Reader(sort))["sorted"] == 1
+    assert {t["sheet"]: t["by"][:6] for t in submission(ws, raw)["triage"]}["Misc"] == "agent:"
