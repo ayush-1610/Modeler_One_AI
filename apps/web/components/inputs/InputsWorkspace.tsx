@@ -15,6 +15,7 @@ import { useMutation, useRefresh, useResource } from "@/lib/hooks";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 
 import { ConfirmGroups } from "./ClientConfirm";
+import { ClientRequest } from "./ClientRequest";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
 import { LABEL, ORDER, type Run, TITLE, type TodoItem } from "./InputsTodo";
@@ -309,6 +310,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
                   </li>
                 ))}
               </ul>
+              <ClientRequest projectId={projectId} />
             </SidePanel>
           ) : readiness?.ready ? (
             <SidePanel title="Inputs are ready" tone="ok" testId="inputs-ready">

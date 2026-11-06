@@ -142,11 +142,12 @@ export function ScopeGates({ view, save, open, marks }: { view: BriefView; save:
     return (
       <div key={gate.gate} className={`gate ${gate.state}${marks.issues(gate.path).length ? " needs-you" : ""}`}
            data-testid={`gate-${gate.gate}`}>
-        <GateHead gate={gate} />
+        <GateHead gate={gate} drafted={record.status === "DRAFTED"} />
         <div className="gate-body">
           <Pick key={record.at ?? ""} path={gate.path} options={def.options} labels={def.option_labels}
                 stored={valueOf(view, gate.path)} save={save} testId={`pick-${gate.gate}`} />
-          <Source record={record} open={open} />
+          {record.status === "DRAFTED" ? <Drafted record={record} path={gate.path} save={save} open={open} />
+            : <Source record={record} open={open} />}
           <GateNote gate={gate} />
           <NeedsYou issues={marks.issues(gate.path)} />
         </div>

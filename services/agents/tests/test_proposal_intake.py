@@ -184,3 +184,53 @@ def test_a1_proposes_what_the_proposal_implies_with_the_quote_and_why(library):
                                              "why": "a food-effect study is run to support the label"})], []])
     again = run_proposal_intake(stated, IntakeContext(library=library, brief=b, actor="agent:ar_5"))
     assert [r["code"] for r in again.rejected] == ["KEPT"] and again.brief.value("qoi.context_of_use") == "food-effect labelling"
+
+
+def test_a1_fills_in_focused_passes_what_its_general_read_left_empty(library):
+    # the owner, 2026-11-06: everything Start needs proposed and pre-selected; a long open task loses fields, so each
+    # group of Start fields still empty gets a short pass with the proposal's text in the message, then the M15 draft
+    sha = library.documents()[0].content["sha256"]
+    page = {"doc_sha256": sha, "page": 1}
+    seen: list[str] = []
+
+    class Passes:
+        provider, model = "test", "passes"
+
+        def complete(self, messages, tools):
+            user = messages[1]["content"]
+            if any(m.get("role") == "tool" for m in messages) or "Fill the Project Brief" in user:
+                return ChatResult(content="done", finish_reason="", tool_calls=(), usage={}, model="p")   # reads nothing
+            seen.append(user)
+            if "Now fill the question" in user:
+                calls = [("propose_field", {"path": "qoi.text", "value": "predict the food effect of the 10 mg IR tablet",
+                                            "quote": "predict the food effect of the 10 mg immediate-release tablet", **page}),
+                         ("propose_implied", {"path": "qoi.context_of_use", "value": "food-effect labelling", **page,
+                                              "quote": "under fasted and fed conditions",
+                                              "why": "a fed versus fasted study supports the food statement of the label"}),
+                         ("propose_implied", {"path": "qoi.applications", "value": "APP-12 food effect", **page,
+                                              "quote": "predict the food effect", "why": "the objective is a food effect"})]
+            elif "Now fill the product" in user:
+                calls = [("propose_implied", {"path": "scope.formulation_types", "value": "ir_tablet", **page,
+                                              "quote": "10 mg immediate-release tablet", "why": "the product is an IR tablet"}),
+                         ("propose_field", {"path": "scenarios[0].route", "value": "oral", "quote": "a single oral dose", **page})]
+            elif "Now fill what is modelled" in user:
+                calls = [("propose_implied", {"path": "scope.pbpk_model", "value": "full", **page,
+                                              "quote": "Technical proposal: PBPK model of dapagliflozin",
+                                              "why": "a PBPK model of the drug is a whole-body model here"})]
+            else:                                                        # the M15 draft
+                calls = [("draft_risk_assessment", {
+                    "influence": "high", "consequence": "medium",
+                    "how_the_model_is_used": "The food-effect claim rests on the model for the new tablet",
+                    "what_a_wrong_decision_means": "A wrong fed prediction would misdose patients taking it with meals",
+                    "why_this_tier": "The label claim rests on the model alone, so the stricter risk applies"})]
+            return ChatResult(content="", finish_reason="", usage={}, model="p",
+                              tool_calls=tuple(ToolCall(id=str(i), name=n, arguments=a) for i, (n, a) in enumerate(calls)))
+
+    b = run_proposal_intake(Passes(), IntakeContext(library=library, brief=empty_brief("Dapagliflozin", by="u1"),
+                                                    actor="agent:ar_7")).brief
+    assert len(seen) == 4 and all("single oral dose of 10 mg" in m for m in seen[:3])    # the proposal's text, in each pass
+    assert "drug.modality" in seen[2] and "scope.site_of_action" in seen[2]               # only what is still empty
+    for path in ("qoi.text", "qoi.context_of_use", "qoi.applications", "scope.formulation_types", "scenarios[0].route",
+                 "scope.pbpk_model", "m15.influence_suggested", "m15.risk_justification"):
+        assert b.get(path).value not in (None, "", []), path
+    assert b.get("qoi.context_of_use").status is FieldStatus.DRAFTED and b.get("qoi.text").status is FieldStatus.EXTRACTED
