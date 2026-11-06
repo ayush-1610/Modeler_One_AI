@@ -519,3 +519,21 @@ def test_files_are_tagged_at_upload_code_proposes_another_tag_and_the_person_kee
     bad = c.post(f"/api/v1/projects/{pid}/client-data", headers=H, data={"tags": "{not json"},
                  files=[("files", ("x.csv", b"a\n1\n", "text/csv"))])
     assert bad.status_code == 422 and "tags" in bad.json()["detail"]
+
+
+def test_a_project_started_with_its_readers_starts_the_compound_search_too(client, monkeypatch):
+    """Build B (plan 2026-11-05 §3.3; the owner, 2026-11-05): the compound's values are searched from the project's
+    start, in the background, while the person and A1 work on Start."""
+    from modeler_api import brief_api
+
+    started: list[str] = []
+    monkeypatch.setattr(brief_api, "_start_extraction", lambda *a, **k: {"started": True, "agents": False, "problem": None})
+    monkeypatch.setattr(brief_api, "start_compound_job", lambda store, tenant, project: started.append(project) or True)
+    c, _ = client
+    answer = c.post("/api/v1/projects:initiate", headers=H, data={"drug_name": "Exampleamide"},
+                    files=[("files", ("proposal.txt", PROPOSAL, "text/plain"))])
+    assert answer.status_code == 201, answer.text
+    assert started == [answer.json()["data"]["project_id"]]
+    quiet = c.post("/api/v1/projects:initiate", headers=H, data={"drug_name": "Exampleamide", "extract": "false"},
+                   files=[("files", ("proposal.txt", PROPOSAL, "text/plain"))])
+    assert quiet.status_code == 201 and len(started) == 1                     # no readers asked: nothing starts

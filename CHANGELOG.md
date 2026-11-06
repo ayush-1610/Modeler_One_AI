@@ -15,6 +15,40 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Inputs B: the compound's values from free structured sources, read by code from the project's start (2026-11-05)
+Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.3, build B. The owner: the compound agent took 20–25
+minutes without basic compound details that should take seconds; start it as soon as the project starts; sources
+accepted by regulators or peer-reviewed, none that needs a licence.
+- **`modeler_agents.structured_sources`** (no AI): PubChem over PUG REST (molecular weight, formula, XLogP3) and PUG-View
+  (the Experimental Properties PubChem cites: logP, solubility, pKa, each with its reference), openFDA's drug label (the
+  innovator's NDA label first, the most recent; §12.3 Pharmacokinetics as written), and ChEMBL's molecule of exactly
+  that name or synonym (ChemAxon's most acidic and most basic pKa). Each answer is stored in the project's library as
+  a retrieved record with its address, so every value is quoted from a stored page and opens in the source peek.
+- **`modeler_agents.compound_sources`** proposes what a source states plainly, through the literature agent's checks
+  (`file_check`, the grade): the molecular weight (database, B); XLogP3 as a predicted logP (C); each experimental logP
+  and water solubility PubChem lists (database, B; "(est)" makes it predicted, C; "1.5X10+3 mg/L" read by code, noted);
+  the label's plasma protein binding when one number states it, as "% bound" (fu = 1 − bound by code; regulatory,
+  conditions incomplete, B); ChEMBL's acid and base pKa (predicted, C). Left for the literature agent and the person, and
+  said so: a pKa without acid or base, a binding given as a bound (">99%"), a range or a metabolite's. A value already
+  proposed from the same quote is not proposed again.
+- **Started at the project's start** (`projects:initiate` with its readers): one background job reads the sources (in
+  seconds) and stores their values, then the literature agent searches what is still missing with a budget of 60 turns
+  (120 when started by hand). The values flow into the inputs (D-27) when they are assembled: while Start waits on the
+  person the job does not assemble them, so Inputs stays blocked until Start is done (decision 7 of 2026-10-29), and the
+  page assembles them when the person opens it. "Search the sources and the literature" on Inputs runs the same job;
+  with agents off it reads the sources alone (it used to refuse). New `modeler_api.compound_jobs` (a service both
+  routers start); the run is recorded as `A2-sources` (code, no model).
+- **On Inputs:** the Compound tab shows what each source gave (its link, how many values, a source not reached and why,
+  what was left), and the progress line says when the sources are being read. `LiteratureRun.sources` added; the OpenAPI
+  snapshot and the web types are refreshed.
+Impact: **science**, values now flow in without a person asking: each is graded by the rubric (`evidence_grading.yaml`
+0.1, unchanged) and ranked by source selection (unchanged), so a measured value from the client or a primary paper
+still comes first, and every value stays listed for the review at the MAP signature. No ruleset changed. The server
+must reach pubchem.ncbi.nlm.nih.gov, api.fda.gov and www.ebi.ac.uk (D-17); a source it cannot reach is shown as "not
+read" on the Compound tab. The response shapes are those the services document; the tests use recorded answers for an
+invented compound (`modeler_agents.evals.structured_answers`), and `python -m modeler_agents.structured_sources <drug>
+<folder>` saves the live answers to check them on the server.
+
 ### Changed — Inputs A: each client file in the area of its data, "Add files" in each area, the literature agent's progress (2026-11-05)
 Plan `docs/plans/2026-11-05-client-data-review-and-agents.md`, now revision 2 with the owner's six answers (pre-select
 the M15 ratings with their reason; free regulatory and peer-reviewed sources, none licensed; the compound search starts
@@ -5209,4 +5243,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its build A, files by area |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area) and B (compound values from structured sources at the start) |

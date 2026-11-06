@@ -59,3 +59,14 @@ def _typed_answers_are_the_handlers_answers(monkeypatch):
     monkeypatch.setattr(routing, "serialize_response", checked)
     yield
     assert not differences, "a response model changed the handler's answer:\n" + "\n\n".join(differences)
+
+
+@pytest.fixture(autouse=True)
+def _structured_sources_stay_offline(monkeypatch):
+    """No test reaches PubChem, openFDA or ChEMBL (plan 2026-11-05 §3.3): each refuses the connection, unless a test
+    answers from the recorded answers (`modeler_agents.evals.structured_answers`)."""
+    from modeler_agents.evals import structured_answers
+    from modeler_api import agent_jobs
+
+    offline = ("pubchem.ncbi.nlm.nih.gov", "api.fda.gov", "www.ebi.ac.uk")
+    monkeypatch.setattr(agent_jobs, "structured_clients", lambda: structured_answers.clients(unreachable=offline))
