@@ -65,7 +65,8 @@ _BATCH = re.compile(r"\b(?:batch|lot)\s*(?:no\.?|number|#|:)?\s*[:#]?\s*([A-Za-z
                     re.IGNORECASE)
 _APPARATUS = re.compile(r"usp\s*(?:apparatus\s*)?(?:type\s*)?(i{1,3}|iv|[1-4])\b|\bpaddle\b|\bbasket\b", re.IGNORECASE)
 _MEDIUM = re.compile(r"(0\.1\s*n\s*hcl|hcl|acetate|phosphate|citrate|fassif|fessif|fassgf|sgf|sif|water|buffer|\bPB\b)", re.IGNORECASE)
-_STUDY_ID = re.compile(r"\b([A-Z]{0,4}\d{2,4}(?:[-/]\d{2,4})+)\b", re.IGNORECASE)
+# a study id: digits in two or more groups (230-23), or letters then digits (X-01, EX-77, ABC123)
+_STUDY_ID = re.compile(r"\b([A-Z]{0,4}\d{2,4}(?:[-/]\d{2,4})+|[A-Z]{1,4}-\d{2,4}(?:[-/]\d{2,4})*)\b", re.IGNORECASE)
 _TEST = re.compile(r"\btest\b", re.IGNORECASE)
 _REFERENCE = re.compile(r"\breference\b|\bref\b|\brld\b|\binnovator\b|\bbrand\b", re.IGNORECASE)
 _FED = re.compile(r"\bfed\b", re.IGNORECASE)
@@ -73,6 +74,11 @@ _FASTED = re.compile(r"\bfast(?:ed|ing)?\b", re.IGNORECASE)
 _IV = re.compile(r"\biv\b|intravenous|infusion", re.IGNORECASE)
 _MR = re.compile(r"\b(er|xr|sr|cr|pr|mr|extended|prolonged|sustained|controlled|modified)\b", re.IGNORECASE)
 _INFUSION = re.compile(r"(\d+(?:\.\d+)?)\s*(h|hr|hours?|min|minutes?)\s*infusion", re.IGNORECASE)
+# dosage forms a title states unambiguously (a tablet or capsule may be immediate or modified release: asked)
+_SOLUTION = re.compile(r"\b(?:oral |drinking )?solution\b", re.IGNORECASE)
+_SUSPENSION = re.compile(r"\bsuspension\b", re.IGNORECASE)
+# the number of subjects a title states ("n = 12")
+_N_STATED = re.compile(r"\bn\s*=\s*(\d{1,4})\b", re.IGNORECASE)
 
 
 def _plain_names(*parts: str) -> str:
@@ -242,7 +248,11 @@ def _first_data_row(grid: SheetGrid) -> int | None:
         numbers = [v for v in filled if _is_number(v)]
         if len(numbers) < 2 or len(numbers) * 2 < len(filled):
             continue
-        if any(isinstance(v, str) and not _is_number(v) and _HEADER_WORD.search(v) for v in filled):
+        # a header names its columns left of (or among) the numbers; a comment right of them ("pre-dose not sampled")
+        # does not make a row of data a header
+        last_number = max(c for c in range(1, grid.max_column + 1) if _is_number(grid.cell(row, c).value))
+        if any(isinstance(v, str) and not _is_number(v) and _HEADER_WORD.search(v)
+               for c, v in enumerate(values, start=1) if c < last_number):
             continue
         first_column = next(c for c in range(1, grid.max_column + 1) if grid.cell(row, c).value not in (None, ""))
         if first_column > 1 and grid.cell(row + 1, first_column - 1).value not in (None, ""):
@@ -524,6 +534,13 @@ def _constants(form: SheetForm, grid: SheetGrid, header_region: range, names: st
             notes.append(f"Infusion time {minutes:g} min is taken from {infusion.group(0)!r}: check it.")
     elif _MR.search(words):
         c["formulation"] = "mr"
+    elif _SUSPENSION.search(title):
+        c["formulation"] = "suspension"
+    elif _SOLUTION.search(title):
+        c["formulation"] = "solution"
+    stated_n = from_cell(_N_STATED, "n", "number of subjects")
+    if stated_n and int(stated_n) > 0:
+        form.study["n"] = stated_n
     if _FED.search(words):
         c["food_state"] = "fed"
     elif _FASTED.search(words):
@@ -586,4 +603,6 @@ def _still_true(evidence: Evidence, form: SheetForm) -> bool:
         return evidence.value == form.time_unit
     if evidence.field == "lloq":
         return form.lloq is not None and f"{form.lloq:g}" == evidence.value
+    if evidence.field == "n":
+        return str(form.study.get("n", "")).strip() == evidence.value
     return str(form.constants.get(evidence.field, "")).strip() == evidence.value

@@ -37,7 +37,7 @@ TEMPLATE_SHEETS = {"Studies": SheetCategory.STUDIES, "PK_Individual": SheetCateg
 # Words that mark a category in a header; each match adds one point. Patterns are matched on lower-cased cell text.
 _WORDS: dict[SheetCategory, tuple[str, ...]] = {
     SheetCategory.DISSOLUTION: (r"dissol", r"% ?dissolved", r"\bvessel", r"\bapparatus", r"\brpm\b", r"\bpaddle", r"\bbasket"),
-    SheetCategory.PK_INDIVIDUAL: (r"\bsubject", r"\bpatient id", r"\bsubj\b", r"\bindividual"),
+    SheetCategory.PK_INDIVIDUAL: (r"\bsubject", r"\bpatient id", r"\bsubj\b", r"\bindividual", r"^s-?\d{1,3}$"),
     SheetCategory.PK_SUMMARY: (r"\bmean\b", r"\bgeo ?mean", r"\bmedian\b", r"\bsd\b", r"\bcv ?%"),
     SheetCategory.PK_PARAMETERS: (r"\bauc", r"\bcmax", r"\btmax", r"t ?1/2|t½|half-life|thalf", r"\bcl/f", r"\bvz/f"),
     SheetCategory.PRODUCT_INFO: (r"\bbatch\b|\blot\b", r"\bstrength", r"dosage form", r"particle size|\bd50\b", r"polymorph"),
@@ -50,6 +50,7 @@ _WORDS: dict[SheetCategory, tuple[str, ...]] = {
 _CONC = re.compile(r"conc|ng/ml|µg/ml|ug/ml|ng/l|nmol/l|µmol/l|plasma")
 _TIME = re.compile(r"\btime\b|\bhour|\bh\)|\(h\b|\bmin\b|nominal|sampling")
 HEADER_ROWS = 15
+HEADER_CELL = 40          # a header names a column in a few words; a longer cell is a sentence
 
 
 @dataclass(frozen=True)
@@ -91,8 +92,10 @@ def triage_sheet(grid: SheetGrid) -> SheetTriage:
     scores: dict[SheetCategory, int] = {}
     first: dict[SheetCategory, tuple[str, str]] = {}
     for category, patterns in _WORDS.items():
+        # subjects are named by a column's header, not by a sentence ("the mean of 12 subjects" summarises them)
+        among = [(r, t) for r, t in cells if len(t) <= HEADER_CELL] if category is SheetCategory.PK_INDIVIDUAL else cells
         for pattern in patterns:
-            hit = next(((ref, text) for ref, text in cells if re.search(pattern, text.lower())), None)
+            hit = next(((ref, text) for ref, text in among if re.search(pattern, text.lower().strip())), None)
             if hit:
                 scores[category] = scores.get(category, 0) + 1
                 first.setdefault(category, hit)

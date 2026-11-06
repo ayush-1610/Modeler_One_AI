@@ -15,6 +15,30 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Evaluation G: messy client deliveries scored end to end; what it found in code's reading, fixed (2026-11-06)
+Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §4 step 5: "messy deliveries ... scored end to end:
+placed right, read right, cleaned with a record, nothing silent".
+- **`modeler_project.arrival_eval`**: four synthetic deliveries laid out the way CROs send them (a BE study one workbook
+  per arm with BLQ / NS cells, Mean and SD rows and a footnote; a dissolution workbook with one sheet per medium and an
+  information sheet; a European export with decimal commas, NS, a comments column and notes; a shipping log beside the
+  subjects' concentrations), each with a person's answer per sheet: the card it lands on (or "not data"), the series
+  and times its reading holds, the facts its card asks, phrases its record of what was left out must hold; and a check
+  that no sheet of any file is silent. Run through the real path (`ingest`, code's reading on arrival,
+  `client_review.groups`), agents off. `uv run python -m modeler_project.arrival_eval` prints the score; the owner's
+  real deliveries are scored the same way, with the answer a person writes.
+- **First score 18 of 36; what it found, fixed in code's reading** (`modeler_intake.sheet_form`, `triage`):
+  - a comment right of a row's numbers ("pre-dose not sampled") made the 0 h row a header, so it was dropped and the
+    SD column read as a second series: a header word counts only left of the row's last number;
+  - "X-01", "EX-77" were not study ids (the study became "X"): letters, a hyphen and digits now are;
+  - the number of subjects a title states ("n = 12") is read, quoted, into the study's facts;
+  - "oral solution" and "suspension" in a title give the dosage form (a tablet or capsule is still asked: immediate or
+    modified release is not said);
+  - a footnote's "the mean of 12 subjects" made a mean sheet "individual": "subject" counts only in a header-sized cell;
+    columns headed S01, S02 … are subjects, so such a sheet is sorted as individual data instead of "other".
+- Score now 36 of 36. The reading evaluation's 11 layouts (T-21) and every other test are unchanged.
+Impact: more of a messy delivery is read by code on arrival, and a fact a title states is no longer asked. No change to
+what is saved (a reading is saved only when complete and clean) or to the study record's rules.
+
 ### Changed — Inputs F: the reading agent does on arrival what code could not; every reading says what it left out (2026-11-06)
 Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.1 steps 2–4, what C2 left (the owner, 2026-11-05: "the
 agent must recognise, clean and bring everything into the project"; 2026-11-06: "finish the remaining tasks").
@@ -5371,4 +5395,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) and F (the reading agent on arrival for what code could not; every reading's record of what it left out) |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) F (the reading agent on arrival for what code could not; every reading's record of what it left out) and G (messy deliveries scored end to end, 36 of 36 after five fixes to code's reading) |

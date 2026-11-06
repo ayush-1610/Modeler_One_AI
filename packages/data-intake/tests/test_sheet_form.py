@@ -262,3 +262,39 @@ def test_no_sample_tokens_are_marked_but_ambiguous_ones_are_left_to_a_person():
     form, notes = suggest(_sheet(across))
     assert form.missing_tokens == ["NS"] and form.below_lloq_tokens == ["ND"]   # ND: not detected, as before
     assert any("'NA'" in n and "mark them" in n for n in notes)                  # NA: named for a person, not decided
+
+
+def test_what_the_messy_delivery_evaluation_found_is_read(tmp_path):
+    """Build G (plan 2026-11-05 §4 step 5): the gaps its messy deliveries found. A comment right of a row's numbers does
+    not make it a header; "X-01" is a study id; a title's "n = 12" and "oral solution" are read; a footnote's "subjects"
+    does not make a mean sheet individual, and S01-style columns do."""
+    def export(wb):
+        ws = wb.active
+        ws.title = "Mean"
+        ws.append(["Study X-01: mean plasma concentrations (ng/mL), 10 mg oral solution, fasted, n = 12"])
+        ws.append(["Time (h)", "Mean", "SD", "Comments"])
+        ws.append([0, "NS", None, "pre-dose not sampled"])
+        for t, v in ((0.5, 12.4), (1, 20.1), (2, 15.3)):
+            ws.append([t, v, round(v / 10, 1), None])
+        ws.append([])
+        ws.append(["Values are the arithmetic mean of 12 subjects"])
+
+    grid = _grid(export, "X-01 mean PK.xlsx").sheets["Mean"]
+    assert triage_sheet(grid).category is SheetCategory.PK_SUMMARY           # the footnote's "subjects" is a sentence
+    form, _notes = suggest(grid, category="PK_SUMMARY", filename="X-01 mean PK.xlsx", drug="Exampleamide")
+    assert (form.first_data_row, form.value_columns, form.sd_column, form.statistic) == (3, ["B"], "C", "arithmetic_mean")
+    assert form.constants["study_id"] == "X-01" and form.constants["formulation"] == "solution" and form.study["n"] == "12"
+
+    def subjects(wb):
+        ws = wb.active
+        ws.title = "Conc"
+        ws.append(["Study EX-77: plasma concentration (ng/mL), 25 mg oral suspension, fed"])
+        ws.append(["Time (h)", "S01", "S02", "S03"])
+        for t in (0.5, 1, 2, 4):
+            ws.append([t, 10 * t, 11 * t, 9 * t])
+
+    conc = _grid(subjects, "EX-77 bioanalysis.xlsx").sheets["Conc"]
+    assert triage_sheet(conc).category is SheetCategory.PK_INDIVIDUAL
+    form, _notes = suggest(conc, category="PK_INDIVIDUAL", filename="EX-77 bioanalysis.xlsx", drug="Exampleamide")
+    assert form.value_columns == ["B", "C", "D"] and form.constants["study_id"] == "EX-77"
+    assert form.constants["formulation"] == "suspension" and "n" not in form.study
