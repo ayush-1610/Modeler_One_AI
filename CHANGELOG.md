@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Acceptance: the 10 % internal target applied where no one set one (2026-11-06)
+The owner, 2026-11-06: "apply the 10% target automatically without saving". Science change: it changes what the
+verdicts apply.
+- **Where a plan has a model risk and no one set an internal target, the default applies**
+  (`plan.applied_internal_target`). The default is |prediction error| at most 10 % (`brief.DEFAULT_INTERNAL_TARGET_PE`,
+  UNVERIFIED: not reviewed by an SME), never looser than the tier (MS-01 §8: 20 % at high, 33.3 % at medium, 50 % at
+  low). The MAP records it, and every round judges the internal groups' fitted AUC and Cmax (S1–S4) by it on top of the
+  tier's limits, as for a target a person sets (R4d). External validation (S5) is judged by the tier alone, unchanged.
+- **A person's target wins**, set on Start or on the plan, and so does a document's stated one. **A person may say there
+  is none:** on Start by emptying the box (saved as not applicable; "Use the default" brings it back), or on the plan
+  by emptying it with a reason. With no tier there is no target: the tier is never assumed.
+- **Shown where it applies:** on Start the box holds 10 %, marked "default · applied"; on Review & sign the criteria read
+  "|prediction error| ≤ 10 %, the default (no one set one; UNVERIFIED)".
+- Supersedes the same day's "offered at 10 %, applied once saved" (Start D, #141).
+- API: `Structure.no_internal_target` (a person said none on Start), `AcceptanceView.target_default`; the OpenAPI
+  snapshot and the web types are refreshed.
+Impact: every campaign planned from now on with a tier and no target of its own judges its fitted AUC and Cmax at
+±10 %, stricter than the tier alone (high: 1.25-fold, about ±20 %), so more fitting rounds can miss their target and
+refit or escalate. MAPs already signed keep what they recorded. Not changed: the acceptance ruleset, MS-01 and the locked
+acceptance and MAP code (`pbpk_domain.acceptance`, `campaign/map.py`), which take the target as before. The default
+lives with the plan, not in the SME-governed ruleset; moving it there is a locked-file change for the owner and the SME.
+
 ### Changed — Start D: what the proposal implies drafted with its quote; the M15 ratings pre-selected with the reasons (2026-11-06)
 Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.4, build D. The owner, 2026-11-05 (§5 q1): "preselect
 (with reason, why?)"; the Start agent fetches and pre-selects the question of interest, context of use, applications,
@@ -5329,4 +5351,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target offered at 10 %) |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) |

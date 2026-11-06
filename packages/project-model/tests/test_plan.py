@@ -74,7 +74,8 @@ def test_the_default_plan_is_ms01_and_its_map_equals_generate_map_on_its_campaig
     assert sum(r == "S3" for r in roles.values()) == 1 and plan.fit_candidates["S1"] and plan.budgets["S1"] == 5760 and plan.budgets["SJ"] == 4320  # 20 % and 15 % of 8 h
     assert not blocking(validate(plan, cpf, ROWS))
     # the campaign CPF bounds MS-01's candidates by MS-01's defaults (D-37), and the MAP says so in its limitations
-    expected, _ = default_map(campaign_cpf(plan, cpf), ROWS, structure)
+    # with no target set, the default applies (the owner, 2026-11-06)
+    expected, _ = default_map(campaign_cpf(plan, cpf), ROWS, structure, internal_target_pe=10.0)
     doc = map_from_plan(plan, cpf, ROWS)
     assert doc.split_limitations == (*expected.split_limitations, *default_fit_limitation(plan, cpf))
     assert doc.model_copy(update={"split_limitations": expected.split_limitations}).content_sha256() == expected.content_sha256()
@@ -328,6 +329,34 @@ def test_an_internal_target_must_be_stricter_than_the_tier_and_the_signed_map_ca
     assert target.severity == "error" and "at most 33.3 %" in target.message
     high = set_structure(loose, "model_risk", "high", by="u", reason="r")
     assert "at most 20.0 %" in next(v.message for v in validate(high, cpf, ROWS) if v.rule == "target")
+
+
+def test_the_default_internal_target_applies_where_no_one_set_one():
+    """The owner, 2026-11-06: "apply the 10 % target automatically without saving". A target set on Start or on the plan
+    wins; a person may say there is none (Start's NOT_APPLICABLE, or emptied on the plan); with no tier there is none."""
+    from modeler_project.brief import FieldStatus, empty_brief
+    from modeler_project.brief_ops import edit_field
+    from modeler_project.plan import applied_internal_target, set_structure, structure_from_brief
+
+    brief = empty_brief("Drugol", by="u")
+    assert applied_internal_target(structure_from_brief(brief)) == (None, "none")          # no tier yet
+    brief = edit_field(brief, "acceptance.tier", value="high", status=FieldStatus.EDITED, by="u")
+    assert applied_internal_target(structure_from_brief(brief)) == (10.0, "default")
+    stated = edit_field(brief, "acceptance.internal_target_pe", value=15, status=FieldStatus.EDITED, by="u")
+    assert applied_internal_target(structure_from_brief(stated)) == (15.0, "set")
+    none = edit_field(brief, "acceptance.internal_target_pe", status=FieldStatus.NOT_APPLICABLE, by="u")
+    assert applied_internal_target(structure_from_brief(none)) == (None, "none")
+    back = edit_field(none, "acceptance.internal_target_pe", status=FieldStatus.MISSING, by="u")
+    assert applied_internal_target(structure_from_brief(back)) == (10.0, "default")
+    # a tier set on the plan gets the default too; the MAP records it; emptied on the plan, there is none
+    cpf = _cpf()
+    plan = set_structure(build_default(cpf, ROWS, structure_from_brief(empty_brief("Drugol", by="u"))), "model_risk", "medium",
+                         by="u", reason="r")
+    assert applied_internal_target(plan.structure) == (10.0, "default")
+    assert map_from_plan(plan, cpf, ROWS).acceptance.internal_target_pe == 10.0
+    emptied = set_structure(plan, "internal_target_pe", None, by="u", reason="the tier alone")
+    assert applied_internal_target(emptied.structure) == (None, "none")
+    assert map_from_plan(emptied, cpf, ROWS).acceptance.internal_target_pe is None
 
 
 def test_applications_the_campaign_cannot_run_are_said_at_signing_and_named_among_the_limitations():

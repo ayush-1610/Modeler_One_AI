@@ -2137,6 +2137,8 @@ export interface components {
             status: string;
             /** Target Applied */
             target_applied: boolean;
+            /** Target Default */
+            target_default: boolean;
             /** Target Set Here */
             target_set_here: boolean;
             /** Tier */
@@ -8598,6 +8600,11 @@ export interface components {
             measured_fed_solubility: boolean;
             /** Model Risk */
             model_risk: ("low" | "medium" | "high") | null;
+            /**
+             * No Internal Target
+             * @default false
+             */
+            no_internal_target: boolean;
             /**
              * Objective
              * @default Predict exposure for the question of interest

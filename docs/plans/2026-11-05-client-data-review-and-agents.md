@@ -147,8 +147,9 @@ will check the builder with their own files later (q4), so the builds use the up
    them the person's. The owner's decisions of 2026-11-06 on the two items left open:
    - **Model risk (the tier):** of the tiers two different ratings admit, the stricter is pre-selected, with the
      intake agent's reason for it in "Why this tier" (A1's `why_this_tier`, drafted; a person saves or changes it).
-   - **Internal target:** proposed as before when a document states one; otherwise offered at 10 % (UNVERIFIED, not
-     reviewed by an SME), saved by a person or changed; optional as before.
+   - **Internal target:** proposed as before when a document states one; otherwise the default, 10 % (UNVERIFIED, not
+     reviewed by an SME), applies without saving (the owner, later on 2026-11-06: "apply the 10% target automatically
+     without saving"; `plan.applied_internal_target`). A person changes it, or says there is none.
    Not in D: A1's evaluation on real proposals (P1's open item).
 5. **The evaluation grows:** messy deliveries (the owner's own files, which the owner will use to check the builder,
    and synthetic ones modelled on them) scored end to end: placed right, read right, cleaned with a record, nothing

@@ -84,6 +84,8 @@ test("the estimation plan, the validation plan and the tier's acceptance criteri
   const criteria = page.getByTestId("acceptance-criteria");
   await expect(criteria.getByTestId("criterion-AUC")).toContainText("within 1.5-fold");
   await expect(criteria).toContainText("at most 33.3 %");
+  // no one set a target: the default applies, and the review says so (the owner, 2026-11-06)
+  await expect(criteria.getByTestId("internal-target")).toContainText("|prediction error| ≤ 10 %, the default");
   await criteria.getByTestId("target-input").fill("40");
   await criteria.getByTestId("target-reason").fill("the client asks for a tighter check");
   await criteria.getByTestId("target-save").click();

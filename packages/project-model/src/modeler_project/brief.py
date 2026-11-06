@@ -506,9 +506,9 @@ def rating_disagreements(brief: ProjectBrief) -> list[RatingDisagreement]:
     return out
 
 
-# The internal target Start offers until a person saves one (the owner, 2026-11-06): |prediction error| at most 10 %,
-# within the loosest every tier admits (MS-01 §8: 20 % at high). Not reviewed by an SME (UNVERIFIED); offered only: a
-# person saves it or changes it, and until then no internal target applies.
+# The internal target applied where no one set one (the owner, 2026-11-06: "apply the 10 % target automatically
+# without saving"): |prediction error| at most 10 %, within the loosest every tier admits (MS-01 §8: 20 % at high).
+# Not reviewed by an SME (UNVERIFIED). A person changes it, or says there is none (NOT_APPLICABLE); `plan.applied_internal_target`.
 DEFAULT_INTERNAL_TARGET_PE = 10.0
 
 

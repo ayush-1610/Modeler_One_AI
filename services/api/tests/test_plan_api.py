@@ -394,8 +394,10 @@ def test_the_review_shows_the_estimation_plan_the_validation_plan_and_the_tiers_
     assert criteria["tier"] == "medium" and criteria["ruleset"] == doc.acceptance.ruleset and criteria["status"] == "UNVERIFIED"
     assert {q["quantity"]: q["max_fold"] for q in criteria["pk_parameters"]} == {"AUC": 1.5, "Cmax": 1.5}
     assert {q["quantity"]: q["guest_delta"] for q in criteria["ddi_ratios"]} == {"AUCR": 2, "CmaxR": 2}
-    assert (criteria["min_fraction_within"], criteria["loosest_target_pe"], criteria["internal_target_pe"]) == (0.8, 33.3, None)
-    assert criteria["target_applied"] is True
+    # no one set a target: the default applies (the owner, 2026-11-06), and the review says so
+    assert (criteria["min_fraction_within"], criteria["loosest_target_pe"], criteria["internal_target_pe"]) == (0.8, 33.3, 10.0)
+    assert criteria["target_applied"] is True and criteria["target_default"] and not criteria["target_set_here"]
+    assert doc.acceptance.internal_target_pe == 10.0                     # the MAP records it, and the verdicts apply it
 
     # estimating logP with the proposed bounds: the estimated come first, with nothing to say
     proposal = logp["proposal"]
@@ -418,6 +420,7 @@ def test_the_review_shows_the_estimation_plan_the_validation_plan_and_the_tiers_
     c.put("/api/v1/projects/p1/plan/structure", headers=H, json={"key": "internal_target_pe", "value": 20, "reason": "tighter"})
     review = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]
     assert review["acceptance"]["internal_target_pe"] == 20 and review["acceptance"]["target_set_here"]
+    assert not review["acceptance"]["target_default"]
     assert not any("Internal target" in line for line in review["limitations"])
     loose = c.put("/api/v1/projects/p1/plan/structure", headers=H, json={"key": "internal_target_pe", "value": 40, "reason": "x"})
     assert any(v["rule"] == "target" and v["severity"] == "error" for v in loose.json()["data"]["violations"])

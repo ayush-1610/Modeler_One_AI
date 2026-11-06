@@ -128,6 +128,10 @@
             "title": "Target Applied",
             "type": "boolean"
           },
+          "target_default": {
+            "title": "Target Default",
+            "type": "boolean"
+          },
           "target_set_here": {
             "title": "Target Set Here",
             "type": "boolean"
@@ -159,6 +163,7 @@
           "min_fraction_within",
           "internal_target_pe",
           "target_set_here",
+          "target_default",
           "loosest_target_pe",
           "target_applied"
         ],
@@ -18048,6 +18053,11 @@
             ],
             "title": "Model Risk"
           },
+          "no_internal_target": {
+            "default": false,
+            "title": "No Internal Target",
+            "type": "boolean"
+          },
           "objective": {
             "default": "Predict exposure for the question of interest",
             "title": "Objective",
@@ -18091,6 +18101,7 @@
           "application_codes",
           "assumptions",
           "internal_target_pe",
+          "no_internal_target",
           "risk_assessment",
           "locked",
           "reasons"

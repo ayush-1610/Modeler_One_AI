@@ -36,6 +36,7 @@ from modeler_project.plan import (
     ModelPlan,
     Violation,
     application_label,
+    applied_internal_target,
     campaign_cpf,
     default_fit_limitation,
     default_fits,
@@ -242,7 +243,7 @@ def acceptance(plan: ModelPlan, doc: MapDocument) -> dict[str, Any]:
     tier = plan.structure.model_risk
     ruleset = load_acceptance_ruleset()
     criteria = doc.acceptance.criteria if tier else None
-    target = plan.structure.internal_target_pe
+    target, source = applied_internal_target(plan.structure)
     return {
         "tier": tier, "ruleset": doc.acceptance.ruleset, "status": str(ruleset.get("status", "")),
         "description": criteria.get("description") if criteria else None,
@@ -250,6 +251,7 @@ def acceptance(plan: ModelPlan, doc: MapDocument) -> dict[str, Any]:
         "ddi_ratios": _criteria((criteria or {}).get("ddi_ratios", {}), ruleset),
         "min_fraction_within": criteria.get("min_fraction_within") if criteria else None,
         "internal_target_pe": target, "target_set_here": "internal_target_pe" in plan.structure.locked,
+        "target_default": source == "default",           # applied where no one set one (the owner, 2026-11-06)
         "loosest_target_pe": round(loosest_internal_target(tier), 1) if tier else None,
         "target_applied": True,
     }

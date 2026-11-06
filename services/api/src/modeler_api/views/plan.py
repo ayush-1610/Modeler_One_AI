@@ -353,6 +353,7 @@ class AcceptanceView(View):
     min_fraction_within: Number | None
     internal_target_pe: Number | None
     target_set_here: bool
+    target_default: bool                   # the default applied where no one set one (the owner, 2026-11-06)
     loosest_target_pe: Number | None       # the largest target no looser than the tier
     target_applied: bool                   # the verdicts apply it to the internal groups (since R4d)
 
