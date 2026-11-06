@@ -32,8 +32,12 @@ BRIEF_ID = "main"
 HUMAN_STATUSES = frozenset({FieldStatus.ENTERED, FieldStatus.EDITED, FieldStatus.CONFIRMED, FieldStatus.NOT_APPLICABLE})
 # Fields only a person may set (ICH M15 ratings are human-only; the tier is confirmed by a person; why a person's rating
 # differs from the agent's suggestion is the person's word, never the agent's).
-HUMAN_ONLY = frozenset({"acceptance.tier", "m15.influence_rating", "m15.consequence_rating", "m15.risk_justification",
-                        "m15.influence_differs", "m15.consequence_differs"})
+HUMAN_ONLY = frozenset({"acceptance.tier", "m15.influence_rating", "m15.consequence_rating", "m15.influence_differs",
+                        "m15.consequence_differs"})
+# Fields an agent may only draft (DRAFTED: not a value until a person confirms or changes it): why the stricter of the
+# model risks two different ratings admit fits (the owner, 2026-11-06: the stricter tier pre-selected, with the agent's
+# reason).
+AGENT_DRAFT_ONLY = frozenset({"m15.risk_justification"})
 
 
 def locked(brief: ProjectBrief, path: str) -> bool:
@@ -86,6 +90,8 @@ def agent_set(brief: ProjectBrief, path: str, *, value: Any, unit: str | None, c
     """An agent's or a database's value for a field. Refused for locked and human-only fields."""
     if path in HUMAN_ONLY:
         raise EditError(f"{path} is set by a person only")
+    if path in AGENT_DRAFT_ONLY and status is not FieldStatus.DRAFTED:
+        raise EditError(f"{path} is drafted by an agent only; a person confirms or changes it")
     if locked(brief, path):
         raise EditError(f"{path} was set by a person ({brief.get(path).status}); agents do not overwrite it")
     definition = definition_of(path)

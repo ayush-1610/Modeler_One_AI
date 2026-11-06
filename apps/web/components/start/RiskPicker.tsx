@@ -12,13 +12,16 @@ const RATINGS = ["low", "medium", "high"];
 type Rating = string | null;
 
 /** The internal target (MS-01 §8): a stricter |prediction error| the internal comparisons must also meet, never looser
- *  than the tier. An acceptance criterion, so it sits under the tier (page review 1), not in the notes. */
+ *  than the tier. An acceptance criterion, so it sits under the tier (page review 1), not in the notes. Until a person
+ *  saves one, the default (10 %, the owner, 2026-11-06) is offered in the box; none applies until it is saved. */
 function InternalTarget({ view, save, marks, tier }: { view: BriefView; save: Save; marks: Marks; tier: Rating }) {
   const path = "acceptance.internal_target_pe";
   const stored = valueOf(view, path) as number | null;
-  const [text, setText] = useState(stored == null ? "" : String(stored));
-  const [problem, setProblem] = useState<string | null>(null);
   const widest = tier ? view.start.risk.target_max[tier] : null;
+  // offered at the default until a person saves one (the owner, 2026-11-06); never looser than the tier
+  const offered = Math.min(view.start.risk.target_default, widest ?? Infinity);
+  const [text, setText] = useState(stored == null ? String(offered) : String(stored));
+  const [problem, setProblem] = useState<string | null>(null);
   const changed = text.trim() !== (stored == null ? "" : String(stored));
 
   async function commit() {
@@ -36,6 +39,11 @@ function InternalTarget({ view, save, marks, tier }: { view: BriefView; save: Sa
                  data-testid="risk-target-input" onChange={(e) => setText(e.target.value)} />
           <span className="muted">%</span>
           <button type="button" className="btn" disabled={!changed} data-testid="risk-target-save" onClick={commit}>Save</button>
+          {stored == null && text.trim() === String(offered) && (
+            <span className="risk-preselected risk-default" data-testid="risk-target-default">
+              <span className="chip medium">default</span><span>save to keep it, or change it</span>
+            </span>
+          )}
         </div>
         <span className="muted" style={{ fontSize: 12.5 }}>
           Applied to the internal AUC and Cmax comparisons (S1–S4), on top of the tier
@@ -127,20 +135,27 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
     influence: valueOf(view, "m15.influence_rating") as Rating,
     consequence: valueOf(view, "m15.consequence_rating") as Rating,
     tier: valueOf(view, "acceptance.tier") as Rating,
-    why: (valueOf(view, "m15.risk_justification") as string | null) ?? "",
+    // a person's reason only: the agent's draft is offered below, not counted as saved
+    why: recordOf(view, "m15.risk_justification").status === "DRAFTED" ? ""
+      : (valueOf(view, "m15.risk_justification") as string | null) ?? "",
   };
+  const whyRecord = recordOf(view, "m15.risk_justification");
+  const agentWhy = whyRecord.status === "DRAFTED" ? String(whyRecord.value ?? "").trim() : "";
   const suggested = { influence: suggestion(view, "m15.influence_suggested"), consequence: suggestion(view, "m15.consequence_suggested") };
   // the agent's suggestion pre-selected where the person has saved nothing yet (build D); saving makes it theirs
   const [influence, setInfluence] = useState<Rating>(stored.influence ?? suggested.influence);
   const [consequence, setConsequence] = useState<Rating>(stored.consequence ?? suggested.consequence);
   const differs = (d: string) => view.start.risk.disagreements.find((x) => x.dimension === d);
   const [tier, setTier] = useState<Rating>(stored.tier);
-  const [why, setWhy] = useState(stored.why);
+  const [why, setWhy] = useState(stored.why || agentWhy);
   const [problem, setProblem] = useState<string | null>(null);
 
   const admitted = influence && consequence ? view.start.risk.admitted[`${influence}/${consequence}`] ?? [] : [];
-  // a tier the new ratings do not admit is dropped; a single admitted tier is offered selected, for the person to save
-  const draftTier = admitted.length === 1 ? admitted[0] : tier && admitted.includes(tier) ? tier : null;
+  // a tier the new ratings do not admit is dropped; a single admitted tier is offered selected, and of two or three the
+  // stricter (the owner, 2026-11-06), for the person to save or change
+  const stricter = admitted.reduce<Rating>((a, b) => (a && RATINGS.indexOf(a) > RATINGS.indexOf(b) ? a : b), null);
+  const draftTier = tier && admitted.includes(tier) ? tier : stricter;
+  const tierOffered = admitted.length > 1 && !(tier && admitted.includes(tier)) && stricter !== stored.tier;
   const needsWhy = admitted.length > 1;
   const changed = influence !== stored.influence || consequence !== stored.consequence || draftTier !== stored.tier
     || (needsWhy && why.trim() !== stored.why);
@@ -156,7 +171,9 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
     set("m15.consequence_rating", stored.consequence, consequence);
     set("acceptance.tier", stored.tier, draftTier);
     if (needsWhy && why.trim() && why.trim() !== stored.why) {
-      changes.push({ path: "m15.risk_justification", status: "EDITED", value: why.trim() });
+      // the agent's reason kept as it is is confirmed (the person's word on it); changed, it is the person's edit
+      changes.push(why.trim() === agentWhy ? { path: "m15.risk_justification", status: "CONFIRMED" }
+        : { path: "m15.risk_justification", status: "EDITED", value: why.trim() });
     }
     setProblem(changes.length ? await save(changes) : null);
   }
@@ -187,6 +204,13 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
             {admitted.length ? (
               <Seg options={RATINGS.filter((r) => admitted.includes(r))} value={draftTier} onPick={setTier} testId="risk-tier" />
             ) : <span className="muted">rate both first</span>}
+            {tierOffered && (
+              <span className="risk-suggestion risk-preselected" data-testid="risk-tier-preselected">
+                <span className="chip medium">pre-selected</span>
+                <span>the stricter of the tiers these ratings admit{why.trim() && why.trim() === agentWhy
+                  ? ", with the intake agent's reason below" : ""}; save to keep it, or pick another.</span>
+              </span>
+            )}
             {shownTier && view.start.risk.criteria[shownTier] && (
               <span className="muted" style={{ fontSize: 12.5 }} data-testid="risk-criteria">
                 {shownTier}: {view.start.risk.criteria[shownTier]} · {view.start.risk.ruleset}
@@ -197,8 +221,16 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
         {needsWhy && (
           <div className="risk-row">
             <label className="sb-label" htmlFor="risk-why">Why this tier</label>
-            <textarea id="risk-why" rows={2} value={why} data-testid="risk-why" onChange={(e) => setWhy(e.target.value)}
-                      placeholder="Influence and consequence differ: say why the risk is the tier you chose" />
+            <div className="sb-value">
+              <textarea id="risk-why" rows={2} value={why} data-testid="risk-why" onChange={(e) => setWhy(e.target.value)}
+                        style={{ width: "100%" }}
+                        placeholder="Influence and consequence differ: say why the risk is the tier you chose" />
+              {agentWhy && why.trim() === agentWhy && (
+                <span className="risk-suggestion risk-preselected" data-testid="risk-why-drafted">
+                  <span className="chip medium">draft</span><span>the intake agent&apos;s reason; save to keep it, or change it</span>
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>

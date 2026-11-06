@@ -2,7 +2,9 @@
 `brief_ops.agent_set` and `save_brief`, so the version and its audit event are the real ones): software test data for
 the browser flows, which run with no LLM provider.
 
-    uv run python agent_suggestion.py <read root> <project id> <influence> <consequence>
+    uv run python agent_suggestion.py <read root> <project id> <influence> <consequence> [<why the stricter tier>]
+
+With a fifth argument, the agent's reason for the stricter of the tiers two different ratings admit is drafted too.
 """
 
 from __future__ import annotations
@@ -21,4 +23,7 @@ brief = ProjectBrief.from_content(ws.latest(ArtifactKind.BRIEF, BRIEF_ID).conten
 for path, value in (("m15.influence_suggested", influence), ("m15.consequence_suggested", consequence)):
     brief = agent_set(brief, path, value=value, unit=None, citations=(), status=FieldStatus.DRAFTED, confidence=None,
                       by="agent:e2e-fixture")
+if len(sys.argv) > 5:
+    brief = agent_set(brief, "m15.risk_justification", value=sys.argv[5], unit=None, citations=(), status=FieldStatus.DRAFTED,
+                      confidence=None, by="agent:e2e-fixture")
 save_brief(ws, brief, actor="agent:e2e-fixture", reason="test fixture: the intake agent's suggested ratings")

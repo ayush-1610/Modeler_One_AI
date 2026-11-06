@@ -144,12 +144,11 @@ will check the builder with their own files later (q4), so the builds use the up
    (the question of interest, context of use, applications, formulation types and each scenario's route) with the
    quote that implies it and why (`propose_implied`); each is shown in place, pre-selected, with Confirm, and Start waits
    on it. The suggested M15 ratings are pre-selected, marked so, with the agent's reasons under them (q1); saving makes
-   them the person's. Two deviations from the owner's list, open for the owner:
-   - **Model risk (the tier):** pre-selected when the two ratings admit one tier. When they admit two (e.g. medium
-     influence, high consequence), the person picks one and says why, as ICH M15 asks; the agent does not choose. If the
-     owner wants the stricter of the two pre-selected, that is a small change, with the person's "why" still asked.
-   - **Internal target:** proposed only when a document states one. An unstated target is not invented: it sits on top
-     of the tier's acceptance criteria (MS-01 §8), which are SME-governed.
+   them the person's. The owner's decisions of 2026-11-06 on the two items left open:
+   - **Model risk (the tier):** of the tiers two different ratings admit, the stricter is pre-selected, with the
+     intake agent's reason for it in "Why this tier" (A1's `why_this_tier`, drafted; a person saves or changes it).
+   - **Internal target:** proposed as before when a document states one; otherwise offered at 10 % (UNVERIFIED, not
+     reviewed by an SME), saved by a person or changed; optional as before.
    Not in D: A1's evaluation on real proposals (P1's open item).
 5. **The evaluation grows:** messy deliveries (the owner's own files, which the owner will use to check the builder,
    and synthetic ones modelled on them) scored end to end: placed right, read right, cleaned with a record, nothing

@@ -221,6 +221,7 @@ class RiskView(View):
     admitted: dict[str, list[str]]  # "influence/consequence" -> the tiers admitted, for the picker
     criteria: dict[str, str]        # tier -> what its verdicts ask ("AUC within 1.5-fold and …, in 80 % of studies")
     target_max: dict[str, float]    # tier -> the loosest internal target |PE| % it admits (MS-01 §8)
+    target_default: float           # the internal target |PE| % offered until a person saves one (the owner, 2026-11-06)
     ruleset: str                    # the acceptance ruleset the criteria come from, with its status
     disagreements: list[RatingDisagreementView]  # shown once the person has rated (the owner, 2026-11-02)
 

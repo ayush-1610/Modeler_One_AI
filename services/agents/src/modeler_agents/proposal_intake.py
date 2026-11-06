@@ -39,6 +39,7 @@ from modeler_project.brief import (
 )
 from modeler_project.brief_ops import HUMAN_ONLY, EditError, agent_set, locked, summary
 from modeler_project.documents import document_record
+from pbpk_domain.m15 import Rating, allowed_model_risk
 
 
 class DocumentSource(Protocol):
@@ -49,8 +50,9 @@ class DocumentSource(Protocol):
     def search(self, query: str, max_results: int = 8) -> list[Any]: ...
 
 
-# The suggested ratings come only from draft_risk_assessment, never from a quote
-DRAFT_ONLY = frozenset({"m15.influence_suggested", "m15.consequence_suggested"})
+# The suggested ratings, and why the stricter of two admitted model risks fits, come only from draft_risk_assessment,
+# never from a quote
+DRAFT_ONLY = frozenset({"m15.influence_suggested", "m15.consequence_suggested", "m15.risk_justification"})
 # What a proposal usually implies rather than states (build D): proposed with the quote that implies it, and why
 IMPLIED = ("qoi.text", "qoi.context_of_use", "qoi.applications", "scope.formulation_types")
 IMPLIED_IN_GROUPS = {("scenarios", "route")}
@@ -95,7 +97,7 @@ Rules:
 - The data plan (data_plan[i]) records every statement about who provides which data: the client, the literature, the sponsor, or nobody yet; with its category and purpose (model building, internal validation, external validation, application verification).
 - Doses and strengths are numbers with their unit as stated (e.g. value 50, unit mg). Keep the unit the document uses.
 - Some fields are usually implied by a proposal rather than stated as such: the question of interest (qoi.text), the context of use (qoi.context_of_use), the applications (qoi.applications), the formulation types (scope.formulation_types) and each scenario's route (scenarios[i].route). When a document states one, use propose_field. When it only implies one, call propose_implied with the quote that implies it and, in one or two sentences, why (e.g. "to support a waiver of the 25 mg strength" implies a biowaiver application; "oral film-coated tablets" implies the oral route and an immediate-release tablet). Propose only what a reviewer would read the same way from the quote; a person confirms or changes every implied value. If nothing implies a field, mark it missing.
-- Never propose the ICH M15 ratings, the risk tier or acceptance.tier with propose_field: people decide those. Once qoi.text and qoi.context_of_use are recorded, call draft_risk_assessment once. Suggest the model influence (how much the model's evidence weighs in the decision: low when other evidence decides, high when the model is the main evidence, e.g. in place of a clinical study) and the decision consequence (what a wrong decision would mean for patients: low when it would do no harm, high when it could seriously harm them). Explain each in one or two plain sentences built from the question and context of use. A person confirms or changes the draft.
+- Never propose the ICH M15 ratings, the risk tier or acceptance.tier with propose_field: people decide those. Once qoi.text and qoi.context_of_use are recorded, call draft_risk_assessment once. Suggest the model influence (how much the model's evidence weighs in the decision: low when other evidence decides, high when the model is the main evidence, e.g. in place of a clinical study) and the decision consequence (what a wrong decision would mean for patients: low when it would do no harm, high when it could seriously harm them). Explain each in one or two plain sentences built from the question and context of use. A person confirms or changes the draft. When the two ratings differ, Start pre-selects the stricter model risk (the higher of the two): give why_this_tier, why that tier fits this question, in one or two plain sentences.
 - Do not repeat a field that was RECORDED unless a document states a different value; then propose it again with the new quote and say why in the note.
 - When a proposal is REJECTED, fix it from the page text (exact quote, correct page, valid option) or move on.
 - Work document by document: list_documents, then read pages; search_documents helps to find specific facts. Call several tools in one turn whenever you can (e.g. propose every field you found on a page together). Finish with a short summary of what was filled, what is missing, and any contradictions between documents.
@@ -195,10 +197,12 @@ def propose_implied(ctx: IntakeContext, *, path: str, value: Any, quote: str, do
 
 
 def draft_risk_assessment(ctx: IntakeContext, *, influence: str, how_the_model_is_used: str, consequence: str,
-                          what_a_wrong_decision_means: str) -> str:
+                          what_a_wrong_decision_means: str, why_this_tier: str = "") -> str:
     """The ICH M15 draft: the two ratings the agent suggests, with why, built from the question of interest and context of
-    use already in the brief and citing their quotes. Checked whole before anything is written. A field a person set,
-    or a description the proposal itself states (EXTRACTED), is kept."""
+    use already in the brief and citing their quotes. When the two differ, ICH M15 admits any model risk between them;
+    Start pre-selects the stricter (the owner, 2026-11-06) and the agent says why it fits (`why_this_tier`, drafted into
+    `m15.risk_justification`). Checked whole before anything is written. A field a person set, or a description the
+    proposal itself states (EXTRACTED), is kept."""
     basis = [ctx.brief.get(p) for p in ("qoi.text", "qoi.context_of_use")]
     if any(r.value in (None, "") for r in basis):
         return _reject(ctx, "NOTHING_TO_DRAFT_FROM", "m15.influence",
@@ -211,6 +215,13 @@ def draft_risk_assessment(ctx: IntakeContext, *, influence: str, how_the_model_i
     for path, value in drafts[2:]:
         if len(value) < 20:
             return _reject(ctx, "INVALID_VALUE", path, "say why in a sentence or two (at least 20 characters)")
+    admitted = [r.value for r in allowed_model_risk(Rating(influence), Rating(consequence))]
+    if len(admitted) > 1:
+        if len(why_this_tier.strip()) < 20:
+            return _reject(ctx, "NO_TIER_REASON", "m15.risk_justification",
+                           f"these ratings admit a model risk of {admitted[0]} to {admitted[-1]}, and Start pre-selects the "
+                           f"stricter, {admitted[-1]}: say in why_this_tier, in a sentence or two, why it fits")
+        drafts.append(("m15.risk_justification", why_this_tier.strip()))
     citations = tuple(c for r in basis for c in r.citations)
     note = "drafted by the intake agent from the question of interest and context of use; a person confirms it"
     written, kept = [], []
@@ -300,12 +311,15 @@ def build_tools(ctx: IntakeContext) -> list[Tool]:
              mark_missing),
         Tool("draft_risk_assessment",
              "Suggest the ICH M15 model influence and decision consequence, each with why, from the recorded question of "
-             "interest and context of use. A draft only: a person confirms or changes it.",
+             "interest and context of use; when they differ, why the stricter model risk fits. A draft only: a person "
+             "confirms or changes it.",
              {"type": "object", "properties": {
                  "influence": {"type": "string", "enum": list(RATINGS)},
                  "how_the_model_is_used": {"type": "string", "description": "why the model's influence is rated so"},
                  "consequence": {"type": "string", "enum": list(RATINGS)},
-                 "what_a_wrong_decision_means": {"type": "string", "description": "why the consequence is rated so"}},
+                 "what_a_wrong_decision_means": {"type": "string", "description": "why the consequence is rated so"},
+                 "why_this_tier": {"type": "string", "description": "when the two ratings differ: why the stricter model "
+                                                                    "risk (the higher of the two) fits"}},
               "required": ["influence", "how_the_model_is_used", "consequence", "what_a_wrong_decision_means"]},
              lambda **kw: draft_risk_assessment(ctx, **kw)),
     ]
