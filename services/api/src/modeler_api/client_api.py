@@ -21,6 +21,7 @@ from modeler_api.deps import (
     StoreDep,
     Writer,
     blinded_studies,
+    blinding_view,
     file_tag_view,
     redact,
     relates_to_form,
@@ -28,6 +29,7 @@ from modeler_api.deps import (
     version_view,
     workspace_for,
 )
+from modeler_api.intake_jobs import read_documents_later, run_document_job, unread_documents
 from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import (
     ClientDataPage,
@@ -45,15 +47,13 @@ from modeler_intake.grid import WorkbookGrid, read_workbook_bytes
 from modeler_intake.sheet_form import SheetForm, preview_rows, suggest, to_proposal
 from modeler_intake.triage import SheetCategory, SheetTriage
 from modeler_project import ArtifactKind, ProjectStore, Workspace
+from modeler_project.blinding import redact_dataset
 from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import (
     READABLE_DOCUMENTS,
     REGISTER,
-    ClientDataError,
-    datasets_from_observations,
     ingest,
     reconcile,
-    record_mapping,
     record_reading,
     set_triage,
     submission,
@@ -63,13 +63,14 @@ from modeler_project.client_review import ReviewError, edit_fact, product_confir
 from modeler_project.client_review import confirm as confirm_group
 from modeler_project.client_review import groups as review_groups
 from modeler_project.dataset_points import card_points
-from modeler_project.dataset_register import dataset, decide_dataset, propose_dataset
+from modeler_project.dataset_register import dataset
 from modeler_project.datasets import DatasetError
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
-from modeler_project.evidence import EvidenceState
 from modeler_project.inputs import refresh_inputs
 from modeler_project.requirements import RequirementMatrix, client_request
+from modeler_project.sheet_intake import READ as READ_SHEETS
+from modeler_project.sheet_intake import SheetIntakeError, finish, keep, products_of, read_on_arrival
 
 router = APIRouter(prefix="/api/v1", tags=["client-data"])
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -158,6 +159,8 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
         except (DocumentError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=f"{upload.filename}: {exc}") from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
+    # each PDF or Word file read by the agent on arrival, when agents are on (plan 2026-11-05 §3.1, build C2)
+    read_documents_later(store, principal.tenant_id, project_id, unread_documents(read))
     return envelope({"read": [{**{k: r[k] for k in ("id", "file", "template", "sha256")}, **file_tag_view(library, r["sha256"])}
                               for r in read], **_view(ws)})
 
@@ -194,6 +197,11 @@ def classify(project_id: str, sid: str, sheet: str, body: Classification, princi
         raise HTTPException(status_code=404, detail=f"no sheet {sheet!r} in this file")
     set_triage(ws, sid, SheetTriage(sheet, body.category, by=principal.user_id, note=body.reason), by=principal.user_id,
                reason=body.reason)
+    if body.category.value in READ_SHEETS:   # now a data sheet: code reads it at once, as on arrival (plan 2026-11-05 §3.1)
+        brief = _brief(ws)
+        read_on_arrival(ws, DocumentLibrary(ws), sid, workbook, by=principal.user_id, drug=brief.drug_name if brief else "",
+                        products=products_of(brief), sheets=[sheet])
+        refresh_inputs(ws, by=principal.user_id)
     return envelope(_view(ws))
 
 
@@ -263,27 +271,6 @@ def run_reading_job(store: ProjectStore, tenant_id: str, project_id: str, sid: s
         run.finish(reading.outcome, summary)
         results.append({"run_id": run.run_id, "status": reading.outcome.status, **summary})
     return {"status": "COMPLETED", "sheets": results}
-
-
-def run_document_job(store: ProjectStore, tenant_id: str, project_id: str, sid: str, *, model,
-                     max_turns: int = 30) -> dict[str, Any]:
-    """A4 reads one client PDF or Word file for project data (plan 2026-11-03 §3.4, I4): study facts, profiles, NCA
-    tables, dissolution profiles and links between two names of a study, each quoted and checked by code. What code
-    accepted is recorded on the file and waits on Inputs, in its study or product, until a person confirms it."""
-    ws = Workspace(store, tenant_id, project_id)
-    if submission(ws, sid) is None:
-        raise ClientDataError(f"no client file {sid}")
-    brief = _brief(ws)
-    run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
-                              agent="A4-document-reading", model=model, max_turns=max_turns)
-    ctx, outcome = agent_jobs.document_reading(model, ws=ws, library=DocumentLibrary(ws), sid=sid,
-                                               drug=brief.drug_name if brief else "", actor=run.actor, run_id=run.run_id,
-                                               max_turns=max_turns, log_step=run.log_step)
-    summary = {"datasets": len(ctx.datasets), "facts": len(ctx.facts), "dissolution_rows": len(ctx.dissolution),
-               "links": len(ctx.links), "refused": len(ctx.refused), "summary": outcome.final_text[:2000],
-               "error": outcome.error}
-    run.finish(outcome, summary)
-    return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 
 class ReadingRequest(BaseModel):
@@ -414,7 +401,6 @@ def _sample(review, *, hide_values: bool) -> dict[str, Any]:
 def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Apply a mapping recipe deterministically. Preview shows the records, problems and open questions; confirming a
     recipe with none of them creates the datasets (origin CLIENT) and keeps the recipe on the file's record."""
-    from modeler_api.deps import blinding_view
     from modeler_intake.recipe_review import RecipeProposal, review_proposal
     from modeler_project.blinding import EXTERNAL_PURPOSES
 
@@ -445,24 +431,10 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
         return envelope(preview)
     if not review.ready_for_confirmation or review.recipe is None:
         raise HTTPException(status_code=409, detail="the recipe has problems or open questions; resolve them first")
-    library = DocumentLibrary(ws)
-    try:
-        built = datasets_from_observations(review.concentrations, study=body.study, sha=content["sha256"],
-                                           filename=content["file"], library=library)
-        ids = [propose_dataset(ws, d, actor=principal.user_id).id for d in built]
-    except (ClientDataError, DatasetError, ValueError) as exc:
+    try:   # the same saving as a draft read on arrival (`sheet_intake.keep`)
+        ids = keep(ws, DocumentLibrary(ws), sid, content, review, study=body.study, by=principal.user_id, replace=body.replace)
+    except SheetIntakeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    sheets = {t.sheet for t in review.recipe.tables}
-    earlier = [m for m in content.get("mappings", []) if body.replace and not m.get("replaced_by")
-               and any(t.get("sheet") in sheets for t in m["recipe"].get("tables", []))]
-    record_mapping(ws, sid, recipe=review.recipe.model_dump(mode="json"), dataset_ids=ids,
-                   dissolution=[o.model_dump(mode="json") for o in review.dissolution], by=principal.user_id,
-                   replaces=tuple(m["recipe"]["recipe_id"] for m in earlier))
-    for old_id in (d for m in earlier for d in m.get("datasets", [])):
-        old = dataset(ws, old_id)
-        if old is not None and old.state is not EvidenceState.REJECTED:
-            decide_dataset(ws, old_id, state=EvidenceState.REJECTED, by=principal.user_id,
-                           reason=f"replaced: {', '.join(sorted(sheets))} read again (recipe {review.recipe.recipe_id})")
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({**preview, "datasets": ids, **_view(ws)})
 
@@ -495,12 +467,19 @@ def _review(ws: Workspace) -> dict[str, Any]:
     found = review_groups(ws)
     hidden = blinded_studies(ws)
     register = {p["id"]: p for p in profiles(ws)}
+    blinding = blinding_view(ws)
+    # a sheet not yet saved has no purpose: while blinding is on and the MAP unsigned, its values are not drawn (D-15)
+    withhold = bool(blinding["on"] and not blinding["map_signed"])
     for group in found:   # each dataset and profile as data on its card (build C), as the viewer may see it (D-15)
         for item in group["items"]:
             if item["kind"] == "dataset" and (d := dataset(ws, item["id"])) is not None:
                 item["data"] = card_points(redact(ws, ArtifactKind.DATASET, d.to_content(), hidden))
             elif item["kind"] == "profile" and item["id"] in register:
                 item["release"] = register[item["id"]]
+            elif item["kind"] == "draft":
+                points = item["draft"].pop("points", None)
+                if points:
+                    item["data"] = card_points({**redact_dataset(points), "blinded": True} if withhold else points)
     return {"groups": found, "to_confirm": sum(1 for g in found if g["state"] == "to_confirm")}
 
 
@@ -561,6 +540,28 @@ def reopen_issue(project_id: str, body: ReviewReopen, principal: Writer, store: 
 def edit_study_fact(project_id: str, body: ReviewEdit, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """An item-level edit before the group is confirmed: one fact of a study (the audit keeps before and after)."""
     return _act(project_id, principal, store, lambda ws: edit_fact(ws, body.group, body.field, body.value, by=principal.user_id))
+
+
+class ReviewFinish(BaseModel):
+    """What a sheet read by code needs, given on its card (build C2): the study's or product's facts."""
+
+    file: str = Field(min_length=1)
+    sheet: str = Field(min_length=1)
+    answers: dict[str, str | float | int] = Field(default_factory=dict)
+
+
+@router.post("/projects/{project_id}/client-review:finish", **answers(ClientReviewPage))
+def finish_sheet(project_id: str, body: ReviewFinish, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Give what a sheet read by code needs (plan 2026-11-05 §3.1, build C2): once nothing is left, the reading is saved
+    like the sheet reader's (its datasets wait on the card to confirm); else the answers are kept and the rest asked."""
+    ws = workspace_for(project_id, principal, store)
+    _workbook(ws, body.file, use=True)        # a withdrawn file is not read into the project
+    try:
+        finish(ws, DocumentLibrary(ws), body.file, body.sheet, dict(body.answers), by=principal.user_id)
+    except SheetIntakeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
+    return envelope(_review(ws))
 
 
 @router.post("/projects/{project_id}/client-review:confirm", **answers(ClientReviewPage))

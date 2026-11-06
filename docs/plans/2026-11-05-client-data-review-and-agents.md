@@ -1,6 +1,6 @@
 # The client's data, reviewed where it belongs, and agents that work from the start (plan, 2026-11-05)
 
-Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B and C1 done).
+Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B, C1 and C2 done).
 Follows `2026-11-03-inputs-and-client-data.md` (I1–I4c, merged), whose
 builds made the parts work one by one; the owner's use of them on a real delivery (14 files: BE workbooks, dissolution
 profiling workbooks, the technical proposal) shows that together they do not yet give a clear, usable page. I5 (CDISC)
@@ -134,8 +134,12 @@ will check the builder with their own files later (q4), so the builds use the up
      (chart, linear or log; code's NCA statistics; the client's reported PK; the table of points); each product's card
      shows each dissolution profile (mean with its spread, the Weibull fit, the conditions, the points); with more than
      three in an area, an index and one card open at a time (q5).
-   - **C2, the intake pipeline:** automatic reading on upload (§3.1: code's first reading, then A4 where code's reading
-     has a problem), "this is…" and "belongs to…" for each sheet and card, what was ignored or corrected recorded.
+   - **C2, the intake pipeline: built** (branch `inputs-r4-sheets-on-arrival`). Every data sheet read by code on
+     arrival and kept as a draft; a complete one saved at once, to confirm on its card; one that needs the study's facts
+     waits on its study's card, drawn, asking only those (a document's value offered with its quote); "this is…" (a sheet
+     called data) reads it at once; "belongs to…" is the study id asked when the sheet names none; client PDF and Word
+     files go to A4 on arrival (agents on). Not in C2: A4 on a sheet whose code reading has a problem, run on its own
+     (still the "Read the data sheets (agent)" button), and a record of every cell ignored (code's notes are shown).
 4. **D, Start proposals (M):** A1's implied fields with their quotes, and the M15 ratings pre-selected with the
    agent's reasons (§3.4; q1).
 5. **The evaluation grows:** messy deliveries (the owner's own files, which the owner will use to check the builder,

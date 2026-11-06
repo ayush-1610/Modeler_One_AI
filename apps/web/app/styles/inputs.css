@@ -129,3 +129,15 @@
 .confirm-items > li:not(:last-child) { border-bottom: 1px solid var(--line-soft, var(--line)); }
 .confirm-items > li > .confirm-row { border-bottom: 0; }
 .confirm-dataset .dataset-view { margin: 0 10px 10px; }
+/* a sheet read by code, not saved yet (build C2): what it needs, asked on its card */
+.draft-item { display: grid; gap: 8px; margin: 0 10px 10px; }
+.draft-item .dataset-view { margin: 0; }
+.draft-notes summary { cursor: pointer; font-size: 13px; color: var(--ink-dim); }
+.draft-notes ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: var(--ink-dim); }
+.draft-form { border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-radius: var(--radius-sm); padding: 8px 10px;
+              display: grid; gap: 8px; background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
+.draft-form legend { font-size: 13px; font-weight: 600; padding: 0 4px; }
+.draft-need { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.draft-need label { min-width: 180px; color: var(--ink-dim); }
+.draft-need input, .draft-need select { min-width: 160px; }
+.draft-offer { display: inline-flex; align-items: center; gap: 2px; }

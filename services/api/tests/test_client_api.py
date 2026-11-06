@@ -531,3 +531,67 @@ def test_a_study_card_carries_each_datasets_points_and_codes_statistics(setup):
     (series,) = data["series"]
     assert series["times"] == [0.5, 1, 2, 4] and series["values"] == [20.0, 41.0, 30.5, 12.0]
     assert series["stats"]["c_max"] == 41.0 and series["stats"]["t_max"] == 1 and series["stats"]["points"] == 4
+
+
+def test_a_sheet_read_by_code_on_arrival_is_finished_on_its_card_and_reread_when_reclassified(setup):
+    """Build C2 (plan 2026-11-05 §3.1): each data sheet is read by code when the file arrives; what the sheet does not
+    say is asked on its study's card, and the answer saves the reading; a sheet a person calls data is read at once."""
+    c, _ws = setup
+    c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("BE_230-23.xlsx", _be_workbook(), XLSX))])
+    groups = c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"]
+    card = next(g for g in groups if any(i["kind"] == "draft" for i in g["items"]))
+    draft = next(i for i in card["items"] if i["kind"] == "draft")
+    assert card["open"] >= 1 and "n" in draft["draft"]["needs"] and draft["data"]["series"]      # drawn before it is saved
+    answers = {"n": 2, "formulation": "mr", "purpose": "external_validation", "food_state": "fasted"}
+    bad = c.post("/api/v1/projects/p1/client-review:finish", headers=H,
+                 json={"file": draft["draft"]["sid"], "sheet": draft["draft"]["sheet"], "answers": {**answers, "purpose": "x"}})
+    assert bad.status_code == 422 and "what the study is for" in bad.json()["detail"]
+    done = c.post("/api/v1/projects/p1/client-review:finish", headers=H, json={
+        "file": draft["draft"]["sid"], "sheet": draft["draft"]["sheet"],
+        "answers": {k: v for k, v in answers.items() if k in draft["draft"]["needs"]}})
+    assert done.status_code == 200, done.text
+    card = next(g for g in done.json()["data"]["groups"] if g["id"] == card["id"])
+    assert [i["kind"] for i in card["items"]] == ["dataset"] and card["items"][0]["data"]["series"]
+
+    # a sheet code left unsorted, then called concentrations by a person: read at once
+    wb = Workbook()
+    sheet = wb.active
+    sheet.title = "Notes"
+    for row in (["Study ABC-9, 25 mg oral tablet, fasted"], ["Subject", "Time (h)", "Conc (ng/mL)"], ["001", 1, 22.4],
+                ["001", 2, 15.0], ["002", 1, 20.0], ["002", 2, 14.1]):
+        sheet.append(row)
+    view = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("misc.xlsx", _save(wb), XLSX))]).json()["data"]
+    misc = next(f for f in view["files"] if f["file"] == "misc.xlsx")
+
+    def notes_draft() -> bool:
+        groups = c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"]
+        return any(i["kind"] == "draft" and i["draft"]["sid"] == misc["id"] for g in groups for i in g["items"])
+
+    for category, drafted in (("OTHER", False), ("PK_INDIVIDUAL", True)):
+        r = c.post(f"/api/v1/projects/p1/client-data/{misc['id']}/sheets/Notes:classify", headers=H,
+                   json={"category": category, "reason": "said by a person"})
+        assert r.status_code == 200, r.text
+        assert notes_draft() is drafted
+
+
+def test_a_client_document_is_read_by_the_agent_on_arrival_when_agents_are_on(setup, monkeypatch):
+    """Build C2: a PDF or Word file goes to the reading agent when it arrives, in the background (agents on)."""
+    from modeler_api import agent_jobs, intake_jobs, jobs
+    from modeler_project.delivery_eval import synthetic_pdf
+
+    c, ws = setup
+
+    class Configured:
+        provider, model = "test", "scripted"
+
+    calls = []
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(intake_jobs, "run_document_job", lambda *args, **kwargs: calls.append(args[3]))
+    pdf = synthetic_pdf([["Study EX-8: twelve subjects received a single oral dose of 10 mg after an overnight fast."]])
+    up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("EX-8 synopsis.pdf", pdf, "application/pdf"))])
+    assert up.status_code == 201, up.text
+    for _ in range(200):
+        if not jobs.running(ws.store, "t1", "p1", "reading"):
+            break
+        time.sleep(0.01)
+    assert calls == [up.json()["data"]["read"][0]["id"]]

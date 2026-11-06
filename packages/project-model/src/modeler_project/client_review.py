@@ -46,8 +46,10 @@ from modeler_project.datasets import ObservedDataset, Origin
 from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction
 from modeler_project.workspace import Workspace
 
-GroupKind = Literal["study", "product", "compound"]
-TAB: dict[str, str] = {"study": "studies", "product": "formulations", "compound": "compound"}
+GroupKind = Literal["study", "product", "compound", "sheet"]
+TAB: dict[str, str] = {"study": "studies", "product": "formulations", "compound": "compound", "sheet": "studies"}
+# what a draft's answer sets, by what a document's fact for the study sets (build C2: offered, never applied unasked)
+_OFFERED = {"n": "n", "dose": "dose_mg", "formulation": "formulation", "food_state": "food_state", "route": "route"}
 FACT_LABEL = {"dose_mg": "Dose (mg)", "route": "Route", "food_state": "Food state", "formulation": "Formulation",
               "n": "Subjects (n)", "lloq": "LLOQ"}
 DEMOGRAPHIC_LABEL = {"age_mean": ("Age (years), mean", "age_years"), "age_min": ("Age (years), youngest", "age_min"),
@@ -266,16 +268,22 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
     aliases = content.get("aliases", {})
     tagged = _tagged_studies(ws)
     tolerance = float(rule()["relative_tolerance"])
+    from modeler_project.sheet_intake import drafts
+
     client = [d for d in datasets(ws) if _client_dataset(d) and d.state is not EvidenceState.REJECTED]
     doc_facts = document_facts(ws)
-    canon = _canonical([*(str(d.study.get("study_id", d.id)) for d in client), *(str(f["study_id"]) for f in doc_facts)],
-                       aliases)
+    waiting = [d for d in drafts(ws) if d["kind"] == "concentration_time" and d["study_id"]]
+    canon = _canonical([*(str(d.study.get("study_id", d.id)) for d in client), *(str(f["study_id"]) for f in doc_facts),
+                        *(d["study_id"] for d in waiting)], aliases)
     by_study: dict[str, list[ObservedDataset]] = defaultdict(list)
     for d in client:
         by_study[canon[str(d.study.get("study_id", d.id))]].append(d)
     facts_by_study: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for f in doc_facts:
         facts_by_study[canon[str(f["study_id"])]].append(f)
+    drafts_by_study: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for d in waiting:
+        drafts_by_study[canon[d["study_id"]]].append(d)
     # a document saying two names are one study (build I4): asked on the group whose data use the name, linking it to
     # the other name; once a person answered, the alias stands
     data_names = {str(d.study.get("study_id")) for d in client}
@@ -285,7 +293,7 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
         raw, named = (b, a) if b in data_names and a not in data_names else (a, b)
         linked_by_doc.setdefault(raw, {**link, "named": named})
     groups = []
-    for study_id in sorted(set(by_study) | set(facts_by_study)):
+    for study_id in sorted(set(by_study) | set(facts_by_study) | set(drafts_by_study)):
         members, study_facts = by_study.get(study_id, []), facts_by_study.get(study_id, [])
         gid = f"study:{study_id}"
         members = sorted(members, key=lambda d: (d.source.title or "", d.id))
@@ -294,7 +302,7 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
         names = sorted(raw_names - {study_id})
         if names:
             notes.append(f"Also called {', '.join(names)} in the client's files: one study, {study_id}")
-        if not members:
+        if not members and not drafts_by_study.get(study_id):
             notes.append("No concentration data from the client for this study yet: its facts are read from "
                          f"{', '.join(sorted({f['file'] for f in study_facts}))}")
         duplicate_of: dict[str, str] = {}
@@ -391,8 +399,50 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
                 issues.append(_issue(gid, f"lloq:{d.id}", "question",
                                      f"Values below the LLOQ, and no LLOQ stated: give it in {d.unit}",
                                      [], selections, answer=True))
+        items += [_draft_item(d, study_facts) for d in drafts_by_study.get(study_id, [])]
         groups.append(_group(gid, "study", f"Study {study_id}", items, facts, issues, ws, notes=notes))
     return groups
+
+
+def _draft_item(d: dict[str, Any], study_facts: list[dict[str, Any]]) -> dict[str, Any]:
+    """A sheet read by code and not saved yet (build C2), on its study's card: what it needs, and a document's fact for
+    the same study offered for each need it answers, with its quote."""
+    from modeler_project.sheet_intake import NEED_LABEL
+
+    offers: dict[str, list[dict[str, Any]]] = {}
+    for need in d["needs"]:
+        field = _OFFERED.get(need)
+        given = [(f["sets"][field], f) for f in study_facts if field and f["sets"].get(field) is not None]
+        if given:
+            offers[need] = [{"value": str(v), "label": f"{_shown(v)} · {f['file']}, p. {f['page']}", "source": _doc_source(f)}
+                            for v, f in given]
+    points = d.get("points") or {}
+    series = points.get("series") or []
+    shown = f"{len(series)} series · {len({t for s in series for t in s['times']})} times" if series else "read by code"
+    return {"id": f"draft|{d['sid']}|{d['sheet']}", "kind": "draft", "label": f"{d['sheet']} · {d['file']}",
+            "value": shown, "state": "DRAFT",
+            "note": f"read by {'code' if d['by'] == 'code' else 'the reading agent'}; loads once its facts are given and "
+                    "the study is confirmed",
+            "source": {"doc_sha256": d["sha256"], "page": None, "locator": d["sheet"], "title": d["file"], "quote": ""},
+            "draft": {"sid": d["sid"], "sheet": d["sheet"], "kind": d["kind"], "needs": d["needs"],
+                      "labels": {n: NEED_LABEL.get(n, n) for n in d["needs"]}, "answers": d["answers"],
+                      "problems": d["problems"], "notes": d["notes"], "offers": offers, "points": d.get("points")}}
+
+
+def _sheet_groups(ws: Workspace) -> list[dict[str, Any]]:
+    """Sheets read by code that no study or product holds yet (a dissolution sheet, a sheet naming no study): one card
+    each, on the tab of its data, asking what it needs."""
+    from modeler_project.sheet_intake import drafts
+
+    out = []
+    for d in drafts(ws):
+        if d["kind"] == "concentration_time" and d["study_id"]:
+            continue
+        group = _group(f"sheet:{d['sid']}|{d['sheet']}", "sheet", f"{d['sheet']} · {d['file']}", [_draft_item(d, [])],
+                       [], [], ws, notes=d["notes"])
+        group["tab"] = "formulations" if d["kind"] == "dissolution" else "studies"
+        out.append(group)
+    return out
 
 
 def _compound_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, Any]]:
@@ -576,16 +626,17 @@ def _group(gid: str, kind: GroupKind, title: str, items: list[dict[str, Any]], f
             i["state"] = "ACCEPTED" if confirmed else "PROPOSED"
     elif not items:     # a study only a document's facts describe (I4): confirmed while they are the facts confirmed
         confirmed = confirmation is not None and confirmation.get("facts") == _fact_list(facts)
-    else:
-        confirmed = not any(i["state"] == EvidenceState.PROPOSED.value for i in items)
+    else:               # a sheet still to finish (build C2) keeps its study to confirm
+        confirmed = not any(i["state"] in (EvidenceState.PROPOSED.value, "DRAFT") for i in items)
     if confirmed and confirmation:   # as they were settled, in their order; anything new after them
         recorded = confirmation.get("issues", [])
         known = {i["id"] for i in recorded}
         issues = recorded + [i for i in issues if i["id"] not in known]
         notes = list(dict.fromkeys([*confirmation.get("notes", []), *(notes or [])]))
     open_issues = [i for i in issues if i["selected"] is None and i["answered"] is None]
+    drafting = sum(1 for i in items if i["kind"] == "draft")
     return {"id": gid, "kind": kind, "tab": TAB[kind], "title": title, "items": items, "facts": facts, "issues": issues,
-            "notes": notes or [], "state": "confirmed" if confirmed else "to_confirm", "open": len(open_issues),
+            "notes": notes or [], "state": "confirmed" if confirmed else "to_confirm", "open": len(open_issues) + drafting,
             "confirmed_by": confirmation.get("by") if confirmation and confirmed else None,
             "confirmed_at": confirmation.get("at") if confirmation and confirmed else None}
 
@@ -593,7 +644,8 @@ def _group(gid: str, kind: GroupKind, title: str, items: list[dict[str, Any]], f
 def groups(ws: Workspace) -> list[dict[str, Any]]:
     """Every group of client data, with its items, its facts, and its conflicts and questions (settled or open)."""
     selections = record(ws)["selections"]
-    return _study_groups(ws, selections) + _product_groups(ws, selections) + _compound_groups(ws, selections)
+    return (_study_groups(ws, selections) + _product_groups(ws, selections) + _sheet_groups(ws)
+            + _compound_groups(ws, selections))
 
 
 def to_confirm(ws: Workspace) -> list[dict[str, Any]]:

@@ -39,7 +39,8 @@ test("a client sheet is read and saved on the Studies tab, next to the reading a
   const sheets = page.getByTestId("studies-client-files");
   await expect(sheets).toContainText("Agents are off");
   await expect(sheets.getByTestId("read-agent-Smith2015_Table2.xlsx")).toBeDisabled();
-  await expect(sheets.getByTestId("sheet-Mean PK")).toContainText("not read yet");
+  // code read the sheet on arrival (build C2); what it does not say is asked on the study's card, or here in the reader
+  await expect(sheets.getByTestId("sheet-Mean PK")).toContainText("read by code");
 
   await sheets.getByTestId("sheet-Mean PK").getByRole("button", { name: "Read this sheet" }).click();
   const reader = page.getByTestId("reader-Mean PK");

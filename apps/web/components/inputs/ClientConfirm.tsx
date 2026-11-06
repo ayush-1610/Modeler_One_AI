@@ -15,6 +15,7 @@ import { send, type Schema } from "@/lib/api";
 import type { Profile } from "@/components/client/types";
 
 import { DatasetView, ReleaseView } from "./DatasetView";
+import { DraftItem } from "./DraftItem";
 import { LABEL, type Run } from "./InputsTodo";
 
 type Group = Schema<"ReviewGroup">;
@@ -125,7 +126,7 @@ function GroupCard({ projectId, group, run, folded, onToggle }: {
   const first = group.items[0]?.source ?? group.facts[0]?.source;
   const count = group.items.length ? `${group.items.length} item${group.items.length === 1 ? "" : "s"}`
                                    : `${group.facts.length} fact${group.facts.length === 1 ? "" : "s"}`;
-  const noun = group.kind === "study" ? "study" : group.kind === "product" ? "product" : "values";
+  const noun = group.kind === "study" ? "study" : group.kind === "product" ? "product" : group.kind === "sheet" ? "sheet" : "values";
   return (
     <article className={`confirm-group ${confirmed ? "confirmed" : "to-confirm"}${folded ? " folded" : ""}`}
              data-testid={`group-${group.id}`} id={`group-${group.id}`} aria-label={group.title}>
@@ -172,25 +173,32 @@ function GroupCard({ projectId, group, run, folded, onToggle }: {
       )}
       <ul className="confirm-items">
         {group.items.map((i) => (
-          <li key={i.id} className={i.data || i.release ? "confirm-dataset" : undefined} data-testid={`item-${i.id}`}>
+          <li key={i.id} className={i.data || i.release || i.kind === "draft" ? "confirm-dataset" : undefined} data-testid={`item-${i.id}`}>
             <div className="confirm-row">
               <span className="confirm-item-label">{itemLabel(i.label, i.target)}</span>
               <span className="confirm-item-value">{i.value}{i.note && <span className="muted"> · {i.note}</span>}</span>
               <PeekButton projectId={projectId} source={src(i.source)} label={itemLabel(i.label, i.target)} testId={`peek-item-${i.id}`} />
             </div>
-            {i.data && <DatasetView data={i.data} label={`${group.title}: ${itemLabel(i.label, i.target)}`} />}
-            {i.release && <ReleaseView p={i.release as Profile} />}
+            {i.kind === "draft" ? <DraftItem projectId={projectId} item={i} run={run} /> : <>
+              {i.data && <DatasetView data={i.data} label={`${group.title}: ${itemLabel(i.label, i.target)}`} />}
+              {i.release && <ReleaseView p={i.release as Profile} />}
+            </>}
           </li>
         ))}
       </ul>
 
       {group.issues.map((issue) => <IssueCard key={issue.id} projectId={projectId} group={group} issue={issue} run={run} />)}
 
-      {!confirmed && (
+      {!confirmed && group.kind === "sheet" && (
+        <footer className="confirm-foot">
+          <span className="muted">Once read, its data join their {group.tab === "formulations" ? "product" : "study"}, to confirm there.</span>
+        </footer>
+      )}
+      {!confirmed && group.kind !== "sheet" && (
         <footer className="confirm-foot">
           <span className="muted">
             {group.open
-              ? `Settle ${group.open} open item${group.open === 1 ? "" : "s"} first: a group confirm never waves a conflict or a question through.`
+              ? `Settle ${group.open} open item${group.open === 1 ? "" : "s"} first (a sheet to read counts as one): a group confirm never waves a conflict or a question through.`
               : `Nothing open. Confirming loads this ${noun} into the project; it is recorded with your name.`}
           </span>
           <button type="button" className="btn primary" disabled={group.open > 0} data-testid={`confirm-${group.id}`}

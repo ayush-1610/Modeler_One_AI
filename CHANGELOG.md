@@ -15,6 +15,33 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Inputs C2: each client sheet read by code on arrival; what it does not say asked on its card (2026-11-06)
+Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.1, build C (second part). The owner, 2026-11-05: with
+14 files, nothing arrived without opening each sheet's form; "the agent must recognise, clean and bring everything into
+the project".
+- **Every data sheet is read by code when its file arrives** (`modeler_project.sheet_intake`, code's first reading,
+  11 of 11 layouts of the evaluation set), on Inputs, at the project's start and in "+ Add data", and again when a
+  person calls a sheet data ("this is…"). The reading is kept on the file as a draft (`client_data.record_drafts`).
+- **A draft that needs nothing more is saved at once**, through the same path as the sheet reader's "Save these data"
+  (`sheet_intake.keep`, which the reader's save now uses too): a dissolution sheet whose product, role, medium and batch
+  it reads lands on its product's card; its datasets wait there, to confirm (I2's rule holds).
+- **A draft that needs the study's facts waits on its study's card**, drawn (chart, code's statistics, points) and asking
+  only what the sheet does not say: the number of subjects, the dosage form, fasted or fed, what the study is for, the
+  infusion time (or, for dissolution, the product, role, medium, batch). A document's value for the same study (I4) is
+  offered with its quote; nothing is filled unasked. Answered (`POST /client-review:finish`), it is saved like any reading.
+  A study with a sheet to finish cannot be confirmed (it counts as an open item). A sheet naming no study, or a
+  dissolution sheet with no product, has a card of its own on its tab. The study record is never given a fact the sheet
+  or a person did not state (`StudyRecord`, locked, unchanged).
+- **Client PDF and Word files are read by the reading agent on arrival** when agents are on, one after the other in the
+  background (`modeler_api.intake_jobs`, which now holds `run_document_job`), at the project's start and on Inputs.
+- **On the sheet's line** in the files: "read by code · N to give on its card" in place of "reading proposed".
+- A draft's values are not drawn while blinding is on and the MAP unsigned (D-15): it has no purpose yet.
+- API: `ReviewItem.kind` "draft" with `ReviewItem.draft`; `ReviewGroup.kind` "sheet"; `POST /client-review:finish`;
+  the OpenAPI snapshot and the web types are refreshed.
+Impact: no science change in what is read or how (code's reading is the reader's first filling, unchanged); what
+changes is that it is applied on arrival, and saved only when complete. The guided browser flow now finds the test
+product's dissolution read on arrival.
+
 ### Changed — Inputs C1: each study and product of the client's data shown as data, reviewed one at a time (2026-11-06)
 Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.2, build C (first part). The owner, 2026-11-05: "no data
 points, no graph, no metadata, no statistics, no separation"; review "one by one study/product/data".
@@ -5264,4 +5291,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) and C1 (each study and product as data, one at a time) |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) |
