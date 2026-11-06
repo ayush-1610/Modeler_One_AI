@@ -95,7 +95,11 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   // dissolution, on Products and dissolution: the test product named as in the brief, its conditions quoted from the title
   await page.getByTestId("tab-formulations").click();
   await expect(page.getByTestId("formulations-client-files")).toContainText("(2)");
-  for (const [file, role, product] of [["Dissolution Test pH 6.8.xlsx", "TEST", ""], ["Dissolution RLD pH 6.8.xlsx", "RLD", "Reference product 50 mg"]]) {
+  // the test product's sheet was read by code on arrival (its product named as in the brief, its conditions quoted from
+  // the title) and saved at once, to confirm on the product's card (build C2); the reference product, not in the brief,
+  // is named in the sheet reader
+  await expect(page.getByTestId("client-file-Dissolution Test pH 6.8.xlsx").getByTestId("sheet-pH 6.8")).toContainText("read ✓");
+  for (const [file, role, product] of [["Dissolution RLD pH 6.8.xlsx", "RLD", "Reference product 50 mg"]]) {
     await page.getByTestId(`client-file-${file}`).getByRole("button", { name: "Read this sheet" }).click();
     const r = page.getByTestId("reader-pH 6.8");
     await expect(r.getByLabel("role", { exact: true })).toHaveValue(role);
@@ -104,7 +108,7 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
     else await expect(r.getByLabel("product", { exact: true })).toHaveValue("Desvenlafaxine succinate ER Tablets");
     await r.getByRole("button", { name: "Check what will be read" }).click();
     await expect(r.getByTestId("read-result")).toContainText("96 values · 12 vessels · 8 times");
-    if (role === "TEST") await shot(page, "3-reader-dissolution");
+    await shot(page, "3-reader-dissolution");
     await r.getByRole("button", { name: "Save these data" }).click();
     await expect(page.getByText(/pH 6.8: 96 dissolution values saved/)).toBeVisible();
   }

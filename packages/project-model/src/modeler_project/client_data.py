@@ -396,6 +396,12 @@ def ingest(ws: Workspace, library: DocumentLibrary, data: bytes, filename: str, 
         from modeler_project.dissolution_register import rebuild
 
         rebuild(ws, by=by)
+    if content["triage"] and not content["template"]:   # each data sheet read by code on arrival (plan 2026-11-05 §3.1)
+        from modeler_project.sheet_intake import products_of, read_on_arrival
+
+        read_on_arrival(ws, library, sid, workbook, by=by, drug=brief.drug_name if brief else "",
+                        products=products_of(brief))
+        return (submission(ws, sid) or content) | {"id": sid}
     return content | {"id": sid}
 
 
@@ -424,6 +430,19 @@ def record_reading(ws: Workspace, sid: str, *, sheet: str, form: dict[str, Any],
         readings = {**version.content.get("readings", {}), sheet: {"form": form, "notes": notes, "by": by, "run_id": run_id}}
         content = {**version.content, "readings": readings}
         ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by, reason=f"{sheet}: reading proposed by {by}")
+    return content | {"id": sid}
+
+
+def record_drafts(ws: Workspace, sid: str, drafts: dict[str, dict[str, Any]], *, by: str, reason: str) -> dict[str, Any]:
+    """Code's readings of the file's data sheets, kept on it as drafts (plan 2026-11-05 §3.1, build C2,
+    `modeler_project.sheet_intake`): each replaces the earlier reading of its sheet. Nothing enters the project until a
+    reading is saved (`record_mapping`)."""
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, sid):
+        version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
+        if version is None:
+            raise ClientDataError(f"no client file {sid}")
+        content = {**version.content, "readings": {**version.content.get("readings", {}), **drafts}}
+        ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by, reason=reason)
     return content | {"id": sid}
 
 

@@ -13,7 +13,8 @@ export type ClientFile = {
   evidence: string[]; dissolution: KeptRow[]; products: KeptRow[]; urine_feces: KeptRow[]; issues: IssueRow[];
   brief_mismatches: string[]; other_sheets: string[]; mappings?: Mapping[];
   // the reading agent's checked proposals, by sheet, waiting for a person to check and save (R3c)
-  readings?: Record<string, { form: unknown; notes: string[]; by: string; run_id: string | null }>;
+  // code's own reading on arrival (build C2) carries what it still needs; the agent's is checked like a person's
+  readings?: Record<string, { form: unknown; notes: string[]; by: string; run_id: string | null; needs?: string[] }>;
   // a PDF or Word file (I4): what code found on its pages, and each reading of it by the agent
   inventory?: InventoryItem[];
   document_reads?: DocumentRead[];

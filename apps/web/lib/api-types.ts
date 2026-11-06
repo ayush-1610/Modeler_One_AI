@@ -730,6 +730,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/client-review:finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finish Sheet
+         * @description Give what a sheet read by code needs (plan 2026-11-05 §3.1, build C2): once nothing is left, the reading is saved
+         *     like the sheet reader's (its datasets wait on the card to confirm); else the answers are kept and the rest asked.
+         */
+        post: operations["finish_sheet_api_v1_projects__project_id__client_review_finish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/client-review:reopen": {
         parameters: {
             query?: never;
@@ -7501,6 +7522,20 @@ export interface components {
             value: string;
         };
         /**
+         * ReviewFinish
+         * @description What a sheet read by code needs, given on its card (build C2): the study's or product's facts.
+         */
+        ReviewFinish: {
+            /** Answers */
+            answers?: {
+                [key: string]: string | number;
+            };
+            /** File */
+            file: string;
+            /** Sheet */
+            sheet: string;
+        };
+        /**
          * ReviewGroup
          * @description A study, a product or a file's compound values, to confirm or confirmed.
          */
@@ -7521,7 +7556,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "study" | "product" | "compound";
+            kind: "study" | "product" | "compound" | "sheet";
             /** Notes */
             notes?: string[];
             /** Open */
@@ -7575,6 +7610,10 @@ export interface components {
                 [key: string]: unknown;
             };
             data?: components["schemas"]["DatasetPoints"] | null;
+            /** Draft */
+            draft?: {
+                [key: string]: unknown;
+            } | null;
             /** Duplicate Of */
             duplicate_of?: string | null;
             /** Id */
@@ -7583,7 +7622,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "dataset" | "value" | "profile";
+            kind: "dataset" | "value" | "profile" | "draft";
             /** Label */
             label: string;
             /**
@@ -10834,6 +10873,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ReviewEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ClientReviewPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finish_sheet_api_v1_projects__project_id__client_review_finish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewFinish"];
             };
         };
         responses: {

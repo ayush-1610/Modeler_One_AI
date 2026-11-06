@@ -14940,6 +14940,44 @@
         "title": "ReviewFact",
         "type": "object"
       },
+      "ReviewFinish": {
+        "description": "What a sheet read by code needs, given on its card (build C2): the study's or product's facts.",
+        "properties": {
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Answers",
+            "type": "object"
+          },
+          "file": {
+            "minLength": 1,
+            "title": "File",
+            "type": "string"
+          },
+          "sheet": {
+            "minLength": 1,
+            "title": "Sheet",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "sheet"
+        ],
+        "title": "ReviewFinish",
+        "type": "object"
+      },
       "ReviewGroup": {
         "additionalProperties": false,
         "description": "A study, a product or a file's compound values, to confirm or confirmed.",
@@ -14995,7 +15033,8 @@
             "enum": [
               "study",
               "product",
-              "compound"
+              "compound",
+              "sheet"
             ],
             "title": "Kind",
             "type": "string"
@@ -15168,6 +15207,18 @@
               }
             ]
           },
+          "draft": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft"
+          },
           "duplicate_of": {
             "anyOf": [
               {
@@ -15187,7 +15238,8 @@
             "enum": [
               "dataset",
               "value",
-              "profile"
+              "profile",
+              "draft"
             ],
             "title": "Kind",
             "type": "string"
@@ -22848,6 +22900,75 @@
           }
         },
         "summary": "Edit Study Fact",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/client-review:finish": {
+      "post": {
+        "description": "Give what a sheet read by code needs (plan 2026-11-05 §3.1, build C2): once nothing is left, the reading is saved\nlike the sheet reader's (its datasets wait on the card to confirm); else the answers are kept and the rest asked.",
+        "operationId": "finish_sheet_api_v1_projects__project_id__client_review_finish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewFinish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ClientReviewPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Finish Sheet",
         "tags": [
           "client-data"
         ]

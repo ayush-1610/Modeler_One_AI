@@ -209,7 +209,7 @@ class DatasetPoints(View):
 
 class ReviewItem(View):
     id: str
-    kind: Literal["dataset", "value", "profile"]
+    kind: Literal["dataset", "value", "profile", "draft"]
     label: str
     value: str
     state: str
@@ -220,6 +220,9 @@ class ReviewItem(View):
     duplicate_of: str | None = None     # the same profile as another file's (within the rule's tolerance): loads once
     data: DatasetPoints | None = None    # a dataset's points and code's statistics (build C), as the viewer may see them
     release: StoredContent | None = None  # a dissolution profile as the register gives it: points, CV, fit, conditions
+    # a sheet read by code and not saved yet (build C2): the file and sheet, what it needs (with a person's words), the
+    # answers so far, a document's fact offered per need, its problems and notes
+    draft: StoredContent | None = None
 
 
 class ReviewFact(View):
@@ -235,7 +238,7 @@ class ReviewGroup(View):
     """A study, a product or a file's compound values, to confirm or confirmed."""
 
     id: str
-    kind: Literal["study", "product", "compound"]
+    kind: Literal["study", "product", "compound", "sheet"]
     tab: str
     title: str
     items: list[ReviewItem]

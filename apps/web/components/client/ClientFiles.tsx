@@ -55,8 +55,8 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 type Category = Schema<"Classification">["category"];
 
 /** A sheet's line: what it holds, whether it was read, and the button that reads it. */
-function SheetLine({ t, read, proposed, onRead, onClassify }: {
-  t: Triage; read: number | undefined; proposed: boolean; onRead: () => void;
+function SheetLine({ t, read, proposed, byCode, onRead, onClassify }: {
+  t: Triage; read: number | undefined; proposed: boolean; byCode: string[] | null; onRead: () => void;
   onClassify: (category: Category, reason: string) => Promise<string | null>;
 }) {
   const [changing, setChanging] = useState(false);
@@ -84,6 +84,8 @@ function SheetLine({ t, read, proposed, onRead, onClassify }: {
         {error && <div className="banner err">{error}</div>}
       </td>
       <td>{read ? <span className="chip low">read ✓{read > 1 ? ` (${read})` : ""}</span>
+               : byCode ? <span className="chip medium" title="code read the sheet on arrival; what it does not say is asked on its study's or product's card">
+                   read by code · {byCode.length} to give on its card</span>
                : proposed ? <span className="chip brand" title="checked by code; open it, check it and save">reading proposed</span>
                : data ? <span className="chip medium">not read yet</span> : <span className="muted" style={{ fontSize: 12 }}>no data to read</span>}</td>
       <td className="num"><button className={`btn${!read && data ? " primary" : ""}`} onClick={onRead}>{read ? "Read again" : "Read this sheet"}</button></td>
@@ -199,6 +201,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
           <tbody>
             {file.triage.map((t) => (
               <SheetLine key={t.sheet} t={t} read={read.get(t.sheet)} proposed={Boolean(file.readings?.[t.sheet])}
+                         byCode={file.readings?.[t.sheet]?.by === "code" && file.readings[t.sheet].needs?.length ? file.readings[t.sheet].needs ?? null : null}
                          onRead={() => setReading(reading === t.sheet ? null : t.sheet)}
                          onClassify={(category, reason) => act(() => send(
                            "post", "/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}:classify",
