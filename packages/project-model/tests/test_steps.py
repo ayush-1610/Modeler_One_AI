@@ -231,3 +231,15 @@ def test_what_the_intake_agent_drafted_from_what_the_proposal_implies_waits_on_a
     for path in ("qoi.context_of_use", "scenarios[0].route", "scope.formulation_types"):
         brief = edit_field(brief, path, status=FieldStatus.CONFIRMED, by="u")
     assert start_issues(brief) == [] and brief.value("qoi.context_of_use") == "support a biowaiver of the 25 mg strength"
+
+
+def test_the_agents_reason_for_the_stricter_tier_waits_on_a_person():
+    # the owner, 2026-11-06: the stricter of two admitted tiers pre-selected, with the agent's reason; saved by a person
+    brief = _fill(empty_brief("Drugol", by="u"), *SHORT, ("m15.influence_rating", "medium"),
+                  ("m15.consequence_rating", "high"), ("acceptance.tier", "high"))
+    brief = agent_set(brief, "m15.risk_justification", value="a wrong biowaiver would expose patients to an untested tablet",
+                      unit=None, citations=(), status=FieldStatus.DRAFTED, confidence=None, by="agent:a1")
+    assert [i.message for i in start_issues(brief)] == [
+        "Why this model risk: influence and consequence differ, so say why it is high"]
+    brief = edit_field(brief, "m15.risk_justification", status=FieldStatus.CONFIRMED, by="u")
+    assert start_issues(brief) == [] and brief.get("m15.risk_justification").by == "u"

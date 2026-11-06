@@ -128,7 +128,9 @@ def test_the_agents_m15_draft_waits_on_a_person_who_confirms_it_in_place(client)
     sha = next(d["sha256"] for d in c.get(f"/api/v1/projects/{pid}/documents", headers=H).json()["data"]["documents"]
                if d["role"] == "proposal")
     why = {"how_the_model_is_used": "The exposure prediction supports dose selection alongside the clinical data",
-           "what_a_wrong_decision_means": "A wrong exposure estimate could expose patients to too high a dose"}
+           "what_a_wrong_decision_means": "A wrong exposure estimate could expose patients to too high a dose",
+           # the ratings differ: why the stricter tier fits (the owner, 2026-11-06)
+           "why_this_tier": "Too high a dose would harm patients, so the stricter risk, high, is the one to meet"}
 
     class Scripted:
         provider, model = "test", "scripted"
@@ -150,23 +152,28 @@ def test_the_agents_m15_draft_waits_on_a_person_who_confirms_it_in_place(client)
         raise IdentityError("PubChem is not reachable from this host")
 
     result = brief_api.run_extraction(store, "t1", pid, by="u1", model=Scripted(), fetch_identity=no_pubchem)
-    assert result["status"] == "COMPLETED" and result["accepted"] == 6
+    assert result["status"] == "COMPLETED" and result["accepted"] == 7
     view = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]
     fields = view["brief"]["fields"]
     assert fields["m15.influence_suggested"]["status"] == "DRAFTED" and fields["m15.influence_suggested"]["value"] == "medium"
     assert fields["m15.influence"]["value"] == why["how_the_model_is_used"]
     assert fields["m15.influence_rating"]["status"] == "MISSING"           # the rating itself waits on the person
+    assert fields["m15.risk_justification"]["status"] == "DRAFTED"
+    assert fields["m15.risk_justification"]["value"] == why["why_this_tier"]
+    assert view["start"]["risk"]["target_default"] == 10.0                  # offered, not set (the owner, 2026-11-06)
+    assert fields["acceptance.internal_target_pe"]["status"] == "MISSING"
     issues = [(i["path"], i["message"]) for i in view["start"]["issues"]]
     assert ("m15.influence", "How the model is used: confirm the intake agent's draft, or change it") in issues
     assert ("acceptance.tier", "Model influence: not rated yet") in issues   # the rating itself waits on the person
     confirmed = c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
         {"path": "m15.influence", "status": "CONFIRMED"},
-        {"path": "m15.consequence", "status": "EDITED", "value": "Too high a dose could harm patients"}]})
+        {"path": "m15.consequence", "status": "EDITED", "value": "Too high a dose could harm patients"},
+        {"path": "m15.risk_justification", "status": "CONFIRMED"}]})
     assert confirmed.status_code == 200, confirmed.text
     view = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]
     assert {"m15.influence", "m15.consequence"}.isdisjoint(i["path"] for i in view["start"]["issues"])
-    assert view["brief"]["fields"]["m15.influence"]["status"] == "CONFIRMED"
-    assert view["brief"]["fields"]["m15.influence"]["by"] == "u1"
+    for path in ("m15.influence", "m15.risk_justification"):
+        assert view["brief"]["fields"][path]["status"] == "CONFIRMED" and view["brief"]["fields"][path]["by"] == "u1"
     # the person rates (the owner, 2026-11-02): influence differs from the suggestion and waits until it settles on one
     rated = c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
         {"path": "m15.influence_rating", "status": "EDITED", "value": "high"},

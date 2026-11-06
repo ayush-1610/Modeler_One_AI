@@ -1,7 +1,8 @@
 // The intake agent's suggested M15 ratings: pre-selected with the reason until the person saves (the owner, 2026-11-05,
-// reversing 2026-11-02's "shown only after rating"); saving keeps a suggestion as the person's rating. Once saved, the
-// same rating is noted, and a different one is flagged and settles on one, the suggestion taken or the person's rating
-// kept with a reason. The browser flows run with no LLM provider, so a fixture
+// reversing 2026-11-02's "shown only after rating"); saving keeps a suggestion as the person's rating. Of the tiers two
+// different ratings admit, the stricter is pre-selected with the agent's reason, and the internal target is offered at
+// its default, 10 % (the owner, 2026-11-06). Once saved, the same rating is noted, and a different one is flagged and
+// settles on one, the suggestion taken or the person's rating kept with a reason. The browser flows run with no LLM provider, so a fixture
 // writes the suggestion as agent A1 would (DRAFTED, through the brief's own functions).
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
@@ -27,7 +28,9 @@ test("a suggested rating is pre-selected with its reason, and a difference settl
   await expect(page.getByTestId("risk-influence-preselected")).toContainText("The intake agent suggests medium; save");
   await expect(page.getByTestId("risk-consequence-preselected")).toContainText("The intake agent suggests high; save");
   await expect(page.getByTestId("risk-influence-differs")).toHaveCount(0);
-  await page.getByTestId("start-risk").screenshot({ path: test.info().outputPath("m15-preselected.png") });
+  // the ratings admit medium and high: the stricter is pre-selected (the owner, 2026-11-06)
+  await expect(page.getByTestId("risk-tier-high")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("risk-tier-preselected")).toContainText("the stricter of the tiers these ratings admit");
 
   // the person picks another influence and keeps the suggested consequence
   await page.getByTestId("risk-influence-high").click();
@@ -61,3 +64,36 @@ test("a suggested rating is pre-selected with its reason, and a difference settl
   await expect(page.getByTestId("risk-consequence-differs")).not.toHaveClass(/needs-you/);
   await page.screenshot({ path: test.info().outputPath("m15-suggestion.png"), fullPage: true });
 });
+
+test("the stricter tier comes with the agent's reason, and the internal target with its default, each saved as offered",
+  async ({ page, request }) => {
+    const reason = "A wrong dose would reach patients on the model's word alone, so the stricter risk, high, applies";
+    const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+      drug_name: "Strictamide", extract: "false",
+      files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nDose selection support.") } } });
+    const projectId = (await started.json()).data.project_id as string;
+    execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "agent_suggestion.py"),
+                        join(process.env.E2E_DATA_DIR!, "read-root"), projectId, "medium", "high", reason], { cwd: REPO });
+
+    await page.goto(`/projects/${projectId}/start`);
+    await expect(page.getByTestId("risk-tier-high")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("risk-tier-preselected")).toContainText("with the intake agent's reason below");
+    await expect(page.getByTestId("risk-why")).toHaveValue(reason);
+    await expect(page.getByTestId("risk-why-drafted")).toBeVisible();
+    await expect(page.getByTestId("risk-target-input")).toHaveValue("10");
+    await expect(page.getByTestId("risk-target-default")).toBeVisible();
+    await expect(page.getByTestId("risk-problem")).toContainText("Model risk: not set yet");     // offered, not saved
+    await page.getByTestId("start-risk").screenshot({ path: test.info().outputPath("m15-preselected.png") });
+
+    // saved as offered: the ratings, the stricter tier and the agent's reason become the person's
+    await page.getByTestId("risk-save").click();
+    await expect(page.getByTestId("risk-current")).toHaveText("Saved: high");
+    await expect(page.getByTestId("risk-why")).toHaveValue(reason);
+    await expect(page.getByTestId("risk-why-drafted")).toHaveCount(0);
+    await expect(page.getByTestId("risk-tier-preselected")).toHaveCount(0);
+    await expect(page.getByTestId("risk-problem")).toHaveCount(0);
+    await page.getByTestId("risk-target-save").click();
+    await expect(page.getByTestId("risk-target-default")).toHaveCount(0);
+    await expect(page.getByTestId("risk-target-save")).toBeDisabled();
+    await expect(page.getByTestId("risk-target-input")).toHaveValue("10");
+  });

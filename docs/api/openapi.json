@@ -16039,6 +16039,10 @@
             "title": "Ruleset",
             "type": "string"
           },
+          "target_default": {
+            "title": "Target Default",
+            "type": "number"
+          },
           "target_max": {
             "additionalProperties": {
               "type": "number"
@@ -16053,6 +16057,7 @@
           "admitted",
           "criteria",
           "target_max",
+          "target_default",
           "ruleset",
           "disagreements"
         ],
