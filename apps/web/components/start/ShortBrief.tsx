@@ -192,7 +192,7 @@ function Stated({ path, label, view, save, open, marks }: {
 export function ShortBrief({ view, save, open, marks }: { view: BriefView; save: Save; open: Open; marks: Marks }) {
   return (
     <Block n={2} title="The question" testId="start-brief">
-      <Fields view={view} paths={QUESTION} save={save} open={open} marks={marks}
+      <Fields view={view} paths={QUESTION} save={save} open={open} marks={marks} confirmable={QUESTION}
               extras={{ "qoi.applications": <ApplicationsAdd view={view} /> }} />
       <h3 className="start-sub">The drug's disposition, as the proposal states it</h3>
       <Fields view={view} paths={["drug.bcs_class"]} save={save} open={open} marks={marks} />

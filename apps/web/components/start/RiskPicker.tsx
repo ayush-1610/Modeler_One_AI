@@ -56,11 +56,14 @@ function suggestion(view: BriefView, path: string): Rating {
 
 type Disagreement = BriefView["start"]["risk"]["disagreements"][number];
 
-/** The intake agent's suggestion for one rating, shown only once the person has saved theirs (the owner, 2026-11-02: no
- *  anchoring). The same rating is noted; a different one is flagged and settles on one: the suggestion taken (it is
+/** The intake agent's suggestion for one rating. Before the person saves a rating it is pre-selected above, with its
+ *  reason (the owner, 2026-11-05, reversing 2026-11-02's "shown only after rating"): saving keeps it as the person's.
+ *  Once saved, the same rating is noted; a different one is flagged and settles on one: the suggestion taken (it is
  *  picked above, for the person to save with the tier), or the person's rating kept with a reason. */
-function Suggestion({ dimension, stored, suggested, differs, save, marks, onTake }: {
+function Suggestion({ dimension, stored, suggested, differs, reasoned, save, marks, onTake }: {
   dimension: "influence" | "consequence"; stored: Rating; suggested: Rating; differs: Disagreement | undefined;
+  /** Whether the agent's reason for the rating is written under the ratings. */
+  reasoned: boolean;
   save: Save; marks: Marks; onTake: (rating: string) => void;
 }) {
   const path = `m15.${dimension}_differs`;
@@ -69,8 +72,13 @@ function Suggestion({ dimension, stored, suggested, differs, save, marks, onTake
   if (!suggested) return null;
   const testId = `risk-${dimension}`;
   if (!stored) {
-    return <span className="muted risk-suggestion" data-testid={`${testId}-suggestion-hidden`}>The intake agent has
-      suggested a rating; it shows once you have saved yours.</span>;
+    return (
+      <span className="risk-suggestion risk-preselected" data-testid={`${testId}-preselected`}>
+        <span className="chip medium">pre-selected</span>
+        <span>The intake agent suggests <strong>{suggested}</strong>{reasoned ? ", for the reason under the ratings" : ""}; save
+          to keep it, or pick another.</span>
+      </span>
+    );
   }
   if (!differs) {
     return <span className="muted risk-suggestion" data-testid={`${testId}-agrees`}>The intake agent suggested the same: {suggested}.</span>;
@@ -109,11 +117,11 @@ function Suggestion({ dimension, stored, suggested, differs, save, marks, onTake
 
 /** The ICH M15 model risk (§2.1.5): the person rates the model's influence and the decision's consequence; the tiers
  *  those ratings admit are offered (the API's table, so the rule lives in one place); different ratings need a reason.
- *  The tier is never assumed (R0): without it the plan cannot be signed. The intake agent's suggested ratings are not
- *  preselected: each shows once the person has saved their own, and a difference settles on one rating (the owner,
- *  2026-11-02; `Suggestion`). Why each rating is what it is sits under the ratings, the agent's draft confirmed or
- *  changed in place (page review 1, decision 1b). The tier's acceptance criteria are shown beside it, and the internal
- *  target under it. */
+ *  The tier is never assumed (R0): without it the plan cannot be signed. The intake agent's suggested ratings are
+ *  pre-selected until the person saves (the owner, 2026-11-05: "preselect, with reason"), and so is the tier when the two
+ *  ratings admit only one; saving makes them the person's, and a later difference settles on one rating
+ *  (`Suggestion`). Why each rating is what it is sits under the ratings, the agent's draft confirmed or changed in place
+ *  (page review 1, decision 1b). The tier's acceptance criteria are shown beside it, and the internal target under it. */
 export function RiskPicker({ view, save, open, marks }: { view: BriefView; save: Save; open: Open; marks: Marks }) {
   const stored = {
     influence: valueOf(view, "m15.influence_rating") as Rating,
@@ -122,8 +130,9 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
     why: (valueOf(view, "m15.risk_justification") as string | null) ?? "",
   };
   const suggested = { influence: suggestion(view, "m15.influence_suggested"), consequence: suggestion(view, "m15.consequence_suggested") };
-  const [influence, setInfluence] = useState<Rating>(stored.influence);
-  const [consequence, setConsequence] = useState<Rating>(stored.consequence);
+  // the agent's suggestion pre-selected where the person has saved nothing yet (build D); saving makes it theirs
+  const [influence, setInfluence] = useState<Rating>(stored.influence ?? suggested.influence);
+  const [consequence, setConsequence] = useState<Rating>(stored.consequence ?? suggested.consequence);
   const differs = (d: string) => view.start.risk.disagreements.find((x) => x.dimension === d);
   const [tier, setTier] = useState<Rating>(stored.tier);
   const [why, setWhy] = useState(stored.why);
@@ -161,7 +170,7 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
           <div className="sb-value">
             <Seg options={RATINGS} value={influence} onPick={setInfluence} testId="risk-influence" />
             <Suggestion dimension="influence" stored={stored.influence} suggested={suggested.influence}
-                        differs={differs("influence")} save={save} marks={marks} onTake={setInfluence} />
+                        differs={differs("influence")} reasoned={!!valueOf(view, "m15.influence")} save={save} marks={marks} onTake={setInfluence} />
           </div>
         </div>
         <div className="risk-row">
@@ -169,7 +178,7 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
           <div className="sb-value">
             <Seg options={RATINGS} value={consequence} onPick={setConsequence} testId="risk-consequence" />
             <Suggestion dimension="consequence" stored={stored.consequence} suggested={suggested.consequence}
-                        differs={differs("consequence")} save={save} marks={marks} onTake={setConsequence} />
+                        differs={differs("consequence")} reasoned={!!valueOf(view, "m15.consequence")} save={save} marks={marks} onTake={setConsequence} />
           </div>
         </div>
         <div className="risk-row">

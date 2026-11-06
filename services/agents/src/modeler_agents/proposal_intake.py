@@ -4,10 +4,15 @@ The model reads the uploaded documents through tools and proposes one field at a
 proposal before it enters the brief: the field exists, the value fits the field (enum, number, list), the quote is
 found verbatim on the cited page, and the field is not locked by a person. A rejection is returned to the model with
 its reason, so it can correct the citation or move on. What no document states is marked MISSING with a question;
-nothing is inferred, with one exception: the ICH M15 draft (page review 1, the owner's decisions 1b and 4 of
-2026-10-29). From the question of interest and context of use, the agent suggests the model influence and the decision
-consequence, each with why. All four are DRAFTED: none is a value until a person confirms it. The ratings that count
-and the risk tier stay human-only and are never written by the agent.
+nothing is inferred, with two exceptions:
+- the ICH M15 draft (page review 1, the owner's decisions 1b and 4 of 2026-10-29): from the question of interest and
+  context of use, the agent suggests the model influence and the decision consequence, each with why. Start shows the
+  suggested ratings pre-selected, with the reasons (the owner, 2026-11-05, reversing 2026-10-29); the ratings that count
+  and the risk tier stay a person's, saved by the person;
+- the fields a proposal usually implies rather than states (plan 2026-11-05 §3.4, build D): the question of interest,
+  the context of use, the applications, the formulation types and each scenario's route, proposed with the quote that
+  implies them and why (`propose_implied`).
+Every draft is DRAFTED: not a value until a person confirms or changes it, and Start waits on it until then.
 """
 
 from __future__ import annotations
@@ -46,6 +51,17 @@ class DocumentSource(Protocol):
 
 # The suggested ratings come only from draft_risk_assessment, never from a quote
 DRAFT_ONLY = frozenset({"m15.influence_suggested", "m15.consequence_suggested"})
+# What a proposal usually implies rather than states (build D): proposed with the quote that implies it, and why
+IMPLIED = ("qoi.text", "qoi.context_of_use", "qoi.applications", "scope.formulation_types")
+IMPLIED_IN_GROUPS = {("scenarios", "route")}
+
+
+def implied(path: str) -> bool:
+    """Whether the agent may propose the field from what the documents imply (`propose_implied`)."""
+    if path in IMPLIED:
+        return True
+    group, _index, name = parse_path(path)
+    return group is not None and (group, name) in IMPLIED_IN_GROUPS
 
 
 def _catalog_text() -> str:
@@ -78,6 +94,7 @@ Rules:
 - Use exactly the field paths and option values listed below. For lists of things (products, scenarios, populations, data_plan), use one index per item, starting at 0, and fill the item's required sub-fields first.
 - The data plan (data_plan[i]) records every statement about who provides which data: the client, the literature, the sponsor, or nobody yet; with its category and purpose (model building, internal validation, external validation, application verification).
 - Doses and strengths are numbers with their unit as stated (e.g. value 50, unit mg). Keep the unit the document uses.
+- Some fields are usually implied by a proposal rather than stated as such: the question of interest (qoi.text), the context of use (qoi.context_of_use), the applications (qoi.applications), the formulation types (scope.formulation_types) and each scenario's route (scenarios[i].route). When a document states one, use propose_field. When it only implies one, call propose_implied with the quote that implies it and, in one or two sentences, why (e.g. "to support a waiver of the 25 mg strength" implies a biowaiver application; "oral film-coated tablets" implies the oral route and an immediate-release tablet). Propose only what a reviewer would read the same way from the quote; a person confirms or changes every implied value. If nothing implies a field, mark it missing.
 - Never propose the ICH M15 ratings, the risk tier or acceptance.tier with propose_field: people decide those. Once qoi.text and qoi.context_of_use are recorded, call draft_risk_assessment once. Suggest the model influence (how much the model's evidence weighs in the decision: low when other evidence decides, high when the model is the main evidence, e.g. in place of a clinical study) and the decision consequence (what a wrong decision would mean for patients: low when it would do no harm, high when it could seriously harm them). Explain each in one or two plain sentences built from the question and context of use. A person confirms or changes the draft.
 - Do not repeat a field that was RECORDED unless a document states a different value; then propose it again with the new quote and say why in the note.
 - When a proposal is REJECTED, fix it from the page text (exact quote, correct page, valid option) or move on.
@@ -139,6 +156,42 @@ def propose_field(ctx: IntakeContext, *, path: str, value: Any, quote: str, doc_
         return _reject(ctx, "INVALID_VALUE", path, str(exc))
     ctx.accepted.append({"path": path, "value": value, "unit": unit, "doc": doc_sha256, "page": page})
     return f"RECORDED {path}" + (" (confidence B: number not literal in the quote)" if confidence == "B" else "")
+
+
+def propose_implied(ctx: IntakeContext, *, path: str, value: Any, quote: str, doc_sha256: str, page: int, why: str,
+                    locator: str = "") -> str:
+    """A field the documents imply rather than state (build D): the quote that implies it is checked on its page, the value
+    against the field, and why is required. Written DRAFTED, for a person to confirm or change; a field a person set or a
+    document states (EXTRACTED) is kept."""
+    try:
+        parse_path(path)
+    except BriefPathError as exc:
+        return _reject(ctx, "UNKNOWN_FIELD", path, str(exc))
+    if not implied(path):
+        return _reject(ctx, "NOT_IMPLIED", path, "only the question of interest, context of use, applications, formulation "
+                                                 "types and scenario routes are proposed from what a document implies; "
+                                                 "use propose_field with a quote that states the value")
+    if locked(ctx.brief, path) or ctx.brief.get(path).status is FieldStatus.EXTRACTED:
+        return _reject(ctx, "KEPT", path, "a person set this field, or a document states it: it is kept")
+    if len(why.strip()) < 20:
+        return _reject(ctx, "NO_REASON", path, "say why the quote implies the value, in a sentence or two (at least 20 "
+                                               "characters)")
+    page_text = ctx.library.page_text(doc_sha256, int(page))
+    if page_text is None:
+        return _reject(ctx, "UNKNOWN_PAGE", path, "no such document page; use list_documents and read_page")
+    if not quote_appears_in(page_text, quote):
+        return _reject(ctx, "INVALID_CITATION", path,
+                       "the quote was not found verbatim on that page (min. 12 characters); copy it exactly")
+    cite = Citation(doc_sha256=doc_sha256, page=int(page), quote=quote, locator=locator,
+                    source=_doc_name(ctx.library, doc_sha256))
+    try:
+        ctx.brief = agent_set(ctx.brief, path, value=value, unit=None, citations=(cite,), status=FieldStatus.DRAFTED,
+                              confidence=None, by=ctx.actor, note=f"proposed by the intake agent from what the document "
+                                                                  f"implies: {why.strip()}")
+    except (EditError, BriefPathError) as exc:
+        return _reject(ctx, "INVALID_VALUE", path, str(exc))
+    ctx.accepted.append({"path": path, "value": value, "unit": "", "doc": doc_sha256, "page": page, "implied": True})
+    return f"DRAFTED {path} (implied; a person confirms it)"
 
 
 def draft_risk_assessment(ctx: IntakeContext, *, influence: str, how_the_model_is_used: str, consequence: str,
@@ -230,6 +283,18 @@ def build_tools(ctx: IntakeContext) -> list[Tool]:
                  "locator": {"type": "string", "description": "e.g. Table 2, Section 3.1"}, "note": string},
               "required": ["path", "value", "quote", "doc_sha256", "page"]},
              lambda **kw: propose_field(ctx, **kw)),
+        Tool("propose_implied",
+             "Propose a field the documents imply rather than state (question of interest, context of use, applications, "
+             "formulation types, a scenario's route), with the quote that implies it and why. A draft: a person confirms it.",
+             {"type": "object", "properties": {
+                 "path": {"type": "string", "description": "qoi.text, qoi.context_of_use, qoi.applications, "
+                                                           "scope.formulation_types or scenarios[i].route"},
+                 "value": {"type": "string", "description": "the value; for lists, items separated by ';'"},
+                 "quote": string, "doc_sha256": string, "page": {"type": "integer"},
+                 "why": {"type": "string", "description": "why the quote implies this value, in a sentence or two"},
+                 "locator": string},
+              "required": ["path", "value", "quote", "doc_sha256", "page", "why"]},
+             lambda **kw: propose_implied(ctx, **kw)),
         Tool("mark_missing", "Record that a field is not stated in any document, with a question for the reviewer.",
              {"type": "object", "properties": {"path": string, "question": string}, "required": ["path", "question"]},
              mark_missing),

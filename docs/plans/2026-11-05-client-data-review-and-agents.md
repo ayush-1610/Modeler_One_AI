@@ -1,6 +1,6 @@
 # The client's data, reviewed where it belongs, and agents that work from the start (plan, 2026-11-05)
 
-Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B, C1 and C2 done).
+Status: **approved by the owner, being built** (revision 2: the owner's answers to §5, 2026-11-05; builds A, B, C1, C2 and D done).
 Follows `2026-11-03-inputs-and-client-data.md` (I1–I4c, merged), whose
 builds made the parts work one by one; the owner's use of them on a real delivery (14 files: BE workbooks, dissolution
 profiling workbooks, the technical proposal) shows that together they do not yet give a clear, usable page. I5 (CDISC)
@@ -140,8 +140,17 @@ will check the builder with their own files later (q4), so the builds use the up
      called data) reads it at once; "belongs to…" is the study id asked when the sheet names none; client PDF and Word
      files go to A4 on arrival (agents on). Not in C2: A4 on a sheet whose code reading has a problem, run on its own
      (still the "Read the data sheets (agent)" button), and a record of every cell ignored (code's notes are shown).
-4. **D, Start proposals (M):** A1's implied fields with their quotes, and the M15 ratings pre-selected with the
-   agent's reasons (§3.4; q1).
+4. **D, Start proposals (M): built** (branch `start-d-proposals`). A1 drafts what a proposal implies rather than states
+   (the question of interest, context of use, applications, formulation types and each scenario's route) with the
+   quote that implies it and why (`propose_implied`); each is shown in place, pre-selected, with Confirm, and Start waits
+   on it. The suggested M15 ratings are pre-selected, marked so, with the agent's reasons under them (q1); saving makes
+   them the person's. Two deviations from the owner's list, open for the owner:
+   - **Model risk (the tier):** pre-selected when the two ratings admit one tier. When they admit two (e.g. medium
+     influence, high consequence), the person picks one and says why, as ICH M15 asks; the agent does not choose. If the
+     owner wants the stricter of the two pre-selected, that is a small change, with the person's "why" still asked.
+   - **Internal target:** proposed only when a document states one. An unstated target is not invented: it sits on top
+     of the tier's acceptance criteria (MS-01 §8), which are SME-governed.
+   Not in D: A1's evaluation on real proposals (P1's open item).
 5. **The evaluation grows:** messy deliveries (the owner's own files, which the owner will use to check the builder,
    and synthetic ones modelled on them) scored end to end: placed right, read right, cleaned with a record, nothing
    silent.

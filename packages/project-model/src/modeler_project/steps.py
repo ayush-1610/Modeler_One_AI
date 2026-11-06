@@ -19,6 +19,7 @@ from modeler_project.brief import (
     FieldStatus,
     ProjectBrief,
     definition_of,
+    parse_path,
     rating_disagreements,
     risk_check,
 )
@@ -61,14 +62,35 @@ class StartIssue(BaseModel):
     message: str
 
 
+def _named(path: str) -> str:
+    """A field's label, with its scenario's number when it belongs to one."""
+    group, index, _name = parse_path(path)
+    label = definition_of(path).label
+    return f"Scenario {index + 1}: {label.lower()}" if group == "scenarios" else label
+
+
+def _drafted_under(gate_path: str, drafted: list[str]) -> bool:
+    """Whether a scope gate's field (or, for the routes, a scenario's route) holds a draft waiting on a person."""
+    return any(path == gate_path or path.startswith(f"{gate_path}[") for path in drafted)
+
+
 def start_issues(brief: ProjectBrief) -> list[StartIssue]:
-    """What Start still needs (redesign §3.1): the question and its applications, the model risk (ICH M15, never
+    """What Start still needs (redesign §3.1): the question and its applications (what the intake agent drafted from what
+    the proposal implies, here and in the scope, confirmed or changed by a person: build D), the model risk (ICH M15, never
     assumed) with why each rating is what it is (in a person's words, or an agent's draft a person confirmed), a rating
     that differs from the intake agent's suggestion settled on one (taken, or kept with a reason), an
     internal target no looser than its tier (MS-01 §8), the scope gates (D-28: anything the builder cannot model is
     refused here), and the open questions on the short brief. Proposal notes never hold Start up."""
+    # what the intake agent proposed from what the proposal implies (build D): pre-selected, a person's word still needed
+    implied = [*START_REQUIRED, "scope.formulation_types",
+               *(f"scenarios[{i}].route" for i in range(len(brief.groups.get("scenarios", ()))))]
+    drafted = [path for path in implied
+               if brief.get(path).status is FieldStatus.DRAFTED and brief.get(path).value not in (None, "", [])]
     issues = [StartIssue(path=path, message=f"{definition_of(path).label}: not set yet") for path in START_REQUIRED
-              if brief.value(path) in (None, "", []) and brief.get(path).status is not FieldStatus.NOT_APPLICABLE]
+              if path not in drafted and brief.value(path) in (None, "", [])
+              and brief.get(path).status is not FieldStatus.NOT_APPLICABLE]
+    issues += [StartIssue(path=path, message=f"{_named(path)}: confirm the intake agent's proposal, or change it")
+               for path in drafted]
     issues += [StartIssue(path="acceptance.tier", message=m) for m in risk_check(brief).problems]
     for path in RISK_TEXTS:      # why each rating is what it is, in a person's words or confirmed by one (ICH M15 §2.1.5)
         record, label = brief.get(path), definition_of(path).label
@@ -92,7 +114,7 @@ def start_issues(brief: ProjectBrief) -> list[StartIssue]:
                                      message=f"Internal target: at most {widest:.1f} % at the {tier} tier (MS-01 §8: never "
                                              f"looser than the tier), {float(target):g} % given"))
     for gate in scope_gates(brief):
-        if gate.state == "not_set":
+        if gate.state == "not_set" and not _drafted_under(gate.path, drafted):     # its draft already asks above
             issues.append(StartIssue(path=gate.path, message=f"{gate.label}: not set yet"))
         elif gate.state == "not_supported":
             issues.append(StartIssue(path=gate.path, message=f"{gate.label}: {gate.message}"))

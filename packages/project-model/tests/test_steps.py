@@ -212,3 +212,22 @@ def test_a_rating_that_differs_from_the_agents_suggestion_settles_on_one(tmp_pat
     with pytest.raises(EditError, match="set by a person only"):
         agent_set(rated, "m15.influence_differs", value="agreed", unit=None, citations=(), status=FieldStatus.DRAFTED,
                   confidence=None, by="agent:a1")
+
+
+def test_what_the_intake_agent_drafted_from_what_the_proposal_implies_waits_on_a_person():
+    # plan 2026-11-05 §3.4 (build D): pre-selected on Start, not a value until a person confirms or changes it
+    brief = _fill(empty_brief("Drugol", by="u"), *SHORT, ("m15.influence_rating", "high"),
+                  ("m15.consequence_rating", "high"), ("acceptance.tier", "high"))
+    assert start_issues(brief) == []
+    for path, value in (("qoi.context_of_use", "support a biowaiver of the 25 mg strength"), ("scenarios[0].route", "oral"),
+                        ("scope.formulation_types", ["ir_tablet"])):
+        brief = edit_field(brief, path, value=None, status=FieldStatus.MISSING, by="u")
+        brief = agent_set(brief, path, value=value, unit=None, citations=(), status=FieldStatus.DRAFTED, confidence=None,
+                          by="agent:a1", note="proposed by the intake agent from what the document implies: ...")
+    assert {i.path: i.message for i in start_issues(brief)} == {
+        "qoi.context_of_use": "Context of use: confirm the intake agent's proposal, or change it",
+        "scope.formulation_types": "Formulation types: confirm the intake agent's proposal, or change it",
+        "scenarios[0].route": "Scenario 1: route: confirm the intake agent's proposal, or change it"}
+    for path in ("qoi.context_of_use", "scenarios[0].route", "scope.formulation_types"):
+        brief = edit_field(brief, path, status=FieldStatus.CONFIRMED, by="u")
+    assert start_issues(brief) == [] and brief.value("qoi.context_of_use") == "support a biowaiver of the 25 mg strength"
