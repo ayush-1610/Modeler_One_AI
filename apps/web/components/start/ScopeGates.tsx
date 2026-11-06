@@ -5,11 +5,12 @@ import { useState } from "react";
 import { InlineIssue } from "@/components/kit";
 import { Block } from "@/components/start/Blocks";
 import { NeedsYou, Seg, Source, ValueInput } from "@/components/start/FieldRow";
-import type { BriefView, FieldDef } from "@/lib/brief";
+import type { BriefView, FieldDef, FieldRecord } from "@/lib/brief";
 import { defOf, GATE_STATE, recordOf, valueOf, type Gate, type Marks, type Open, type Save } from "@/lib/start";
 
-function GateHead({ gate }: { gate: Gate }) {
-  const state = GATE_STATE[gate.state];
+/** A gate's name and state; a gate whose only value is the intake agent's draft reads "to confirm" (build D). */
+function GateHead({ gate, drafted = false }: { gate: Gate; drafted?: boolean }) {
+  const state = drafted && gate.state === "not_set" ? { label: "to confirm", tone: "medium" } : GATE_STATE[gate.state];
   return (
     <div className="gate-head">
       <span className="sb-label">{gate.label}</span>
@@ -59,8 +60,21 @@ function Dose({ path, index, stored, save }: { path: string; index: number; stor
   );
 }
 
+/** A value the intake agent proposed from what the proposal implies (build D): shown pre-selected with the quote it
+ *  rests on, and confirmed here (changing it confirms it too). */
+function Drafted({ record, path, save, open }: { record: FieldRecord; path: string; save: Save; open: Open }) {
+  if (record.status !== "DRAFTED" || record.value == null) return null;
+  return (
+    <span className="drafted" data-testid={`drafted-${path}`}>
+      <Source record={record} open={open} />
+      <button type="button" className="btn small primary" data-testid={`confirm-${path}`}
+              onClick={() => void save([{ path, status: "CONFIRMED" }])}>Confirm</button>
+    </span>
+  );
+}
+
 /** The routes of the scenarios, one row each (route, food state and dose), which the routes gate reads. */
-function Routes({ view, save }: { view: BriefView; save: Save }) {
+function Routes({ view, save, open }: { view: BriefView; save: Save; open: Open }) {
   const items = view.brief.groups.scenarios ?? [];
   const [adding, setAdding] = useState(false);
   const routeDef = defOf(view, "scenarios[0].route");
@@ -84,6 +98,7 @@ function Routes({ view, save }: { view: BriefView; save: Save }) {
           </select>
           <Dose key={recordOf(view, `scenarios[${i}].dose`).at ?? ""} path={`scenarios[${i}].dose`} index={i}
                 stored={valueOf(view, `scenarios[${i}].dose`) as number | null} save={save} />
+          <Drafted record={recordOf(view, `scenarios[${i}].route`)} path={`scenarios[${i}].route`} save={save} open={open} />
         </div>
       ))}
       {adding ? (
@@ -156,7 +171,7 @@ export function ScopeGates({ view, save, open, marks }: { view: BriefView; save:
         )}
         <div className={`gate ${forms.state}${marks.issues("scope.formulation_types").length ? " needs-you" : ""}`}
              data-testid="gate-formulation_types">
-          <GateHead gate={forms} />
+          <GateHead gate={forms} drafted={formsRecord.status === "DRAFTED"} />
           <div className="gate-body">
             <Formulations key={formsRecord.at ?? ""} def={formsDef}
                           stored={formsRecord.status === "NOT_APPLICABLE" ? [] : formsRecord.value} save={save} />
@@ -165,16 +180,18 @@ export function ScopeGates({ view, save, open, marks }: { view: BriefView; save:
                      onChange={(e) => save([{ path: "scope.formulation_types", status: e.target.checked ? "NOT_APPLICABLE" : "MISSING" }])} />
               {" "}None: intravenous only
             </label>
-            <Source record={formsRecord} open={open} />
+            {formsRecord.status === "DRAFTED" ? <Drafted record={formsRecord} path="scope.formulation_types" save={save} open={open} />
+              : <Source record={formsRecord} open={open} />}
             <GateNote gate={forms} />
             <NeedsYou issues={marks.issues("scope.formulation_types")} />
           </div>
         </div>
         <div className={`gate ${gates.routes.state}${marks.issues(gates.routes.path).length ? " needs-you" : ""}`}
              data-testid="gate-routes">
-          <GateHead gate={gates.routes} />
+          <GateHead gate={gates.routes}
+                    drafted={(view.brief.groups.scenarios ?? []).some((_, i) => recordOf(view, `scenarios[${i}].route`).status === "DRAFTED")} />
           <div className="gate-body">
-            <Routes view={view} save={save} />
+            <Routes view={view} save={save} open={open} />
             <GateNote gate={gates.routes} />
             <NeedsYou issues={marks.issues(gates.routes.path)} />
           </div>

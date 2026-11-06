@@ -129,3 +129,53 @@ def test_a1_drafts_the_m15_assessment_for_a_person_to_confirm(library):
     ctx2 = IntakeContext(library=library, brief=b, actor="agent:ar_3")
     result = run_proposal_intake(Scripted([[("draft_risk_assessment", {**draft[1], "how_the_model_is_used": "x" * 30})], []]), ctx2)
     assert result.brief.value("m15.influence") == why_influence
+
+
+def test_a1_proposes_what_the_proposal_implies_with_the_quote_and_why(library):
+    # plan 2026-11-05 §3.4 (build D): the question, context of use, applications, formulation types and routes a proposal
+    # usually implies are drafted with the quote and why; a person confirms them; what a person or a document set is kept
+    sha = library.documents()[0].content["sha256"]
+    why = "a food-effect prediction for the tablet is what the objective asks for"
+    brief = edit_field(empty_brief("Dapagliflozin", by="u1"), "qoi.text", value="the person's own question",
+                       status=FieldStatus.EDITED, by="u1")
+    model = Scripted([
+        [("propose_implied", {"path": "qoi.applications", "value": "APP-12 food effect", "why": why, "doc_sha256": sha,
+                              "page": 1, "quote": "predict the food effect of the 10 mg immediate-release tablet"}),
+         ("propose_implied", {"path": "scope.formulation_types", "value": "ir_tablet", "doc_sha256": sha, "page": 1,
+                              "quote": "10 mg immediate-release tablet",
+                              "why": "an immediate-release tablet is the only product the proposal names"}),
+         ("propose_implied", {"path": "scenarios[0].route", "value": "oral", "doc_sha256": sha, "page": 1,
+                              "quote": "received a single oral dose", "why": "the volunteers took the dose by mouth"}),
+         # refused: not an implied field, a reason too short, an invented quote, a field the person set, not an option
+         ("propose_implied", {"path": "drug.salt_form", "value": "free base", "quote": "PBPK model of dapagliflozin",
+                              "doc_sha256": sha, "page": 1, "why": "the proposal names no salt, so it is the free base"}),
+         ("propose_implied", {"path": "qoi.context_of_use", "value": "labelling", "quote": "under fasted and fed conditions",
+                              "doc_sha256": sha, "page": 1, "why": "food effect"}),
+         ("propose_implied", {"path": "qoi.context_of_use", "value": "labelling", "quote": "for the label claim on food",
+                              "doc_sha256": sha, "page": 1, "why": "a food-effect study is run to support the label"}),
+         ("propose_implied", {"path": "qoi.text", "value": "food effect", "quote": "predict the food effect", "doc_sha256": sha,
+                              "page": 1, "why": "the objective states what the model predicts"}),
+         ("propose_implied", {"path": "scenarios[1].route", "value": "by mouth", "quote": "received a single oral dose",
+                              "doc_sha256": sha, "page": 1, "why": "the volunteers took the dose by mouth"})],
+        [],
+    ])
+    outcome = run_proposal_intake(model, IntakeContext(library=library, brief=brief, actor="agent:ar_4"))
+    b = outcome.brief
+    assert [r["code"] for r in outcome.rejected] == ["NOT_IMPLIED", "NO_REASON", "INVALID_CITATION", "KEPT", "INVALID_VALUE"]
+    for path, value in (("qoi.applications", ["APP-12 food effect"]), ("scope.formulation_types", ["ir_tablet"]),
+                        ("scenarios[0].route", "oral")):
+        record = b.get(path)
+        assert record.status is FieldStatus.DRAFTED and record.value == value and b.value(path) is None   # not a value yet
+        assert record.citations[0].page == 1 and "from what the document implies" in record.note
+    assert b.value("qoi.text") == "the person's own question"
+    assert all(a["implied"] for a in outcome.accepted)
+    # a person confirms the draft: it becomes their value; a document that states a field keeps it from an implied one
+    b = edit_field(b, "qoi.applications", status=FieldStatus.CONFIRMED, by="u1")
+    assert b.value("qoi.applications") == ["APP-12 food effect"] and b.get("qoi.applications").by == "u1"
+    stated = Scripted([[("propose_field", {"path": "qoi.context_of_use", "value": "food-effect labelling", "doc_sha256": sha,
+                                           "page": 1, "quote": "under fasted and fed conditions"}),
+                        ("propose_implied", {"path": "qoi.context_of_use", "value": "labelling", "doc_sha256": sha, "page": 1,
+                                             "quote": "under fasted and fed conditions",
+                                             "why": "a food-effect study is run to support the label"})], []])
+    again = run_proposal_intake(stated, IntakeContext(library=library, brief=b, actor="agent:ar_5"))
+    assert [r["code"] for r in again.rejected] == ["KEPT"] and again.brief.value("qoi.context_of_use") == "food-effect labelling"

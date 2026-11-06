@@ -136,3 +136,8 @@
 .tag-proposal { display: grid; gap: 6px; flex: 1 1 320px; }
 .btn.small { padding: 4px 10px; font-size: 13px; min-height: 32px; }
 .start-check { display: grid; gap: 8px; justify-items: start; }
+
+/* build D: what the intake agent proposed, pre-selected, with the words it rests on and a Confirm */
+.drafted { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.risk-preselected { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-dim); }
+.risk-preselected strong { color: var(--ink); }

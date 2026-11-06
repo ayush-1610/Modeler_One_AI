@@ -15,6 +15,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Start D: what the proposal implies drafted with its quote; the M15 ratings pre-selected with the reasons (2026-11-06)
+Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.4, build D. The owner, 2026-11-05 (§5 q1): "preselect
+(with reason, why?)"; the Start agent fetches and pre-selects the question of interest, context of use, applications,
+the model risk, formulation types and routes. This reverses the decisions of 2026-10-29 (1b, 4) and 2026-11-02 (the
+suggested ratings shown only after the person rates, #116), with the owner's approval of 2026-11-05.
+- **A1 drafts what a proposal implies rather than states** (`proposal_intake.propose_implied`): the question of
+  interest, the context of use, the applications, the formulation types and each scenario's route, each with the quote
+  that implies it (checked verbatim on its page, as `propose_field`'s) and why (refused under 20 characters). Written
+  DRAFTED: not a value until a person confirms or changes it. Any other field is refused (`NOT_IMPLIED`: stated values
+  only), and so is a field a person set or a document states (`KEPT`). What nothing implies stays a question.
+- **Start waits on each draft** (`steps.start_issues`): "Context of use: confirm the intake agent's proposal, or change
+  it", "Scenario 1: route: …"; a scope gate holding only a draft reads "to confirm", not "not set". On the screen each
+  draft is shown in place, pre-selected, with its quote and Confirm (the question's fields in their rows; the
+  formulation types and each route in their gates).
+- **The M15 ratings are pre-selected** with the agent's suggestion, marked "pre-selected", with its reason under the
+  ratings ("How the model is used", "What a wrong decision means", the agent's drafts, confirmed in place as before);
+  saving makes them the person's. A rating changed after saving is still flagged against the suggestion and settles on
+  one (unchanged). The tier is pre-selected when the two ratings admit one tier; when they admit two, the person picks
+  one and says why (unchanged: ICH M15 asks for the reason, and the agent does not choose between them). The internal
+  target is proposed only when a document states it. Both are recorded in the plan as open for the owner.
+- No change to what counts: the ratings, the tier and the internal target are still saved by a person (`HUMAN_ONLY`,
+  `pbpk_domain.m15` unchanged), and a draft is never a value.
+Impact: Start opens with the proposal's implied answers and the agent's ratings already in place, each to confirm; no
+science change in the rules (M15 table, acceptance, rulesets unchanged). A1's prompt gains one rule; its evaluation on
+real proposals is still open (P1).
+
 ### Changed — Inputs C2: each client sheet read by code on arrival; what it does not say asked on its card (2026-11-06)
 Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.1, build C (second part). The owner, 2026-11-05: with
 14 files, nothing arrived without opening each sheet's form; "the agent must recognise, clean and bring everything into
@@ -5291,4 +5317,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings pre-selected with the reasons) |

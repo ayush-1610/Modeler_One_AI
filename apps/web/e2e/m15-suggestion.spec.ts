@@ -1,6 +1,7 @@
-// The intake agent's suggested M15 ratings (the owner, 2026-11-02): not preselected and not shown until the person has
-// saved their own rating; then the same rating is noted, and a different one is flagged and settles on one, the
-// suggestion taken or the person's rating kept with a reason. The browser flows run with no LLM provider, so a fixture
+// The intake agent's suggested M15 ratings: pre-selected with the reason until the person saves (the owner, 2026-11-05,
+// reversing 2026-11-02's "shown only after rating"); saving keeps a suggestion as the person's rating. Once saved, the
+// same rating is noted, and a different one is flagged and settles on one, the suggestion taken or the person's rating
+// kept with a reason. The browser flows run with no LLM provider, so a fixture
 // writes the suggestion as agent A1 would (DRAFTED, through the brief's own functions).
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
@@ -11,7 +12,7 @@ import { AUTH } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 
-test("a suggested rating shows once the person has rated, and a difference settles on one", async ({ page, request }) => {
+test("a suggested rating is pre-selected with its reason, and a difference settles on one", async ({ page, request }) => {
   const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
     drug_name: "Suggestamide", extract: "false",
     files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nDose selection support.") } } });
@@ -20,15 +21,16 @@ test("a suggested rating shows once the person has rated, and a difference settl
                       join(process.env.E2E_DATA_DIR!, "read-root"), projectId, "medium", "high"], { cwd: REPO });
 
   await page.goto(`/projects/${projectId}/start`);
-  // before the person rates: nothing preselected, and the suggestion is not shown
-  await expect(page.getByTestId("risk-influence-suggestion-hidden")).toBeVisible();
-  for (const r of ["low", "medium", "high"]) {
-    await expect(page.getByTestId(`risk-influence-${r}`)).toHaveAttribute("aria-pressed", "false");
-  }
+  // before the person saves: the suggestions pre-selected, each said to be the agent's
+  await expect(page.getByTestId("risk-influence-medium")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("risk-consequence-high")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("risk-influence-preselected")).toContainText("The intake agent suggests medium; save");
+  await expect(page.getByTestId("risk-consequence-preselected")).toContainText("The intake agent suggests high; save");
   await expect(page.getByTestId("risk-influence-differs")).toHaveCount(0);
+  await page.getByTestId("start-risk").screenshot({ path: test.info().outputPath("m15-preselected.png") });
 
+  // the person picks another influence and keeps the suggested consequence
   await page.getByTestId("risk-influence-high").click();
-  await page.getByTestId("risk-consequence-high").click();
   await page.getByTestId("risk-save").click();
   await expect(page.getByTestId("risk-current")).toHaveText("Saved: high");
   // the same rating is noted; a different one is flagged, and Start waits on it
