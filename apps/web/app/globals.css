@@ -1,54 +1,51 @@
 /* Modeler One — an instrument for building models a regulator will scrutinise.
  *
- * Governing idea: the interface recedes, the data advances. Chrome stays neutral (a cool bench in light, a deep
- * blue-slate in dark) so that the only saturated things on screen are the ones carrying scientific meaning. The two accents are not decoration —
- * teal is the predicted profile, amber the observed one, the pair every PBPK judgement is made on — so the
- * palette itself teaches the comparison.
+ * The look follows the "Modeler One App" design (plan docs/plans/2026-11-06-app-design-merge.md §5): a bright neutral
+ * bench, one blue for action and for the predicted series, amber for the observed series and for what waits on a person,
+ * green for done. The shared pieces' design-specific rules are in app/styles/design.css, loaded last.
  *
- * Verdict colours are deliberately separated in both hue and lightness so a pass/fail is never carried by
- * hue alone, and every verdict is also written out in words.
- */
+ * Verdict colours are separated in both hue and lightness so a pass/fail is never carried by hue alone, and every
+ * verdict is also written out in words. Light by default; dark follows the system, or the viewer's choice (the toggle
+ * in the sidebar sets data-theme on <html>). Every colour is a token defined in all three blocks below. */
 
-/* Light by default (the redesign, 2026-10-18: "the UI is boring"); dark follows the system, or the viewer's choice
- * (the toggle in the sidebar sets data-theme on <html>). Every colour is a token defined in all three blocks below. */
 :root {
   color-scheme: light;
 
   /* surfaces: a bright bench with a faint cool cast, so the two series below carry the colour */
-  --bg: #f4f6f8;
+  --bg: #f5f5f7;
   --surface: #ffffff;
-  --raised: #eef2f5;
-  --line: #d9e0e7;
-  --line-soft: #e6ebf0;
+  --raised: #f5f5f7;
+  --line: #e3e3e8;
+  --line-soft: #ededf0;
 
   /* ink */
-  --ink: #12202b;
-  --ink-dim: #566876;
-  --ink-faint: #8497a5;
+  --ink: #1d1d1f;
+  --ink-dim: #6e6e73;
+  --ink-faint: #a1a1a6;
 
   /* the two series under comparison */
-  --sim: #10897d;      /* predicted — the model */
-  --obs: #b96a15;      /* observed — the clinic */
+  --sim: #0071e3;      /* predicted — the model */
+  --obs: #b25000;      /* observed — the clinic */
   --on-sim: #ffffff;   /* text on a --sim fill */
 
   /* verdicts */
-  --pass: #17794a;
-  --warn: #9a7112;
-  --fail: #b8402c;
-  --brand-ink: #0c5f57;
+  --pass: #1e7b45;
+  --warn: #c26a00;
+  --fail: #e0402f;
+  --brand-ink: #0066cc;
 
   /* Text-grade twins of the series and verdict colours: the base colours above are for dots, fills and borders (they are
    * 3.4-4.5:1 on a tint and fail AA as small text in light); these are >= 4.5:1 on the surface and on their own tints.
    * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. In dark the base colours
    * already pass, so each twin equals its base. */
-  --pass-ink: #126a3f;
-  --warn-ink: #7d5a0e;
-  --fail-ink: #a5381f;
-  --ink-quiet: #5c6f7e;
+  --pass-ink: #1e7b45;
+  --warn-ink: #a24a00;
+  --fail-ink: #c42b1c;
+  --ink-quiet: #6e6e73;
   /* the filled primary button (white on it 5.2:1; --sim stays the chart colour) and the edge of a form control (3:1) */
-  --primary: #0d7a6f;
+  --primary: #0071e3;
   --on-primary: #ffffff;
-  --control-border: #7a8d9b;
+  --control-border: #c7c7cc;
 
   /* risk ratings (ICH M15) and aliases */
   --low: var(--pass);
@@ -61,11 +58,17 @@
   --border: var(--line);
   --surface-2: var(--raised);
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 9px;
+  --radius: 14px;
+  --radius-lg: 24px;
   --measure: 68ch;
-  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --shadow-card: 0 24px 60px -32px rgba(0, 0, 0, 0.16);
+  --hairline: rgba(0, 0, 0, 0.07);
+  --glass: rgba(255, 255, 255, 0.84);
+  --fill: rgba(118, 118, 128, 0.12);
+  --fill-btn: rgba(0, 0, 0, 0.06);
 }
 
 /* The instrument's dark screen: a deep blue-slate, so the only saturated things are the ones carrying meaning.
@@ -73,22 +76,26 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0b1116; --surface: #121b22; --raised: #18242f; --line: #223040; --line-soft: #1a2631;
-    --ink: #dce7ef; --ink-dim: #8ea3b3; --ink-faint: #5d7284;
-    --sim: #5bd1c4; --obs: #f2a65a; --on-sim: #04191c;
-    --pass: #57c98a; --warn: #e8b84b; --fail: #e8705a; --brand-ink: #9ae8de;
-    --pass-ink: var(--pass); --warn-ink: var(--warn); --fail-ink: var(--fail); --ink-quiet: #7a8fa0;
-    --primary: var(--sim); --on-primary: var(--on-sim); --control-border: #667b8d;
+    --bg: #0b0b0d; --surface: #1c1c1e; --raised: #2c2c2e; --line: #38383a; --line-soft: #2c2c2e;
+    --ink: #f5f5f7; --ink-dim: #a1a1a6; --ink-faint: #6e6e73;
+    --sim: #2e9bff; --obs: #ff9f0a; --on-sim: #00182f;
+    --pass: #30d158; --warn: #ff9f0a; --fail: #ff453a; --brand-ink: #64b5ff;
+    --pass-ink: var(--pass); --warn-ink: var(--warn); --fail-ink: var(--fail); --ink-quiet: #a1a1a6;
+    --primary: #0a84ff; --on-primary: #ffffff; --control-border: #48484a;
+    --shadow-card: 0 24px 60px -32px rgba(0, 0, 0, 0.6); --hairline: rgba(255, 255, 255, 0.08);
+    --glass: rgba(28, 28, 30, 0.82); --fill: rgba(118, 118, 128, 0.24); --fill-btn: rgba(255, 255, 255, 0.1);
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0b1116; --surface: #121b22; --raised: #18242f; --line: #223040; --line-soft: #1a2631;
-  --ink: #dce7ef; --ink-dim: #8ea3b3; --ink-faint: #5d7284;
-  --sim: #5bd1c4; --obs: #f2a65a; --on-sim: #04191c;
-  --pass: #57c98a; --warn: #e8b84b; --fail: #e8705a; --brand-ink: #9ae8de;
-  --pass-ink: var(--pass); --warn-ink: var(--warn); --fail-ink: var(--fail); --ink-quiet: #7a8fa0;
-  --primary: var(--sim); --on-primary: var(--on-sim); --control-border: #667b8d;
+  --bg: #0b0b0d; --surface: #1c1c1e; --raised: #2c2c2e; --line: #38383a; --line-soft: #2c2c2e;
+    --ink: #f5f5f7; --ink-dim: #a1a1a6; --ink-faint: #6e6e73;
+    --sim: #2e9bff; --obs: #ff9f0a; --on-sim: #00182f;
+    --pass: #30d158; --warn: #ff9f0a; --fail: #ff453a; --brand-ink: #64b5ff;
+    --pass-ink: var(--pass); --warn-ink: var(--warn); --fail-ink: var(--fail); --ink-quiet: #a1a1a6;
+    --primary: #0a84ff; --on-primary: #ffffff; --control-border: #48484a;
+    --shadow-card: 0 24px 60px -32px rgba(0, 0, 0, 0.6); --hairline: rgba(255, 255, 255, 0.08);
+    --glass: rgba(28, 28, 30, 0.82); --fill: rgba(118, 118, 128, 0.24); --fill-btn: rgba(255, 255, 255, 0.1);
 }
 
 * { box-sizing: border-box; }
@@ -99,9 +106,10 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
-  font-size: 14px;
-  line-height: 1.55;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", var(--font-sans), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
@@ -147,9 +155,6 @@ p { max-width: var(--measure); }
   border: 1px solid var(--line);
 }
 .brand .nav-text { flex: 1; min-width: 0; white-space: nowrap; }
-.nav-collapse { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border: 0; border-radius: var(--radius-sm);
-  background: none; color: var(--ink-dim); cursor: pointer; }
-.nav-collapse:hover { background: var(--raised); color: var(--ink); }
 .nav { display: grid; gap: 2px; }
 .nav a, .nav-action { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px;
   border-radius: var(--radius-sm); color: var(--ink-dim); font: inherit; font-weight: 500; text-decoration: none; text-align: left;
@@ -175,15 +180,6 @@ p { max-width: var(--measure); }
 .nav-user a { color: var(--brand-ink); }
 .nav-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%;
   font-size: 12px; font-weight: 600; color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 14%, var(--surface)); }
-/* collapsed: a rail of icons; the names stay for screen readers and show as the links' titles */
-.sidebar.collapsed { width: 64px; }
-.sidebar.collapsed .nav-text, .sidebar.collapsed .nav-heading, .sidebar.collapsed .theme-toggle {
-  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.sidebar.collapsed .brand { flex-direction: column; gap: 10px; margin-left: 0; margin-right: 0; }
-.sidebar.collapsed .nav a, .sidebar.collapsed .nav-action { justify-content: center; padding: 9px 0; }
-.sidebar.collapsed .nav-badge { position: absolute; top: 2px; right: 2px; min-width: 16px; padding: 0 4px; font-size: 10px; }
-.sidebar.collapsed .nav-user { justify-content: center; padding-left: 0; padding-right: 0; }
-.sidebar.collapsed .nav-project { border-top: 1px solid var(--line); padding-top: 10px; }
 /* The skip link: off screen until a keyboard reaches it, then over the sidebar's top corner. Its target is a zero-size
  * point at the start of the page, so focus lands there and the next Tab goes to the page's first control. */
 .skip-link { position: absolute; left: 12px; top: -60px; z-index: 70; padding: 8px 14px; border-radius: var(--radius-sm);
@@ -288,12 +284,7 @@ tbody tr:last-child td { border-bottom: none; }
   .cols-2, .cols-intake { grid-template-columns: 1fr; }
   .app { flex-direction: column; }
   .content { padding: 20px 16px 48px; }
-  .sidebar, .sidebar.collapsed { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); }
-  .nav-collapse { display: none; }
-  .sidebar.collapsed .nav-text, .sidebar.collapsed .nav-heading, .sidebar.collapsed .theme-toggle {
-    position: static; width: auto; height: auto; overflow: visible; clip: auto; }
-  .sidebar.collapsed .brand { flex-direction: row; }
-  .sidebar.collapsed .nav a, .sidebar.collapsed .nav-action { justify-content: flex-start; padding: 8px 10px; }
+  .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

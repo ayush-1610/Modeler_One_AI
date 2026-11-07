@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { InputsWorkspace, type Tab } from "@/components/inputs/InputsWorkspace";
+import { Hero } from "@/components/kit";
 import { Stepper } from "@/components/kit/Stepper";
 import { getSteps, STEP_ROUTES } from "@/lib/pipeline";
 
@@ -23,9 +24,10 @@ export default async function InputsPage({ params, searchParams }: {
   if (start?.state === "needs_you" && inputs?.state === "not_started") {
     return (
       <main>
+        <Hero tone="inputs" eyebrow="Step 2 of 4" title="Inputs" lede="The inputs are gathered once Start is finished." />
         <Stepper projectId={projectId} current="inputs" />
         <section className="card inputs-blocked" data-testid="inputs-blocked">
-          <h1>Inputs come after Start</h1>
+          <h2>Inputs come after Start</h2>
           <p>Start is not finished. The inputs are gathered once it is: {start.reasons.length}{" "}
             {start.reasons.length === 1 ? "thing still needs" : "things still need"} you.</p>
           <ul>{start.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
@@ -36,15 +38,19 @@ export default async function InputsPage({ params, searchParams }: {
   }
   return (
     <main>
-      <Stepper projectId={projectId} current="inputs" />
-      {waiting && (
-        // inputs that have begun stay open; Start still says what it needs, in red
-        <div className="banner err" role="alert" data-testid="inputs-start-not-done">
-          <span aria-hidden>⚠ </span>Start is not finished ({start.reasons.length} left): {start.reasons.join(" · ")}.{" "}
-          <Link href={STEP_ROUTES.start(projectId)}>Finish Start first</Link>.
-        </div>
-      )}
-      <InputsWorkspace projectId={projectId} initialTab={tab as Tab | undefined} />
+      <InputsWorkspace projectId={projectId} initialTab={tab as Tab | undefined}
+                       steps={(
+                         <>
+                           <Stepper projectId={projectId} current="inputs" />
+                          {waiting && (
+                            // inputs that have begun stay open; Start still says what it needs, in red
+                            <div className="banner err" role="alert" data-testid="inputs-start-not-done">
+                              <span aria-hidden>⚠ </span>Start is not finished ({start.reasons.length} left): {start.reasons.join(" · ")}.{" "}
+                              <Link href={STEP_ROUTES.start(projectId)}>Finish Start first</Link>.
+                            </div>
+                          )}
+                         </>
+                       )} />
     </main>
   );
 }

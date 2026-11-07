@@ -15,6 +15,8 @@ import "./styles/kit.css";
 import "./styles/start.css";
 import "./styles/review.css";
 import "./styles/dashboard.css";
+// the "Modeler One App" look over the shared pieces; last, so it wins (plan 2026-11-06-app-design-merge)
+import "./styles/design.css";
 import { THEME_BOOT } from "@/components/kit/ThemeToggle";
 import { Nav } from "@/components/Nav";
 import { Providers } from "@/components/Providers";

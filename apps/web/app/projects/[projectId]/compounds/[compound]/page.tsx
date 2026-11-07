@@ -1,6 +1,7 @@
 import { ApiProblem, Card, Completeness, ProvenanceChip } from "@/components/ui";
 import { MEASURED_SOURCES } from "@/lib/types";
 import { getCompoundCpf } from "@/lib/reads";
+import { Hero } from "@/components/kit";
 
 export default async function CompoundPage({ params }: { params: Promise<{ projectId: string; compound: string }> }) {
   const { projectId, compound } = await params;
@@ -10,7 +11,7 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
   if (!cpf) {
     return (
       <main>
-        <h1>{decodeURIComponent(compound)} — Compound Parameter Framework</h1>
+        <Hero tone="inputs" eyebrow="Compound Parameter Framework" title={decodeURIComponent(compound)} />
         <ApiProblem problem={live.problem ?? `No CPF for ${decodeURIComponent(compound)} in project ${projectId} yet.`} />
       </main>
     );
@@ -20,14 +21,8 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
 
   return (
     <main>
-      <div className="spread">
-        <h1>{cpf.name} — Compound Parameter Framework</h1>
-        <span className="chip brand">CPF v{cpf.version}</span>
-      </div>
-      <p className="muted">
-        The CPF is the system of record: every simulation is regenerated from it. Each parameter shows its value,
-        provenance and the stages in which it may be fitted.
-      </p>
+      <Hero tone="inputs" eyebrow={`Compound Parameter Framework · v${cpf.version}`} title={cpf.name}
+            lede="The CPF is the system of record: every simulation is regenerated from it. Each parameter shows its value, provenance and the stages in which it may be fitted." />
 
       <Card>
         <div className="kpi">

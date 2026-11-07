@@ -5,20 +5,43 @@
 
 import type { ReactNode } from "react";
 
-/** A step's page: what it is for, the actions it offers, and its content beside an optional side panel. */
-export function PageShell({ eyebrow, title, lede, actions, side, children }: {
-  eyebrow?: string; title: ReactNode; lede?: ReactNode; actions?: ReactNode; side?: ReactNode; children: ReactNode;
+/** Each area's hue for the head's wash and its curve (the "Modeler One App" design, plan 2026-11-06-app-design-merge). */
+const HUES = { projects: 211, new: 160, start: 211, inputs: 190, review: 265, run: 150, inbox: 28, library: 280, history: 220 } as const;
+export type HeroTone = keyof typeof HUES;
+
+/** A page's head: a pill naming where you are, a large title, one sentence, and the page's actions, centred over a soft
+ *  wash of the area's colour and the product's curve (decoration only: it carries no data). */
+export function Hero({ eyebrow, title, lede, actions, tone = "projects", testId }: {
+  eyebrow?: ReactNode; title: ReactNode; lede?: ReactNode; actions?: ReactNode; tone?: HeroTone; testId?: string;
+}) {
+  return (
+    <header className="hero-band" style={{ ["--hue" as string]: HUES[tone] }} data-testid={testId}>
+      <svg className="hero-art" aria-hidden viewBox="0 0 1440 360" preserveAspectRatio="xMidYMid slice">
+        <path className="grid" d="M0 90H1440M0 180H1440M0 270H1440" />
+        <path className="curve" d="M0 330C260 330 300 70 560 70s320 230 880 255" pathLength={520} />
+        <path className="curve2" d="M0 330C260 330 310 105 570 105s330 190 870 215" />
+        <g className="dots"><circle cx="300" cy="170" r="4" /><circle cx="560" cy="75" r="4" /><circle cx="840" cy="190" r="4" /><circle cx="1180" cy="290" r="4" /></g>
+      </svg>
+      <div className="hero-inner">
+        {eyebrow && <span className="hero-pill">{eyebrow}</span>}
+        <h1>{title}</h1>
+        {lede && <p className="hero-lede">{lede}</p>}
+        {actions && <div className="hero-actions">{actions}</div>}
+      </div>
+    </header>
+  );
+}
+
+/** A step's page: its head, the project's steps under it (the Stepper, passed in), and its content beside an optional
+ *  side panel. */
+export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, children }: {
+  eyebrow?: string; title: ReactNode; lede?: ReactNode; actions?: ReactNode; side?: ReactNode; steps?: ReactNode;
+  tone?: HeroTone; children: ReactNode;
 }) {
   return (
     <div className="shell">
-      <header className="shell-head">
-        <div className="shell-title">
-          {eyebrow && <span className="eyebrow">{eyebrow}</span>}
-          <h1>{title}</h1>
-          {lede && <p className="lede">{lede}</p>}
-        </div>
-        {actions && <div className="shell-actions">{actions}</div>}
-      </header>
+      <Hero eyebrow={eyebrow} title={title} lede={lede} actions={actions} tone={tone} />
+      {steps}
       <div className={side ? "shell-body with-side" : "shell-body"}>
         <div className="shell-main">{children}</div>
         {side && <aside className="shell-side">{side}</aside>}

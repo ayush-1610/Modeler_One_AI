@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { InlineIssue, PageShell } from "@/components/kit";
 import { D3Dag, STUDY_MIME, StudyChip } from "@/components/plan/D3Dag";
@@ -157,7 +157,7 @@ function BlindingPanel({ projectId }: { projectId: string }) {
  *  their roles on the MS-01 canvas (the three diagrams, "Overall Data"); every input with its source in the review
  *  table; the estimation plan and the validation plan (R4b); credibility (the model risk, the tier's acceptance
  *  criteria, the budget split, the limitations); the live validator and the diff. */
-export function PlanCanvas({ projectId }: { projectId: string }) {
+export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: ReactNode }) {
   const page = useResource("/api/v1/projects/{project_id}/plan", { project_id: projectId }, { poll: (d) => d.running });
   const review = useResource("/api/v1/projects/{project_id}/plan/review", { project_id: projectId }, { enabled: page.data !== null });
   const mutation = useMutation();
@@ -168,8 +168,14 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
   const [signature, setSignature] = useState<Schema<"SignatureView"> | null>(null);
   const view = page.data;
 
-  if (page.problem) return <div className="banner err" data-testid="plan-problem">{page.problem}</div>;
-  if (!view) return <p className="muted">Computing the MS-01 default plan…</p>;
+  if (page.problem || !view) {
+    return (
+      <PageShell tone="review" steps={steps} eyebrow="Step 3 · Review & sign" title="Review & sign">
+        {page.problem ? <div className="banner err" data-testid="plan-problem">{page.problem}</div>
+          : <p className="muted">Computing the MS-01 default plan…</p>}
+      </PageShell>
+    );
+  }
 
   // a change to the plan, then the plan and the phase rail read again; answers the API's reason when it refused
   const apply = async <T,>(call: () => Promise<Envelope<T>>, ok?: string) => {
@@ -195,6 +201,7 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
 
   return (
     <PageShell
+      tone="review" steps={steps}
       eyebrow="Step 3 · Review & sign"
       title={<>Review &amp; sign · {view.plan.compound}</>}
       lede={<>The one review before the run (D-27): the studies and their roles, every input with its source, and the model&apos;s

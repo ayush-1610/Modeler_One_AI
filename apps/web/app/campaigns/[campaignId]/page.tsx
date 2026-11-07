@@ -8,6 +8,7 @@ import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
 import { VbeCard } from "@/components/campaign/Vbe";
 import { EscalationPopup } from "@/components/campaign/EscalationPopup";
 import { getCampaign } from "@/lib/reads";
+import { Hero } from "@/components/kit";
 
 function mmss(s: number) {
   const m = Math.floor(s / 60);
@@ -22,7 +23,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
     // Never a sample campaign in its place: say what is actually the case, and keep checking.
     return (
       <main>
-        <h1>Campaign <code>{campaignId}</code></h1>
+        <Hero tone="run" eyebrow="Campaign" title={<code>{campaignId}</code>} />
         {live.notFound ? (
           <div className="banner warn" data-testid="campaign-pending">
             This campaign is not recorded yet. A campaign you have just started appears within a few seconds;
@@ -52,17 +53,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
 
   return (
     <main>
+      <Hero tone="run" eyebrow="Campaign" title={c.compound} lede={c.question}
+            actions={<>{c.status && <span data-testid="campaign-status"><StatusChip status={c.status} /></span>}
+              <RiskChip rating={c.modelRisk} /></>} />
       <EscalationPopup campaignIds={[campaignId]} />
-      <div className="spread">
-        <div style={{ minWidth: 0 }}>
-          <h1>{c.compound}</h1>
-          <p className="muted" style={{ margin: 0 }}>{c.question}</p>
-        </div>
-        <div className="row" style={{ gap: 8, flexShrink: 0 }}>
-          {c.status && <span data-testid="campaign-status"><StatusChip status={c.status} /></span>}
-          <RiskChip rating={c.modelRisk} />
-        </div>
-      </div>
       <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
         Campaign <code>{c.id}</code> · acceptance within {foldLimit}-fold at {c.modelRisk} model risk
         {c.internalTargetPe != null && (

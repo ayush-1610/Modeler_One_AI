@@ -213,7 +213,7 @@ export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
               {list.some((r) => r.state !== "kept") && <span className="muted"> · {list.filter((r) => r.state !== "kept").length} open</span>}</h3>
             {list.map(one)}
           </section>
-        )) : sorted.map(one)}
+        )) : <div className="input-block">{sorted.map(one)}</div>}
     </>
   );
 }

@@ -105,3 +105,26 @@ Run; the Run page's sections in the design's order (campaigns, compounds and stu
 1. A decision route for agent parameter proposals (`/api/v1/proposals/{id}:decide`).
 2. A cross-project activity feed (recent audit events across the tenant's projects, paged).
 3. Step state in `GET /api/v1/projects` (today the dashboard reads `/steps` per project: one call each).
+
+---
+
+## 5. Revision, 2026-11-07: match the design's look
+
+The owner (2026-11-07), after phase A: the design has a completely different look, and the app should match it ("Implement
+this design in this codebase … match how it looks, using this codebase's own components and conventions", with a
+screenshot of the design's Inputs step). This supersedes §2.2 items 7 and 8 and the "keep the app's tokens" choice:
+
+- **Palette and type** (`app/globals.css`): the design's neutrals (`#F5F5F7` bench, `#1D1D1F` ink, `#6E6E73` secondary),
+  its blue `#0071E3` as the primary and as the predicted series, its amber `#B25000` as the observed series and "needs
+  you", its green `#1E7B45` for done; the system UI font (SF Pro on Apple devices); radii 9 / 14 / 24 px. Dark mode is
+  kept with the same roles (the design is light only; the app has always offered dark).
+- **The shared pieces** (`app/styles/design.css`, loaded last): the rail sidebar that opens over the page on hover or
+  focus and can be pinned (§2.2 item 7 reversed at the owner's request; it also opens by keyboard focus); the centred
+  head (`Hero` in `components/kit`) with the area's colour wash and the product's curve as decoration; the step bar as a
+  floating pill under the head that stays in view; tabs as a segmented control; white panels with a 24 px radius and a
+  long soft shadow; pill buttons; Start's numbered sections; Inputs' values as one panel with a hairline between rows.
+- Every page now opens with the head: Dashboard, Start a project, Start, Inputs, Review & sign, Run, History, Review
+  inbox, the document library, a compound's CPF and a campaign. The step bar follows the head (passed to `PageShell`,
+  `StartScreen`, `InputsWorkspace` and `PlanCanvas` as `steps`).
+- Still not adopted (unchanged from §2.2): the decorative "Simulation, live" panel and the cards' sparklines, a password
+  on signing, Accept / Reject without an API route, the global library / Settings / activity feed.

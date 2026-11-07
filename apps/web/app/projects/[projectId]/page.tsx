@@ -7,6 +7,7 @@ import { MembersPanel } from "@/components/members/MembersPanel";
 import { SystemPanel } from "@/components/system/SystemPanel";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
+import { Hero } from "@/components/kit";
 
 function points(study: { profile?: { times: number[] } | null }) {
   return study.profile?.times?.length ?? 0;
@@ -23,7 +24,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   if (!project) {
     return (
       <main>
-        <h1>Project {projectId}</h1>
+        <Hero tone="run" eyebrow="Project" title={projectId} />
         <ApiProblem problem={live.problem ?? `Project ${projectId} does not exist.`} />
       </main>
     );
@@ -37,13 +38,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
 
   return (
     <main>
-      <div className="spread">
-        <h1>{project.name}</h1>
-        <RiskChip rating={project.risk} />
-      </div>
+      <Hero tone="run" eyebrow="Step 4 of 4" title={project.name}
+            lede="Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table."
+            actions={<><RiskChip rating={project.risk} /><Link className="btn" href="/review">Review inbox</Link></>} />
       <Stepper projectId={project.id} current="run" />
       <EscalationPopup campaignIds={(campaigns ?? []).map((c) => c.id)} />
-      <p className="muted">Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table.</p>
       {(liveStudies.problem || liveCampaigns.problem) && (
         <ApiProblem problem={(liveStudies.problem ?? liveCampaigns.problem)!} />
       )}

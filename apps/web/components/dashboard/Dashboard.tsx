@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ProjectsTable } from "@/components/projects/ProjectsTable";
+import { Hero } from "@/components/kit";
 import { RiskChip } from "@/components/ui";
 import type { StepRow } from "@/lib/pipeline";
 import type { Project } from "@/lib/types";
@@ -64,19 +65,11 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
   ];
 
   return (
-    <div className="dash">
-      <section className="hero" aria-labelledby="dash-title">
-        <div className="hero-copy">
-          <span className="eyebrow">Modeler One</span>
-          <h1 id="dash-title">Dashboard</h1>
-          <p className="lede">Every PBPK program on the Open Systems Pharmacology Suite: where each stands, what waits on you,
-            and what is running.</p>
-        </div>
-        <div className="hero-actions">
-          <Link className="btn primary" href="/projects/start" data-testid="dash-new-project">+ New project</Link>
-        </div>
-      </section>
-
+    <>
+      <Hero tone="projects" eyebrow="Modeler One" title="Dashboard" testId="dash-hero"
+            lede="Every PBPK program on the Open Systems Pharmacology Suite: where each stands, what waits on you, and what is running."
+            actions={<Link className="btn primary" href="/projects/start" data-testid="dash-new-project">+ New project</Link>} />
+      <div className="dash">
       <div className="kpis" role="group" aria-label="At a glance">
         {kpis.map((k) => (
           <button key={k.label} type="button" className={`kpi ${k.tone}`} onClick={k.go} data-testid={`kpi-${k.label.toLowerCase().replace(/ /g, "-")}`}>
@@ -88,7 +81,7 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
       </div>
 
       <div className="dash-body">
-        <section className="dash-projects" aria-label="Projects">
+        <section className="dash-projects card" aria-label="Projects">
           <div className="dash-tools">
             {view === "cards" && <>
             <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search projects or compounds"
@@ -107,7 +100,7 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
 
           {view === "list" ? (
             // the record view: archive and restore with a reason, and each project's history (page review 1)
-            <div className="card"><ProjectsTable projects={tableProjects} /></div>
+            <ProjectsTable projects={tableProjects} />
           ) : active.length === 0 ? (
             <p className="muted">No projects yet. Use <strong>+ New project</strong> to start one from its proposal and the client&apos;s files.</p>
           ) : shown.length === 0 ? (
@@ -158,7 +151,8 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
           </section>
         </aside>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Stepper } from "@/components/kit/Stepper";
 import { ApiProblem, Card, StatusChip } from "@/components/ui";
 import { getArtifacts, getAudit, getHistory, getStale, type Change } from "@/lib/pipeline";
+import { Hero } from "@/components/kit";
 
 function show(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -39,12 +40,10 @@ export default async function HistoryPage({
 
   return (
     <main>
-      <h1>History</h1>
+      <Hero tone="history" eyebrow="Project record" title="History"
+            lede={<>Every phase output is a version that names the exact inputs it was made from. An edit creates a new version;
+              anything made from the old one is marked <strong>stale</strong> with its reason, never deleted or silently redone.</>} />
       <Stepper projectId={projectId} />
-      <p className="muted">
-        Every phase output is a version that names the exact inputs it was made from. An edit creates a new version;
-        anything made from the old one is marked <strong>stale</strong> with its reason, never deleted or silently redone.
-      </p>
       {problem && <ApiProblem problem={problem} />}
 
       {stale.data && stale.data.length > 0 && (

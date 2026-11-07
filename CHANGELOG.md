@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the whole web app takes the "Modeler One App" design's look (2026-11-07)
+Plan `docs/plans/2026-11-06-app-design-merge.md` §5. The owner, 2026-11-07: match how the Claude Design mockup looks
+(screenshot of its Inputs step), using the app's own components. Web only; no API change, no science change.
+- **Palette and type:** the design's neutrals, blue primary (`#0071E3`, also the predicted series), amber (`#B25000`,
+  the observed series and "needs you"), green for done; the system UI font; larger radii. Dark mode kept with the same
+  roles. The chart colours change with the tokens (predicted blue, observed amber), as in the design.
+- **Sidebar:** a rail of icons that opens over the page on hover or keyboard focus and can be pinned open (kept in the
+  browser); the design's logo; groups *Work* and *This project*; the inbox count as a red badge (a dot on the rail).
+  Replaces phase A's collapse button.
+- **Every page opens with the design's centred head** (`Hero`, `components/kit`): a pill naming the step or area, a
+  large title, one sentence, the page's actions as pill buttons, over the area's colour wash and the product's curve
+  (decoration, no data). The four steps follow as a floating pill bar that stays in view.
+- **Panels, tabs, buttons:** white panels (24 px radius, long soft shadow), tabs as a segmented control (the Inputs
+  areas too, above the values instead of down the side, with the status panels in a row under them), pill buttons,
+  Start's numbered sections with text-link "Change / Set", Inputs' values as one panel per group with hairline rows.
+- Impact on tests: `dashboard.spec.ts` checks the rail, hover and pin (`nav-pin`) in place of phase A's collapse;
+  `feedback.spec.ts` reads the campaign status by its test id (the status moved into the head); `model-plan.spec.ts`
+  brings the canvas into view before the post-signature drag (the taller head left the view above it). The inputs
+  blocked-before-Start card's heading is an `h2` under the page's `h1`. `html` has a scroll padding so anchored
+  scrolling clears the sticky step bar.
+
 ### Changed — the dashboard and the sidebar, from the "Modeler One App" design (2026-11-06)
 Plan `docs/plans/2026-11-06-app-design-merge.md` (the owner, 2026-11-06: review the Claude Design mockup, then merge it
 with the app, keeping what the backend supports and dropping what is not important). Phase A of three; web only, no API
@@ -5462,3 +5483,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
 | 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) F (the reading agent on arrival for what code could not; every reading's record of what it left out) G (messy deliveries scored end to end, 36 of 36 after five fixes to code's reading) H (A1's evaluation set; its live score needs the server's model) and I (the literature search per input, side by side; another project's values reused with consent) |
 | 2026-11-06 (cloud session, branch `claude/exciting-shannon-1phqoq`) | per commit trailer | Review of the Claude Design "Modeler One App" mockup against the app and the API; the merge plan (`docs/plans/2026-11-06-app-design-merge.md`); phase A: the dashboard and the grouped, collapsible sidebar |
+| 2026-11-07 (same cloud session) | per commit trailer | The whole web app restyled to the Claude Design "Modeler One App" look (plan §5) |

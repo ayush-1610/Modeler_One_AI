@@ -1,10 +1,10 @@
 // The dashboard and the sidebar (plan 2026-11-06-app-design-merge §3 A): every number is read from the API, each
-// project's card shows its four steps and opens the step that waits, and the sidebar collapses to a rail and back.
+// project's card shows its four steps and opens the step that waits, and the sidebar is a rail that opens on hover and can be pinned.
 import { expect, test } from "@playwright/test";
 
 import { AUTH } from "./fixtures/inputs";
 
-test("the dashboard reads each project's steps, filters by them, and the sidebar collapses", async ({ page, request }) => {
+test("the dashboard reads each project's steps, filters by them, and the sidebar opens and pins", async ({ page, request }) => {
   const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
     drug_name: "Dashboardine", extract: "false",
     files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nPBPK model.") } } });
@@ -37,16 +37,21 @@ test("the dashboard reads each project's steps, filters by them, and the sidebar
   await page.getByTestId("dash-view-list").click();
   await expect(page.getByTestId(`project-row-${projectId}`)).toBeVisible();
 
-  // the sidebar collapses to a rail; the links keep their names; the choice survives a reload
+  // the sidebar is a rail that opens over the page on hover and can be pinned open; the pin survives a reload
   const nav = page.getByRole("navigation", { name: "Main" });
-  await page.getByTestId("nav-collapse").click();
-  await expect(page.getByTestId("sidebar")).toHaveClass(/collapsed/);
-  await expect(nav.getByRole("link", { name: "Review inbox" })).toBeVisible();
+  await expect(page.getByTestId("sidebar")).not.toHaveClass(/open/);
+  await expect(nav.getByRole("link", { name: "Review inbox" })).toBeVisible();      // named on the rail too
+  await page.getByTestId("sidebar").hover();
+  await expect(page.getByTestId("sidebar")).toHaveClass(/open/);
+  await page.getByTestId("nav-pin").click();
+  await page.mouse.move(900, 600);
+  await expect(page.getByTestId("sidebar")).toHaveClass(/pinned/);
   await page.reload();
-  await expect(page.getByTestId("sidebar")).toHaveClass(/collapsed/);
-  await page.screenshot({ path: test.info().outputPath("dashboard-collapsed.png") });
-  await page.getByTestId("nav-collapse").click();
-  await expect(page.getByTestId("sidebar")).not.toHaveClass(/collapsed/);
+  await expect(page.getByTestId("sidebar")).toHaveClass(/pinned/);
+  await page.screenshot({ path: test.info().outputPath("dashboard-pinned.png") });
+  await page.getByTestId("nav-pin").click();
+  await page.mouse.move(900, 600);
+  await expect(page.getByTestId("sidebar")).not.toHaveClass(/pinned/);
 
   // inside a project, the sidebar holds its own pages, History among them
   await page.goto(`/projects/${projectId}/start`);
