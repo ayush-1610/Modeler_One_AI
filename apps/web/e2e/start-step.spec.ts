@@ -26,7 +26,7 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   // the proposal's objective arrives pre-filled, drafted by code with its quote (agents off), waiting on the person
   await expect(page.getByTestId("start-field-qoi.text")).toHaveClass(/needs-you/);
   await expect(page.getByTestId("start-field-qoi.text")).toContainText("Objective: predict exposure after a single oral dose");
-  await expect(page.getByTestId("start-field-qoi.text")).toContainText("Question of interest: confirm the intake agent's proposal");
+  await expect(page.getByTestId("start-field-qoi.text")).toContainText("Question of interest: confirm the draft");
   await expect(page.getByTestId("risk-problem")).toContainText("Model risk: not set yet (it is never assumed)");
   await expect(page.getByTestId("start-waiting")).toContainText("marked in red above");
   await expect(page.getByTestId("start-continue")).toBeDisabled();
@@ -34,7 +34,7 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await expect(page.getByTestId("step-review-locked")).toBeVisible();
   // reached by its address, Inputs is blocked until Start is done, and says what Start still needs (decision 7)
   await page.goto(startUrl.replace(/\/start$/, "/inputs"));
-  await expect(page.getByTestId("inputs-blocked")).toContainText("Question of interest: confirm the intake agent's proposal");
+  await expect(page.getByTestId("inputs-blocked")).toContainText("Question of interest: confirm the draft");
   await page.getByTestId("inputs-blocked-start").click();
   await page.waitForURL(/\/start$/);
 

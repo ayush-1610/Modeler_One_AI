@@ -343,6 +343,9 @@ PASSES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("the question", ("qoi.text", "qoi.context_of_use", "qoi.applications")),
     ("the product and how it is given", ("scope.formulation_types", "scenarios[*].route")),
     ("what is modelled", ("drug.modality", "scope.pbpk_model", "scope.site_of_action")),
+    # what the proposal states of the drug's disposition (the owner, 2026-11-07): stated, never implied
+    ("the drug's disposition", ("drug.bcs_class", "scope.pathways", "scope.pathways_stated", "scope.nonlinearity",
+                                "scope.ehc")),
 )
 PASS_TURNS = 6
 TEXT_LIMIT = 12_000      # characters of the proposal given in a pass's message (a local model's context is short)
@@ -396,9 +399,12 @@ def _risk_message(ctx: IntakeContext) -> str:
 
 
 def run_proposal_intake(model: ChatModel, ctx: IntakeContext, *, context_note: str = "", max_turns: int = 80,
-                        log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> IntakeOutcome:
+                        log_step: Callable[[dict[str, Any]], None] = lambda s: None,
+                        before_risk: Callable[[ProjectBrief], ProjectBrief] | None = None) -> IntakeOutcome:
     """The general read of the documents, then a short pass on each group of Start fields it left empty (`PASSES`),
-    and the ICH M15 draft when it was not made: everything Start needs proposed, each checked by code."""
+    and the ICH M15 draft when it was not made: everything Start needs proposed, each checked by code. `before_risk`:
+    what the caller adds to the brief before the ICH M15 draft (code's reading of what the agent left empty, so the draft
+    has a question and a context of use to start from); the agent's own evaluation leaves it out."""
     user = (f"Drug: {ctx.brief.drug_name}.\n"
             + (f"Context from the person who started the project: {context_note}\n" if context_note else "")
             + "Fill the Project Brief from the uploaded documents. Start with list_documents.")
@@ -415,6 +421,8 @@ def run_proposal_intake(model: ChatModel, ctx: IntakeContext, *, context_note: s
                              log_step=log_step)
         notes.append(f"{title}: {done.final_text.strip()[:400]}")
         usage = {k: usage.get(k, 0) + done.usage.get(k, 0) for k in {*usage, *done.usage}}
+    if before_risk is not None:
+        ctx.brief = before_risk(ctx.brief)
     basis = [ctx.brief.get(p).value for p in ("qoi.text", "qoi.context_of_use")]
     if not outcome.error and all(v not in (None, "") for v in basis) and ctx.brief.get("m15.influence_suggested").value is None:
         done = run_tool_loop(model, system=SYSTEM_PROMPT, user=_risk_message(ctx), tools=build_tools(ctx), max_turns=4,

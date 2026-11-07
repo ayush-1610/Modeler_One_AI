@@ -163,7 +163,7 @@ def test_the_agents_m15_draft_waits_on_a_person_who_confirms_it_in_place(client)
     assert view["start"]["risk"]["target_default"] == 10.0                  # offered, not set (the owner, 2026-11-06)
     assert fields["acceptance.internal_target_pe"]["status"] == "MISSING"
     issues = [(i["path"], i["message"]) for i in view["start"]["issues"]]
-    assert ("m15.influence", "How the model is used: confirm the intake agent's draft, or change it") in issues
+    assert ("m15.influence", "How the model is used: confirm the draft, or change it") in issues
     assert ("acceptance.tier", "Model influence: not rated yet") in issues   # the rating itself waits on the person
     confirmed = c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
         {"path": "m15.influence", "status": "CONFIRMED"},
@@ -544,3 +544,58 @@ def test_a_project_started_with_its_readers_starts_the_compound_search_too(clien
     quiet = c.post("/api/v1/projects:initiate", headers=H, data={"drug_name": "Exampleamide", "extract": "false"},
                    files=[("files", ("proposal.txt", PROPOSAL, "text/plain"))])
     assert quiet.status_code == 201 and len(started) == 1                     # no readers asked: nothing starts
+
+
+ER_PROPOSAL = (b"Objective: to evaluate, through virtual bioequivalence, whether the 50 mg ER tablet is bioequivalent to the "
+               b"reference.\nThe results are intended to support the regulatory submission to Health Canada.\n")
+
+
+def _initiate_er(c) -> str:
+    response = c.post("/api/v1/projects:initiate", headers=H, data={"drug_name": "Exampleamide", "extract": "false"},
+                      files=[("files", ("proposal.txt", ER_PROPOSAL, "text/plain"))])
+    assert response.status_code == 201, response.text
+    return response.json()["data"]["project_id"]
+
+
+def _no_pubchem(name):
+    raise IdentityError("PubChem is not reachable from this host")
+
+
+@pytest.mark.req("T-50")
+def test_the_agent_drafts_the_model_risk_from_the_question_code_read_when_it_left_the_question_empty(client):
+    # the owner, 2026-11-07: the model risk stayed empty because the agent's own read left the question empty; code reads
+    # the question before the agent drafts the risk, so the draft always has its basis
+    c, store = client
+    pid = _initiate_er(c)
+
+    class Scripted:
+        provider, model = "test", "scripted"
+
+        def complete(self, messages, tools):
+            asked = "Call draft_risk_assessment once now" in str(messages[1]["content"]) and len(messages) == 2
+            calls = [("draft_risk_assessment", {
+                "influence": "medium", "how_the_model_is_used": "The model supports the submission alongside the clinical data",
+                "consequence": "medium", "what_a_wrong_decision_means": "A wrong decision changes exposure in patients"})] if asked else []
+            return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
+                              tool_calls=tuple(ToolCall(id="c", name=n, arguments=a) for n, a in calls))
+
+    result = brief_api.run_extraction(store, "t1", pid, by="u1", model=Scripted(), fetch_identity=_no_pubchem)
+    fields = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]["brief"]["fields"]
+    assert fields["qoi.context_of_use"]["by"] == "code:start-reading"                # code read it, not the agent
+    suggested = fields["m15.influence_suggested"]
+    assert suggested["status"] == "DRAFTED" and suggested["value"] == "medium" and suggested["by"].startswith("agent:")
+    assert result["drafted_by_code"] >= 2
+
+
+@pytest.mark.req("T-50")
+def test_with_agents_off_the_m15_rule_drafts_the_model_risk(client):
+    c, store = client
+    pid = _initiate_er(c)
+    result = brief_api.run_extraction(store, "t1", pid, by="u1", model=None, fetch_identity=_no_pubchem)
+    view = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]
+    fields = view["brief"]["fields"]
+    assert (fields["m15.influence_suggested"]["value"], fields["m15.consequence_suggested"]["value"]) == ("medium", "medium")
+    assert fields["m15.influence"]["by"] == "code:m15-draft-rule" and "UNVERIFIED" in fields["m15.influence"]["note"]
+    assert "m15.risk_justification" not in [p for p, f in fields.items() if f.get("by") == "code:m15-draft-rule"]  # equal
+    assert "drafted by code" in c.get(f"/api/v1/projects/{pid}/artifacts/brief/main", headers=H).json()["data"]["reason"]
+    assert result["drafted_by_code"] > 4
