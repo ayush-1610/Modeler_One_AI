@@ -82,7 +82,7 @@ def start_issues(brief: ProjectBrief) -> list[StartIssue]:
     internal target no looser than its tier (MS-01 §8), the scope gates (D-28: anything the builder cannot model is
     refused here), and the open questions on the short brief. Proposal notes never hold Start up."""
     # what the intake agent proposed from what the proposal implies (build D): pre-selected, a person's word still needed
-    implied = [*START_REQUIRED, "scope.formulation_types",
+    implied = [*START_REQUIRED, "drug.modality", "scope.pbpk_model", "scope.site_of_action", "scope.formulation_types",
                *(f"scenarios[{i}].route" for i in range(len(brief.groups.get("scenarios", ()))))]
     drafted = [path for path in implied
                if brief.get(path).status is FieldStatus.DRAFTED and brief.get(path).value not in (None, "", [])]

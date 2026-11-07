@@ -88,7 +88,7 @@ def test_extraction_with_a_scripted_agent_then_edit_and_preview(client):
                                               "quote": "single oral dose of 50 mg", "doc_sha256": sha, "page": 1})], []]
 
         def complete(self, messages, tools):
-            calls = self.turns.pop(0)
+            calls = self.turns.pop(0) if self.turns else []   # the focused passes find nothing more
             return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
                               tool_calls=tuple(ToolCall(id="c", name=n, arguments=a) for n, a in calls))
 
@@ -144,7 +144,7 @@ def test_the_agents_m15_draft_waits_on_a_person_who_confirms_it_in_place(client)
                           [("draft_risk_assessment", {"influence": "medium", "consequence": "high", **why})], []]
 
         def complete(self, messages, tools):
-            calls = self.turns.pop(0)
+            calls = self.turns.pop(0) if self.turns else []   # the focused passes find nothing more
             return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
                               tool_calls=tuple(ToolCall(id="c", name=n, arguments=a) for n, a in calls))
 
@@ -463,7 +463,7 @@ def test_add_data_says_what_a_file_relates_to_and_a_withdrawn_document_is_kept_a
 
         def complete(self, messages, tools):
             seen.extend(str(m.get("content", "")) for m in messages if m.get("role") == "tool")
-            calls = self.turns.pop(0)
+            calls = self.turns.pop(0) if self.turns else []   # the focused passes find nothing more
             return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
                               tool_calls=tuple(ToolCall(id=f"c{i}", name=n, arguments=a) for i, (n, a) in enumerate(calls)))
 

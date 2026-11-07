@@ -15,6 +15,41 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Build J: Start pre-filled from the proposal; the client request moved to Inputs (2026-11-06)
+The owner, 2026-11-06, on a desvenlafaxine ER project whose Start showed only the drug, its PubChem CID, SMILES and
+modality: "making sure everything is there; the user will just see through and only change in case the selection or
+pre-fills are way wrong", and of "What to request from the client": "remove if you think this is unwanted or give me a
+solid reason to keep".
+- **A1 reads in focused passes** (`proposal_intake.run_proposal_intake`). After its general read, one short pass per
+  family of Start fields still empty (the question; the product and how it is given; what is modelled), each with the
+  proposal's text in the message and the empty fields named (6 turns each), then the M15 pass (4 turns) once the
+  question and the context of use have values and no rating is suggested yet. On the owner's project the general read
+  filled the modality only; each pass now asks for less, with the text in front of the model. `IMPLIED` adds the
+  modality, the PBPK model and the site of action.
+- **Code drafts what A1 still left empty** (`modeler_project.start_drafts.read_for_start`, run after A1 in
+  `run_extraction`, and alone when agents are off): the question of interest from the proposal's objective sentence; the
+  context of use from the sentence that says what the results are for; the applications from what the proposal names;
+  the formulation types (an extended-release tablet is modified release; a dissolution medium is never read as a
+  solution); each scenario's route. Each is DRAFTED with its sentence quoted from its page and waits on Confirm. Two
+  defaults, said as such in the note: a full PBPK model and systemic action (the only model the builder makes, D-28),
+  unless the proposal speaks of a local site. A field a person set, a document states, or that is locked is never
+  touched. The brief's version reason says how many fields code drafted (`drafted_by_code` in the run's result).
+- **Every draft is confirmed in place.** The scope gates (modality, PBPK model, site of action, formulation types,
+  routes) show a draft as "to confirm" with its quote and Confirm, as the question's fields do; Start waits on each
+  (`steps.start_issues`).
+- **A person's value keeps the sentence it came from and says who set it** ("proposal.md p.1 · set by …"). Before, a
+  changed draft showed only its quote, so the record did not say the value was the person's.
+- **"What to request from the client" is off Start.** Start settles the question and the scope; what only the client
+  can send is known in full once the inputs are gathered, and Inputs' "Still missing to run" lists it. The one thing the
+  block gave that the list does not, the request as a spreadsheet to send the client, stays as a download there
+  ("Download the request for the client (.xlsx)"). The API's `start.client_request` is unchanged.
+- Impact: a new project's Start opens with every field the proposal speaks to drafted and pre-selected; the person
+  confirms or changes each. The M15 ratings stay a judgement only A1 suggests, so they need the server's model
+  (`LITELLM_KEY`). An existing project gets the drafts from "Read the proposal again". No locked file, ruleset or MAP
+  change. Tests: `test_start_drafts.py` (3), A1's focused passes (1); the brief API's scripted agents answer nothing
+  once their script ends; browser: `start-prefilled.spec.ts` (new), `start-step.spec.ts` (the drafted route is
+  confirmed), `value-reuse.spec.ts` (the request downloads from Inputs).
+
 ### Changed — Compound I: the literature search per input, side by side; another project's values reused with consent (2026-11-06)
 Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.3 and what B left (the owner, 2026-11-05: "the compound
 agent is far too slow"; §5 q3: start at once, load and cost looked at later).
@@ -5435,4 +5470,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) F (the reading agent on arrival for what code could not; every reading's record of what it left out) G (messy deliveries scored end to end, 36 of 36 after five fixes to code's reading) H (A1's evaluation set; its live score needs the server's model) and I (the literature search per input, side by side; another project's values reused with consent) |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) F (the reading agent on arrival for what code could not; every reading's record of what it left out) G (messy deliveries scored end to end, 36 of 36 after five fixes to code's reading) H (A1's evaluation set; its live score needs the server's model), I (the literature search per input, side by side; another project's values reused with consent) and J (Start pre-filled from the proposal, each draft quoted and confirmed in place; the client request moved to Inputs) |

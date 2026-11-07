@@ -54,7 +54,8 @@ class DocumentSource(Protocol):
 # never from a quote
 DRAFT_ONLY = frozenset({"m15.influence_suggested", "m15.consequence_suggested", "m15.risk_justification"})
 # What a proposal usually implies rather than states (build D): proposed with the quote that implies it, and why
-IMPLIED = ("qoi.text", "qoi.context_of_use", "qoi.applications", "scope.formulation_types")
+IMPLIED = ("qoi.text", "qoi.context_of_use", "qoi.applications", "scope.formulation_types", "drug.modality",
+           "scope.pbpk_model", "scope.site_of_action")
 IMPLIED_IN_GROUPS = {("scenarios", "route")}
 
 
@@ -336,12 +337,89 @@ class IntakeOutcome:
     error: str = ""
 
 
+# After the general read, one short conversation per group of Start fields still empty, the proposal's text given in the
+# message (the owner, 2026-11-06: everything Start needs proposed and pre-selected; a long open task loses fields)
+PASSES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("the question", ("qoi.text", "qoi.context_of_use", "qoi.applications")),
+    ("the product and how it is given", ("scope.formulation_types", "scenarios[*].route")),
+    ("what is modelled", ("drug.modality", "scope.pbpk_model", "scope.site_of_action")),
+)
+PASS_TURNS = 6
+TEXT_LIMIT = 12_000      # characters of the proposal given in a pass's message (a local model's context is short)
+
+
+def _empty(ctx: IntakeContext, path: str) -> bool:
+    record = ctx.brief.get(path)
+    return (not locked(ctx.brief, path) and record.status is not FieldStatus.NOT_APPLICABLE
+            and record.value in (None, "", []))
+
+
+def _paths(ctx: IntakeContext, paths: tuple[str, ...]) -> list[str]:
+    routes = [f"scenarios[{i}].route" for i in range(max(1, len(ctx.brief.groups.get("scenarios", ()))))]
+    return [q for p in paths for q in (routes if p == "scenarios[*].route" else [p]) if _empty(ctx, q)]
+
+
+def _proposal_text(ctx: IntakeContext) -> str:
+    """The proposal's pages, each headed with what a citation needs (the document's sha256 and the page)."""
+    records = [r for r in map(document_record, ctx.library.documents()) if r.role != "retrieved_record"]
+    chunks, size = [], 0
+    for record in [r for r in records if r.role == "proposal"] or records:
+        for number in range(1, record.n_pages + 1):
+            text = (ctx.library.page_text(record.sha256, number) or "").strip()
+            if not text or size >= TEXT_LIMIT:
+                continue
+            text = text[: TEXT_LIMIT - size]
+            chunks.append(f"[{record.name} | doc_sha256 {record.sha256} | page {number}]\n{text}")
+            size += len(text)
+    return "\n\n".join(chunks)
+
+
+def _field_line(path: str) -> str:
+    definition = definition_of(path)
+    options = f" (one of: {', '.join(definition.options)})" if definition.options else ""
+    return f"- {path}: {definition.label}{options}"
+
+
+def _pass_message(ctx: IntakeContext, title: str, paths: list[str], text: str) -> str:
+    return (f"Drug: {ctx.brief.drug_name}.\n\nThe proposal's text, page by page:\n{text}\n\n"
+            f"Now fill {title}. These fields are still empty:\n" + "\n".join(map(_field_line, paths)) + "\n\n"
+            "For each field: if the text states it, call propose_field with the exact quote; if the text implies it, call "
+            "propose_implied with the exact quote and why; only if nothing in the text speaks to it, call mark_missing "
+            "with a question. Quote the text exactly and cite the doc_sha256 and page shown above that page. Then stop.")
+
+
+def _risk_message(ctx: IntakeContext) -> str:
+    return (f"Drug: {ctx.brief.drug_name}. Question of interest: {ctx.brief.get('qoi.text').value}. Context of use: "
+            f"{ctx.brief.get('qoi.context_of_use').value}.\n\nCall draft_risk_assessment once now: suggest the model "
+            "influence and the decision consequence, each with why in one or two plain sentences, and, when the two "
+            "differ, why the stricter model risk fits (why_this_tier). Then stop.")
+
+
 def run_proposal_intake(model: ChatModel, ctx: IntakeContext, *, context_note: str = "", max_turns: int = 80,
                         log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> IntakeOutcome:
+    """The general read of the documents, then a short pass on each group of Start fields it left empty (`PASSES`),
+    and the ICH M15 draft when it was not made: everything Start needs proposed, each checked by code."""
     user = (f"Drug: {ctx.brief.drug_name}.\n"
             + (f"Context from the person who started the project: {context_note}\n" if context_note else "")
             + "Fill the Project Brief from the uploaded documents. Start with list_documents.")
     outcome: LoopOutcome = run_tool_loop(model, system=SYSTEM_PROMPT, user=user, tools=build_tools(ctx),
                                          max_turns=max_turns, log_step=log_step)
+    notes, usage = [outcome.final_text], dict(outcome.usage)
+    text = _proposal_text(ctx) if not outcome.error else ""
+    follow_ups: list[tuple[str, str]] = []
+    for title, paths in PASSES:
+        if text and (empty := _paths(ctx, paths)):
+            follow_ups.append((title, _pass_message(ctx, title, empty, text)))
+    for title, message in follow_ups:
+        done = run_tool_loop(model, system=SYSTEM_PROMPT, user=message, tools=build_tools(ctx), max_turns=PASS_TURNS,
+                             log_step=log_step)
+        notes.append(f"{title}: {done.final_text.strip()[:400]}")
+        usage = {k: usage.get(k, 0) + done.usage.get(k, 0) for k in {*usage, *done.usage}}
+    basis = [ctx.brief.get(p).value for p in ("qoi.text", "qoi.context_of_use")]
+    if not outcome.error and all(v not in (None, "") for v in basis) and ctx.brief.get("m15.influence_suggested").value is None:
+        done = run_tool_loop(model, system=SYSTEM_PROMPT, user=_risk_message(ctx), tools=build_tools(ctx), max_turns=4,
+                             log_step=log_step)
+        notes.append(f"the model risk: {done.final_text.strip()[:400]}")
+        usage = {k: usage.get(k, 0) + done.usage.get(k, 0) for k in {*usage, *done.usage}}
     return IntakeOutcome(status=outcome.status, brief=ctx.brief, accepted=ctx.accepted, rejected=ctx.rejected,
-                         summary=outcome.final_text, usage=outcome.usage, error=outcome.error)
+                         summary="\n".join(x for x in notes if x), usage=usage, error=outcome.error)

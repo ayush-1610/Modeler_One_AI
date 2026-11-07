@@ -58,6 +58,10 @@ export function Source({ record, open }: { record: FieldRecord; open: Open }) {
           </button>
         ))}
         {record.status === "EXTRACTED" && <q className="sb-quote">{first.quote.length > 160 ? `${first.quote.slice(0, 157)}…` : first.quote}</q>}
+        {/* a person's value keeps the sentence it came from; the record still says who set it */}
+        {(record.status === "EDITED" || record.status === "CONFIRMED") && record.by && (
+          <span className="muted"> · {record.status === "EDITED" ? "set" : "confirmed"} by {record.by}</span>
+        )}
       </span>
     );
   }

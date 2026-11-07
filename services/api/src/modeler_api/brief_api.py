@@ -83,6 +83,7 @@ from modeler_project.evidence_register import items as evidence_items
 from modeler_project.feasibility import pathway_suggestions, pathways_not_named, scope_gates
 from modeler_project.library import library_rows
 from modeler_project.requirements import RequirementMatrix, application_additions, client_request
+from modeler_project.start_drafts import read_for_start
 from modeler_project.steps import start_issues, start_problems
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord
@@ -173,8 +174,13 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
         actor = run.actor
         result.update(run_id=run.run_id, status=outcome.status, accepted=len(outcome.accepted),
                       rejected=len(outcome.rejected))
-    reason = (f"extracted by A1 ({result.get('accepted', 0)} fields accepted, {result.get('rejected', 0)} rejected)"
-              if model is not None else "drug identity resolved")
+    # what the agent left empty (or everything, with agents off), drafted by code from the proposal's words, each to
+    # confirm on Start (the owner, 2026-11-06: everything there, pre-selected)
+    brief, drafted = read_for_start(library, brief)
+    accepted_paths += drafted
+    result["drafted_by_code"] = len(drafted)
+    reason = ((f"extracted by A1 ({result.get('accepted', 0)} fields accepted, {result.get('rejected', 0)} rejected)"
+               if model is not None else "drug identity resolved") + (f"; {len(drafted)} drafted by code" if drafted else ""))
     with ws.editing(ArtifactKind.BRIEF, BRIEF_ID):  # the person may have edited the brief while A1 read
         merged = _merge_agent_result(_brief(ws) or start, brief, accepted_paths)
         version = save_brief(ws, merged, actor=actor, reason=reason, derived_from=_document_refs(ws))
