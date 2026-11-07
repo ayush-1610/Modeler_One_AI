@@ -15,6 +15,37 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the design's motion system and feedback (theme spec, option D: re-skin) (2026-11-07)
+The owner shared the design's theme spec ("Modeler One" master prompt) on 2026-11-07; applied here as its option D
+(re-skin the existing app, logic unchanged). Plan `docs/plans/2026-11-06-app-design-merge.md` §6. Web only.
+- **Motion** (`lib/motion.ts`, `components/kit/Motion.tsx`, mounted once in the layout): a damped spring engine that
+  sleeps when nothing moves; magnetic tiles (`data-magnet`: the dashboard's figures and project cards lean toward the
+  pointer and carry a light under it); sections and panels below the fold fade in, in sequence, as they scroll in; the
+  head recedes (parallax, fade, blur); a 3 px scroll-progress bar; the step bar compacts once the head is passed
+  (scale and fade only); the dashboard's
+  figures roll to their value (`Counter`); each page enters with a short rise. All of it is off under reduced motion.
+- **Feedback:** a toast (one sentence, bottom centre); a celebration burst after a signed MAP or a signed escalation
+  decision; modals rise on a spring over a dimmed, blurred page; loading shows skeleton rows with a sweep.
+- **Sidebar:** a light follows the pointer down the rail; the current page's bar springs in; the footer always shows the
+  person (or "Development sign-in") and a connection dot, green when the API's reads answer, grey when they do not;
+  clicking it asks again and says the result.
+- **Tokens:** the spec's values: hairline borders `rgba(0,0,0,.07)`, `--ink-2` for ledes, amber `#B25000` and red
+  `#A5381F` as the text-grade inks, `#FF9F0A` / `#FF3B30` / `#34C759` for fills only; the spec's shadows and radii.
+  Coloured text across the stylesheets now uses the text-grade inks (contrast 4.5:1).
+- **Interaction details found while testing:** the rail closes when a destination is chosen (the pointer resting on it
+  had held it open over the next page's left edge) and opens on keyboard focus only when the focus is visible; dialogs
+  render at the top of the document (`components/kit/Dialog.tsx` portals to `<body>`), so an animated or sticky
+  ancestor can no longer trap one under the sidebar; only content below the fold rises as it is scrolled to, so what is
+  on screen when a page opens stays put and can be used at once. **Deviation from the spec:** content fades in place
+  instead of rising 44 px, a page enters with a fade instead of a 14 px rise, and the step bar compacts by scale, not by
+  height. Each had moved a digitized figure or the
+  plan canvas under the pointer, so a point or a drop could be recorded where the person did not click.
+- Tests: `shell.spec.ts` waits for the dashboard before tabbing (the loading state has nothing to tab to).
+- **Not adopted, with why:** the offline "demo data" mode and sample arrays (`CLAUDE.md`: a page shows the API's
+  problem, never sample data; a read that fails says so); the project cards' sparklines and the "live" predicted-versus-
+  observed card (decorative curves that read as simulation results; only real PK-Sim runs count); a password on
+  signing (the spec agrees: step-up only).
+
 ### Changed — light theme only; the design on every page, the state pages included (2026-11-07)
 The owner, 2026-11-07: "remove dark theme, only have light theme, and make this theme for all pages". Web only.
 - **Dark theme removed:** the dark token blocks (`globals.css`, the series palette in `client-data.css`), the head's dark
@@ -5498,3 +5529,4 @@ record it here so a reader knows which context produced which work.
 | 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) F (the reading agent on arrival for what code could not; every reading's record of what it left out) G (messy deliveries scored end to end, 36 of 36 after five fixes to code's reading) H (A1's evaluation set; its live score needs the server's model) and I (the literature search per input, side by side; another project's values reused with consent) |
 | 2026-11-06 (cloud session, branch `claude/exciting-shannon-1phqoq`) | per commit trailer | Review of the Claude Design "Modeler One App" mockup against the app and the API; the merge plan (`docs/plans/2026-11-06-app-design-merge.md`); phase A: the dashboard and the grouped, collapsible sidebar |
 | 2026-11-07 (same cloud session) | per commit trailer | The whole web app restyled to the Claude Design "Modeler One App" look (plan §5) |
+| 2026-11-07 (same cloud session) | per commit trailer | The design's motion system and feedback from the owner's theme spec (option D) |

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 
 import { ProjectsTable } from "@/components/projects/ProjectsTable";
 import { Hero } from "@/components/kit";
+import { Counter } from "@/components/kit/Motion";
 import { RiskChip } from "@/components/ui";
 import type { StepRow } from "@/lib/pipeline";
 import type { Project } from "@/lib/types";
@@ -72,9 +73,9 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
       <div className="dash">
       <div className="kpis" role="group" aria-label="At a glance">
         {kpis.map((k) => (
-          <button key={k.label} type="button" className={`dash-kpi ${k.tone}`} onClick={k.go} data-testid={`kpi-${k.label.toLowerCase().replace(/ /g, "-")}`}>
+          <button key={k.label} type="button" className={`dash-kpi ${k.tone}`} onClick={k.go} data-magnet data-testid={`kpi-${k.label.toLowerCase().replace(/ /g, "-")}`}>
             <span className="dash-kpi-label">{k.label}</span>
-            <span className="dash-kpi-value">{k.value}</span>
+            <Counter className="dash-kpi-value" value={k.value} />
             <span className="dash-kpi-sub">{k.sub}</span>
           </button>
         ))}
@@ -107,7 +108,7 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
             <p className="muted">No projects match. <button type="button" className="link-btn" onClick={() => { setFilter("All"); setQuery(""); }}>Clear the filters</button></p>
           ) : (
             <ul className="pcards">
-              {shown.map((p) => <ProjectCard key={p.id} p={p} />)}
+              {shown.map((p, i) => <ProjectCard key={p.id} p={p} i={i} />)}
             </ul>
           )}
         </section>
@@ -156,11 +157,12 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
   );
 }
 
-function ProjectCard({ p }: { p: DashboardProject }) {
+function ProjectCard({ p, i }: { p: DashboardProject; i: number }) {
   const done = p.steps.filter((s) => s.state === "done").length;
   return (
     <li>
-      <Link href={p.href} className={`pcard ${p.state}`} data-testid={`project-card-${p.id}`}>
+      <Link href={p.href} className={`pcard ${p.state}`} data-testid={`project-card-${p.id}`} data-magnet
+            style={{ animationDelay: `${i * 60}ms` }}>
         <div className="pcard-head">
           <span className="pcard-mono" aria-hidden>{(p.compounds[0] ?? p.name).charAt(0).toUpperCase()}</span>
           <span className="pcard-title">

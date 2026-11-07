@@ -7,6 +7,7 @@
 // `.dialog-backdrop` rules (the Review & sign page's drop dialog shares them); sizes and spacing are in kit.css.
 
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 const FOCUSABLE = [
   "a[href]", "button:not([disabled])", "input:not([disabled]):not([type=hidden])", "select:not([disabled])",
@@ -51,13 +52,16 @@ export function Dialog({ title, onClose, size, above, dismiss, testId, children 
     }
   };
 
-  return (
+  // over the whole page, at the top of the document: an animated or sticky ancestor would otherwise hold a fixed dialog
+  // inside its own box, under the sidebar
+  return createPortal(
     <div className={`dialog-backdrop${above ? " step-up" : ""}${size === "peek" ? " peek" : ""}`} data-testid={testId}
          onKeyDown={onKeyDown} onMouseDown={dismiss ? (e) => { if (e.target === e.currentTarget) close.current?.(); } : undefined}>
       <div ref={panel} className={`dialog${size ? ` ${size}` : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <h2 id={titleId} className="dialog-title">{title}</h2>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -4,6 +4,8 @@ import { expect, test } from "@playwright/test";
 
 test("the skip link, the current page in the sidebar, and an address with no page", async ({ page }) => {
   await page.goto("/");
+  // the page itself, not its loading state (the skeleton has nothing to tab to)
+  await expect(page.getByTestId("dash-new-project")).toBeVisible();
   await page.keyboard.press("Tab");
   const skip = page.getByRole("link", { name: "Skip to the page" });
   await expect(skip).toBeFocused();

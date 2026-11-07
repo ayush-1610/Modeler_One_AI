@@ -9,8 +9,8 @@
   background: var(--raised); border-top: 2px solid var(--warn); }
 .steps li.done { border-top-color: var(--pass); }
 .step-n { flex: 0 0 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700;
-  background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
-.steps li.done .step-n { background: color-mix(in srgb, var(--pass) 20%, transparent); color: var(--pass); }
+  background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn-ink); }
+.steps li.done .step-n { background: color-mix(in srgb, var(--pass) 20%, transparent); color: var(--pass-ink); }
 .plan-item { border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px;
   display: grid; gap: 4px; }
 .plan-item + .plan-item { margin-top: 8px; }
@@ -57,7 +57,7 @@
 .read-result { padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); display: grid; gap: 6px; font-size: 13px; }
 .read-result.ok { border-color: color-mix(in srgb, var(--pass) 50%, var(--line)); }
 .read-result.bad { border-color: color-mix(in srgb, var(--fail) 50%, var(--line)); }
-.problems { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--fail); }
+.problems { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--fail-ink); }
 .problems .muted { color: var(--ink-dim); }
 .sample { font-size: 12px; }
 .sample th, .sample td { padding: 3px 8px; }

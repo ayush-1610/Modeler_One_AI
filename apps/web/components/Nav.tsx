@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { AddData, stepOf } from "@/components/library/AddData";
+import { toast } from "@/components/kit/Motion";
 import { useResource } from "@/lib/hooks";
 
 // Line icons, drawn on a 24-unit grid with the stroke of the text (plan 2026-11-06-app-design-merge §3 A).
@@ -44,10 +46,12 @@ function Logo() {
 }
 
 /** What waits in the Review inbox: open escalations and agent proposals, read again every half minute. */
-function useInboxCount(): number {
+function useInboxCount(): { count: number; live: boolean | null } {
   const esc = useResource("/api/v1/escalations", {}, { select: (d) => d.escalations.length, poll: () => true, interval: 30_000 });
   const props = useResource("/api/v1/proposals", {}, { select: (d) => d.proposals.length, poll: () => true, interval: 30_000 });
-  return (esc.data ?? 0) + (props.data ?? 0);
+  // the API answered (live) or not; null until the first answer
+  const live = esc.data !== null ? true : esc.problem ? false : null;
+  return { count: (esc.data ?? 0) + (props.data ?? 0), live };
 }
 
 type Item = { href: string; label: string; icon: string; active: boolean; badge?: number; testId?: string };
@@ -74,7 +78,17 @@ export function Nav({ user }: { user?: string | null }) {
   const [adding, setAdding] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [hover, setHover] = useState(false);
-  const inbox = useInboxCount();
+  // opened by the keyboard: only a visible focus opens the panel (a click leaves focus behind and must not hold it open)
+  const [keys, setKeys] = useState(false);
+  // a new page closes a panel that is not pinned
+  useEffect(() => { setHover(false); setKeys(false); }, [path]);
+  const { count: inbox, live } = useInboxCount();
+  const queries = useQueryClient();
+  const recheck = async () => {
+    await queries.refetchQueries({ queryKey: ["/api/v1/escalations"] });
+    const state = queries.getQueryState(["/api/v1/escalations", {}, {}]);
+    toast(state?.status === "success" ? "The API answers: live data" : "The API does not answer; nothing on screen is current");
+  };
 
   useEffect(() => {
     try { setPinned(localStorage.getItem(PIN_KEY) === "1"); } catch { /* no storage: a rail */ }
@@ -91,13 +105,17 @@ export function Nav({ user }: { user?: string | null }) {
     { href: "/review", label: "Review inbox", icon: ICONS.inbox, active: is("/review"), badge: inbox },
   ];
   const projectHref = open ? `/projects/${encodeURIComponent(open)}` : "";
-  const isOpen = pinned || hover;
+  const isOpen = pinned || hover || keys;
 
   return (
     <aside className={`sidebar${isOpen ? " open" : ""}${pinned ? " pinned" : ""}`} data-testid="sidebar"
            onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-           onFocus={() => setHover(true)}
-           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHover(false); }}>
+           // choosing a destination closes the panel even with the pointer still on it; it opens again when the pointer
+           // leaves and comes back (a panel held open over the next page would cover its left edge)
+           onClickCapture={(e) => { if ((e.target as Element).closest("a, .nav-action")) { setHover(false); setKeys(false); } }}
+           onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty("--my", `${(e.clientY - r.top).toFixed(0)}px`); }}
+           onFocus={(e) => setKeys((e.target as Element).matches(":focus-visible"))}
+           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeys(false); }}>
       <div className="brand">
         <Logo />
         <span className="nav-text">Modeler One</span>
@@ -128,16 +146,22 @@ export function Nav({ user }: { user?: string | null }) {
       {open && adding && createPortal(
         <AddData key={open} projectId={open} step={stepOf(path)} onClose={() => setAdding(false)} />, document.body)}
       <div className="nav-foot">
-        {user && (
-          <div className="nav-user" data-testid="signed-in">
-            <span className="nav-avatar" aria-hidden>{initials(user)}</span>
+        <div className="nav-user" data-testid={user ? "signed-in" : "dev-sign-in"}>
+          <span className="nav-avatar" aria-hidden>{user ? initials(user) : "M1"}</span>
+          {user ? (
             <span className="nav-text">
               Signed in as <strong>{user}</strong>
               {/* a route handler, not a page: a full navigation */}
               <a href="/auth/logout" data-testid="sign-out">Sign out</a>
             </span>
-          </div>
-        )}
+          ) : (
+            <span className="nav-text"><strong>Development sign-in</strong><span className="nav-role">no named user</span></span>
+          )}
+          {/* the API's answer, not a guess: green when its reads answer, grey when they do not; a click asks again */}
+          <button type="button" className={`nav-conn${live ? " live" : ""}`} onClick={() => void recheck()} data-testid="nav-conn"
+                  title={live ? "Live: the API answers" : live === false ? "The API does not answer" : "Checking the API"}
+                  aria-label={live ? "Live: the API answers. Check again" : "The API does not answer. Check again"} />
+        </div>
       </div>
     </aside>
   );

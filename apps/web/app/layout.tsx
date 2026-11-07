@@ -17,6 +17,7 @@ import "./styles/review.css";
 import "./styles/dashboard.css";
 // the "Modeler One App" look over the shared pieces; last, so it wins (plan 2026-11-06-app-design-merge)
 import "./styles/design.css";
+import { Motion } from "@/components/kit/Motion";
 import { Nav } from "@/components/Nav";
 import { Providers } from "@/components/Providers";
 import { signedInName } from "@/lib/session";
@@ -51,6 +52,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <a className="skip-link" href="#content">Skip to the page</a>
         {/* the sidebar is inside the providers too: its "Add data" card changes the project and refreshes the page */}
         <Providers>
+          <Motion />
           <div className="app">
             <Nav user={user} />
             <div className="content">

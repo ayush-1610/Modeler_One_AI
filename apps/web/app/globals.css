@@ -14,13 +14,15 @@
   --bg: #f5f5f7;
   --surface: #ffffff;
   --raised: #f5f5f7;
-  --line: #e3e3e8;
-  --line-soft: #ededf0;
+  --line: rgba(0, 0, 0, 0.07);   /* --hairline: every 1 px border and divider */
+  --line-soft: rgba(0, 0, 0, 0.05);
 
   /* ink */
   --ink: #1d1d1f;
   --ink-dim: #6e6e73;
-  --ink-faint: #a1a1a6;
+  --ink-faint: #8e8e93;
+  --ink-2: #515154;      /* the lede, secondary paragraphs */
+  --ink-5: #c7c7cc;
 
   /* the two series under comparison */
   --sim: #0071e3;      /* predicted — the model */
@@ -29,21 +31,21 @@
 
   /* verdicts */
   --pass: #1e7b45;
-  --warn: #c26a00;
-  --fail: #e0402f;
+  --warn: #ff9f0a;
+  --fail: #ff3b30;
   --brand-ink: #0066cc;
 
   /* Text-grade twins of the series and verdict colours: the base colours above are for dots, fills and borders (they are
    * 3.4-4.5:1 on a tint and fail AA as small text); these are >= 4.5:1 on the surface and on their own tints.
    * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. */
   --pass-ink: #1e7b45;
-  --warn-ink: #a24a00;
-  --fail-ink: #c42b1c;
+  --warn-ink: #b25000;
+  --fail-ink: #a5381f;
   --ink-quiet: #6e6e73;
   /* the filled primary button (white on it 5.2:1; --sim stays the chart colour) and the edge of a form control (3:1) */
   --primary: #0071e3;
   --on-primary: #ffffff;
-  --control-border: #c7c7cc;
+  --control-border: rgba(0, 0, 0, 0.1);
 
   /* risk ratings (ICH M15) and aliases */
   --low: var(--pass);
@@ -66,7 +68,21 @@
   --hairline: rgba(0, 0, 0, 0.07);
   --glass: rgba(255, 255, 255, 0.84);
   --fill: rgba(118, 118, 128, 0.12);
-  --fill-btn: rgba(0, 0, 0, 0.06);
+  --fill-btn: rgba(0, 0, 0, 0.07);
+  --hover-wash: rgba(0, 0, 0, 0.05);
+  --blue-deep: #0059b3;
+  --green: #34c759;
+  --indigo: #5e5ce6;
+  --surface-glass-2: rgba(255, 255, 255, 0.86);
+  --surface-modal: rgba(255, 255, 255, 0.92);
+  --shadow-card-compact: 0 12px 40px -14px rgba(0, 0, 0, 0.22);
+  --shadow-hover: 0 26px 50px -24px rgba(0, 0, 0, 0.30);
+  --shadow-sidebar-open: 24px 0 70px -28px rgba(0, 0, 0, 0.28);
+  --shadow-modal: 0 40px 100px -30px rgba(0, 0, 0, 0.40);
+  --shadow-sign: 0 30px 80px -30px rgba(0, 113, 227, 0.55);
+  --r-md: 16px;
+  --r-modal: 28px;
+  --r-ctl: 12px;
 }
 
 
@@ -251,7 +267,7 @@ tbody tr:last-child td { border-bottom: none; }
              transition: left 350ms var(--ease); }
 .fold-mark.out { background: var(--fail); }
 .fold-value { font-variant-numeric: tabular-nums; font-weight: 600; }
-.fold-value.out { color: var(--fail); }
+.fold-value.out { color: var(--fail-ink); }
 @media (max-width: 900px) {
   .cols-2, .cols-intake { grid-template-columns: 1fr; }
   .app { flex-direction: column; }

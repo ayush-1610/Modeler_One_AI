@@ -15,6 +15,7 @@ import type { Envelope, Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
 import { ROLE_LABEL, planApi, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
 import { startCampaign } from "@/lib/writes";
+import { celebrate, toast } from "@/components/kit/Motion";
 
 type Pending = { studyId: string; from: Role; to: Role; where: string; preview: Violation[] | null; problem: string | null;
                  deviation?: boolean };
@@ -234,7 +235,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
                       ? `Deviations signed: MAP v${(view.map?.map_version ?? 1) + 1} supersedes v${view.map?.map_version ?? 1}.`
                       : "MAP generated from the plan and signed.";
                     const { data, problem } = await mutation.run(() => planApi.sign(projectId, note));
-                    if (data) setSignature(data.signature);
+                    if (data) { setSignature(data.signature); celebrate(); toast(done); }
                     setMessage(problem ?? done);
                   }}>
             {signed && pendingDeviations.length ? `Sign the deviation${pendingDeviations.length === 1 ? "" : "s"} (${pendingDeviations.length})` : "Approve and Sign"}</button>

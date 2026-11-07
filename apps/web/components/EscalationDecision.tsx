@@ -7,6 +7,7 @@ import { Dialog } from "@/components/kit/Dialog";
 import { useMutation } from "@/lib/hooks";
 import type { Escalation } from "@/lib/types";
 import { resolveEscalation } from "@/lib/writes";
+import { celebrate, toast } from "@/components/kit/Motion";
 
 type Result = { kind: "ok" | "err"; message: string } | null;
 
@@ -48,11 +49,11 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
       setResult({ kind: "err", message: problem ?? "The decision was rejected." });
       return;
     }
-    setResult({
-      kind: "ok",
-      message: `Decision recorded — the campaign is now ${data.status ?? "updated"}.` +
-        (data.signature ? ` Signed: ${data.signature.manifestation}` : ""),
-    });
+    const message = `Decision recorded — the campaign is now ${data.status ?? "updated"}.` +
+      (data.signature ? ` Signed: ${data.signature.manifestation}` : "");
+    setResult({ kind: "ok", message });
+    if (data.signature) celebrate();
+    toast(`Decision recorded — the campaign is now ${data.status ?? "updated"}.`);
   }
 
   return (

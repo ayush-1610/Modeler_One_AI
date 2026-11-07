@@ -133,3 +133,20 @@ screenshot of the design's Inputs step). This supersedes §2.2 items 7 and 8 and
 The owner: remove the dark theme and apply the design to all pages. The design is light only, so the app is now too: the
 dark tokens, the theme toggle and its boot script are gone. The 404, error and loading screens use the design's head,
 dialogs use its neutral backdrop, and wide tables scroll inside their panel.
+
+## 6. The theme spec, applied as a re-skin (2026-11-07)
+
+The owner shared the design's full theme spec (tokens, motion, components, states). Applied as its option D: the
+existing app is re-skinned; no logic is rewritten. Added: the spring engine, magnetic tiles, scroll reveal, the head's
+parallax, the progress bar, the compacting step bar, rolling counters, the page transition, toast, celebration burst,
+modal entry, skeleton loading, the sidebar's light and connection dot, and the spec's exact token values.
+
+Not adopted, and why (the repo's rules win where they conflict with the spec):
+1. **Offline demo mode with sample data.** `CLAUDE.md` and the read layer: a page shows why it could not read the API,
+   never sample data. The connection dot says Live or not; nothing on screen is invented.
+2. **Sparklines on project cards and the "live" curve card.** Decorative concentration–time shapes read as simulation
+   results; only real PK-Sim runs count. Cards show the real four steps instead.
+3. **Recent activity across projects.** Still no cross-project feed in the API (§4, gap 2).
+4. **Content rising as it scrolls in, and the step bar changing height when it compacts.** Both moved interactive
+   content under the pointer (a figure being digitized, the plan canvas), so a point or a drop could land off target.
+   Content and a new page fade in place instead, and the bar compacts by scale and fade.
