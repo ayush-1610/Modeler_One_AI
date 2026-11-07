@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 
 import { InlineIssue } from "@/components/kit";
 import { display, type FieldDef, type FieldRecord, type Question } from "@/lib/brief";
-import type { Answer, BriefChange, Open, Save } from "@/lib/start";
+import { drafter, type Answer, type BriefChange, type Open, type Save } from "@/lib/start";
 
 /** What a box still needs from the person, in red with a warning sign (page review 1: the side panel is gone; Start
  *  cannot be left until these are resolved). */
@@ -39,7 +39,7 @@ export function Source({ record, open }: { record: FieldRecord; open: Open }) {
   if (record.status === "DRAFTED") {
     return (
       <span className="sb-source" title={record.note}>
-        <span className="chip medium">draft</span> by the intake agent{record.citations.length ? ", from " : ""}
+        <span className="chip medium">draft</span> by {drafter(record)}{record.citations.length ? ", from " : ""}
         {record.citations.map((c, i) => (
           <button key={i} type="button" className="cite" title={c.quote} onClick={() => open(c)}>
             {c.source || "source"} p.{c.page}{c.locator ? ` · ${c.locator}` : ""}

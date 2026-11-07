@@ -169,7 +169,7 @@ def test_why_each_rating_is_what_it_is_needs_a_persons_word():
     drafted = agent_set(drafted, "m15.consequence", value="an untested product would reach patients", unit=None,
                         citations=(), status=FieldStatus.EXTRACTED, confidence="A", by="agent:a1")
     assert {i.path: i.message for i in start_issues(drafted)} == {
-        "m15.influence": "How the model is used: confirm the intake agent's draft, or change it",
+        "m15.influence": "How the model is used: confirm the draft, or change it",
         "m15.consequence": "What a wrong decision means: confirm the proposal's words, or change them"}
     for path in ("m15.influence", "m15.consequence"):
         drafted = edit_field(drafted, path, status=FieldStatus.CONFIRMED, by="u")
@@ -225,9 +225,9 @@ def test_what_the_intake_agent_drafted_from_what_the_proposal_implies_waits_on_a
         brief = agent_set(brief, path, value=value, unit=None, citations=(), status=FieldStatus.DRAFTED, confidence=None,
                           by="agent:a1", note="proposed by the intake agent from what the document implies: ...")
     assert {i.path: i.message for i in start_issues(brief)} == {
-        "qoi.context_of_use": "Context of use: confirm the intake agent's proposal, or change it",
-        "scope.formulation_types": "Formulation types: confirm the intake agent's proposal, or change it",
-        "scenarios[0].route": "Scenario 1: route: confirm the intake agent's proposal, or change it"}
+        "qoi.context_of_use": "Context of use: confirm the draft, or change it",
+        "scope.formulation_types": "Formulation types: confirm the draft, or change it",
+        "scenarios[0].route": "Scenario 1: route: confirm the draft, or change it"}
     for path in ("qoi.context_of_use", "scenarios[0].route", "scope.formulation_types"):
         brief = edit_field(brief, path, status=FieldStatus.CONFIRMED, by="u")
     assert start_issues(brief) == [] and brief.value("qoi.context_of_use") == "support a biowaiver of the 25 mg strength"
@@ -243,3 +243,18 @@ def test_the_agents_reason_for_the_stricter_tier_waits_on_a_person():
         "Why this model risk: influence and consequence differ, so say why it is high"]
     brief = edit_field(brief, "m15.risk_justification", status=FieldStatus.CONFIRMED, by="u")
     assert start_issues(brief) == [] and brief.get("m15.risk_justification").by == "u"
+
+
+def test_an_agents_question_on_a_field_a_draft_fills_is_asked_by_the_draft_and_answered_by_confirming_it():
+    # build K: the agent asked about the BCS class, then code drafted it from the FDA label; the person confirms once
+    brief = add_question(empty_brief("Exampleamide", by="u"), "drug.bcs_class", "The proposal does not state the BCS class.",
+                         raised_by="agent:r1")
+    assert [i.message for i in start_issues(brief) if i.path == "drug.bcs_class"] == [
+        "Open question on BCS class (as stated): The proposal does not state the BCS class."]
+    brief = agent_set(brief, "drug.bcs_class", value="I", unit=None, citations=(), status=FieldStatus.DRAFTED, confidence=None,
+                      by="code:start-reading")
+    assert [i.message for i in start_issues(brief) if i.path == "drug.bcs_class"] == [
+        "BCS class (as stated): confirm the draft, or change it"]
+    brief = edit_field(brief, "drug.bcs_class", value=None, status=FieldStatus.CONFIRMED, by="u")
+    assert not [i for i in start_issues(brief) if i.path == "drug.bcs_class"]
+    assert [q.status for q in brief.questions if q.field == "drug.bcs_class"] == ["answered"]

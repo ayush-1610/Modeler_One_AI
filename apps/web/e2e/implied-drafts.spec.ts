@@ -25,28 +25,28 @@ test("what the proposal implies is pre-selected with its quote, and Start waits 
   // the context of use: the agent's words in place, with Confirm, and Start says what it waits on
   const cou = page.getByTestId("start-field-qoi.context_of_use");
   await expect(cou).toContainText("support a biowaiver of the 25 mg strength");
-  await expect(cou).toContainText("Context of use: confirm the intake agent's proposal, or change it");
+  await expect(cou).toContainText("Context of use: confirm the draft, or change it");
   // the formulation types and the route: pre-selected, with the quote they rest on
   const forms = page.getByTestId("gate-formulation_types");
   await expect(forms.getByRole("checkbox", { name: "immediate-release tablet" })).toBeChecked();
   await expect(page.getByTestId("drafted-scope.formulation_types")).toBeVisible();
   await expect(page.getByTestId("gate-formulation_types-state")).toHaveText("to confirm");
-  await expect(forms).toContainText("Formulation types: confirm the intake agent's proposal, or change it");
+  await expect(forms).toContainText("Formulation types: confirm the draft, or change it");
   await expect(page.getByTestId("route-0")).toHaveValue("oral");
-  await expect(page.getByTestId("gate-routes")).toContainText("Scenario 1: route: confirm the intake agent's proposal, or change it");
+  await expect(page.getByTestId("gate-routes")).toContainText("Scenario 1: route: confirm the draft, or change it");
   await expect(page.getByTestId("start-waiting")).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("implied-drafts-to-confirm.png"), fullPage: true });
 
   await page.getByTestId("confirm-qoi.context_of_use").click();
-  await expect(cou).not.toContainText("confirm the intake agent's proposal");
+  await expect(cou).not.toContainText("confirm the draft");
   await page.getByTestId("confirm-scope.formulation_types").click();
   await expect(page.getByTestId("drafted-scope.formulation_types")).toHaveCount(0);
-  await expect(forms).not.toContainText("confirm the intake agent's proposal");
+  await expect(forms).not.toContainText("confirm the draft");
   await expect(forms.getByRole("checkbox", { name: "immediate-release tablet" })).toBeChecked();
   await expect(page.getByTestId("gate-formulation_types-state")).toHaveText("supported");
   await page.getByTestId("confirm-scenarios[0].route").click();
   await expect(page.getByTestId("drafted-scenarios[0].route")).toHaveCount(0);
-  await expect(page.getByTestId("gate-routes")).not.toContainText("confirm the intake agent's proposal");
+  await expect(page.getByTestId("gate-routes")).not.toContainText("confirm the draft");
   await expect(page.getByTestId("route-0")).toHaveValue("oral");
   await page.screenshot({ path: test.info().outputPath("implied-drafts.png"), fullPage: true });
 });

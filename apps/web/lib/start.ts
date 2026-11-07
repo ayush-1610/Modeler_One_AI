@@ -23,6 +23,17 @@ export function defOf(view: BriefView, path: string): FieldDef {
   return def;
 }
 
+/** Who drafted a record: the intake agent, or code (from the documents' words, or by the ICH M15 rule, UNVERIFIED). */
+export function drafter(record: FieldRecord): string {
+  const by = record.by ?? "";
+  if (by.startsWith("code:m15")) return "the ICH M15 rule (UNVERIFIED)";
+  if (by.startsWith("code:")) return "code";
+  return "the intake agent";
+}
+
+/** A drafted "no" for nonlinearity: linear, dose-proportional pharmacokinetics stated (`start_drafts.LINEAR`). */
+export const LINEAR_DRAFT = "linear";
+
 export function recordOf(view: BriefView, path: string): FieldRecord {
   const match = GROUP_PATH.exec(path);
   if (!match) return view.brief.fields[path] ?? EMPTY_RECORD;

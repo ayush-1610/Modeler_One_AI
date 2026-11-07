@@ -1,0 +1,63 @@
+# The ICH M15 ratings drafted by code when the intake agent leaves them empty (its model off, or its draft refused), so
+# Start opens with the model risk pre-selected (the owner, 2026-11-07: "fix this properly, making sure everything is
+# there"; this rule approved by the owner the same day). Never a rating: each is DRAFTED, pre-selected on Start, and a
+# person saves it (ICH M15 §2.1.5). The intake agent's suggestion, when it makes one, is kept over this rule.
+#
+# PROVISIONAL: UNVERIFIED until the SME signs. Read by modeler_project.risk_draft; a change here is a science change
+# (CHANGELOG entry, version bump, the owner's approval).
+version: "0.1"
+status: UNVERIFIED
+
+# What the rules read: the context of use and the question of interest (drafts included), the applications picked, and,
+# for a narrow therapeutic index, any sentence of the proposal. The first rule that matches gives the rating.
+
+# How much the model's evidence weighs in the decision.
+influence:
+  - rating: high
+    when: "the model replaces a clinical study or supports a waiver"
+    words: ["waiver", "biowaiver", "waive", "in lieu of", "instead of", "in place of", "replace", "replacing",
+            "without a clinical", "without an in vivo", "without conducting"]
+    text: >-
+      The model's prediction stands in place of a clinical study, so it is the main evidence for the decision. The
+      proposal: “{use}”
+  - rating: medium
+    when: "the model supports a regulatory submission alongside clinical data"
+    words: ["submission", "regulatory", "agency", "FDA", "EMA", "Health Canada", "PMDA", "label", "labelling", "labeling",
+            "dossier", "filing", "ANDA", "NDA", "approval"]
+    text: >-
+      The model's prediction supports a regulatory decision alongside the clinical data, which carry the rest of the
+      evidence. The proposal: “{use}”
+  - rating: low
+    when: "no regulatory use is named"
+    default: true
+    text: >-
+      The model informs the team's own decisions; no regulatory decision rests on it. The proposal: “{use}”
+
+# What a wrong decision would mean for patients.
+consequence:
+  - rating: high
+    when: "children, pregnancy, a narrow therapeutic index or a first-in-human dose"
+    words: ["pediatric", "paediatric", "children", "infant", "neonat", "adolescent", "pregnan", "lactation",
+            "narrow therapeutic", "NTI", "first-in-human", "first in human", "FIH"]
+    applications: ["APP-06", "APP-09", "APP-02"]
+    text: >-
+      A wrong decision could give {who} too much or too little drug where the margin for error is small, and could
+      seriously harm them.
+  - rating: medium
+    when: "otherwise: a wrong decision changes the drug's exposure in patients"
+    default: true
+    text: >-
+      A wrong decision would change the drug's exposure in the patients who take it; its usual dose range leaves some
+      margin before harm.
+
+# Who is at risk, for the high consequence's text: the first group named.
+who:
+  - {words: ["pediatric", "paediatric", "children", "infant", "neonat", "adolescent"], applications: ["APP-06"], name: "children"}
+  - {words: ["pregnan", "lactation"], applications: ["APP-09"], name: "pregnant or breastfeeding women"}
+  - {words: ["first-in-human", "first in human", "FIH"], applications: ["APP-02"], name: "the first people dosed"}
+  - {words: ["narrow therapeutic", "NTI"], applications: [], name: "patients, for a drug with a narrow therapeutic index"}
+
+# When the two ratings differ, ICH M15 admits any model risk between them and Start pre-selects the stricter.
+why_this_tier: >-
+  Of the model risks these ratings admit ({admitted}), Start pre-selects the stricter, {tier}: the {dimension} is
+  {rating}, and the acceptance criteria should match the more serious of the two.
