@@ -81,15 +81,16 @@ def start_issues(brief: ProjectBrief) -> list[StartIssue]:
     that differs from the intake agent's suggestion settled on one (taken, or kept with a reason), an
     internal target no looser than its tier (MS-01 §8), the scope gates (D-28: anything the builder cannot model is
     refused here), and the open questions on the short brief. Proposal notes never hold Start up."""
-    # what the intake agent proposed from what the proposal implies (build D): pre-selected, a person's word still needed
+    # what the intake agent or code drafted (builds D, J, K): pre-selected, a person's word still needed
     implied = [*START_REQUIRED, "drug.modality", "scope.pbpk_model", "scope.site_of_action", "scope.formulation_types",
-               *(f"scenarios[{i}].route" for i in range(len(brief.groups.get("scenarios", ()))))]
+               *(f"scenarios[{i}].route" for i in range(len(brief.groups.get("scenarios", ())))),
+               "drug.bcs_class", "scope.pathways", "scope.pathways_stated", "scope.nonlinearity", "scope.ehc"]
     drafted = [path for path in implied
                if brief.get(path).status is FieldStatus.DRAFTED and brief.get(path).value not in (None, "", [])]
     issues = [StartIssue(path=path, message=f"{definition_of(path).label}: not set yet") for path in START_REQUIRED
               if path not in drafted and brief.value(path) in (None, "", [])
               and brief.get(path).status is not FieldStatus.NOT_APPLICABLE]
-    issues += [StartIssue(path=path, message=f"{_named(path)}: confirm the intake agent's proposal, or change it")
+    issues += [StartIssue(path=path, message=f"{_named(path)}: confirm the draft, or change it")
                for path in drafted]
     issues += [StartIssue(path="acceptance.tier", message=m) for m in risk_check(brief).problems]
     for path in RISK_TEXTS:      # why each rating is what it is, in a person's words or confirmed by one (ICH M15 §2.1.5)
@@ -97,7 +98,7 @@ def start_issues(brief: ProjectBrief) -> list[StartIssue]:
         if record.value in (None, ""):
             issues.append(StartIssue(path=path, message=f"{label}: not written yet (ICH M15 asks why the rating is what it is)"))
         elif record.status is FieldStatus.DRAFTED:
-            issues.append(StartIssue(path=path, message=f"{label}: confirm the intake agent's draft, or change it"))
+            issues.append(StartIssue(path=path, message=f"{label}: confirm the draft, or change it"))
         elif record.status not in _PERSON:
             issues.append(StartIssue(path=path, message=f"{label}: confirm the proposal's words, or change them"))
     for d in rating_disagreements(brief):   # the agent's suggestion, once the person has rated (the owner, 2026-11-02)
@@ -118,7 +119,8 @@ def start_issues(brief: ProjectBrief) -> list[StartIssue]:
             issues.append(StartIssue(path=gate.path, message=f"{gate.label}: not set yet"))
         elif gate.state == "not_supported":
             issues.append(StartIssue(path=gate.path, message=f"{gate.label}: {gate.message}"))
-    short = set(SHORT_BRIEF)
+    # an agent's question on a field a draft now fills is asked by the draft (confirming it answers the question)
+    short = {p for p in SHORT_BRIEF if brief.get(p).status is not FieldStatus.DRAFTED}
     issues += [StartIssue(path=q.field, message=f"Open question on {definition_of(q.field).label}: {q.question}")
                for q in brief.questions if q.status == "open" and q.field in short]
     return issues

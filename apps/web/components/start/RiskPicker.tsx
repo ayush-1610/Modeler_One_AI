@@ -6,7 +6,7 @@ import { InlineIssue } from "@/components/kit";
 import { Block, Fields } from "@/components/start/Blocks";
 import { NeedsYou, Seg } from "@/components/start/FieldRow";
 import type { BriefView } from "@/lib/brief";
-import { recordOf, valueOf, type BriefChange, type Marks, type Open, type Save } from "@/lib/start";
+import { drafter, recordOf, valueOf, type BriefChange, type Marks, type Open, type Save } from "@/lib/start";
 
 const RATINGS = ["low", "medium", "high"];
 type Rating = string | null;
@@ -81,8 +81,10 @@ type Disagreement = BriefView["start"]["risk"]["disagreements"][number];
  *  reason (the owner, 2026-11-05, reversing 2026-11-02's "shown only after rating"): saving keeps it as the person's.
  *  Once saved, the same rating is noted; a different one is flagged and settles on one: the suggestion taken (it is
  *  picked above, for the person to save with the tier), or the person's rating kept with a reason. */
-function Suggestion({ dimension, stored, suggested, differs, reasoned, save, marks, onTake }: {
+function Suggestion({ dimension, stored, suggested, differs, reasoned, who, save, marks, onTake }: {
   dimension: "influence" | "consequence"; stored: Rating; suggested: Rating; differs: Disagreement | undefined;
+  /** Who suggested it: the intake agent, or the ICH M15 rule (UNVERIFIED) when the agent did not. */
+  who: string;
   /** Whether the agent's reason for the rating is written under the ratings. */
   reasoned: boolean;
   save: Save; marks: Marks; onTake: (rating: string) => void;
@@ -96,13 +98,13 @@ function Suggestion({ dimension, stored, suggested, differs, reasoned, save, mar
     return (
       <span className="risk-suggestion risk-preselected" data-testid={`${testId}-preselected`}>
         <span className="chip medium">pre-selected</span>
-        <span>The intake agent suggests <strong>{suggested}</strong>{reasoned ? ", for the reason under the ratings" : ""}; save
+        <span>{who[0].toUpperCase() + who.slice(1)} suggests <strong>{suggested}</strong>{reasoned ? ", for the reason under the ratings" : ""}; save
           to keep it, or pick another.</span>
       </span>
     );
   }
   if (!differs) {
-    return <span className="muted risk-suggestion" data-testid={`${testId}-agrees`}>The intake agent suggested the same: {suggested}.</span>;
+    return <span className="muted risk-suggestion" data-testid={`${testId}-agrees`}>{who[0].toUpperCase() + who.slice(1)} suggested the same: {suggested}.</span>;
   }
 
   async function keep() {
@@ -111,7 +113,7 @@ function Suggestion({ dimension, stored, suggested, differs, reasoned, save, mar
 
   return (
     <div className={`risk-differs${differs.settled ? "" : " needs-you"}`} data-testid={`${testId}-differs`}>
-      <span>You rated <strong>{differs.rating}</strong>; the intake agent suggested <strong>{differs.suggested}</strong>.</span>
+      <span>You rated <strong>{differs.rating}</strong>; {who} suggested <strong>{differs.suggested}</strong>.</span>
       {differs.settled ? (
         <span className="muted" data-testid={`${testId}-kept`}>Kept {differs.rating}: {differs.reason}</span>
       ) : (
@@ -200,7 +202,8 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
           <div className="sb-value">
             <Seg options={RATINGS} value={influence} onPick={setInfluence} testId="risk-influence" />
             <Suggestion dimension="influence" stored={stored.influence} suggested={suggested.influence}
-                        differs={differs("influence")} reasoned={!!valueOf(view, "m15.influence")} save={save} marks={marks} onTake={setInfluence} />
+                        differs={differs("influence")} reasoned={!!valueOf(view, "m15.influence")}
+                        who={drafter(recordOf(view, "m15.influence_suggested"))} save={save} marks={marks} onTake={setInfluence} />
           </div>
         </div>
         <div className="risk-row">
@@ -208,7 +211,8 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
           <div className="sb-value">
             <Seg options={RATINGS} value={consequence} onPick={setConsequence} testId="risk-consequence" />
             <Suggestion dimension="consequence" stored={stored.consequence} suggested={suggested.consequence}
-                        differs={differs("consequence")} reasoned={!!valueOf(view, "m15.consequence")} save={save} marks={marks} onTake={setConsequence} />
+                        differs={differs("consequence")} reasoned={!!valueOf(view, "m15.consequence")}
+                        who={drafter(recordOf(view, "m15.consequence_suggested"))} save={save} marks={marks} onTake={setConsequence} />
           </div>
         </div>
         <div className="risk-row">

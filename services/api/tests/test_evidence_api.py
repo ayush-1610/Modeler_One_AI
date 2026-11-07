@@ -272,3 +272,22 @@ def test_the_compound_sources_run_at_the_start_and_their_values_flow_in(setup, m
     inputs = c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]
     mw = next(r for r in inputs["compound"] if r["id"] == "phys.mw")
     assert mw["state"] == "kept" and mw["value"] == 393.9                    # flowed in, no click (D-27)
+
+
+def test_the_drugs_disposition_is_drafted_on_start_once_the_fda_label_is_stored(setup):
+    """Build K (the owner, 2026-11-07): the proposal's reading can finish before the compound job stores the FDA label; the
+    job then drafts on Start what the label states of the drug's disposition, for the fields still empty."""
+    from modeler_api.compound_jobs import _disposition_on_start
+    from modeler_project.brief import empty_brief as brief_for
+    from modeler_project.documents import DocumentLibrary
+
+    c, ws = setup
+    ws.commit(ArtifactKind.BRIEF, "main", brief_for("Exampleamide", by="u1").to_content(), actor="u1", reason="drug")
+    DocumentLibrary(ws).add_text("12.3 Pharmacokinetics The pharmacokinetics of exampleamide are linear and dose-proportional "
+                                 "over 10 to 40 mg. Exampleamide is metabolized by CYP3A4.", "fda-label-exampleamide-20240101.txt",
+                                 role="retrieved_record", by="system")
+    assert _disposition_on_start(ws, by="code:start-reading") == ["scope.pathways", "scope.pathways_stated", "scope.nonlinearity"]
+    fields = c.get("/api/v1/projects/p1/brief", headers=H).json()["data"]["brief"]["fields"]
+    assert (fields["scope.nonlinearity"]["status"], fields["scope.nonlinearity"]["value"]) == ("DRAFTED", "linear")
+    assert fields["scope.pathways_stated"]["value"] == ["CYP3A4"]
+    assert _disposition_on_start(ws, by="code:start-reading") == []          # drafted once

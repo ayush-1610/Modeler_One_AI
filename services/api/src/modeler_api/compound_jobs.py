@@ -14,9 +14,11 @@ from fastapi import HTTPException
 from modeler_api import agent_jobs, jobs
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
+from modeler_project.brief_ops import BRIEF_ID, save_brief
 from modeler_project.documents import DocumentLibrary
 from modeler_project.inputs import refresh_inputs
 from modeler_project.requirements import RequirementMatrix, literature_items
+from modeler_project.start_drafts import read_disposition
 
 _log = logging.getLogger(__name__)
 
@@ -27,6 +29,21 @@ def _follow_inputs(ws: Workspace, *, by: str) -> None:
     Inputs page assembles them when the person opens it."""
     if ws.latest(ArtifactKind.READINESS, "main") is not None:
         refresh_inputs(ws, by=by)
+
+
+def _disposition_on_start(ws: Workspace, *, by: str) -> list[str]:
+    """The drug's disposition drafted on Start from the FDA label just stored, for the fields still empty (the
+    proposal's reading may have finished before the label was stored; the owner, 2026-11-07). Drafts only: a person
+    confirms each on Start."""
+    with ws.editing(ArtifactKind.BRIEF, BRIEF_ID):
+        version = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
+        if version is None:
+            return []
+        brief, drafted = read_disposition(DocumentLibrary(ws, for_agents=True), ProjectBrief.from_content(version.content),
+                                          by=by)
+        if drafted:
+            save_brief(ws, brief, actor=by, reason=f"the drug's disposition drafted by code ({', '.join(drafted)})")
+    return drafted
 
 
 def _matrix(ws: Workspace) -> tuple[Any, RequirementMatrix]:
@@ -60,7 +77,8 @@ def run_sources_job(store: ProjectStore, tenant_id: str, project_id: str) -> dic
                                          drug=drug, actor=run.actor, log_step=run.log_step)
     run.finish(outcome, outcome.summary())
     _follow_inputs(ws, by=run.actor)   # the values flow into the inputs (D-27)
-    return {"run_id": run.run_id, "status": outcome.status, **outcome.summary()}
+    drafted = _disposition_on_start(ws, by="code:start-reading")
+    return {"run_id": run.run_id, "status": outcome.status, **outcome.summary(), "drafted_on_start": drafted}
 
 
 def run_compound_job(store: ProjectStore, tenant_id: str, project_id: str, *, model, max_turns: int = 120) -> None:

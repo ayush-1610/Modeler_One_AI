@@ -83,7 +83,8 @@ from modeler_project.evidence_register import items as evidence_items
 from modeler_project.feasibility import pathway_suggestions, pathways_not_named, scope_gates
 from modeler_project.library import library_rows
 from modeler_project.requirements import RequirementMatrix, application_additions, client_request
-from modeler_project.start_drafts import read_for_start
+from modeler_project.risk_draft import draft_risk
+from modeler_project.start_drafts import read_for_start, sentences
 from modeler_project.steps import start_issues, start_problems
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord
@@ -162,11 +163,21 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
                       if brief.get(p) != start.get(p)]
     result: dict[str, Any] = {"identity_notes": notes, "run_id": None, "status": "IDENTITY_ONLY"}
     actor = "system"
+    drafted: list[str] = []
+
+    def code_reads(produced: ProjectBrief) -> ProjectBrief:
+        # what A1 left empty, read by code before A1 drafts the ICH M15 ratings, so that draft has a question and a
+        # context of use to start from (the owner, 2026-11-07: the risk was left empty)
+        produced, paths = read_for_start(library, produced)
+        drafted.extend(paths)
+        return produced
+
     if model is not None:
         run = agent_jobs.AgentRun(getattr(store, "root", None), tenant_id=tenant_id, project_id=project_id,
                                   agent="A1-proposal-intake", model=model, max_turns=max_turns)
         outcome = agent_jobs.proposal_intake(model, library=library, brief=brief, actor=run.actor,
-                                             context_note=context_note, max_turns=max_turns, log_step=run.log_step)
+                                             context_note=context_note, max_turns=max_turns, log_step=run.log_step,
+                                             before_risk=code_reads)
         run.finish(outcome, {"accepted": len(outcome.accepted), "rejected": len(outcome.rejected),
                              "summary": outcome.summary[:4000], "error": outcome.error})
         brief = outcome.brief
@@ -175,12 +186,16 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
         result.update(run_id=run.run_id, status=outcome.status, accepted=len(outcome.accepted),
                       rejected=len(outcome.rejected))
     # what the agent left empty (or everything, with agents off), drafted by code from the proposal's words, each to
-    # confirm on Start (the owner, 2026-11-06: everything there, pre-selected)
-    brief, drafted = read_for_start(library, brief)
+    # confirm on Start (the owner, 2026-11-06: everything there, pre-selected); then the ICH M15 ratings by the rule
+    # `m15_draft.yaml` when nothing suggested them (approved by the owner 2026-11-07; UNVERIFIED)
+    brief = code_reads(brief)
+    brief, ruled = draft_risk(brief, proposal=[s.text for s in sentences(library)])
+    drafted += ruled
     accepted_paths += drafted
-    result["drafted_by_code"] = len(drafted)
+    result["drafted_by_code"] = len(dict.fromkeys(drafted))
     reason = ((f"extracted by A1 ({result.get('accepted', 0)} fields accepted, {result.get('rejected', 0)} rejected)"
-               if model is not None else "drug identity resolved") + (f"; {len(drafted)} drafted by code" if drafted else ""))
+               if model is not None else "drug identity resolved")
+              + (f"; {result['drafted_by_code']} drafted by code" if drafted else ""))
     with ws.editing(ArtifactKind.BRIEF, BRIEF_ID):  # the person may have edited the brief while A1 read
         merged = _merge_agent_result(_brief(ws) or start, brief, accepted_paths)
         version = save_brief(ws, merged, actor=actor, reason=reason, derived_from=_document_refs(ws))
