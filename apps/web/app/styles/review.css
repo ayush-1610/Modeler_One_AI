@@ -1,5 +1,5 @@
 /* Step 3 · Review & sign (components/plan/PlanCanvas, components/review): the section links, the studies and roles, the
- * review table and credibility. Built only from the theme tokens in globals.css, so it reads the same in light and dark. */
+ * review table and credibility. Built only from the theme tokens in globals.css, like every other page. */
 
 .review-nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0 4px; }
 .review-nav a { font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-dim);

@@ -1,7 +1,7 @@
 // The redesign's small component kit (docs/plans/2026-10-19-p0-p5-redesign.md §7): plain CSS on the theme tokens
 // (app/styles/kit.css), no component library. New screens are built from these; old pages keep their own until rebuilt.
 
-// Stepper (a server component) and ThemeToggle (a client one) are imported from their own files.
+// Stepper (a server component) is imported from its own file.
 
 import type { ReactNode } from "react";
 

@@ -116,8 +116,8 @@ screenshot of the design's Inputs step). This supersedes §2.2 items 7 and 8 and
 
 - **Palette and type** (`app/globals.css`): the design's neutrals (`#F5F5F7` bench, `#1D1D1F` ink, `#6E6E73` secondary),
   its blue `#0071E3` as the primary and as the predicted series, its amber `#B25000` as the observed series and "needs
-  you", its green `#1E7B45` for done; the system UI font (SF Pro on Apple devices); radii 9 / 14 / 24 px. Dark mode is
-  kept with the same roles (the design is light only; the app has always offered dark).
+  you", its green `#1E7B45` for done; the system UI font (SF Pro on Apple devices); radii 9 / 14 / 24 px. Dark mode was
+  kept at first, then removed (§5.1).
 - **The shared pieces** (`app/styles/design.css`, loaded last): the rail sidebar that opens over the page on hover or
   focus and can be pinned (§2.2 item 7 reversed at the owner's request; it also opens by keyboard focus); the centred
   head (`Hero` in `components/kit`) with the area's colour wash and the product's curve as decoration; the step bar as a
@@ -128,3 +128,8 @@ screenshot of the design's Inputs step). This supersedes §2.2 items 7 and 8 and
   `StartScreen`, `InputsWorkspace` and `PlanCanvas` as `steps`).
 - Still not adopted (unchanged from §2.2): the decorative "Simulation, live" panel and the cards' sparklines, a password
   on signing, Accept / Reject without an API route, the global library / Settings / activity feed.
+
+### 5.1 Light only, the design on every page (2026-11-07)
+The owner: remove the dark theme and apply the design to all pages. The design is light only, so the app is now too: the
+dark tokens, the theme toggle and its boot script are gone. The 404, error and loading screens use the design's head,
+dialogs use its neutral backdrop, and wide tables scroll inside their panel.

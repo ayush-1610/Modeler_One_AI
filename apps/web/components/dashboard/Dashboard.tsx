@@ -72,10 +72,10 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
       <div className="dash">
       <div className="kpis" role="group" aria-label="At a glance">
         {kpis.map((k) => (
-          <button key={k.label} type="button" className={`kpi ${k.tone}`} onClick={k.go} data-testid={`kpi-${k.label.toLowerCase().replace(/ /g, "-")}`}>
-            <span className="kpi-label">{k.label}</span>
-            <span className="kpi-value">{k.value}</span>
-            <span className="kpi-sub">{k.sub}</span>
+          <button key={k.label} type="button" className={`dash-kpi ${k.tone}`} onClick={k.go} data-testid={`kpi-${k.label.toLowerCase().replace(/ /g, "-")}`}>
+            <span className="dash-kpi-label">{k.label}</span>
+            <span className="dash-kpi-value">{k.value}</span>
+            <span className="dash-kpi-sub">{k.sub}</span>
           </button>
         ))}
       </div>

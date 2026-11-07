@@ -1,20 +1,20 @@
 /* The dashboard (plan 2026-11-06-app-design-merge §3 A): the design's hero, KPI row, project cards and side panels,
- * drawn with the theme tokens so it works in light and dark and keeps colour for meaning. */
+ * drawn with the theme tokens so it keeps colour for meaning. */
 
 .dash { display: grid; gap: 20px; margin-top: 32px; }
 
 /* ---- the four numbers; each one is a filter ---- */
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.kpi { display: grid; gap: 6px; text-align: left; padding: 22px 24px; border-radius: var(--radius-lg); border: 1px solid var(--hairline);
+.dash-kpi { display: grid; gap: 6px; text-align: left; padding: 22px 24px; border-radius: var(--radius-lg); border: 1px solid var(--hairline);
   background: radial-gradient(280px circle at 50% -40%, color-mix(in srgb, var(--sim) 10%, transparent), transparent 70%), var(--surface);
   box-shadow: var(--shadow-card); color: var(--ink); font: inherit; cursor: pointer; transition: transform 400ms var(--spring); }
-.kpi:hover { transform: translateY(-3px); }
-.kpi:active { transform: scale(0.98); }
-.kpi-label { font-size: 13px; color: var(--ink-dim); font-weight: 400; }
-.kpi-value { font-size: 44px; line-height: 1; font-weight: 700; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-.kpi.sim .kpi-value { color: var(--brand-ink); }
-.kpi.warn .kpi-value { color: var(--warn-ink); }
-.kpi-sub { font-size: 12px; color: var(--ink-dim); }
+.dash-kpi:hover { transform: translateY(-3px); }
+.dash-kpi:active { transform: scale(0.98); }
+.dash-kpi-label { font-size: 13px; color: var(--ink-dim); font-weight: 400; }
+.dash-kpi-value { font-size: 44px; line-height: 1; font-weight: 700; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.dash-kpi.sim .dash-kpi-value { color: var(--brand-ink); }
+.dash-kpi.warn .dash-kpi-value { color: var(--warn-ink); }
+.dash-kpi-sub { font-size: 12px; color: var(--ink-dim); }
 @media (max-width: 760px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* ---- projects beside the side panels ---- */

@@ -28,10 +28,7 @@ test("the dashboard reads each project's steps, filters by them, and the sidebar
 
   await expect(page.getByTestId("dash-attention")).toBeVisible();
   await expect(page.getByTestId("dash-risk")).toBeVisible();
-  for (const mode of ["light", "dark"] as const) {
-    await page.evaluate((m) => document.documentElement.setAttribute("data-theme", m), mode);
-    await page.screenshot({ path: test.info().outputPath(`dashboard-${mode}.png`), fullPage: true });
-  }
+  await page.screenshot({ path: test.info().outputPath("dashboard.png"), fullPage: true });
 
   // the list view is the record: archive, restore, history
   await page.getByTestId("dash-view-list").click();

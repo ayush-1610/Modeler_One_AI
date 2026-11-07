@@ -5,8 +5,7 @@
  * green for done. The shared pieces' design-specific rules are in app/styles/design.css, loaded last.
  *
  * Verdict colours are separated in both hue and lightness so a pass/fail is never carried by hue alone, and every
- * verdict is also written out in words. Light by default; dark follows the system, or the viewer's choice (the toggle
- * in the sidebar sets data-theme on <html>). Every colour is a token defined in all three blocks below. */
+ * verdict is also written out in words. Light only (the owner, 2026-11-07): every colour is a token in the block below. */
 
 :root {
   color-scheme: light;
@@ -35,9 +34,8 @@
   --brand-ink: #0066cc;
 
   /* Text-grade twins of the series and verdict colours: the base colours above are for dots, fills and borders (they are
-   * 3.4-4.5:1 on a tint and fail AA as small text in light); these are >= 4.5:1 on the surface and on their own tints.
-   * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. In dark the base colours
-   * already pass, so each twin equals its base. */
+   * 3.4-4.5:1 on a tint and fail AA as small text); these are >= 4.5:1 on the surface and on their own tints.
+   * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. */
   --pass-ink: #1e7b45;
   --warn-ink: #a24a00;
   --fail-ink: #c42b1c;
@@ -71,32 +69,6 @@
   --fill-btn: rgba(0, 0, 0, 0.06);
 }
 
-/* The instrument's dark screen: a deep blue-slate, so the only saturated things are the ones carrying meaning.
- * The next two blocks hold the same values (the system preference, and the viewer's choice); change both together. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #0b0b0d; --surface: #1c1c1e; --raised: #2c2c2e; --line: #38383a; --line-soft: #2c2c2e;
-    --ink: #f5f5f7; --ink-dim: #a1a1a6; --ink-faint: #6e6e73;
-    --sim: #2e9bff; --obs: #ff9f0a; --on-sim: #00182f;
-    --pass: #30d158; --warn: #ff9f0a; --fail: #ff453a; --brand-ink: #64b5ff;
-    --pass-ink: var(--pass); --warn-ink: var(--warn); --fail-ink: var(--fail); --ink-quiet: #a1a1a6;
-    --primary: #0a84ff; --on-primary: #ffffff; --control-border: #48484a;
-    --shadow-card: 0 24px 60px -32px rgba(0, 0, 0, 0.6); --hairline: rgba(255, 255, 255, 0.08);
-    --glass: rgba(28, 28, 30, 0.82); --fill: rgba(118, 118, 128, 0.24); --fill-btn: rgba(255, 255, 255, 0.1);
-  }
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0b0b0d; --surface: #1c1c1e; --raised: #2c2c2e; --line: #38383a; --line-soft: #2c2c2e;
-    --ink: #f5f5f7; --ink-dim: #a1a1a6; --ink-faint: #6e6e73;
-    --sim: #2e9bff; --obs: #ff9f0a; --on-sim: #00182f;
-    --pass: #30d158; --warn: #ff9f0a; --fail: #ff453a; --brand-ink: #64b5ff;
-    --pass-ink: var(--pass); --warn-ink: var(--warn); --fail-ink: var(--fail); --ink-quiet: #a1a1a6;
-    --primary: #0a84ff; --on-primary: #ffffff; --control-border: #48484a;
-    --shadow-card: 0 24px 60px -32px rgba(0, 0, 0, 0.6); --hairline: rgba(255, 255, 255, 0.08);
-    --glass: rgba(28, 28, 30, 0.82); --fill: rgba(118, 118, 128, 0.24); --fill-btn: rgba(255, 255, 255, 0.1);
-}
 
 * { box-sizing: border-box; }
 

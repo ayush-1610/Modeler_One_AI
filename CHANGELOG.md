@@ -15,12 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — light theme only; the design on every page, the state pages included (2026-11-07)
+The owner, 2026-11-07: "remove dark theme, only have light theme, and make this theme for all pages". Web only.
+- **Dark theme removed:** the dark token blocks (`globals.css`, the series palette in `client-data.css`), the head's dark
+  wash, the theme toggle in the sidebar (`components/kit/ThemeToggle.tsx` deleted) and the script that applied a saved
+  choice before the first paint. A browser set to dark shows the light theme. The plot reads its colours from the
+  tokens, with the design's blue and amber as fallbacks.
+- **The design on the pages that still lacked it:** the 404, the error and the loading screens open with the design's
+  head; dialogs and the source peek dim the page with the design's neutral backdrop; a wide table scrolls inside its
+  panel instead of the page (a compound's CPF); the CPF's summary figures use the design's large numerals; number columns
+  no longer wrap. The dashboard's tiles are `dash-kpi`, so they no longer restyle the CPF's `.kpi` row.
+- Tests: the dark-mode screenshots and checks are removed from `shell`, `dashboard`, `protected-text`, `inputs-workspace`
+  and `start-step` (the light-theme checks they ran are kept).
+
 ### Changed — the whole web app takes the "Modeler One App" design's look (2026-11-07)
 Plan `docs/plans/2026-11-06-app-design-merge.md` §5. The owner, 2026-11-07: match how the Claude Design mockup looks
 (screenshot of its Inputs step), using the app's own components. Web only; no API change, no science change.
 - **Palette and type:** the design's neutrals, blue primary (`#0071E3`, also the predicted series), amber (`#B25000`,
   the observed series and "needs you"), green for done; the system UI font; larger radii. Dark mode kept with the same
-  roles. The chart colours change with the tokens (predicted blue, observed amber), as in the design.
+  roles (dark removed later the same day, see above). The chart colours change with the tokens (predicted blue,
+  observed amber), as in the design.
 - **Sidebar:** a rail of icons that opens over the page on hover or keyboard focus and can be pinned open (kept in the
   browser); the design's logo; groups *Work* and *This project*; the inbox count as a red badge (a dot on the rail).
   Replaces phase A's collapse button.

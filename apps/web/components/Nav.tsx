@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { ThemeToggle } from "@/components/kit/ThemeToggle";
 import { AddData, stepOf } from "@/components/library/AddData";
 import { useResource } from "@/lib/hooks";
 
@@ -65,7 +64,7 @@ function NavLink({ l }: { l: Item }) {
 
 /** The sidebar (the "Modeler One App" design): a rail of icons that opens over the page when the pointer or the keyboard
  *  is in it, or stays open when pinned (kept in this browser). The work (projects, a new one, the inbox), the open
- *  project's own pages, the person and the theme. `user` is the person signed in through Keycloak; with the DEV sign-in
+ *  project's own pages, and the person. `user` is the person signed in through Keycloak; with the DEV sign-in
  *  there is none to show. */
 export function Nav({ user }: { user?: string | null }) {
   const path = usePathname();
@@ -129,7 +128,6 @@ export function Nav({ user }: { user?: string | null }) {
       {open && adding && createPortal(
         <AddData key={open} projectId={open} step={stepOf(path)} onClose={() => setAdding(false)} />, document.body)}
       <div className="nav-foot">
-        <ThemeToggle />
         {user && (
           <div className="nav-user" data-testid="signed-in">
             <span className="nav-avatar" aria-hidden>{initials(user)}</span>
