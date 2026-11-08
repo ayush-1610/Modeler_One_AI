@@ -23,8 +23,10 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await expect(page.getByTestId("start-read")).toHaveText("Read the proposal again");
   await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");
   // no side panel: the field itself is marked, and the bar at the bottom holds Start until nothing is marked
+  // the proposal's objective arrives pre-filled, drafted by code with its quote (agents off), waiting on the person
   await expect(page.getByTestId("start-field-qoi.text")).toHaveClass(/needs-you/);
-  await expect(page.getByTestId("start-field-qoi.text")).toContainText("Question of interest: not set yet");
+  await expect(page.getByTestId("start-field-qoi.text")).toContainText("Objective: predict exposure after a single oral dose");
+  await expect(page.getByTestId("start-field-qoi.text")).toContainText("Question of interest: confirm the draft");
   await expect(page.getByTestId("risk-problem")).toContainText("Model risk: not set yet (it is never assumed)");
   await expect(page.getByTestId("start-waiting")).toContainText("marked in red above");
   await expect(page.getByTestId("start-continue")).toBeDisabled();
@@ -32,7 +34,7 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await expect(page.getByTestId("step-review-locked")).toBeVisible();
   // reached by its address, Inputs is blocked until Start is done, and says what Start still needs (decision 7)
   await page.goto(startUrl.replace(/\/start$/, "/inputs"));
-  await expect(page.getByTestId("inputs-blocked")).toContainText("Question of interest: not set yet");
+  await expect(page.getByTestId("inputs-blocked")).toContainText("Question of interest: confirm the draft");
   await page.getByTestId("inputs-blocked-start").click();
   await page.waitForURL(/\/start$/);
 
@@ -51,12 +53,8 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await page.getByTestId("input-qoi.applications").getByLabel("APP-12 food effect").check();
   await page.getByTestId("save-qoi.applications").click();
   await expect(page.getByTestId("start-app-adds")).toContainText("food effect: + Meal composition of each fed study");
-  // what only the client can send follows the applications, and downloads as the data request (decision 2b)
-  await expect(page.getByTestId("request-REQ-fe.biorelevant")).toContainText("FaSSIF / FeSSIF solubility");
-  await expect(page.getByTestId("request-REQ-fe.biorelevant")).toContainText("for food effect");
-  const download = page.waitForEvent("download");
-  await page.getByTestId("request-download").click();
-  expect((await download).suggestedFilename()).toMatch(/-data-request\.xlsx$/);
+  // what only the client can send is no longer a block of Start (the owner, 2026-11-06): it downloads from Inputs
+  await expect(page.getByTestId("start-request")).toHaveCount(0);
 
   // the pathways, one list: each named pathway with its kind
   await page.getByTestId("edit-pathways").click();
@@ -113,8 +111,10 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await forms.getByLabel("liposome").uncheck();
   await forms.getByLabel("immediate-release tablet").check();
   await expect(page.getByTestId("gate-formulation_types-state")).toHaveText("supported");
-  await page.getByTestId("route-add").click();
-  await page.getByTestId("route-new").selectOption("oral");
+  // the route the proposal names ("a single oral dose") is drafted; the person confirms it
+  await expect(page.getByTestId("route-0")).toHaveValue("oral");
+  await page.getByTestId("confirm-scenarios[0].route").click();
+  await expect(page.getByTestId("confirm-scenarios[0].route")).toHaveCount(0);
   await expect(page.getByTestId("gate-routes-state")).toHaveText("supported");
   await page.getByTestId("dose-0").fill("10");
   await page.getByTestId("dose-0").blur();

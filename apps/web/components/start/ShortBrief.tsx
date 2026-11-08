@@ -6,7 +6,7 @@ import { InlineIssue } from "@/components/kit";
 import { Block, Fields } from "@/components/start/Blocks";
 import { NeedsYou, QuestionRow, Seg, Source } from "@/components/start/FieldRow";
 import type { BriefView } from "@/lib/brief";
-import { defOf, recordOf, valueOf, type BriefChange, type Marks, type Open, type Save } from "@/lib/start";
+import { defOf, LINEAR_DRAFT, recordOf, valueOf, type BriefChange, type Marks, type Open, type Save } from "@/lib/start";
 
 const QUESTION = ["qoi.text", "qoi.context_of_use", "qoi.applications"];
 
@@ -92,6 +92,11 @@ function Pathways({ view, save, open, marks }: { view: BriefView; save: Save; op
     setProblem(refused);
     if (!refused) setEditing(false);
   }
+  // read from the proposal or the FDA label (build K): kept as it is when confirmed
+  const drafted = paths.filter((p) => recordOf(view, p).status === "DRAFTED");
+  async function confirm() {
+    setProblem(await save(drafted.map((path) => ({ path, status: "CONFIRMED" }))));
+  }
 
   return (
     <div className={`sb-row${issues.length || questions.length ? " needs-you" : ""}`} data-testid="start-field-pathways">
@@ -129,6 +134,10 @@ function Pathways({ view, save, open, marks }: { view: BriefView; save: Save; op
           </ul>
         ) : <span className="sb-missing">not set</span>}
         {!editing && sources.map((r, i) => <Source key={i} record={r} open={open} />)}
+        {!editing && drafted.length > 0 && (
+          <button type="button" className="btn small primary" style={{ alignSelf: "flex-start" }} data-testid="confirm-pathways"
+                  onClick={confirm}>Confirm</button>
+        )}
         {!editing && view.start.pathways_not_named.map((name) => (
           <InlineIssue key={name} testId={`pathway-not-named-${name}`}>
             The published model also has <strong>{name}</strong>, which the proposal does not name.{" "}
@@ -157,15 +166,24 @@ function Stated({ path, label, view, save, open, marks }: {
   const record = recordOf(view, path);
   const value = valueOf(view, path);
   const text = path === "scope.nonlinearity";
-  const state = record.status === "NOT_APPLICABLE" || value === false ? "no"
+  const drafted = record.status === "DRAFTED";
+  const state = record.status === "NOT_APPLICABLE" || value === false || (drafted && text && value === LINEAR_DRAFT) ? "no"
     : value === true || (text && typeof value === "string" && value.trim()) ? "yes" : "not_stated";
   const [picked, setPicked] = useState(state);
   const issues = marks.issues(path);
   const questions = marks.questions(path);
 
+  /** The draft kept: a drafted "no" for nonlinearity is saved as not applicable (linear PK), anything else as it is. */
+  function confirm() {
+    void save([text && state === "no" ? { path, status: "NOT_APPLICABLE" } : { path, status: "CONFIRMED" }]);
+  }
+
   function pick(option: string) {
     setPicked(option);
-    if (option === state) return;
+    if (option === state) {
+      if (drafted) confirm();
+      return;
+    }
     const change: BriefChange = option === "not_stated" ? { path, status: "MISSING" }
       : option === "no" ? (text ? { path, status: "NOT_APPLICABLE" } : { path, status: "EDITED", value: false })
         : { path, status: "EDITED", value: text ? "nonlinear pharmacokinetics stated" : true };
@@ -179,6 +197,10 @@ function Stated({ path, label, view, save, open, marks }: {
         <Seg options={["yes", "no", "not_stated"]} value={picked} onPick={pick} testId={`stated-${path}`} />
         {text && state === "yes" && typeof value === "string" && <span className="sb-text">{value}</span>}
         <Source record={record} open={open} />
+        {drafted && (
+          <button type="button" className="btn small primary" style={{ alignSelf: "flex-start" }} data-testid={`confirm-${path}`}
+                  onClick={confirm}>Confirm</button>
+        )}
         <NeedsYou issues={issues} />
         {questions.map((q) => <QuestionRow key={q.id} q={q} onAnswer={marks.answer} />)}
       </div>
@@ -194,8 +216,8 @@ export function ShortBrief({ view, save, open, marks }: { view: BriefView; save:
     <Block n={2} title="The question" testId="start-brief">
       <Fields view={view} paths={QUESTION} save={save} open={open} marks={marks} confirmable={QUESTION}
               extras={{ "qoi.applications": <ApplicationsAdd view={view} /> }} />
-      <h3 className="start-sub">The drug's disposition, as the proposal states it</h3>
-      <Fields view={view} paths={["drug.bcs_class"]} save={save} open={open} marks={marks} />
+      <h3 className="start-sub">The drug's disposition, as the proposal or the FDA label states it</h3>
+      <Fields view={view} paths={["drug.bcs_class"]} save={save} open={open} marks={marks} confirmable={["drug.bcs_class"]} />
       <div className="sb-rows">
         <Pathways key={`${recordOf(view, "scope.pathways").at ?? ""}|${recordOf(view, "scope.pathways_stated").at ?? ""}`}
                   view={view} save={save} open={open} marks={marks} />

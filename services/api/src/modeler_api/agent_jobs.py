@@ -48,7 +48,7 @@ def agents_status() -> dict[str, Any]:
     if problem:
         return {"enabled": False, "problem": problem}
     if model is None:
-        return {"enabled": False, "problem": "agents are off (MODELER_LLM_PROVIDER not set): fill the brief by hand"}
+        return {"enabled": False, "problem": "agents are off (MODELER_LLM_PROVIDER not set)"}
     return {"enabled": True, "provider": model.provider, "model": model.model}
 
 
@@ -101,12 +101,14 @@ def run_steps(root: str | Path, run_id: str) -> list[dict[str, Any]]:
 # --- the agents ----------------------------------------------------------------------------------------------------
 
 
-def proposal_intake(model, *, library, brief, actor: str, context_note: str, max_turns: int, log_step):
-    """A1: read the proposal documents into the brief (the outcome carries the brief it produced)."""
+def proposal_intake(model, *, library, brief, actor: str, context_note: str, max_turns: int, log_step, before_risk=None):
+    """A1: read the proposal documents into the brief (the outcome carries the brief it produced). `before_risk`: code's
+    reading of what A1 left empty, applied before A1 drafts the ICH M15 ratings."""
     from modeler_agents.proposal_intake import IntakeContext, run_proposal_intake
 
     ctx = IntakeContext(library=library, brief=brief, actor=actor)
-    return run_proposal_intake(model, ctx, context_note=context_note, max_turns=max_turns, log_step=log_step)
+    return run_proposal_intake(model, ctx, context_note=context_note, max_turns=max_turns, log_step=log_step,
+                               before_risk=before_risk)
 
 
 def literature_research(model, *, agent: Literal["A2", "A3"], ws, library, requirements, actor: str, drug: str,

@@ -6,7 +6,6 @@ import { useState, type ReactNode } from "react";
 import { Hero } from "@/components/kit";
 import { SourcePeek } from "@/components/kit/SourcePeek";
 import { DrugAndFiles } from "@/components/start/Blocks";
-import { ClientRequest } from "@/components/start/ClientRequest";
 import { RiskPicker } from "@/components/start/RiskPicker";
 import { ScopeGates } from "@/components/start/ScopeGates";
 import { ShortBrief } from "@/components/start/ShortBrief";
@@ -14,7 +13,7 @@ import { narrow, send } from "@/lib/api";
 import type { BriefView, Citation, DocumentView } from "@/lib/brief";
 import { useMutation, useResource } from "@/lib/hooks";
 import { STEP_ROUTES } from "@/lib/pipeline";
-import { marks as startMarks, type BriefChange } from "@/lib/start";
+import { LINEAR_DRAFT, marks as startMarks, recordOf, type BriefChange } from "@/lib/start";
 
 type Focus = { sha256: string; page: number; quote: string | null } | null;
 
@@ -73,7 +72,18 @@ export function StartScreen({ projectId, steps }: { projectId: string; steps?: R
   async function readAgain() {
     const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief:extract", { project_id: projectId }, {}));
     setNotice(problem ?? (data?.agents ? "The intake agent is reading the documents; the screen fills in as it finishes."
-      : (data?.problem ?? "Identity resolved; fill the rest by hand.")));
+      : `${data?.problem ? `${data.problem}. ` : ""}Code read the proposal again; each draft waits for you below.`));
+  }
+
+  // every draft on Start, confirmed as shown in one step (the owner, 2026-11-07: "the user will just see through and only
+  // change" what is wrong); the model risk keeps its own save, a person's rating
+  const drafts = [...new Set(view.start.issues.filter((i) => i.message.endsWith("confirm the draft, or change it"))
+    .map((i) => i.path))];
+  async function confirmAll() {
+    const problem = await save(drafts.map((path): BriefChange =>
+      path === "scope.nonlinearity" && recordOf(view!, path).value === LINEAR_DRAFT ? { path, status: "NOT_APPLICABLE" }
+        : { path, status: "CONFIRMED" }));
+    if (problem) setNotice(problem);
   }
 
   const marks = startMarks(view, answer);
@@ -98,16 +108,21 @@ export function StartScreen({ projectId, steps }: { projectId: string; steps?: R
           </p>
         )}
       </div>
+      <IntakeStatus view={view} />
       <DrugAndFiles projectId={projectId} view={view} documents={documents} save={save} open={open} marks={marks} />
       <ShortBrief view={view} save={save} open={open} marks={marks} />
       <RiskPicker key={riskKey} view={view} save={save} open={open} marks={marks} />
       <ScopeGates view={view} save={save} open={open} marks={marks} />
-      <ClientRequest projectId={projectId} view={view} />
       <div className={`start-continue${waiting ? " needs-you" : ""}`} data-testid={waiting ? "start-waiting" : "start-done"}>
         {waiting ? (
           <>
             <span><span aria-hidden>⚠ </span>{waiting} {waiting === 1 ? "thing still needs" : "things still need"} you, marked in red above.
               Start is done when none is left.</span>
+            {drafts.length > 1 && (
+              <button type="button" className="btn" data-testid="start-confirm-all" onClick={confirmAll}
+                      title="Each draft is kept as it is shown above, recorded as confirmed by you">
+                Confirm all {drafts.length} drafts as shown</button>
+            )}
             <button type="button" className="btn primary" disabled data-testid="start-continue">Continue to Inputs</button>
           </>
         ) : (
@@ -124,4 +139,28 @@ export function StartScreen({ projectId, steps }: { projectId: string; steps?: R
     </div>
     </>
   );
+}
+
+/** Who read the proposal for Start (the owner, 2026-11-07: the model risk was left empty with no word why): the intake
+ *  agent, or, when it is off or its last read did not finish, code and the ICH M15 rule alone. */
+function IntakeStatus({ view }: { view: BriefView }) {
+  if (view.extraction_running) return null;
+  const last = view.runs.find((r) => r.agent === "A1-proposal-intake");
+  if (!view.agents.enabled) {
+    return (
+      <p className="start-notice muted" data-testid="start-intake">
+        The intake agent is off on this server ({view.agents.problem ?? "no model configured"}): code read the proposal
+        and the FDA label, and the ICH M15 rule (UNVERIFIED) drafted the model risk. Each draft waits for you below.
+      </p>
+    );
+  }
+  if (last && last.status !== "COMPLETED") {
+    return (
+      <p className="start-notice muted" data-testid="start-intake">
+        The intake agent&apos;s last read ended {last.status.toLowerCase().replace(/_/g, " ")} ({last.model}): code drafted
+        what it left, and the ICH M15 rule (UNVERIFIED) the model risk if it had none.
+      </p>
+    );
+  }
+  return null;
 }

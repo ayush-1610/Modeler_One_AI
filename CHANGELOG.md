@@ -106,6 +106,81 @@ change.
   carries them (plan §4, gap 3). E2E: `dashboard.spec.ts` added; `projects-archive` and `start-project` open the List
   view before using the table.
 
+### Changed — Build K: the drug's disposition and the ICH M15 model risk drafted on Start; one step confirms every draft (2026-11-07)
+The owner, 2026-11-07, after build J on the desvenlafaxine project: the BCS class, the pathways, nonlinearity,
+enterohepatic recycling, the two ratings and their reasons were still empty ("5 things still need you"). Science change:
+a new UNVERIFIED ruleset, `m15_draft.yaml` 0.1, approved by the owner the same day as a fallback.
+- **The model risk is drafted whether or not the intake agent works.** A1's risk pass ran only when A1 itself had
+  recorded the question and the context of use; code drafted those after A1, too late. Code's reading now runs before
+  A1's risk pass (`run_proposal_intake(before_risk=…)`; A1's own evaluation leaves it out). When nothing suggested the
+  ratings (agent off, or its draft refused), **the rule `m15_draft.yaml` drafts them** (`modeler_project.risk_draft`):
+  influence high when the context of use or the question says the model replaces a clinical study or supports a waiver
+  ("in lieu of", "instead of", biowaiver …), medium for a regulatory submission alongside clinical data, low otherwise;
+  consequence high for children, pregnancy, a narrow therapeutic index (read anywhere in the proposal) or a
+  first-in-human dose (the matching applications count too), medium otherwise. With "how the model is used" and "what a
+  wrong decision means" in a sentence each, and, when the ratings differ, why the stricter tier. All DRAFTED, marked "by
+  the ICH M15 rule (UNVERIFIED)"; the agent's suggestion is kept over the rule; a person still saves the ratings.
+  Acronyms are matched as whole words ("NTI" is not read in "patients").
+- **The drug's disposition** (`start_drafts.read_disposition`): from the proposal, else from the FDA label code stores at
+  the project's start (its pharmacokinetics section), the source named in each note: the BCS class; the enzymes and
+  transporters named (a sentence saying one "is not involved" is skipped; "UGT isoforms" with none named is "UGT") and the
+  kinds (metabolism, excreted unchanged in urine, tubular secretion, bile, gut wall); nonlinearity (saturation,
+  auto-induction, not dose-proportional) or linear, dose-proportional PK, drafted as "no" (confirmed, saved as not
+  applicable: no Km or Vmax asked); enterohepatic recycling yes or no when a sentence says so. The compound job drafts
+  them too once it has stored the label, for the fields still empty (the proposal's reading can finish first). A1 gets a
+  fourth focused pass for these fields. Section heading: "as the proposal or the FDA label states it".
+- **The modality is drafted by code** when the agent left it: a large molecule when the proposal names a biologic, a small
+  molecule when PubChem gave a structure or the product is a tablet or capsule.
+- **A person's "not stated" or "no" is never drafted over** (before, a MISSING or NOT_APPLICABLE a person chose could be
+  drafted again on "Read the proposal again").
+- **An agent's open question on a field a draft now fills is not a second red item**: the draft asks it, and confirming
+  the draft answers the question (before, A1's "the proposal does not state X" stayed open beside code's draft of X).
+- **Start**: each disposition draft has Confirm in place and Start waits on it; **"Confirm all N drafts as shown"** beside
+  the count keeps every draft as shown, each recorded as confirmed by the person (the model risk keeps its own save); a
+  line under "Read the proposal again" says when the intake agent is off on the server, or its last read did not finish,
+  and what drafted instead; each draft names who drafted it (the intake agent, code, or the ICH M15 rule). The message is
+  now "confirm the draft, or change it". The agents-off status no longer says "fill the brief by hand".
+- Impact: with agents off, a new project's Start is done after "Confirm all" and "Save the model risk". The rule is
+  UNVERIFIED until the SME signs it. No locked file, acceptance criterion or MAP change. Tests: `test_risk_draft.py` (6),
+  `test_start_drafts.py` (+3), the brief API (the agent's risk draft built on code's question; the rule with agents off),
+  the label step of the compound job; browser: `start-prefilled.spec.ts` (+ the disposition, the rule's risk, and
+  "Confirm all"), messages updated in `start-step`, `implied-drafts`.
+
+### Changed — Build J: Start pre-filled from the proposal; the client request moved to Inputs (2026-11-06)
+The owner, 2026-11-06, on a desvenlafaxine ER project whose Start showed only the drug, its PubChem CID, SMILES and
+modality: "making sure everything is there; the user will just see through and only change in case the selection or
+pre-fills are way wrong", and of "What to request from the client": "remove if you think this is unwanted or give me a
+solid reason to keep".
+- **A1 reads in focused passes** (`proposal_intake.run_proposal_intake`). After its general read, one short pass per
+  family of Start fields still empty (the question; the product and how it is given; what is modelled), each with the
+  proposal's text in the message and the empty fields named (6 turns each), then the M15 pass (4 turns) once the
+  question and the context of use have values and no rating is suggested yet. On the owner's project the general read
+  filled the modality only; each pass now asks for less, with the text in front of the model. `IMPLIED` adds the
+  modality, the PBPK model and the site of action.
+- **Code drafts what A1 still left empty** (`modeler_project.start_drafts.read_for_start`, run after A1 in
+  `run_extraction`, and alone when agents are off): the question of interest from the proposal's objective sentence; the
+  context of use from the sentence that says what the results are for; the applications from what the proposal names;
+  the formulation types (an extended-release tablet is modified release; a dissolution medium is never read as a
+  solution); each scenario's route. Each is DRAFTED with its sentence quoted from its page and waits on Confirm. Two
+  defaults, said as such in the note: a full PBPK model and systemic action (the only model the builder makes, D-28),
+  unless the proposal speaks of a local site. A field a person set, a document states, or that is locked is never
+  touched. The brief's version reason says how many fields code drafted (`drafted_by_code` in the run's result).
+- **Every draft is confirmed in place.** The scope gates (modality, PBPK model, site of action, formulation types,
+  routes) show a draft as "to confirm" with its quote and Confirm, as the question's fields do; Start waits on each
+  (`steps.start_issues`).
+- **A person's value keeps the sentence it came from and says who set it** ("proposal.md p.1 · set by …"). Before, a
+  changed draft showed only its quote, so the record did not say the value was the person's.
+- **"What to request from the client" is off Start.** Start settles the question and the scope; what only the client
+  can send is known in full once the inputs are gathered, and Inputs' "Still missing to run" lists it. The one thing the
+  block gave that the list does not, the request as a spreadsheet to send the client, stays as a download there
+  ("Download the request for the client (.xlsx)"). The API's `start.client_request` is unchanged.
+- Impact: a new project's Start opens with every field the proposal speaks to drafted and pre-selected; the person
+  confirms or changes each. The M15 ratings stay a judgement only A1 suggests, so they need the server's model
+  (`LITELLM_KEY`). An existing project gets the drafts from "Read the proposal again". No locked file, ruleset or MAP
+  change. Tests: `test_start_drafts.py` (3), A1's focused passes (1); the brief API's scripted agents answer nothing
+  once their script ends; browser: `start-prefilled.spec.ts` (new), `start-step.spec.ts` (the drafted route is
+  confirmed), `value-reuse.spec.ts` (the request downloads from Inputs).
+
 ### Changed — Compound I: the literature search per input, side by side; another project's values reused with consent (2026-11-06)
 Plan `docs/plans/2026-11-05-client-data-review-and-agents.md` §3.3 and what B left (the owner, 2026-11-05: "the compound
 agent is far too slow"; §5 q3: start at once, load and cost looked at later).
@@ -5526,7 +5601,7 @@ record it here so a reader knows which context produced which work.
 | 2026-10-07 (cloud session, branch `enterprise-architecture-refactor`) | per commit trailer | Structural health check of the code base; locked-file list proposed and approved; phase 1 architecture guardrails (`docs/ARCHITECTURE_BOUNDARIES.md`, `tests/architecture/`), web and API-image CI jobs, API Dockerfile and secret-scan fixes |
 | 2026-10-08 → 09 (cloud session) | per commit trailer | Architecture refactor phases 2–9 to the end (no boundary exception left); the owner's items (pilot deployment refuses DEV auth in production, e2e in CI, npm audit, `.xls`); science B1–B6: Stone 2004 exclusion, PI study weights, EHC placement, Weibull confirmed on PK-Sim, multi-compound phase 2 (MS-01 v1.3, stage SM, D-25) and the web system panel, the VBE application end to end (template, MAP applications, engine occasion, S6 trials, F-304 gate, report, illustrative PK-Sim proof, D-26); PK-Sim evidence through GitHub Actions; `docs/SME_SIGNOFF.md` |
 | 2026-10-19 (desktop session, branches `r2b-start`, `r2b-followup`) | Claude Opus 5.5 (1M context) | The PR #72 and #73 merge conflicts (`CHANGELOG.md`) resolved. A second R2b (#74) built before #73 was found; the owner kept #73, and what #74 had that #73 lacked came as the R2b follow-up (one upload with the client's files, the R2 approvals removed, pathway kinds, the viewer on the proposal); then R4a, Review & sign (branch `review-sign`). No GitHub access from this sandbox: the owner pushes |
-| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) F (the reading agent on arrival for what code could not; every reading's record of what it left out) G (messy deliveries scored end to end, 36 of 36 after five fixes to code's reading) H (A1's evaluation set; its live score needs the server's model) and I (the literature search per input, side by side; another project's values reused with consent) |
+| 2026-10-23 → 11-05 (cloud session) | per commit trailer | The parameter identification review and PI-1 → PI-3 (#99–#103); page review 1, the Start page (#104–#109, #112); the project document library (#111, #113, #114); the PI-4 options (#110); the log-scale review, the M15 suggestion after rating, and the M15 assessment under the MAP hash (#115–#117); `docs/CONTINUATION_PACKAGE.md` §4 brought up to date; PI-4 B; page review 2, Inputs: the plan and mockup (#125), I1a, I1b, I2 and A2's tasking (#126–#129), I3 across files (#130), I4 client documents (#131), I4b demographics, composition, product and batch names (#132), I4c the template's demographics (#133), code's sheet reading 11/11; the plan for the client's data reviewed where it belongs (#135) and its builds A (files by area), B (compound values from structured sources at the start) C1 (each study and product as data, one at a time) and C2 (each sheet read on arrival, its missing facts asked on its card) and D (Start's implied fields drafted with their quotes; the M15 ratings and the stricter tier pre-selected with the agent's reasons; the internal target's 10 % default, applied where no one set one) F (the reading agent on arrival for what code could not; every reading's record of what it left out) G (messy deliveries scored end to end, 36 of 36 after five fixes to code's reading) H (A1's evaluation set; its live score needs the server's model), I (the literature search per input, side by side; another project's values reused with consent), J (Start pre-filled from the proposal, each draft quoted and confirmed in place; the client request moved to Inputs) and K (the disposition from the proposal or the FDA label; the model risk by A1 on code's question, else by the ICH M15 rule `m15_draft.yaml` 0.1, UNVERIFIED, approved by the owner; "Confirm all drafts") |
 | 2026-11-06 (cloud session, branch `claude/exciting-shannon-1phqoq`) | per commit trailer | Review of the Claude Design "Modeler One App" mockup against the app and the API; the merge plan (`docs/plans/2026-11-06-app-design-merge.md`); phase A: the dashboard and the grouped, collapsible sidebar |
 | 2026-11-07 (same cloud session) | per commit trailer | The whole web app restyled to the Claude Design "Modeler One App" look (plan §5) |
 | 2026-11-07 (same cloud session) | per commit trailer | The design's motion system and feedback from the owner's theme spec (option D) |

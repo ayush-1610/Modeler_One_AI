@@ -161,6 +161,22 @@ will check the builder with their own files later (q4), so the builds use the up
    A1's evaluation (P1's open item), built in H (branch `eval-h-a1`): four synthetic proposals with their answer
    (`modeler_agents.evals.proposal_intake`); the answer scores 34 of 34 through A1's tools; A1's own score needs the
    server's model (`--reader agent`), with the owner's real proposals scored there.
+   **J, Start pre-filled (built,** branch `start-j-prefill`**; the owner, 2026-11-06, on a desvenlafaxine project
+   whose Start showed the drug and modality only).** A1 reads again in focused passes, one per family of fields still
+   empty, with the proposal's text in the message; code then drafts what A1 left (the objective sentence as the
+   question, the context of use, the applications, the dosage forms, the routes), each quoted from its page, and the
+   full PBPK / systemic defaults; with agents off, code alone. Every draft, the scope gates included, waits on Confirm.
+   A deviation from §3.4 ("a field the proposal says nothing about stays a question"): the PBPK model and the site of
+   action are drafted as defaults, said so, because the builder makes only full systemic models (D-28). "What to
+   request from the client" left Start for Inputs, where "Still missing to run" lists the same items; its `.xlsx`
+   download stays there.
+   **K (built,** branch `start-k-disposition`**; the owner, 2026-11-07: the disposition and the model risk still
+   empty).** The drug's disposition drafted from the proposal, else the FDA label stored at the start; the model risk by
+   A1 once code has read the question (code now runs before A1's risk pass), else by the rule `m15_draft.yaml` 0.1
+   (UNVERIFIED; approved by the owner as the fallback); the modality drafted by code; "Confirm all drafts as shown".
+   Deviation from §3.4 recorded: the disposition section reads the FDA label where the proposal is silent (heading "as
+   the proposal or the FDA label states it"), because the owner wants every field there and the label is the
+   authoritative public record of the drug's disposition.
 5. **The evaluation grows: built (G,** branch `eval-g-deliveries`**).** Messy deliveries scored end to end, placed right,
    read right, cleaned with a record, nothing silent (`modeler_project.arrival_eval`): four synthetic ones modelled on
    CRO deliveries, first scored 18 of 36, now 36 of 36 after five fixes to code's reading that the score showed. The
