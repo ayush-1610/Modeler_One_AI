@@ -14,7 +14,10 @@ import "./styles/inputs.css";
 import "./styles/kit.css";
 import "./styles/start.css";
 import "./styles/review.css";
-import { THEME_BOOT } from "@/components/kit/ThemeToggle";
+import "./styles/dashboard.css";
+// the "Modeler One App" look over the shared pieces; last, so it wins (plan 2026-11-06-app-design-merge)
+import "./styles/design.css";
+import { Motion } from "@/components/kit/Motion";
 import { Nav } from "@/components/Nav";
 import { Providers } from "@/components/Providers";
 import { signedInName } from "@/lib/session";
@@ -43,14 +46,13 @@ export const metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await signedInName();
   return (
-    // the saved theme is applied before the first paint (THEME_BOOT), so <html> may differ from the server's render
-    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} /></head>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>
         {/* the first Tab stop: past the sidebar to the page (every page renders its own <main>) */}
         <a className="skip-link" href="#content">Skip to the page</a>
         {/* the sidebar is inside the providers too: its "Add data" card changes the project and refreshes the page */}
         <Providers>
+          <Motion />
           <div className="app">
             <Nav user={user} />
             <div className="content">

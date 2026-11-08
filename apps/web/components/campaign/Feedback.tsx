@@ -40,7 +40,7 @@ export function FeedbackDiagnosisView({ diagnosis }: { diagnosis: FeedbackDiagno
         {Object.entries(diagnosis.classes).map(([name, c]) => (
           <li key={name}>
             <strong>{name}</strong>: external studies left {c.unspent.join(", ") || "none"}; learn cycles {c.cycles}.{" "}
-            <span className={c.learn.possible ? "muted" : ""} style={c.learn.possible ? undefined : { color: "var(--fail)" }}>
+            <span className={c.learn.possible ? "muted" : ""} style={c.learn.possible ? undefined : { color: "var(--fail-ink)" }}>
               {c.learn.reason}</span>
           </li>
         ))}

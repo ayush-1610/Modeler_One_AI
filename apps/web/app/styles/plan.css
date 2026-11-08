@@ -15,7 +15,7 @@
 .study-chip .sq { color: var(--sim); }
 .study-chip .sid { font-weight: 600; }
 .study-chip .origin { color: var(--pass); font-size: 11px; }
-.study-chip .origin.test { color: var(--fail); }
+.study-chip .origin.test { color: var(--fail-ink); }
 .study-chip.err { border-color: var(--fail); box-shadow: 0 0 0 1px var(--fail) inset; }
 .study-chip.warn { border-color: var(--warn); }
 .study-chip.ghost { cursor: default; opacity: 0.8; }
@@ -51,8 +51,8 @@
 .btn.tiny { padding: 3px 8px; font-size: 12px; }
 .violations { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .violations li { display: flex; flex-direction: column; gap: 2px; }
-.flags.warn li { color: var(--warn); }
+.flags.warn li { color: var(--warn-ink); }
 .diff-from { text-decoration: line-through; color: var(--ink-faint); }
 .diff-to { color: var(--sim); font-weight: 600; }
-.dialog-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.dialog-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.28); display: grid; place-items: center; z-index: 50; padding: 16px; }
 .dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; width: min(560px, 100%); }

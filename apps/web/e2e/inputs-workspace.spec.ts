@@ -120,8 +120,4 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await typed.getByRole("button", { name: "Leave out" }).click();
   await expect(page.getByTestId("study-po-typed")).toContainText("left out: assay not validated");
   await shot(page, "3-studies");
-
-  // the same page in the dark theme
-  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
-  await shot(page, "4-studies-dark");
 });

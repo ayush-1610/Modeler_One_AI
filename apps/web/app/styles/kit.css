@@ -1,5 +1,5 @@
 /* The redesign's kit (components/kit): the step bar, page shell, side panel, empty state, inline issue, table box and
- * the theme toggle. Built only from the theme tokens in globals.css, so every piece works in light and dark. */
+ * dialog. Built only from the theme tokens in globals.css. */
 
 /* ---- the four steps ---- */
 .stepper-wrap { margin: 2px 0 22px; }
@@ -71,14 +71,6 @@
 .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .table-scroll table { min-width: 560px; }
 
-/* ---- the theme toggle (sidebar) ---- */
-.theme-toggle { display: inline-flex; margin-top: 18px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
-.theme-toggle button { font: inherit; font-size: 12px; padding: 5px 10px; border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; }
-.theme-toggle button + button { border-left: 1px solid var(--line); }
-/* the box clips the outline, so the focus ring is drawn inside it */
-.theme-toggle button:focus-visible { outline-offset: -2px; border-radius: 0; }
-.theme-toggle button[aria-pressed="true"] { background: color-mix(in srgb, var(--sim) 14%, transparent); color: var(--brand-ink); font-weight: 600; }
-
 /* ---- the dialog (components/kit/Dialog.tsx; the backdrop and panel base rules are shared with Review & sign's) ---- */
 .dialog:focus { outline: none; }
 .dialog.narrow { width: min(460px, 100%); }
@@ -119,9 +111,9 @@ tr.project-archived td { color: var(--ink-faint); }
 .add-data-done { margin-top: 10px; font-size: 14px; }
 
 /* ---- the source peek (components/kit/SourcePeek.tsx; plan 2026-11-03 §3.3): centre of the screen, the page dimmed behind ---- */
-.dialog-backdrop.peek { background: rgba(18, 32, 43, 0.38); }
+.dialog-backdrop.peek { background: rgba(0, 0, 0, 0.28); }
 .dialog.peek { width: min(980px, 100%); height: min(82vh, 900px); display: flex; flex-direction: column; gap: 8px;
-  box-shadow: 0 24px 64px rgba(18, 32, 43, 0.28); }
+  box-shadow: 0 40px 100px -30px rgba(0, 0, 0, 0.4); }
 .dialog.peek .dialog-actions { margin-top: 4px; }
 .peek-where { margin: 0; font-size: 13px; }
 .peek-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; }

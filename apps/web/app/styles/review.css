@@ -1,5 +1,5 @@
 /* Step 3 · Review & sign (components/plan/PlanCanvas, components/review): the section links, the studies and roles, the
- * review table and credibility. Built only from the theme tokens in globals.css, so it reads the same in light and dark. */
+ * review table and credibility. Built only from the theme tokens in globals.css, like every other page. */
 
 .review-nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0 4px; }
 .review-nav a { font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-dim);
@@ -27,7 +27,7 @@
 .review-source { max-width: 420px; }
 .review-source q { display: block; margin-top: 3px; font-size: 12.5px; color: var(--ink-dim); quotes: "“" "”"; }
 .review-note { font-size: 12px; margin-top: 3px; }
-.review-flag { margin-top: 3px; font-size: 12px; color: var(--warn); }
+.review-flag { margin-top: 3px; font-size: 12px; color: var(--warn-ink); }
 .review-exclude { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .review-exclude input { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--ink); min-width: 180px; }
@@ -54,7 +54,7 @@
 .estimate-form input[aria-label^="lower"], .estimate-form input[aria-label^="upper"] { width: 96px; }
 .estimate-stage { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
 .estimate-hint { font-size: 12px; margin: 6px 0 0; }
-.review-flag.error { color: var(--fail); }
+.review-flag.error { color: var(--fail-ink); }
 .validation-plan { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .validation-plan section { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .validation-plan h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-dim); }
@@ -72,7 +72,7 @@
 .vbe-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-dim); }
 .vbe-field input, .vbe-field select { font-size: 13px; }
 .vbe-variability input { width: 100%; min-width: 0; }
-.vbe-problems li { color: var(--fail); }
+.vbe-problems li { color: var(--fail-ink); }
 
 /* the source peek's icon beside where a value comes from (plan 2026-11-03 §3.3) */
 .review-source-head { display: flex; gap: 6px; align-items: flex-start; justify-content: space-between; }

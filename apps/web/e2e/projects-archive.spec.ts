@@ -11,6 +11,7 @@ test("a project is archived with a reason, hidden, shown on request and restored
   const projectId = (await started.json()).data.project_id as string;
 
   await page.goto("/");
+  await page.getByTestId("dash-view-list").click();                                  // the record view of the dashboard
   await page.getByTestId(`project-archive-${projectId}`).click();
   await expect(page.getByTestId("project-archive-confirm")).toBeDisabled();          // no reason, no archive
   await page.getByTestId("project-archive-reason").fill("a test project, not client work");

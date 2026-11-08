@@ -1,7 +1,7 @@
 // The caveats a regulator reads must stay on screen through any restyle: "toContainText" passes on text that is hidden,
-// clipped or the same colour as its background, so these checks ask for a visible, unclipped box, in both themes.
+// clipped or the same colour as its background, so these checks ask for a visible, unclipped box (light only, 2026-11-07).
 // Add a caveat here when a new screen carries one ("provisional (SME)", "UNVERIFIED" on Review & sign, "TEST ONLY").
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 const PROPOSAL = "# Technical proposal TP-E2E-9: PBPK model of exampleamide\nObjective: exposure after a single oral dose.";
 
@@ -38,12 +38,7 @@ async function onScreen(target: Locator) {
   expect(ratio).toBeGreaterThanOrEqual(3);
 }
 
-async function theme(page: Page, mode: "light" | "dark") {
-  await page.emulateMedia({ colorScheme: mode });
-  await page.evaluate((m) => document.documentElement.setAttribute("data-theme", m), mode);
-}
-
-test("Start: a scope the builder cannot model says 'not supported yet', visibly, in light and dark", async ({ page }) => {
+test("Start: a scope the builder cannot model says 'not supported yet', visibly", async ({ page }) => {
   await page.goto("/projects/start");
   await page.getByTestId("drug-name").fill("Exampleamide");
   await page.getByTestId("proposal-files").setInputFiles({ name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) });
@@ -56,11 +51,8 @@ test("Start: a scope the builder cannot model says 'not supported yet', visibly,
   await page.getByTestId("pick-formulation_types").getByLabel("liposome").check();
   await expect(page.getByTestId("gate-formulation_types-state")).toHaveText("not supported yet");
 
-  for (const mode of ["light", "dark"] as const) {
-    await theme(page, mode);
-    await onScreen(page.getByTestId("gate-formulation_types-state"));
-    await onScreen(page.getByTestId("gate-formulation_types-message"));
-    await onScreen(page.getByTestId("start-waiting"));
-    await page.screenshot({ path: test.info().outputPath(`start-gate-${mode}.png`), fullPage: true });
-  }
+  await onScreen(page.getByTestId("gate-formulation_types-state"));
+  await onScreen(page.getByTestId("gate-formulation_types-message"));
+  await onScreen(page.getByTestId("start-waiting"));
+  await page.screenshot({ path: test.info().outputPath("start-gate.png"), fullPage: true });
 });

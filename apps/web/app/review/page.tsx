@@ -2,6 +2,7 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { ApiProblem, Card } from "@/components/ui";
 import { EscalationDecision } from "@/components/EscalationDecision";
 import { getEscalations, getProposals } from "@/lib/reads";
+import { Hero } from "@/components/kit";
 
 export default async function ReviewInbox() {
   const [liveProposals, liveEscalations] = await Promise.all([getProposals(), getEscalations()]);
@@ -14,9 +15,8 @@ export default async function ReviewInbox() {
       {/* a decided escalation resumes its campaign in the background, which may escalate again: read the inbox again
           every few seconds so the next decision appears without a reload (a decision being typed keeps its state) */}
       <AutoRefresh active intervalMs={4000} />
-      <h1>Review inbox</h1>
-      <p className="muted">Curator and reviewer actions: agent parameter proposals awaiting acceptance, and campaign
-        escalations that resume only through a signed decision.</p>
+      <Hero tone="inbox" eyebrow="Curators and reviewers" title="Review inbox"
+            lede="Agent parameter proposals awaiting a curator, and campaign escalations that resume only through a signed decision." />
       {problem && <ApiProblem problem={problem} />}
 
       <Card
@@ -32,7 +32,7 @@ export default async function ReviewInbox() {
           <>
             <table>
               <thead>
-                <tr><th>Parameter</th><th className="num">Value</th><th>Citation</th><th>Agent</th><th></th></tr>
+                <tr><th>Parameter</th><th className="num">Value</th><th>Citation</th><th>Agent</th></tr>
               </thead>
               <tbody>
                 {proposals.map((p) => (
@@ -44,19 +44,13 @@ export default async function ReviewInbox() {
                       <div className="muted" style={{ fontSize: 12 }}>{p.reference}</div>
                     </td>
                     <td className="muted">{p.agent}</td>
-                    <td>
-                      <div className="row">
-                        <button className="btn primary">Accept</button>
-                        <button className="btn">Reject</button>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-              Every proposal carries an exact citation checked deterministically; a curator accepts or rejects each one
-              before it can enter a model.
+              Every proposal carries an exact citation checked deterministically. A value enters a model only when a curator
+              takes it on the project&apos;s Inputs step; this list does not accept or reject on its own.
             </p>
           </>
         )}

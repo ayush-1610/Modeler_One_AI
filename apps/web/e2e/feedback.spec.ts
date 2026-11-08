@@ -90,6 +90,6 @@ test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", 
   await decideLater(page);                                                  // the S4/S5 signature now waits
   await expect(page.getByTestId("feedback-timeline")).toContainText("limitation");
   await expect(page.getByTestId("feedback-pending")).toHaveCount(0);
-  await expect(page.locator(".spread .chip").first()).toHaveText(/awaiting_signature/, { timeout: 30_000 });
+  await expect(page.getByTestId("campaign-status")).toHaveText(/awaiting_signature/, { timeout: 30_000 });
   await page.screenshot({ path: test.info().outputPath("feedback.png"), fullPage: true });
 });

@@ -1,6 +1,6 @@
 /* Step 1 · Start (components/start): numbered blocks of field rows, the model-risk picker and the scope gates; what still
  * needs the person is marked red where it is (page review 1). Built only from the theme tokens in globals.css, so it works
- * in light and dark. */
+ * on every page. */
 
 .start-block { display: grid; gap: 12px; }
 .card + .start-block, .start-block + .card { margin-top: 0; }

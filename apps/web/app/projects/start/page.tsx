@@ -9,6 +9,7 @@ import { FilePicker, type Picked } from "@/components/start/FilePicker";
 import { Card } from "@/components/ui";
 import { upload, type Schema } from "@/lib/api";
 import { tagsField } from "@/lib/fileTags";
+import { Hero } from "@/components/kit";
 
 /** P0 · Initiate (plan §5.2; redesign §3.1, block 1), the "Start from proposal" page: the drug, any context, and one
  *  upload for the technical proposal, its annexes and the client's data files, which go straight to Inputs (map rows
@@ -51,13 +52,10 @@ export default function StartProjectPage() {
 
   return (
     <main>
-      <h1>Start from proposal</h1>
-      <p className="muted" style={{ maxWidth: "var(--measure)" }}>
-        Give the drug and drop every file in one go: the technical proposal you shared with the client and its annexes are
-        read for the brief; the client&apos;s files, each tagged with what it is, are read in the background and wait on
-        Inputs, marked “to confirm”. Every value an agent fills cites the page or cell it came from; anything the files do
-        not state is left for you, never guessed.
-      </p>
+      <Hero tone="new" eyebrow="Step 1 · Start" title="Start a project"
+            lede={<>Give the drug and drop every file in one go: the proposal and its annexes are read for the brief, and the
+              client&apos;s files, each tagged with what it is, wait on Inputs, marked “to confirm”. Anything the files do not
+              state is left for you, never guessed.</>} />
 
       <div className="cols-2">
         <Card title="The drug and the project">

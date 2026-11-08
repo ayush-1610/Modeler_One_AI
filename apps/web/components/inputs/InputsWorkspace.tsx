@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BriefList } from "@/components/brief/BriefList";
 import { type Act, Dissolution, FileTagLine, type Retag, retagCall } from "@/components/client/ClientFiles";
@@ -150,7 +150,7 @@ function FilesDrawer({ projectId, files, onClose, onRetag, onOpen }: {
 /** Step 2 · Inputs (redesign §3.2): one workspace in PK-Sim's building blocks. Values flow in from every source not
  *  excluded and the source-selection rule keeps one per input (D-32); the side list says what is still missing to run,
  *  and each item opens where it is settled. Nothing is accepted here: the one review is at the MAP signature (D-27). */
-export function InputsWorkspace({ projectId, initialTab = "compound" }: { projectId: string; initialTab?: Tab }) {
+export function InputsWorkspace({ projectId, initialTab = "compound", steps }: { projectId: string; initialTab?: Tab; steps?: ReactNode }) {
   const page = useResource("/api/v1/projects/{project_id}/inputs", { project_id: projectId }, { select: (d) => narrow<View>(d) });
   const client = useResource("/api/v1/projects/{project_id}/client-data", { project_id: projectId },
     { select: (d) => narrow<ClientView>(d), poll: (d) => d.running });
@@ -209,8 +209,13 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
       .then(({ problem }) => { if (problem) setNotice({ ok: false, text: problem }); });
   }, [stale]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (page.problem) return <div className="banner err">{page.problem}</div>;
-  if (!view) return <p className="muted">Loading the inputs…</p>;
+  if (page.problem || !view) {
+    return (
+      <PageShell tone="inputs" steps={steps} eyebrow="Step 2 of 4" title="Inputs">
+        {page.problem ? <div className="banner err">{page.problem}</div> : <p className="muted">Loading the inputs…</p>}
+      </PageShell>
+    );
+  }
 
   const todo = [...view.todo].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
   // the client's data, by the domain it lands in (plan 2026-11-03 §3.3); "To confirm" shows only what waits for you
@@ -258,6 +263,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
 
   return (
     <PageShell
+      tone="inputs" steps={steps}
       eyebrow="Step 2 of 4"
       title="Inputs"
       lede={<>Every value not excluded flows in; where sources give several, one is kept by source and grade and the others
@@ -270,7 +276,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound" }: { projec
               Take the published OSP model&apos;s values
             </button>
           ))}
-          <button type="button" className="btn" data-testid="ask-literature" disabled={running} onClick={() => void askLiterature()}
+          <button type="button" className="btn primary" data-testid="ask-literature" disabled={running} onClick={() => void askLiterature()}
                   title="PubChem, the FDA label and ChEMBL by code, then the literature agent (when agents are on)">
             {running ? "Searching the sources…" : "Search the sources and the literature"}
           </button>

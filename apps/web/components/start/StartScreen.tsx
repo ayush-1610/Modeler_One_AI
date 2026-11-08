@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
+import { Hero } from "@/components/kit";
 import { SourcePeek } from "@/components/kit/SourcePeek";
 import { DrugAndFiles } from "@/components/start/Blocks";
 import { RiskPicker } from "@/components/start/RiskPicker";
@@ -32,7 +33,7 @@ function forViewer(documents: DocumentView[]): DocumentView[] {
  *  what is modelled, on one screen. Nothing here is approved: a person reviews everything once, at the MAP signature
  *  (D-27). Each box that still needs the person is marked in red where it is; until none is, Start cannot be left. A
  *  value's source is shown beside it, and its page opens over the screen. */
-export function StartScreen({ projectId }: { projectId: string }) {
+export function StartScreen({ projectId, steps }: { projectId: string; steps?: ReactNode }) {
   const page = useResource("/api/v1/projects/{project_id}/brief", { project_id: projectId },
     { select: (d) => narrow<BriefView>(d), poll: (d) => d.extraction_running });
   const docs = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
@@ -41,8 +42,19 @@ export function StartScreen({ projectId }: { projectId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const view = page.data;
 
-  if (page.problem) return <div className="banner err">{page.problem}</div>;
-  if (!view) return <p className="muted">Loading the project…</p>;
+  const lede = "Confirm what the agents read from the proposal, and say what is modelled. Nothing is approved here: the one "
+    + "review is at the MAP signature.";
+  if (page.problem || !view) {
+    return (
+      <>
+        <Hero tone="start" eyebrow="Step 1 of 4" title="Start" lede={lede} />
+        {steps}
+        <div className="start-screen">
+          {page.problem ? <div className="banner err">{page.problem}</div> : <p className="muted">Loading the project…</p>}
+        </div>
+      </>
+    );
+  }
   const documents = forViewer(docs.data?.documents ?? []);
   const open = (c: Citation) => setFocus({ sha256: c.doc_sha256, page: c.page, quote: c.quote });
 
@@ -80,11 +92,16 @@ export function StartScreen({ projectId }: { projectId: string }) {
     "m15.influence_suggested", "m15.consequence_suggested"].map((p) => view.brief.fields[p]?.at ?? "").join("|");
 
   return (
+    <>
+    <Hero tone="start" eyebrow="Step 1 of 4" title={<>Start · {view.brief.drug_name}</>} lede={lede}
+          actions={(
+            <button type="button" className="btn" disabled={busy || view.extraction_running} onClick={readAgain} data-testid="start-read">
+              {view.extraction_running ? "Reading the proposal…" : "Read the proposal again"}
+            </button>
+          )} />
+    {steps}
     <div className="start-screen">
       <div className="start-top">
-        <button type="button" className="btn" disabled={busy || view.extraction_running} onClick={readAgain} data-testid="start-read">
-          {view.extraction_running ? "Reading the proposal…" : "Read the proposal again"}
-        </button>
         {(notice || view.extraction_running) && (
           <p className="start-notice muted" data-testid="start-notice">
             {view.extraction_running ? "The intake agent is reading the documents; the screen fills in as it finishes." : notice}
@@ -120,6 +137,7 @@ export function StartScreen({ projectId }: { projectId: string }) {
                     onClose={() => setFocus(null)} />
       )}
     </div>
+    </>
   );
 }
 

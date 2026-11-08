@@ -1,3 +1,3 @@
 /* The project start-up pipeline: the history page's diff (the step bar is in kit.css). */
 .diff-add { color: var(--pass); }
-.diff-del { color: var(--fail); text-decoration: line-through; }
+.diff-del { color: var(--fail-ink); text-decoration: line-through; }

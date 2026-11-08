@@ -74,6 +74,9 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await expect(page.getByTestId("map-signed")).toContainText("MAP v1 signed");
 
   // D-14: after the signature a move is a MAP deviation — recorded, then signed into MAP v2, before the run
+  // the canvas in view first, as a person would have it: the taller page head (plan 2026-11-06 §5) left the signature
+  // button, and so the view after signing, above the canvas, and a drag that has to scroll the page drops nothing
+  await page.getByTestId("node-S2").scrollIntoViewIfNeeded();
   await page.getByTestId("overall-data").getByTestId("chip-po-10").dragTo(page.getByTestId("node-S2"));
   await expect(page.getByTestId("move-ok")).toBeVisible();
   await expect(page.getByTestId("move-deviation")).toContainText("MAP deviation");

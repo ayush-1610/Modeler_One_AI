@@ -127,9 +127,6 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "done");
   await expect(page.getByTestId("step-inputs-locked")).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("start.png"), fullPage: true });
-  await page.emulateMedia({ colorScheme: "dark" });
-  await page.screenshot({ path: test.info().outputPath("start-dark.png"), fullPage: true });
-  await page.emulateMedia({ colorScheme: "light" });
   await page.getByTestId("start-continue").click();
   await page.waitForURL(/\/inputs$/);
   await expect(page.getByTestId("inputs-start-not-done")).toHaveCount(0);

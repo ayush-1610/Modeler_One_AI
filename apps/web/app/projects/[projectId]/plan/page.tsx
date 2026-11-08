@@ -7,8 +7,7 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
   const { projectId } = await params;
   return (
     <main className="wide">
-      <Stepper projectId={projectId} current="review" />
-      <PlanCanvas projectId={projectId} />
+      <PlanCanvas projectId={projectId} steps={<Stepper projectId={projectId} current="review" />} />
     </main>
   );
 }

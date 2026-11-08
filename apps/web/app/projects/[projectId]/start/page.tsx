@@ -7,8 +7,7 @@ export default async function StartPage({ params }: { params: Promise<{ projectI
   const { projectId } = await params;
   return (
     <main>
-      <Stepper projectId={projectId} current="start" waiting={false} />
-      <StartScreen projectId={projectId} />
+      <StartScreen projectId={projectId} steps={<Stepper projectId={projectId} current="start" waiting={false} />} />
     </main>
   );
 }

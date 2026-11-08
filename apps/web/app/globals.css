@@ -1,54 +1,51 @@
 /* Modeler One — an instrument for building models a regulator will scrutinise.
  *
- * Governing idea: the interface recedes, the data advances. Chrome stays neutral (a cool bench in light, a deep
- * blue-slate in dark) so that the only saturated things on screen are the ones carrying scientific meaning. The two accents are not decoration —
- * teal is the predicted profile, amber the observed one, the pair every PBPK judgement is made on — so the
- * palette itself teaches the comparison.
+ * The look follows the "Modeler One App" design (plan docs/plans/2026-11-06-app-design-merge.md §5): a bright neutral
+ * bench, one blue for action and for the predicted series, amber for the observed series and for what waits on a person,
+ * green for done. The shared pieces' design-specific rules are in app/styles/design.css, loaded last.
  *
- * Verdict colours are deliberately separated in both hue and lightness so a pass/fail is never carried by
- * hue alone, and every verdict is also written out in words.
- */
+ * Verdict colours are separated in both hue and lightness so a pass/fail is never carried by hue alone, and every
+ * verdict is also written out in words. Light only (the owner, 2026-11-07): every colour is a token in the block below. */
 
-/* Light by default (the redesign, 2026-10-18: "the UI is boring"); dark follows the system, or the viewer's choice
- * (the toggle in the sidebar sets data-theme on <html>). Every colour is a token defined in all three blocks below. */
 :root {
   color-scheme: light;
 
   /* surfaces: a bright bench with a faint cool cast, so the two series below carry the colour */
-  --bg: #f4f6f8;
+  --bg: #f5f5f7;
   --surface: #ffffff;
-  --raised: #eef2f5;
-  --line: #d9e0e7;
-  --line-soft: #e6ebf0;
+  --raised: #f5f5f7;
+  --line: rgba(0, 0, 0, 0.07);   /* --hairline: every 1 px border and divider */
+  --line-soft: rgba(0, 0, 0, 0.05);
 
   /* ink */
-  --ink: #12202b;
-  --ink-dim: #566876;
-  --ink-faint: #8497a5;
+  --ink: #1d1d1f;
+  --ink-dim: #6e6e73;
+  --ink-faint: #8e8e93;
+  --ink-2: #515154;      /* the lede, secondary paragraphs */
+  --ink-5: #c7c7cc;
 
   /* the two series under comparison */
-  --sim: #10897d;      /* predicted — the model */
-  --obs: #b96a15;      /* observed — the clinic */
+  --sim: #0071e3;      /* predicted — the model */
+  --obs: #b25000;      /* observed — the clinic */
   --on-sim: #ffffff;   /* text on a --sim fill */
 
   /* verdicts */
-  --pass: #17794a;
-  --warn: #9a7112;
-  --fail: #b8402c;
-  --brand-ink: #0c5f57;
+  --pass: #1e7b45;
+  --warn: #ff9f0a;
+  --fail: #ff3b30;
+  --brand-ink: #0066cc;
 
   /* Text-grade twins of the series and verdict colours: the base colours above are for dots, fills and borders (they are
-   * 3.4-4.5:1 on a tint and fail AA as small text in light); these are >= 4.5:1 on the surface and on their own tints.
-   * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. In dark the base colours
-   * already pass, so each twin equals its base. */
-  --pass-ink: #126a3f;
-  --warn-ink: #7d5a0e;
+   * 3.4-4.5:1 on a tint and fail AA as small text); these are >= 4.5:1 on the surface and on their own tints.
+   * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. */
+  --pass-ink: #1e7b45;
+  --warn-ink: #b25000;
   --fail-ink: #a5381f;
-  --ink-quiet: #5c6f7e;
+  --ink-quiet: #6e6e73;
   /* the filled primary button (white on it 5.2:1; --sim stays the chart colour) and the edge of a form control (3:1) */
-  --primary: #0d7a6f;
+  --primary: #0071e3;
   --on-primary: #ffffff;
-  --control-border: #7a8d9b;
+  --control-border: rgba(0, 0, 0, 0.1);
 
   /* risk ratings (ICH M15) and aliases */
   --low: var(--pass);
@@ -61,35 +58,33 @@
   --border: var(--line);
   --surface-2: var(--raised);
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 9px;
+  --radius: 14px;
+  --radius-lg: 24px;
   --measure: 68ch;
-  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --shadow-card: 0 24px 60px -32px rgba(0, 0, 0, 0.16);
+  --hairline: rgba(0, 0, 0, 0.07);
+  --glass: rgba(255, 255, 255, 0.84);
+  --fill: rgba(118, 118, 128, 0.12);
+  --fill-btn: rgba(0, 0, 0, 0.07);
+  --hover-wash: rgba(0, 0, 0, 0.05);
+  --blue-deep: #0059b3;
+  --green: #34c759;
+  --indigo: #5e5ce6;
+  --surface-glass-2: rgba(255, 255, 255, 0.86);
+  --surface-modal: rgba(255, 255, 255, 0.92);
+  --shadow-card-compact: 0 12px 40px -14px rgba(0, 0, 0, 0.22);
+  --shadow-hover: 0 26px 50px -24px rgba(0, 0, 0, 0.30);
+  --shadow-sidebar-open: 24px 0 70px -28px rgba(0, 0, 0, 0.28);
+  --shadow-modal: 0 40px 100px -30px rgba(0, 0, 0, 0.40);
+  --shadow-sign: 0 30px 80px -30px rgba(0, 113, 227, 0.55);
+  --r-md: 16px;
+  --r-modal: 28px;
+  --r-ctl: 12px;
 }
 
-/* The instrument's dark screen: a deep blue-slate, so the only saturated things are the ones carrying meaning.
- * The next two blocks hold the same values (the system preference, and the viewer's choice); change both together. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #0b1116; --surface: #121b22; --raised: #18242f; --line: #223040; --line-soft: #1a2631;
-    --ink: #dce7ef; --ink-dim: #8ea3b3; --ink-faint: #5d7284;
-    --sim: #5bd1c4; --obs: #f2a65a; --on-sim: #04191c;
-    --pass: #57c98a; --warn: #e8b84b; --fail: #e8705a; --brand-ink: #9ae8de;
-    --pass-ink: var(--pass); --warn-ink: var(--warn); --fail-ink: var(--fail); --ink-quiet: #7a8fa0;
-    --primary: var(--sim); --on-primary: var(--on-sim); --control-border: #667b8d;
-  }
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0b1116; --surface: #121b22; --raised: #18242f; --line: #223040; --line-soft: #1a2631;
-  --ink: #dce7ef; --ink-dim: #8ea3b3; --ink-faint: #5d7284;
-  --sim: #5bd1c4; --obs: #f2a65a; --on-sim: #04191c;
-  --pass: #57c98a; --warn: #e8b84b; --fail: #e8705a; --brand-ink: #9ae8de;
-  --pass-ink: var(--pass); --warn-ink: var(--warn); --fail-ink: var(--fail); --ink-quiet: #7a8fa0;
-  --primary: var(--sim); --on-primary: var(--on-sim); --control-border: #667b8d;
-}
 
 * { box-sizing: border-box; }
 
@@ -99,9 +94,10 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
-  font-size: 14px;
-  line-height: 1.55;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", var(--font-sans), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
@@ -131,13 +127,14 @@ p { max-width: var(--measure); }
 
 .sidebar {
   width: 236px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line);
-  padding: 22px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  padding: 18px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; transition: width 200ms var(--ease);
 }
-.brand { display: flex; gap: 9px; align-items: center; font-weight: 600; font-size: 15px;
-         letter-spacing: -0.01em; margin-bottom: 22px; }
+.brand { display: flex; gap: 9px; align-items: center; font-weight: 600; font-size: 15px; min-height: 32px;
+         letter-spacing: -0.01em; margin: 0 2px 18px 4px; }
 /* the mark is a decaying curve — the shape the whole product is about */
 .brand-mark {
-  width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
   background:
     radial-gradient(circle at 18% 22%, var(--sim) 0 2.2px, transparent 2.4px),
     radial-gradient(circle at 44% 46%, var(--sim) 0 2.2px, transparent 2.4px),
@@ -145,19 +142,32 @@ p { max-width: var(--measure); }
     var(--raised);
   border: 1px solid var(--line);
 }
-.nav a { display: block; padding: 7px 10px; border-radius: var(--radius-sm); color: var(--ink-dim);
-         font-weight: 500; text-decoration: none; transition: background 120ms var(--ease), color 120ms var(--ease); }
-.nav a:hover { background: var(--raised); color: var(--ink); }
+.brand .nav-text { flex: 1; min-width: 0; white-space: nowrap; }
+.nav { display: grid; gap: 2px; }
+.nav a, .nav-action { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px;
+  border-radius: var(--radius-sm); color: var(--ink-dim); font: inherit; font-weight: 500; text-decoration: none; text-align: left;
+  border: 0; background: none; cursor: pointer; white-space: nowrap;
+  transition: background 120ms var(--ease), color 120ms var(--ease); }
+.nav a:hover, .nav-action:hover { background: var(--raised); color: var(--ink); }
 .nav a.active { background: color-mix(in srgb, var(--sim) 12%, transparent); color: var(--brand-ink); font-weight: 600; }
-.nav-project { margin-top: 14px; }
-.nav-heading { display: block; padding: 0 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
-.nav-action { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: var(--radius-sm); border: 0;
-  background: none; font: inherit; color: var(--brand-ink); font-weight: 600; cursor: pointer; }
-.nav-action:hover { background: var(--raised); }
-.nav .group { margin-top: 18px; }
-.nav-user { margin-top: 22px; padding: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-dim); }
+/* the current page's bar, at the sidebar's inner edge */
+.nav a.active::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--sim); }
+.nav-icon { flex-shrink: 0; }
+.nav .nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nav-action { color: var(--brand-ink); font-weight: 600; }
+.nav-badge { min-width: 20px; padding: 1px 6px; border-radius: 999px; text-align: center; font-size: 11.5px; font-weight: 600;
+  background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn-ink); }
+.nav-project { margin-top: 16px; }
+.nav-heading { display: block; padding: 0 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-quiet); white-space: nowrap; }
+.nav-foot { margin-top: auto; padding-top: 18px; display: grid; gap: 10px; }
+.nav-user { display: flex; gap: 10px; align-items: flex-start; padding: 10px 4px 0; border-top: 1px solid var(--line);
+  font-size: 13px; color: var(--ink-dim); }
 .nav-user strong { display: block; color: var(--ink); font-weight: 600; margin: 2px 0 6px; }
 .nav-user a { color: var(--brand-ink); }
+.nav-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%;
+  font-size: 12px; font-weight: 600; color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 14%, var(--surface)); }
 /* The skip link: off screen until a keyboard reaches it, then over the sidebar's top corner. Its target is a zero-size
  * point at the start of the page, so focus lands there and the next Tab goes to the page's first control. */
 .skip-link { position: absolute; left: 12px; top: -60px; z-index: 70; padding: 8px 14px; border-radius: var(--radius-sm);
@@ -257,7 +267,7 @@ tbody tr:last-child td { border-bottom: none; }
              transition: left 350ms var(--ease); }
 .fold-mark.out { background: var(--fail); }
 .fold-value { font-variant-numeric: tabular-nums; font-weight: 600; }
-.fold-value.out { color: var(--fail); }
+.fold-value.out { color: var(--fail-ink); }
 @media (max-width: 900px) {
   .cols-2, .cols-intake { grid-template-columns: 1fr; }
   .app { flex-direction: column; }
