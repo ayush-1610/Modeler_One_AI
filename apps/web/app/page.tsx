@@ -26,7 +26,8 @@ export default async function DashboardPage() {
   ]);
   const projects = live.data ?? [];
   // the steps are read per project (no list route carries them yet: plan §4, gap 3); archived projects are not asked
-  const steps = await Promise.all(projects.map((p) => (p.archived ? Promise.resolve(null) : getSteps(p.id).then((s) => s.data))));
+  const liveSteps = await Promise.all(projects.map((p) => (p.archived ? Promise.resolve(null) : getSteps(p.id))));
+  const steps = liveSteps.map((s) => s?.data ?? null);
   const campaigns = liveCampaigns.data ?? [];
   const escalations = liveEscalations.data ?? [];
   const proposals = liveProposals.data ?? [];
@@ -58,13 +59,27 @@ export default async function DashboardPage() {
     })),
   ];
 
-  const problem = live.problem ?? liveCampaigns.problem ?? liveEscalations.problem ?? liveProposals.problem;
+  // Only the projects are needed to show the page. Any other read that fails is named with what it leaves out, so a
+  // figure is never shown as 0 when it could not be read (one stored campaign the API cannot answer with fails the whole
+  // campaign list).
+  const partial = [
+    liveCampaigns.problem && `The campaigns could not be read (${liveCampaigns.problem}); "Running now" is not shown.`,
+    liveEscalations.problem && `The escalations could not be read (${liveEscalations.problem}); they are missing from "Needs your attention".`,
+    liveProposals.problem && `The parameter proposals could not be read (${liveProposals.problem}).`,
+    liveSteps.some((s) => s?.problem) && `The steps of ${liveSteps.filter((s) => s?.problem).length} project(s) could not be read; their cards say "Steps not read".`,
+  ].filter((m): m is string => Boolean(m));
   return (
     <main>
-      {problem && <ApiProblem problem={problem} />}
+      {live.problem && <ApiProblem problem={live.problem} />}
       <Dashboard projects={rows} attention={attention}
-                 runningCampaigns={campaigns.filter((c) => c.status === "RUNNING").length}
-                 tableProjects={projects} />
+                 runningCampaigns={liveCampaigns.data ? campaigns.filter((c) => c.status === "RUNNING").length : null}
+                 tableProjects={projects}
+                 notice={!live.problem && partial.length > 0 && (
+                   <div className="banner warn dash-partial" role="status" data-testid="dash-partial">
+                     <strong>Part of the dashboard could not be read.</strong>
+                     <ul>{partial.map((m) => <li key={m}>{m}</li>)}</ul>
+                   </div>
+                 )} />
     </main>
   );
 }

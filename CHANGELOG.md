@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the dashboard no longer fails as a whole when one of its reads fails (2026-11-08)
+Seen on the server after #149: the dashboard said "The API answered HTTP 500". The dashboard is the first page that
+reads every campaign at once (`GET /api/v1/campaigns` with no project); the API answers with typed, strict records
+(`extra="forbid"`, since 2026-10-23), so one stored campaign in an earlier shape fails the whole list with a
+`ResponseValidationError` (reproduced in `e2e/dashboard-partial.spec.ts`). Older pages read one project's campaigns
+only, so they never met it.
+- **Web:** only the projects read can stop the page. A failed campaigns, escalations, proposals or steps read is named
+  under the head with what it leaves out, and "Running now" shows "—, could not be read" instead of a false 0.
+- **Known gap:** the stored record itself still fails the campaigns list. The field is named in the API's log on the
+  server (`ResponseValidationError`); the fix (migrate that record, or accept the older shape in
+  `modeler_storage/records.py`) waits on that log.
+
 ### Added — the design's motion system and feedback (theme spec, option D: re-skin) (2026-11-07)
 The owner shared the design's theme spec ("Modeler One" master prompt) on 2026-11-07; applied here as its option D
 (re-skin the existing app, logic unchanged). Plan `docs/plans/2026-11-06-app-design-merge.md` §6. Web only.
