@@ -44,6 +44,10 @@ def test_every_start_field_the_agent_left_empty_is_drafted_from_the_proposals_wo
     assert value["qoi.applications"] == ["APP-14 virtual bioequivalence", "APP-11 absorption and formulation"]
     assert value["scope.formulation_types"] == ["mr"]                  # extended release; the buffer solution is a medium
     assert value["scenarios[0].route"] == "oral"
+    # one scenario per strength the proposal names (the owner, 2026-11-08), each fasting as the proposal says
+    assert [(value[f"scenarios[{i}].dose"], value[f"scenarios[{i}].route"]) for i in (0, 1)] == [(50.0, "oral"), (100.0, "oral")]
+    assert value["scenarios[0].food_state"] == value["scenarios[1].food_state"] == "fasted"
+    assert brief.get("scenarios[1].dose").citations[0].quote.startswith("Exampleamide Succinate Extended Release Tablets")
     assert (value["scope.pbpk_model"], value["scope.site_of_action"]) == ("full", "systemic")     # the builder's defaults
     assert value["drug.modality"] == "small_molecule"                  # an ER tablet
     for path in paths:

@@ -177,6 +177,10 @@ will check the builder with their own files later (q4), so the builds use the up
    Deviation from §3.4 recorded: the disposition section reads the FDA label where the proposal is silent (heading "as
    the proposal or the FDA label states it"), because the owner wants every field there and the label is the
    authoritative public record of the drug's disposition.
+   **L (built,** branch `start-l-study-facts`**; the owner, 2026-11-08).** A waiting sheet's study facts pre-filled from
+   the sheet, the documents naming the study, Start and the data plan (`study_offers`), each with its source; one Start
+   scenario per strength. The scenario doses stay on Start (the owner's "may be shift this to Inputs" left open): the
+   study cards on Inputs now offer the same strengths as each study's dose.
 5. **The evaluation grows: built (G,** branch `eval-g-deliveries`**).** Messy deliveries scored end to end, placed right,
    read right, cleaned with a record, nothing silent (`modeler_project.arrival_eval`): four synthetic ones modelled on
    CRO deliveries, first scored 18 of 36, now 36 of 36 after five fixes to code's reading that the score showed. The

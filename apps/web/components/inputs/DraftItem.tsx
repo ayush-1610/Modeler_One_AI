@@ -14,10 +14,13 @@ import { DatasetView } from "./DatasetView";
 import type { Run } from "./InputsTodo";
 
 type Item = Schema<"ReviewItem">;
-type Offer = { value: string; label: string; source: PeekSource };
+/** A value the project holds for a need: a document's (with its quote), Start's, or the data plan's (build L). */
+type Offer = { value: string; label: string; source: PeekSource | null; document?: boolean };
 type Draft = {
   sid: string; sheet: string; kind: "concentration_time" | "dissolution"; needs: string[]; labels: Record<string, string>;
   answers: Record<string, string>; problems: string[]; notes: string[]; offers: Record<string, Offer[]>;
+  /** The value pre-filled for a need: a document naming the study gives it, or the project holds only that one. */
+  prefill?: Record<string, string>;
   by?: string; cleaning?: CleaningLine[];
 };
 
@@ -35,7 +38,8 @@ const ON_THE_SHEET = new Set(["value_columns", "time_column"]);     // a reading
 
 export function DraftItem({ projectId, item, run }: { projectId: string; item: Item; run: Run }) {
   const draft = item.draft as unknown as Draft;
-  const [values, setValues] = useState<Record<string, string>>({});
+  // what the project holds is pre-filled; the person changes only what is wrong, then reads the sheet (build L)
+  const [values, setValues] = useState<Record<string, string>>(draft.prefill ?? {});
   const asked = draft.needs.filter((n) => !ON_THE_SHEET.has(n));
   const onSheet = draft.needs.filter((n) => ON_THE_SHEET.has(n));
   const ready = asked.length > 0 && onSheet.length === 0 && asked.every((n) => (values[n] ?? "").trim() !== "");
@@ -43,7 +47,7 @@ export function DraftItem({ projectId, item, run }: { projectId: string; item: I
   const id = (n: string) => `draft-${draft.sid}-${draft.sheet}-${n}`;
   return (
     <div className="draft-item" data-testid={`draft-${draft.sheet}`}>
-      {item.data && <DatasetView data={item.data} label={item.label} />}
+      {item.data && <DatasetView data={item.data} label={item.label} unsaved />}
       {draft.notes.length > 0 && (
         <details className="draft-notes">
           <summary>What {draft.by && draft.by !== "code" ? "the reading agent" : "code"} read in the sheet</summary>
@@ -68,10 +72,18 @@ export function DraftItem({ projectId, item, run }: { projectId: string; item: I
                        inputMode={NUMBERS.has(n) ? "decimal" : undefined} type={NUMBERS.has(n) ? "number" : "text"} min={0} step="any" />
               )}
               {(draft.offers[n] ?? []).map((o) => (
-                <span key={o.label} className="draft-offer">
-                  <button type="button" className="btn small" onClick={() => set(n, o.value)} data-testid={`offer-${n}`}>Use {o.label}</button>
-                  <PeekButton projectId={projectId} source={o.source} label={o.label} />
-                </span>
+                values[n] === o.value ? (
+                  <span key={o.label} className="draft-offer" data-testid={`prefilled-${n}`}>
+                    <span className="chip medium">{draft.prefill?.[n] === o.value ? "pre-filled" : "chosen"}</span>
+                    <span className="muted">from {o.label.split(" · ").slice(1).join(" · ")}</span>
+                    {o.source && <PeekButton projectId={projectId} source={o.source} label={o.label} />}
+                  </span>
+                ) : (
+                  <span key={o.label} className="draft-offer">
+                    <button type="button" className="btn small" onClick={() => set(n, o.value)} data-testid={`offer-${n}`}>Use {o.label}</button>
+                    {o.source && <PeekButton projectId={projectId} source={o.source} label={o.label} />}
+                  </span>
+                )
               ))}
             </div>
           ))}

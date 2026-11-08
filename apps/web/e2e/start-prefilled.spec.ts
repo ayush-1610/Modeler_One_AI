@@ -63,7 +63,12 @@ test("a proposal's Start fields arrive pre-filled with their quotes, each confir
   await page.screenshot({ path: test.info().outputPath("start-prefilled.png"), fullPage: true });
 
   // the person reads through and confirms each; nothing here is left "not set"
+  // one scenario per strength, each oral and fasting as the proposal says (the owner, 2026-11-08)
+  await expect(page.getByTestId("route-1")).toHaveValue("oral");
+  await expect(page.getByTestId("dose-0")).toHaveValue("50");
+  await expect(page.getByTestId("dose-1")).toHaveValue("100");
   for (const path of ["qoi.text", "qoi.context_of_use", "qoi.applications", "scope.formulation_types", "scenarios[0].route",
+                      "scenarios[1].route",
                       "scope.pbpk_model", "scope.site_of_action", "drug.modality"]) {
     await page.getByTestId(`confirm-${path}`).click();
     await expect(page.getByTestId(`confirm-${path}`)).toHaveCount(0);

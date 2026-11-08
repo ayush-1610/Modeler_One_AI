@@ -273,6 +273,10 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
     client = [d for d in datasets(ws) if _client_dataset(d) and d.state is not EvidenceState.REJECTED]
     doc_facts = document_facts(ws)
     waiting = [d for d in drafts(ws) if d["kind"] == "concentration_time" and d["study_id"]]
+    # what a waiting sheet lacks, offered from the project's documents, Start and the data plan (build L)
+    from modeler_project.study_offers import context as offer_context
+
+    offer_ctx = offer_context(ws) if waiting else None
     canon = _canonical([*(str(d.study.get("study_id", d.id)) for d in client), *(str(f["study_id"]) for f in doc_facts),
                         *(d["study_id"] for d in waiting)], aliases)
     by_study: dict[str, list[ObservedDataset]] = defaultdict(list)
@@ -399,23 +403,31 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
                 issues.append(_issue(gid, f"lloq:{d.id}", "question",
                                      f"Values below the LLOQ, and no LLOQ stated: give it in {d.unit}",
                                      [], selections, answer=True))
-        items += [_draft_item(d, study_facts) for d in drafts_by_study.get(study_id, [])]
+        items += [_draft_item(d, study_facts, offer_ctx) for d in drafts_by_study.get(study_id, [])]
         groups.append(_group(gid, "study", f"Study {study_id}", items, facts, issues, ws, notes=notes))
     return groups
 
 
-def _draft_item(d: dict[str, Any], study_facts: list[dict[str, Any]]) -> dict[str, Any]:
-    """A sheet read by code and not saved yet (build C2), on its study's card: what it needs, and a document's fact for
-    the same study offered for each need it answers, with its quote."""
+def _draft_item(d: dict[str, Any], study_facts: list[dict[str, Any]], offer_ctx: Any = None) -> dict[str, Any]:
+    """A sheet read by code and not saved yet (build C2), on its study's card: what it needs, and for each need the
+    values the project holds, each with where it comes from: a document's fact for the same study (the reading agent's
+    or the template's), then what code finds in the documents, on Start and in the data plan (build L, the owner,
+    2026-11-08). One is pre-filled when it can be told apart (`study_offers.preselect`); the person reads the sheet."""
     from modeler_project.sheet_intake import NEED_LABEL
+    from modeler_project.study_offers import offers as project_offers
+    from modeler_project.study_offers import preselect
 
+    found = project_offers(offer_ctx, d["study_id"], d["needs"], d.get("points")) if offer_ctx is not None else {}
     offers: dict[str, list[dict[str, Any]]] = {}
     for need in d["needs"]:
         field = _OFFERED.get(need)
         given = [(f["sets"][field], f) for f in study_facts if field and f["sets"].get(field) is not None]
-        if given:
-            offers[need] = [{"value": str(v), "label": f"{_shown(v)} · {f['file']}, p. {f['page']}", "source": _doc_source(f)}
-                            for v, f in given]
+        listed = [{"value": str(v), "label": f"{_shown(v)} · {f['file']}, p. {f['page']}", "source": _doc_source(f),
+                   "document": True} for v, f in given]
+        listed += [o for o in found.get(need, []) if o["value"] not in {x["value"] for x in listed}]
+        if listed:
+            offers[need] = listed
+    prefill = {need: value for need, listed in offers.items() if (value := preselect(listed)) is not None}
     points = d.get("points") or {}
     series = points.get("series") or []
     shown = f"{len(series)} series · {len({t for s in series for t in s['times']})} times" if series else "read by code"
@@ -426,7 +438,8 @@ def _draft_item(d: dict[str, Any], study_facts: list[dict[str, Any]]) -> dict[st
             "source": {"doc_sha256": d["sha256"], "page": None, "locator": d["sheet"], "title": d["file"], "quote": ""},
             "draft": {"sid": d["sid"], "sheet": d["sheet"], "kind": d["kind"], "needs": d["needs"],
                       "labels": {n: NEED_LABEL.get(n, n) for n in d["needs"]}, "answers": d["answers"],
-                      "problems": d["problems"], "notes": d["notes"], "offers": offers, "points": d.get("points"),
+                      "problems": d["problems"], "notes": d["notes"], "offers": offers, "prefill": prefill,
+                      "points": d.get("points"),
                       # who read it, and what the reading left out and changed (build F: "nothing silently")
                       "by": d["by"], "cleaning": d.get("cleaning", [])}}
 
