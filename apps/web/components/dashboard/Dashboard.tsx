@@ -4,7 +4,7 @@
 // program stands, before the list of projects. Every number on it is read from the API; nothing here is a simulation.
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { ProjectsTable } from "@/components/projects/ProjectsTable";
 import { Hero } from "@/components/kit";
@@ -35,8 +35,10 @@ function matches(p: DashboardProject, f: Filter): boolean {
   return STATE_LABEL[p.state] === f;
 }
 
-export function Dashboard({ projects, attention, runningCampaigns, tableProjects }: {
-  projects: DashboardProject[]; attention: Attention[]; runningCampaigns: number; tableProjects: Project[];
+export function Dashboard({ projects, attention, runningCampaigns, tableProjects, notice }: {
+  projects: DashboardProject[]; attention: Attention[]; runningCampaigns: number | null; tableProjects: Project[];
+  /** What could not be read, said under the head. */
+  notice?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
@@ -60,7 +62,7 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
 
   const kpis = [
     { label: "Projects", value: active.length, sub: `across ${compounds} compound${compounds === 1 ? "" : "s"}`, go: () => { setFilter("All"); setQuery(""); }, tone: "" },
-    { label: "Running now", value: runningCampaigns, sub: "campaigns in progress", go: () => setFilter("Running"), tone: "sim" },
+    { label: "Running now", value: runningCampaigns, sub: runningCampaigns === null ? "could not be read" : "campaigns in progress", go: () => setFilter("Running"), tone: "sim" },
     { label: "Needs you", value: needs, sub: "projects waiting on a person", go: () => setFilter("Needs you"), tone: "warn" },
     { label: "Open questions", value: questions, sub: "of interest, across programs", go: () => setFilter("All"), tone: "" },
   ];
@@ -70,12 +72,14 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
       <Hero tone="projects" eyebrow="Modeler One" title="Dashboard" testId="dash-hero"
             lede="Every PBPK program on the Open Systems Pharmacology Suite: where each stands, what waits on you, and what is running."
             actions={<Link className="btn primary" href="/projects/start" data-testid="dash-new-project">+ New project</Link>} />
+      {notice}
       <div className="dash">
       <div className="kpis" role="group" aria-label="At a glance">
         {kpis.map((k) => (
           <button key={k.label} type="button" className={`dash-kpi ${k.tone}`} onClick={k.go} data-magnet data-testid={`kpi-${k.label.toLowerCase().replace(/ /g, "-")}`}>
             <span className="dash-kpi-label">{k.label}</span>
-            <Counter className="dash-kpi-value" value={k.value} />
+            {k.value === null ? <span className="dash-kpi-value" title="could not be read">—</span>
+              : <Counter className="dash-kpi-value" value={k.value} />}
             <span className="dash-kpi-sub">{k.sub}</span>
           </button>
         ))}

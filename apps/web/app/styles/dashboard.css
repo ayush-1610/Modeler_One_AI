@@ -86,3 +86,4 @@
 .riskbar .low { background: var(--low); }
 .riskbar .unrated { background: var(--line); }
 .risk-legend { list-style: none; margin: 0; padding: 0; display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+.dash-partial ul { margin: 6px 0 0; padding-left: 18px; } .dash-partial { margin-top: 24px; }
