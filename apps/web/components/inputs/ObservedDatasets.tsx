@@ -120,7 +120,7 @@ export function ObservedDatasets({ projectId, run }: { projectId: string; run: R
   // a figure the reading tray suggested opens the digitizer on its page (?digitize=<sha>&page=<n>; plan 2026-11-10, R5)
   const params = useSearchParams();
   const asked = params?.get("digitize");
-  const initial = asked ? { sha: asked, page: Number(params?.get("page")) || 1 } : undefined;
+  const initial = asked ? { sha: asked, page: Number(params?.get("page")) || 1, study: params?.get("study") ?? undefined } : undefined;
   const [digitizing, setDigitizing] = useState(Boolean(asked));
   useEffect(() => { if (asked) setDigitizing(true); }, [asked]);
   const view = page.data;

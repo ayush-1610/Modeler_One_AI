@@ -8468,9 +8468,24 @@
             "title": "Kind",
             "type": "string"
           },
+          "medium": {
+            "title": "Medium",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
           "page": {
             "title": "Page",
             "type": "integer"
+          },
+          "ph": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Ph",
+            "type": "array"
           },
           "product": {
             "title": "Product",
@@ -8495,6 +8510,9 @@
           "quote",
           "study_id",
           "product",
+          "medium",
+          "ph",
+          "n",
           "sid",
           "file",
           "doc_sha256",

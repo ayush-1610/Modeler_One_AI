@@ -91,18 +91,23 @@ export function ReadingTray({ projectId }: { projectId: string }) {
           <span className="muted">(no table in the client&apos;s files holds their values)</span>
           <ul>
             {data.figures.map((f) => (
-              <li key={`${f.sid}-${f.page}-${f.kind}`} data-testid={`figure-${f.file}-${f.page}`}>
+              <li key={`${f.sid}-${f.n}`} data-testid={`figure-${f.file}-${f.page}`}>
                 <span>
-                  {f.file}, p. {f.page}:{" "}
-                  {f.kind === "concentration_time" ? `concentration-time profile of study ${f.study_id}` : `dissolution profile of ${f.product}`}
+                  {/* a Word file has no pages: its text is read in parts, which are not Word's pages */}
+                  {f.file}, {f.file.toLowerCase().endsWith(".pdf") ? "p." : "part"} {f.page}:{" "}
+                  {f.kind === "concentration_time" ? `concentration-time profile of study ${f.study_id}`
+                    : `dissolution profile of ${f.product}${f.ph.length ? ` at pH ${f.ph.join(", ")}` : ""}${f.medium ? ` in ${f.medium}` : ""}`}
                 </span>
                 <span className="muted"> · “{f.quote}”</span>
                 {f.digitizable ? (
                   // a full load: the Studies tab opens with the digitizer on the figure's page
                   <a className="btn small" data-testid={`digitize-${f.file}-${f.page}`}
-                     href={`/projects/${encodeURIComponent(projectId)}/inputs?tab=studies&digitize=${f.doc_sha256}&page=${f.page}#observed-datasets`}>
+                     href={`/projects/${encodeURIComponent(projectId)}/inputs?tab=studies&digitize=${f.doc_sha256}&page=${f.page}&study=${encodeURIComponent(f.study_id)}#observed-datasets`}>
                     Digitize
                   </a>
+                ) : f.kind === "dissolution" ? (
+                  <span className="muted"> · the digitizer makes concentration-time profiles: enter its % dissolved in the
+                    product&apos;s dissolution data</span>
                 ) : (
                   <span className="muted"> · a Word file: save this figure as an image or a PDF, add it with Add data, then
                     digitize it</span>

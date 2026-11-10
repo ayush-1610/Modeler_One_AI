@@ -346,3 +346,84 @@ def test_a_suggestion_closes_when_a_table_arrives_under_a_linked_name_and_a_with
     assert [f["product"] for f in open_suggestions(ws)] == ["APL 20"]
     DocumentLibrary(ws).withdraw(other["sha256"], by="u", reason="superseded")
     assert open_suggestions(ws) == []
+
+
+# ---- the R5 review --------------------------------------------------------------------------------------------------
+
+NCA_PAGES = [CSR[0], ["Table 5: NCA results of Study EX-501", "Cmax 42.0 ng/mL (mean)",
+                      "Figure 2. Mean plasma concentrations of drug X (ng/mL) after a 20 mg dose, Study EX-501"]]
+
+
+def test_an_nca_table_does_not_close_a_concentration_time_figure_of_the_same_study(tmp_path):
+    from modeler_project.figure_suggestions import open_suggestions
+
+    ws = _ws(tmp_path)
+    _read(ws, [[FACTS], [("propose_pk_table", {"study_id": "EX-501", "page": 2, "parameters": [
+        {"parameter": "Cmax", "value": 42.0, "unit": "ng/mL", "quote": "Cmax 42.0 ng/mL (mean)"}]})],
+               [("suggest_digitization", {"kind": "concentration_time", "page": 2, "study_id": "EX-501",
+                                          "quote": "Figure 2. Mean plasma concentrations of drug X (ng/mL)"})]],
+          pages=NCA_PAGES)
+    assert [d.kind for d in datasets(ws)] == ["pk_parameters"]
+    (open_,) = open_suggestions(ws)                       # Cmax and AUC are not the curve's values
+    assert open_["study_id"] == "EX-501" and open_["digitizable"] is True
+
+
+def test_a_dissolution_table_in_one_medium_does_not_close_a_figure_of_others(tmp_path, monkeypatch):
+    from modeler_project import figure_suggestions
+
+    ws = _ws(tmp_path)
+    pages = [["Dissolution of APL 20: pH 6.8 phosphate buffer table",
+              "Figure 4. Dissolution profile of APL 20 in pH 1.2 and pH 4.5 media"]]
+    _sub, ctx, _m = _read(ws, [[
+        ("suggest_digitization", {"kind": "dissolution", "page": 1, "product": "APL 20", "ph": [1.2, 4.5],
+                                  "quote": "Figure 4. Dissolution profile of APL 20 in pH 1.2 and pH 4.5 media"}),
+        ("suggest_digitization", {"kind": "dissolution", "page": 1, "product": "APL 20", "ph": [6.8],
+                                  "quote": "Figure 4. Dissolution profile of APL 20 in pH 1.2 and pH 4.5 media"})]],
+        name="diss.pdf", pages=pages)
+    assert "each pH must be written in the caption quoted" in "\n".join(ctx.refused)
+    held = [{"key": {"product": "APL 20", "ph": 6.8, "medium": "phosphate buffer"}}]
+    monkeypatch.setattr(figure_suggestions, "profiles", lambda ws: held)
+    (figure,) = figure_suggestions.open_suggestions(ws)
+    assert figure["ph"] == [1.2, 4.5] and figure["digitizable"] is False    # no digitizer for % dissolved
+    held += [{"key": {"product": "APL 20", "ph": 1.2}}, {"key": {"product": "APL 20", "ph": 4.5}}]
+    assert figure_suggestions.open_suggestions(ws) == []                     # every pH it shows has a table
+
+
+def test_a_person_s_answers_decide_which_names_are_one_study(tmp_path):
+    from modeler_project.client_data import record_delivery_map, update_review
+    from modeler_project.figure_suggestions import open_suggestions
+
+    ws = _ws(tmp_path)
+    sub, _ctx, _m = _read(ws, [[("suggest_digitization", {
+        "kind": "concentration_time", "page": 2, "study_id": "EX-501",
+        "quote": "Figure 2. Mean plasma concentrations of drug X (ng/mL)"})]], pages=FIGURE_PAGES)
+    propose_dataset(ws, ObservedDataset(
+        id=new_dataset_id(), kind="profile", study={"study_id": "093-26", "route": "oral", "food_state": "fasted",
+                                                    "formulation": "ir_tablet", "dose_mg": 20, "n": 12, "n_timepoints": 3,
+                                                    "statistic": "mean"},
+        unit="ng/ml", series=(Series(name="mean", statistic="arithmetic_mean", times=(1, 2, 24), values=(40.0, 30.0, None)),),
+        origin=Origin.CLIENT, extraction="CELL", provider="CLIENT",
+        source=SourceRef(doc_sha256="c" * 64, page=1, title="pk.xlsx"), quote="row"), actor="u")
+    record_delivery_map(ws, files={}, links=[{"kind": "study", "names": ["EX-501", "093-26"], "sid": sub["id"], "page": 1,
+                                              "locator": "p. 1", "quote": "Study EX-501 (093-26)"}],
+                        looked_at=[sub["id"]], refused=[], summary="", run_id=None, by="agent:t")
+    assert open_suggestions(ws) == []                                          # linked: a table holds the values
+    update_review(ws, lambda c: ({**c, "selections": {**c.get("selections", {}),
+                                                      "link|093-26": {"option": "different"}}}, "No: another study"),
+                  by="u")
+    assert len(open_suggestions(ws)) == 1                                      # the person said they are not one
+    update_review(ws, lambda c: ({**c, "selections": {}, "aliases": {"093-26": "EX-501"}}, "the same study"), by="u")
+    assert open_suggestions(ws) == []                                          # a confirmed alias counts
+
+
+@pytest.mark.parametrize(("quote", "ok"), [
+    ("Figure S2. Individual plasma concentration-time profiles", True),
+    ("Mean concentration-time course of desvenlafaxine", True),
+    ("Table 4: Mean (SD) plasma concentrations (ng/mL) of drug X by time (h)", False),
+])
+def test_a_caption_is_a_figure_s_not_a_table_s(tmp_path, quote, ok):
+    ws = _ws(tmp_path)
+    _sub, ctx, _m = _read(ws, [[("suggest_digitization", {"kind": "concentration_time", "page": 1, "study_id": "EX-501",
+                                                         "quote": quote})]],
+                          pages=[["Clinical Study Report: Study EX-501", quote]])
+    assert bool(ctx.figures) is ok, ctx.refused

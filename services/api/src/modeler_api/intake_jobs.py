@@ -30,6 +30,7 @@ from modeler_project.client_data import (
     READABLE_DOCUMENTS,
     ClientDataError,
     delivery_map,
+    forget_tries,
     ingest,
     record_delivery_map,
     record_reading,
@@ -290,8 +291,8 @@ def run_delivery_job(store: ProjectStore, tenant_id: str, project_id: str, sids:
 
 MAP_CHUNK = 20      # files mapped in one pass (a larger delivery is mapped in several, each against the map so far)
 MAP_TRIES = 2       # a file whose pass did not finish is tried again this many times in all, then read without the map
-SETTLE_S = 3.0      # "Add data" sends a delivery in batches: the first pass waits until no file has arrived for this long …
-SETTLE_MAX_S = 45.0  # … and at most this long, so the files of one delivery are mapped together
+SETTLE_S = 8.0      # "Add data" sends a delivery in batches, each read by code as it arrives: the first pass waits until no
+SETTLE_MAX_S = 90.0  # file has arrived for this long, at most this long, so the files of one delivery are mapped together
 
 
 def settle(queue: ReadingQueue, *, quiet_s: float | None = None, max_s: float | None = None) -> None:
@@ -309,16 +310,28 @@ def settle(queue: ReadingQueue, *, quiet_s: float | None = None, max_s: float | 
         seen = now
 
 
-def map_waiting(store: ProjectStore, tenant_id: str, project_id: str, model, queue: ReadingQueue) -> int:
-    """Map every waiting file the delivery pass has not finished looking at, together, before the next is read. A pass
-    that does not finish leaves its files to be tried again, `MAP_TRIES` times in all; returns how many were tried."""
+def map_waiting(store: ProjectStore, tenant_id: str, project_id: str, model, queue: ReadingQueue,
+                tried_now: set[str] | None = None) -> int:
+    """Map, together, every waiting file the delivery pass has not finished looking at, and every other client file of
+    the project never mapped (one stored before the map existed), before the next is read. A pass that does not finish
+    leaves its files to be tried again by a later reading job (`tried_now`: one pass per file per job), `MAP_TRIES`
+    times in all, then they are read without the map. Returns how many files were tried."""
     ws = Workspace(store, tenant_id, project_id)
     mapped = delivery_map(ws)
     looked, tries = set(mapped["looked_at"]), mapped["tries"]
-    waiting = list(dict.fromkeys(i.sid for i in queue.items() if i.state == "queued" and i.sid not in looked
-                                 and tries.get(i.sid, 0) < MAP_TRIES))
-    for start in range(0, len(waiting), MAP_CHUNK):
-        chunk = waiting[start:start + MAP_CHUNK]
+    tried_now = set() if tried_now is None else tried_now
+    library = DocumentLibrary(ws)
+
+    def wanted(sid: str) -> bool:
+        return sid not in looked and sid not in tried_now and tries.get(sid, 0) < MAP_TRIES
+
+    waiting = [i.sid for i in queue.items() if i.state == "queued" and wanted(i.sid)]
+    stored = [str(c["id"]) for c in submissions(ws) if wanted(str(c["id"])) and not c.get("template")
+              and not (library.has_record and library.entry(c["sha256"]).withdrawn is not None)]
+    todo = list(dict.fromkeys([*waiting, *stored]))
+    for start in range(0, len(todo), MAP_CHUNK):
+        chunk = todo[start:start + MAP_CHUNK]
+        tried_now.update(chunk)
         try:
             result = run_delivery_job(store, tenant_id, project_id, chunk, model=model)
             if result.get("files") == 0:   # none readable (withdrawn, say): looked at, nothing to map
@@ -328,7 +341,7 @@ def map_waiting(store: ProjectStore, tenant_id: str, project_id: str, model, que
             log.exception("the delivery pass over %d file(s) of %s failed", len(chunk), project_id)
             record_delivery_map(ws, files={}, links=[], looked_at=[], refused=[f"the pass failed: {exc}"], summary="",
                                 run_id=None, by="code", tried=chunk, status="FAILED")
-    return len(waiting)
+    return len(todo)
 
 
 def drain(store: ProjectStore, tenant_id: str, project_id: str, model, held: Callable[[], bool] | None = None) -> None:
@@ -338,9 +351,10 @@ def drain(store: ProjectStore, tenant_id: str, project_id: str, model, held: Cal
     queue = ReadingQueue(Workspace(store, tenant_id, project_id))
     queue.recover()
     settle(queue)   # the rest of a delivery sent in batches arrives first, so it is mapped as one
+    tried_now: set[str] = set()
     while held is None or held():
-        try:
-            map_waiting(store, tenant_id, project_id, model, queue)   # the files that arrived since, mapped together
+        try:   # the files that arrived since, mapped together
+            map_waiting(store, tenant_id, project_id, model, queue, tried_now)
         except Exception:     # the map is context: a failure to map never stops the reading
             log.exception("mapping the waiting files of %s failed", project_id)
         if (item := queue.take()) is None:
@@ -370,12 +384,7 @@ def sweep(store: ProjectStore, tenant_id: str, project_id: str) -> int:
     every = submissions(ws)
     todo = [(str(c["id"]), str(c["file"])) for c in every if str(c.get("id")) not in known and _needs_agent(c)]
     added = len(queue.add(todo, task="arrival", by="code")) if todo else 0
-    # and each file the delivery pass has not finished looking at, while it has tries left (R4 review: none unmapped)
-    mapped = delivery_map(ws)
-    waiting = {i.sid for i in items if i.state in ("queued", "reading")} | {sid for sid, _name in todo}
-    unmapped = [(str(c["id"]), str(c["file"])) for c in every if str(c["id"]) not in waiting
-                and str(c["id"]) not in mapped["looked_at"] and mapped["tries"].get(str(c["id"]), 0) < MAP_TRIES]
-    return added + (len(queue.add(unmapped, task="map", by="code")) if unmapped else 0)
+    return added
 
 
 def kick(store: ProjectStore, tenant_id: str, project_id: str, *, by: str = "code") -> bool:
@@ -461,6 +470,7 @@ def queue_again(store: ProjectStore, tenant_id: str, project_id: str, item: Queu
     document = content.get("kind") in READABLE_DOCUMENTS
     task: QueueTask = "arrival" if not document and not item.sheets and _needs_agent(content) else "read"
     ReadingQueue(ws).add([(item.sid, item.file)], task=task, by=by, sheets=item.sheets, supersede_arrival=document)
+    forget_tries(ws, [item.sid])
     return "RUNNING" if kick(store, tenant_id, project_id, by=by) else "QUEUED"
 
 
@@ -493,6 +503,7 @@ def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[
         return True
     if todo:
         queue.add(todo, task="arrival", by=by)
+    forget_tries(ws, list(sids))   # a file added again is mapped again, if its earlier passes did not finish
     # every other file of the delivery is mapped too (the owner's decision 2: no file left out of the map), once
     looked = set(delivery_map(ws)["looked_at"])
     queued = {sid for sid, _name in todo}

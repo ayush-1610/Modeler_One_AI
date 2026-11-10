@@ -104,10 +104,13 @@ class FigureSuggestion(View):
     quote: str
     study_id: str
     product: str
+    medium: str
+    ph: list[float]
+    n: int                         # the suggestion's place on its file's reading (with the sid, it names it)
     sid: str
     file: str
     doc_sha256: str
-    digitizable: bool              # the digitizer opens the file (a PDF); a Word file's figure is saved as an image first
+    digitizable: bool              # a PDF's concentration-time figure: the digitizer opens its page and makes a profile
 
 
 class ReadingQueuePage(View):

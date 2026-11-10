@@ -15,6 +15,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — R5 review: a figure is suggested while no table of the same values exists; the R4 guards hold (2026-11-10)
+A review of R5 and of the R4 review fixes (each finding checked by a second reviewer) confirmed 8 defects and raised 9
+more; all are fixed except one noted below.
+- **The right tables close a figure:** a concentration-time figure stays suggested until the study has a
+  concentration-time **profile** (an NCA table of Cmax and AUC no longer closes it); a dissolution figure records the
+  medium and each pH its caption names (checked on the page) and stays until the product has a profile in each. Names
+  follow the person's answers on Inputs: a link they refused no longer counts, an alias they confirmed does; links from
+  withdrawn files do not count.
+- **Captions:** "Figure S2", "time course" and "concentration-time" are figure captions; a table's title ("Table 4 …")
+  is not.
+- **Digitize** is offered only for a PDF's concentration-time figure (the digitizer makes concentration-time
+  profiles) and opens with the study's id filled in; a dissolution figure says to enter its % dissolved; a Word file's
+  figure is named by its text part, not a page.
+- **The sheet reader's guard** checks each cell on its own (a value is never pieced together from two cells) and the
+  sheet's name; an evidence entry must cite a cell of the sheet read; a strength or dose quote must state the number
+  with its unit.
+- **Mapping:** opening Inputs no longer queues every old file to be mapped (the tray showed read files as waiting); the
+  pass also maps the project's files never mapped, when it runs. A file gets one pass per reading job, twice in all,
+  and adding it again (or "Read again") lets it be mapped again. The reading job waits until no file has arrived for 8 s
+  (at most 90 s). A workbook's overview names every sheet and stays within its budget. A fuller name may replace a
+  shorter one for the same field.
+- Not changed: the literature agent's own `request_digitization` (A3, papers found by the agent) still files a task;
+  decision 3 was about the client's delivery.
+- OpenAPI and `api-types.ts` updated (`FigureSuggestion.medium`, `.ph`, `.n`). Tests in `test_document_reader.py`,
+  `test_sheet_reader.py`, `test_delivery_pass.py`, `test_client_api.py` (T-47) and `e2e/library.spec.ts`.
+
 ### Fixed — R4 review: the map stays context; code's checks on the delivery pass tightened (2026-11-10)
 An adversarial review of R4 (science, robustness, the owner's own delivery; each finding checked by a second reviewer)
 confirmed 9 defects and raised 12 more; all are fixed here.

@@ -518,6 +518,21 @@ def delivery_map(ws: Workspace) -> dict[str, Any]:
             "tries": content.get("tries", {}), "runs": content.get("runs", [])}
 
 
+def forget_tries(ws: Workspace, sids: list[str]) -> None:
+    """A person added a file again, or asked for it to be read again: its unfinished delivery passes are forgotten, so
+    it is mapped again (a file the pass finished looking at stays looked at)."""
+    current = delivery_map(ws)
+    if not any(sid in current["tries"] for sid in sids):
+        return
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, DELIVERY):
+        current = delivery_map(ws)
+        version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, DELIVERY)
+        content = dict(version.content) if version else {}
+        content["tries"] = {k: v for k, v in current["tries"].items() if k not in sids}
+        ws.commit(ArtifactKind.CLIENT_SUBMISSION, DELIVERY, content, actor="code",
+                  reason=f"delivery map: {len(sids)} file(s) to be mapped again")
+
+
 def record_delivery_map(ws: Workspace, *, files: dict[str, dict[str, Any]], links: list[dict[str, Any]],
                         looked_at: list[str], refused: list[str], summary: str, run_id: str | None, by: str,
                         tried: list[str] = (), status: str = "COMPLETED") -> None:

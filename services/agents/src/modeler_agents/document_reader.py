@@ -66,7 +66,7 @@ Propose with:
 - propose_dissolution: a dissolution TABLE of one product under one set of conditions: product and product_quote (a line naming it), conditions [{field, value, page, quote}] for role (TEST, RLD, REFERENCE), strength_mg, batch, apparatus, rpm, medium, ph, volume_ml as the file states them, header_quote stating the time unit and %, and rows {time, mean, sd, quote}.
 - propose_composition: a product's composition as the file reports it (shown to the reviewer, not used by the model): product and product_quote, and components [{name, amount, unit, function, quote}], each quote writing the component and its amount.
 - propose_link: when the file says two names are one study (a protocol number and a study code), one product (a code and a trade name) or one batch (a batch and a lot number): kind study, product or batch, with the quote that says so.
-- suggest_digitization: a FIGURE that is the only source of a study's concentration-time profile or of a product's dissolution profile (no table in this file or, by the delivery map, in another file holds its values): kind concentration_time with the study_id, or dissolution with the product, the page, and the quote: the figure's caption or title copied from that page. A person decides whether to digitize it. Never read numbers off a figure, and do not suggest any other figure.
+- suggest_digitization: a FIGURE that is the only source of a study's concentration-time profile or of a product's dissolution profile (no table in this file or, by the delivery map, in another file holds its values): kind concentration_time with the study_id, or dissolution with the product (and the medium and each pH, when the caption states them), the page, and the quote: the figure's caption or title copied from that page. A person decides whether to digitize it. Never read numbers off a figure, and do not suggest any other figure.
 
 Rules: a quote is at least 12 characters, so quote a table row whole. Never compute, convert or guess a number; copy units as written. If a fact is not stated, leave it out and say so in your summary. A proposal the program refuses comes back with the reason: fix it or leave it. Call several tools in one turn when you can. Finish with a short summary: what you proposed, what the file does not state, what is only in figures."""
 
@@ -419,30 +419,40 @@ def propose_composition(ctx: DocumentContext, *, product: str, product_quote: st
 
 
 FIGURE_KINDS = ("concentration_time", "dissolution")
-_FIGURE = re.compile(r"\bfig(?:ure)?\.?\s*\d|\bplots?\b|\bgraphs?\b|\bcharts?\b|\bcurves?\b|\bprofiles?\b", re.IGNORECASE)
+_FIGURE = re.compile(r"\bfig(?:ure)?\.?\s*(?:S|A)?\d|\bplots?\b|\bgraphs?\b|\bcharts?\b|\bcurves?\b|\bprofiles?\b|"
+                     r"time[- ]course|concentration[- ]time", re.IGNORECASE)
+_TABLE_TITLE = re.compile(r"^\s*(?:table|tab\.)\s*[A-Z]?\d", re.IGNORECASE)
+_PH_IN = re.compile(r"\bpH\s*[:=]?\s*(\d{1,2}(?:[.,]\d+)?)", re.IGNORECASE)
 
 
 def suggest_digitization(ctx: DocumentContext, *, kind: str, page: int, quote: str, study_id: str = "",
-                         product: str = "") -> str:
+                         product: str = "", medium: str = "", ph: Any = None) -> str:
     """A figure worth digitizing (plan 2026-11-10, R5; the owner's decision 3): only a study's concentration-time profile
-    or a product's dissolution profile, its caption quoted from its page, the study or product written in this file.
-    Nothing is filed: the suggestion is shown to a person only while no table holds the same values
-    (`modeler_project.figure_suggestions`)."""
+    or a product's dissolution profile, its caption quoted from its page, the study or product written in this file;
+    for a dissolution figure, the medium and each pH it shows when the caption states them. Nothing is filed: the
+    suggestion is shown to a person only while no table holds the same values (`modeler_project.figure_suggestions`)."""
     what = f"figure on p. {page}"
     if kind not in FIGURE_KINDS:
         return ctx.refuse(what, "only a study's concentration-time profile or a dissolution profile is suggested")
     if why := check_quote(ctx.page(page), quote):
         return ctx.refuse(what, why)
-    if not _FIGURE.search(quote):
-        return ctx.refuse(what, "the quote must be the figure's caption or title (Figure 2, plot, graph, profile …)")
+    if _TABLE_TITLE.search(quote) or not _FIGURE.search(quote):
+        return ctx.refuse(what, "the quote must be the figure's caption or title (Figure 2, plot, graph, profile …), "
+                                "not a table's")
     if kind == "concentration_time":
         if not study_id.strip() or not _named_in_file(ctx, study_id):
             return ctx.refuse(what, "name the study as this file writes it")
-        target = {"study_id": study_id.strip()}
+        target: dict[str, Any] = {"study_id": study_id.strip()}
     else:
         if not product.strip() or not any(names_in(p, product) for p in ctx.pages()):
             return ctx.refuse(what, "name the product as this file writes it")
-        target = {"product": product.strip()}
+        stated = {round(float(v.replace(",", ".")), 2) for v in _PH_IN.findall(quote)}
+        wanted = [round(float(v), 2) for v in (_parse(ph) if isinstance(ph, (str, list)) else [ph] if ph is not None else [])]
+        if any(v not in stated for v in wanted):
+            return ctx.refuse(what, "each pH must be written in the caption quoted (pH 1.2, pH 4.5)")
+        if medium.strip() and not text_in(medium, quote):
+            return ctx.refuse(what, "the medium must be written in the caption quoted")
+        target = {"product": product.strip(), "medium": medium.strip(), "ph": wanted or sorted(stated)}
     item = {"kind": kind, "page": page, "quote": quote[:400], **target}
     if item in ctx.figures:
         return f"ACCEPTED (already suggested) {what}"
@@ -506,7 +516,9 @@ def build_tools(ctx: DocumentContext) -> list[Tool]:
         Tool("suggest_digitization", "Suggest a figure that is the only source of a study's concentration-time profile or "
              "a product's dissolution profile, for a person to digitize; its caption quoted.",
              {"type": "object", "properties": {"kind": {"type": "string", "enum": list(FIGURE_KINDS)}, "page": i, "quote": s,
-                                               "study_id": s, "product": s}, "required": ["kind", "page", "quote"]},
+                                               "study_id": s, "product": s, "medium": s,
+                                               "ph": {"type": "array", "items": num}},
+              "required": ["kind", "page", "quote"]},
              lambda **kw: suggest_digitization(ctx, **kw)),
     ]
 

@@ -5272,8 +5272,14 @@ export interface components {
              * @enum {string}
              */
             kind: "concentration_time" | "dissolution";
+            /** Medium */
+            medium: string;
+            /** N */
+            n: number;
             /** Page */
             page: number;
+            /** Ph */
+            ph: number[];
             /** Product */
             product: string;
             /** Quote */

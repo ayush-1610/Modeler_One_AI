@@ -216,7 +216,9 @@ def propose_facts(ctx: DeliveryContext, *, sid: str, facts: Any, sheet: str = ""
         if why:
             answers.append(ctx.refuse(what, why))
             continue
-        if name in into and into[name]["value"] != value:   # one value per file or sheet: a file with two is per sheet
+        earlier = into.get(name, {}).get("value")
+        refines = isinstance(earlier, str) and isinstance(value, str) and tokens_in(earlier, value)   # a fuller name
+        if name in into and earlier != value and not refines:   # one value per file or sheet: a file with two is per sheet
             answers.append(ctx.refuse(what, f"already {into[name]['value']} here; a file holding more than one gives it "
                                             "per sheet, or leaves it out"))
             continue
@@ -276,11 +278,16 @@ def overview(f: DeliveryFile) -> str:
     budget, so no sheet is left out), or the first page of a PDF or Word file."""
     if f.workbook is not None:
         names = list(f.workbook.sheets)
-        share = max(200, WORKBOOK_CHARS // max(1, len(names)))
-        parts = [f"sheets: {', '.join(names)}"]
+        share = max(120, WORKBOOK_CHARS // max(1, len(names)))
+        parts, used = [f"sheets: {', '.join(names)}"], 0
         for name in names:
+            if used >= WORKBOOK_CHARS:   # every sheet is named above; read_sheet for the rest
+                parts.append("(the other sheets' rows: read_sheet)")
+                break
             preview = f.workbook.sheets[name].preview(max_rows=HEADER_ROWS, max_columns=HEADER_COLUMNS)
-            parts.append(f"sheet {name}:\n" + (preview if len(preview) <= share else preview[:share] + " …"))
+            shown = preview if len(preview) <= share else preview[:share] + " …"
+            parts.append(f"sheet {name}:\n{shown}")
+            used += len(shown)
         return "\n".join(parts)
     if f.pages:
         text = f"{len(f.pages)} pages; p. 1:\n{f.pages[0]}"

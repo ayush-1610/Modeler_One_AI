@@ -126,3 +126,38 @@ def test_a_reading_cannot_take_a_constant_its_sheet_and_name_do_not_state(tmp_pa
     reading = read_sheet(Scripted([[("propose_reading", {"form": form})], []]), workbook=workbook(case), sheet=case.sheet,
                          drug=case.drug, actor="agent:t", category="DISSOLUTION")
     assert reading.form is not None
+
+
+def test_a_constant_is_found_in_one_cell_and_evidence_comes_from_the_sheet_read(tmp_path):
+    # the R5 review: the guard matched a value across cells ("0.93" + "26.1" made "093-26"), took evidence from another
+    # sheet, and took a strength from any number of a cell
+    import io
+
+    from openpyxl import Workbook
+
+    from modeler_agents.sheet_reader import ReadingContext, _unquoted_changes, check_reading
+    from modeler_intake.grid import read_workbook_bytes
+    from modeler_intake.sheet_form import SheetForm
+
+    wb = Workbook()
+    data = wb.active
+    data.title = "PK"
+    data.append(["Time (h)", "Conc (ng/mL)"])
+    data.append([0.93, 26.1])
+    other = wb.create_sheet("Notes")
+    other.append(["batch B999 of another product"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    book = read_workbook_bytes(buf.getvalue(), "pk.xlsx")
+    start = SheetForm(sheet="PK", header_row=1, first_data_row=2, time_column="A", value_columns=["B"])
+    ctx = ReadingContext(workbook=book, sheet="PK", start=start, start_notes=[], actor="a")
+    pieced = start.model_copy(update={"constants": {"study_id": "093-26"}})
+    assert _unquoted_changes(ctx, pieced)                                   # not pieced together from two cells
+    elsewhere = start.model_copy(update={"constants": {"batch": "B999"},
+                                         "evidence": [Evidence(cell="Notes!A1", quote="batch B999", supports="batch",
+                                                               field="batch")]})
+    assert any("cite a cell of this sheet (PK)" in p for p in check_reading(book, elsewhere, []))
+    rpm = start.model_copy(update={"constants": {"strength_mg": "50"},
+                                   "evidence": [Evidence(cell="PK!A1", quote="Time (h)", supports="strength",
+                                                         field="strength_mg")]})
+    assert any("does not state strength_mg" in p for p in check_reading(book, rpm, []))

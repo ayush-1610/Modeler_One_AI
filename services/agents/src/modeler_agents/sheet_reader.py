@@ -110,6 +110,10 @@ def _supports(form: SheetForm, name: str, quote: str, value: str) -> bool:
     if name in ("value_unit", "time_unit"):
         unit = _unit_of(form.kind, name, value)
         return unit is not None and any(_unit_of(form.kind, name, t) == unit for t in _UNIT_TOKEN.findall(quote))
+    if name in ("strength_mg", "dose"):   # the number next to its unit, not any number of the cell (R5 review)
+        unit = "mg" if name == "strength_mg" else str(form.constants.get("dose_unit") or "mg")
+        with_unit = re.findall(rf"(\d+(?:[.,]\d+)?)\s*{re.escape(unit)}(?![a-z/])", quote, re.IGNORECASE)
+        return any(_same_number(n, value) for n in with_unit)
     return any(_same_number(n, value) for n in _NUMBER.findall(quote))
 
 
@@ -129,6 +133,9 @@ def check_reading(workbook: WorkbookGrid, form: SheetForm, unstated: list[str]) 
     should stand on a quote and does not."""
     problems = []
     for e in form.evidence:
+        if (e.field in QUOTED or e.field in ON_SHEET) and form.sheet and e.cell.partition("!")[0] != form.sheet:
+            problems.append(f"evidence {e.cell}: cite a cell of this sheet ({form.sheet})")
+            continue
         text = _cell_text(workbook, e.cell)
         if text is None:
             problems.append(f"evidence {e.cell}: no such cell (write it as Sheet!A1)")
@@ -194,18 +201,20 @@ def _states(name: str, value: str, text: str) -> bool:
 SHEET_ROWS_SEARCHED = 60
 
 
-def _sheet_text(ctx: ReadingContext) -> str:
-    """The text of every cell of the sheet's first rows, where a constant may be written."""
+def _sheet_cells(ctx: ReadingContext) -> list[str]:
+    """The text of each cell of the sheet's first rows, and the sheet's own name: each is checked on its own, so a value
+    is never pieced together from several cells (the R5 review)."""
     grid = ctx.workbook.sheets[ctx.sheet]
-    return "\n".join(text for r in range(1, min(grid.max_row, SHEET_ROWS_SEARCHED) + 1)
-                     for c in range(1, grid.max_column + 1) if (text := as_text(grid.cell(r, c).value)))
+    return [ctx.sheet, *(text for r in range(1, min(grid.max_row, SHEET_ROWS_SEARCHED) + 1)
+                         for c in range(1, grid.max_column + 1) if (text := as_text(grid.cell(r, c).value)))]
 
 
 def _unquoted_changes(ctx: ReadingContext, reading: SheetForm) -> list[str]:
-    """A constant the reading changes from code's first filling must be written on this sheet (in a cited cell or any
-    cell of its first rows) or in the file's name; nothing comes from another file or the delivery map."""
+    """A constant the reading changes from code's first filling must be written on this sheet (in a cited cell, in one
+    cell of its first rows, or in its name) or in the file's name; nothing comes from another file or the delivery
+    map."""
     problems = []
-    sheet_text = None
+    cells: list[str] | None = None
     for name in ON_SHEET:
         new = str(reading.constants.get(name, "")).strip()
         if not new or new == str(ctx.start.constants.get(name, "")).strip():
@@ -213,8 +222,8 @@ def _unquoted_changes(ctx: ReadingContext, reading: SheetForm) -> list[str]:
         if any(e.field == name and _states(name, new, e.quote) for e in reading.evidence) or \
                 _states(name, new, ctx.workbook.file_name):
             continue
-        sheet_text = _sheet_text(ctx) if sheet_text is None else sheet_text
-        if _states(name, new, sheet_text):
+        cells = _sheet_cells(ctx) if cells is None else cells
+        if any(_states(name, new, cell) for cell in cells):
             continue
         problems.append(f"{name} {new}: not written on this sheet nor in the file's name; cite the cell that states it "
                         f"or leave it for the person (another file or the delivery map is context, not data)")

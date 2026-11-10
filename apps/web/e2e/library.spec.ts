@@ -202,6 +202,7 @@ test("a figure that is the only source of a study's profile is suggested, and op
     await expect(page.getByTestId("digitize-document")).toHaveValue(/^[0-9a-f]{64}$/);
     await expect(page.getByTestId("digitize-document").locator("option:checked")).toHaveText("FIG-01 Mean plot.pdf");
     await expect(page.getByTestId("digitize-page")).toHaveValue("1");
+    await expect(page.getByPlaceholder("study id (author-year-route-dose)")).toHaveValue("FIG-01");   // for its study
   });
 
 /** A one-page PDF with one line of text, its cross-reference table at the right offsets. */

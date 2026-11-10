@@ -23,8 +23,8 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
   projectId: string;
   documents: DocumentView[];
   onSaved: (datasetId: string) => void;
-  /** Open on this document and page (a figure the reading tray suggested; plan 2026-11-10, R5). */
-  initial?: { sha: string; page: number };
+  /** Open on this document and page, for this study (a figure the reading tray suggested; plan 2026-11-10, R5). */
+  initial?: { sha: string; page: number; study?: string };
 }) {
   const figures = documents.filter((d) => d.kind === "pdf" || d.kind === "image");
   const start = initial && figures.some((d) => d.sha256 === initial.sha) ? initial : null;
@@ -36,7 +36,7 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
   const [y, setY] = useState<Axis>(EMPTY_AXIS);
   const [series, setSeries] = useState("mean");
   const [points, setPoints] = useState<Record<string, [number, number][]>>({ mean: [] });
-  const [study, setStudy] = useState<Study>({ study_id: "", reference: "", n: "", route: "oral", dose_mg: "", infusion_time_min: "",
+  const [study, setStudy] = useState<Study>({ study_id: start?.study ?? "", reference: "", n: "", route: "oral", dose_mg: "", infusion_time_min: "",
                                               formulation: "ir_tablet", food_state: "fasted", statistic: "mean_sd" });
   const [units, setUnits] = useState({ time: "h", conc: "ng/ml", locator: "Figure " });
   const [error, setError] = useState<string | null>(null);
