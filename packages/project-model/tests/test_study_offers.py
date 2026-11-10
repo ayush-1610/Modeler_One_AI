@@ -69,3 +69,34 @@ def test_the_number_of_subjects_is_counted_from_the_sheets_own_subject_columns()
     verified = offers(Context((), None, ()), "230-23-REF", ["n"], {"series": [{"name": "Mean", "statistic": "mean", "n": 24}]})
     assert preselect(verified["n"]) == "24"
     assert offers(Context((), None, ()), "230-23-REF", ["n"], {"series": [{"name": "Mean", "statistic": "mean"}]}) == {}
+
+
+def test_a_studys_name_gives_its_subjects_its_arm_and_fed_or_fasted():
+    # the owner, 2026-11-10: a study card named "395-18_N15_Ref_Fed" was asked all four facts
+    ctx = Context((_sentence("In study 395-18 each subject received one 100 mg extended-release tablet."),), _brief(), BE)
+    found = offers(ctx, "395-18_N15_Ref_Fed", [*NEEDS, "food_state"])
+    assert preselect(found["n"]) == "15" and "the study's name (395-18_N15_Ref_Fed)" in found["n"][0]["label"]
+    assert preselect(found["food_state"]) == "fed"
+    assert preselect(found["dose"]) == "100" and preselect(found["formulation"]) == "mr"   # read from study 395-18
+    assert preselect(found["purpose"]) == "external_validation"                           # "Ref": a reference arm
+    # the sheet's own subject columns come before the name's N: a subject who dropped out shows as a second offer
+    points = {"series": [{"name": f"0{i}", "statistic": "individual"} for i in range(10, 24)]}
+    counted = offers(ctx, "395-18_N15_Ref_Fed", ["n"], points)
+    assert [o["value"] for o in counted["n"]] == ["14", "15"] and preselect(counted["n"]) == "14"
+
+
+def test_fed_or_fasted_comes_from_the_files_name_or_a_protocol_naming_the_study():
+    summary = _sentence("Study 230-23 was conducted under fasting conditions.", "Clinical summary.pdf")
+    from_text = offers(Context((summary,), None, ()), "230-23-TEST", ["food_state"])["food_state"]
+    assert preselect(from_text) == "fasted" and from_text[0]["source"]["title"] == "Clinical summary.pdf"
+    # a fed study's subjects fast overnight before the meal: read as fed, and two documents that disagree choose nothing
+    protocol = _sentence("Subjects fasted overnight before a high-fat breakfast.", "230-23 Protocol.pdf")
+    both = offers(Context((summary, protocol), None, ()), "230-23-TEST", ["food_state"])["food_state"]
+    assert [o["value"] for o in both] == ["fasted", "fed"] and preselect(both) is None
+    # the file's name gives it, before the documents
+    from_file = offers(Context((summary, protocol), None, ()), "230-23-TEST", ["food_state"],
+                       file="230-23 Fasting Test.xlsx")["food_state"]
+    assert preselect(from_file) == "fasted" and "the file's name (230-23 Fasting Test.xlsx)" in from_file[0]["label"]
+    # a file whose name does not name the study says nothing about it; a bare "395" is not looked for in the text
+    assert offers(Context((), None, ()), "230-23-TEST", ["food_state"], file="Fed study.xlsx") == {}
+    assert offers(Context((_sentence("Each subject received 395 mg."),), None, ()), "395_Fed", ["dose"]) == {}

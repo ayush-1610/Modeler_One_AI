@@ -42,10 +42,34 @@ projects" and "tracking their usage, project as well as user wise". Plan: `docs/
   job), `e2e/admin-console.spec.ts` (no link and a refusal for a person who is not the owner); `test_brief_api.py`
   checks the compound search is started with its person.
 
+### Fixed — a study card's facts read from the study's name and its file's name; fed or fasted offered (2026-11-10)
+The owner, 2026-11-10, of a study card named `395-18_N15_Ref_Fed` that was asked every fact.
+- **Defect.** The offers (build L, `study_offers`) took a study's whole name as its number, stripping only a trailing
+  arm (`-TEST`, `-REF`): `395-18_N15_Ref_Fed` was looked for in the documents as "395-18 N 15 Ref Fed", so no
+  sentence about study 395-18 was read, and the `Ref` arm was missed, so no purpose was offered either. Fasted or fed,
+  asked on every oral card, was never offered.
+- **Now.** `read_name` reads the parts after the study's own id, from the end: an arm (`TEST`, `T`, `REF`,
+  `REFERENCE`, `R`, `RLD`, `IV`), fed or fasted (`Fed`, `Fasted`, `Fasting`) and a number of subjects (`N15`, `N=15`).
+  The study's own id (`395-18`) is what the documents are searched for; the name's subjects and food state are offered
+  ("15 · the study's name (395-18_N15_Ref_Fed)"); the file's name gives the same when it names the study
+  (`230-23 Fasting Test.xlsx`). Documents naming the study give fed or fasted when a sentence states the conditions
+  ("under fed conditions", "a high-fat breakfast"; "fasted overnight" alone is not read: fed studies fast overnight
+  too). A one-part id under four characters ("395") is no longer searched for (any "395 mg" matched).
+- **Pre-selection.** The sheet's own count and the names' parts come first (they hold no quote); documents are
+  pre-selected only when they agree, so two documents that disagree leave the choice to the person (before, the first
+  document's value was taken). Nothing is saved until the person reads the sheet, as before.
+- Tests: `test_study_offers.py` (+2).
+
+### Fixed — the usage report refuses an empty or wrong store root (2026-11-10)
+The owner's first run printed "0 runs": `$MODELER_READ_ROOT` is exported only inside the deploy scripts
+(`deploy/server/_env.sh`), so in an SSH shell `--root ""` read the current folder. The report now exits 2 with what
+to give (on the server, `~/modeler-data/read-root`) when the root is empty, missing or holds no agent runs. Test:
+`test_usage_report.py` (+1).
+
 ### Added — what the agents' runs used, per agent, priced per Claude model (2026-11-10)
 The owner, 2026-11-10, choosing an Anthropic model on AWS for the agents: "I need to know what all usage and all tokens
 we are processing, inputs, outputs, so that I can correctly pick the model".
-- `python -m modeler_agents.usage_report --root "$MODELER_READ_ROOT" [--since YYYY-MM-DD] [--json]` reads the run
+- `python -m modeler_agents.usage_report --root ~/modeler-data/read-root [--since YYYY-MM-DD] [--json]` reads the run
   records the server keeps (`<root>/<tenant>/agent_runs/*/run.json` and `steps.jsonl`) and gives, per agent: runs and
   their statuses, turns per run, input and output tokens per run (median, p90, max), the largest single turn (the
   context a model must hold), the busiest minute across all runs (against a tokens-per-minute quota), and each run's
