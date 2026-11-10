@@ -79,6 +79,32 @@ class TriageStart(View):
     status: str
 
 
+class ReadingItem(View):
+    """One file in the project's reading queue (plan 2026-11-10, R3: the reading tray)."""
+    id: str
+    sid: str
+    file: str
+    task: Literal["arrival", "read"]
+    sheets: list[str]
+    state: Literal["queued", "reading", "done", "failed"]
+    added_by: str
+    added_at: str
+    started_at: str | None
+    finished_at: str | None
+    attempts: int
+    note: str
+    run_ids: list[str]
+    found: dict[str, int]
+
+
+class ReadingQueuePage(View):
+    """The reading tray: each file the reading agent is to read, is reading or has read, and whether agents are on."""
+    agents: AgentsStatus
+    running: bool                  # the reading job runs
+    counts: dict[str, int]         # queued, reading, done, failed
+    items: list[ReadingItem]
+
+
 class Product(View):
     name: str
     role: str

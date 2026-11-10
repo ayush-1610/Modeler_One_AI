@@ -31,6 +31,7 @@ from modeler_api.deps import (
 )
 from modeler_api.intake_jobs import (  # noqa: F401  (run_document_job, run_reading_job: the e2e fixture's and tests' names)
     kick,
+    queue_again,
     queue_reading,
     read_later,
     run_document_job,
@@ -45,6 +46,7 @@ from modeler_api.views.client_data import (
     ClientUpload,
     MapPreview,
     MapReading,
+    ReadingQueuePage,
     ReleaseProposal,
     SheetView,
     TriageStart,
@@ -75,6 +77,7 @@ from modeler_project.datasets import DatasetError
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
 from modeler_project.inputs import refresh_inputs
+from modeler_project.reading_queue import ReadingQueue
 from modeler_project.requirements import RequirementMatrix, client_request
 from modeler_project.sheet_intake import READ as READ_SHEETS
 from modeler_project.sheet_intake import SheetIntakeError, finish, keep, products_of, read_on_arrival
@@ -147,6 +150,39 @@ def get_client_data(project_id: str, principal: Reader, store: StoreDep) -> dict
     sweep(store, principal.tenant_id, project_id)
     kick(store, principal.tenant_id, project_id)
     return envelope(_view(ws))
+
+
+def _queue_view(ws: Workspace) -> dict[str, Any]:
+    items = ReadingQueue(ws).items()
+    return {"agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "reading"),
+            "counts": {state: sum(1 for i in items if i.state == state) for state in ("queued", "reading", "done", "failed")},
+            "items": [i.model_dump(mode="json") for i in items]}
+
+
+@router.get("/projects/{project_id}/reading-queue", **answers(ReadingQueuePage))
+def get_reading_queue(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """The reading tray (plan 2026-11-10, R3): every client file queued for the reading agent, being read, read or
+    failed, with what was found and why one failed. Like the client-data page, looking at it queues a file never queued
+    and starts the reading when files wait and none runs."""
+    ws = workspace_for(project_id, principal, store)
+    sweep(store, principal.tenant_id, project_id)
+    kick(store, principal.tenant_id, project_id)
+    return envelope(_queue_view(ws))
+
+
+@router.post("/projects/{project_id}/reading-queue/{item_id}:again", status_code=202, **answers(TriageStart))
+def read_again(project_id: str, item_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Read a file of the tray again (one that failed, or one read before): queued behind the others. "RUNNING" when
+    the reading starts now, "QUEUED" when it waits (or agents are off: it is read once they are on)."""
+    ws = workspace_for(project_id, principal, store)
+    item = next((i for i in ReadingQueue(ws).items() if i.id == item_id), None)
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"no item {item_id} in the reading queue")
+    if item.state in ("queued", "reading"):
+        raise HTTPException(status_code=409, detail=f"{item.file} is {item.state} already")
+    if submission(ws, item.sid) is None:
+        raise HTTPException(status_code=404, detail=f"{item.file} is no longer among the client's files")
+    return envelope({"status": queue_again(store, principal.tenant_id, project_id, item, by=principal.user_id)})
 
 
 @router.post("/projects/{project_id}/client-data", status_code=201, **answers(ClientUpload))

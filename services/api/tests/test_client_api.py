@@ -947,3 +947,38 @@ def test_a_file_stored_but_never_queued_is_queued_when_inputs_is_opened(setup):
     assert ReadingQueue(ws).items() == []
     c.get("/api/v1/projects/p1/client-data", headers=H)
     assert [(i.sid, i.state) for i in ReadingQueue(ws).items()] == [(up["id"], "queued")]
+
+
+@pytest.mark.req("T-47")
+def test_the_reading_tray_lists_each_file_and_reads_a_failed_one_again(setup, monkeypatch):
+    # plan 2026-11-10, R3: the tray says, per file, queued / reading / done / failed with what was found or why it failed,
+    # whether agents are on, and reads a file again on request
+    from modeler_api import agent_jobs, intake_jobs
+
+    c, ws = setup
+    tray = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]
+    assert tray["items"] == [] and tray["agents"]["enabled"] is False and tray["counts"]["queued"] == 0
+    up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[
+        ("files", ("A.pdf", _pdf("Study A: 10 mg."), "application/pdf")),
+        ("files", ("B.pdf", _pdf("Study B: 20 mg."), "application/pdf"))]).json()["data"]["read"]
+    tray = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]
+    assert [(i["file"], i["state"]) for i in tray["items"]] == [("A.pdf", "queued"), ("B.pdf", "queued")]
+    assert tray["counts"] == {"queued": 2, "reading": 0, "done": 0, "failed": 0}   # agents off: they wait
+
+    outcomes = {up[0]["id"]: [{"status": "COMPLETED", "datasets": 2, "facts": 3, "run_id": "ar_1"}],
+                up[1]["id"]: [{"status": "LLM_UNAVAILABLE", "error": "the provider answered 503", "run_id": "ar_2"},
+                              {"status": "COMPLETED", "facts": 1, "run_id": "ar_3"}]}
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(intake_jobs, "run_document_job", lambda *a, **k: outcomes[a[3]].pop(0))
+    c.get("/api/v1/projects/p1/reading-queue", headers=H)                     # the tray starts the reading
+    _settle(ws)
+    tray = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]
+    a, b = tray["items"]
+    assert (a["state"], a["found"], a["run_ids"]) == ("done", {"datasets": 2, "facts": 3}, ["ar_1"])
+    assert (b["state"], b["note"]) == ("failed", "the provider answered 503")
+    again = c.post(f"/api/v1/projects/p1/reading-queue/{b['id']}:again", headers=H)
+    assert again.status_code == 202 and again.json()["data"]["status"] in ("RUNNING", "QUEUED")
+    _settle(ws)
+    last = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]["items"][-1]
+    assert (last["file"], last["task"], last["state"], last["found"]) == ("B.pdf", "read", "done", {"facts": 1})
+    assert c.post("/api/v1/projects/p1/reading-queue/q-99:again", headers=H).status_code == 404

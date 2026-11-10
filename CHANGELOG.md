@@ -15,6 +15,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — R3: the reading tray on Inputs, and the agent's progress in "Add data" (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R3 (gaps G5 and G6: no status; agents off was
+silent).
+- **API:** `GET /projects/{id}/reading-queue` (`ReadingQueuePage`): each file in the reading queue with its state
+  (queued, reading, done, failed), what its reading found (datasets, study facts, dissolution rows, study links, sheets
+  sorted or read), why one failed, the agent runs, and whether agents are on. Like the client-data page, opening it
+  queues a file never queued and starts the reading when files wait. `POST …/reading-queue/{item_id}:again` reads a
+  finished or failed file again (a document for its data; a workbook as on arrival while code left something for the
+  agent, else its unread data sheets), queued behind the others. OpenAPI and `api-types.ts` updated.
+- **Inputs:** a tray above the areas: "3 of 17 read · 1 reading · 13 waiting · 1 failed", each file on request with its
+  state, what was found or why it failed, and **Read again**. It polls while files wait, and reads the page again as each
+  file finishes, so the new data appear on the cards. With agents off it says the files wait until the agent is on, and
+  points to the forms on each tab.
+- **Add data:** once files are added, a line says how far the agent is (or that it is off) and links to the tray.
+- Impact: no change to what the agent reads or how code checks it. Tests: `test_the_reading_tray_lists_each_file_and_
+  reads_a_failed_one_again` (T-47), `e2e/library.spec.ts` "the reading tray on Inputs lists each file for the agent and
+  says when the agent is off".
+
 ### Fixed — R1 review: the reading queue's edge cases (2026-11-10)
 An adversarial review of R1 (four lenses, each finding checked by a second reviewer trying to refute it) confirmed 11
 defects; all are fixed here:

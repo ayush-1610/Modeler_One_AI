@@ -36,7 +36,7 @@ from modeler_project.client_data import (
 )
 from modeler_project.documents import DocumentLibrary, RelatesTo
 from modeler_project.inputs import refresh_inputs
-from modeler_project.reading_queue import QueueItem, ReadingQueue
+from modeler_project.reading_queue import QueueItem, QueueTask, ReadingQueue
 from modeler_project.requirements import RequirementMatrix
 from modeler_project.sheet_intake import (
     READ,
@@ -337,6 +337,18 @@ def ingest_for_reading(ws: Workspace, library: DocumentLibrary, payloads: list[t
     if sids:
         refresh_inputs(ws, by=by)   # the inputs follow every change (redesign §3.2)
     return sids, names, not_read
+
+
+def queue_again(store: ProjectStore, tenant_id: str, project_id: str, item: QueueItem, *, by: str) -> str:
+    """A person's "Read again" on a tray item: a document is read for its data again; a workbook gets what an arrival
+    would do while code left something for the agent, else its data sheets not read yet (or the sheets named). Queued;
+    "RUNNING" when the reading starts now, else "QUEUED"."""
+    ws = Workspace(store, tenant_id, project_id)
+    content = submission(ws, item.sid) or {}
+    document = content.get("kind") in READABLE_DOCUMENTS
+    task: QueueTask = "arrival" if not document and not item.sheets and _needs_agent(content) else "read"
+    ReadingQueue(ws).add([(item.sid, item.file)], task=task, by=by, sheets=item.sheets, supersede_arrival=document)
+    return "RUNNING" if kick(store, tenant_id, project_id) else "QUEUED"
 
 
 def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[str], *, by: str = "code") -> bool:

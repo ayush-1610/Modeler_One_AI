@@ -14,6 +14,7 @@ import { useState } from "react";
 
 import { InlineIssue } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
+import { ReadingStatus } from "@/components/inputs/ReadingTray";
 import { TagProposals, type UploadedFile } from "@/components/library/TagProposals";
 import { upload } from "@/lib/api";
 import { guessStudy, guessTag, TAG_KINDS, TAG_LABELS, type TagKind, tagsField } from "@/lib/fileTags";
@@ -207,6 +208,7 @@ export function AddData({ projectId, step: initial, onClose }: { projectId: stri
           <Link href={`/projects/${encodeURIComponent(projectId)}/library`} onClick={onClose}>See them in the library</Link>
         </div>
       )}
+      {added.length > 0 && <ReadingStatus projectId={projectId} onOpen={onClose} />}
       <div className="dialog-actions">
         <button type="button" className="btn" onClick={onClose} data-testid="add-data-close">{added.length ? "Done" : "Cancel"}</button>
         <button type="button" className="btn primary" disabled={busy || !files.length || !step} onClick={add}

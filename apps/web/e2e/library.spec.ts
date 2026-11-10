@@ -146,6 +146,32 @@ test("Add data reads documents for data by default, and a large delivery goes up
   expect(files.length).toBe(21);
 });
 
+test("the reading tray on Inputs lists each file for the agent and says when the agent is off", async ({ page, request }) => {
+  // plan 2026-11-10, R3: the e2e servers run with agents off, so the files wait and the tray says why
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Trayamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await page.goto(`/projects/${projectId}/start`);
+  await page.getByTestId("nav-add-data").click();
+  await page.getByTestId("add-data-files").setInputFiles([
+    { name: "094-26 Summary Statistics.pdf", mimeType: "application/pdf", buffer: textPdf("Study 094-26: Cmax 40 ng/mL.") },
+    { name: "093-26 Synopsis.pdf", mimeType: "application/pdf", buffer: textPdf("Study 093-26: 50 mg, fasted.") },
+  ]);
+  await page.getByTestId("add-data-step").selectOption("inputs");
+  await page.getByTestId("add-data-submit").click();
+  await expect(page.getByTestId("add-data-reading")).toContainText("The reading agent is off on this server: 2 files wait");
+  await page.getByTestId("add-data-reading").getByRole("link", { name: "See each file on Inputs" }).click();
+  await page.waitForURL(/\/inputs/);
+  const tray = page.getByTestId("reading-tray");
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("0 of 2 read · 2 waiting");
+  await expect(page.getByTestId("reading-tray-off")).toContainText("2 files wait and are read once it is on");
+  await page.getByTestId("reading-tray-toggle").click();
+  await expect(page.getByTestId("reading-item-094-26 Summary Statistics.pdf")).toContainText("waiting");
+  await expect(page.getByTestId("reading-item-093-26 Synopsis.pdf")).toContainText("on arrival");
+  await tray.screenshot({ path: test.info().outputPath("reading-tray.png") });
+});
+
 /** A one-page PDF with one line of text, its cross-reference table at the right offsets. */
 function textPdf(line: string): Buffer {
   const content = `BT /F1 12 Tf 72 720 Td (${line}) Tj ET\n`;

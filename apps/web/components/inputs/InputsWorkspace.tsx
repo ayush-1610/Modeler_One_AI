@@ -15,6 +15,7 @@ import { useMutation, useRefresh, useResource } from "@/lib/hooks";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 
 import { ConfirmGroups } from "./ClientConfirm";
+import { ReadingTray } from "./ReadingTray";
 import { ClientRequest } from "./ClientRequest";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
@@ -285,6 +286,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
     >
       {notice && <Banner tone={notice.ok ? "ok" : "err"} testId="inputs-notice">{notice.text}</Banner>}
       {running && literature.data && <LiteratureProgress r={literature.data} />}
+      <ReadingTray projectId={projectId} />
       <div className="inputs-layout">
       <Tabs label="Input areas" prefix="inputs" value={tab} onChange={setTab} vertical
             tabs={TABS.map(([id, label]) => ({ id, label, count: forTab(id).length, testId: `tab-${id}` }))}>
