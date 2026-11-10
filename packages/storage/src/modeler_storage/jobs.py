@@ -112,9 +112,10 @@ class FileJobRegistry:
         return self._live(self._read(self._path(tenant_id, scope, key)))
 
     def run_in_background(self, tenant_id: str, scope: str, key: str, target: Callable[[], None], *,
-                          name: str | None = None) -> bool:
+                          name: str | None = None, after: Callable[[], None] | None = None) -> bool:
         """Claim the job and run `target` on a thread that renews the lease and releases it when `target` returns or
-        raises. False, and nothing started, while another holder has it."""
+        raises; then `after`, on the same thread, once the lease is free (a queue's drain looks again for work that
+        arrived while it was finishing). False, and nothing started, while another holder has it."""
         lease = self.claim(tenant_id, scope, key)
         if lease is None:
             return False
@@ -133,6 +134,8 @@ class FileJobRegistry:
             finally:
                 stop.set()
                 self.release(lease)
+                if after is not None:
+                    after()
 
         threading.Thread(target=job, name=name, daemon=True).start()
         return True

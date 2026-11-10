@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — R1: no client file the reading agent is to read is dropped; a reading queue per project (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md` (approved by the owner 2026-11-10), build R1. The owner
+added a whole delivery with "+ Add data" and the agent did not start on it; uploading again from an Inputs tab did.
+- **Cause:** one `reading` job per project, and `intake_jobs.read_later` dropped every file that arrived while it ran
+  (Start's reading, an earlier upload, a "Read" button). Nothing kept those files; a later upload found the job free.
+- **Change:** every file to read is an item of the project's **reading queue** (`modeler_project.reading_queue`,
+  `reading-queue.json` beside `library.json`): queued → reading → done / failed, with who added it, when, the agent
+  runs and counts of what was found. One `reading` job drains it (`intake_jobs.drain`) and looks again once its lease is
+  released (`FileJobRegistry.run_in_background(after=…)`), so a file arriving at its tail is read too. All routes queue:
+  the client-data upload (also the files stored before one is refused), Start (now also with `extract=false`), and a
+  person's "Read" (`:read` answers `"QUEUED"` instead of 409 while another reading runs). A file uploaded again before
+  it was read is queued (once). Each item is read on its own: one that fails is marked failed with why and the others
+  are read; a withdrawn file or a document with no text is failed with why, as the "Read" button already refused.
+  With agents off, files wait in the queue and are read once agents are on. Opening Inputs (`GET …/client-data`)
+  starts the reading again when files wait and none runs (after a restart); an item stopped by a restart is put back
+  once, then failed.
+- `run_reading_job` moved from `client_api` (a router) to the `intake_jobs` service, unchanged, so the queue runs every
+  kind of reading; `client_api` re-exports it and `run_document_job`.
+- Impact: no change to what the agent reads or how code checks it (no science change); no API contract change.
+  Tests: `packages/project-model/tests/test_reading_queue.py`, the queue tests in `services/api/tests/test_client_api.py`
+  (T-47), `after` in `packages/storage/tests/test_phase8_concurrency.py`.
+
 ### Added — what the agents' runs used, per agent, priced per Claude model (2026-11-10)
 The owner, 2026-11-10, choosing an Anthropic model on AWS for the agents: "I need to know what all usage and all tokens
 we are processing, inputs, outputs, so that I can correctly pick the model".

@@ -29,7 +29,14 @@ from modeler_api.deps import (
     version_view,
     workspace_for,
 )
-from modeler_api.intake_jobs import read_later, run_document_job
+from modeler_api.intake_jobs import (  # noqa: F401  (run_document_job, run_reading_job: the e2e fixture's and tests' names)
+    kick,
+    queue_reading,
+    read_later,
+    run_document_job,
+    run_reading_job,
+    unread_sheets,
+)
 from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import (
     ClientDataPage,
@@ -54,7 +61,6 @@ from modeler_project.client_data import (
     REGISTER,
     ingest,
     reconcile,
-    record_reading,
     set_triage,
     submission,
     submissions,
@@ -134,7 +140,11 @@ def download_request(project_id: str, principal: Reader, store: StoreDep) -> Res
 
 @router.get("/projects/{project_id}/client-data", **answers(ClientDataPage))
 def get_client_data(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
-    return envelope(_view(workspace_for(project_id, principal, store)))
+    ws = workspace_for(project_id, principal, store)
+    # files a person queued are read even when the reading that would have taken them stopped (a server restart):
+    # looking at the page starts the reading job again when something waits and none runs (plan 2026-11-10, R1)
+    kick(store, principal.tenant_id, project_id)
+    return envelope(_view(ws))
 
 
 @router.post("/projects/{project_id}/client-data", status_code=201, **answers(ClientUpload))
@@ -157,11 +167,14 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
             read.append(ingest(ws, library, await upload.read(), name, by=principal.user_id,
                                matrix=matrix, brief=brief, relates_to=relates_to, tag=given_tags.get(name)))
         except (DocumentError, ValueError) as exc:
+            # the files before it are stored: they are queued for reading before the refusal (plan 2026-11-10, R1)
+            refresh_inputs(ws, by=principal.user_id)
+            read_later(store, principal.tenant_id, project_id, [r["id"] for r in read if r.get("id")], by=principal.user_id)
             raise HTTPException(status_code=422, detail=f"{upload.filename}: {exc}") from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     # what code could not do, by the agent on arrival, when agents are on (plan 2026-11-05 §3.1): each PDF or Word file
     # read for its data, the sheets code could not sort, each sheet whose code reading has a problem
-    read_later(store, principal.tenant_id, project_id, [r["id"] for r in read if r.get("id") and not r.get("repeat")])
+    read_later(store, principal.tenant_id, project_id, [r["id"] for r in read if r.get("id")], by=principal.user_id)
     return envelope({"read": [{**{k: r[k] for k in ("id", "file", "template", "sha256")}, **file_tag_view(library, r["sha256"])}
                               for r in read], **_view(ws)})
 
@@ -239,39 +252,6 @@ def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) 
     return envelope({"status": "RUNNING"})
 
 
-READABLE = (SheetCategory.PK_INDIVIDUAL.value, SheetCategory.PK_SUMMARY.value, SheetCategory.DISSOLUTION.value)
-
-
-def _unread_sheets(content: dict[str, Any]) -> list[str]:
-    """The file's data sheets that no confirmed reading has read yet."""
-    read = {t.get("sheet") for m in content.get("mappings", []) if not m.get("replaced_by") for t in m["recipe"].get("tables", [])}
-    return [t["sheet"] for t in content.get("triage", []) if t["category"] in READABLE and t["sheet"] not in read]
-
-
-def run_reading_job(store: ProjectStore, tenant_id: str, project_id: str, sid: str, *, model, sheets: list[str] | None = None,
-                    max_turns: int = 8) -> dict[str, Any]:
-    """A4 proposes how to read each data sheet not read yet (or the sheets named), one agent run per sheet. A reading
-    code accepted is kept on the file for the person to check, correct and save; nothing is read into the project here."""
-    ws = Workspace(store, tenant_id, project_id)
-    content, workbook = _workbook(ws, sid, use=True)
-    brief = _brief(ws)
-    products = [{"name": str(p.get("name") or ""), "role": str(p.get("role") or "")} for p in _brief_products(brief)]
-    categories = {t["sheet"]: t["category"] for t in content.get("triage", [])}
-    results = []
-    for sheet in [s for s in (sheets or _unread_sheets(content)) if s in workbook.sheets]:
-        run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
-                                  agent="A4-sheet-reading", model=model, max_turns=max_turns)
-        reading = agent_jobs.sheet_reading(model, workbook=workbook, sheet=sheet, drug=brief.drug_name if brief else "",
-                                           actor=run.actor, category=categories.get(sheet, ""), products=products,
-                                           max_turns=max_turns, log_step=run.log_step)
-        if reading.form is not None:
-            record_reading(ws, sid, sheet=sheet, form=reading.form.model_dump(mode="json"), notes=reading.notes, by=run.actor,
-                           run_id=run.run_id)
-        summary = {"sheet": sheet, "proposed": reading.form is not None, "refused": len(reading.rejected),
-                   "summary": reading.outcome.final_text[:2000], "error": reading.outcome.error}
-        run.finish(reading.outcome, summary)
-        results.append({"run_id": run.run_id, "status": reading.outcome.status, **summary})
-    return {"status": "COMPLETED", "sheets": results}
 
 
 class ReadingRequest(BaseModel):
@@ -295,16 +275,12 @@ def start_reading(project_id: str, sid: str, principal: Writer, store: StoreDep,
     unknown = [s for s in sheets if s not in workbook.sheets]
     if unknown:
         raise HTTPException(status_code=404, detail=f"no sheet {', '.join(map(repr, unknown))} in this file")
-    if not (sheets or _unread_sheets(content)):
+    if not (sheets or unread_sheets(content)):
         raise HTTPException(status_code=409, detail="no data sheet is left to read in this file; open a sheet to read it again")
-    model = agent_jobs.require_chat_model("agents are off: read each sheet with the form")
-
-    def job() -> None:
-        run_reading_job(store, principal.tenant_id, project_id, sid, model=model, sheets=sheets or None)
-
-    jobs.start(store, principal.tenant_id, project_id, "reading", job, busy="a reading run is already in progress",
-               name=f"reading-{project_id}")
-    return envelope({"status": "RUNNING"})
+    agent_jobs.require_chat_model("agents are off: read each sheet with the form")
+    # queued behind any reading that runs (plan 2026-11-10, R1): "RUNNING" when it starts now, "QUEUED" when it waits
+    return envelope({"status": queue_reading(store, principal.tenant_id, project_id, sid, by=principal.user_id,
+                                             sheets=tuple(sheets))})
 
 
 def _start_document_reading(ws: Workspace, content: dict[str, Any], sid: str, principal: Any, store: Any) -> dict[str, Any]:
@@ -314,14 +290,8 @@ def _start_document_reading(ws: Workspace, content: dict[str, Any], sid: str, pr
                                                     "restore it in the Project Document Library to read it")
     if not any(page.strip() for page in library.pages(content["sha256"])):
         raise HTTPException(status_code=409, detail=f"{content['file']} has no text to read (a scan needs OCR)")
-    model = agent_jobs.require_chat_model("agents are off: enter what the file states with the forms on Inputs")
-
-    def job() -> None:
-        run_document_job(store, principal.tenant_id, ws.project_id, sid, model=model)
-
-    jobs.start(store, principal.tenant_id, ws.project_id, "reading", job, busy="a reading run is already in progress",
-               name=f"reading-{ws.project_id}")
-    return envelope({"status": "RUNNING"})
+    agent_jobs.require_chat_model("agents are off: enter what the file states with the forms on Inputs")
+    return envelope({"status": queue_reading(store, principal.tenant_id, ws.project_id, sid, by=principal.user_id)})
 
 
 @router.get("/projects/{project_id}/client-data/{sid}/sheets/{sheet}", **answers(SheetView))
