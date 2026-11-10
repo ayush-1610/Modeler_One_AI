@@ -8925,6 +8925,32 @@
         "title": "FormulationKind",
         "type": "string"
       },
+      "GiveProjects": {
+        "description": "`to`: who receives them (someone who has signed in to the company); `from_`: whose projects they are, or empty\nfor every project of the company (those made before memberships were kept, or outside the web, included).",
+        "properties": {
+          "from": {
+            "default": "",
+            "title": "From",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "to": {
+            "minLength": 1,
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "reason"
+        ],
+        "title": "GiveProjects",
+        "type": "object"
+      },
       "GlomerularFiltration": {
         "additionalProperties": false,
         "properties": {
@@ -22026,6 +22052,75 @@
           }
         },
         "summary": "Company",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/companies/{tenant_id}:give-projects": {
+      "post": {
+        "description": "Make a person a member of another person's projects, or of all the company's: how the projects made under the\npilot's DEV sign-in (its \"dev-user\") reach the people who sign in through Keycloak. Each membership is an audit event\non the company's chain, by the administrator, with the reason.",
+        "operationId": "give_projects_api_v1_admin_companies__tenant_id__give_projects_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GiveProjects"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CompanyPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Give Projects",
         "tags": [
           "admin"
         ]

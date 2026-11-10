@@ -55,6 +55,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/companies/{tenant_id}:give-projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give Projects
+         * @description Make a person a member of another person's projects, or of all the company's: how the projects made under the
+         *     pilot's DEV sign-in (its "dev-user") reach the people who sign in through Keycloak. Each membership is an audit event
+         *     on the company's chain, by the administrator, with the reason.
+         */
+        post: operations["give_projects_api_v1_admin_companies__tenant_id__give_projects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/keys": {
         parameters: {
             query?: never;
@@ -5477,6 +5499,22 @@ export interface components {
          * @enum {string}
          */
         FormulationKind: "solution" | "suspension" | "ir_tablet" | "ir_capsule" | "mr" | "other";
+        /**
+         * GiveProjects
+         * @description `to`: who receives them (someone who has signed in to the company); `from_`: whose projects they are, or empty
+         *     for every project of the company (those made before memberships were kept, or outside the web, included).
+         */
+        GiveProjects: {
+            /**
+             * From
+             * @default
+             */
+            from?: string;
+            /** Reason */
+            reason: string;
+            /** To */
+            to: string;
+        };
         /** GlomerularFiltration */
         GlomerularFiltration: {
             /** Data Source */
@@ -10354,6 +10392,43 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CompanyPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    give_projects_api_v1_admin_companies__tenant_id__give_projects_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiveProjects"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

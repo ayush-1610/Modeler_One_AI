@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — going live on Keycloak under the server's Tailscale name; the DEV sign-in's projects given in the console (2026-11-10)
+The owner, 2026-11-10: the admin console must open on the server, which means Keycloak sign-in (option A, no change
+to the DEV sign-in).
+- **`keycloak.sh install`** imports the realm with the web's own address (`https://<MODELER_KEYCLOAK_HOST>:3000/*`)
+  added to `modeler-web`'s redirect URIs.
+  - Before, the realm listed only localhost and the LAN address, so sign-in under the server's Tailscale name failed
+    on the return.
+  - The realm file keeps only the fixed addresses.
+  - When the realm exists already, it says what to add in the admin console.
+- **`run_modeler.sh` and `status_modeler.sh`** print `MODELER_WEB_URL` (the address people open, matching its
+  certificate) once it is set, instead of the first LAN address (`_env.sh` `web_address`).
+- **Admin console, "Give a person projects"** (`POST /api/v1/admin/companies/{tenant_id}:give-projects`):
+  - It makes a person a member of another person's projects, or of every project of the company, including those
+    made before memberships were kept.
+  - This is how the projects made under the pilot's DEV sign-in (its `dev-user`) reach the people who now sign in
+    through Keycloak.
+  - Only `modeler-admin`, with a fresh step-up and a reason. The receiver must have signed in once. Each membership
+    is a `project.member.add` audit event on the company's chain, by the administrator.
+- **`deploy/keycloak/README.md`** gains the go-live order for this server: PostgreSQL first, the Tailscale
+  certificate, Keycloak on PostgreSQL, the owner's account (`tenant_id` = `dev`, the five realm roles), the switch to
+  production, the projects given, and certificate renewal.
+- API contract: one new route (additions only). Tests: `test_admin_give_projects.py` (2).
+
 ### Added — Claude on Amazon Bedrock as an agent's model, chosen per agent in the admin console (2026-11-10)
 The owner's decisions, 2026-11-10: the agents move to Claude on Amazon Bedrock, through Anthropic's own SDK so that
 caching, effort and the exact usage are available ("make sure that we have all control and tracking"); "go ahead with

@@ -112,6 +112,62 @@ bash deploy/server/install_autostart.sh       # once: adds the nightly backup an
   the database copy against the file chains, so a file chain rewritten after the fact shows up
   (`docs/plans/2026-10-15-part11-records-postgres.md`).
 
+## Going live on the server with its Tailscale name (adt-server, 2026-11-10)
+
+The order that takes a pilot server (DEV sign-in, no PostgreSQL, no Keycloak) to Keycloak sign-in under its Tailscale
+name. That name gets a certificate every browser trusts (`tailscale cert`), and it stays the same when the LAN address
+changes. Every person who uses the app must then be on the tailnet.
+
+0. **In the Tailscale admin console** (once): *DNS* → turn on **MagicDNS** and **HTTPS Certificates**.
+1. **PostgreSQL** (production keeps the Part 11 records there, and Keycloak's database):
+   ```bash
+   cd ~/Modeler_One_AI
+   ls ~/modeler-data/read-root/                    # the companies: the DEV sign-in's is `dev`
+   bash deploy/server/postgres.sh install
+   bash deploy/server/postgres.sh status           # postgres UP  127.0.0.1:5432
+   bash deploy/server/postgres.sh env >> ~/.modeler-secrets.env && chmod 600 ~/.modeler-secrets.env
+   ```
+2. **The certificate**, for the server's Tailscale name:
+   ```bash
+   TS=tailscale; [ -x ~/tailscale/tailscale ] && TS="$HOME/tailscale/tailscale --socket=$HOME/.tailscale-state/tailscaled.sock"
+   NAME=$($TS status --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')
+   echo "$NAME"                                    # adt-server.<your-tailnet>.ts.net
+   mkdir -p ~/modeler-keycloak/tls && chmod 700 ~/modeler-keycloak/tls
+   $TS cert --cert-file ~/modeler-keycloak/tls/tailscale.crt --key-file ~/modeler-keycloak/tls/tailscale.key "$NAME"
+   chmod 600 ~/modeler-keycloak/tls/tailscale.key
+   printf 'export MODELER_KEYCLOAK_HOST=%s\nexport MODELER_KEYCLOAK_CERT=%s\nexport MODELER_KEYCLOAK_KEY=%s\n' \
+     "$NAME" ~/modeler-keycloak/tls/tailscale.crt ~/modeler-keycloak/tls/tailscale.key >> ~/.modeler-secrets.env
+   ```
+3. **Keycloak**, on PostgreSQL from the start (`MODELER_KEYCLOAK_DB=postgres`, from step 1):
+   ```bash
+   bash deploy/server/keycloak.sh install   # imports the realm with https://$NAME:3000/* as a sign-in return address
+   bash deploy/server/keycloak.sh admin     # Keycloak asks YOU for its administrator's password
+   bash deploy/server/keycloak.sh start
+   bash deploy/server/keycloak.sh status    # keycloak UP  https://$NAME:8443/admin  realm modeler
+   ```
+4. **Your account**, in `https://$NAME:8443/admin`, realm **modeler**: *Users → Add user*. Enter the username, email,
+   first name and last name. Set **Tenant** (`tenant_id`) to the company folder from step 1, `dev`. Then:
+   - *Credentials → Set password*, with Temporary on;
+   - *Role mapping → Assign role → Realm roles*: `modeler-viewer`, `modeler-curator`, `modeler-reviewer`,
+     `modeler-qa`, `modeler-admin`.
+5. **Switch the stack to Keycloak** (production):
+   ```bash
+   bash deploy/server/keycloak.sh env >> ~/.modeler-secrets.env && chmod 600 ~/.modeler-secrets.env
+   grep -q MODELER_MASTER_KEY ~/.modeler-secrets.env || echo "export MODELER_MASTER_KEY=$(python3 -c 'import os,base64;print(base64.b64encode(os.urandom(32)).decode())')" >> ~/.modeler-secrets.env
+   bash deploy/server/stop_modeler.sh && bash deploy/server/run_modeler.sh
+   bash deploy/server/status_modeler.sh     # deployment: production (Keycloak sign-in) ... open: https://$NAME:3000
+   curl -s localhost:8000/health            # {"status":"ok","deployment":"production","verifier":"oidc"}
+   bash deploy/server/install_autostart.sh  # once: nightly backups and their restore check
+   ```
+6. **Sign in** at `https://$NAME:3000`: use the temporary password, then choose your own.
+7. **Your projects:** the projects made under the DEV sign-in belong to its `dev-user`.
+   - In *Admin console → Companies → dev → Give a person projects*, choose yourself, "every project of this company",
+     and a reason.
+   - The step-up asks for your password and authenticator code. The first time, it shows a QR code for the
+     authenticator app.
+8. **The certificate lasts 90 days.** Renew it each month with step 2's `$TS cert …` line, then
+   `bash deploy/server/stop_modeler.sh && bash deploy/server/run_modeler.sh`.
+
 ## Limits, recorded
 - **Re-running `install` keeps the existing realm** (`--override=false`), so users and their TOTP survive. A later
   change to `realm-modeler.json` therefore does not reach a running realm. Apply it in the admin console, or with a

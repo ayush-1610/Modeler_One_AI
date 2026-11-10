@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AdminTabs, NotForYou, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/admin/AdminParts";
+import { GiveProjects } from "@/components/admin/GiveProjects";
 import { Hero } from "@/components/kit";
 import { ApiProblem, Card } from "@/components/ui";
 import { getCompany, pricedAs, refused } from "@/lib/admin";
@@ -66,6 +67,8 @@ export default async function CompanyPage({ params, searchParams }: {
                   </table>
                 </div>
               </Card>
+              <GiveProjects tenantId={tenantId} people={data.people.map((p) => ({ subject: p.subject, name: p.name,
+                                                                                   projects: p.projects }))} />
               <p><Link href={`/admin/usage?tenant_id=${encodeURIComponent(tenantId)}&priced_as=${priced}`}>
                 This company&apos;s runs, one by one →</Link></p>
             </>
