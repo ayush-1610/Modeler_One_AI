@@ -41,22 +41,25 @@ export function ReadingTray({ projectId }: { projectId: string }) {
   const refresh = useRefresh();
   const [open, setOpen] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const done = useRef<number | null>(null);
+  const seen = useRef<string | null>(null);
   const data = tray.data;
 
-  // each file read brings data onto the cards: the page is read again when the count of finished files grows
-  const finished = data ? data.counts.done + data.counts.failed : 0;
+  // each file read brings data onto the cards: the page is read again when a reading finishes while it is open (the
+  // newest finish time, which the queue's pruning cannot cap); not on the first answer
+  const newest = data ? data.items.reduce((m, i) => (i.finished_at && i.finished_at > m ? i.finished_at : m), "") : null;
   useEffect(() => {
-    if (done.current !== null && finished > done.current) void refresh();
-    done.current = finished;
-  }, [finished]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (newest === null) return;
+    if (seen.current !== null && newest !== seen.current) void refresh();
+    seen.current = newest;
+  }, [newest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!data || data.items.length === 0) return null;
   const { counts, agents } = data;
   const waiting = counts.queued + counts.reading;
-  // the newest first: what is being read and waits, then what finished most recently
+  // each file once, at its latest reading: what is being read and waits first, then what finished most recently
   const order = { reading: 0, queued: 1, failed: 2, done: 3 } as const;
-  const items = [...data.items].reverse().sort((a, b) => order[a.state] - order[b.state]);
+  const latest = new Map(data.items.map((i) => [i.sid, i]));
+  const items = [...latest.values()].reverse().sort((a, b) => order[a.state] - order[b.state]);
 
   async function again(id: string) {
     const { problem: failed } = await mutation.run(() => send("post", "/api/v1/projects/{project_id}/reading-queue/{item_id}:again",
@@ -65,10 +68,10 @@ export function ReadingTray({ projectId }: { projectId: string }) {
   }
 
   return (
-    <section className={`reading-tray${counts.failed ? " has-failed" : ""}`} data-testid="reading-tray" aria-live="polite">
+    <section className={`reading-tray${counts.failed ? " has-failed" : ""}`} data-testid="reading-tray">
       <div className="reading-tray-head">
         <strong>The client&apos;s files, read by the agent</strong>
-        <span className="muted" data-testid="reading-tray-counts">{trayLine(counts)}</span>
+        <span className="muted" data-testid="reading-tray-counts" role="status" aria-live="polite">{trayLine(counts)}</span>
         <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)}
                 data-testid="reading-tray-toggle">
           {open ? "Hide the files" : "Show each file"}
@@ -96,7 +99,7 @@ export function ReadingTray({ projectId }: { projectId: string }) {
               {item.state === "failed" && <span className="reading-tray-why">{item.note || "failed"}</span>}
               {(item.state === "failed" || item.state === "done") && (
                 <button type="button" className="btn small" disabled={mutation.busy} onClick={() => void again(item.id)}
-                        data-testid={`read-again-${item.file}`}>
+                        aria-label={`Read ${item.file} again`} data-testid={`read-again-${item.file}`}>
                   Read again
                 </button>
               )}

@@ -91,6 +91,12 @@ def problem_sheets(content: dict[str, Any]) -> list[str]:
             if d.get("by") == "code" and sheet not in read and not d.get("agent_tried") and has_problem(d)]
 
 
+def needs_agent(content: dict[str, Any]) -> bool:
+    """Whether the file has something only the agent does: a document not read for its data, or a workbook's sheets
+    code could not sort or read cleanly."""
+    return _needs_agent(content)
+
+
 def _needs_agent(content: dict[str, Any]) -> bool:
     if content.get("repeat"):
         return False

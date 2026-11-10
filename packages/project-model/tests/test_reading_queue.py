@@ -44,17 +44,21 @@ def test_an_item_left_reading_by_a_stopped_worker_is_put_back_then_failed(tmp_pa
     assert failed.state == "failed" and "read it again" in failed.note and not q.pending()
 
 
-def test_only_the_most_recent_finished_items_are_kept(tmp_path, monkeypatch):
+def test_older_readings_of_a_file_are_dropped_first_and_each_files_latest_is_kept(tmp_path, monkeypatch):
     from modeler_project import reading_queue
 
     monkeypatch.setattr(reading_queue, "KEEP_FINISHED", 3)
     q = _queue(tmp_path)
-    q.add([(f"file-{n}", f"{n}.pdf") for n in range(5)], task="arrival", by="u1")
-    q.add([("file-waiting", "w.pdf")], task="read", by="u1")
-    for _ in range(5):
+    for _ in range(3):                                   # file-a read three times
+        q.add([("file-a", "a.pdf")], task="read", by="u1")
         q.finish(q.take().id, "done")
+    q.add([("file-b", "b.pdf"), ("file-c", "c.pdf")], task="arrival", by="u1")
+    for _ in range(2):
+        q.finish(q.take().id, "done")
+    q.add([("file-waiting", "w.pdf")], task="read", by="u1")
     kept = q.items()
-    assert [i.sid for i in kept] == ["file-2", "file-3", "file-4", "file-waiting"]   # a waiting item is never dropped
+    # 5 finished, 3 kept: file-a's two older readings go; each file's latest and the waiting item stay
+    assert [(i.sid, i.id) for i in kept] == [("file-a", "q-3"), ("file-b", "q-4"), ("file-c", "q-5"), ("file-waiting", "q-6")]
     assert KEEP_FINISHED >= 100
 
 

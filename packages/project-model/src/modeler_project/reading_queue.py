@@ -28,7 +28,7 @@ QueueState = Literal["queued", "reading", "done", "failed"]
 # its data, or a workbook's sheets, all not read yet or the ones named)
 QueueTask = Literal["arrival", "read"]
 MAX_ATTEMPTS = 2
-KEEP_FINISHED = 500   # the most recent finished items kept for the tray; older ones are dropped from the file
+KEEP_FINISHED = 500   # finished items kept beyond each file's latest one; older ones are dropped from the file
 
 
 class QueueItem(BaseModel):
@@ -76,8 +76,12 @@ class ReadingQueue:
 
     def _write(self, items: list[QueueItem]) -> None:
         assert self._path is not None
-        finished = [i for i in items if i.state in ("done", "failed")]
-        drop = {i.id for i in finished[:-KEEP_FINISHED]} if len(finished) > KEEP_FINISHED else set()
+        # each file's latest item is always kept (the tray shows it, and `sweep` knows the file was queued); older,
+        # finished items of a file read again are dropped first, oldest first
+        latest = {i.sid: i.id for i in items}
+        old = [i for i in items if i.state in ("done", "failed") and latest[i.sid] != i.id]
+        finished = sum(1 for i in items if i.state in ("done", "failed"))
+        drop = {i.id for i in old[:max(0, finished - KEEP_FINISHED)]}
         self._path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text(self._path, json.dumps({"items": [i.model_dump(mode="json") for i in items if i.id not in drop]},
                                                  indent=1, ensure_ascii=False))

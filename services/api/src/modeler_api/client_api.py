@@ -31,6 +31,7 @@ from modeler_api.deps import (
 )
 from modeler_api.intake_jobs import (  # noqa: F401  (run_document_job, run_reading_job: the e2e fixture's and tests' names)
     kick,
+    needs_agent,
     queue_again,
     queue_reading,
     read_later,
@@ -154,8 +155,10 @@ def get_client_data(project_id: str, principal: Reader, store: StoreDep) -> dict
 
 def _queue_view(ws: Workspace) -> dict[str, Any]:
     items = ReadingQueue(ws).items()
+    latest = {i.sid: i for i in items}       # in arrival order: each file's latest item says where the file is
     return {"agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "reading"),
-            "counts": {state: sum(1 for i in items if i.state == state) for state in ("queued", "reading", "done", "failed")},
+            "counts": {state: sum(1 for i in latest.values() if i.state == state)
+                       for state in ("queued", "reading", "done", "failed")},
             "items": [i.model_dump(mode="json") for i in items]}
 
 
@@ -178,10 +181,17 @@ def read_again(project_id: str, item_id: str, principal: Writer, store: StoreDep
     item = next((i for i in ReadingQueue(ws).items() if i.id == item_id), None)
     if item is None:
         raise HTTPException(status_code=404, detail=f"no item {item_id} in the reading queue")
-    if item.state in ("queued", "reading"):
-        raise HTTPException(status_code=409, detail=f"{item.file} is {item.state} already")
-    if submission(ws, item.sid) is None:
+    if busy := next((i for i in ReadingQueue(ws).items() if i.sid == item.sid and i.state in ("queued", "reading")), None):
+        raise HTTPException(status_code=409, detail=f"{item.file} is {busy.state} already")
+    content = submission(ws, item.sid)
+    if content is None:
         raise HTTPException(status_code=404, detail=f"{item.file} is no longer among the client's files")
+    if content.get("kind") not in READABLE_DOCUMENTS and not item.sheets:   # the guards of a person's "Read"
+        if content.get("template"):
+            raise HTTPException(status_code=409, detail="the client-data template is read cell by cell, with no agent")
+        if not needs_agent(content) and not unread_sheets(content):
+            raise HTTPException(status_code=409, detail=f"no data sheet is left to read in {item.file}; open a sheet "
+                                                        "to read it again")
     return envelope({"status": queue_again(store, principal.tenant_id, project_id, item, by=principal.user_id)})
 
 

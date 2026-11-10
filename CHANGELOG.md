@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — R3 review: the tray counts files, "Read again" only does what it can (2026-11-10)
+A review of R3 (each finding checked by a second reviewer) confirmed seven defects, all fixed:
+- The tray counts and lists **files**, each at its latest reading; a file read again no longer counts twice nor keeps
+  its old failure at the top (`items` still carries the history).
+- **Read again** is refused (409) while the file waits or is read, on the client-data template, and on a workbook with
+  nothing left for the agent (it was answered "read" though nothing was read).
+- The queue's pruning keeps each file's latest item (only older readings of a file read again are dropped), so the tray
+  and `sweep` never lose a file in a long-lived project.
+- The page is read again when a reading finishes (newest finish time), not on the tray's first answer.
+- Accessibility: only the counts line is a live region (the list and buttons are not re-announced every 4 s); each
+  "Read again" button is named after its file.
+
 ### Added — R3: the reading tray on Inputs, and the agent's progress in "Add data" (2026-11-10)
 Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R3 (gaps G5 and G6: no status; agents off was
 silent).

@@ -982,3 +982,40 @@ def test_the_reading_tray_lists_each_file_and_reads_a_failed_one_again(setup, mo
     last = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]["items"][-1]
     assert (last["file"], last["task"], last["state"], last["found"]) == ("B.pdf", "read", "done", {"facts": 1})
     assert c.post("/api/v1/projects/p1/reading-queue/q-99:again", headers=H).status_code == 404
+
+
+@pytest.mark.req("T-47")
+def test_the_tray_counts_files_not_readings_and_read_again_refuses_what_it_cannot_do(setup, monkeypatch):
+    # the R3 review: a file read twice counts once (its latest reading); "Read again" is refused while the file waits or
+    # is read, and on a workbook with nothing left for the agent
+    from modeler_api import agent_jobs, client_api, intake_jobs
+    from modeler_project.reading_queue import ReadingQueue
+
+    c, ws = setup
+    up = c.post("/api/v1/projects/p1/client-data", headers=H,
+                files=[("files", ("A.pdf", _pdf("Study A: 10 mg."), "application/pdf"))]).json()["data"]["read"][0]
+    outcomes = [{"status": "LLM_UNAVAILABLE", "error": "503"}, {"status": "COMPLETED", "facts": 1}]
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(intake_jobs, "run_document_job", lambda *a, **k: outcomes.pop(0))
+    c.get("/api/v1/projects/p1/reading-queue", headers=H)
+    _settle(ws)
+    failed = ReadingQueue(ws).items()[0]
+    assert c.post(f"/api/v1/projects/p1/reading-queue/{failed.id}:again", headers=H).status_code == 202
+    _settle(ws)
+    tray = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]
+    assert len(tray["items"]) == 2 and tray["counts"] == {"queued": 0, "reading": 0, "done": 1, "failed": 0}
+    ReadingQueue(ws).add([(up["id"], "A.pdf")], task="read", by="u1")          # waiting again
+    busy = c.post(f"/api/v1/projects/p1/reading-queue/{failed.id}:again", headers=H)
+    assert busy.status_code == 409 and "queued already" in busy.json()["detail"]
+
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (None, "off"))
+    sub = c.post("/api/v1/projects/p1/client-data", headers=H,
+                 files=[("files", ("230-23_Fasting_Reference.xlsx", _be_workbook(), XLSX))]).json()["data"]["read"][0]
+    item = ReadingQueue(ws).add([(sub["id"], "230-23_Fasting_Reference.xlsx")], task="arrival", by="u1")[0]
+    ReadingQueue(ws).finish(ReadingQueue(ws).take().id, "done")                 # (A.pdf's waiting read)
+    ReadingQueue(ws).finish(item.id, "done")
+    monkeypatch.setattr(intake_jobs, "_needs_agent", lambda content: False)
+    monkeypatch.setattr(intake_jobs, "unread_sheets", lambda content: [])
+    monkeypatch.setattr(client_api, "unread_sheets", lambda content: [])
+    nothing = c.post(f"/api/v1/projects/p1/reading-queue/{item.id}:again", headers=H)
+    assert nothing.status_code == 409 and "no data sheet is left to read" in nothing.json()["detail"]
