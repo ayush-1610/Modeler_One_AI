@@ -1436,6 +1436,11 @@
             "title": "Files",
             "type": "array"
           },
+          "read": {
+            "default": false,
+            "title": "Read",
+            "type": "boolean"
+          },
           "role": {
             "default": "proposal",
             "title": "Role",
@@ -5033,6 +5038,40 @@
         "title": "Documents",
         "type": "object"
       },
+      "DocumentsAdded": {
+        "additionalProperties": false,
+        "description": "The documents added, and which of them are read for data (plan 2026-11-10, R2).",
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentView"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "not_read": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Read",
+            "type": "array"
+          },
+          "reading": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reading",
+            "type": "array"
+          }
+        },
+        "required": [
+          "documents",
+          "reading",
+          "not_read"
+        ],
+        "title": "DocumentsAdded",
+        "type": "object"
+      },
       "DosePhase": {
         "additionalProperties": false,
         "description": "One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),\n``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two\nphases (OSP Voriconazole, Saari 2006: 400 mg twice 12 h apart, then 200 mg every 12 h from 24 h).",
@@ -5668,6 +5707,31 @@
           "errors"
         ],
         "title": "Envelope[DocumentPage]",
+        "type": "object"
+      },
+      "Envelope_DocumentsAdded_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DocumentsAdded"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DocumentsAdded]",
         "type": "object"
       },
       "Envelope_Documents_": {
@@ -6418,6 +6482,31 @@
           "errors"
         ],
         "title": "Envelope[PublishedModelTaken]",
+        "type": "object"
+      },
+      "Envelope_ReadingQueuePage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReadingQueuePage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[ReadingQueuePage]",
         "type": "object"
       },
       "Envelope_ReleaseProposal_": {
@@ -15113,6 +15202,154 @@
           "template"
         ],
         "title": "ReadFile",
+        "type": "object"
+      },
+      "ReadingItem": {
+        "additionalProperties": false,
+        "description": "One file in the project's reading queue (plan 2026-11-10, R3: the reading tray).",
+        "properties": {
+          "added_at": {
+            "title": "Added At",
+            "type": "string"
+          },
+          "added_by": {
+            "title": "Added By",
+            "type": "string"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "found": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Found",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Run Ids",
+            "type": "array"
+          },
+          "sheets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sheets",
+            "type": "array"
+          },
+          "sid": {
+            "title": "Sid",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "reading",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "task": {
+            "enum": [
+              "arrival",
+              "read"
+            ],
+            "title": "Task",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sid",
+          "file",
+          "task",
+          "sheets",
+          "state",
+          "added_by",
+          "added_at",
+          "started_at",
+          "finished_at",
+          "attempts",
+          "note",
+          "run_ids",
+          "found"
+        ],
+        "title": "ReadingItem",
+        "type": "object"
+      },
+      "ReadingQueuePage": {
+        "additionalProperties": false,
+        "description": "The reading tray: each file the reading agent is to read, is reading or has read, and whether agents are on.",
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agents",
+          "running",
+          "counts",
+          "items"
+        ],
+        "title": "ReadingQueuePage",
         "type": "object"
       },
       "ReadingRequest": {
@@ -25851,7 +26088,7 @@
         ]
       },
       "post": {
-        "description": "Store documents in the project's library. `step` and `task`: what they relate to (the \"Add data\" card).",
+        "description": "Store documents in the project's library. `step` and `task`: what they relate to (the \"Add data\" card). `read`:\nalso read each one for data (plan 2026-11-10, R2; \"Add data\" asks for it by default): a PDF, Word file or workbook\nadded as an annex, context, paper or other document is read by code and queued for the reading agent, its role\nkept; `reading` names the files queued, `not_read` the ones that are not, with why.",
         "operationId": "upload_documents_api_v1_projects__project_id__documents_post",
         "parameters": [
           {
@@ -25895,7 +26132,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_Documents_"
+                  "$ref": "#/components/schemas/Envelope_DocumentsAdded_"
                 }
               }
             },
@@ -28912,6 +29149,133 @@
         "summary": "Generate Map Endpoint",
         "tags": [
           "campaigns"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/reading-queue": {
+      "get": {
+        "description": "The reading tray (plan 2026-11-10, R3): every client file queued for the reading agent, being read, read or\nfailed, with what was found and why one failed. Like the client-data page, looking at it queues a file never queued\nand starts the reading when files wait and none runs.",
+        "operationId": "get_reading_queue_api_v1_projects__project_id__reading_queue_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ReadingQueuePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Reading Queue",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/reading-queue/{item_id}:again": {
+      "post": {
+        "description": "Read a file of the tray again (one that failed, or one read before): queued behind the others. \"RUNNING\" when\nthe reading starts now, \"QUEUED\" when it waits (or agents are off: it is read once they are on).",
+        "operationId": "read_again_api_v1_projects__project_id__reading_queue__item_id__again_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TriageStart_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Again",
+        "tags": [
+          "client-data"
         ]
       }
     },

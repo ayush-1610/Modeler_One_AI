@@ -145,3 +145,32 @@ def test_an_escalation_is_removed_once(tmp_path):
     store.upsert_escalation("t1", {"id": "camp-1-S1", "campaignId": "camp-1"})
     assert store.remove_escalation("t1", "camp-1-S1") is True
     assert store.remove_escalation("t1", "camp-1-S1") is False  # a second decision claims nothing
+
+
+def test_a_background_jobs_after_runs_once_its_lease_is_free(tmp_path):
+    # plan 2026-11-10, R1: the reading queue's drain looks again for work once it no longer holds the job
+    registry = FileJobRegistry(tmp_path)
+    seen, done = [], threading.Event()
+
+    def after() -> None:
+        seen.append(registry.running("t1", "p1", "reading"))
+        done.set()
+
+    assert registry.run_in_background("t1", "p1", "reading", lambda: None, after=after)
+    assert done.wait(5)
+    assert seen == [False]
+
+
+def test_a_checked_job_is_told_whether_it_still_holds_its_lease(tmp_path):
+    registry = FileJobRegistry(tmp_path)
+    seen, done = [], threading.Event()
+
+    def work(held) -> None:
+        seen.append(held())
+        _write_lease(registry, host="another-worker", pid=1, age_s=0)   # taken over meanwhile
+        seen.append(held())
+        done.set()
+
+    assert registry.run_in_background("t1", "p1", "extraction", work, checked=True)   # the key _write_lease writes
+    assert done.wait(5)
+    assert seen == [True, False]

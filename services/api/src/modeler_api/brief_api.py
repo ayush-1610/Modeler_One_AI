@@ -42,7 +42,7 @@ from modeler_api.deps import (
     version_view,
     workspace_for,
 )
-from modeler_api.intake_jobs import read_later
+from modeler_api.intake_jobs import READ_ROLES, ingest_for_reading, read_later
 from modeler_api.memberships import record_creator
 from modeler_api.responses import answers, envelope
 from modeler_api.views.brief import (
@@ -52,6 +52,7 @@ from modeler_api.views.brief import (
     DocumentFigures,
     DocumentPage,
     Documents,
+    DocumentsAdded,
     ExtractionStart,
     LibraryEntryView,
     LibraryPage,
@@ -269,9 +270,9 @@ async def initiate_project(
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     if extract:   # the compound's values from the start, while the person and A1 work on Start (plan 2026-11-05 §3.3)
         start_compound_job(store, principal.tenant_id, project_id, by=principal.user_id)
-        # and what code could not do with the client's files, by the agent on arrival (§3.1)
-        read_later(store, principal.tenant_id, project_id, [r["id"] for r in read_files if r.get("id") and not r.get("repeat")],
-                   by=principal.user_id)
+    # what code could not do with the client's files, by the agent on arrival (§3.1): queued whatever else starts, so no
+    # file given at the start is missed (plan 2026-11-10, R1)
+    read_later(store, principal.tenant_id, project_id, [r["id"] for r in read_files if r.get("id")], by=principal.user_id)
     return envelope({"project_id": project_id, "name": title, "documents": [_document_view(d) for d in documents],
                      "client_files": read_files, "brief_version": version.version, "extraction": extraction})
 
@@ -293,26 +294,42 @@ def _read_client_file(ws: Workspace, library: DocumentLibrary, brief: ProjectBri
 # --- documents -----------------------------------------------------------------------------------------------
 
 
-@router.post("/projects/{project_id}/documents", status_code=201, **answers(Documents))
+@router.post("/projects/{project_id}/documents", status_code=201, **answers(DocumentsAdded))
 async def upload_documents(project_id: str, principal: Writer, store: StoreDep,
                            files: Annotated[list[UploadFile], File()],
                            role: Annotated[str, Form()] = "proposal",
-                           step: Annotated[str, Form()] = "", task: Annotated[str, Form()] = "") -> dict[str, Any]:
-    """Store documents in the project's library. `step` and `task`: what they relate to (the "Add data" card)."""
+                           step: Annotated[str, Form()] = "", task: Annotated[str, Form()] = "",
+                           read: Annotated[bool, Form()] = False) -> dict[str, Any]:
+    """Store documents in the project's library. `step` and `task`: what they relate to (the "Add data" card). `read`:
+    also read each one for data (plan 2026-11-10, R2; "Add data" asks for it by default): a PDF, Word file or workbook
+    added as an annex, context, paper or other document is read by code and queued for the reading agent, its role
+    kept; `reading` names the files queued, `not_read` the ones that are not, with why."""
     if role not in ("proposal", "annex", "context", "client_file", "paper", "other"):
         raise HTTPException(status_code=422, detail=f"unknown document role {role!r}")
     relates_to = relates_to_form(step, task)
     ws = workspace_for(project_id, principal, store)
     library = DocumentLibrary(ws)
-    added = []
-    try:
-        for f in files:
-            added.append(library.add(await f.read(), f.filename or "upload", role=role, by=principal.user_id,  # type: ignore[arg-type]
-                                     relates_to=relates_to))
-    except DocumentError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    added, payloads = [], []
+    refused: DocumentError | None = None
+    for f in files:
+        data, name = await f.read(), f.filename or "upload"
+        try:
+            added.append(library.add(data, name, role=role, by=principal.user_id, relates_to=relates_to))  # type: ignore[arg-type]
+        except DocumentError as exc:
+            refused = exc
+            break
+        payloads.append((name, data))
+    reading: list[str] = []
+    not_read: list[str] = []
+    if read and role in READ_ROLES and payloads:
+        # the files stored before a refused one are read too (plan 2026-11-10, R1: no file is dropped)
+        sids, reading, not_read = ingest_for_reading(ws, library, payloads, by=principal.user_id, relates_to=relates_to)
+        read_later(store, principal.tenant_id, project_id, sids, by=principal.user_id)
+    if refused is not None:
+        raise HTTPException(status_code=422, detail=str(refused)) from refused
     entries = library.entries()
-    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d)) for d in added]})
+    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d)) for d in added],
+                     "reading": reading, "not_read": not_read})
 
 
 def _withdrawn(entries: dict[str, LibraryEntry], version) -> bool:

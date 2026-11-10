@@ -91,6 +91,96 @@ The owner's first run printed "0 runs": `$MODELER_READ_ROOT` is exported only in
 (`deploy/server/_env.sh`), so in an SSH shell `--root ""` read the current folder. The report now exits 2 with what
 to give (on the server, `~/modeler-data/read-root`) when the root is empty, missing or holds no agent runs. Test:
 `test_usage_report.py` (+1).
+### Fixed — R3 review: the tray counts files, "Read again" only does what it can (2026-11-10)
+A review of R3 (each finding checked by a second reviewer) confirmed seven defects, all fixed:
+- The tray counts and lists **files**, each at its latest reading; a file read again no longer counts twice nor keeps
+  its old failure at the top (`items` still carries the history).
+- **Read again** is refused (409) while the file waits or is read, on the client-data template, and on a workbook with
+  nothing left for the agent (it was answered "read" though nothing was read).
+- The queue's pruning keeps each file's latest item (only older readings of a file read again are dropped), so the tray
+  and `sweep` never lose a file in a long-lived project.
+- The page is read again when a reading finishes (newest finish time), not on the tray's first answer.
+- Accessibility: only the counts line is a live region (the list and buttons are not re-announced every 4 s); each
+  "Read again" button is named after its file.
+
+### Added — R3: the reading tray on Inputs, and the agent's progress in "Add data" (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R3 (gaps G5 and G6: no status; agents off was
+silent).
+- **API:** `GET /projects/{id}/reading-queue` (`ReadingQueuePage`): each file in the reading queue with its state
+  (queued, reading, done, failed), what its reading found (datasets, study facts, dissolution rows, study links, sheets
+  sorted or read), why one failed, the agent runs, and whether agents are on. Like the client-data page, opening it
+  queues a file never queued and starts the reading when files wait. `POST …/reading-queue/{item_id}:again` reads a
+  finished or failed file again (a document for its data; a workbook as on arrival while code left something for the
+  agent, else its unread data sheets), queued behind the others. OpenAPI and `api-types.ts` updated.
+- **Inputs:** a tray above the areas: "3 of 17 read · 1 reading · 13 waiting · 1 failed", each file on request with its
+  state, what was found or why it failed, and **Read again**. It polls while files wait, and reads the page again as each
+  file finishes, so the new data appear on the cards. With agents off it says the files wait until the agent is on, and
+  points to the forms on each tab.
+- **Add data:** once files are added, a line says how far the agent is (or that it is off) and links to the tray.
+- Impact: no change to what the agent reads or how code checks it. Tests: `test_the_reading_tray_lists_each_file_and_
+  reads_a_failed_one_again` (T-47), `e2e/library.spec.ts` "the reading tray on Inputs lists each file for the agent and
+  says when the agent is off".
+
+### Fixed — R1 review: the reading queue's edge cases (2026-11-10)
+An adversarial review of R1 (four lenses, each finding checked by a second reviewer trying to refute it) confirmed 11
+defects; all are fixed here:
+- **A failed reading is a failure:** a workbook's arrival reading now carries the agent's error (sorting or a sheet's
+  reading), so its queue item is `failed`, not `done`; a sheet the agent never got to read (provider down) is not marked
+  as tried and is read again next time.
+- **A failed file is read again when it is added again** (a provider outage no longer takes a delivery out of reading).
+- **One refused file no longer stops the files after it** in a client-data upload: the others are stored and queued, and
+  the 422 names each file refused and the files added.
+- **No double reading:** a document's "Read" replaces its waiting arrival; a "Read" asked while the same Read is being
+  read waits its turn instead of being ignored; a reading job whose lease went stale (another worker took over) takes no
+  more items (`FileJobRegistry.run_in_background(checked=True)`, `holds`), and a passing file-system error no longer
+  stops the lease's heartbeat.
+- **No file left out:** opening Inputs queues each stored file that still needs the agent and was never queued
+  (`intake_jobs.sweep`); the sheets the agent's "Sort the sheets" sorts as data are read by code and queued, as on
+  arrival.
+- The "Read" buttons say the file is read after any file queued before it; `test_reading_queue.py` is tagged T-47.
+- Impact: no change to what the agent reads or how code checks it; no API contract change. Not changed: a failed item is
+  not retried on its own (a provider that is down fails again at once); R3's tray will offer "Read again".
+
+### Changed — R2: documents added with "Add data" are read for data by default; large deliveries go up in batches (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R2; the owner's decision 1 ("default on").
+- **Cause:** "Add data" guessed *Annex* for every file name it did not recognise, and a document went to
+  `POST /documents`, which only stored it: the summary statistics, outlier report, mean plots and IV study of the
+  owner's Desvenlafaxine delivery were never read for data.
+- **API:** `POST /projects/{id}/documents` takes `read` (default false, so other callers are unchanged). With it, each
+  PDF, Word file or workbook added as an annex, context, paper or other document is also a client file
+  (`intake_jobs.ingest_for_reading` → `client_data.ingest`, its library role kept), read by code on arrival and queued
+  for the reading agent (R1). The proposal is not: A1 reads it on Start. The answer (`DocumentsAdded`) adds `reading`
+  (the files queued) and `not_read` (each other file, with why). OpenAPI and `apps/web/lib/api-types.ts` updated.
+- **Web:** each document row in "Add data" has **Read for data**, ticked by default for PDF, Word and Excel files; the
+  done line says which files the agent reads. Files go up in batches of at most 8 files / 40 MB per request, so a
+  delivery of any number of files stays under the server's per-request limits (1000 files; the proxy's time limit).
+- **Per-file size limit raised from 60 MB to 250 MB** (`modeler_intake.documents.MAX_BYTES`): a scanned study report can
+  be larger than 60 MB; 250 MB stays under the web proxy's 500 MB request limit.
+- Impact: what is read and how code checks it are unchanged (no science change). Tests:
+  `test_a_document_added_to_be_read_for_data_keeps_its_role_and_is_queued_for_the_agent` (T-47),
+  `e2e/library.spec.ts` "Add data reads documents for data by default, and a large delivery goes up in batches".
+
+### Fixed — R1: no client file the reading agent is to read is dropped; a reading queue per project (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md` (approved by the owner 2026-11-10), build R1. The owner
+added a whole delivery with "+ Add data" and the agent did not start on it; uploading again from an Inputs tab did.
+- **Cause:** one `reading` job per project, and `intake_jobs.read_later` dropped every file that arrived while it ran
+  (Start's reading, an earlier upload, a "Read" button). Nothing kept those files; a later upload found the job free.
+- **Change:** every file to read is an item of the project's **reading queue** (`modeler_project.reading_queue`,
+  `reading-queue.json` beside `library.json`): queued → reading → done / failed, with who added it, when, the agent
+  runs and counts of what was found. One `reading` job drains it (`intake_jobs.drain`) and looks again once its lease is
+  released (`FileJobRegistry.run_in_background(after=…)`), so a file arriving at its tail is read too. All routes queue:
+  the client-data upload (also the files stored before one is refused), Start (now also with `extract=false`), and a
+  person's "Read" (`:read` answers `"QUEUED"` instead of 409 while another reading runs). A file uploaded again before
+  it was read is queued (once). Each item is read on its own: one that fails is marked failed with why and the others
+  are read; a withdrawn file or a document with no text is failed with why, as the "Read" button already refused.
+  With agents off, files wait in the queue and are read once agents are on. Opening Inputs (`GET …/client-data`)
+  starts the reading again when files wait and none runs (after a restart); an item stopped by a restart is put back
+  once, then failed.
+- `run_reading_job` moved from `client_api` (a router) to the `intake_jobs` service, unchanged, so the queue runs every
+  kind of reading; `client_api` re-exports it and `run_document_job`.
+- Impact: no change to what the agent reads or how code checks it (no science change); no API contract change.
+  Tests: `packages/project-model/tests/test_reading_queue.py`, the queue tests in `services/api/tests/test_client_api.py`
+  (T-47), `after` in `packages/storage/tests/test_phase8_concurrency.py`.
 
 ### Added — what the agents' runs used, per agent, priced per Claude model (2026-11-10)
 The owner, 2026-11-10, choosing an Anthropic model on AWS for the agents: "I need to know what all usage and all tokens
@@ -5756,4 +5846,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-06 (cloud session, branch `claude/exciting-shannon-1phqoq`) | per commit trailer | Review of the Claude Design "Modeler One App" mockup against the app and the API; the merge plan (`docs/plans/2026-11-06-app-design-merge.md`); phase A: the dashboard and the grouped, collapsible sidebar |
 | 2026-11-07 (same cloud session) | per commit trailer | The whole web app restyled to the Claude Design "Modeler One App" look (plan §5) |
 | 2026-11-07 (same cloud session) | per commit trailer | The design's motion system and feedback from the owner's theme spec (option D) |
-| 2026-11-10 (cloud session, branch `claude/quirky-mccarthy-ln0y7g`) | per commit trailer | Small UX fixes track: "Add data" dialog scrolls inside itself with many files |
+| 2026-11-10 (cloud session, branch `claude/quirky-mccarthy-ln0y7g`) | per commit trailer | Small UX fixes track: "Add data" dialog scrolls inside itself with many files; large uploads through the web proxy; the plan `2026-11-10-add-data-agent-reads-everything.md` and its builds R1 (reading queue), R2 (documents read for data, batched uploads) and R3 (reading tray), each with an adversarial review and its fixes |

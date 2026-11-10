@@ -114,3 +114,82 @@ test("Add data with many files scrolls inside the dialog, not the page behind it
   await expect(page.getByTestId("add-data-goes-study-31-PK Table.csv")).toBeInViewport();
   await expect(page.getByTestId("add-data-step")).toBeInViewport();
 });
+
+test("Add data reads documents for data by default, and a large delivery goes up in batches", async ({ page, request }) => {
+  // plan 2026-11-10, R2 (the owner's decision 1): a PDF, Word or Excel document is read for data unless unticked
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Readamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await page.goto(`/projects/${projectId}/start`);
+  await page.getByTestId("nav-add-data").click();
+  const pdf = textPdf("Study 094-26 outlier report: subject 7 excluded from the PK analysis.");
+  const sheets = Array.from({ length: 20 }, (_, i) => (
+    { name: `study-${i + 1}-PK Table.csv`, mimeType: "text/csv", buffer: Buffer.from(`time,conc\n1,${i + 2}\n`) }));
+  await page.getByTestId("add-data-files").setInputFiles([
+    { name: "Outlier Report.pdf", mimeType: "application/pdf", buffer: pdf },
+    { name: "notes.md", mimeType: "text/markdown", buffer: Buffer.from("# Notes") },
+    ...sheets,
+  ]);
+  await expect(page.getByTestId("add-data-goes-Outlier Report.pdf")).toHaveValue("doc:annex");
+  await expect(page.getByTestId("add-data-read-Outlier Report.pdf")).toBeChecked();      // read for data by default
+  await expect(page.getByTestId("add-data-read-notes.md")).toHaveCount(0);               // nothing to read in Markdown
+  await page.getByTestId("add-data-step").selectOption("inputs");
+  await page.getByTestId("add-data-submit").click();
+  const done = page.getByTestId("add-data-done");
+  await expect(done).toContainText("Outlier Report.pdf: added as an annex; the agent reads it for data on Inputs");
+  await expect(done).toContainText("notes.md: added as an annex");
+  await expect(done).toContainText("study-1-PK Table.csv");
+  await expect(done).toContainText("study-20-PK Table.csv");                               // every batch went up
+  const files = (await (await request.get(`/api/v1/projects/${projectId}/client-data`, { headers: AUTH })).json()).data.files;
+  expect(files.map((f: { file: string }) => f.file)).toContain("Outlier Report.pdf");
+  expect(files.length).toBe(21);
+});
+
+test("the reading tray on Inputs lists each file for the agent and says when the agent is off", async ({ page, request }) => {
+  // plan 2026-11-10, R3: the e2e servers run with agents off, so the files wait and the tray says why
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Trayamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await page.goto(`/projects/${projectId}/start`);
+  await page.getByTestId("nav-add-data").click();
+  await page.getByTestId("add-data-files").setInputFiles([
+    { name: "094-26 Summary Statistics.pdf", mimeType: "application/pdf", buffer: textPdf("Study 094-26: Cmax 40 ng/mL.") },
+    { name: "093-26 Synopsis.pdf", mimeType: "application/pdf", buffer: textPdf("Study 093-26: 50 mg, fasted.") },
+  ]);
+  await page.getByTestId("add-data-step").selectOption("inputs");
+  await page.getByTestId("add-data-submit").click();
+  await expect(page.getByTestId("add-data-reading")).toContainText("The reading agent is off on this server: 2 files wait");
+  await page.getByTestId("add-data-reading").getByRole("link", { name: "See each file on Inputs" }).click();
+  await page.waitForURL(/\/inputs/);
+  const tray = page.getByTestId("reading-tray");
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("0 of 2 read · 2 waiting");
+  await expect(page.getByTestId("reading-tray-off")).toContainText("2 files wait and are read once it is on");
+  await page.getByTestId("reading-tray-toggle").click();
+  await expect(page.getByTestId("reading-item-094-26 Summary Statistics.pdf")).toContainText("waiting");
+  await expect(page.getByTestId("reading-item-093-26 Synopsis.pdf")).toContainText("on arrival");
+  await tray.screenshot({ path: test.info().outputPath("reading-tray.png") });
+});
+
+/** A one-page PDF with one line of text, its cross-reference table at the right offsets. */
+function textPdf(line: string): Buffer {
+  const content = `BT /F1 12 Tf 72 720 Td (${line}) Tj ET\n`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${content.length} >>\nstream\n${content}endstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets = objects.map((object, i) => {
+    const at = body.length;
+    body += `${i + 1} 0 obj\n${object}\nendobj\n`;
+    return at;
+  });
+  const xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+    + offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")
+    + `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${body.length}\n%%EOF\n`;
+  return Buffer.from(body + xref, "latin1");
+}

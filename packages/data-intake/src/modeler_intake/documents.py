@@ -24,7 +24,7 @@ from pathlib import PurePath
 from typing import Any
 
 PAGE_CHARS = 3500
-MAX_BYTES = 60 * 1024 * 1024
+MAX_BYTES = 250 * 1024 * 1024   # a scanned study report can be large (plan 2026-11-10: any size the web proxy lets through)
 
 KINDS = {
     ".pdf": "pdf", ".docx": "docx", ".md": "markdown", ".markdown": "markdown", ".txt": "text", ".text": "text",

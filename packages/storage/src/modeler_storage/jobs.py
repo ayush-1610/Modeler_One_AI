@@ -100,6 +100,11 @@ class FileJobRegistry:
             atomic_write_text(lease.path, json.dumps({**record, "heartbeat_at": _now().isoformat()}))
             return True
 
+    def holds(self, lease: Lease) -> bool:
+        """Whether this holder still has the lease (it did not go stale and get taken over)."""
+        record = self._read(lease.path)
+        return bool(record and record.get("owner") == lease.owner and self._live(record))
+
     def release(self, lease: Lease) -> None:
         """Give the lease up (a no-op when another holder has taken it over)."""
         with file_lock(lease.path):
@@ -111,10 +116,13 @@ class FileJobRegistry:
         """Whether a live holder has the job, in this process or any other on the root."""
         return self._live(self._read(self._path(tenant_id, scope, key)))
 
-    def run_in_background(self, tenant_id: str, scope: str, key: str, target: Callable[[], None], *,
-                          name: str | None = None) -> bool:
+    def run_in_background(self, tenant_id: str, scope: str, key: str, target: Callable[..., None], *,
+                          name: str | None = None, after: Callable[[], None] | None = None, checked: bool = False) -> bool:
         """Claim the job and run `target` on a thread that renews the lease and releases it when `target` returns or
-        raises. False, and nothing started, while another holder has it."""
+        raises; then `after`, on the same thread, once the lease is free (a queue's drain looks again for work that
+        arrived while it was finishing). `checked`: `target` is called with a function that says whether this job still
+        holds its lease, so a long job stops taking work once another holder has taken over. False, and nothing
+        started, while another holder has it."""
         lease = self.claim(tenant_id, scope, key)
         if lease is None:
             return False
@@ -124,15 +132,23 @@ class FileJobRegistry:
 
             def beat() -> None:
                 while not stop.wait(HEARTBEAT_S):
-                    if not self.heartbeat(lease):
-                        return
+                    try:
+                        if not self.heartbeat(lease):
+                            return
+                    except OSError:   # a passing file-system error: renew on the next beat, well within the TTL
+                        continue
 
             threading.Thread(target=beat, name=f"{name or key}-lease", daemon=True).start()
             try:
-                target()
+                if checked:
+                    target(lambda: self.holds(lease))
+                else:
+                    target()
             finally:
                 stop.set()
                 self.release(lease)
+                if after is not None:
+                    after()
 
         threading.Thread(target=job, name=name, daemon=True).start()
         return True

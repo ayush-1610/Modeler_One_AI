@@ -1130,7 +1130,10 @@ export interface paths {
         put?: never;
         /**
          * Upload Documents
-         * @description Store documents in the project's library. `step` and `task`: what they relate to (the "Add data" card).
+         * @description Store documents in the project's library. `step` and `task`: what they relate to (the "Add data" card). `read`:
+         *     also read each one for data (plan 2026-11-10, R2; "Add data" asks for it by default): a PDF, Word file or workbook
+         *     added as an annex, context, paper or other document is read by code and queued for the reading agent, its role
+         *     kept; `reading` names the files queued, `not_read` the ones that are not, with why.
          */
         post: operations["upload_documents_api_v1_projects__project_id__documents_post"];
         delete?: never;
@@ -1927,6 +1930,49 @@ export interface paths {
          * @description Generate the MAP (version 1, DRAFT) for a question from its CPF, studies and context.
          */
         post: operations["generate_map_endpoint_api_v1_projects__project_id__questions__question_id__map_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/reading-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reading Queue
+         * @description The reading tray (plan 2026-11-10, R3): every client file queued for the reading agent, being read, read or
+         *     failed, with what was found and why one failed. Like the client-data page, looking at it queues a file never queued
+         *     and starts the reading when files wait and none runs.
+         */
+        get: operations["get_reading_queue_api_v1_projects__project_id__reading_queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/reading-queue/{item_id}:again": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Again
+         * @description Read a file of the tray again (one that failed, or one read before): queued behind the others. "RUNNING" when
+         *     the reading starts now, "QUEUED" when it waits (or agents are off: it is read once they are on).
+         */
+        post: operations["read_again_api_v1_projects__project_id__reading_queue__item_id__again_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2833,6 +2879,11 @@ export interface components {
         Body_upload_documents_api_v1_projects__project_id__documents_post: {
             /** Files */
             files: string[];
+            /**
+             * Read
+             * @default false
+             */
+            read?: boolean;
             /**
              * Role
              * @default proposal
@@ -4126,6 +4177,18 @@ export interface components {
             documents: components["schemas"]["DocumentView"][];
         };
         /**
+         * DocumentsAdded
+         * @description The documents added, and which of them are read for data (plan 2026-11-10, R2).
+         */
+        DocumentsAdded: {
+            /** Documents */
+            documents: components["schemas"]["DocumentView"][];
+            /** Not Read */
+            not_read: string[];
+            /** Reading */
+            reading: string[];
+        };
+        /**
          * DosePhase
          * @description One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),
          *     ``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two
@@ -4326,6 +4389,13 @@ export interface components {
         /** Envelope[DocumentPage] */
         Envelope_DocumentPage_: {
             data: components["schemas"]["DocumentPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DocumentsAdded] */
+        Envelope_DocumentsAdded_: {
+            data: components["schemas"]["DocumentsAdded"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -4536,6 +4606,13 @@ export interface components {
         /** Envelope[PublishedModelTaken] */
         Envelope_PublishedModelTaken_: {
             data: components["schemas"]["PublishedModelTaken"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[ReadingQueuePage] */
+        Envelope_ReadingQueuePage_: {
+            data: components["schemas"]["ReadingQueuePage"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -7738,6 +7815,63 @@ export interface components {
             tag_proposal?: components["schemas"]["TagProposalView"] | null;
             /** Template */
             template: boolean;
+        };
+        /**
+         * ReadingItem
+         * @description One file in the project's reading queue (plan 2026-11-10, R3: the reading tray).
+         */
+        ReadingItem: {
+            /** Added At */
+            added_at: string;
+            /** Added By */
+            added_by: string;
+            /** Attempts */
+            attempts: number;
+            /** File */
+            file: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Found */
+            found: {
+                [key: string]: number;
+            };
+            /** Id */
+            id: string;
+            /** Note */
+            note: string;
+            /** Run Ids */
+            run_ids: string[];
+            /** Sheets */
+            sheets: string[];
+            /** Sid */
+            sid: string;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "reading" | "done" | "failed";
+            /**
+             * Task
+             * @enum {string}
+             */
+            task: "arrival" | "read";
+        };
+        /**
+         * ReadingQueuePage
+         * @description The reading tray: each file the reading agent is to read, is reading or has read, and whether agents are on.
+         */
+        ReadingQueuePage: {
+            agents: components["schemas"]["AgentsStatus"];
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Items */
+            items: components["schemas"]["ReadingItem"][];
+            /** Running */
+            running: boolean;
         };
         /** ReadingRequest */
         ReadingRequest: {
@@ -12419,7 +12553,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_Documents_"];
+                    "application/json": components["schemas"]["Envelope_DocumentsAdded_"];
                 };
             };
             /** @description Validation Error */
@@ -13969,6 +14103,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MapGenerated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_reading_queue_api_v1_projects__project_id__reading_queue_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ReadingQueuePage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_again_api_v1_projects__project_id__reading_queue__item_id__again_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TriageStart_"];
                 };
             };
             /** @description Validation Error */
