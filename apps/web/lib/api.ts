@@ -154,8 +154,9 @@ async function failure(res: Response): Promise<string> {
     // not JSON: the proxy's own error page
   }
   if (res.status >= 500) {
-    return `The API did not answer (HTTP ${res.status}). Is the backend running, and does the web server's ` +
-      "MODELER_API_BASE point at it?";
+    // the web server's proxy answers a bare 500 when the API is down, failed, or took longer than the proxy waits
+    return `The API did not answer (HTTP ${res.status}): it failed, took too long, or is not running. Try fewer files ` +
+      "at once; if it keeps happening, check the API log and that the web server's MODELER_API_BASE points at it.";
   }
   return `HTTP ${res.status} ${res.statusText}`.trim();
 }
