@@ -35,6 +35,7 @@ from modeler_api.intake_jobs import (  # noqa: F401  (run_document_job, run_read
     read_later,
     run_document_job,
     run_reading_job,
+    sweep,
     unread_sheets,
 )
 from modeler_api.responses import answers, envelope
@@ -143,6 +144,7 @@ def get_client_data(project_id: str, principal: Reader, store: StoreDep) -> dict
     ws = workspace_for(project_id, principal, store)
     # files a person queued are read even when the reading that would have taken them stopped (a server restart):
     # looking at the page starts the reading job again when something waits and none runs (plan 2026-11-10, R1)
+    sweep(store, principal.tenant_id, project_id)
     kick(store, principal.tenant_id, project_id)
     return envelope(_view(ws))
 
@@ -160,17 +162,21 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
     ws = workspace_for(project_id, principal, store)
     _, matrix = _matrix(ws)
     library, brief = DocumentLibrary(ws), _brief(ws)
-    read = []
-    for upload in files:
+    read, refused = [], []
+    for upload in files:   # a file refused does not stop the others (plan 2026-11-10, R1: no file is dropped)
+        name = upload.filename or "client-file"
         try:
-            name = upload.filename or "client-file"
             read.append(ingest(ws, library, await upload.read(), name, by=principal.user_id,
                                matrix=matrix, brief=brief, relates_to=relates_to, tag=given_tags.get(name)))
         except (DocumentError, ValueError) as exc:
-            # the files before it are stored: they are queued for reading before the refusal (plan 2026-11-10, R1)
+            refused.append(f"{name}: {exc}")
+    if refused:
+        # the others are stored and queued for reading; the answer names each file refused
+        if read:
             refresh_inputs(ws, by=principal.user_id)
             read_later(store, principal.tenant_id, project_id, [r["id"] for r in read if r.get("id")], by=principal.user_id)
-            raise HTTPException(status_code=422, detail=f"{upload.filename}: {exc}") from exc
+        added = f" (added: {', '.join(str(r['file']) for r in read)})" if read else ""
+        raise HTTPException(status_code=422, detail="; ".join(refused) + added)
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     # what code could not do, by the agent on arrival, when agents are on (plan 2026-11-05 §3.1): each PDF or Word file
     # read for its data, the sheets code could not sort, each sheet whose code reading has a problem
@@ -235,6 +241,13 @@ def run_triage_job(store: ProjectStore, tenant_id: str, project_id: str, sid: st
     summary = {"classified": len(ctx.accepted), "rejected": len(ctx.rejected), "summary": outcome.final_text[:2000],
                "error": outcome.error}
     run.finish(outcome, summary)
+    # the sheets now sorted as data are read by code, as on arrival, and what code could not read goes to the reading
+    # queue (plan 2026-11-10, R1: a sheet sorted by the agent is not left unread)
+    if data := [t.sheet for t in ctx.accepted if t.category.value in READ_SHEETS]:
+        brief = _brief(ws)
+        read_on_arrival(ws, DocumentLibrary(ws), sid, workbook, by=run.actor, drug=brief.drug_name if brief else "",
+                        products=products_of(brief), sheets=data)
+        read_later(store, tenant_id, project_id, [sid], by=run.actor)
     return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 

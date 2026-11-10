@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
+
 from modeler_project import FileProjectStore, Workspace
 from modeler_project.reading_queue import KEEP_FINISHED, MAX_ATTEMPTS, ReadingQueue
+
+pytestmark = pytest.mark.req("T-47")
 
 
 def _queue(tmp_path) -> ReadingQueue:
@@ -60,3 +64,15 @@ def test_a_store_without_a_root_keeps_no_queue():
 
     q = ReadingQueue(Workspace(Bare(), "t1", "p1"))  # type: ignore[arg-type]
     assert not q.available and q.items() == [] and q.recover() == 0
+
+
+def test_a_persons_read_waits_behind_the_same_read_being_read_and_a_documents_read_covers_its_arrival(tmp_path):
+    # the R1 review: a Read being read fixed its sheets when it started, so the same Read asked again is queued; a
+    # document's Read does what its waiting arrival would, so the arrival is dropped (read once)
+    q = _queue(tmp_path)
+    q.add([("file-a", "a.xlsx")], task="read", by="u1")
+    assert q.take() is not None
+    assert [i.state for i in q.add([("file-a", "a.xlsx")], task="read", by="u1")] == ["queued"]
+    q.add([("file-d", "d.pdf")], task="arrival", by="code")
+    q.add([("file-d", "d.pdf")], task="read", by="u1", supersede_arrival=True)
+    assert [(i.sid, i.task) for i in q.items() if i.state == "queued"] == [("file-a", "read"), ("file-d", "read")]

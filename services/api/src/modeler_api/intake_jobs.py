@@ -16,6 +16,7 @@ agent then does what code could not:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException
@@ -24,7 +25,15 @@ from modeler_api import agent_jobs, jobs
 from modeler_intake.grid import read_workbook_bytes
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
-from modeler_project.client_data import READABLE_DOCUMENTS, ClientDataError, ingest, record_reading, set_triage, submission
+from modeler_project.client_data import (
+    READABLE_DOCUMENTS,
+    ClientDataError,
+    ingest,
+    record_reading,
+    set_triage,
+    submission,
+    submissions,
+)
 from modeler_project.documents import DocumentLibrary, RelatesTo
 from modeler_project.inputs import refresh_inputs
 from modeler_project.reading_queue import QueueItem, ReadingQueue
@@ -116,6 +125,8 @@ def run_arrival_job(store: ProjectStore, tenant_id: str, project_id: str, sid: s
             set_triage(ws, sid, triaged, by=ctx.actor, reason=triaged.note or "A4, header quoted")
         run.finish(outcome, {"classified": len(ctx.accepted), "rejected": len(ctx.rejected), "error": outcome.error})
         out["sorted"] = len(ctx.accepted)
+        if outcome.error:   # the queue item says the sorting failed (plan 2026-11-10, R1)
+            out["status"], out["error"] = outcome.status, f"sorting the sheets: {outcome.error}"
         if data := [t.sheet for t in ctx.accepted if t.category.value in READ]:    # read by code, as on arrival
             read_on_arrival(ws, library, sid, workbook, by=run.actor, drug=drug, products=products, sheets=data)
     content = submission(ws, sid) or content
@@ -129,12 +140,15 @@ def run_arrival_job(store: ProjectStore, tenant_id: str, project_id: str, sid: s
         if reading.form is not None:
             result = adopt_agent_reading(ws, library, sid, workbook, sheet, reading.form, reading.notes, by=run.actor,
                                          run_id=run.run_id)
+        elif reading.outcome.status == "LLM_UNAVAILABLE":   # not tried: the sheet is read again next time
+            result = {"adopted": False, "saved": []}
         else:                             # no reading code accepted: code's draft stays, marked as tried
             agent_could_not(ws, sid, sheet, content["readings"][sheet], by=run.actor, run_id=run.run_id,
                             why="it proposed no reading code accepts")
             result = {"adopted": False, "saved": []}
         run.finish(reading.outcome, {"sheet": sheet, **result, "refused": len(reading.rejected), "error": reading.outcome.error})
-        out["read"].append({"sheet": sheet, "run_id": run.run_id, **result})
+        out["read"].append({"sheet": sheet, "run_id": run.run_id, **result,
+                            **({"error": f"{sheet}: {reading.outcome.error}"} if reading.outcome.error else {})})
     return out
 
 
@@ -221,12 +235,13 @@ def _outcome(result: dict[str, Any]) -> tuple[bool, str, tuple[str, ...], dict[s
     return failed, "; ".join(errors) or str(result.get("summary") or ""), run_ids, found
 
 
-def drain(store: ProjectStore, tenant_id: str, project_id: str, model) -> None:
+def drain(store: ProjectStore, tenant_id: str, project_id: str, model, held: Callable[[], bool] | None = None) -> None:
     """The reading job: every waiting item, one after the other, until none is left. One that fails is marked failed
-    and the next is read."""
+    and the next is read. `held`: whether this job still holds the reading lease; once it does not (it went stale and
+    another worker took over), it takes no more items."""
     queue = ReadingQueue(Workspace(store, tenant_id, project_id))
     queue.recover()
-    while (item := queue.take()) is not None:
+    while (held is None or held()) and (item := queue.take()) is not None:
         try:
             failed, note, run_ids, found = _outcome(_run_item(store, tenant_id, project_id, item, model) or {})
         except NotReadable as exc:
@@ -239,6 +254,18 @@ def drain(store: ProjectStore, tenant_id: str, project_id: str, model) -> None:
         queue.finish(item.id, "failed" if failed else "done", note=note, run_ids=run_ids, found=found)
 
 
+def sweep(store: ProjectStore, tenant_id: str, project_id: str) -> int:
+    """Queue each stored file that still needs the agent and was never queued (one stored before the queue existed,
+    or by a request that stopped before queuing it), so none is left out. Returns how many were queued."""
+    ws = Workspace(store, tenant_id, project_id)
+    queue = ReadingQueue(ws)
+    if not queue.available:
+        return 0
+    known = {i.sid for i in queue.items()}
+    todo = [(str(c["id"]), str(c["file"])) for c in submissions(ws) if str(c.get("id")) not in known and _needs_agent(c)]
+    return len(queue.add(todo, task="arrival", by="code")) if todo else 0
+
+
 def kick(store: ProjectStore, tenant_id: str, project_id: str) -> bool:
     """Start the reading job when something waits and agents are on; True when it started. While a reading runs this
     does nothing: the running job takes what was queued, and looks again once it is released."""
@@ -248,8 +275,9 @@ def kick(store: ProjectStore, tenant_id: str, project_id: str) -> bool:
     if not ReadingQueue(Workspace(store, tenant_id, project_id)).pending():
         return False
     try:
-        jobs.start(store, tenant_id, project_id, "reading", lambda: drain(store, tenant_id, project_id, model), busy=BUSY,
-                   name=f"reading-{project_id}", after=lambda: _kick_quietly(store, tenant_id, project_id))
+        jobs.start(store, tenant_id, project_id, "reading", lambda held: drain(store, tenant_id, project_id, model, held),
+                   busy=BUSY, name=f"reading-{project_id}", after=lambda: _kick_quietly(store, tenant_id, project_id),
+                   checked=True)
     except HTTPException:
         return False
     return True
@@ -276,7 +304,8 @@ def queue_reading(store: ProjectStore, tenant_id: str, project_id: str, sid: str
                        id="q-0", sid=sid, file=str(content.get("file", sid)), task="read", sheets=sheets, added_by=by,
                        added_at=""), model), busy=BUSY, name=f"reading-{project_id}")
         return "RUNNING"
-    queue.add([(sid, str(content.get("file", sid)))], task="read", by=by, sheets=sheets)
+    queue.add([(sid, str(content.get("file", sid)))], task="read", by=by, sheets=sheets,
+              supersede_arrival=content.get("kind") in READABLE_DOCUMENTS)
     return "RUNNING" if kick(store, tenant_id, project_id) else "QUEUED"
 
 
@@ -318,8 +347,11 @@ def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[
     sheets", "Read this sheet")."""
     ws = Workspace(store, tenant_id, project_id)
     queue = ReadingQueue(ws)
+    last = {i.sid: i for i in queue.items()} if queue.available else {}
+    # a file whose last reading failed (the provider was down, say) is queued again when it is added again
     todo = [(sid, str(content["file"])) for sid in dict.fromkeys(sids)
-            if (content := submission(ws, sid)) is not None and _needs_agent(content)]
+            if (content := submission(ws, sid)) is not None
+            and (_needs_agent(content) or (sid in last and last[sid].state == "failed"))]
     if not queue.available:   # a store without a queue: as before it, read now or not at all
         model, _problem = agent_jobs.chat_model()
         if model is None or not todo:

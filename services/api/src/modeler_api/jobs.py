@@ -22,11 +22,11 @@ def _registry(store: ProjectStore) -> FileJobRegistry:
     return FileJobRegistry(store.root)  # FileProjectStore: the root every worker of the deployment shares
 
 
-def start(store: ProjectStore, tenant_id: str, project_id: str, kind: Kind, target: Callable[[], None], *,
-          busy: str, name: str | None = None, after: Callable[[], None] | None = None) -> None:
+def start(store: ProjectStore, tenant_id: str, project_id: str, kind: Kind, target: Callable[..., None], *,
+          busy: str, name: str | None = None, after: Callable[[], None] | None = None, checked: bool = False) -> None:
     """Run `target` in the background as the project's `kind` job; 409 `busy` while one is running anywhere. `after`
-    runs once the job is released."""
-    if not _registry(store).run_in_background(tenant_id, project_id, kind, target, name=name, after=after):
+    runs once the job is released; `checked`: `target` gets a function saying whether the job still holds its lease."""
+    if not _registry(store).run_in_background(tenant_id, project_id, kind, target, name=name, after=after, checked=checked):
         raise HTTPException(status_code=409, detail=busy)
 
 

@@ -91,11 +91,19 @@ class ReadingQueue:
             self._write(items)
             return answer
 
-    def add(self, files: list[tuple[str, str]], *, task: QueueTask, by: str, sheets: tuple[str, ...] = ()) -> list[QueueItem]:
-        """Queue each `(sid, file name)`; a file already waiting or being read for the same task and sheets is not
-        queued twice. Returns the items added."""
+    def add(self, files: list[tuple[str, str]], *, task: QueueTask, by: str, sheets: tuple[str, ...] = (),
+            supersede_arrival: bool = False) -> list[QueueItem]:
+        """Queue each `(sid, file name)`; a file already waiting for the same task and sheets is not queued twice (nor
+        an arrival being read). `supersede_arrival`: this Read does all an arrival would (a document read for its data),
+        so the file's waiting arrival is dropped. Returns the items added."""
         def edit(items: list[QueueItem]):
-            waiting = {(i.sid, i.task, i.sheets) for i in items if i.state in ("queued", "reading")}
+            # an arrival waiting or being read covers another arrival of the same file; a person's Read is covered
+            # only by one still waiting (one being read fixed its sheets when it started)
+            waiting = {(i.sid, i.task, i.sheets) for i in items
+                       if i.state == "queued" or (i.state == "reading" and i.task == "arrival")}
+            if task == "read" and supersede_arrival:   # a document's Read covers its waiting arrival: read it once
+                items = [i for i in items if not (i.task == "arrival" and i.state == "queued"
+                                                  and i.sid in {sid for sid, _name in files})]
             number = max((int(i.id[2:]) for i in items), default=0)
             added = []
             for sid, name in dict.fromkeys(files):

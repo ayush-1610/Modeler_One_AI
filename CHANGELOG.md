@@ -15,6 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — R1 review: the reading queue's edge cases (2026-11-10)
+An adversarial review of R1 (four lenses, each finding checked by a second reviewer trying to refute it) confirmed 11
+defects; all are fixed here:
+- **A failed reading is a failure:** a workbook's arrival reading now carries the agent's error (sorting or a sheet's
+  reading), so its queue item is `failed`, not `done`; a sheet the agent never got to read (provider down) is not marked
+  as tried and is read again next time.
+- **A failed file is read again when it is added again** (a provider outage no longer takes a delivery out of reading).
+- **One refused file no longer stops the files after it** in a client-data upload: the others are stored and queued, and
+  the 422 names each file refused and the files added.
+- **No double reading:** a document's "Read" replaces its waiting arrival; a "Read" asked while the same Read is being
+  read waits its turn instead of being ignored; a reading job whose lease went stale (another worker took over) takes no
+  more items (`FileJobRegistry.run_in_background(checked=True)`, `holds`), and a passing file-system error no longer
+  stops the lease's heartbeat.
+- **No file left out:** opening Inputs queues each stored file that still needs the agent and was never queued
+  (`intake_jobs.sweep`); the sheets the agent's "Sort the sheets" sorts as data are read by code and queued, as on
+  arrival.
+- The "Read" buttons say the file is read after any file queued before it; `test_reading_queue.py` is tagged T-47.
+- Impact: no change to what the agent reads or how code checks it; no API contract change. Not changed: a failed item is
+  not retried on its own (a provider that is down fails again at once); R3's tray will offer "Read again".
+
 ### Changed — R2: documents added with "Add data" are read for data by default; large deliveries go up in batches (2026-11-10)
 Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R2; the owner's decision 1 ("default on").
 - **Cause:** "Add data" guessed *Annex* for every file name it did not recognise, and a document went to

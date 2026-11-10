@@ -116,7 +116,7 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
                 title={agents ? "Agent A4 reads the file; code checks every value against its page" : "agents are off"}
                 onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:read",
                                                                     { project_id: projectId, sid: file.id }, {}))
-                  ?? "Agent A4 is reading the file. What code accepts appears in its study or product, to confirm.")}>
+                  ?? "Agent A4 reads the file, after any file queued before it. What code accepts appears in its study or product, to confirm.")}>
           {agentReading ? "Reading…" : last ? "Read again (agent)" : "Read the data in this file (agent)"}
         </button>
       </div>
@@ -184,7 +184,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
             <button className="btn" disabled={!agents || running} title={agents ? undefined : "agents are off: read each sheet with the form"}
                     data-testid={`read-agent-${file.file}`}
                     onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:read", { project_id: projectId, sid: file.id }, {}))
-                      ?? "Agent A4 is reading the data sheets. Each reading opens on its sheet once code has checked it.")}>
+                      ?? "Agent A4 reads the data sheets, after any file queued before them. Each reading opens on its sheet once code has checked it.")}>
               {agentReading ? "Reading the sheets…" : `Read the data sheets (agent, ${unread})`}
             </button>
           )}

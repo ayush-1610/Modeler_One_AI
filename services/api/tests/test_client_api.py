@@ -856,3 +856,94 @@ def test_files_stored_before_one_is_refused_are_still_queued(setup, monkeypatch)
         ("files", ("broken.xlsx", b"not a workbook", XLSX))])
     assert up.status_code == 422, up.text
     assert [i.file for i in ReadingQueue(ws).items()] == ["A.pdf"]
+
+
+class _Down:
+    """A model provider that is down."""
+
+    provider, model = "test", "down"
+
+    def complete(self, messages, tools):
+        from modeler_agents.run import LLMUnavailableError
+
+        raise LLMUnavailableError("the provider answered 503")
+
+
+@pytest.mark.req("T-47")
+def test_a_workbook_read_on_arrival_while_the_provider_is_down_is_failed_and_not_marked_tried(setup):
+    # the R1 review: the arrival reading of a workbook carries the agent's failure, so the queue says it failed, and a
+    # sheet the agent never got to read is not marked as tried (it is read again next time)
+    from modeler_api import intake_jobs
+    from modeler_project.client_data import submission
+
+    c, ws = setup
+    sid = c.post("/api/v1/projects/p1/client-data", headers=H,
+                 files=[("files", ("230-23 Fasting Reference.xlsx", _nc_workbook(), XLSX))]).json()["data"]["read"][0]["id"]
+    result = intake_jobs.run_arrival_job(ws.store, "t1", "p1", sid, model=_Down())
+    failed, note, _runs, _found = intake_jobs._outcome(result)
+    assert failed and "503" in note
+    assert intake_jobs.problem_sheets(submission(ws, sid)) == ["Reference"]          # still to be read by the agent
+
+
+@pytest.mark.req("T-47")
+def test_a_file_whose_reading_failed_is_queued_again_when_it_is_added_again(setup, monkeypatch):
+    from modeler_api import agent_jobs, intake_jobs
+    from modeler_project.reading_queue import ReadingQueue
+
+    c, ws = setup
+    outcomes = [{"status": "LLM_UNAVAILABLE", "error": "the provider answered 503"}, {"status": "COMPLETED", "facts": 1}]
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(intake_jobs, "run_document_job", lambda *a, **k: outcomes.pop(0))
+    monkeypatch.setattr(intake_jobs, "_needs_agent", lambda content: False)   # as if the failed run left a record
+    pdf = _pdf("Study A: 10 mg.")
+    first = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("A.pdf", pdf, "application/pdf"))])
+    sid = first.json()["data"]["read"][0]["id"]
+    ReadingQueue(ws).add([(sid, "A.pdf")], task="arrival", by="u1")   # (`_needs_agent` is patched: queue it by hand)
+    c.get("/api/v1/projects/p1/client-data", headers=H)
+    _settle(ws)
+    assert [i.state for i in ReadingQueue(ws).items()] == ["failed"]
+    c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("A.pdf", pdf, "application/pdf"))])
+    _settle(ws)
+    assert [i.state for i in ReadingQueue(ws).items()] == ["failed", "done"]
+
+
+@pytest.mark.req("T-47")
+def test_a_refused_file_does_not_stop_the_files_after_it(setup):
+    from modeler_project.client_data import submissions
+    from modeler_project.reading_queue import ReadingQueue
+
+    c, ws = setup
+    up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[
+        ("files", ("broken.xlsx", b"not a workbook", XLSX)),
+        ("files", ("B.pdf", _pdf("Study B: 20 mg."), "application/pdf"))])
+    assert up.status_code == 422 and "broken.xlsx" in up.json()["detail"] and "added: B.pdf" in up.json()["detail"]
+    assert [f["file"] for f in submissions(ws)] == ["B.pdf"] and [i.file for i in ReadingQueue(ws).items()] == ["B.pdf"]
+
+
+@pytest.mark.req("T-47")
+def test_the_drain_takes_no_more_items_once_its_lease_is_taken_over(setup, monkeypatch):
+    from modeler_api import intake_jobs
+    from modeler_project.reading_queue import ReadingQueue
+
+    _c, ws = setup
+    calls = []
+    monkeypatch.setattr(intake_jobs, "_run_item", lambda store, t, p, item, model: calls.append(item.sid) or {})
+    ReadingQueue(ws).add([("file-a", "a.pdf"), ("file-b", "b.pdf")], task="read", by="u1")
+    held = iter([True, False])
+    intake_jobs.drain(ws.store, "t1", "p1", _Configured(), held=lambda: next(held))
+    assert calls == ["file-a"] and [i.state for i in ReadingQueue(ws).items()] == ["done", "queued"]
+
+
+@pytest.mark.req("T-47")
+def test_a_file_stored_but_never_queued_is_queued_when_inputs_is_opened(setup):
+    # the R1 review: a file stored before the queue existed (or by a request that stopped before queuing it) is found
+    from modeler_project.reading_queue import ReadingQueue
+
+    c, ws = setup
+    up = c.post("/api/v1/projects/p1/client-data", headers=H,
+                files=[("files", ("A.pdf", _pdf("Study A: 10 mg."), "application/pdf"))]).json()["data"]["read"][0]
+    queue_file = ws.store.root / "t1" / "projects" / "p1" / "reading-queue.json"
+    queue_file.unlink()                                          # as before the queue
+    assert ReadingQueue(ws).items() == []
+    c.get("/api/v1/projects/p1/client-data", headers=H)
+    assert [(i.sid, i.state) for i in ReadingQueue(ws).items()] == [(up["id"], "queued")]
