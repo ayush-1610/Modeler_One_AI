@@ -15,6 +15,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — what the agents' runs used, per agent, priced per Claude model (2026-11-10)
+The owner, 2026-11-10, choosing an Anthropic model on AWS for the agents: "I need to know what all usage and all tokens
+we are processing, inputs, outputs, so that I can correctly pick the model".
+- `python -m modeler_agents.usage_report --root "$MODELER_READ_ROOT" [--since YYYY-MM-DD] [--json]` reads the run
+  records the server keeps (`<root>/<tenant>/agent_runs/*/run.json` and `steps.jsonl`) and gives, per agent: runs and
+  their statuses, turns per run, input and output tokens per run (median, p90, max), the largest single turn (the
+  context a model must hold), the busiest minute across all runs (against a tokens-per-minute quota), and each run's
+  cost at Anthropic's list prices for Claude Opus 5.5, Sonnet 5.5 and Haiku 5.5, without and with prompt caching.
+- Caching is estimated from the recorded turns: each turn reads what its conversation sent before and writes only
+  what is new (the agents resend the whole conversation every turn); a single-turn run costs more cached (the write
+  premium, no read). The tokens are the current model's: Claude's tokenizer and its thinking (billed as output) change
+  them, so the output is a floor. Read-only; no behaviour of the platform changes. Tests: `test_usage_report.py` (3).
+
 ### Changed — Build L: a study's facts pre-filled from the project; one Start scenario per strength (2026-11-08)
 The owner, 2026-11-08, of two study cards (093-26-TEST, 230-23-TEST) asking for the dose, the number of subjects, the
 dosage form and what the study is for: "it's not able to answer all the things ... this will be the way users upload
