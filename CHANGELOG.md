@@ -28,6 +28,28 @@ we are processing, inputs, outputs, so that I can correctly pick the model".
   premium, no read). The tokens are the current model's: Claude's tokenizer and its thinking (billed as output) change
   them, so the output is a floor. Read-only; no behaviour of the platform changes. Tests: `test_usage_report.py` (3).
 
+### Fixed — a large "Add data" upload no longer fails with a bare HTTP 500 (2026-11-10)
+The owner, 2026-11-10, adding 17 client files (sheets, study-report PDFs, Word plots) at once: every file came back
+"The API did not answer (HTTP 500). Is the backend running…", though the API was running.
+- **Cause:** Next's `/api` proxy (`apps/web/next.config.mjs`) cuts a request body at 10 MB and gives up on the API after
+  30 s, and answers both with a plain 500. A delivery of that size, read on arrival, passes both limits. Reproduced with
+  a 14 MB upload through the web server (500), which passes after the change.
+- **Change:** `experimental.proxyClientMaxBodySize` 500 MB and `experimental.proxyTimeout` 600 s, overridable with
+  `MODELER_UPLOAD_MAX_MB` / `MODELER_PROXY_TIMEOUT_S` on the web server. The 5xx message (`apps/web/lib/api.ts`) no
+  longer assumes the backend is down: it says the API failed, took too long or is not running, and to try fewer files.
+- Impact: web server configuration and one message; no API, data or science change. Takes effect after the web app is
+  rebuilt and redeployed. Test: `e2e/upload-limits.spec.ts`.
+
+### Fixed — "Add data" with many files scrolls inside the dialog, not the page behind it (2026-11-10)
+The owner, 2026-11-10, with 31 files picked in "+ Add data": the list ran off the bottom of the screen and could not be
+reached, and the wheel scrolled the page behind the dialog instead.
+- **Every kit dialog fits the screen and scrolls inside itself** (`apps/web/app/styles/kit.css`): the base `.dialog`
+  now has `max-height: calc(100dvh - 32px)`, `overflow-y: auto` and `overscroll-behavior: contain` (only `.wide` had a
+  height cap before), and the page under an open dialog is held still (`html:has(.dialog-backdrop) { overflow: hidden }`).
+- Impact: UI only; no API, data or science change. Regression test: `e2e/library.spec.ts` "Add data with many files
+  scrolls inside the dialog" (fails before the fix, passes after); the other dialog flows (escalation, step-up, source
+  peek, client documents, feedback, Inputs) still pass.
+
 ### Changed — Build L: a study's facts pre-filled from the project; one Start scenario per strength (2026-11-08)
 The owner, 2026-11-08, of two study cards (093-26-TEST, 230-23-TEST) asking for the dose, the number of subjects, the
 dosage form and what the study is for: "it's not able to answer all the things ... this will be the way users upload
@@ -5657,3 +5679,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-06 (cloud session, branch `claude/exciting-shannon-1phqoq`) | per commit trailer | Review of the Claude Design "Modeler One App" mockup against the app and the API; the merge plan (`docs/plans/2026-11-06-app-design-merge.md`); phase A: the dashboard and the grouped, collapsible sidebar |
 | 2026-11-07 (same cloud session) | per commit trailer | The whole web app restyled to the Claude Design "Modeler One App" look (plan §5) |
 | 2026-11-07 (same cloud session) | per commit trailer | The design's motion system and feedback from the owner's theme spec (option D) |
+| 2026-11-10 (cloud session, branch `claude/quirky-mccarthy-ln0y7g`) | per commit trailer | Small UX fixes track: "Add data" dialog scrolls inside itself with many files |
