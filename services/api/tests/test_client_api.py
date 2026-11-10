@@ -974,13 +974,13 @@ def test_the_reading_tray_lists_each_file_and_reads_a_failed_one_again(setup, mo
     c.get("/api/v1/projects/p1/reading-queue", headers=H)                     # the tray starts the reading
     _settle(ws)
     tray = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]
-    a, b = tray["items"]
+    a, b = [i for i in tray["items"] if i["task"] != "map"]   # (map items: the R4 retry of an unfinished pass)
     assert (a["state"], a["found"], a["run_ids"]) == ("done", {"datasets": 2, "facts": 3}, ["ar_1"])
     assert (b["state"], b["note"]) == ("failed", "the provider answered 503")
     again = c.post(f"/api/v1/projects/p1/reading-queue/{b['id']}:again", headers=H)
     assert again.status_code == 202 and again.json()["data"]["status"] in ("RUNNING", "QUEUED")
     _settle(ws)
-    last = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]["items"][-1]
+    last = [i for i in c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]["items"] if i["task"] != "map"][-1]
     assert (last["file"], last["task"], last["state"], last["found"]) == ("B.pdf", "read", "done", {"facts": 1})
     assert c.post("/api/v1/projects/p1/reading-queue/q-99:again", headers=H).status_code == 404
 
@@ -1100,3 +1100,68 @@ def test_a_delivery_is_mapped_together_first_and_each_reading_is_told_the_map(se
     single = [u for u in model.users if "New files: 1." in u]
     assert single and "The map already says, of files delivered before" in single[0] and "093-26_synopsis.pdf" in single[0]
     assert one["id"] in delivery_map(ws)["looked_at"]
+
+
+@pytest.mark.req("T-47")
+def test_a_pass_that_does_not_finish_is_tried_again_a_few_times_then_the_files_are_read_without_the_map(setup, monkeypatch):
+    # the R4 review: a pass stopped by the provider marked its files as mapped, and nothing mapped them again
+    from modeler_api import intake_jobs
+    from modeler_project.client_data import delivery_map
+    from modeler_project.reading_queue import ReadingQueue
+
+    _c, ws = setup
+    queue = ReadingQueue(ws)
+    queue.add([("file-a", "a.pdf"), ("file-b", "b.pdf")], task="read", by="u1")
+    tried = []
+
+    def down(store, t, p, sids, *, model):   # the pass, with the provider down: tried, not finished
+        tried.append(list(sids))
+        intake_jobs.record_delivery_map(ws, files={}, links=[], looked_at=[], refused=[], summary="503", run_id=None,
+                                        by="agent:t", tried=sids, status="LLM_UNAVAILABLE")
+        return {"status": "LLM_UNAVAILABLE", "files": len(sids)}
+
+    monkeypatch.setattr(intake_jobs, "run_delivery_job", down)
+    for _ in range(intake_jobs.MAP_TRIES + 2):
+        intake_jobs.map_waiting(ws.store, "t1", "p1", _Configured(), queue)
+    assert tried == [["file-a", "file-b"]] * intake_jobs.MAP_TRIES       # tried again, then given up
+    mapped = delivery_map(ws)
+    assert mapped["looked_at"] == [] and mapped["tries"] == {"file-a": 2, "file-b": 2}
+    assert mapped["runs"][-1]["status"] == "LLM_UNAVAILABLE"
+
+
+def test_the_reading_waits_for_the_rest_of_a_delivery_sent_in_batches(setup):
+    import threading
+
+    from modeler_api import intake_jobs
+    from modeler_project.reading_queue import ReadingQueue
+
+    _c, ws = setup
+    queue = ReadingQueue(ws)
+    queue.add([("file-1", "1.pdf")], task="arrival", by="u1")
+    later = threading.Timer(0.05, lambda: queue.add([("file-2", "2.pdf")], task="arrival", by="u1"))
+    later.start()
+    intake_jobs.settle(queue, quiet_s=0.15, max_s=2.0)
+    later.join()
+    assert [i.sid for i in queue.items()] == ["file-1", "file-2"]           # the second batch arrived while it waited
+
+
+@pytest.mark.req("T-47")
+def test_a_withdrawn_file_is_left_out_of_what_the_map_tells_a_reading(setup):
+    from modeler_api import intake_jobs
+    from modeler_project.client_data import record_delivery_map
+    from modeler_project.documents import DocumentLibrary
+
+    c, ws = setup
+    up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[
+        ("files", ("A.pdf", _pdf("Study A: 10 mg."), "application/pdf")),
+        ("files", ("B.pdf", _pdf("Study B: 20 mg."), "application/pdf"))]).json()["data"]["read"]
+    a, b = up[0], up[1]
+    record_delivery_map(ws, files={b["id"]: {"file": "B.pdf", "facts": {"study": {"value": "B", "quote": "B", "where": "file name"}},
+                                             "sheets": {}}},
+                        links=[{"kind": "study", "names": ["B", "Study Bee"], "sid": b["id"], "page": 1, "locator": "p. 1",
+                                "quote": "Study B (Study Bee)"}], looked_at=[a["id"], b["id"]], refused=[], summary="",
+                        run_id=None, by="agent:t")
+    assert "B.pdf: study B" in intake_jobs.map_note(ws, a["id"])
+    DocumentLibrary(ws).withdraw(b["sha256"], by="u1", reason="wrong study")
+    note = intake_jobs.map_note(ws, a["id"])
+    assert "B.pdf" not in note and "Study Bee" not in note

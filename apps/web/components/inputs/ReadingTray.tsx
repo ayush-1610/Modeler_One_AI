@@ -119,7 +119,7 @@ export function ReadingTray({ projectId }: { projectId: string }) {
               <span className={`chip ${STATE_TONE[item.state]}`}>{STATE_LABEL[item.state]}</span>
               <span className="reading-tray-file">{item.file}</span>
               <span className="muted">
-                {item.task === "read" ? "a person's Read" : item.task === "map" ? "read by code; mapped" : "on arrival"}
+                {item.task === "read" ? "a person's Read" : item.task === "map" ? "read by code; mapped with the others" : "on arrival"}
                 {item.sheets.length ? ` · ${item.sheets.join(", ")}` : ""}
                 {item.state === "done" && ` · ${foundText(item.found)}`}
               </span>

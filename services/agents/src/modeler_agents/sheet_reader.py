@@ -35,6 +35,9 @@ MAX_ROWS_PER_READ = 60
 SHOWN_COLUMNS = 30
 QUOTED = ("value_unit", "time_unit", "lloq", "dose", "n", "strength_mg")   # each stands on a quote from the sheet
 UNSTATABLE = ("value_unit", "time_unit")                    # … or, for a unit only, is said to be unstated
+# what a sheet is about: changed from code's first filling, each stands on a cell of the sheet or on the file's name (the
+# delivery map and the other files are context only: plan 2026-11-10, R4 review)
+ON_SHEET = ("study_id", "product", "role", "batch", "medium", "ph", "food_state", "route", "formulation")
 
 SYSTEM_PROMPT = """You read one sheet of a client's PBPK data workbook and say how to read it, by correcting a form that code filled in first. A program applies your form exactly as written and checks it; a scientist checks the result before anything is saved, so describe the sheet as it is.
 
@@ -173,6 +176,51 @@ def _summary(review) -> str:
     return f"{len(series)} series:\n" + "\n".join(lines) + more
 
 
+def _states(name: str, value: str, text: str) -> bool:
+    """Whether a text (a cell's quote, the sheet's cells, or the file's name; separators as spaces) states the value."""
+    from modeler_intake.document_reading import names_in, supports_choice, text_in
+
+    spaced = re.sub(r"[_\-]+", " ", text)
+    if name in ("food_state", "role", "route", "formulation"):
+        return supports_choice(value, spaced) or supports_choice(value.upper(), spaced)
+    if name == "ph":
+        if not re.fullmatch(r"\d{1,2}(?:\.\d+)?", value):
+            return False
+        stated = re.findall(r"\bpH\s*[:=]?\s*(\d{1,2}(?:\.\d+)?)", spaced, re.IGNORECASE)
+        return any(abs(float(m) - float(value)) < 1e-9 for m in stated)
+    return text_in(value, spaced) or names_in(spaced, value)
+
+
+SHEET_ROWS_SEARCHED = 60
+
+
+def _sheet_text(ctx: ReadingContext) -> str:
+    """The text of every cell of the sheet's first rows, where a constant may be written."""
+    grid = ctx.workbook.sheets[ctx.sheet]
+    return "\n".join(text for r in range(1, min(grid.max_row, SHEET_ROWS_SEARCHED) + 1)
+                     for c in range(1, grid.max_column + 1) if (text := as_text(grid.cell(r, c).value)))
+
+
+def _unquoted_changes(ctx: ReadingContext, reading: SheetForm) -> list[str]:
+    """A constant the reading changes from code's first filling must be written on this sheet (in a cited cell or any
+    cell of its first rows) or in the file's name; nothing comes from another file or the delivery map."""
+    problems = []
+    sheet_text = None
+    for name in ON_SHEET:
+        new = str(reading.constants.get(name, "")).strip()
+        if not new or new == str(ctx.start.constants.get(name, "")).strip():
+            continue
+        if any(e.field == name and _states(name, new, e.quote) for e in reading.evidence) or \
+                _states(name, new, ctx.workbook.file_name):
+            continue
+        sheet_text = _sheet_text(ctx) if sheet_text is None else sheet_text
+        if _states(name, new, sheet_text):
+            continue
+        problems.append(f"{name} {new}: not written on this sheet nor in the file's name; cite the cell that states it "
+                        f"or leave it for the person (another file or the delivery map is context, not data)")
+    return problems
+
+
 def propose_reading(ctx: ReadingContext, *, form: dict[str, Any], unstated: list[str] | None = None,
                     notes: list[str] | None = None) -> str:
     unstated = [u for u in unstated or [] if u in UNSTATABLE]
@@ -182,7 +230,7 @@ def propose_reading(ctx: ReadingContext, *, form: dict[str, Any], unstated: list
         problems = [f"{'.'.join(str(x) for x in e['loc'])}: {e['msg']}" for e in exc.errors()[:8]]
         ctx.rejected.append("; ".join(problems))
         return "REJECTED: the form is not valid:\n- " + "\n- ".join(problems)
-    problems = check_reading(ctx.workbook, reading, unstated)
+    problems = check_reading(ctx.workbook, reading, unstated) + _unquoted_changes(ctx, reading)
     review = None
     if not problems:
         reading = _canonical_evidence(reading)

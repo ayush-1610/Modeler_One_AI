@@ -22,14 +22,15 @@ from typing import Any
 
 from modeler_agents.llm import ChatModel, LoopOutcome, Tool, run_tool_loop
 from modeler_agents.sheet_reader import _cell_text
-from modeler_intake.citations import normalize_for_match, value_stated_in_quote
-from modeler_intake.document_reading import CHOICES, check_quote, name_key, names_in, supports_choice, text_in
+from modeler_intake.citations import normalize_for_match
+from modeler_intake.document_reading import CHOICES, check_quote, supports_choice, text_in
 from modeler_intake.grid import WorkbookGrid
 from modeler_project.delivery_map import FIELDS, file_line
 from modeler_project.documents import DocumentLibrary
 
 PAGE_CHARS = 6000
-OVERVIEW_CHARS = 1400        # per file, in the first message
+OVERVIEW_CHARS = 1400        # a document's first page, in the first message
+WORKBOOK_CHARS = 3000        # a workbook's sheets together (each named; each its share of the rows)
 HEADER_ROWS = 8
 HEADER_COLUMNS = 12
 LINK_KINDS = ("study", "product", "batch")
@@ -45,11 +46,14 @@ the map already says about files delivered before.
 For each file, and for each sheet of a workbook whose sheets differ (one sheet per medium or pH, per product, per study),
 say what it is about with propose_facts: study (the study code), product, role (TEST, RLD or REFERENCE), strength_mg,
 batch, food_state (fasted or fed), medium, ph. Give only what the file states: each fact needs a quote copied exactly
-from where it is written, with its source: "page" (and the page), "cell" (and the cell, e.g. "pH 6.8!A1"), or "name"
-(the quote is part of the file's name, e.g. "093-26" in "093-26-Desvenlafaxine-PK Table.xlsx").
+from where it is written, with its source: "page" (and the page), "cell" (and the cell, e.g. "pH 6.8!A1"), "sheet"
+(words of the sheet's own name, for a sheet's facts, e.g. "pH 4.5"), or "name" (words of the file's name, e.g. "093-26"
+in "093-26-Desvenlafaxine-PK Table.xlsx"). A number is quoted with its unit ("50 mg", "pH 6.8"). A file holding two
+products, strengths or conditions gives them per sheet, or leaves them out.
 
 When two files give one study, product or batch two names ("Study 093-26" and "Protocol DVS-BE-01"; "APL 50" and
-"Test product"), propose_link with a quote from one file that writes both names. Never guess a link from similar names.
+"Test product"), propose_link with a quote from a page or cell that writes both names and says they are one. Never
+guess a link from similar names or from file names.
 
 Use read_page and read_sheet when the overview is not enough. Propose nothing you cannot quote. Code checks every quote
 and tells you what it refused; fix it or leave it. When every file is mapped as far as its text allows, stop."""
@@ -92,15 +96,38 @@ def _parse(value: Any) -> Any:
     return value
 
 
-def _source(ctx: DeliveryContext, f: DeliveryFile, item: dict[str, Any]) -> tuple[str | None, str]:
-    """(why the quote's source is refused or None, where it is: "p. 2", "Sheet!A1", "file name")."""
+_TOKEN = re.compile(r"[A-Za-z0-9]+")
+_MG_VALUE = re.compile(r"(\d+(?:\.\d+)?)\s*mg(?![a-z/])", re.IGNORECASE)
+_PH_VALUE = re.compile(r"\bpH\s*[:=]?\s*(\d{1,2}(?:\.\d+)?)", re.IGNORECASE)
+MIN_CELL_QUOTE = 3
+
+
+def tokens(text: str) -> list[str]:
+    """Words and numbers, case aside; an underscore or hyphen separates them ("Fast_230-23" is fast, 230, 23)."""
+    return [t.lower() for t in _TOKEN.findall(text)]
+
+
+def tokens_in(value: str, text: str) -> bool:
+    """Whether the value's words and numbers stand in the text in a row, as whole words ("093-26" in "Study 093/26",
+    not "93" in "093-26")."""
+    want, have = tokens(value), tokens(text)
+    return bool(want) and any(have[i:i + len(want)] == want for i in range(len(have) - len(want) + 1))
+
+
+def _source(ctx: DeliveryContext, f: DeliveryFile, item: dict[str, Any], *, sheet: str = "") -> tuple[str | None, str]:
+    """(why the quote's source is refused or None, where it is: "p. 2", "Sheet!A1", "file name", "sheet name")."""
     quote = str(item.get("quote") or "")
     source = item.get("source")
     if not quote.strip():
         return "no quote", ""
     if source == "name":
-        ok = normalize_for_match(quote).lower() in normalize_for_match(f.file).lower()
-        return (None if ok else "the quote is not part of the file's name"), "file name"
+        ok = tokens_in(quote, f.file)
+        return (None if ok else "the quote is not words of the file's name"), "file name"
+    if source == "sheet":
+        if not sheet:
+            return "a sheet-name source is for a sheet's facts (give the sheet)", ""
+        ok = tokens_in(quote, sheet)
+        return (None if ok else "the quote is not words of the sheet's name"), "sheet name"
     if source == "page":
         page = item.get("page")
         if not isinstance(page, int) or not f.pages:
@@ -114,9 +141,11 @@ def _source(ctx: DeliveryContext, f: DeliveryFile, item: dict[str, Any]) -> tupl
         text = _cell_text(f.workbook, cell)
         if text is None:
             return f"no cell {cell!r} in this workbook (write it as Sheet!A1)", ""
-        ok = normalize_for_match(quote).lower() in normalize_for_match(text).lower()
+        if len(normalize_for_match(quote)) < MIN_CELL_QUOTE:
+            return f"quote at least {MIN_CELL_QUOTE} characters of the cell", ""
+        ok = tokens_in(quote, text) or normalize_for_match(quote).lower() in normalize_for_match(text).lower()
         return (None if ok else f"the quote is not in cell {cell}"), cell
-    return "source must be page, cell or name", ""
+    return "source must be page, cell, sheet or name", ""
 
 
 def _number(value: Any) -> float | None:
@@ -127,20 +156,22 @@ def _number(value: Any) -> float | None:
 
 
 def check_value(field_name: str, value: Any, quote: str) -> tuple[str | None, Any]:
-    """(why the value is refused or None, the value kept): the quote must state it."""
+    """(why the value is refused or None, the value kept): the quote must state it. A number stands next to its unit
+    ("50 mg", "pH 6.8"); a name is the quote's whole words; a word says fed or fasted, test or reference."""
     text = str(value).strip() if value is not None else ""
+    spaced = re.sub(r"[_\-]+", " ", quote)
     if field_name not in FIELDS:
         return f"unknown fact {field_name!r} (one of {', '.join(FIELDS)})", None
     if field_name in ("strength_mg", "ph"):
         number = _number(value)
         if number is None:
             return "a number is needed", None
-        if not value_stated_in_quote(number, quote):
-            return f"the quote does not state {number:g}", None
-        if field_name == "strength_mg" and not _MG.search(quote):
-            return "the quote does not say mg", None
-        if field_name == "ph" and not _PH.search(quote):
-            return "the quote does not say pH", None
+        if field_name == "ph" and not 0 <= number <= 14:
+            return "a pH is between 0 and 14", None
+        stated = _MG_VALUE.findall(spaced) if field_name == "strength_mg" else _PH_VALUE.findall(spaced)
+        if not any(abs(float(s) - number) < 1e-9 for s in stated):
+            unit = "mg" if field_name == "strength_mg" else "pH"
+            return f"the quote does not state {number:g} with its {unit} (\"50 mg\", \"pH 6.8\")", None
         return None, number
     if not text:
         return "no value", None
@@ -148,15 +179,15 @@ def check_value(field_name: str, value: Any, quote: str) -> tuple[str | None, An
         role = text.upper()
         if role not in ROLES:
             return f"role is one of {', '.join(ROLES)}", None
-        return (None, role) if supports_choice(role, quote) else ("the quote does not say it", None)
+        return (None, role) if supports_choice(role, spaced) else ("the quote does not say it", None)
     if field_name == "food_state":
         food = text.lower()
         if food not in FOOD:
             return "food_state is fasted or fed", None
-        return (None, food) if supports_choice(food, quote) else ("the quote does not say it", None)
+        return (None, food) if supports_choice(food, spaced) else ("the quote does not say it", None)
     if field_name == "study":
-        return (None, text) if names_in(quote, text) else ("the quote does not write the study's name", None)
-    return (None, text) if (names_in(quote, text) or text_in(text, quote)) else ("the quote does not write it", None)
+        return (None, text) if tokens_in(text, quote) else ("the quote does not write the study's name as whole words", None)
+    return (None, text) if tokens_in(text, quote) or text_in(text, quote) else ("the quote does not write it", None)
 
 
 def propose_facts(ctx: DeliveryContext, *, sid: str, facts: Any, sheet: str = "") -> str:
@@ -177,13 +208,17 @@ def propose_facts(ctx: DeliveryContext, *, sid: str, facts: Any, sheet: str = ""
             continue
         name = str(item.get("fact") or "")
         what = f"{name} of {f.file}" + (f" sheet {sheet}" if sheet else "")
-        why, where = _source(ctx, f, item)
+        why, where = _source(ctx, f, item, sheet=sheet)
         if why:
             answers.append(ctx.refuse(what, why))
             continue
         why, value = check_value(name, item.get("value"), str(item["quote"]))
         if why:
             answers.append(ctx.refuse(what, why))
+            continue
+        if name in into and into[name]["value"] != value:   # one value per file or sheet: a file with two is per sheet
+            answers.append(ctx.refuse(what, f"already {into[name]['value']} here; a file holding more than one gives it "
+                                            "per sheet, or leaves it out"))
             continue
         into[name] = {"value": value, "quote": str(item["quote"])[:400], "where": where}
         answers.append(f"ACCEPTED {what} = {value}")
@@ -200,15 +235,18 @@ def propose_link(ctx: DeliveryContext, *, kind: str, names: Any, sid: str, quote
         return ctx.refuse(what, f"kind is one of {', '.join(LINK_KINDS)}")
     if not isinstance(pair, list) or len(pair) != 2 or not all(isinstance(n, str) and n.strip() for n in pair):
         return ctx.refuse(what, "names must be the two names")
-    if name_key(pair[0]) == name_key(pair[1]):
-        return ctx.refuse(what, "the two names are the same")
+    a, b = tokens(pair[0]), tokens(pair[1])
+    if not a or not b or a == b or tokens_in(pair[0], pair[1]) or tokens_in(pair[1], pair[0]):
+        return ctx.refuse(what, "the two names are the same name, or one is part of the other")
+    if source not in ("page", "cell"):
+        return ctx.refuse(what, "a link is quoted from a page or a cell that says the two are one")
     f = ctx.file(sid)
     if f is None:
         return ctx.refuse(what, f"{sid} is not a file of this pass")
     why, where = _source(ctx, f, {"quote": quote, "source": source, "page": page, "cell": cell})
     if why:
         return ctx.refuse(what, why)
-    if not names_in(quote, *pair):
+    if not (tokens_in(pair[0], quote) and tokens_in(pair[1], quote)):
         return ctx.refuse(what, "the quote must write both names")
     ctx.links.append({"kind": kind, "names": [pair[0].strip(), pair[1].strip()], "sid": sid, "page": page if source == "page" else None,
                       "locator": where, "quote": quote[:400]})
@@ -226,22 +264,28 @@ def read_page(ctx: DeliveryContext, *, sid: str, page: int) -> str:
 
 def read_sheet(ctx: DeliveryContext, *, sid: str, sheet: str) -> str:
     f = ctx.file(sid)
-    if f is None or f.workbook is None or sheet not in f.workbook.sheets:
-        return f"{sid}: no sheet {sheet!r}"
+    if f is None or f.workbook is None:
+        return f"{sid}: not a workbook of this pass"
+    if sheet not in f.workbook.sheets:
+        return f"{f.file} has no sheet {sheet!r}; its sheets: {', '.join(f.workbook.sheets)}"
     return f"{f.file}, sheet {sheet}:\n{f.workbook.sheets[sheet].preview(max_rows=15, max_columns=20)}"
 
 
 def overview(f: DeliveryFile) -> str:
-    """What the agent first sees of a file: its sheets' headers, or its first page."""
+    """What the agent first sees of a file: every sheet's name and the first rows of each (each sheet its share of the
+    budget, so no sheet is left out), or the first page of a PDF or Word file."""
     if f.workbook is not None:
-        parts = [f"sheet {name}:\n{grid.preview(max_rows=HEADER_ROWS, max_columns=HEADER_COLUMNS)}"
-                 for name, grid in f.workbook.sheets.items()]
-        text = "\n".join(parts)
-    elif f.pages:
+        names = list(f.workbook.sheets)
+        share = max(200, WORKBOOK_CHARS // max(1, len(names)))
+        parts = [f"sheets: {', '.join(names)}"]
+        for name in names:
+            preview = f.workbook.sheets[name].preview(max_rows=HEADER_ROWS, max_columns=HEADER_COLUMNS)
+            parts.append(f"sheet {name}:\n" + (preview if len(preview) <= share else preview[:share] + " …"))
+        return "\n".join(parts)
+    if f.pages:
         text = f"{len(f.pages)} pages; p. 1:\n{f.pages[0]}"
-    else:
-        text = "(no text: a scan, or a file kind with nothing to read)"
-    return text if len(text) <= OVERVIEW_CHARS else text[:OVERVIEW_CHARS] + " …(read_page / read_sheet for more)"
+        return text if len(text) <= OVERVIEW_CHARS else text[:OVERVIEW_CHARS] + " …(read_page for more)"
+    return "(no text: a scan, or a file kind with nothing to read)"
 
 
 def brief_for(ctx: DeliveryContext, *, drug: str) -> str:
@@ -260,7 +304,7 @@ def brief_for(ctx: DeliveryContext, *, drug: str) -> str:
 def build_tools(ctx: DeliveryContext) -> list[Tool]:
     s, i = {"type": "string"}, {"type": "integer"}
     fact = {"type": "object", "properties": {"fact": {"type": "string", "enum": list(FIELDS)}, "value": {},
-                                             "source": {"type": "string", "enum": ["page", "cell", "name"]},
+                                             "source": {"type": "string", "enum": ["page", "cell", "sheet", "name"]},
                                              "page": i, "cell": s, "quote": s},
             "required": ["fact", "value", "source", "quote"]}
     return [
@@ -276,7 +320,7 @@ def build_tools(ctx: DeliveryContext) -> list[Tool]:
         Tool("propose_link", "Two names one file writes for one study, product or batch, quoted.",
              {"type": "object", "properties": {"kind": {"type": "string", "enum": list(LINK_KINDS)},
                                                "names": {"type": "array", "items": s}, "sid": s,
-                                               "source": {"type": "string", "enum": ["page", "cell", "name"]},
+                                               "source": {"type": "string", "enum": ["page", "cell"]},
                                                "page": i, "cell": s, "quote": s},
               "required": ["kind", "names", "sid", "quote"]}, lambda **kw: propose_link(ctx, **kw)),
     ]
@@ -314,8 +358,18 @@ def map_and_record(model: ChatModel, ws: Any, library: DocumentLibrary, sids: li
                 except ValueError:
                     f.workbook = None
         files.append(f)
-    ctx = DeliveryContext(library=library, files=files, actor=actor, mapped=delivery_map(ws))
+    mapped = delivery_map(ws)
+    hidden = {sid for sid in mapped["files"] if (c := submission(ws, sid)) is None
+              or (library.has_record and library.entry(c["sha256"]).withdrawn is not None)}   # gone, or withdrawn
+    mapped = {**mapped, "files": {k: v for k, v in mapped["files"].items() if k not in hidden},
+              "links": [link for link in mapped["links"] if link.get("sid") not in hidden]}
+    ctx = DeliveryContext(library=library, files=files, actor=actor, mapped=mapped)
     outcome = run_delivery_pass(model, ctx, drug=drug, max_turns=max_turns, log_step=log_step)
-    record_delivery_map(ws, files=ctx.found, links=ctx.links, looked_at=[f.sid for f in files], refused=ctx.refused,
-                        summary=outcome.final_text, run_id=run_id, by=actor)
+    # a pass that did not finish (the provider down, the turns used up) marks as looked at only the files it mapped;
+    # the others are tried again (`intake_jobs.map_waiting`), at most a few times
+    done = outcome.status == "COMPLETED"
+    record_delivery_map(ws, files=ctx.found, links=ctx.links,
+                        looked_at=[f.sid for f in files if done or f.sid in ctx.found], refused=ctx.refused,
+                        summary=outcome.final_text or (outcome.error or ""), run_id=run_id, by=actor,
+                        tried=[f.sid for f in files], status=outcome.status)
     return ctx, outcome

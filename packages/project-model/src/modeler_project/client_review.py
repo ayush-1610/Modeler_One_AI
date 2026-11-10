@@ -163,6 +163,11 @@ def _profile_difference(a: ObservedDataset, b: ObservedDataset) -> float | None:
     return max(differences) if differences else None
 
 
+def _where(said: dict[str, Any]) -> str:
+    """Where a link's quote is: "p. 3", or a cell or the file's name for one the delivery map found (R4 review)."""
+    return said.get("locator") or (f"p. {said['page']}" if said.get("page") is not None else "the file")
+
+
 def _doc_source(fact: dict[str, Any]) -> dict[str, Any]:
     return {"doc_sha256": fact["doc_sha256"], "page": fact["page"], "locator": fact.get("locator") or f"p. {fact['page']}",
             "title": fact["file"], "quote": str(fact.get("quote", ""))[:600]}
@@ -352,7 +357,7 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
             if not named or _key(named) == _key(raw):
                 continue
             if said:
-                text = (f"{said['file']} (p. {said['page']}) says “{said['quote'][:200]}”: is {raw} the same study as "
+                text = (f"{said['file']} ({_where(said)}) says “{said['quote'][:200]}”: is {raw} the same study as "
                         f"{named}?")
                 source = _doc_source(said)
             else:
@@ -534,7 +539,7 @@ def _link_issue(scope: str, raw: str, said: dict[str, Any], what: str,
                 shown: str | None = None) -> tuple[str, str, str, str, list[dict[str, Any]]]:
     """A "same product?" or "same batch?" question; `raw` is the key its answer is kept under, `shown` the name."""
     name = shown or raw
-    text = f"{said['file']} (p. {said['page']}) says “{said['quote'][:200]}”: is {name} the same {what} as {said['named']}?"
+    text = f"{said['file']} ({_where(said)}) says “{said['quote'][:200]}”: is {name} the same {what} as {said['named']}?"
     return scope, raw, "link", text, [
         {"id": "same", "label": f"Yes: {name} is {said['named']}", "value": said["named"], "source": _doc_source(said),
          "datasets": []},

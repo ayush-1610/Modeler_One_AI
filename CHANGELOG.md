@@ -15,6 +15,33 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — R4 review: the map stays context; code's checks on the delivery pass tightened (2026-11-10)
+An adversarial review of R4 (science, robustness, the owner's own delivery; each finding checked by a second reviewer)
+confirmed 9 defects and raised 12 more; all are fixed here.
+- **The map cannot become data (high):** the sheet reader checked quotes only for units, LLOQ, dose, n and strength, so a
+  batch, medium, product, role, pH, study, food state, route or formulation copied from the map (another file) could
+  be saved unquoted. Now a reading that changes any of these from code's first filling is refused unless this sheet
+  (a cited cell or any cell of its first rows) or the file's name states it (`sheet_reader._unquoted_changes`).
+- **A number is checked with its unit:** strength is the number before "mg" (not "mg/kg", no ×100); pH the number
+  after "pH", between 0 and 14. Names are checked as whole words ("93" is not "093-26"); an underscore or hyphen
+  separates words, so "Fast_230-23" says fasted and study 230-23. A cell quote is at least 3 characters.
+- **Every sheet is seen:** the overview names every sheet of a workbook and gives each its share of the rows (it cut
+  the later sheets of a dissolution workbook); a sheet's tab name ("pH 4.5") can be quoted for that sheet's facts;
+  `read_sheet` lists the sheets when asked for one that does not exist.
+- **One value per file or sheet:** a second, different product or strength for the same file is refused (a comparison
+  file gives them per sheet) instead of replacing the first silently. A link needs a page or cell quote writing both
+  names, which are not one name nor one inside the other; never a file name.
+- **A delivery is mapped together:** the reading job waits until no file has arrived for 3 s (at most 45 s), so a
+  delivery "Add data" sends in batches of 8 is mapped as one.
+- **A pass that does not finish** (the provider down, turns used up) no longer marks its files as mapped: they are
+  tried again, twice in all, then read without the map; opening Inputs queues a file never mapped. A failure to map
+  never stops the reading.
+- **Withdrawn files** are left out of what the map tells the pass and each reading. Each reading's agent run logs the
+  map note it was given. "Sort the sheets" by a person is told the map too. A link the map found from a cell is asked
+  as "<file> (pH 6.8!A1) says …", not "(p. None)"; a link a document already said is not asked twice.
+- Tests: the R4 review tests in `services/agents/tests/test_delivery_pass.py` and `test_sheet_reader.py`, and in
+  `services/api/tests/test_client_api.py` (T-47); `services/api/tests/conftest.py` starts readings at once in tests.
+
 ### Changed — R5: a figure is suggested for digitizing only when it matters and no table holds its values (2026-11-10)
 Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R5; the owner's decision 3 ("suggest only when
 no table has the values, and only for those that are important, not for all digitizable plots"). Science-facing: what

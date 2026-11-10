@@ -31,6 +31,7 @@ from modeler_api.deps import (
 )
 from modeler_api.intake_jobs import (  # noqa: F401  (run_document_job, run_reading_job: the e2e fixture's and tests' names)
     kick,
+    map_note,
     needs_agent,
     queue_again,
     queue_reading,
@@ -286,7 +287,7 @@ def run_triage_job(store: ProjectStore, tenant_id: str, project_id: str, sid: st
     run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
                               agent="A4-sheet-triage", model=model, max_turns=max_turns)
     ctx, outcome = agent_jobs.sheet_triage(model, workbook=workbook, sheets=undecided, actor=run.actor, max_turns=max_turns,
-                                           log_step=run.log_step)
+                                           log_step=run.log_step, context=map_note(ws, sid))
     for triaged in ctx.accepted:
         set_triage(ws, sid, triaged, by=ctx.actor, reason=triaged.note or "A4, header quoted")
     summary = {"classified": len(ctx.accepted), "rejected": len(ctx.rejected), "summary": outcome.final_text[:2000],

@@ -99,8 +99,8 @@ def test_the_pass_maps_each_file_and_sheet_and_code_refuses_what_its_quote_does_
 
     refused = "\n".join(ctx.refused)
     assert "food_state of 093-26 synopsis.pdf: the quote does not say it" in refused          # fed is not "overnight fast"
-    assert "strength_mg of 093-26 synopsis.pdf: the quote does not state 100" in refused
-    assert "study of 093-26 synopsis.pdf: the quote is not part of the file's name" in refused
+    assert "strength_mg of 093-26 synopsis.pdf: the quote does not state 100 with its mg" in refused
+    assert "study of 093-26 synopsis.pdf: the quote is not words of the file's name" in refused
     assert "ph of APL 50 dissolution.xlsx sheet pH 6.8: the quote is not in cell pH 6.8!A2" in refused
     assert "link ['APL 50', 'Pristiq']: the quote must write both names" in refused
 
@@ -148,15 +148,79 @@ def test_each_reading_is_told_what_the_map_says_and_a_single_file_is_checked_aga
 @pytest.mark.parametrize(("field", "value", "quote", "kept"), [
     ("strength_mg", "50", "ER 50 mg tablets", 50.0),
     ("strength_mg", 50, "ER 50 tablets", None),               # no mg
+    ("strength_mg", 50, "USP II 50 rpm, 25 mg tablet", None),  # 50 is not the mg (the R4 review)
+    ("strength_mg", 1, "Desvenlafaxine ER 100 mg", None),      # no x100 for mg
+    ("strength_mg", 10, "a dose of 10 mg/kg", None),           # mg/kg is not a strength
     ("ph", 6.8, "buffer 6.8", None),                          # no pH
     ("ph", "4.5", "acetate buffer pH 4.5", 4.5),
+    ("ph", 0.1, "0.1 N HCl pH 1.2", None),                    # 0.1 is the HCl's, not the pH
+    ("ph", 37, "phosphate buffer pH 6.8 at 37 °C", None),      # outside 0-14
     ("role", "rld", "the reference listed drug", "RLD"),
+    ("role", "RLD", "RLD 50 vs APL 50 MMD", "RLD"),
     ("role", "OTHER", "anything", None),
     ("food_state", "fed", "after a high-fat breakfast", "fed"),
+    ("food_state", "fasted", "US Pivotal Fast_230-23", "fasted"),   # an underscore separates words (the R4 review)
+    ("food_state", "fed", "US Pivotal Fed_231-23", "fed"),
     ("study", "093-26", "Study 093/26", "093-26"),            # the name as the file writes it, punctuation aside
+    ("study", "93", "093-26 PK Table", None),                 # not a fragment of another number
+    ("study", "230-23", "US Pivotal Fast_230-23", "230-23"),
     ("medium", "phosphate buffer", "50 mM phosphate buffer pH 6.8", "phosphate buffer"),
     ("analyte", "x", "x", None),
 ])
 def test_code_keeps_a_value_only_when_its_quote_states_it(field, value, quote, kept):
     why, got = check_value(field, value, quote)
     assert (got if why is None else None) == kept
+
+
+def _many_sheets() -> bytes:
+    wb = Workbook()
+    names = ["0.1N HCl", "pH 4.5", "pH 6.8", "Water", "Summary"]
+    for n, name in enumerate(names):
+        sheet = wb.active if n == 0 else wb.create_sheet(name)
+        sheet.title = name
+        sheet.append([f"Dissolution of APL 50, {name}, USP II 50 rpm, 900 mL"])
+        sheet.append(["Time (min)", *[f"Vessel {v}" for v in range(1, 13)]])
+        for t in (5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360):
+            sheet.append([t, *[float(v + t) for v in range(1, 13)]])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_every_sheet_is_shown_a_tab_name_is_quoted_and_one_file_holds_one_value_per_field(tmp_path):
+    # the R4 review: a workbook's later sheets were cut from the overview; pH often stands only in the tab's name; a
+    # comparison file holding two products must not keep the second silently over the first
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    library = DocumentLibrary(ws)
+    sid = ingest(ws, library, _many_sheets(), "Dissolution Profiling_US Market.xlsx", by="u")["id"]
+    model = Scripted([[
+        ("propose_facts", {"sid": sid, "sheet": "pH 4.5", "facts": [
+            {"fact": "ph", "value": 4.5, "source": "sheet", "quote": "pH 4.5"}]}),
+        ("propose_facts", {"sid": sid, "facts": [
+            {"fact": "ph", "value": 4.5, "source": "sheet", "quote": "pH 4.5"}]}),          # a file's fact: no sheet
+        ("propose_facts", {"sid": sid, "facts": [
+            {"fact": "product", "value": "APL 50", "source": "cell", "cell": "Water!A1", "quote": "APL 50"},
+            {"fact": "product", "value": "USP II", "source": "cell", "cell": "Water!A1", "quote": "USP II 50 rpm"}]}),
+        ("propose_link", {"kind": "product", "names": ["APL 50", "US Market"], "sid": sid, "source": "name",
+                          "quote": "US Market"}),
+        ("propose_link", {"kind": "product", "names": ["APL 50", "APL 50 tablet"], "sid": sid, "source": "cell",
+                          "cell": "Water!A1", "quote": "APL 50"})]])
+    ctx, _outcome = map_and_record(model, ws, library, [sid], actor="agent:t")
+    assert all(f"sheet {name}:" in model.user for name in ("0.1N HCl", "pH 4.5", "pH 6.8", "Water", "Summary"))
+    mapped = delivery_map(ws)["files"][sid]
+    assert mapped["sheets"]["pH 4.5"]["facts"]["ph"] == {"value": 4.5, "quote": "pH 4.5", "where": "sheet name"}
+    assert mapped["facts"] == {"product": {"value": "APL 50", "quote": "APL 50", "where": "Water!A1"}}
+    refused = "\n".join(ctx.refused)
+    assert "a sheet-name source is for a sheet's facts" in refused
+    assert "already APL 50 here" in refused
+    assert "a link is quoted from a page or a cell" in refused
+    assert "one is part of the other" in refused
+
+
+def test_a_link_question_says_where_its_quote_is_a_page_or_a_cell():
+    # the R4 review: a link the map quoted from a cell was asked as "<file> (p. None) says …"
+    from modeler_project.client_review import _where
+
+    assert _where({"page": 3}) == "p. 3"
+    assert _where({"page": None, "locator": "pH 6.8!A1"}) == "pH 6.8!A1"
+    assert _where({"page": None}) == "the file"

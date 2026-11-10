@@ -107,3 +107,22 @@ def test_the_evaluation_scores_the_agent_as_the_api_runs_it():
 
     scores = evaluate(agent_reader(Oracle([])))
     assert [s.case for s in scores if not s.exact] == []
+
+
+def test_a_reading_cannot_take_a_constant_its_sheet_and_name_do_not_state(tmp_path):
+    # the R4 review: the delivery map tells the reader about the other files; a batch, medium, product or study the
+    # agent copies from there (not written on this sheet nor in the file's name) is refused, never saved unquoted
+    case = _case("dissolution-vessels")
+    for change in ({"batch": "B999"}, {"medium": "0.1 N HCl"}, {"product": "APL 50"}):
+        form = _form(case)
+        form["constants"] = {**form["constants"], **change}
+        model = Scripted([[("propose_reading", {"form": form})], []])
+        reading = read_sheet(model, workbook=workbook(case), sheet=case.sheet, drug=case.drug, actor="agent:t",
+                             category="DISSOLUTION", context="The delivery map: synopsis.pdf: product APL 50 · batch B999")
+        assert reading.form is None, change
+        assert "another file or the delivery map is context, not data" in model.answers[0]
+    form = _form(case)                       # what the sheet's title states is kept, as before
+    form["constants"] = {**form["constants"], "batch": "B123", "medium": "phosphate buffer", "product": "Test tablet"}
+    reading = read_sheet(Scripted([[("propose_reading", {"form": form})], []]), workbook=workbook(case), sheet=case.sheet,
+                         drug=case.drug, actor="agent:t", category="DISSOLUTION")
+    assert reading.form is not None

@@ -500,8 +500,12 @@ def document_links(ws: Workspace, kind: str = "study") -> list[dict[str, Any]]:
     files = {sub["id"]: sub for sub in submissions(ws)}
     read = [{**link, "sid": sub["id"], "file": sub["file"], "doc_sha256": sub["sha256"]}
             for sub in files.values() for link in sub.get("study_links", []) if link.get("kind", "study") == kind]
+    from modeler_intake.document_reading import name_key
+
+    said = {frozenset(name_key(n) for n in link["names"]) for link in read}
     mapped = [{**link, "doc_sha256": files[link["sid"]]["sha256"], "file": files[link["sid"]]["file"]}
-              for link in delivery_map(ws)["links"] if link.get("kind") == kind and link.get("sid") in files]
+              for link in delivery_map(ws)["links"] if link.get("kind") == kind and link.get("sid") in files
+              and frozenset(name_key(n) for n in link["names"]) not in said]    # a document said it already
     return read + mapped
 
 
@@ -511,13 +515,15 @@ def delivery_map(ws: Workspace) -> dict[str, Any]:
     version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, DELIVERY)
     content = dict(version.content) if version else {}
     return {"files": content.get("files", {}), "links": content.get("links", []), "looked_at": content.get("looked_at", []),
-            "runs": content.get("runs", [])}
+            "tries": content.get("tries", {}), "runs": content.get("runs", [])}
 
 
 def record_delivery_map(ws: Workspace, *, files: dict[str, dict[str, Any]], links: list[dict[str, Any]],
-                        looked_at: list[str], refused: list[str], summary: str, run_id: str | None, by: str) -> None:
+                        looked_at: list[str], refused: list[str], summary: str, run_id: str | None, by: str,
+                        tried: list[str] = (), status: str = "COMPLETED") -> None:
     """Add what one delivery pass found to the map: a file's (or a sheet's) values replace the earlier ones field by
-    field; a link already on the map is not added twice; every file the pass looked at is marked, found or not."""
+    field; a link already on the map is not added twice; every file the pass finished looking at is marked, found or
+    not (`looked_at`); every file it tried is counted (`tried`), so a pass that failed is tried again, a few times."""
     with ws.editing(ArtifactKind.CLIENT_SUBMISSION, DELIVERY):
         current = delivery_map(ws)
         merged = {sid: {**entry, "facts": dict(entry.get("facts", {})),
@@ -536,12 +542,15 @@ def record_delivery_map(ws: Workspace, *, files: dict[str, dict[str, Any]], link
             if key not in seen:
                 seen.add(key)
                 new_links.append(link)
-        runs = [*current["runs"], {"run_id": run_id, "by": by, "looked_at": looked_at,
+        tries = dict(current["tries"])
+        for sid in tried:
+            tries[sid] = tries.get(sid, 0) + 1
+        runs = [*current["runs"], {"run_id": run_id, "by": by, "status": status, "tried": list(tried), "looked_at": looked_at,
                                    "facts": sum(len(e.get("facts", {})) + sum(len(p.get("facts", {})) for p in e.get("sheets", {}).values())
                                                 for e in files.values()),
                                    "links": len(new_links), "refused": refused[:50], "summary": summary[:2000]}]
         content = {"files": merged, "links": [*current["links"], *new_links],
-                   "looked_at": sorted(set(current["looked_at"]) | set(looked_at)), "runs": runs[-50:]}
+                   "looked_at": sorted(set(current["looked_at"]) | set(looked_at)), "tries": tries, "runs": runs[-50:]}
         ws.commit(ArtifactKind.CLIENT_SUBMISSION, DELIVERY, content, actor=by,
                   reason=f"delivery map: {len(looked_at)} file(s) looked at, {len(new_links)} link(s)")
 

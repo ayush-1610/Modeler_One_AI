@@ -16,6 +16,7 @@ agent then does what code could not:
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -74,7 +75,8 @@ def run_document_job(store: ProjectStore, tenant_id: str, project_id: str, sid: 
                               agent="A4-document-reading", model=model, max_turns=max_turns)
     ctx, outcome = agent_jobs.document_reading(model, ws=ws, library=DocumentLibrary(ws), sid=sid,
                                                drug=brief.drug_name if brief else "", actor=run.actor, run_id=run.run_id,
-                                               max_turns=max_turns, log_step=run.log_step, context=map_note(ws, sid))
+                                               max_turns=max_turns, log_step=run.log_step,
+                                               context=_logged(run, map_note(ws, sid)))
     summary = {"datasets": len(ctx.datasets), "facts": len(ctx.facts), "dissolution_rows": len(ctx.dissolution),
                "links": len(ctx.links), "refused": len(ctx.refused), "summary": outcome.final_text[:2000],
                "error": outcome.error}
@@ -129,7 +131,7 @@ def run_arrival_job(store: ProjectStore, tenant_id: str, project_id: str, sid: s
         run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
                                   agent="A4-sheet-triage", model=model, max_turns=6)
         ctx, outcome = agent_jobs.sheet_triage(model, workbook=workbook, sheets=undecided, actor=run.actor, max_turns=6,
-                                               log_step=run.log_step, context=map_note(ws, sid))
+                                               log_step=run.log_step, context=_logged(run, map_note(ws, sid)))
         for triaged in ctx.accepted:
             set_triage(ws, sid, triaged, by=ctx.actor, reason=triaged.note or "A4, header quoted")
         run.finish(outcome, {"classified": len(ctx.accepted), "rejected": len(ctx.rejected), "error": outcome.error})
@@ -145,7 +147,7 @@ def run_arrival_job(store: ProjectStore, tenant_id: str, project_id: str, sid: s
                                   agent="A4-sheet-reading", model=model, max_turns=8)
         reading = agent_jobs.sheet_reading(model, workbook=workbook, sheet=sheet, drug=drug, actor=run.actor,
                                            category=categories.get(sheet, ""), products=products, max_turns=8,
-                                           log_step=run.log_step, context=map_note(ws, sid, sheet=sheet))
+                                           log_step=run.log_step, context=_logged(run, map_note(ws, sid, sheet=sheet)))
         if reading.form is not None:
             result = adopt_agent_reading(ws, library, sid, workbook, sheet, reading.form, reading.notes, by=run.actor,
                                          run_id=run.run_id)
@@ -192,7 +194,8 @@ def run_reading_job(store: ProjectStore, tenant_id: str, project_id: str, sid: s
                                   agent="A4-sheet-reading", model=model, max_turns=max_turns)
         reading = agent_jobs.sheet_reading(model, workbook=workbook, sheet=sheet, drug=brief.drug_name if brief else "",
                                            actor=run.actor, category=categories.get(sheet, ""), products=products,
-                                           max_turns=max_turns, log_step=run.log_step, context=map_note(ws, sid, sheet=sheet))
+                                           max_turns=max_turns, log_step=run.log_step,
+                                           context=_logged(run, map_note(ws, sid, sheet=sheet)))
         if reading.form is not None:
             record_reading(ws, sid, sheet=sheet, form=reading.form.model_dump(mode="json"), notes=reading.notes, by=run.actor,
                            run_id=run.run_id)
@@ -247,8 +250,21 @@ def _outcome(result: dict[str, Any]) -> tuple[bool, str, tuple[str, ...], dict[s
 
 
 def map_note(ws: Workspace, sid: str, *, sheet: str | None = None) -> str:
-    """What the delivery map says of this file (or sheet) and the others, for its reading (plan 2026-11-10, R4)."""
-    return note_for(delivery_map(ws), sid, sheet=sheet)
+    """What the delivery map says of this file (or sheet) and the others, for its reading (plan 2026-11-10, R4); a file
+    a person withdrew, or one gone, is left out (the agents never see a withdrawn file)."""
+    mapped = delivery_map(ws)
+    library = DocumentLibrary(ws)
+    hidden = {other for other in mapped["files"] if (c := submission(ws, other)) is None
+              or (library.has_record and library.entry(c["sha256"]).withdrawn is not None)}
+    return note_for({**mapped, "files": {k: v for k, v in mapped["files"].items() if k not in hidden},
+                     "links": [link for link in mapped["links"] if link.get("sid") not in hidden]}, sid, sheet=sheet)
+
+
+def _logged(run: Any, note: str) -> str:
+    """Log what the delivery map told this reading on its agent run (which map shaped it, for the record)."""
+    if note:
+        run.log_step({"kind": "delivery_map", "note": note})
+    return note
 
 
 def run_delivery_job(store: ProjectStore, tenant_id: str, project_id: str, sids: list[str], *, model) -> dict[str, Any]:
@@ -272,26 +288,46 @@ def run_delivery_job(store: ProjectStore, tenant_id: str, project_id: str, sids:
     return {"run_id": run.run_id, "status": outcome.status, **summary}
 
 
-MAP_CHUNK = 20   # files mapped in one pass (a larger delivery is mapped in several, each against the map so far)
+MAP_CHUNK = 20      # files mapped in one pass (a larger delivery is mapped in several, each against the map so far)
+MAP_TRIES = 2       # a file whose pass did not finish is tried again this many times in all, then read without the map
+SETTLE_S = 3.0      # "Add data" sends a delivery in batches: the first pass waits until no file has arrived for this long …
+SETTLE_MAX_S = 45.0  # … and at most this long, so the files of one delivery are mapped together
+
+
+def settle(queue: ReadingQueue, *, quiet_s: float | None = None, max_s: float | None = None) -> None:
+    """Wait until the queue stops growing (the rest of a delivery arriving in batches), at most `max_s`."""
+    quiet, longest = SETTLE_S if quiet_s is None else quiet_s, SETTLE_MAX_S if max_s is None else max_s
+    if quiet <= 0:
+        return
+    waited, seen = 0.0, len(queue.items())
+    while waited < longest:
+        time.sleep(quiet)
+        waited += quiet
+        now = len(queue.items())
+        if now == seen:
+            return
+        seen = now
 
 
 def map_waiting(store: ProjectStore, tenant_id: str, project_id: str, model, queue: ReadingQueue) -> int:
-    """Map every waiting file the delivery pass has not looked at, together, before the next is read. A pass that fails
-    still marks its files as looked at (each is read all the same, without the map); returns how many were looked at."""
+    """Map every waiting file the delivery pass has not finished looking at, together, before the next is read. A pass
+    that does not finish leaves its files to be tried again, `MAP_TRIES` times in all; returns how many were tried."""
     ws = Workspace(store, tenant_id, project_id)
-    looked = set(delivery_map(ws)["looked_at"])
-    waiting = list(dict.fromkeys(i.sid for i in queue.items() if i.state == "queued" and i.sid not in looked))
+    mapped = delivery_map(ws)
+    looked, tries = set(mapped["looked_at"]), mapped["tries"]
+    waiting = list(dict.fromkeys(i.sid for i in queue.items() if i.state == "queued" and i.sid not in looked
+                                 and tries.get(i.sid, 0) < MAP_TRIES))
     for start in range(0, len(waiting), MAP_CHUNK):
         chunk = waiting[start:start + MAP_CHUNK]
         try:
             result = run_delivery_job(store, tenant_id, project_id, chunk, model=model)
-            if result.get("files") == 0:
-                raise RuntimeError("no readable file")
+            if result.get("files") == 0:   # none readable (withdrawn, say): looked at, nothing to map
+                record_delivery_map(ws, files={}, links=[], looked_at=chunk, refused=[], summary="no readable file",
+                                    run_id=None, by="code", tried=chunk)
         except Exception as exc:
-            if not isinstance(exc, RuntimeError):
-                log.exception("the delivery pass over %d file(s) of %s failed", len(chunk), project_id)
-            record_delivery_map(ws, files={}, links=[], looked_at=chunk, refused=[f"the pass failed: {exc}"], summary="",
-                                run_id=None, by="code")
+            log.exception("the delivery pass over %d file(s) of %s failed", len(chunk), project_id)
+            record_delivery_map(ws, files={}, links=[], looked_at=[], refused=[f"the pass failed: {exc}"], summary="",
+                                run_id=None, by="code", tried=chunk, status="FAILED")
     return len(waiting)
 
 
@@ -301,8 +337,12 @@ def drain(store: ProjectStore, tenant_id: str, project_id: str, model, held: Cal
     another worker took over), it takes no more items."""
     queue = ReadingQueue(Workspace(store, tenant_id, project_id))
     queue.recover()
+    settle(queue)   # the rest of a delivery sent in batches arrives first, so it is mapped as one
     while held is None or held():
-        map_waiting(store, tenant_id, project_id, model, queue)   # the files that arrived since, mapped together first
+        try:
+            map_waiting(store, tenant_id, project_id, model, queue)   # the files that arrived since, mapped together
+        except Exception:     # the map is context: a failure to map never stops the reading
+            log.exception("mapping the waiting files of %s failed", project_id)
         if (item := queue.take()) is None:
             break
         jobs.started_by.set(item.added_by)   # each agent run records who added the file (the admin console's usage)
@@ -325,9 +365,17 @@ def sweep(store: ProjectStore, tenant_id: str, project_id: str) -> int:
     queue = ReadingQueue(ws)
     if not queue.available:
         return 0
-    known = {i.sid for i in queue.items()}
-    todo = [(str(c["id"]), str(c["file"])) for c in submissions(ws) if str(c.get("id")) not in known and _needs_agent(c)]
-    return len(queue.add(todo, task="arrival", by="code")) if todo else 0
+    items = queue.items()
+    known = {i.sid for i in items}
+    every = submissions(ws)
+    todo = [(str(c["id"]), str(c["file"])) for c in every if str(c.get("id")) not in known and _needs_agent(c)]
+    added = len(queue.add(todo, task="arrival", by="code")) if todo else 0
+    # and each file the delivery pass has not finished looking at, while it has tries left (R4 review: none unmapped)
+    mapped = delivery_map(ws)
+    waiting = {i.sid for i in items if i.state in ("queued", "reading")} | {sid for sid, _name in todo}
+    unmapped = [(str(c["id"]), str(c["file"])) for c in every if str(c["id"]) not in waiting
+                and str(c["id"]) not in mapped["looked_at"] and mapped["tries"].get(str(c["id"]), 0) < MAP_TRIES]
+    return added + (len(queue.add(unmapped, task="map", by="code")) if unmapped else 0)
 
 
 def kick(store: ProjectStore, tenant_id: str, project_id: str, *, by: str = "code") -> bool:
