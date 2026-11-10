@@ -18,7 +18,7 @@ The tokens are the current model's (qwen3-coder behind LiteLLM): Claude's tokeni
 differently, and Claude's thinking is billed as output, so the output here is a floor. Re-baseline with the provider's
 token counting once a key exists. Read-only: nothing is written.
 
-    uv run python -m modeler_agents.usage_report --root "$MODELER_READ_ROOT" [--since 2026-10-01] [--json]
+    uv run python -m modeler_agents.usage_report --root ~/modeler-data/read-root [--since 2026-10-01] [--json]
 """
 
 from __future__ import annotations
@@ -217,12 +217,21 @@ def _table(data: dict[str, Any]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="What the agents' recorded runs used, and what they would cost.")
-    parser.add_argument("--root", required=True, help="the project store root (on the server: \"$MODELER_READ_ROOT\")")
+    parser.add_argument("--root", required=True, help="the project store root (on the server: ~/modeler-data/read-root)")
     parser.add_argument("--since", help="only runs started on or after this date (YYYY-MM-DD)")
     parser.add_argument("--json", action="store_true", help="print the report as JSON")
     args = parser.parse_args(argv)
+    root = Path(args.root)
+    # an unset variable passes "" (the current folder): say so rather than print a report of nothing
+    if not args.root.strip() or not root.is_dir():
+        print(f"no project store at {args.root!r}: give its folder (on the server, ~/modeler-data/read-root; "
+              "$MODELER_READ_ROOT is set only inside the deploy scripts)", file=sys.stderr)
+        return 2
+    if not any(root.glob("*/agent_runs/*/run.json")):
+        print(f"{root} holds no agent runs (<tenant>/agent_runs/<run>/run.json): is it the project store?", file=sys.stderr)
+        return 2
     since = datetime.fromisoformat(args.since).replace(tzinfo=None) if args.since else None
-    runs = read_runs(Path(args.root))
+    runs = read_runs(root)
     if since:
         runs = [r for r in runs if not r.started_at or r.started_at.replace(tzinfo=None) >= since]
     data = report(runs)
