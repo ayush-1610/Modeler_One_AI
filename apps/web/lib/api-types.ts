@@ -7856,7 +7856,7 @@ export interface components {
              * Task
              * @enum {string}
              */
-            task: "arrival" | "read";
+            task: "arrival" | "read" | "map";
         };
         /**
          * ReadingQueuePage
@@ -7870,6 +7870,10 @@ export interface components {
             };
             /** Items */
             items: components["schemas"]["ReadingItem"][];
+            /** Mapped */
+            mapped: {
+                [key: string]: string;
+            };
             /** Running */
             running: boolean;
         };

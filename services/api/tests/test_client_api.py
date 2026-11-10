@@ -901,10 +901,11 @@ def test_a_file_whose_reading_failed_is_queued_again_when_it_is_added_again(setu
     ReadingQueue(ws).add([(sid, "A.pdf")], task="arrival", by="u1")   # (`_needs_agent` is patched: queue it by hand)
     c.get("/api/v1/projects/p1/client-data", headers=H)
     _settle(ws)
-    assert [i.state for i in ReadingQueue(ws).items()] == ["failed"]
+    readings = lambda: [i.state for i in ReadingQueue(ws).items() if i.task != "map"]
+    assert readings() == ["failed"]
     c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("A.pdf", pdf, "application/pdf"))])
     _settle(ws)
-    assert [i.state for i in ReadingQueue(ws).items()] == ["failed", "done"]
+    assert readings() == ["failed", "done"]
 
 
 @pytest.mark.req("T-47")
@@ -1012,8 +1013,8 @@ def test_the_tray_counts_files_not_readings_and_read_again_refuses_what_it_canno
     sub = c.post("/api/v1/projects/p1/client-data", headers=H,
                  files=[("files", ("230-23_Fasting_Reference.xlsx", _be_workbook(), XLSX))]).json()["data"]["read"][0]
     item = ReadingQueue(ws).add([(sub["id"], "230-23_Fasting_Reference.xlsx")], task="arrival", by="u1")[0]
-    ReadingQueue(ws).finish(ReadingQueue(ws).take().id, "done")                 # (A.pdf's waiting read)
-    ReadingQueue(ws).finish(item.id, "done")
+    while (waiting := ReadingQueue(ws).take()) is not None:                    # A.pdf's Read, the workbook's map item
+        ReadingQueue(ws).finish(waiting.id, "done")
     monkeypatch.setattr(intake_jobs, "_needs_agent", lambda content: False)
     monkeypatch.setattr(intake_jobs, "unread_sheets", lambda content: [])
     monkeypatch.setattr(client_api, "unread_sheets", lambda content: [])
@@ -1035,3 +1036,67 @@ def test_each_queued_file_is_read_as_started_by_the_person_who_added_it(setup, m
     ReadingQueue(ws).add([("file-b", "b.pdf")], task="read", by="bob")
     intake_jobs.drain(ws.store, "t1", "p1", _Configured())
     assert seen == [("file-a", "alice"), ("file-b", "bob")]
+
+
+class _Mapper:
+    """The delivery pass and the readings as a script: the pass names each file's study from its name; a reading
+    proposes nothing. It keeps every first user message, to see what each run was told."""
+
+    provider, model = "test", "scripted"
+
+    def __init__(self):
+        self.users: list[str] = []
+
+    def complete(self, messages, tools):
+        import re
+
+        from modeler_agents.llm import ChatResult, ToolCall
+
+        user = next(m["content"] for m in messages if m["role"] == "user")
+        calls = []
+        if not any(m["role"] == "tool" for m in messages):
+            self.users.append(user)
+            if "New files:" in user:   # the delivery pass: each file's study from its name
+                calls = [("propose_facts", {"sid": sid, "facts": [{"fact": "study", "value": study, "source": "name",
+                                                                    "quote": study}]})
+                         for name, sid in re.findall(r"## (\S+) [^(]*\(sid (file-\w+)", user)
+                         if (study := name.split()[0].split("_")[0])]
+        return ChatResult(content="done", finish_reason="", model="s", usage={"input_tokens": 1, "output_tokens": 1},
+                          tool_calls=tuple(ToolCall(id=str(i), name=n, arguments=a) for i, (n, a) in enumerate(calls)))
+
+
+@pytest.mark.req("T-47")
+def test_a_delivery_is_mapped_together_first_and_each_reading_is_told_the_map(setup, monkeypatch):
+    # plan 2026-11-10, R4 (the owner's decision 2): files of one upload are mapped together before each is read; each
+    # reading is told what the map says of its file and the others; a clean workbook is mapped too
+    from modeler_api import agent_jobs
+    from modeler_project.client_data import delivery_map
+    from modeler_project.reading_queue import ReadingQueue
+
+    c, ws = setup
+    model = _Mapper()
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (model, None))
+    up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[
+        ("files", ("093-26_synopsis.pdf", _pdf("Study 093-26: 50 mg, fasted."), "application/pdf")),
+        ("files", ("094-26_synopsis.pdf", _pdf("Study 094-26: 50 mg, fed."), "application/pdf"))])
+    assert up.status_code == 201, up.text
+    _settle(ws)
+    sids = [r["id"] for r in up.json()["data"]["read"]]
+    passes = [u for u in model.users if "New files:" in u]
+    assert len(passes) == 1 and all(f"sid {sid}" in passes[0] for sid in sids)     # both files, one pass
+    readings = [u for u in model.users if "New files:" not in u]
+    assert len(readings) == 2
+    assert all("The delivery map" in u and "every value you propose must still be quoted from this file" in u
+               for u in readings)
+    assert "- study: 093-26" in readings[0] and "- 094-26_synopsis.pdf: study 094-26" in readings[0]
+    assert sorted(delivery_map(ws)["looked_at"]) == sorted(sids)
+    tray = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]
+    assert tray["mapped"] == {sids[0]: "study 093-26", sids[1]: "study 094-26"}
+    assert [i.state for i in ReadingQueue(ws).items()] == ["done", "done"]
+
+    one = c.post("/api/v1/projects/p1/client-data", headers=H,         # a single file: checked against the map
+                 files=[("files", ("230-23_Fasting_Reference.xlsx", _be_workbook(), XLSX))]).json()["data"]["read"][0]
+    _settle(ws)
+    single = [u for u in model.users if "New files: 1." in u]
+    assert single and "The map already says, of files delivered before" in single[0] and "093-26_synopsis.pdf" in single[0]
+    assert one["id"] in delivery_map(ws)["looked_at"]

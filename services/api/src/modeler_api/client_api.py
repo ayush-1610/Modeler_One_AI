@@ -63,6 +63,7 @@ from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import (
     READABLE_DOCUMENTS,
     REGISTER,
+    delivery_map,
     ingest,
     reconcile,
     set_triage,
@@ -75,6 +76,7 @@ from modeler_project.client_review import groups as review_groups
 from modeler_project.dataset_points import card_points
 from modeler_project.dataset_register import dataset
 from modeler_project.datasets import DatasetError
+from modeler_project.delivery_map import file_line
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
 from modeler_project.inputs import refresh_inputs
@@ -159,7 +161,8 @@ def _queue_view(ws: Workspace) -> dict[str, Any]:
     return {"agents": agent_jobs.agents_status("A4"), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "reading"),
             "counts": {state: sum(1 for i in latest.values() if i.state == state)
                        for state in ("queued", "reading", "done", "failed")},
-            "items": [i.model_dump(mode="json") for i in items]}
+            "items": [i.model_dump(mode="json") for i in items],
+            "mapped": {sid: line for sid, entry in delivery_map(ws)["files"].items() if (line := file_line(entry))}}
 
 
 @router.get("/projects/{project_id}/reading-queue", **answers(ReadingQueuePage))

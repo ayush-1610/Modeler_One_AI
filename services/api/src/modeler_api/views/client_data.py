@@ -84,7 +84,7 @@ class ReadingItem(View):
     id: str
     sid: str
     file: str
-    task: Literal["arrival", "read"]
+    task: Literal["arrival", "read", "map"]
     sheets: list[str]
     state: Literal["queued", "reading", "done", "failed"]
     added_by: str
@@ -103,6 +103,7 @@ class ReadingQueuePage(View):
     running: bool                  # the reading job runs
     counts: dict[str, int]         # queued, reading, done, failed
     items: list[ReadingItem]
+    mapped: dict[str, str]         # sid -> what the delivery map says of the file, in one line (plan 2026-11-10, R4)
 
 
 class Product(View):

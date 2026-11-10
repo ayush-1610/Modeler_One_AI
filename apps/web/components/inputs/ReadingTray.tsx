@@ -92,10 +92,16 @@ export function ReadingTray({ projectId }: { projectId: string }) {
               <span className={`chip ${STATE_TONE[item.state]}`}>{STATE_LABEL[item.state]}</span>
               <span className="reading-tray-file">{item.file}</span>
               <span className="muted">
-                {item.task === "read" ? "a person's Read" : "on arrival"}
+                {item.task === "read" ? "a person's Read" : item.task === "map" ? "read by code; mapped" : "on arrival"}
                 {item.sheets.length ? ` · ${item.sheets.join(", ")}` : ""}
                 {item.state === "done" && ` · ${foundText(item.found)}`}
               </span>
+              {data.mapped[item.sid] && (
+                <span className="reading-tray-map" data-testid={`reading-map-${item.file}`}
+                      title="What the delivery pass found this file is about, each value quoted from it">
+                  {data.mapped[item.sid]}
+                </span>
+              )}
               {item.state === "failed" && <span className="reading-tray-why">{item.note || "failed"}</span>}
               {(item.state === "failed" || item.state === "done") && (
                 <button type="button" className="btn small" disabled={mutation.busy} onClick={() => void again(item.id)}

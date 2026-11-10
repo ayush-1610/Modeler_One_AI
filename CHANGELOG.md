@@ -15,6 +15,31 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — R4: the delivery pass; a client's files are mapped together before each is read (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R4; the owner's decision 2 ("every upload of 2+
+files, and single files checked against the map"; no file missed). Science-facing: it changes what the reading agent is
+told, not what code accepts.
+- **The pass (A4, `modeler_agents.delivery_pass`, agent run `A4-delivery-map`):** before the next file is read, every
+  waiting file the map has not seen is looked at together (20 per pass), against what the map already says of earlier
+  files (a single file is checked against it). The agent sees each file's name, its sheets' headers or its first page,
+  and proposes, per file or per workbook sheet: study, product, role (TEST, RLD, REFERENCE), strength_mg, batch,
+  food_state, medium, pH; and links between two names of one study, product or batch across files.
+- **Code checks every value:** the quote is verbatim on its page, in its cell, or in the file's name; and it states the
+  value (the name; the number with mg, or with pH; a word for fed or fasted, test or reference; every word of a
+  medium or batch). What code refuses is told to the agent and kept with the pass's run.
+- **The map** is kept by `client_data` (reserved client-submission record `delivery`: versioned and audited like the
+  others; each pass's run id, who, the files looked at, what was refused). A file's later values replace earlier ones
+  field by field. Its links reach the person's questions on Inputs (`document_links`), as a document's links do.
+- **Context, never data:** each reading (document reader, sheet sorting, sheet reader) is told what the map says of its
+  file (or sheet) and one line per other file, with the instruction that every value it proposes must still be quoted
+  from its own file. No value flows from the map into a dataset, a study fact or a dissolution condition.
+- Files code reads whole (no agent needed) are queued as `map` items so they are mapped too; the tray shows each file's
+  map line ("study 093-26 · product APL 50 · TEST · 50 mg · fasted"). `ReadingQueuePage.mapped`; OpenAPI and
+  `api-types.ts` updated.
+- Tests: `services/agents/tests/test_delivery_pass.py` (what code accepts and refuses per field and source; the map;
+  the context; links into the review), `test_a_delivery_is_mapped_together_first_and_each_reading_is_told_the_map`
+  (T-47). Scripted models only: the pass's quality on a real delivery is to be measured on the server (plan R6).
+
 ### Added — the admin console, build C + D: each agent's model and the providers' keys (2026-11-10)
 The owner, 2026-11-10: "switching between different models that different agents use" and "api keys in admin so that
 I must be able to rotate keys timely without touching the backend"; keys "in the platform store (admin side only)".

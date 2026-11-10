@@ -216,19 +216,21 @@ def read_rows(ctx: ReadingContext, *, first_row: int, last_row: int) -> str:
 # --- the run ---------------------------------------------------------------------------------------------------------
 
 
-def _user(ctx: ReadingContext, drug: str) -> str:
+def _user(ctx: ReadingContext, drug: str, context: str = "") -> str:
     grid = ctx.workbook.sheets[ctx.sheet]
     start = json.dumps(ctx.start.model_dump(mode="json"), ensure_ascii=False)
     return (f"File {ctx.workbook.file_name}, sheet {ctx.sheet} ({grid.max_row} rows, {grid.max_column} columns). "
             f"The drug: {drug or 'not given'}.\n\n## The sheet, rows 1-{min(grid.max_row, SHOWN_ROWS)}\n"
             f"{grid.preview(max_rows=SHOWN_ROWS, max_columns=SHOWN_COLUMNS)}\n\n## Code's first filling of the form\n{start}\n\n"
-            "## What code found or did not find\n" + "\n".join(f"- {n}" for n in ctx.start_notes or ["(nothing to add)"]))
+            "## What code found or did not find\n" + "\n".join(f"- {n}" for n in ctx.start_notes or ["(nothing to add)"])
+            + (f"\n\n## {context}" if context else ""))
 
 
 def read_sheet(model: ChatModel, *, workbook: WorkbookGrid, sheet: str, drug: str = "", actor: str,
                category: str = "", products: list[dict[str, str]] | None = None, max_turns: int = 8,
-               log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> Reading:
-    """Propose the reading of one sheet, starting from code's first filling; only a reading code accepts is returned."""
+               log_step: Callable[[dict[str, Any]], None] = lambda s: None, context: str = "") -> Reading:
+    """Propose the reading of one sheet, starting from code's first filling; only a reading code accepts is returned.
+    `context`: what the delivery map says of this file and the others (plan 2026-11-10, R4)."""
     start, start_notes = suggest(workbook.sheets[sheet], category=category, filename=workbook.file_name, drug=drug,
                                  products=products or [])
     ctx = ReadingContext(workbook=workbook, sheet=sheet, start=start, start_notes=start_notes, actor=actor)
@@ -247,6 +249,6 @@ def read_sheet(model: ChatModel, *, workbook: WorkbookGrid, sheet: str, drug: st
                  "first_row": {"type": "integer"}, "last_row": {"type": "integer"}}},
              handler=lambda **kw: read_rows(ctx, **kw)),
     ]
-    outcome = run_tool_loop(model, system=SYSTEM_PROMPT, user=_user(ctx, drug), tools=tools, max_turns=max_turns,
+    outcome = run_tool_loop(model, system=SYSTEM_PROMPT, user=_user(ctx, drug, context), tools=tools, max_turns=max_turns,
                             log_step=log_step)
     return Reading(ctx.form, ctx.notes, ctx.rejected, outcome)

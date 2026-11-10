@@ -15292,7 +15292,8 @@
           "task": {
             "enum": [
               "arrival",
-              "read"
+              "read",
+              "map"
             ],
             "title": "Task",
             "type": "string"
@@ -15338,6 +15339,13 @@
             "title": "Items",
             "type": "array"
           },
+          "mapped": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Mapped",
+            "type": "object"
+          },
           "running": {
             "title": "Running",
             "type": "boolean"
@@ -15347,7 +15355,8 @@
           "agents",
           "running",
           "counts",
-          "items"
+          "items",
+          "mapped"
         ],
         "title": "ReadingQueuePage",
         "type": "object"

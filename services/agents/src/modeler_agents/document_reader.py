@@ -482,7 +482,8 @@ def build_tools(ctx: DocumentContext) -> list[Tool]:
     ]
 
 
-def brief_for(ctx: DocumentContext, *, inventory: list[dict[str, Any]], drug: str, known_studies: list[str]) -> str:
+def brief_for(ctx: DocumentContext, *, inventory: list[dict[str, Any]], drug: str, known_studies: list[str],
+              context: str = "") -> str:
     """The agent's task: the file, its tag, code's inventory and the study names the client's other files use."""
     tag = f"tagged “{ctx.tag}”" + (f" for study {ctx.tag_study}" if ctx.tag_study else "")
     lines = [f"Drug: {drug or 'not named'}. File: {ctx.file}, {len(ctx.pages())} pages, {tag}."]
@@ -494,22 +495,26 @@ def brief_for(ctx: DocumentContext, *, inventory: list[dict[str, Any]], drug: st
     if known_studies:
         lines.append(f"Study names in the client's other files: {', '.join(known_studies)}. If this file gives one of "
                      "them another name, propose_link with the quote.")
+    if context:   # what the delivery map says of this file and the others (plan 2026-11-10, R4)
+        lines.append(context)
     return "\n".join(lines)
 
 
 def read_document(model: ChatModel, ctx: DocumentContext, *, inventory: list[dict[str, Any]], drug: str = "",
                   known_studies: list[str] = (), max_turns: int = 30,
-                  log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> LoopOutcome:
+                  log_step: Callable[[dict[str, Any]], None] = lambda s: None, context: str = "") -> LoopOutcome:
     """Read one client document; what code accepted is on `ctx` (facts, dissolution rows, links, datasets proposed),
     and what it refused on `ctx.refused`."""
     return run_tool_loop(model, system=SYSTEM_PROMPT,
-                         user=brief_for(ctx, inventory=inventory, drug=drug, known_studies=list(known_studies)),
+                         user=brief_for(ctx, inventory=inventory, drug=drug, known_studies=list(known_studies),
+                                        context=context),
                          tools=build_tools(ctx), max_turns=max_turns, log_step=log_step)
 
 
 def read_and_record(model: ChatModel, ws: Workspace, library: DocumentLibrary, sid: str, *, actor: str, drug: str = "",
                     run_id: str | None = None, max_turns: int = 30,
-                    log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> tuple[DocumentContext, LoopOutcome]:
+                    log_step: Callable[[dict[str, Any]], None] = lambda s: None,
+                    context: str = "") -> tuple[DocumentContext, LoopOutcome]:
     """Read one client file (its submission `sid`) and record on it what code accepted and refused
     (`client_data.record_document_reading`): the API's reading job and the delivery evaluation both read this way."""
     from modeler_intake.document_reading import inventory
@@ -526,7 +531,7 @@ def read_and_record(model: ChatModel, ws: Workspace, library: DocumentLibrary, s
     ctx = DocumentContext(ws=ws, library=library, sha=sha, file=content["file"], actor=actor,
                           tag=tag.kind if tag else "other", tag_study=tag.study if tag else "")
     outcome = read_document(model, ctx, inventory=listed, drug=drug, known_studies=known, max_turns=max_turns,
-                            log_step=log_step)
+                            log_step=log_step, context=context)
     record_document_reading(ws, sid, facts=ctx.facts, dissolution=ctx.dissolution, links=ctx.links, datasets=ctx.datasets,
                             refused=ctx.refused, digitization=ctx.digitization, summary=outcome.final_text, run_id=run_id,
                             by=actor, compositions=ctx.compositions)

@@ -157,4 +157,5 @@ tr.project-archived td { color: var(--ink-faint); }
 .reading-tray-list li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
 .reading-tray-file { overflow-wrap: anywhere; min-width: 0; font-weight: 500; }
 .reading-tray-why { flex-basis: 100%; color: var(--fail-ink); font-size: 13px; }
+.reading-tray-map { flex-basis: 100%; font-size: 13px; color: var(--ink-dim); }
 .add-data-reading { margin: 8px 0 0; font-size: 14px; }

@@ -25,8 +25,9 @@ from pbpk_domain.atomic_io import atomic_write_text, file_lock
 
 QueueState = Literal["queued", "reading", "done", "failed"]
 # "arrival": what code could not do with a file that has just arrived; "read": a person's "Read" (a document read for
-# its data, or a workbook's sheets, all not read yet or the ones named)
-QueueTask = Literal["arrival", "read"]
+# its data, or a workbook's sheets, all not read yet or the ones named); "map": a file code read whole, queued only to be
+# looked at by the delivery pass with the others (plan 2026-11-10, R4)
+QueueTask = Literal["arrival", "read", "map"]
 MAX_ATTEMPTS = 2
 KEEP_FINISHED = 500   # finished items kept beyond each file's latest one; older ones are dropped from the file
 

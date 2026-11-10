@@ -187,31 +187,41 @@ def compound_sources(*, ws, library, requirements, drug: str, actor: str, log_st
                                  chembl=chembl, log_step=log_step)
 
 
-def sheet_triage(model, *, workbook, sheets, actor: str, max_turns: int, log_step):
-    """A4 on the sheets code left undecided: (context with the accepted and rejected classifications, outcome)."""
+def sheet_triage(model, *, workbook, sheets, actor: str, max_turns: int, log_step, context: str = ""):
+    """A4 on the sheets code left undecided: (context with the accepted and rejected classifications, outcome).
+    `context`: what the delivery map says (plan 2026-11-10, R4), as for the readings below."""
     from modeler_agents.sheet_triage import TriageContext, run_triage
 
     ctx = TriageContext(workbook=workbook, sheets=sheets, actor=actor)
-    return ctx, run_triage(model, ctx, max_turns=max_turns, log_step=log_step)
+    return ctx, run_triage(model, ctx, max_turns=max_turns, log_step=log_step, context=context)
 
 
 def sheet_reading(model, *, workbook, sheet: str, drug: str, actor: str, category: str, products, max_turns: int,
-                  log_step):
+                  log_step, context: str = ""):
     """A4 reading one sheet: the reading code accepted (None when it accepted none), the agent's notes, what code
     refused and the outcome."""
     from modeler_agents.sheet_reader import read_sheet
 
     return read_sheet(model, workbook=workbook, sheet=sheet, drug=drug, actor=actor, category=category, products=products,
-                      max_turns=max_turns, log_step=log_step)
+                      max_turns=max_turns, log_step=log_step, context=context)
 
 
-def document_reading(model, *, ws, library, sid: str, drug: str, actor: str, run_id: str, max_turns: int, log_step):
+def document_reading(model, *, ws, library, sid: str, drug: str, actor: str, run_id: str, max_turns: int, log_step,
+                     context: str = ""):
     """A4 reading one client PDF or Word file (I4) and recording on it what code accepted: (context with what code
     accepted and refused, outcome)."""
     from modeler_agents.document_reader import read_and_record
 
     return read_and_record(model, ws, library, sid, actor=actor, drug=drug, run_id=run_id, max_turns=max_turns,
-                           log_step=log_step)
+                           log_step=log_step, context=context)
+
+
+def delivery_pass(model, *, ws, library, sids: list[str], drug: str, actor: str, run_id: str, log_step):
+    """A4 mapping the files of a delivery together before each is read (plan 2026-11-10, R4): (context with what code
+    accepted and refused, outcome); what code accepted is recorded on the delivery map."""
+    from modeler_agents.delivery_pass import map_and_record
+
+    return map_and_record(model, ws, library, sids, actor=actor, drug=drug, run_id=run_id, log_step=log_step)
 
 
 def planning(model, *, plan, cpf, rows, actor: str, exploratory: bool, drug: str, max_turns: int, log_step):
