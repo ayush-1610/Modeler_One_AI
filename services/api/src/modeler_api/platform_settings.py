@@ -45,7 +45,9 @@ AGENT_PROVIDERS: dict[str, str] = {
     "environment": "As the server's environment says",
     "off": "Off (every step on its manual path)",
     "litellm": "In-house model (LiteLLM proxy)",
+    "bedrock": "Claude on Amazon Bedrock",
 }
+EFFORTS = ("low", "medium", "high", "xhigh", "max")          # Claude's `output_config.effort`
 # Each provider's key fields: (name, label, secret, required). Bedrock takes a Bedrock API key, or an AWS access key
 # with its secret (`anthropic.AnthropicBedrockMantle`); the region is not a secret.
 KEY_PROVIDERS: dict[str, dict[str, Any]] = {
@@ -226,14 +228,21 @@ class AgentSettings:
     def current(self, agent: str) -> dict[str, Any] | None:
         return self.doc()["current"].get(agent)
 
-    def set(self, agent: str, provider: str, model: str, *, by: str, reason: str) -> dict[str, Any]:
+    def set(self, agent: str, provider: str, model: str, *, by: str, reason: str, effort: str = "",
+            fallback: str = "") -> dict[str, Any]:
         if agent not in AGENTS:
             raise SettingsError(f"unknown agent {agent!r}; one of: {', '.join(AGENTS)}")
         if provider not in AGENT_PROVIDERS:
             raise SettingsError(f"unknown provider {provider!r}; one of: {', '.join(AGENT_PROVIDERS)}")
         if provider in KEY_PROVIDERS and not model.strip():
             raise SettingsError(f"{AGENT_PROVIDERS[provider]} needs a model name")
+        claude = provider == "bedrock"
+        if claude and effort and effort not in EFFORTS:
+            raise SettingsError(f"effort is one of {', '.join(EFFORTS)}")
+        if claude and fallback.strip() == model.strip():
+            raise SettingsError("the fallback model must differ from the model")
         setting = {"provider": provider, "model": model.strip() if provider in KEY_PROVIDERS else "",
+                   "effort": effort if claude else "", "fallback": fallback.strip() if claude else "",
                    "by": by, "at": _now(), "reason": reason.strip()}
         with file_lock(self.path):
             doc = _read(self.path, {"current": {}, "history": []})
@@ -267,4 +276,10 @@ def model_env(read_root: str, master_key: str, agent: str) -> dict[str, str] | N
     if setting["provider"] == "litellm":
         return {"MODELER_LLM_PROVIDER": "litellm", "LITELLM_BASE": key["base_url"], "LITELLM_KEY": key["key"],
                 "MODELER_LLM_MODEL": setting["model"]}
+    if setting["provider"] == "bedrock":
+        env = {"MODELER_LLM_PROVIDER": "bedrock", "MODELER_LLM_MODEL": setting["model"], "BEDROCK_REGION": key["aws_region"],
+               "MODELER_LLM_EFFORT": setting.get("effort") or "", "MODELER_LLM_FALLBACK": setting.get("fallback") or ""}
+        if key.get("api_key"):
+            return env | {"BEDROCK_API_KEY": key["api_key"]}
+        return env | {"AWS_ACCESS_KEY_ID": key["aws_access_key"], "AWS_SECRET_ACCESS_KEY": key["aws_secret_key"]}
     raise SettingsError(f"{setting['provider']} cannot run an agent yet")

@@ -14,8 +14,9 @@ price only for what is new. Conversations are told apart by their turn numbers (
 prompt and tool list a run's conversations share are counted as read after the first. An estimate: the real figure
 needs the cache breakpoints in the requests.
 
-The tokens are the current model's (qwen3-coder behind LiteLLM): Claude's tokenizer counts the same text
-differently, and Claude's thinking is billed as output, so the output here is a floor. Re-baseline with the provider's
+The tokens are those of the model that ran: for the in-house model (qwen3-coder behind LiteLLM) Claude's tokenizer
+counts the same text differently, and Claude's thinking is billed as output, so the output there is a floor. A run on
+Claude records its cache's reads and writes, and its cost is computed from them instead of estimated. Re-baseline with the provider's
 token counting once a key exists. Read-only: nothing is written.
 
     uv run python -m modeler_agents.usage_report --root ~/modeler-data/read-root [--since 2026-10-01] [--json]
@@ -49,8 +50,11 @@ HAIKU_LONG_AT = 100_000
 class Turn:
     at: datetime | None
     turn: int
-    input_tokens: int
+    input_tokens: int                     # everything the turn sent: uncached, written to and read from the cache
     output_tokens: int
+    cache_write: int = 0                  # as the provider reported them (Claude); 0 where it reports none
+    cache_read: int = 0
+    cached: bool = False                  # the provider reported its cache: the cost is computed from it, not estimated
 
 
 @dataclass
@@ -106,8 +110,10 @@ def read_runs(root: Path, since: datetime | None = None, *, code_runs: bool = Fa
             if step.get("kind") != "model_turn" or not usage:
                 continue
             content = step.get("content") or {}
+            write, read = int(usage.get("cache_creation_input_tokens") or 0), int(usage.get("cache_read_input_tokens") or 0)
             run.turns.append(Turn(_time(step.get("at")), int(content.get("turn") or 0),
-                                  int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)))
+                                  int(usage.get("input_tokens") or 0) + write + read, int(usage.get("output_tokens") or 0),
+                                  write, read, "cache_creation_input_tokens" in usage))
         if run.turns or code_runs:
             runs.append(run)
     return runs
@@ -124,6 +130,13 @@ def cost(run: Run, model: str, *, cached: bool) -> float:
         for t in run.turns:
             p_in, _w, _r, p_out = _prices(model, t.input_tokens)
             total += t.input_tokens * p_in + t.output_tokens * p_out
+        return total / 1e6
+    if run.turns and all(t.cached for t in run.turns):
+        # Claude reported its cache: the cost is its own reads and writes, not an estimate
+        for t in run.turns:
+            _p_in, p_write, p_read, p_out = _prices(model, t.input_tokens)
+            total += ((t.input_tokens - t.cache_write - t.cache_read) * _p_in + t.cache_write * p_write
+                      + t.cache_read * p_read + t.output_tokens * p_out)
         return total / 1e6
     # each conversation's last input, so a turn reads what its conversation sent before (see the module's note)
     open_: list[tuple[int, int]] = []            # (last turn number, last input) of each open conversation

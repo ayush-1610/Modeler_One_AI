@@ -2430,6 +2430,10 @@ export interface components {
         AgentRow: {
             /** Agent */
             agent: string;
+            /** Effort */
+            effort: string;
+            /** Fallback */
+            fallback: string;
             /** Label */
             label: string;
             /** Model */
@@ -2460,6 +2464,16 @@ export interface components {
         /** AgentSet */
         AgentSet: {
             /**
+             * Effort
+             * @default
+             */
+            effort?: string;
+            /**
+             * Fallback
+             * @default
+             */
+            fallback?: string;
+            /**
              * Model
              * @default
              */
@@ -2469,10 +2483,17 @@ export interface components {
             /** Reason */
             reason: string;
         };
-        /** AgentsPage */
+        /**
+         * AgentsPage
+         * @description `efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids).
+         */
         AgentsPage: {
             /** Agents */
             agents: components["schemas"]["AgentRow"][];
+            /** Claude Models */
+            claude_models: string[];
+            /** Efforts */
+            efforts: string[];
             environment: components["schemas"]["AgentsStatus"];
             /** History */
             history: components["schemas"]["AgentChange"][];

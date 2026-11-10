@@ -14,6 +14,16 @@ Configuration comes only from the host environment, never from the repository:
     MODELER_LLM_MODEL=qwen-coder      the proxy's model alias (default)
     MODELER_LLM_TIMEOUT_S=600         a local 30B model reading a long document can take minutes per turn
 
+or Claude on Amazon Bedrock (`modeler_agents.claude`; the admin console sets the same names from its store):
+
+    MODELER_LLM_PROVIDER=bedrock
+    MODELER_LLM_MODEL=anthropic.claude-opus-5-5
+    BEDROCK_REGION=...                the AWS region
+    BEDROCK_API_KEY=...               a Bedrock API key, or AWS_ACCESS_KEY_ID with AWS_SECRET_ACCESS_KEY (or neither:
+                                      the AWS credentials the server already has)
+    MODELER_LLM_EFFORT=medium         low, medium, high, xhigh or max (unset: the model's own default)
+    MODELER_LLM_FALLBACK=...          the model asked when the first declines or stays overloaded (optional)
+
 Web search (Ollama's cloud API, its own key) is a tool the agents may call: `modeler_agents.web_search`.
 """
 
@@ -68,6 +78,9 @@ class ChatResult:
     finish_reason: str
     usage: dict[str, int]
     model: str
+    # the assistant turn exactly as the provider returned it (Claude's content blocks, thinking included), sent back
+    # unchanged on the next turn; None where the loop's own shape is enough (the Chat Completions proxy)
+    native: tuple[Any, ...] | None = None
 
 
 class ChatModel(Protocol):
@@ -221,9 +234,12 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
         raise LLMConfigError(f"MODELER_LLM_PROVIDER={provider} is no longer supported: since 2026-10-06 the agents use the "
                              "in-house model. Set MODELER_LLM_PROVIDER=litellm with LITELLM_BASE and LITELLM_KEY in "
                              "~/.modeler-secrets.env (template: deploy/server/modeler-secrets.env.example)")
+    if provider == "bedrock":
+        return _bedrock(env)
     defaults = PROVIDERS.get(provider)
     if defaults is None:
-        raise LLMConfigError(f"unknown MODELER_LLM_PROVIDER {provider!r}; use one of: {', '.join(PROVIDERS)} or disabled")
+        raise LLMConfigError(f"unknown MODELER_LLM_PROVIDER {provider!r}; use one of: {', '.join(PROVIDERS)}, bedrock or "
+                             "disabled")
     key = (env.get(defaults.key_env) or "").strip()
     if not key:
         raise LLMConfigError(f"MODELER_LLM_PROVIDER={provider} needs {defaults.key_env} in the environment")
@@ -235,6 +251,29 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
         provider=provider, base_url=(env.get(BASE_ENV[provider]) or defaults.base_url).strip(), api_key=key,
         model=(env.get("MODELER_LLM_MODEL") or defaults.model).strip(), timeout_s=timeout,
     )
+
+
+def _bedrock(env: Mapping[str, str]) -> ChatModel:
+    from modeler_agents.claude import EFFORTS, ClaudeBedrockChat
+
+    def get(name: str) -> str:
+        return (env.get(name) or "").strip()
+
+    model, region = get("MODELER_LLM_MODEL"), get("BEDROCK_REGION") or get("AWS_REGION")
+    if not model:
+        raise LLMConfigError("MODELER_LLM_PROVIDER=bedrock needs MODELER_LLM_MODEL (e.g. anthropic.claude-opus-5-5)")
+    if not region:
+        raise LLMConfigError("MODELER_LLM_PROVIDER=bedrock needs BEDROCK_REGION, the AWS region")
+    effort = get("MODELER_LLM_EFFORT") or None
+    if effort and effort not in EFFORTS:
+        raise LLMConfigError(f"MODELER_LLM_EFFORT must be one of {', '.join(EFFORTS)}, not {effort!r}")
+    try:
+        timeout = float(get("MODELER_LLM_TIMEOUT_S") or DEFAULT_TIMEOUT_S)
+    except ValueError as exc:
+        raise LLMConfigError("MODELER_LLM_TIMEOUT_S must be a number of seconds") from exc
+    return ClaudeBedrockChat(model=model, region=region, api_key=get("BEDROCK_API_KEY") or None,
+                             aws_access_key=get("AWS_ACCESS_KEY_ID") or None, aws_secret_key=get("AWS_SECRET_ACCESS_KEY") or None,
+                             effort=effort, fallback=get("MODELER_LLM_FALLBACK") or None, timeout_s=timeout)
 
 
 def chat(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None, *,
@@ -281,23 +320,26 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
     by_name = {t.name: t for t in tools}
     schemas = [t.schema() for t in tools]
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-    usage = {"input_tokens": 0, "output_tokens": 0}
+    usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0}
     for turn in range(1, max_turns + 1):
         try:
             result = model.complete(messages, schemas)
         except LLMUnavailableError as exc:
             log_step({"type": "llm_unavailable", "turn": turn, "error": str(exc)})
             return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=str(exc))
-        usage["input_tokens"] += result.usage.get("input_tokens", 0)
-        usage["output_tokens"] += result.usage.get("output_tokens", 0)
+        for name, tokens in result.usage.items():     # the cache's reads and writes too, where the provider reports them
+            usage[name] = usage.get(name, 0) + int(tokens or 0)
         log_step({"type": "model_turn", "turn": turn, "model": result.model, "content": result.content,
                   "tool_calls": [{"id": c.id, "name": c.name, "arguments": c.arguments} for c in result.tool_calls],
                   "usage": result.usage})
         if not result.tool_calls:
             return LoopOutcome("COMPLETED", result.content, turn, usage)
-        messages.append({"role": "assistant", "content": result.content or None, "tool_calls": [
+        turn_message: dict[str, Any] = {"role": "assistant", "content": result.content or None, "tool_calls": [
             c.raw or {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.raw_arguments or json.dumps(c.arguments)}}
-            for c in result.tool_calls]})
+            for c in result.tool_calls]}
+        if result.native is not None:     # the provider's own turn, sent back unchanged (Claude's thinking blocks)
+            turn_message["native"] = result.native
+        messages.append(turn_message)
         for call in result.tool_calls:
             tool = by_name.get(call.name)
             if tool is None:

@@ -158,3 +158,24 @@ def test_a_refused_key_is_never_echoed_back(client):
     wrong = client.post("/api/v1/admin/keys", json={"provider": "nope", "reason": "x", "fields": {"key": SECRET}},
                         headers=_as("owner"))
     assert wrong.status_code == 409 and SECRET not in wrong.text
+
+
+def test_an_agent_on_claude_on_bedrock_takes_its_model_effort_fallback_and_the_active_bedrock_key(client):
+    fields = {"aws_region": "ap-south-1", "api_key": FAKE_BEDROCK}
+    page = client.post("/api/v1/admin/keys", json={"provider": "bedrock", "label": "AWS", "fields": fields, "reason": "Claude"},
+                       headers=_as("owner")).json()["data"]
+    key_id = page["keys"][0]["id"]
+    client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
+    body = {"provider": "bedrock", "model": "anthropic.claude-opus-5-5", "effort": "high",
+            "fallback": "anthropic.claude-sonnet-5-5", "reason": "A1 on Claude"}
+    row = client.put("/api/v1/admin/agents/A1", json=body, headers=_as("owner")).json()["data"]["agents"][0]
+    assert (row["provider"], row["effort"], row["fallback"]) == ("bedrock", "high", "anthropic.claude-sonnet-5-5")
+    assert row["runs_on"] == {"enabled": True, "provider": "bedrock", "model": "anthropic.claude-opus-5-5"}
+    model, problem = agent_jobs.chat_model("A1")
+    assert problem is None and (model.effort, model.fallback) == ("high", "anthropic.claude-sonnet-5-5")
+    page = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]
+    assert "xhigh" in page["efforts"] and "anthropic.claude-haiku-5-5" in page["claude_models"]
+    for wrong, why in (({"effort": "extreme"}, "effort is one of"),
+                       ({"fallback": "anthropic.claude-opus-5-5"}, "must differ from the model")):
+        refused = client.put("/api/v1/admin/agents/A1", json=body | wrong, headers=_as("owner"))
+        assert refused.status_code == 409 and why in refused.json()["detail"]

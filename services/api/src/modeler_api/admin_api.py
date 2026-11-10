@@ -202,6 +202,8 @@ def usage(principal: Admin, settings: SettingsDep, since: date | None = None, te
 class AgentSet(BaseModel):
     provider: str
     model: str = ""
+    effort: str = ""          # Claude: low … max (empty: the model's own default)
+    fallback: str = ""        # Claude: the model asked when the first declines or stays overloaded
     reason: str = Field(min_length=1)
 
 
@@ -240,13 +242,15 @@ def _agents_page(settings: Settings) -> dict[str, Any]:
         setting = doc["current"].get(agent) or {}
         provider = setting.get("provider", "environment")
         rows.append({"agent": agent, "label": label, "provider": provider, "provider_label": ps.AGENT_PROVIDERS[provider],
-                     "model": setting.get("model", ""), "set_by": setting.get("by"), "set_at": setting.get("at"),
+                     "model": setting.get("model", ""), "effort": setting.get("effort", ""),
+                     "fallback": setting.get("fallback", ""), "set_by": setting.get("by"), "set_at": setting.get("at"),
                      "reason": setting.get("reason"), "runs_on": agent_jobs.agents_status(agent)})
     return envelope({
         "agents": rows,
         "providers": [{"id": p, "label": label, "needs_model": p in ps.KEY_PROVIDERS, "has_active_key": p in active}
                       for p, label in ps.AGENT_PROVIDERS.items()],
         "environment": agent_jobs.agents_status(),
+        "efforts": list(ps.EFFORTS), "claude_models": list(agent_jobs.CLAUDE_MODELS),
         "history": [{k: h[k] for k in ("agent", "provider", "model", "by", "at", "reason")}
                     for h in reversed(doc["history"][-50:])],
     })
@@ -265,12 +269,13 @@ def set_agent(agent: str, body: AgentSet, principal: Admin, settings: SettingsDe
     store = ps.AgentSettings(settings.read_root)
     before = store.current(agent)
     try:
-        setting = store.set(agent, body.provider, body.model, by=principal.user_id, reason=body.reason)
+        setting = store.set(agent, body.provider, body.model, by=principal.user_id, reason=body.reason,
+                            effort=body.effort, fallback=body.fallback)
     except ps.SettingsError as exc:
         raise _refused(exc) from exc
     _changed(settings, principal, "admin.agent.set", agent, reason=body.reason,
-             before={k: before[k] for k in ("provider", "model")} if before else None,
-             after={k: setting[k] for k in ("provider", "model")})
+             before={k: before.get(k, "") for k in ("provider", "model", "effort", "fallback")} if before else None,
+             after={k: setting[k] for k in ("provider", "model", "effort", "fallback")})
     return _agents_page(settings)
 
 

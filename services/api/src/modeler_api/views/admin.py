@@ -126,6 +126,8 @@ class AgentRow(View):
     provider: str
     provider_label: str
     model: str
+    effort: str
+    fallback: str
     set_by: str | None
     set_at: str | None
     reason: str | None
@@ -149,10 +151,14 @@ class AgentChange(View):
 
 
 class AgentsPage(View):
+    """`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids)."""
+
     agents: list[AgentRow]
     providers: list[AgentProvider]
     environment: AgentsStatus
     history: list[AgentChange]
+    efforts: list[str]
+    claude_models: list[str]
 
 
 class KeyField(View):
