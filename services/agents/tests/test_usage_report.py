@@ -62,3 +62,11 @@ def test_the_report_gives_each_agent_its_runs_tokens_largest_turn_and_costs(tmp_
     assert main(["--root", str(tmp_path)]) == 0
     printed = capsys.readouterr().out
     assert "A1-proposal-intake  (2 runs" in printed and "largest turn        150,000 input tokens" in printed
+
+
+def test_an_empty_or_wrong_root_is_refused_rather_than_reported_as_no_runs(tmp_path, capsys):
+    # the owner's first run, 2026-11-10: "$MODELER_READ_ROOT" was unset in the shell and the report said "0 runs"
+    assert main(["--root", ""]) == 2
+    assert main(["--root", str(tmp_path / "missing")]) == 2
+    assert main(["--root", str(tmp_path)]) == 2
+    assert "holds no agent runs" in capsys.readouterr().err
