@@ -15,6 +15,38 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Claude on Amazon Bedrock as an agent's model, chosen per agent in the admin console (2026-11-10)
+The owner's decisions, 2026-11-10: the agents move to Claude on Amazon Bedrock, through Anthropic's own SDK so that
+caching, effort and the exact usage are available ("make sure that we have all control and tracking"); "go ahead with
+Bedrock". Plan: `docs/plans/2026-11-10-admin-console.md` (revision 3 also records answer 6).
+- **`modeler_agents.claude.ClaudeBedrockChat`** (`anthropic.AnthropicBedrockMantle`), a model `run_tool_loop` drives
+  like the in-house one:
+  - **prompt caching:** the system prompt and tools are a breakpoint (a run's conversations share them), and the
+    conversation so far is cached on every turn (top-level `cache_control`);
+  - **effort** (`output_config.effort`; thinking is always on for Claude Opus 5.5, effort is its control);
+  - **each assistant turn sent back exactly as the model wrote it**, thinking blocks and their signatures included
+    (`ChatResult.native`), as the API requires of a tool loop; the loop stays append-only;
+  - **a fallback model:** a policy refusal is re-asked of it by the SDK's client-side `BetaRefusalFallbackMiddleware`
+    (Bedrock has no server-side fallback), pinned per conversation (`BetaFallbackState`); an overloaded, rate-limited
+    or failing model is retried by the SDK and then once on the fallback; a refusal of the whole chain, or refused
+    credentials, end the run as `LLM_UNAVAILABLE` saying why;
+  - **usage:** each turn records `cache_creation_input_tokens` and `cache_read_input_tokens` besides the uncached
+    input and the output; the run record's input total counts all three.
+- **Configuration:** `MODELER_LLM_PROVIDER=bedrock` with `MODELER_LLM_MODEL`, `BEDROCK_REGION`, a Bedrock API key or AWS
+  keys, `MODELER_LLM_EFFORT`, `MODELER_LLM_FALLBACK` (`llm.chat_model_from_env`), from the server's environment or,
+  per agent, from the admin console: Models offers "Claude on Amazon Bedrock" with the model (Bedrock's
+  `anthropic.claude-*-5-5` ids), the effort and the fallback model, on the active Bedrock key; a change is audited with
+  them. A Bedrock key's test sends one short message to Claude Haiku 5.5 (Bedrock lists no models to ask instead).
+- **The usage report** prices a Claude run from the cache reads and writes it recorded (an estimate only for runs on
+  the in-house model). `anthropic[mcp,bedrock]` declared by the agents (`boto3` was already installed; the lock
+  changes only its extras). API contract: `effort` and `fallback` on an agent's setting and row, the efforts and
+  Claude models offered (additions only).
+- Not yet: the agents' text and page limits, set for the in-house model's context, widened for Claude; the A1 and
+  delivery evaluations on Opus 5.5 against Sonnet 5.5 (a Bedrock key is needed for both).
+- Tests: `test_claude_bedrock.py` (5, the real SDK client against a stand-in transport: the request Bedrock receives
+  with its cache markers, effort and tools; turns sent back unchanged; cache tokens counted; a refusal; an overloaded
+  model falling back; refused credentials; the fallback boundary rule; configuration), `test_usage_report.py` (+1),
+  `test_admin_platform.py` (+1: an agent on Claude takes its model, effort, fallback and the active Bedrock key).
 ### Fixed — R5 review: a figure is suggested while no table of the same values exists; the R4 guards hold (2026-11-10)
 A review of R5 and of the R4 review fixes (each finding checked by a second reviewer) confirmed 8 defects and raised 9
 more; all are fixed except one noted below.

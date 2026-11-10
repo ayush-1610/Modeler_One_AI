@@ -73,7 +73,28 @@ def test_key(provider: str, fields: dict[str, str]) -> tuple[bool, str]:
                                   timeout_s=30, max_retries=0).list_models()
         return (True, f"answers; serves {', '.join(served)}") if served else (
             False, f"no list of models from {fields['base_url']}: check the address and the key")
+    if provider == "bedrock":
+        return _test_bedrock(fields)
     return False, f"{provider} keys cannot be tested yet"
+
+
+CLAUDE_MODELS = ("anthropic.claude-opus-5-5", "anthropic.claude-sonnet-5-5", "anthropic.claude-haiku-5-5")
+BEDROCK_TEST_MODEL = "anthropic.claude-haiku-5-5"     # the cheapest Claude: a key test costs a fraction of a cent
+
+
+def _test_bedrock(fields: dict[str, str]) -> tuple[bool, str]:
+    """One short message to Claude Haiku 5.5 with the key (Bedrock offers no list of models to ask instead)."""
+    from modeler_agents.claude import ClaudeBedrockChat
+    from modeler_agents.run import LLMUnavailableError
+
+    chat = ClaudeBedrockChat(model=BEDROCK_TEST_MODEL, region=fields["aws_region"], api_key=fields.get("api_key"),
+                             aws_access_key=fields.get("aws_access_key"), aws_secret_key=fields.get("aws_secret_key"),
+                             max_tokens=256, timeout_s=60)
+    try:
+        result = chat.complete([{"role": "user", "content": "Reply with the single word: ready"}], [])
+    except LLMUnavailableError as exc:
+        return False, str(exc)
+    return True, f"answers in {fields['aws_region']} ({result.model})"
 
 
 # --- run records ---------------------------------------------------------------------------------------------------
@@ -98,8 +119,12 @@ class AgentRun:
                                usage=step.get("usage", {}))
 
     def finish(self, outcome, summary: dict[str, Any]) -> None:
-        self._runs.finish_run(run_id=self.run_id, status=outcome.status, input_tokens=outcome.usage["input_tokens"],
-                              output_tokens=outcome.usage["output_tokens"], cost_usd=0.0, summary=summary)
+        # everything the run sent: on Claude, the uncached input and the cache's writes and reads (each turn's split is
+        # in the run's steps)
+        u = outcome.usage
+        sent = u["input_tokens"] + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0)
+        self._runs.finish_run(run_id=self.run_id, status=outcome.status, input_tokens=sent,
+                              output_tokens=u["output_tokens"], cost_usd=0.0, summary=summary)
 
 
 def recorded_usage(root: str | Path, since: datetime | None = None) -> list[dict[str, Any]]:
