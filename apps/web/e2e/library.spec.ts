@@ -91,3 +91,26 @@ test("Add data, from the sidebar at any step, says what each file relates to; a 
     await page.getByTestId("library-status").selectOption("");
     await expect(page.getByTestId("library-withdrawn-f2.json")).toHaveCount(0);
   });
+
+test("Add data with many files scrolls inside the dialog, not the page behind it", async ({ page, request }) => {
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Scrollamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`/projects/${projectId}/start`);
+  await page.getByTestId("nav-add-data").click();
+  const card = page.getByTestId("add-data");
+  await page.getByTestId("add-data-files").setInputFiles(Array.from({ length: 31 }, (_, i) => (
+    { name: `study-${i + 1}-PK Table.csv`, mimeType: "text/csv", buffer: Buffer.from("t,c\n0,0\n") })));
+  const dialog = card.getByRole("dialog");
+  const box = (await dialog.boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(720);                         // the panel fits the screen
+  const pageTop = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 5000);
+  await expect.poll(() => dialog.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);   // the dialog scrolls
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageTop);                     // the page behind does not
+  await expect(page.getByTestId("add-data-goes-study-31-PK Table.csv")).toBeInViewport();
+  await expect(page.getByTestId("add-data-step")).toBeInViewport();
+});
