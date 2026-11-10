@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — R2: documents added with "Add data" are read for data by default; large deliveries go up in batches (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R2; the owner's decision 1 ("default on").
+- **Cause:** "Add data" guessed *Annex* for every file name it did not recognise, and a document went to
+  `POST /documents`, which only stored it: the summary statistics, outlier report, mean plots and IV study of the
+  owner's Desvenlafaxine delivery were never read for data.
+- **API:** `POST /projects/{id}/documents` takes `read` (default false, so other callers are unchanged). With it, each
+  PDF, Word file or workbook added as an annex, context, paper or other document is also a client file
+  (`intake_jobs.ingest_for_reading` → `client_data.ingest`, its library role kept), read by code on arrival and queued
+  for the reading agent (R1). The proposal is not: A1 reads it on Start. The answer (`DocumentsAdded`) adds `reading`
+  (the files queued) and `not_read` (each other file, with why). OpenAPI and `apps/web/lib/api-types.ts` updated.
+- **Web:** each document row in "Add data" has **Read for data**, ticked by default for PDF, Word and Excel files; the
+  done line says which files the agent reads. Files go up in batches of at most 8 files / 40 MB per request, so a
+  delivery of any number of files stays under the server's per-request limits (1000 files; the proxy's time limit).
+- **Per-file size limit raised from 60 MB to 250 MB** (`modeler_intake.documents.MAX_BYTES`): a scanned study report can
+  be larger than 60 MB; 250 MB stays under the web proxy's 500 MB request limit.
+- Impact: what is read and how code checks it are unchanged (no science change). Tests:
+  `test_a_document_added_to_be_read_for_data_keeps_its_role_and_is_queued_for_the_agent` (T-47),
+  `e2e/library.spec.ts` "Add data reads documents for data by default, and a large delivery goes up in batches".
+
 ### Fixed — R1: no client file the reading agent is to read is dropped; a reading queue per project (2026-11-10)
 Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md` (approved by the owner 2026-11-10), build R1. The owner
 added a whole delivery with "+ Add data" and the agent did not start on it; uploading again from an Inputs tab did.

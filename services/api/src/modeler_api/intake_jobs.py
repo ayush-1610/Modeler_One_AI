@@ -24,9 +24,11 @@ from modeler_api import agent_jobs, jobs
 from modeler_intake.grid import read_workbook_bytes
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
-from modeler_project.client_data import READABLE_DOCUMENTS, ClientDataError, record_reading, set_triage, submission
-from modeler_project.documents import DocumentLibrary
+from modeler_project.client_data import READABLE_DOCUMENTS, ClientDataError, ingest, record_reading, set_triage, submission
+from modeler_project.documents import DocumentLibrary, RelatesTo
+from modeler_project.inputs import refresh_inputs
 from modeler_project.reading_queue import QueueItem, ReadingQueue
+from modeler_project.requirements import RequirementMatrix
 from modeler_project.sheet_intake import (
     READ,
     adopt_agent_reading,
@@ -37,6 +39,10 @@ from modeler_project.sheet_intake import (
 )
 
 log = logging.getLogger(__name__)
+# the files the reading agent reads for data (plan 2026-11-10, R2): PDF and Word files, and workbooks
+READ_FOR_DATA = (".pdf", ".docx", ".xlsx", ".xlsm", ".xls", ".csv", ".tsv")
+# the library roles a document can also be read for data in: the proposal has its own reader (A1, on Start)
+READ_ROLES = ("annex", "context", "paper", "other")
 # the sheets a person's "Read" reads when none is named: the data sheets no saved reading has read yet
 READABLE = ("PK_INDIVIDUAL", "PK_SUMMARY", "DISSOLUTION")
 BUSY = "a reading run is already in progress"
@@ -272,6 +278,36 @@ def queue_reading(store: ProjectStore, tenant_id: str, project_id: str, sid: str
         return "RUNNING"
     queue.add([(sid, str(content.get("file", sid)))], task="read", by=by, sheets=sheets)
     return "RUNNING" if kick(store, tenant_id, project_id) else "QUEUED"
+
+
+def ingest_for_reading(ws: Workspace, library: DocumentLibrary, payloads: list[tuple[str, bytes]], *, by: str,
+                       relates_to: RelatesTo | None = None) -> tuple[list[str], list[str], list[str]]:
+    """Documents a person added to the library and asked to be read for data (plan 2026-11-10, R2; the owner's decision
+    1: on by default): each PDF, Word file or workbook is also a client file (`client_data.ingest`, its library role
+    kept), read by code on arrival like any other. Returns (the sids, for the reading queue; the files read; the files
+    not read, each with why)."""
+    version = ws.latest(ArtifactKind.REQUIREMENTS, "main")
+    matrix = RequirementMatrix.from_content(version.content) if version else None
+    brief_version = ws.latest(ArtifactKind.BRIEF, "main")
+    brief = ProjectBrief.from_content(brief_version.content) if brief_version else None
+    sids: list[str] = []
+    names: list[str] = []
+    not_read: list[str] = []
+    for name, data in payloads:
+        if not name.lower().endswith(READ_FOR_DATA):
+            not_read.append(f"{name}: not read for data (only PDF, Word and workbook files are)")
+            continue
+        try:
+            read = ingest(ws, library, data, name, by=by, matrix=matrix, brief=brief, relates_to=relates_to)
+        except (ClientDataError, ValueError) as exc:
+            not_read.append(f"{name}: not read for data ({exc})")
+            continue
+        if read.get("id"):
+            sids.append(str(read["id"]))
+            names.append(name)
+    if sids:
+        refresh_inputs(ws, by=by)   # the inputs follow every change (redesign §3.2)
+    return sids, names, not_read
 
 
 def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[str], *, by: str = "code") -> bool:

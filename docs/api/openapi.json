@@ -1232,6 +1232,11 @@
             "title": "Files",
             "type": "array"
           },
+          "read": {
+            "default": false,
+            "title": "Read",
+            "type": "boolean"
+          },
           "role": {
             "default": "proposal",
             "title": "Role",
@@ -4756,6 +4761,40 @@
         "title": "Documents",
         "type": "object"
       },
+      "DocumentsAdded": {
+        "additionalProperties": false,
+        "description": "The documents added, and which of them are read for data (plan 2026-11-10, R2).",
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentView"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "not_read": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Read",
+            "type": "array"
+          },
+          "reading": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reading",
+            "type": "array"
+          }
+        },
+        "required": [
+          "documents",
+          "reading",
+          "not_read"
+        ],
+        "title": "DocumentsAdded",
+        "type": "object"
+      },
       "DosePhase": {
         "additionalProperties": false,
         "description": "One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),\n``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two\nphases (OSP Voriconazole, Saari 2006: 400 mg twice 12 h apart, then 200 mg every 12 h from 24 h).",
@@ -5341,6 +5380,31 @@
           "errors"
         ],
         "title": "Envelope[DocumentPage]",
+        "type": "object"
+      },
+      "Envelope_DocumentsAdded_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DocumentsAdded"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DocumentsAdded]",
         "type": "object"
       },
       "Envelope_Documents_": {
@@ -23980,7 +24044,7 @@
         ]
       },
       "post": {
-        "description": "Store documents in the project's library. `step` and `task`: what they relate to (the \"Add data\" card).",
+        "description": "Store documents in the project's library. `step` and `task`: what they relate to (the \"Add data\" card). `read`:\nalso read each one for data (plan 2026-11-10, R2; \"Add data\" asks for it by default): a PDF, Word file or workbook\nadded as an annex, context, paper or other document is read by code and queued for the reading agent, its role\nkept; `reading` names the files queued, `not_read` the ones that are not, with why.",
         "operationId": "upload_documents_api_v1_projects__project_id__documents_post",
         "parameters": [
           {
@@ -24024,7 +24088,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_Documents_"
+                  "$ref": "#/components/schemas/Envelope_DocumentsAdded_"
                 }
               }
             },

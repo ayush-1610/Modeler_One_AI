@@ -111,6 +111,7 @@ tr.project-archived td { color: var(--ink-faint); }
 .add-data-list { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 6px; }
 .add-data-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .add-data-name { font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
+.add-data-read { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; white-space: nowrap; }
 .add-data-relates { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 10px; }
 @media (max-width: 560px) { .add-data-relates { grid-template-columns: 1fr; } }
 .add-data-done { margin-top: 10px; font-size: 14px; }

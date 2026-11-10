@@ -959,7 +959,10 @@ export interface paths {
         put?: never;
         /**
          * Upload Documents
-         * @description Store documents in the project's library. `step` and `task`: what they relate to (the "Add data" card).
+         * @description Store documents in the project's library. `step` and `task`: what they relate to (the "Add data" card). `read`:
+         *     also read each one for data (plan 2026-11-10, R2; "Add data" asks for it by default): a PDF, Word file or workbook
+         *     added as an annex, context, paper or other document is read by code and queued for the reading agent, its role
+         *     kept; `reading` names the files queued, `not_read` the ones that are not, with why.
          */
         post: operations["upload_documents_api_v1_projects__project_id__documents_post"];
         delete?: never;
@@ -2591,6 +2594,11 @@ export interface components {
             /** Files */
             files: string[];
             /**
+             * Read
+             * @default false
+             */
+            read?: boolean;
+            /**
              * Role
              * @default proposal
              */
@@ -3856,6 +3864,18 @@ export interface components {
             documents: components["schemas"]["DocumentView"][];
         };
         /**
+         * DocumentsAdded
+         * @description The documents added, and which of them are read for data (plan 2026-11-10, R2).
+         */
+        DocumentsAdded: {
+            /** Documents */
+            documents: components["schemas"]["DocumentView"][];
+            /** Not Read */
+            not_read: string[];
+            /** Reading */
+            reading: string[];
+        };
+        /**
          * DosePhase
          * @description One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),
          *     ``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two
@@ -4042,6 +4062,13 @@ export interface components {
         /** Envelope[DocumentPage] */
         Envelope_DocumentPage_: {
             data: components["schemas"]["DocumentPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DocumentsAdded] */
+        Envelope_DocumentsAdded_: {
+            data: components["schemas"]["DocumentsAdded"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -11476,7 +11503,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_Documents_"];
+                    "application/json": components["schemas"]["Envelope_DocumentsAdded_"];
                 };
             };
             /** @description Validation Error */

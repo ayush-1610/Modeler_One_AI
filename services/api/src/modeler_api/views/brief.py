@@ -51,6 +51,12 @@ class Documents(View):
     documents: list[DocumentView]
 
 
+class DocumentsAdded(Documents):
+    """The documents added, and which of them are read for data (plan 2026-11-10, R2)."""
+    reading: list[str]     # the files queued for the reading agent
+    not_read: list[str]    # "<file>: not read for data (why)"
+
+
 class ContributionView(View):
     """One thing the project took from a document (`library.Contribution`)."""
 

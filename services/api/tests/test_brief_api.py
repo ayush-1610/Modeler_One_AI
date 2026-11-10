@@ -599,3 +599,35 @@ def test_with_agents_off_the_m15_rule_drafts_the_model_risk(client):
     assert "m15.risk_justification" not in [p for p, f in fields.items() if f.get("by") == "code:m15-draft-rule"]  # equal
     assert "drafted by code" in c.get(f"/api/v1/projects/{pid}/artifacts/brief/main", headers=H).json()["data"]["reason"]
     assert result["drafted_by_code"] > 4
+
+
+@pytest.mark.req("T-47")
+def test_a_document_added_to_be_read_for_data_keeps_its_role_and_is_queued_for_the_agent(client):
+    # plan 2026-11-10, R2 (the owner's decision 1): "Add data" reads documents for data by default; the API reads them
+    # when asked (`read`), a PDF, Word file or workbook only, its library role kept
+    from modeler_project import Workspace
+    from modeler_project.client_data import submissions
+    from modeler_project.delivery_eval import synthetic_pdf
+    from modeler_project.reading_queue import ReadingQueue
+
+    c, store = client
+    pid = _initiate(c)
+    pdf = synthetic_pdf([["Study EX-101 outlier report: subject 7 excluded from the PK analysis."]])
+    added = c.post(f"/api/v1/projects/{pid}/documents", headers=H, data={"role": "annex", "read": "true"}, files=[
+        ("files", ("EX-101 outlier report.pdf", pdf, "application/pdf")),
+        ("files", ("notes.md", b"# Notes\nNothing to read for data.", "text/markdown"))])
+    assert added.status_code == 201, added.text
+    data = added.json()["data"]
+    assert [d["role"] for d in data["documents"]] == ["annex", "annex"]           # the role the person chose is kept
+    assert data["reading"] == ["EX-101 outlier report.pdf"]
+    assert data["not_read"] == ["notes.md: not read for data (only PDF, Word and workbook files are)"]
+    ws = Workspace(store, "t1", pid)
+    assert [f["file"] for f in submissions(ws)] == ["EX-101 outlier report.pdf"]  # a client file for the reading agent
+    assert [(i.file, i.task, i.state) for i in ReadingQueue(ws).items()] == [("EX-101 outlier report.pdf", "arrival", "queued")]
+
+    kept = c.post(f"/api/v1/projects/{pid}/documents", headers=H, data={"role": "annex"},     # not asked: only stored
+                  files=[("files", ("other.pdf", synthetic_pdf([["Another annex."]]), "application/pdf"))]).json()["data"]
+    assert kept["reading"] == [] and kept["not_read"] == [] and len(ReadingQueue(ws).items()) == 1
+    proposal = c.post(f"/api/v1/projects/{pid}/documents", headers=H, data={"role": "proposal", "read": "true"},
+                      files=[("files", ("p2.pdf", synthetic_pdf([["A second proposal."]]), "application/pdf"))]).json()["data"]
+    assert proposal["reading"] == []                                               # the proposal has its own reader (A1)
