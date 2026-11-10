@@ -45,6 +45,9 @@ postgres_installed() { [ -f "${MODELER_POSTGRES_HOME:-$HOME/modeler-postgres}/da
 # The web over HTTPS when a certificate is configured (keycloak.sh env prints it; apps/web/server.mjs serves it).
 web_tls() { [ -n "${MODELER_WEB_TLS_PFX:-}${MODELER_WEB_TLS_CERT:-}" ]; }
 web_scheme() { web_tls && echo https || echo http; }
+# The address people open: MODELER_WEB_URL once sign-in goes through Keycloak (its certificate's name), else this
+# server's first address.
+web_address() { echo "${MODELER_WEB_URL:-$(web_scheme)://$(hostname -I 2>/dev/null | awk '{print $1}'):$WEB_PORT}"; }
 
 # --- application: single-node local execution against the real engine ---
 export MODELER_EXECUTION_BACKEND=local

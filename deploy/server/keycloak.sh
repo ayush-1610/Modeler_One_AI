@@ -120,6 +120,22 @@ make_certificate() {
   echo "certificate: $TLS/modeler-keycloak.crt (self-signed for $HOST; trust it on each device that signs in)"
 }
 
+# The realm as imported: the file, with the web's own address (https://HOST:WEB_PORT, the MODELER_WEB_URL `env` prints)
+# added to the web client's redirect URIs, so sign-in can return there with no change in the admin console. The file
+# keeps only the fixed addresses (localhost, the LAN address); the server's name is known only here.
+realm_for_host() {
+  local out="$KC_ROOT/realm-import.json"
+  python3 - "$REALM_FILE" "https://$HOST:$WEB_PORT/*" > "$out" <<'PY'
+import json, sys
+realm = json.load(open(sys.argv[1], encoding="utf-8"))
+web = next(c for c in realm["clients"] if c["clientId"] == "modeler-web")
+if sys.argv[2] not in web["redirectUris"]:
+    web["redirectUris"].append(sys.argv[2])
+json.dump(realm, sys.stdout, indent=1)
+PY
+  echo "$out"
+}
+
 cmd_install() {
   mkdir -p "$KC_ROOT"
   install_java
@@ -128,7 +144,9 @@ cmd_install() {
   running && die "stop Keycloak before importing the realm ('keycloak.sh stop')"
   # --override false: a realm that already exists (its users, their TOTP) is kept, never replaced by the file.
   db_options
-  kc import "${DB_OPTIONS[@]}" --file="$REALM_FILE" --override=false
+  kc import "${DB_OPTIONS[@]}" --file="$(realm_for_host)" --override=false
+  echo "realm 'modeler': sign-in may return to https://$HOST:$WEB_PORT (if the realm existed already, add"
+  echo "  https://$HOST:$WEB_PORT/* to Clients > modeler-web > Valid redirect URIs in the admin console)"
   echo "installed. Next: 'keycloak.sh admin' (first time only), then 'keycloak.sh start'"
 }
 

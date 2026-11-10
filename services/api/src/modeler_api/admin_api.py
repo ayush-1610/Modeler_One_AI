@@ -37,6 +37,7 @@ from modeler_api.responses import answers, envelope
 from modeler_api.views.admin import AgentsPage, CompanyPage, KeysPage, MeView, Overview, UsagePage
 from modeler_contracts.runtime import runtime_env
 from modeler_project import FileProjectStore
+from modeler_project.members import MembershipError
 
 router = APIRouter(prefix="/api/v1", tags=["admin"])
 
@@ -132,6 +133,40 @@ def company(tenant_id: str, principal: Admin, settings: SettingsDep, priced_as: 
     _saw(settings, principal, tenant_id, "company")
     return envelope({"tenant_id": tenant_id, "people": people, "projects": projects, "usage": _usage(runs, priced_as),
                      "priced_as": priced_as})
+
+
+class GiveProjects(BaseModel):
+    """`to`: who receives them (someone who has signed in to the company); `from_`: whose projects they are, or empty
+    for every project of the company (those made before memberships were kept, or outside the web, included)."""
+
+    to: str = Field(min_length=1)
+    from_: str = Field("", alias="from")
+    reason: str = Field(min_length=1)
+
+
+@router.post("/admin/companies/{tenant_id}:give-projects", **answers(CompanyPage))
+def give_projects(tenant_id: str, body: GiveProjects, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    """Make a person a member of another person's projects, or of all the company's: how the projects made under the
+    pilot's DEV sign-in (its "dev-user") reach the people who sign in through Keycloak. Each membership is an audit event
+    on the company's chain, by the administrator, with the reason."""
+    root = _root(settings)
+    if tenant_id not in _companies(root):
+        raise HTTPException(status_code=404, detail=f"no company {tenant_id!r}")
+    ensure_step_up(principal)
+    memberships = memberships_for(settings, tenant_id)
+    if body.from_ and body.from_ == body.to:
+        raise HTTPException(status_code=409, detail="a person already has their own projects")
+    ids = sorted(memberships.projects_of(body.from_)) if body.from_ else sorted(
+        str(p["id"]) for p in _projects(settings, tenant_id) if p.get("id"))
+    if not ids:
+        raise HTTPException(status_code=409, detail="there are no projects to give")
+    whose = f"the projects of {body.from_}" if body.from_ else "every project of the company"
+    try:
+        for project_id in ids:
+            memberships.add(project_id, body.to, by=principal.user_id, reason=f"admin console: {whose}: {body.reason.strip()}")
+    except MembershipError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return company(tenant_id, principal, settings, DEFAULT_PRICE)
 
 
 def _grouped(runs: list[dict[str, Any]], key: Callable[[dict[str, Any]], str], label: Callable[[str], str],

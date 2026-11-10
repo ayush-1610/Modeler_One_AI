@@ -11,7 +11,7 @@ AUTOMATIC=0
 [ "${1:-}" = "--watchdog" ] && AUTOMATIC=1
 
 if stack_healthy; then
-  [ "$AUTOMATIC" = 1 ] || echo "already running: $(web_scheme)://$(hostname -I 2>/dev/null | awk '{print $1}'):$WEB_PORT"
+  [ "$AUTOMATIC" = 1 ] || echo "already running: $(web_address)"
   exit 0
 fi
 
@@ -64,7 +64,7 @@ for _ in $(seq 1 30); do
 done
 
 if stack_healthy; then
-  echo "up: $(web_scheme)://$(hostname -I 2>/dev/null | awk '{print $1}'):$WEB_PORT ($MODELER_DEPLOYMENT)"
+  echo "up: $(web_address) ($MODELER_DEPLOYMENT)"
 else
   echo "NOT fully up — check $LOGS/api.log and $LOGS/web.log" >&2
   port_open "$API_PORT" || echo "  API (:$API_PORT) is not answering" >&2
