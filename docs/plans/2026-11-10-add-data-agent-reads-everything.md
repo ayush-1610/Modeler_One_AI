@@ -1,6 +1,6 @@
 # Add data: the reading agent reads every file it is given, together (plan, 2026-11-10)
 
-Status: **DRAFT, for the owner's decisions (§5).** Nothing here is built yet.
+Status: **APPROVED 2026-11-10 (the owner's decisions in §5).** Build order R1 → R2 → R3 → R4 → R5.
 
 ## 1. What the owner saw
 The owner added a whole client delivery at once with **+ Add data** in the sidebar (Desvenlafaxine: PK and concentration
@@ -62,8 +62,14 @@ One rule: **every file added with "Add data", on any page, is read by the agent 
 R1–R3 are small and make the current agent dependable. R4–R5 are the larger science-facing part; they touch the
 reading agents' prompts and code's checks, so they each get a CHANGELOG entry and the owner's review of the evaluation.
 
-## 5. Decisions for the owner
-1. Read documents (annex, paper, other) for data by default (§3.1), or only when ticked?
-2. Delivery pass (R4) before every multi-file upload, or only when more than N files arrive?
-3. Figures digitized on arrival (R5), or only proposed ("this page is a plot: digitize?")?
-4. Order: R1 → R2 → R3 first (dependability), then R4/R5?
+## 5. The owner's decisions (2026-11-10)
+1. **Documents are read for data by default.** "Read for data" is on for every PDF, Word file and workbook, documents
+   included; a person can untick it per file.
+2. **Delivery pass on every upload of 2 or more files; a single file is checked against the existing delivery map.**
+   No upload may be missed: any number of files, of any size, on any route (Start, Add data, an Inputs tab).
+3. **Figures: suggest only, and only where no table holds the values,** and only for figures that matter to the model
+   (a study's concentration–time profile or a dissolution profile with no table behind it), not every plot.
+4. **Order: R1 → R2 → R3, then R4, then R5.**
+
+Deviation recorded: the builds go on the session's one branch (`claude/quirky-mccarthy-ln0y7g`), one commit per build,
+reviewed as one PR, because this session may push to that branch only.
