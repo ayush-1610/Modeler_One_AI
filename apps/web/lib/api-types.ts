@@ -146,6 +146,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Limits */
+        get: operations["limits_api_v1_admin_limits_get"];
+        /**
+         * Set Limit
+         * @description Set, change or remove a monthly limit (a fresh step-up and a reason; an audit event on the owner's chain).
+         */
+        put: operations["set_limit_api_v1_admin_limits_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/overview": {
         parameters: {
             query?: never;
@@ -4548,6 +4569,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[LimitsPage] */
+        Envelope_LimitsPage_: {
+            data: components["schemas"]["LimitsPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[LiteratureRun] */
         Envelope_LiteratureRun_: {
             data: components["schemas"]["LiteratureRun"];
@@ -6091,6 +6119,130 @@ export interface components {
             versions: number;
             withdrawn: components["schemas"]["WithdrawalView"] | null;
         };
+        /** LimitChange */
+        LimitChange: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Id */
+            id: string;
+            /** Reason */
+            reason: string;
+            /** Tokens */
+            tokens: number | null;
+            /** Usd */
+            usd: number | null;
+        };
+        /**
+         * LimitRow
+         * @description One monthly limit and this month's use against it (spend at the page's prices, tokens in and out). `level`:
+         *     `ok` below `warn_at` of every measure, `warn` from there, `over` once a measure is reached. A limit only warns.
+         */
+        LimitRow: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Level */
+            level: string;
+            /** Reason */
+            reason: string;
+            /** Scope */
+            scope: string;
+            /** Set At */
+            set_at: string;
+            /** Set By */
+            set_by: string;
+            /** Subject */
+            subject: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Tokens */
+            tokens: number | null;
+            /** Tokens Share */
+            tokens_share: number | null;
+            /** Usd */
+            usd: number | null;
+            /** Usd Share */
+            usd_share: number | null;
+            /** Used Tokens */
+            used_tokens: number;
+            /** Used Usd */
+            used_usd: number;
+        };
+        /**
+         * LimitSet
+         * @description A limit on a company (`subject` empty), a project (its id) or a person (their subject), each month: the estimated
+         *     spend in USD and the tokens in and out. A measure left empty has no limit; both empty removes the limit.
+         */
+        LimitSet: {
+            /** Reason */
+            reason: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "company" | "project" | "person";
+            /**
+             * Subject
+             * @default
+             */
+            subject?: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Tokens */
+            tokens?: number | null;
+            /** Usd */
+            usd?: number | null;
+        };
+        /**
+         * LimitTarget
+         * @description A company, with the projects and people a limit can be set on.
+         */
+        LimitTarget: {
+            /** People */
+            people: components["schemas"]["LimitTargetPerson"][];
+            /** Projects */
+            projects: components["schemas"]["LimitTargetProject"][];
+            /** Tenant Id */
+            tenant_id: string;
+        };
+        /** LimitTargetPerson */
+        LimitTargetPerson: {
+            /** Name */
+            name: string;
+            /** Subject */
+            subject: string;
+        };
+        /** LimitTargetProject */
+        LimitTargetProject: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * LimitsPage
+         * @description The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can
+         *     be set on. A limit warns the administrator and never stops an agent; the companies' people never see it.
+         */
+        LimitsPage: {
+            /** History */
+            history: components["schemas"]["LimitChange"][];
+            /** Limits */
+            limits: components["schemas"]["LimitRow"][];
+            /** Month */
+            month: string;
+            /** Priced As */
+            priced_as: string;
+            /** Targets */
+            targets: components["schemas"]["LimitTarget"][];
+            /** Warn At */
+            warn_at: number;
+            /** Warnings */
+            warnings: components["schemas"]["LimitRow"][];
+        };
         /**
          * LiteratureRun
          * @description Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run (the structured
@@ -7179,15 +7331,20 @@ export interface components {
         };
         /**
          * Overview
-         * @description Every company (tenant) with its people, projects and agent use; the platform's state.
+         * @description Every company (tenant) with its people, projects and agent use; the platform's state; the limits this month's use
+         *     has reached 80 % of, or passed (`warnings`, for the administrator only).
          */
         Overview: {
             /** Companies */
             companies: components["schemas"]["CompanyRow"][];
+            /** Month */
+            month: string;
             /** Priced As */
             priced_as: string;
             system: components["schemas"]["PlatformState"];
             total: components["schemas"]["Usage"];
+            /** Warnings */
+            warnings: components["schemas"]["LimitRow"][];
         };
         /**
          * ParamNode
@@ -10610,6 +10767,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    limits_api_v1_admin_limits_get: {
+        parameters: {
+            query?: {
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LimitsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_limit_api_v1_admin_limits_put: {
+        parameters: {
+            query?: {
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LimitSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LimitsPage_"];
                 };
             };
             /** @description Validation Error */

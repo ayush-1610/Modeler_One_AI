@@ -117,3 +117,12 @@ pilot, so the console is meant for a deployment with Keycloak (question 5).
   has no server-side fallback) and an overloaded model retried once on it; every turn's cache writes and reads
   recorded, and the usage report prices them as they were. Not yet: the agents' text and page limits, set for the
   in-house model's context, widened for Claude; the A1 and delivery evaluations run on Opus 5.5 against Sonnet 5.5.
+- **E, limits (branch `limit-warnings`):** a monthly limit on the agents' estimated spend (USD) and tokens (in and
+  out), on a company, a project or a person, kept in the platform store (`_platform/limits.json`, with every change).
+  This calendar month's use (UTC) is measured against each, at the page's Claude prices (Opus 5.5 unless another is
+  chosen, so a budget is not exceeded on the cheaper models). At 80 % of a measure the administrator is warned, and
+  again when it is reached: a banner on the console's overview and on its Limits page (`/admin/limits`), where limits
+  are set, changed and removed, each with a reason and a fresh step-up, an `admin.limit.set` or `admin.limit.remove`
+  audit event on the owner's chain. Nothing stops an agent, and no answer outside `/admin` carries a limit (answer 2).
+  Not yet: a warning sent to the administrator (email or push) rather than shown in the console; that comes with the
+  routines (G).
