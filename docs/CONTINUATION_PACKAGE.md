@@ -211,7 +211,26 @@ T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) 
 Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
-## 4. Where things stand (2026-11-02)
+## 4. Where things stand (2026-11-10)
+
+### 4.0a 2026-11-10: the reading agent reads every file a client delivers (read this first)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md` (approved by the owner 2026-11-10, decisions in §5).
+R1 → R3 are merged (#157); R4 and R5 are on `claude/quirky-mccarthy-ln0y7g` (**open** until merged).
+- **R1 reading queue** (`modeler_project.reading_queue`, `intake_jobs.drain/kick/sweep`): no file is dropped while a
+  reading runs; every route queues; a failure stops only its file; opening Inputs restarts a stopped reader.
+- **R2 documents read for data** ("Read for data", default on) and uploads in batches of 8 files / 40 MB; per-file
+  limit 250 MB; the web proxy allows 500 MB / 600 s.
+- **R3 reading tray** on Inputs (`GET /reading-queue`, "Read again").
+- **R4 delivery pass** (`modeler_agents.delivery_pass`, agent run `A4-delivery-map`): waiting files mapped together
+  (study, product, role, strength, batch, food, medium, pH per file or sheet; links across files), each value quoted
+  and checked by code; kept as the reserved client-submission record `delivery`; context for each reading, never data
+  (the sheet reader refuses an identity or condition constant its sheet or file name does not state).
+- **R5 figure suggestions** (`modeler_project.figure_suggestions`): only a study's concentration-time or a product's
+  dissolution figure, caption quoted, shown only while no table holds its values; nothing is filed for a person.
+- **Next (R6):** run the owner's Desvenlafaxine delivery on the server with the configured model and score what the
+  pass and the readings found against what a person reads in the files. All tests so far use scripted models.
+- **Known gap:** the digitizer opens PDFs and images, not Word files; a Word file's figure must be saved as an image
+  or PDF first.
 
 ### 4.0 Latest, 2026-10-23 → 2026-11-02 (read this first)
 Everything below is merged into `main` unless marked **open** (#115, #116 and #117 merged on 2026-11-02).

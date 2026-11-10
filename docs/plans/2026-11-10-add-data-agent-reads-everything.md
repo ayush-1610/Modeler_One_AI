@@ -1,6 +1,7 @@
 # Add data: the reading agent reads every file it is given, together (plan, 2026-11-10)
 
-Status: **APPROVED 2026-11-10 (the owner's decisions in §5).** Build order R1 → R2 → R3 → R4 → R5.
+Status: **APPROVED 2026-11-10 (the owner's decisions in §5).** R1–R3 merged (#157); R4 and R5 built with their
+review fixes (branch `claude/quirky-mccarthy-ln0y7g`); R6 (the owner's delivery on the server) to do.
 
 ## 1. What the owner saw
 The owner added a whole client delivery at once with **+ Add data** in the sidebar (Desvenlafaxine: PK and concentration
