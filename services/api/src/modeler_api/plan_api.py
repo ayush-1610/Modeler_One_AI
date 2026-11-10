@@ -178,7 +178,7 @@ def _view(ws: Workspace, version, plan: ModelPlan, cpf: CPF, rows: list[dict[str
         "signed": bool(latest and latest[1].signed),
         "deviations": [d.model_dump(mode="json") for d in plan.deviations],
         "deviations_pending": len(plan.pending_deviations()),
-        "agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "planning"),
+        "agents": agent_jobs.agents_status("A5"), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "planning"),
     }
 
 
@@ -494,7 +494,7 @@ def run_planning_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
 def start_draft(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     _ensure(ws, principal.user_id)
-    model = agent_jobs.require_chat_model("agents are off: the MS-01 default stands; explain changes yourself")
+    model = agent_jobs.require_chat_model("agents are off: the MS-01 default stands; explain changes yourself", "A5")
     exploratory = _exploratory(ws)
 
     def job() -> None:

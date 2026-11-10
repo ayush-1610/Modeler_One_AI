@@ -45,13 +45,14 @@ through their owner modules, as the other routers do).
 | B | Usage and cost | Each agent run's model, tokens (input, output, cache write, cache read) and cost at that model's price; who started it; totals per agent, project, person, company and day; CSV export. |
 | C | Models and agents | Per agent: provider (Bedrock, the in-house model, off), model, effort, turn cap, text limits, fallback model; a "test" call. Each change is versioned and each run records the settings it ran with (for the report). |
 | D | Keys | Provider credentials (AWS for Bedrock, the in-house proxy, web search, Keycloak's service account) kept encrypted in the platform's store under one master key that stays in the server's environment; write-only (shown as their last 4 characters, who added them, when); rotation: add, test, make active, retire the old, with a reminder when a key is old. A change takes effect without a restart. |
-| E | Limits | A monthly spend and token limit per company, project and person: a warning at 80 %; at 100 % agents stop starting (or warn only: question 2). |
+| E | Limits | A monthly spend and token limit per company, project and person: a warning to the administrator at 80 % and at 100 %; agents are never stopped (answer 2). |
 | F | People and companies | Through Keycloak's admin API with a service account: companies created and disabled; people created (Keycloak sends them the set-password email), disabled, given roles and their company; groups; project memberships. |
 | G | Routines | Scheduled checks, each with its last result and "run now": keys' age, spend against limits, failed runs, the engine, backups, Keycloak and PostgreSQL. |
 | H | Support view | Any project opened read-only as its people see it ("view as"), to see what they see. |
 
-A and B are built first (one PR); C and D come with the switch to Bedrock (the agents then read their model and keys
-from the console); E to H follow.
+A and B are built first (one PR); then C and D (the agents read their model and keys from the console), then the
+Claude-on-Bedrock provider the console can choose, then E to H. Answer 4's ownership rule is its own PR once question 6
+is answered.
 
 ### Not built, and why (from the checklist the owner pasted)
 
@@ -72,15 +73,25 @@ file (not locked). The console needs the `modeler-admin` role on the owner's Key
 console. Giving it the role (one locked change, in its own PR) would show every company's data to anyone who reaches a
 pilot, so the console is meant for a deployment with Keycloak (question 5).
 
-## 3. Questions for the owner
+## 3. The owner's answers (2026-11-10, revision 2 of this plan)
 
-1. The administrator's role: the existing `modeler-admin`, given to you alone? (Assumed in A and B.)
-2. A limit reached: stop the agents, or warn only?
-3. Keys: in the platform's own store, encrypted under one master key in the server's environment (works on the
-   current server), or AWS Secrets Manager (needs the server to reach AWS and an IAM identity there)?
-4. Groups: what are they for: a team inside a company that shares its projects?
-5. Where will you open the console: on the server once Keycloak signs people in (you hold `modeler-admin`), or on the
-   pilot's development sign-in too (the locked change above, which opens it to anyone who reaches the pilot)?
+1. **The role:** `modeler-admin`, held by the owner alone. "Admin is god of platform with everything": the console
+   does everything the platform can do, within the three limits in §2 (Part 11: nobody acts as another person, no
+   password passes through the platform, no record is erased).
+2. **Limits:** they warn the administrator; nothing stops ("client will see and decide later what to show them"). A
+   company's people see nothing of them yet.
+3. **Keys:** in the platform's own store, encrypted under one master key in the server's environment, seen and
+   changed only from the console.
+4. **Companies, people and projects:** a company holds many people; each person holds many projects; a project can
+   be shared with others of the same company. Its creator is its **owner**, the only one who edits it; the people it
+   is shared with **read** it ("as maintaining the log will be difficult at this stage"). More access management
+   later.
+5. **Where:** on the server with Keycloak (option A); the development sign-in keeps no console (no locked change).
+
+**Question 6 (open), from answer 4:** today a reviewer (the MIDD lead role) who did not create a project signs its
+MAP and settles its escalations: an approval by a second person, which ICH M15 and Part 11 review expect. With "only
+the owner edits", may a person the project is shared with, holding the reviewer role, still **sign** it (an approval,
+not an edit)? Proposed: yes; signing stays the reviewer's, every other change the owner's.
 
 ## 4. Builds
 
@@ -94,3 +105,8 @@ pilot, so the console is meant for a deployment with Keycloak (question 5).
   `jobs.start(by=...)` names the person to everything the job runs (`jobs.started_by`), and `AgentRun` writes it to
   `run.json` (`started_by`); earlier runs read as "not recorded". The web app: `/admin`, `/admin/companies/[tenant]`,
   `/admin/usage`, and a "Platform" link in the sidebar for `modeler-admin` only.
+- **C + D (branch `admin-models-keys`):** each agent's model chosen in the console (provider, model, effort; "as the
+  server's environment says" until set), every change with its reason and step-up, the history kept; provider keys in
+  the platform store, AES-GCM under `MODELER_MASTER_KEY`, write-only (shown by their last 4 characters), each added,
+  tested, made active (the previous one retired), retired; a key older than 90 days is flagged for rotation. The
+  agents read their model and the active key at the start of each run, so a change needs no restart.

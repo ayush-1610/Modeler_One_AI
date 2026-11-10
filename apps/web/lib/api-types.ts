@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/v1/admin/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agents */
+        get: operations["agents_api_v1_admin_agents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/agents/{agent}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Agent */
+        put: operations["set_agent_api_v1_admin_agents__agent__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/companies/{tenant_id}": {
         parameters: {
             query?: never;
@@ -15,6 +49,75 @@ export interface paths {
         get: operations["company_api_v1_admin_companies__tenant_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Keys */
+        get: operations["keys_api_v1_admin_keys_get"];
+        put?: never;
+        /** Add Key */
+        post: operations["add_key_api_v1_admin_keys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/keys/{key_id}:activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate Key */
+        post: operations["activate_key_api_v1_admin_keys__key_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/keys/{key_id}:retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retire Key */
+        post: operations["retire_key_api_v1_admin_keys__key_id__retire_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/keys/{key_id}:test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Key */
+        post: operations["test_key_api_v1_admin_keys__key_id__test_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2247,6 +2350,56 @@ export interface components {
             ref: components["schemas"]["Ref"];
             status: components["schemas"]["ArtifactStatus"];
         };
+        /** AgentChange */
+        AgentChange: {
+            /** Agent */
+            agent: string;
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Reason */
+            reason: string;
+        };
+        /** AgentProvider */
+        AgentProvider: {
+            /** Has Active Key */
+            has_active_key: boolean;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Needs Model */
+            needs_model: boolean;
+        };
+        /**
+         * AgentRow
+         * @description One agent's model as the console sets it ("environment": the server's own configuration), and what it runs on
+         *     now (`runs_on`, the model the next run would take, or why none).
+         */
+        AgentRow: {
+            /** Agent */
+            agent: string;
+            /** Label */
+            label: string;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Provider Label */
+            provider_label: string;
+            /** Reason */
+            reason: string | null;
+            runs_on: components["schemas"]["AgentsStatus"];
+            /** Set At */
+            set_at: string | null;
+            /** Set By */
+            set_by: string | null;
+        };
         /** AgentRunDetail */
         AgentRunDetail: {
             /** Run */
@@ -2257,6 +2410,28 @@ export interface components {
             steps: {
                 [key: string]: unknown;
             }[];
+        };
+        /** AgentSet */
+        AgentSet: {
+            /**
+             * Model
+             * @default
+             */
+            model?: string;
+            /** Provider */
+            provider: string;
+            /** Reason */
+            reason: string;
+        };
+        /** AgentsPage */
+        AgentsPage: {
+            /** Agents */
+            agents: components["schemas"]["AgentRow"][];
+            environment: components["schemas"]["AgentsStatus"];
+            /** History */
+            history: components["schemas"]["AgentChange"][];
+            /** Providers */
+            providers: components["schemas"]["AgentProvider"][];
         };
         /**
          * AgentsStatus
@@ -4043,6 +4218,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[AgentsPage] */
+        Envelope_AgentsPage_: {
+            data: components["schemas"]["AgentsPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[Artifacts] */
         Envelope_Artifacts_: {
             data: components["schemas"]["Artifacts"];
@@ -4228,6 +4410,13 @@ export interface components {
         /** Envelope[InputsPage] */
         Envelope_InputsPage_: {
             data: components["schemas"]["InputsPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[KeysPage] */
+        Envelope_KeysPage_: {
+            data: components["schemas"]["KeysPage"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -5555,6 +5744,111 @@ export interface components {
             index: number;
             /** Reason */
             reason: string;
+        };
+        /**
+         * KeyAdd
+         * @description A key to store. Every field is optional to the validator and checked by the handler, so a refusal never echoes the
+         *     request (FastAPI's 422 answer repeats the input it rejects, which here holds a secret).
+         */
+        KeyAdd: {
+            /** Fields */
+            fields?: {
+                [key: string]: string;
+            };
+            /**
+             * Label
+             * @default
+             */
+            label?: string;
+            /**
+             * Provider
+             * @default
+             */
+            provider?: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason?: string;
+        };
+        /** KeyChange */
+        KeyChange: {
+            /** Reason */
+            reason: string;
+        };
+        /** KeyField */
+        KeyField: {
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Required */
+            required: boolean;
+            /** Secret */
+            secret: boolean;
+        };
+        /** KeyProvider */
+        KeyProvider: {
+            /** Fields */
+            fields: components["schemas"]["KeyField"][];
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * KeyView
+         * @description A stored key, never its secret: the secret fields' last 4 characters and the plain fields (an address, a
+         *     region). `due`: active for `rotate_after_days` or longer.
+         */
+        KeyView: {
+            /** Activated At */
+            activated_at: string | null;
+            /** Active Days */
+            active_days: number | null;
+            /** Added At */
+            added_at: string;
+            /** Added By */
+            added_by: string;
+            /** Due */
+            due: boolean;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Last4 */
+            last4: {
+                [key: string]: string;
+            };
+            /** Plain */
+            plain: {
+                [key: string]: string;
+            };
+            /** Provider */
+            provider: string;
+            /** Retired At */
+            retired_at: string | null;
+            /** State */
+            state: string;
+            /** Test Message */
+            test_message: string | null;
+            /** Test Ok */
+            test_ok: boolean | null;
+            /** Tested At */
+            tested_at: string | null;
+        };
+        /** KeysPage */
+        KeysPage: {
+            /** Keys */
+            keys: components["schemas"]["KeyView"][];
+            /** Master Key */
+            master_key: boolean;
+            /** Master Problem */
+            master_problem: string | null;
+            /** Providers */
+            providers: components["schemas"]["KeyProvider"][];
+            /** Rotate After Days */
+            rotate_after_days: number;
         };
         /** Lane */
         Lane: {
@@ -9823,6 +10117,74 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    agents_api_v1_admin_agents_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_agent_api_v1_admin_agents__agent__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     company_api_v1_admin_companies__tenant_id__get: {
         parameters: {
             query?: {
@@ -9845,6 +10207,179 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_CompanyPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    keys_api_v1_admin_keys_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_key_api_v1_admin_keys_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_key_api_v1_admin_keys__key_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retire_key_api_v1_admin_keys__key_id__retire_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_key_api_v1_admin_keys__key_id__test_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
                 };
             };
             /** @description Validation Error */

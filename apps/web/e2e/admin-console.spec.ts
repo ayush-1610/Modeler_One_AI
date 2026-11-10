@@ -9,10 +9,12 @@ test("a person who is not the platform's owner gets no console link and is refus
   await expect(page.getByTestId("signed-in").or(page.getByTestId("dev-sign-in"))).toBeVisible();
   await expect(page.getByTestId("nav-admin")).toHaveCount(0);
 
-  for (const address of ["/admin", "/admin/usage", "/admin/companies/dev-tenant"]) {
+  for (const address of ["/admin", "/admin/usage", "/admin/companies/dev-tenant", "/admin/models", "/admin/keys"]) {
     await page.goto(address);
     await expect(page.getByTestId("admin-refused")).toContainText("platform's owner only");
     await expect(page.getByTestId("admin-companies")).toHaveCount(0);
     await expect(page.getByTestId("usage-runs")).toHaveCount(0);
+    await expect(page.getByTestId("admin-keys")).toHaveCount(0);
+    await expect(page.getByTestId("admin-agents")).toHaveCount(0);
   }
 });

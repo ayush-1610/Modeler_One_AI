@@ -4,9 +4,11 @@ import type { ReactNode } from "react";
 import { Card } from "@/components/ui";
 import { PRICED_AS, tokens, usd, when, type PricedAs, type Usage, type UsageGroup } from "@/lib/admin";
 
-/** The console's three pages, and the model its costs are priced at (a link per model: the page is read on the server). */
-export function AdminTabs({ here, priced, base, query = {} }: {
-  here: "overview" | "usage" | "company"; priced: PricedAs; base: string; query?: Record<string, string | undefined>;
+/** The console's pages, and (on the pages with costs) the model the costs are priced at: a link per model, since the
+ *  page is read on the server. */
+export function AdminTabs({ here, priced = "claude-opus-5-5", base, query = {} }: {
+  here: "overview" | "usage" | "company" | "models" | "keys"; priced?: PricedAs; base?: string;
+  query?: Record<string, string | undefined>;
 }) {
   const href = (p: PricedAs) => {
     const given: Record<string, string | undefined> = { ...query, priced_as: p };
@@ -18,16 +20,20 @@ export function AdminTabs({ here, priced, base, query = {} }: {
       <nav className="tabs" aria-label="Admin console" data-testid="admin-tabs">
         <Link href={`/admin?priced_as=${priced}`} className={here === "overview" ? "active" : ""}>Overview</Link>
         <Link href={`/admin/usage?priced_as=${priced}`} className={here === "usage" ? "active" : ""}>Usage and cost</Link>
+        <Link href="/admin/models" className={here === "models" ? "active" : ""}>Models</Link>
+        <Link href="/admin/keys" className={here === "keys" ? "active" : ""}>Keys</Link>
       </nav>
-      <div className="muted" data-testid="priced-as">
-        Costs as if run on{" "}
-        {PRICED_AS.map((p, i) => (
-          <span key={p.id}>
-            {i > 0 && " · "}
-            {p.id === priced ? <strong>{p.label}</strong> : <Link href={href(p.id)}>{p.label}</Link>}
-          </span>
-        ))}
-      </div>
+      {base && (
+        <div className="muted" data-testid="priced-as">
+          Costs as if run on{" "}
+          {PRICED_AS.map((p, i) => (
+            <span key={p.id}>
+              {i > 0 && " · "}
+              {p.id === priced ? <strong>{p.label}</strong> : <Link href={href(p.id)}>{p.label}</Link>}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -115,3 +115,83 @@ class UsagePage(View):
     by_day: list[UsageGroup]
     runs: list[UsageRun]
     limit: int
+
+
+class AgentRow(View):
+    """One agent's model as the console sets it ("environment": the server's own configuration), and what it runs on
+    now (`runs_on`, the model the next run would take, or why none)."""
+
+    agent: str
+    label: str
+    provider: str
+    provider_label: str
+    model: str
+    set_by: str | None
+    set_at: str | None
+    reason: str | None
+    runs_on: AgentsStatus
+
+
+class AgentProvider(View):
+    id: str
+    label: str
+    needs_model: bool
+    has_active_key: bool
+
+
+class AgentChange(View):
+    agent: str
+    provider: str
+    model: str
+    by: str
+    at: str
+    reason: str
+
+
+class AgentsPage(View):
+    agents: list[AgentRow]
+    providers: list[AgentProvider]
+    environment: AgentsStatus
+    history: list[AgentChange]
+
+
+class KeyField(View):
+    name: str
+    label: str
+    secret: bool
+    required: bool
+
+
+class KeyProvider(View):
+    id: str
+    label: str
+    fields: list[KeyField]
+
+
+class KeyView(View):
+    """A stored key, never its secret: the secret fields' last 4 characters and the plain fields (an address, a
+    region). `due`: active for `rotate_after_days` or longer."""
+
+    id: str
+    provider: str
+    label: str
+    state: str
+    plain: dict[str, str]
+    last4: dict[str, str]
+    added_by: str
+    added_at: str
+    activated_at: str | None
+    retired_at: str | None
+    tested_at: str | None
+    test_ok: bool | None
+    test_message: str | None
+    active_days: int | None
+    due: bool
+
+
+class KeysPage(View):
+    keys: list[KeyView]
+    providers: list[KeyProvider]
+    master_key: bool
+    master_problem: str | None
+    rotate_after_days: int

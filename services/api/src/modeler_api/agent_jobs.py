@@ -20,24 +20,29 @@ from typing import Any, Literal
 
 from fastapi import HTTPException
 
-from modeler_api import jobs
+from modeler_api import jobs, platform_settings
+from modeler_api.config import get_settings
 
 # --- the configured model ------------------------------------------------------------------------------------------
 
 
-def chat_model() -> tuple[Any | None, str | None]:
-    """The configured chat model, or None with the configuration error (None too when agents are simply off)."""
+def chat_model(agent: str | None = None) -> tuple[Any | None, str | None]:
+    """The chat model `agent` (A1 … A5) runs on, or None with the configuration error (None too when agents are off):
+    the admin console's setting for it with its provider's active key (`platform_settings`), else the server's
+    environment. Read at each start, so a change in the console needs no restart."""
     from modeler_agents.llm import LLMConfigError, chat_model_from_env
 
     try:
-        return chat_model_from_env(), None
-    except LLMConfigError as exc:
+        settings = get_settings()
+        env = platform_settings.model_env(settings.read_root, settings.master_key, agent) if agent else None
+        return chat_model_from_env(env), None
+    except (LLMConfigError, platform_settings.SettingsError) as exc:
         return None, str(exc)
 
 
-def require_chat_model(off: str) -> Any:
+def require_chat_model(off: str, agent: str | None = None) -> Any:
     """The model an agent endpoint needs: 409 with the configuration error, or with `off` when agents are off."""
-    model, problem = chat_model()
+    model, problem = chat_model(agent)
     if problem:
         raise HTTPException(status_code=409, detail=problem)
     if model is None:
@@ -45,14 +50,30 @@ def require_chat_model(off: str) -> Any:
     return model
 
 
-def agents_status() -> dict[str, Any]:
-    """Whether an LLM provider is configured, without exposing any key."""
-    model, problem = chat_model()
+def agents_status(agent: str | None = None) -> dict[str, Any]:
+    """Whether `agent` (or, without one, the server's environment) has a model, without exposing any key."""
+    model, problem = chat_model(agent)
     if problem:
         return {"enabled": False, "problem": problem}
     if model is None:
+        settings = get_settings()
+        setting = platform_settings.AgentSettings(settings.read_root).current(agent) if agent and settings.read_root else None
+        if setting and setting["provider"] == "off":
+            return {"enabled": False, "problem": f"off in the admin console ({setting['reason']})"}
         return {"enabled": False, "problem": "agents are off (MODELER_LLM_PROVIDER not set)"}
     return {"enabled": True, "provider": model.provider, "model": model.model}
+
+
+def test_key(provider: str, fields: dict[str, str]) -> tuple[bool, str]:
+    """Whether a stored key answers: the in-house proxy lists the models it serves with it."""
+    from modeler_agents.llm import OpenAICompatChat
+
+    if provider == "litellm":
+        served = OpenAICompatChat(provider="litellm", base_url=fields["base_url"], api_key=fields["key"], model="",
+                                  timeout_s=30, max_retries=0).list_models()
+        return (True, f"answers; serves {', '.join(served)}") if served else (
+            False, f"no list of models from {fields['base_url']}: check the address and the key")
+    return False, f"{provider} keys cannot be tested yet"
 
 
 # --- run records ---------------------------------------------------------------------------------------------------

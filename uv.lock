@@ -1064,6 +1064,7 @@ version = "0.1.0"
 source = { editable = "services/api" }
 dependencies = [
     { name = "asyncpg" },
+    { name = "cryptography" },
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "modeler-agents" },
@@ -1085,6 +1086,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.29" },
+    { name = "cryptography", specifier = ">=44" },
     { name = "duckdb", specifier = ">=1.1" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "modeler-agents", editable = "services/agents" },
