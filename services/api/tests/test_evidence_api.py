@@ -258,7 +258,7 @@ def test_the_compound_sources_run_at_the_start_and_their_values_flow_in(setup, m
     c, ws = setup
     ws.commit(ArtifactKind.BRIEF, "main", brief_for(structured_answers.DRUG, by="u1").to_content(), actor="u1", reason="drug")
     monkeypatch.setattr(agent_jobs, "structured_clients", structured_answers.clients)
-    assert start_compound_job(ws.store, "t1", "p1")                         # agents off: the sources alone
+    assert start_compound_job(ws.store, "t1", "p1", by="u1")                       # agents off: the sources alone
     _wait_until_idle(jobs, ws.store, "p1")
     view = c.get("/api/v1/projects/p1/literature-run", headers=H).json()["data"]
     assert not view["running"] and view["run"]["agent"] == "A2-sources" and view["proposed"] == 8

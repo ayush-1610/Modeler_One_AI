@@ -32,11 +32,14 @@ class FileRunStore:
         raise KeyError(run_id)
 
     def start_run(self, *, tenant_id: str, agent: str, provider: str, model: str, campaign_id: str | None,
-                  budget: dict[str, Any]) -> str:
+                  budget: dict[str, Any], started_by: str | None = None) -> str:
+        """A new run, RUNNING. `started_by`: the person whose action started it (the admin console's usage per person);
+        None where nobody did (a scheduled run) or the record predates it (2026-11-10)."""
         run_id = f"ar_{uuid.uuid4().hex[:12]}"
         folder = self._dir(tenant_id, run_id)
         folder.mkdir(parents=True, exist_ok=True)
         record = {"run_id": run_id, "tenant_id": tenant_id, "project_id": self.project_id, "agent": agent,
+                  "started_by": started_by,
                   "provider": provider, "model": model, "campaign_id": campaign_id, "budget": budget,
                   "status": "RUNNING", "started_at": datetime.now(UTC).isoformat(), "finished_at": None,
                   "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "summary": {}, "proposals": []}

@@ -533,14 +533,16 @@ def test_a_project_started_with_its_readers_starts_the_compound_search_too(clien
     start, in the background, while the person and A1 work on Start."""
     from modeler_api import brief_api
 
-    started: list[str] = []
+    started: list[tuple[str, str]] = []
     monkeypatch.setattr(brief_api, "_start_extraction", lambda *a, **k: {"started": True, "agents": False, "problem": None})
-    monkeypatch.setattr(brief_api, "start_compound_job", lambda store, tenant, project: started.append(project) or True)
+    monkeypatch.setattr(brief_api, "start_compound_job",
+                        lambda store, tenant, project, *, by: started.append((project, by)) or True)
     c, _ = client
     answer = c.post("/api/v1/projects:initiate", headers=H, data={"drug_name": "Exampleamide"},
                     files=[("files", ("proposal.txt", PROPOSAL, "text/plain"))])
     assert answer.status_code == 201, answer.text
-    assert started == [answer.json()["data"]["project_id"]]
+    # the search's runs name the person who started the project (the admin console's usage per person)
+    assert [p for p, _by in started] == [answer.json()["data"]["project_id"]] and started[0][1]
     quiet = c.post("/api/v1/projects:initiate", headers=H, data={"drug_name": "Exampleamide", "extract": "false"},
                    files=[("files", ("proposal.txt", PROPOSAL, "text/plain"))])
     assert quiet.status_code == 201 and len(started) == 1                     # no readers asked: nothing starts

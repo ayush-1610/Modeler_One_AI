@@ -4,6 +4,57 @@
  */
 
 export interface paths {
+    "/api/v1/admin/companies/{tenant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Company */
+        get: operations["company_api_v1_admin_companies__tenant_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview */
+        get: operations["overview_api_v1_admin_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Usage */
+        get: operations["usage_api_v1_admin_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/campaigns": {
         parameters: {
             query?: never;
@@ -236,6 +287,23 @@ export interface paths {
         put?: never;
         /** Validate M15 Table */
         post: operations["validate_m15_table_api_v1_m15_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_api_v1_me_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3131,6 +3199,33 @@ export interface components {
             protocol?: string | null;
         };
         /**
+         * CompanyPage
+         * @description One company: its people (each who has signed in) and its projects, archived ones included.
+         */
+        CompanyPage: {
+            /** People */
+            people: components["schemas"]["PersonRow"][];
+            /** Priced As */
+            priced_as: string;
+            /** Projects */
+            projects: components["schemas"]["ProjectRow"][];
+            /** Tenant Id */
+            tenant_id: string;
+            usage: components["schemas"]["Usage"];
+        };
+        /** CompanyRow */
+        CompanyRow: {
+            /** Archived */
+            archived: number;
+            /** People */
+            people: number;
+            /** Projects */
+            projects: number;
+            /** Tenant Id */
+            tenant_id: string;
+            usage: components["schemas"]["Usage"];
+        };
+        /**
          * CompetitiveInhibition
          * @description Reversible competitive inhibition of an enzyme/transporter (PK-Sim ``CompetitiveInhibition``).
          */
@@ -4025,6 +4120,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[CompanyPage] */
+        Envelope_CompanyPage_: {
+            data: components["schemas"]["CompanyPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[CpfView] */
         Envelope_CpfView_: {
             data: components["schemas"]["CpfView"];
@@ -4158,6 +4260,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[MeView] */
+        Envelope_MeView_: {
+            data: components["schemas"]["MeView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[MembersPage] */
         Envelope_MembersPage_: {
             data: components["schemas"]["MembersPage"];
@@ -4168,6 +4277,13 @@ export interface components {
         /** Envelope[ObservedDataset] */
         Envelope_ObservedDataset_: {
             data: components["schemas"]["ObservedDataset"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[Overview] */
+        Envelope_Overview_: {
+            data: components["schemas"]["Overview"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -4360,6 +4476,13 @@ export interface components {
         Envelope_Union_PlanPage__PlacementPreview__: {
             /** Data */
             data: components["schemas"]["PlanPage"] | components["schemas"]["PlacementPreview"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[UsagePage] */
+        Envelope_UsagePage_: {
+            data: components["schemas"]["UsagePage"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -6152,6 +6275,22 @@ export interface components {
             };
         };
         /**
+         * MeView
+         * @description The signed-in person: what the web app shows them (the console's link only to the platform's owner).
+         */
+        MeView: {
+            /** Admin */
+            admin: boolean;
+            /** Name */
+            name: string;
+            /** Roles */
+            roles: string[];
+            /** Tenant Id */
+            tenant_id: string;
+            /** User Id */
+            user_id: string;
+        };
+        /**
          * Meal
          * @description One meal of a study (StudyRecord.meals).
          */
@@ -6609,6 +6748,18 @@ export interface components {
             status?: ("OPEN" | "NOT_AVAILABLE" | "WAIVED") | null;
         };
         /**
+         * Overview
+         * @description Every company (tenant) with its people, projects and agent use; the platform's state.
+         */
+        Overview: {
+            /** Companies */
+            companies: components["schemas"]["CompanyRow"][];
+            /** Priced As */
+            priced_as: string;
+            system: components["schemas"]["PlatformState"];
+            total: components["schemas"]["Usage"];
+        };
+        /**
          * ParamNode
          * @description A CPF parameter on D1 / D2, with its fit choice and the stages that may fit it; D2 nodes carry no source.
          */
@@ -6701,6 +6852,16 @@ export interface components {
             parameters: components["schemas"]["ParamNode"][];
             /** Process */
             process: string;
+        };
+        /** PersonRow */
+        PersonRow: {
+            /** Name */
+            name: string;
+            /** Projects */
+            projects: string[];
+            /** Subject */
+            subject: string;
+            usage: components["schemas"]["Usage"];
         };
         /** PersonView */
         PersonView: {
@@ -6835,6 +6996,14 @@ export interface components {
             signed: boolean;
             /** Violations */
             violations: components["schemas"]["Violation"][];
+        };
+        /** PlatformState */
+        PlatformState: {
+            agents: components["schemas"]["AgentsStatus"];
+            /** Deployment */
+            deployment: string;
+            /** Store */
+            store: boolean;
         };
         /** Plausibility */
         Plausibility: {
@@ -6973,6 +7142,22 @@ export interface components {
             questions?: components["schemas"]["QuestionRecord"][];
             /** Risk */
             risk: string;
+        };
+        /** ProjectRow */
+        ProjectRow: {
+            /** Archived */
+            archived: boolean;
+            /** Archived Reason */
+            archived_reason: string | null;
+            /** Compounds */
+            compounds: string[];
+            /** Id */
+            id: string;
+            /** Members */
+            members: string[];
+            /** Name */
+            name: string;
+            usage: components["schemas"]["Usage"];
         };
         /** ProjectStarted */
         ProjectStarted: {
@@ -9375,6 +9560,94 @@ export interface components {
             /** Sd */
             sd?: number | null;
         };
+        /**
+         * Usage
+         * @description Agent runs and their tokens; `usd`: what they would cost on the Claude model the page is priced at, with their
+         *     conversations cached (an estimate: the tokens are the model's that ran them).
+         */
+        Usage: {
+            /** Failed Runs */
+            failed_runs: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Last Run At */
+            last_run_at: string | null;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Runs */
+            runs: number;
+            /** Usd */
+            usd: number;
+        };
+        /** UsageGroup */
+        UsageGroup: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            usage: components["schemas"]["Usage"];
+        };
+        /**
+         * UsagePage
+         * @description Agent use since a date, per agent, project, person, company and day, and the runs themselves (newest first, at
+         *     most `limit`). `prices`: USD per million tokens of `priced_as` (input, cache write, cache read, output).
+         */
+        UsagePage: {
+            /** By Agent */
+            by_agent: components["schemas"]["UsageGroup"][];
+            /** By Company */
+            by_company: components["schemas"]["UsageGroup"][];
+            /** By Day */
+            by_day: components["schemas"]["UsageGroup"][];
+            /** By Person */
+            by_person: components["schemas"]["UsageGroup"][];
+            /** By Project */
+            by_project: components["schemas"]["UsageGroup"][];
+            /** Limit */
+            limit: number;
+            /** Priced As */
+            priced_as: string;
+            /** Prices */
+            prices: {
+                [key: string]: number;
+            };
+            /** Runs */
+            runs: components["schemas"]["UsageRun"][];
+            /** Since */
+            since: string | null;
+            /** Tenant Id */
+            tenant_id: string | null;
+            total: components["schemas"]["Usage"];
+        };
+        /** UsageRun */
+        UsageRun: {
+            /** Agent */
+            agent: string;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Model */
+            model: string;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Project Id */
+            project_id: string | null;
+            /** Run Id */
+            run_id: string;
+            /** Started At */
+            started_at: string | null;
+            /** Started By */
+            started_by: string | null;
+            /** Started By Name */
+            started_by_name: string | null;
+            /** Status */
+            status: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Turns */
+            turns: number;
+            /** Usd */
+            usd: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -9550,6 +9823,110 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    company_api_v1_admin_companies__tenant_id__get: {
+        parameters: {
+            query?: {
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CompanyPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overview_api_v1_admin_overview_get: {
+        parameters: {
+            query?: {
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_Overview_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    usage_api_v1_admin_usage_get: {
+        parameters: {
+            query?: {
+                since?: string | null;
+                tenant_id?: string | null;
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_UsagePage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_campaigns_api_v1_campaigns_get: {
         parameters: {
             query?: {
@@ -9935,6 +10312,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_M15Validation_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    me_api_v1_me_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_MeView_"];
                 };
             };
             /** @description Validation Error */

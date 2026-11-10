@@ -163,7 +163,7 @@ def start_research(project_id: str, principal: Writer, store: StoreDep, agent: L
         else:
             run_compound_job(store, principal.tenant_id, project_id, model=model)
 
-    jobs.start(store, principal.tenant_id, project_id, "research", job, busy="a literature run is already in progress",
+    jobs.start(store, principal.tenant_id, project_id, "research", job, by=principal.user_id, busy="a literature run is already in progress",
                name=f"research-{project_id}")
     shown = model or CodeRunner()
     return envelope({"started": True, "provider": shown.provider, "model": shown.model})

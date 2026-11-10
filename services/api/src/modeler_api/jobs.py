@@ -2,12 +2,14 @@
 
 An agent job (A1 extraction, A2/A3 research, A4 triage and sheet reading, A5 planning) runs on a thread of the worker that started it;
 its lease lives under the project store's root (`modeler_storage.jobs`), so a second worker refuses a duplicate start
-with the same 409 and reports the job as running on every page.
+with the same 409 and reports the job as running on every page. The person who started a job is known to everything it
+runs (`started_by`), so each agent run records who started it (the admin console's usage per person, 2026-11-10).
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextvars import ContextVar
 from typing import Literal
 
 from fastapi import HTTPException
@@ -17,15 +19,24 @@ from modeler_storage.jobs import FileJobRegistry
 
 Kind = Literal["extraction", "research", "triage", "reading", "planning"]
 
+# who started the job running on this thread (a subject); None outside a job
+started_by: ContextVar[str | None] = ContextVar("started_by", default=None)
+
 
 def _registry(store: ProjectStore) -> FileJobRegistry:
     return FileJobRegistry(store.root)  # FileProjectStore: the root every worker of the deployment shares
 
 
 def start(store: ProjectStore, tenant_id: str, project_id: str, kind: Kind, target: Callable[[], None], *,
-          busy: str, name: str | None = None) -> None:
-    """Run `target` in the background as the project's `kind` job; 409 `busy` while one is running anywhere."""
-    if not _registry(store).run_in_background(tenant_id, project_id, kind, target, name=name):
+          busy: str, by: str, name: str | None = None) -> None:
+    """Run `target` in the background as the project's `kind` job, started by the person `by`; 409 `busy` while one is
+    running anywhere."""
+
+    def as_started() -> None:
+        started_by.set(by)
+        target()
+
+    if not _registry(store).run_in_background(tenant_id, project_id, kind, as_started, name=name):
         raise HTTPException(status_code=409, detail=busy)
 
 

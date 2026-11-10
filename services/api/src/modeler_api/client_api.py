@@ -161,7 +161,8 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     # what code could not do, by the agent on arrival, when agents are on (plan 2026-11-05 §3.1): each PDF or Word file
     # read for its data, the sheets code could not sort, each sheet whose code reading has a problem
-    read_later(store, principal.tenant_id, project_id, [r["id"] for r in read if r.get("id") and not r.get("repeat")])
+    read_later(store, principal.tenant_id, project_id, [r["id"] for r in read if r.get("id") and not r.get("repeat")],
+               by=principal.user_id)
     return envelope({"read": [{**{k: r[k] for k in ("id", "file", "template", "sha256")}, **file_tag_view(library, r["sha256"])}
                               for r in read], **_view(ws)})
 
@@ -234,7 +235,7 @@ def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) 
     def job() -> None:
         run_triage_job(store, principal.tenant_id, project_id, sid, model=model)
 
-    jobs.start(store, principal.tenant_id, project_id, "triage", job, busy="a triage run is already in progress",
+    jobs.start(store, principal.tenant_id, project_id, "triage", job, by=principal.user_id, busy="a triage run is already in progress",
                name=f"triage-{project_id}")
     return envelope({"status": "RUNNING"})
 
@@ -302,7 +303,7 @@ def start_reading(project_id: str, sid: str, principal: Writer, store: StoreDep,
     def job() -> None:
         run_reading_job(store, principal.tenant_id, project_id, sid, model=model, sheets=sheets or None)
 
-    jobs.start(store, principal.tenant_id, project_id, "reading", job, busy="a reading run is already in progress",
+    jobs.start(store, principal.tenant_id, project_id, "reading", job, by=principal.user_id, busy="a reading run is already in progress",
                name=f"reading-{project_id}")
     return envelope({"status": "RUNNING"})
 
@@ -319,7 +320,7 @@ def _start_document_reading(ws: Workspace, content: dict[str, Any], sid: str, pr
     def job() -> None:
         run_document_job(store, principal.tenant_id, ws.project_id, sid, model=model)
 
-    jobs.start(store, principal.tenant_id, ws.project_id, "reading", job, busy="a reading run is already in progress",
+    jobs.start(store, principal.tenant_id, ws.project_id, "reading", job, by=principal.user_id, busy="a reading run is already in progress",
                name=f"reading-{ws.project_id}")
     return envelope({"status": "RUNNING"})
 

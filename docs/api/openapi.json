@@ -2717,6 +2717,79 @@
         "title": "CoCompoundSpec",
         "type": "object"
       },
+      "CompanyPage": {
+        "additionalProperties": false,
+        "description": "One company: its people (each who has signed in) and its projects, archived ones included.",
+        "properties": {
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRow"
+            },
+            "title": "People",
+            "type": "array"
+          },
+          "priced_as": {
+            "title": "Priced As",
+            "type": "string"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectRow"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "people",
+          "projects",
+          "usage",
+          "priced_as"
+        ],
+        "title": "CompanyPage",
+        "type": "object"
+      },
+      "CompanyRow": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "integer"
+          },
+          "people": {
+            "title": "People",
+            "type": "integer"
+          },
+          "projects": {
+            "title": "Projects",
+            "type": "integer"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "people",
+          "projects",
+          "archived",
+          "usage"
+        ],
+        "title": "CompanyRow",
+        "type": "object"
+      },
       "CompetitiveInhibition": {
         "additionalProperties": false,
         "description": "Reversible competitive inhibition of an enzyme/transporter (PK-Sim ``CompetitiveInhibition``).",
@@ -5268,6 +5341,31 @@
         "title": "Envelope[ClientUpload]",
         "type": "object"
       },
+      "Envelope_CompanyPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CompanyPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[CompanyPage]",
+        "type": "object"
+      },
       "Envelope_CpfView_": {
         "additionalProperties": false,
         "properties": {
@@ -5743,6 +5841,31 @@
         "title": "Envelope[M15Validation]",
         "type": "object"
       },
+      "Envelope_MeView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MeView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[MeView]",
+        "type": "object"
+      },
       "Envelope_MembersPage_": {
         "additionalProperties": false,
         "properties": {
@@ -5791,6 +5914,31 @@
           "errors"
         ],
         "title": "Envelope[ObservedDataset]",
+        "type": "object"
+      },
+      "Envelope_Overview_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Overview"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Overview]",
         "type": "object"
       },
       "Envelope_PlanPage_": {
@@ -6490,6 +6638,31 @@
           "errors"
         ],
         "title": "Envelope[Union[PlanPage, PlacementPreview]]",
+        "type": "object"
+      },
+      "Envelope_UsagePage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UsagePage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[UsagePage]",
         "type": "object"
       },
       "Envelope_ValueReusePage_": {
@@ -11322,6 +11495,44 @@
         "title": "MappingBody",
         "type": "object"
       },
+      "MeView": {
+        "additionalProperties": false,
+        "description": "The signed-in person: what the web app shows them (the console's link only to the platform's owner).",
+        "properties": {
+          "admin": {
+            "title": "Admin",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name",
+          "tenant_id",
+          "roles",
+          "admin"
+        ],
+        "title": "MeView",
+        "type": "object"
+      },
       "Meal": {
         "additionalProperties": false,
         "description": "One meal of a study (StudyRecord.meals).",
@@ -12465,6 +12676,37 @@
         "title": "OverrideRequest",
         "type": "object"
       },
+      "Overview": {
+        "additionalProperties": false,
+        "description": "Every company (tenant) with its people, projects and agent use; the platform's state.",
+        "properties": {
+          "companies": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyRow"
+            },
+            "title": "Companies",
+            "type": "array"
+          },
+          "priced_as": {
+            "title": "Priced As",
+            "type": "string"
+          },
+          "system": {
+            "$ref": "#/components/schemas/PlatformState"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "companies",
+          "total",
+          "priced_as",
+          "system"
+        ],
+        "title": "Overview",
+        "type": "object"
+      },
       "ParamNode": {
         "additionalProperties": false,
         "description": "A CPF parameter on D1 / D2, with its fit choice and the stages that may fit it; D2 nodes carry no source.",
@@ -12800,6 +13042,37 @@
           "parameters"
         ],
         "title": "Pathway",
+        "type": "object"
+      },
+      "PersonRow": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "projects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "subject",
+          "name",
+          "projects",
+          "usage"
+        ],
+        "title": "PersonRow",
         "type": "object"
       },
       "PersonView": {
@@ -13202,6 +13475,29 @@
         "title": "PlanSigned",
         "type": "object"
       },
+      "PlatformState": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "deployment": {
+            "title": "Deployment",
+            "type": "string"
+          },
+          "store": {
+            "title": "Store",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deployment",
+          "store",
+          "agents"
+        ],
+        "title": "PlatformState",
+        "type": "object"
+      },
       "Plausibility": {
         "additionalProperties": false,
         "properties": {
@@ -13535,6 +13831,62 @@
           "risk"
         ],
         "title": "ProjectRecord",
+        "type": "object"
+      },
+      "ProjectRow": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "archived_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived Reason"
+          },
+          "compounds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Compounds",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "compounds",
+          "archived",
+          "archived_reason",
+          "members",
+          "usage"
+        ],
+        "title": "ProjectRow",
         "type": "object"
       },
       "ProjectStarted": {
@@ -19947,6 +20299,282 @@
         "title": "Uncertainty",
         "type": "object"
       },
+      "Usage": {
+        "additionalProperties": false,
+        "description": "Agent runs and their tokens; `usd`: what they would cost on the Claude model the page is priced at, with their\nconversations cached (an estimate: the tokens are the model's that ran them).",
+        "properties": {
+          "failed_runs": {
+            "title": "Failed Runs",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "runs",
+          "failed_runs",
+          "input_tokens",
+          "output_tokens",
+          "usd",
+          "last_run_at"
+        ],
+        "title": "Usage",
+        "type": "object"
+      },
+      "UsageGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "usage"
+        ],
+        "title": "UsageGroup",
+        "type": "object"
+      },
+      "UsagePage": {
+        "additionalProperties": false,
+        "description": "Agent use since a date, per agent, project, person, company and day, and the runs themselves (newest first, at\nmost `limit`). `prices`: USD per million tokens of `priced_as` (input, cache write, cache read, output).",
+        "properties": {
+          "by_agent": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Agent",
+            "type": "array"
+          },
+          "by_company": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Company",
+            "type": "array"
+          },
+          "by_day": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Day",
+            "type": "array"
+          },
+          "by_person": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Person",
+            "type": "array"
+          },
+          "by_project": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Project",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "priced_as": {
+            "title": "Priced As",
+            "type": "string"
+          },
+          "prices": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Prices",
+            "type": "object"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRun"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "since",
+          "tenant_id",
+          "priced_as",
+          "prices",
+          "total",
+          "by_agent",
+          "by_project",
+          "by_person",
+          "by_company",
+          "by_day",
+          "runs",
+          "limit"
+        ],
+        "title": "UsagePage",
+        "type": "object"
+      },
+      "UsageRun": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "started_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started By"
+          },
+          "started_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started By Name"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "turns": {
+            "title": "Turns",
+            "type": "integer"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "run_id",
+          "tenant_id",
+          "project_id",
+          "agent",
+          "model",
+          "status",
+          "started_at",
+          "started_by",
+          "started_by_name",
+          "turns",
+          "input_tokens",
+          "output_tokens",
+          "usd"
+        ],
+        "title": "UsageRun",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -20406,6 +21034,250 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/companies/{tenant_id}": {
+      "get": {
+        "operationId": "company_api_v1_admin_companies__tenant_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CompanyPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Company",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/overview": {
+      "get": {
+        "operationId": "overview_api_v1_admin_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_Overview_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Overview",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/usage": {
+      "get": {
+        "operationId": "usage_api_v1_admin_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_UsagePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Usage",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/campaigns": {
       "get": {
         "description": "List the tenant's campaigns (summary + stage/round detail); ``?project=`` narrows to one project.",
@@ -21091,6 +21963,55 @@
           }
         },
         "summary": "Validate M15 Table"
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "me_api_v1_me_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_MeView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/api/v1/model-versions/preview": {

@@ -18,6 +18,7 @@ const ICONS = {
   add: "M12 5v14 M5 12h14",
   library: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z",
   history: "M12 7v5l3 2 M21 12a9 9 0 1 1-3-6.7 M21 4v5h-5",
+  admin: "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z M9 12l2 2 4-4",
   collapse: "M4 6h10 M4 12h6 M4 18h10 M20 8l-4 4 4 4",
 } as const;
 
@@ -104,6 +105,8 @@ export function Nav({ user }: { user?: string | null }) {
     { href: "/projects/start", label: "Start from proposal", icon: ICONS.start, active: is("/projects/start") },
     { href: "/review", label: "Review inbox", icon: ICONS.inbox, active: is("/review"), badge: inbox },
   ];
+  // the console's link only for the platform's owner (the API's own answer; it refuses everyone else in any case)
+  const admin = useResource("/api/v1/me", {}, { select: (d) => d.admin }).data === true;
   const projectHref = open ? `/projects/${encodeURIComponent(open)}` : "";
   const isOpen = pinned || hover || keys;
 
@@ -128,6 +131,12 @@ export function Nav({ user }: { user?: string | null }) {
         <span className="nav-heading"><span className="nav-heading-text">Work</span></span>
         {work.map((l) => <NavLink key={l.href} l={l} />)}
       </nav>
+      {admin && (
+        <nav className="nav" aria-label="Platform" data-testid="nav-platform">
+          <span className="nav-heading"><span className="nav-heading-text">Platform</span></span>
+          <NavLink l={{ href: "/admin", label: "Admin console", icon: ICONS.admin, active: is("/admin"), testId: "nav-admin" }} />
+        </nav>
+      )}
       {open && (
         // the open project's own pages (the document library plan): "Add data" opens a card over the page, at any step,
         // directly above the project's library

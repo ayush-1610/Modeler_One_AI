@@ -14,10 +14,13 @@ never needs to load.
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import HTTPException
+
+from modeler_api import jobs
 
 # --- the configured model ------------------------------------------------------------------------------------------
 
@@ -63,7 +66,8 @@ class AgentRun:
 
         self._runs = FileRunStore(root, project_id=project_id)
         self.run_id = self._runs.start_run(tenant_id=tenant_id, agent=agent, provider=model.provider, model=model.model,
-                                           campaign_id=None, budget={"max_turns": max_turns})
+                                           campaign_id=None, budget={"max_turns": max_turns},
+                                           started_by=jobs.started_by.get())
         self.actor = f"agent:{self.run_id}"
         self._seq = 0
 
@@ -75,6 +79,25 @@ class AgentRun:
     def finish(self, outcome, summary: dict[str, Any]) -> None:
         self._runs.finish_run(run_id=self.run_id, status=outcome.status, input_tokens=outcome.usage["input_tokens"],
                               output_tokens=outcome.usage["output_tokens"], cost_usd=0.0, summary=summary)
+
+
+def recorded_usage(root: str | Path, since: datetime | None = None) -> list[dict[str, Any]]:
+    """Every recorded run of every tenant, code-only runs included: its tokens, and what it would cost on each Claude
+    model at list prices with its conversations cached (`modeler_agents.usage_report`; the admin console)."""
+    from modeler_agents.usage_report import PRICES, cost, read_runs
+
+    return [{"run_id": r.run_id, "tenant_id": r.tenant, "project_id": r.project, "agent": r.agent, "model": r.model,
+             "status": r.status, "started_at": r.started_at.isoformat() if r.started_at else None,
+             "started_by": r.started_by, "turns": len(r.turns), "input_tokens": r.input_tokens,
+             "output_tokens": r.output_tokens, "usd": {m: cost(r, m, cached=True) for m in PRICES}}
+            for r in read_runs(Path(root), since, code_runs=True)]
+
+
+def claude_prices() -> dict[str, dict[str, float]]:
+    """USD per million tokens of each Claude model the usage is priced at: input, cache write, cache read, output."""
+    from modeler_agents.usage_report import PRICES
+
+    return {m: dict(zip(("input", "cache_write_5m", "cache_read", "output"), p, strict=True)) for m, p in PRICES.items()}
 
 
 def project_runs(root: str | Path | None, tenant_id: str, project_id: str) -> list[dict[str, Any]]:
