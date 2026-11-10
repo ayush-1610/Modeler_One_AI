@@ -417,7 +417,8 @@ def _draft_item(d: dict[str, Any], study_facts: list[dict[str, Any]], offer_ctx:
     from modeler_project.study_offers import offers as project_offers
     from modeler_project.study_offers import preselect
 
-    found = project_offers(offer_ctx, d["study_id"], d["needs"], d.get("points")) if offer_ctx is not None else {}
+    found = (project_offers(offer_ctx, d["study_id"], d["needs"], d.get("points"), d.get("file"))
+             if offer_ctx is not None else {})
     offers: dict[str, list[dict[str, Any]]] = {}
     for need in d["needs"]:
         field = _OFFERED.get(need)

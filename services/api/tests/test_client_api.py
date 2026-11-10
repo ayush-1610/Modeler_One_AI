@@ -266,7 +266,7 @@ def test_a_triage_start_answers_through_its_typed_model(setup, monkeypatch):
         provider, model = "test", "scripted"
 
     calls = []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(client_api, "run_triage_job", lambda *args, **kwargs: calls.append(args))
     started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:triage", headers=H)
     assert started.status_code == 202 and started.json()["data"] == {"status": "RUNNING"}
@@ -338,7 +338,7 @@ def test_a_reading_start_runs_in_the_background_and_refuses_the_template_and_unk
         provider, model = "test", "scripted"
 
     calls = []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_reading_job", lambda *args, **kwargs: calls.append((args, kwargs)))
     assert c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H, json={"sheets": ["Nope"]}).status_code == 404
     started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H, json={"sheets": ["Reference"]})
@@ -450,7 +450,7 @@ def test_a_client_pdf_is_read_by_the_agent_and_its_data_wait_on_inputs(setup, mo
         provider, model = "test", "scripted"
 
     calls, run_document_job = [], client_api.run_document_job
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_document_job", lambda *args, **kwargs: calls.append(args))
     started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H)
     assert started.status_code == 202 and started.json()["data"] == {"status": "RUNNING"}
@@ -585,7 +585,7 @@ def test_a_client_document_is_read_by_the_agent_on_arrival_when_agents_are_on(se
         provider, model = "test", "scripted"
 
     calls = []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_document_job", lambda *args, **kwargs: calls.append(args[3]))
     pdf = synthetic_pdf([["Study EX-8: twelve subjects received a single oral dose of 10 mg after an overnight fast."]])
     up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("EX-8 synopsis.pdf", pdf, "application/pdf"))])
@@ -719,7 +719,7 @@ def test_files_arriving_while_a_reading_runs_are_queued_and_read_once_it_is_free
 
     c, ws = setup
     calls = []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (_Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_document_job", lambda *a, **k: calls.append(a[3]) or {"status": "COMPLETED",
                                                                                                   "datasets": 1})
     lease = _hold_reading(ws)
@@ -753,7 +753,7 @@ def test_one_file_that_fails_is_marked_and_the_others_are_still_read(setup, monk
             raise RuntimeError("the model provider timed out")
         return {"status": "COMPLETED", "facts": 2}
 
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (_Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_document_job", read)
     up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[
         ("files", ("A.pdf", _pdf("Study A: 10 mg."), "application/pdf")),
@@ -777,7 +777,7 @@ def test_files_are_queued_with_agents_off_and_read_once_agents_are_on(setup, mon
                 files=[("files", ("A.pdf", _pdf("Study A: 10 mg."), "application/pdf"))])
     assert up.status_code == 201
     assert [i.state for i in ReadingQueue(ws).items()] == ["queued"] and calls == []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (_Configured(), None))
     c.get("/api/v1/projects/p1/client-data", headers=H)
     _settle(ws)
     assert calls == [up.json()["data"]["read"][0]["id"]] and ReadingQueue(ws).items()[0].state == "done"
@@ -796,7 +796,7 @@ def test_a_file_uploaded_again_before_it_was_read_is_queued_and_read_once(setup,
         assert c.post("/api/v1/projects/p1/client-data", headers=H,
                       files=[("files", ("A.pdf", pdf, "application/pdf"))]).status_code == 201
     assert len(ReadingQueue(ws).items()) == 1
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (_Configured(), None))
     ReadingQueue(ws).recover()
     assert c.post("/api/v1/projects/p1/client-data", headers=H,      # a repeat, agents on: the waiting item is read
                   files=[("files", ("A.pdf", pdf, "application/pdf"))]).status_code == 201
@@ -813,7 +813,7 @@ def test_a_persons_read_while_another_reading_runs_waits_its_turn(setup, monkeyp
     calls = []
     sub = c.post("/api/v1/projects/p1/client-data", headers=H,
                  files=[("files", ("230-23_Fasting_Reference.xlsx", _be_workbook(), XLSX))]).json()["data"]["files"][0]
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (_Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_reading_job", lambda *a, **k: calls.append((a[3], k["sheets"])) or {
         "status": "COMPLETED", "sheets": [{"sheet": "Reference", "proposed": True, "run_id": "ar_1"}]})
     lease = _hold_reading(ws)
@@ -839,7 +839,7 @@ def test_a_queued_document_with_no_text_or_withdrawn_is_failed_with_why_not_read
     up = c.post("/api/v1/projects/p1/client-data", headers=H,
                 files=[("files", ("A.pdf", _pdf("Study A: 10 mg."), "application/pdf"))]).json()["data"]["read"][0]
     DocumentLibrary(ws).withdraw(up["sha256"], by="u1", reason="wrong study")
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (_Configured(), None))
     c.get("/api/v1/projects/p1/client-data", headers=H)
     _settle(ws)
     item = ReadingQueue(ws).items()[0]
@@ -892,7 +892,7 @@ def test_a_file_whose_reading_failed_is_queued_again_when_it_is_added_again(setu
 
     c, ws = setup
     outcomes = [{"status": "LLM_UNAVAILABLE", "error": "the provider answered 503"}, {"status": "COMPLETED", "facts": 1}]
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (_Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_document_job", lambda *a, **k: outcomes.pop(0))
     monkeypatch.setattr(intake_jobs, "_needs_agent", lambda content: False)   # as if the failed run left a record
     pdf = _pdf("Study A: 10 mg.")
@@ -968,7 +968,7 @@ def test_the_reading_tray_lists_each_file_and_reads_a_failed_one_again(setup, mo
     outcomes = {up[0]["id"]: [{"status": "COMPLETED", "datasets": 2, "facts": 3, "run_id": "ar_1"}],
                 up[1]["id"]: [{"status": "LLM_UNAVAILABLE", "error": "the provider answered 503", "run_id": "ar_2"},
                               {"status": "COMPLETED", "facts": 1, "run_id": "ar_3"}]}
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (_Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_document_job", lambda *a, **k: outcomes[a[3]].pop(0))
     c.get("/api/v1/projects/p1/reading-queue", headers=H)                     # the tray starts the reading
     _settle(ws)
@@ -995,7 +995,7 @@ def test_the_tray_counts_files_not_readings_and_read_again_refuses_what_it_canno
     up = c.post("/api/v1/projects/p1/client-data", headers=H,
                 files=[("files", ("A.pdf", _pdf("Study A: 10 mg."), "application/pdf"))]).json()["data"]["read"][0]
     outcomes = [{"status": "LLM_UNAVAILABLE", "error": "503"}, {"status": "COMPLETED", "facts": 1}]
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (_Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (_Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_document_job", lambda *a, **k: outcomes.pop(0))
     c.get("/api/v1/projects/p1/reading-queue", headers=H)
     _settle(ws)
@@ -1008,7 +1008,7 @@ def test_the_tray_counts_files_not_readings_and_read_again_refuses_what_it_canno
     busy = c.post(f"/api/v1/projects/p1/reading-queue/{failed.id}:again", headers=H)
     assert busy.status_code == 409 and "queued already" in busy.json()["detail"]
 
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (None, "off"))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (None, "off"))
     sub = c.post("/api/v1/projects/p1/client-data", headers=H,
                  files=[("files", ("230-23_Fasting_Reference.xlsx", _be_workbook(), XLSX))]).json()["data"]["read"][0]
     item = ReadingQueue(ws).add([(sub["id"], "230-23_Fasting_Reference.xlsx")], task="arrival", by="u1")[0]
@@ -1019,3 +1019,19 @@ def test_the_tray_counts_files_not_readings_and_read_again_refuses_what_it_canno
     monkeypatch.setattr(client_api, "unread_sheets", lambda content: [])
     nothing = c.post(f"/api/v1/projects/p1/reading-queue/{item.id}:again", headers=H)
     assert nothing.status_code == 409 and "no data sheet is left to read" in nothing.json()["detail"]
+
+
+@pytest.mark.req("T-47")
+def test_each_queued_file_is_read_as_started_by_the_person_who_added_it(setup, monkeypatch):
+    # the merge with the admin console (2026-11-10): agent runs record who started them (`jobs.started_by`); a drain
+    # reads files several people added, so it sets each file's own
+    from modeler_api import intake_jobs, jobs
+    from modeler_project.reading_queue import ReadingQueue
+
+    _c, ws = setup
+    seen = []
+    monkeypatch.setattr(intake_jobs, "_run_item", lambda *a: seen.append((a[3].sid, jobs.started_by.get())) or {})
+    ReadingQueue(ws).add([("file-a", "a.pdf")], task="arrival", by="alice")
+    ReadingQueue(ws).add([("file-b", "b.pdf")], task="read", by="bob")
+    intake_jobs.drain(ws.store, "t1", "p1", _Configured())
+    assert seen == [("file-a", "alice"), ("file-b", "bob")]

@@ -6,7 +6,7 @@
 import type { ReactNode } from "react";
 
 /** Each area's hue for the head's wash and its curve (the "Modeler One App" design, plan 2026-11-06-app-design-merge). */
-const HUES = { projects: 211, new: 160, start: 211, inputs: 190, review: 265, run: 150, inbox: 28, library: 280, history: 220 } as const;
+const HUES = { projects: 211, new: 160, start: 211, inputs: 190, review: 265, run: 150, inbox: 28, library: 280, history: 220, admin: 340 } as const;
 export type HeroTone = keyof typeof HUES;
 
 /** A page's head: a pill naming where you are, a large title, one sentence, and the page's actions, centred over a soft

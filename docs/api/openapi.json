@@ -197,6 +197,149 @@
         "title": "AffectedView",
         "type": "object"
       },
+      "AgentChange": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "provider",
+          "model",
+          "by",
+          "at",
+          "reason"
+        ],
+        "title": "AgentChange",
+        "type": "object"
+      },
+      "AgentProvider": {
+        "additionalProperties": false,
+        "properties": {
+          "has_active_key": {
+            "title": "Has Active Key",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "needs_model": {
+            "title": "Needs Model",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "needs_model",
+          "has_active_key"
+        ],
+        "title": "AgentProvider",
+        "type": "object"
+      },
+      "AgentRow": {
+        "additionalProperties": false,
+        "description": "One agent's model as the console sets it (\"environment\": the server's own configuration), and what it runs on\nnow (`runs_on`, the model the next run would take, or why none).",
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_label": {
+            "title": "Provider Label",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "runs_on": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "set_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set At"
+          },
+          "set_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set By"
+          }
+        },
+        "required": [
+          "agent",
+          "label",
+          "provider",
+          "provider_label",
+          "model",
+          "set_by",
+          "set_at",
+          "reason",
+          "runs_on"
+        ],
+        "title": "AgentRow",
+        "type": "object"
+      },
       "AgentRunDetail": {
         "additionalProperties": false,
         "properties": {
@@ -219,6 +362,67 @@
           "steps"
         ],
         "title": "AgentRunDetail",
+        "type": "object"
+      },
+      "AgentSet": {
+        "properties": {
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "reason"
+        ],
+        "title": "AgentSet",
+        "type": "object"
+      },
+      "AgentsPage": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRow"
+            },
+            "title": "Agents",
+            "type": "array"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/AgentChange"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/AgentProvider"
+            },
+            "title": "Providers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "agents",
+          "providers",
+          "environment",
+          "history"
+        ],
+        "title": "AgentsPage",
         "type": "object"
       },
       "AgentsStatus": {
@@ -2722,6 +2926,79 @@
         "title": "CoCompoundSpec",
         "type": "object"
       },
+      "CompanyPage": {
+        "additionalProperties": false,
+        "description": "One company: its people (each who has signed in) and its projects, archived ones included.",
+        "properties": {
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRow"
+            },
+            "title": "People",
+            "type": "array"
+          },
+          "priced_as": {
+            "title": "Priced As",
+            "type": "string"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectRow"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "people",
+          "projects",
+          "usage",
+          "priced_as"
+        ],
+        "title": "CompanyPage",
+        "type": "object"
+      },
+      "CompanyRow": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "integer"
+          },
+          "people": {
+            "title": "People",
+            "type": "integer"
+          },
+          "projects": {
+            "title": "Projects",
+            "type": "integer"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "people",
+          "projects",
+          "archived",
+          "usage"
+        ],
+        "title": "CompanyRow",
+        "type": "object"
+      },
       "CompetitiveInhibition": {
         "additionalProperties": false,
         "description": "Reversible competitive inhibition of an enzyme/transporter (PK-Sim ``CompetitiveInhibition``).",
@@ -5032,6 +5309,31 @@
         "title": "Envelope[AgentRunDetail]",
         "type": "object"
       },
+      "Envelope_AgentsPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AgentsPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[AgentsPage]",
+        "type": "object"
+      },
       "Envelope_Artifacts_": {
         "additionalProperties": false,
         "properties": {
@@ -5305,6 +5607,31 @@
           "errors"
         ],
         "title": "Envelope[ClientUpload]",
+        "type": "object"
+      },
+      "Envelope_CompanyPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CompanyPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[CompanyPage]",
         "type": "object"
       },
       "Envelope_CpfView_": {
@@ -5707,6 +6034,31 @@
         "title": "Envelope[InputsPage]",
         "type": "object"
       },
+      "Envelope_KeysPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/KeysPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[KeysPage]",
+        "type": "object"
+      },
       "Envelope_LibraryEntryView_": {
         "additionalProperties": false,
         "properties": {
@@ -5807,6 +6159,31 @@
         "title": "Envelope[M15Validation]",
         "type": "object"
       },
+      "Envelope_MeView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MeView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[MeView]",
+        "type": "object"
+      },
       "Envelope_MembersPage_": {
         "additionalProperties": false,
         "properties": {
@@ -5855,6 +6232,31 @@
           "errors"
         ],
         "title": "Envelope[ObservedDataset]",
+        "type": "object"
+      },
+      "Envelope_Overview_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Overview"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[Overview]",
         "type": "object"
       },
       "Envelope_PlanPage_": {
@@ -6579,6 +6981,31 @@
           "errors"
         ],
         "title": "Envelope[Union[PlanPage, PlacementPreview]]",
+        "type": "object"
+      },
+      "Envelope_UsagePage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UsagePage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[UsagePage]",
         "type": "object"
       },
       "Envelope_ValueReusePage_": {
@@ -9409,6 +9836,285 @@
         "title": "ItemRemoval",
         "type": "object"
       },
+      "KeyAdd": {
+        "description": "A key to store. Every field is optional to the validator and checked by the handler, so a refusal never echoes the\nrequest (FastAPI's 422 answer repeats the input it rejects, which here holds a secret).",
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "object"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "provider": {
+            "default": "",
+            "title": "Provider",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "KeyAdd",
+        "type": "object"
+      },
+      "KeyChange": {
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "KeyChange",
+        "type": "object"
+      },
+      "KeyField": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "secret": {
+            "title": "Secret",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "secret",
+          "required"
+        ],
+        "title": "KeyField",
+        "type": "object"
+      },
+      "KeyProvider": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/KeyField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "fields"
+        ],
+        "title": "KeyProvider",
+        "type": "object"
+      },
+      "KeyView": {
+        "additionalProperties": false,
+        "description": "A stored key, never its secret: the secret fields' last 4 characters and the plain fields (an address, a\nregion). `due`: active for `rotate_after_days` or longer.",
+        "properties": {
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "active_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Days"
+          },
+          "added_at": {
+            "title": "Added At",
+            "type": "string"
+          },
+          "added_by": {
+            "title": "Added By",
+            "type": "string"
+          },
+          "due": {
+            "title": "Due",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last4": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Last4",
+            "type": "object"
+          },
+          "plain": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Plain",
+            "type": "object"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "test_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Message"
+          },
+          "test_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Ok"
+          },
+          "tested_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested At"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "label",
+          "state",
+          "plain",
+          "last4",
+          "added_by",
+          "added_at",
+          "activated_at",
+          "retired_at",
+          "tested_at",
+          "test_ok",
+          "test_message",
+          "active_days",
+          "due"
+        ],
+        "title": "KeyView",
+        "type": "object"
+      },
+      "KeysPage": {
+        "additionalProperties": false,
+        "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/KeyView"
+            },
+            "title": "Keys",
+            "type": "array"
+          },
+          "master_key": {
+            "title": "Master Key",
+            "type": "boolean"
+          },
+          "master_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Master Problem"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/KeyProvider"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "rotate_after_days": {
+            "title": "Rotate After Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "keys",
+          "providers",
+          "master_key",
+          "master_problem",
+          "rotate_after_days"
+        ],
+        "title": "KeysPage",
+        "type": "object"
+      },
       "Lane": {
         "additionalProperties": false,
         "properties": {
@@ -11411,6 +12117,44 @@
         "title": "MappingBody",
         "type": "object"
       },
+      "MeView": {
+        "additionalProperties": false,
+        "description": "The signed-in person: what the web app shows them (the console's link only to the platform's owner).",
+        "properties": {
+          "admin": {
+            "title": "Admin",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name",
+          "tenant_id",
+          "roles",
+          "admin"
+        ],
+        "title": "MeView",
+        "type": "object"
+      },
       "Meal": {
         "additionalProperties": false,
         "description": "One meal of a study (StudyRecord.meals).",
@@ -12554,6 +13298,37 @@
         "title": "OverrideRequest",
         "type": "object"
       },
+      "Overview": {
+        "additionalProperties": false,
+        "description": "Every company (tenant) with its people, projects and agent use; the platform's state.",
+        "properties": {
+          "companies": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyRow"
+            },
+            "title": "Companies",
+            "type": "array"
+          },
+          "priced_as": {
+            "title": "Priced As",
+            "type": "string"
+          },
+          "system": {
+            "$ref": "#/components/schemas/PlatformState"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "companies",
+          "total",
+          "priced_as",
+          "system"
+        ],
+        "title": "Overview",
+        "type": "object"
+      },
       "ParamNode": {
         "additionalProperties": false,
         "description": "A CPF parameter on D1 / D2, with its fit choice and the stages that may fit it; D2 nodes carry no source.",
@@ -12889,6 +13664,37 @@
           "parameters"
         ],
         "title": "Pathway",
+        "type": "object"
+      },
+      "PersonRow": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "projects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "subject",
+          "name",
+          "projects",
+          "usage"
+        ],
+        "title": "PersonRow",
         "type": "object"
       },
       "PersonView": {
@@ -13291,6 +14097,29 @@
         "title": "PlanSigned",
         "type": "object"
       },
+      "PlatformState": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "deployment": {
+            "title": "Deployment",
+            "type": "string"
+          },
+          "store": {
+            "title": "Store",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deployment",
+          "store",
+          "agents"
+        ],
+        "title": "PlatformState",
+        "type": "object"
+      },
       "Plausibility": {
         "additionalProperties": false,
         "properties": {
@@ -13624,6 +14453,62 @@
           "risk"
         ],
         "title": "ProjectRecord",
+        "type": "object"
+      },
+      "ProjectRow": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "archived_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived Reason"
+          },
+          "compounds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Compounds",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "compounds",
+          "archived",
+          "archived_reason",
+          "members",
+          "usage"
+        ],
+        "title": "ProjectRow",
         "type": "object"
       },
       "ProjectStarted": {
@@ -20184,6 +21069,282 @@
         "title": "Uncertainty",
         "type": "object"
       },
+      "Usage": {
+        "additionalProperties": false,
+        "description": "Agent runs and their tokens; `usd`: what they would cost on the Claude model the page is priced at, with their\nconversations cached (an estimate: the tokens are the model's that ran them).",
+        "properties": {
+          "failed_runs": {
+            "title": "Failed Runs",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "runs",
+          "failed_runs",
+          "input_tokens",
+          "output_tokens",
+          "usd",
+          "last_run_at"
+        ],
+        "title": "Usage",
+        "type": "object"
+      },
+      "UsageGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "usage"
+        ],
+        "title": "UsageGroup",
+        "type": "object"
+      },
+      "UsagePage": {
+        "additionalProperties": false,
+        "description": "Agent use since a date, per agent, project, person, company and day, and the runs themselves (newest first, at\nmost `limit`). `prices`: USD per million tokens of `priced_as` (input, cache write, cache read, output).",
+        "properties": {
+          "by_agent": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Agent",
+            "type": "array"
+          },
+          "by_company": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Company",
+            "type": "array"
+          },
+          "by_day": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Day",
+            "type": "array"
+          },
+          "by_person": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Person",
+            "type": "array"
+          },
+          "by_project": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "title": "By Project",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "priced_as": {
+            "title": "Priced As",
+            "type": "string"
+          },
+          "prices": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Prices",
+            "type": "object"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRun"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "since",
+          "tenant_id",
+          "priced_as",
+          "prices",
+          "total",
+          "by_agent",
+          "by_project",
+          "by_person",
+          "by_company",
+          "by_day",
+          "runs",
+          "limit"
+        ],
+        "title": "UsagePage",
+        "type": "object"
+      },
+      "UsageRun": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "started_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started By"
+          },
+          "started_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started By Name"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "turns": {
+            "title": "Turns",
+            "type": "integer"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "run_id",
+          "tenant_id",
+          "project_id",
+          "agent",
+          "model",
+          "status",
+          "started_at",
+          "started_by",
+          "started_by_name",
+          "turns",
+          "input_tokens",
+          "output_tokens",
+          "usd"
+        ],
+        "title": "UsageRun",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -20643,6 +21804,667 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/agents": {
+      "get": {
+        "operationId": "agents_api_v1_admin_agents_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agents",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/agents/{agent}": {
+      "put": {
+        "operationId": "set_agent_api_v1_admin_agents__agent__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent",
+            "required": true,
+            "schema": {
+              "title": "Agent",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Agent",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/companies/{tenant_id}": {
+      "get": {
+        "operationId": "company_api_v1_admin_companies__tenant_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CompanyPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Company",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/keys": {
+      "get": {
+        "operationId": "keys_api_v1_admin_keys_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Keys",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "add_key_api_v1_admin_keys_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Key",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/keys/{key_id}:activate": {
+      "post": {
+        "operationId": "activate_key_api_v1_admin_keys__key_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate Key",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/keys/{key_id}:retire": {
+      "post": {
+        "operationId": "retire_key_api_v1_admin_keys__key_id__retire_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retire Key",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/keys/{key_id}:test": {
+      "post": {
+        "operationId": "test_key_api_v1_admin_keys__key_id__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Key",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/overview": {
+      "get": {
+        "operationId": "overview_api_v1_admin_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_Overview_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Overview",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/usage": {
+      "get": {
+        "operationId": "usage_api_v1_admin_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_UsagePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Usage",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/campaigns": {
       "get": {
         "description": "List the tenant's campaigns (summary + stage/round detail); ``?project=`` narrows to one project.",
@@ -21328,6 +23150,55 @@
           }
         },
         "summary": "Validate M15 Table"
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "me_api_v1_me_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_MeView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/api/v1/model-versions/preview": {

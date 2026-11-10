@@ -18,7 +18,7 @@ The tokens are the current model's (qwen3-coder behind LiteLLM): Claude's tokeni
 differently, and Claude's thinking is billed as output, so the output here is a floor. Re-baseline with the provider's
 token counting once a key exists. Read-only: nothing is written.
 
-    uv run python -m modeler_agents.usage_report --root "$MODELER_READ_ROOT" [--since 2026-10-01] [--json]
+    uv run python -m modeler_agents.usage_report --root ~/modeler-data/read-root [--since 2026-10-01] [--json]
 """
 
 from __future__ import annotations
@@ -61,6 +61,9 @@ class Run:
     status: str
     started_at: datetime | None
     turns: list[Turn] = field(default_factory=list)
+    tenant: str = ""
+    project: str | None = None
+    started_by: str | None = None         # the person whose action started it (recorded from 2026-11-10)
 
     @property
     def input_tokens(self) -> int:
@@ -78,8 +81,8 @@ def _time(value: Any) -> datetime | None:
         return None
 
 
-def read_runs(root: Path, since: datetime | None = None) -> list[Run]:
-    """Every recorded run under `root` with its model turns (the code-only runs, with no turns, left out)."""
+def read_runs(root: Path, since: datetime | None = None, *, code_runs: bool = False) -> list[Run]:
+    """Every recorded run under `root` with its model turns; the code-only runs (no turns) only with `code_runs`."""
     runs = []
     for record_path in sorted(root.glob("*/agent_runs/*/run.json")):
         try:
@@ -90,7 +93,8 @@ def read_runs(root: Path, since: datetime | None = None) -> list[Run]:
         if since and started and started < since:
             continue
         run = Run(record.get("run_id", record_path.parent.name), str(record.get("agent", "?")),
-                  str(record.get("model", "?")), str(record.get("status", "?")), started)
+                  str(record.get("model", "?")), str(record.get("status", "?")), started,
+                  tenant=record_path.parts[-4], project=record.get("project_id"), started_by=record.get("started_by"))
         steps = record_path.parent / "steps.jsonl"
         lines = steps.read_text(encoding="utf-8").splitlines() if steps.exists() else []
         for line in lines:
@@ -104,7 +108,7 @@ def read_runs(root: Path, since: datetime | None = None) -> list[Run]:
             content = step.get("content") or {}
             run.turns.append(Turn(_time(step.get("at")), int(content.get("turn") or 0),
                                   int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)))
-        if run.turns:
+        if run.turns or code_runs:
             runs.append(run)
     return runs
 
@@ -217,12 +221,21 @@ def _table(data: dict[str, Any]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="What the agents' recorded runs used, and what they would cost.")
-    parser.add_argument("--root", required=True, help="the project store root (on the server: \"$MODELER_READ_ROOT\")")
+    parser.add_argument("--root", required=True, help="the project store root (on the server: ~/modeler-data/read-root)")
     parser.add_argument("--since", help="only runs started on or after this date (YYYY-MM-DD)")
     parser.add_argument("--json", action="store_true", help="print the report as JSON")
     args = parser.parse_args(argv)
+    root = Path(args.root)
+    # an unset variable passes "" (the current folder): say so rather than print a report of nothing
+    if not args.root.strip() or not root.is_dir():
+        print(f"no project store at {args.root!r}: give its folder (on the server, ~/modeler-data/read-root; "
+              "$MODELER_READ_ROOT is set only inside the deploy scripts)", file=sys.stderr)
+        return 2
+    if not any(root.glob("*/agent_runs/*/run.json")):
+        print(f"{root} holds no agent runs (<tenant>/agent_runs/<run>/run.json): is it the project store?", file=sys.stderr)
+        return 2
     since = datetime.fromisoformat(args.since).replace(tzinfo=None) if args.since else None
-    runs = read_runs(Path(args.root))
+    runs = read_runs(root)
     if since:
         runs = [r for r in runs if not r.started_at or r.started_at.replace(tzinfo=None) >= since]
     data = report(runs)

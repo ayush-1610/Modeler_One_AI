@@ -206,7 +206,7 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
 
 
 def _start_extraction(store: ProjectStore, principal: Principal, project_id: str, context_note: str) -> dict[str, Any]:
-    model, problem = agent_jobs.chat_model()
+    model, problem = agent_jobs.chat_model("A1")
     if model is None and problem is None:
         problem = "agents are off: identity resolved; fill the rest of the brief by hand"
 
@@ -214,7 +214,7 @@ def _start_extraction(store: ProjectStore, principal: Principal, project_id: str
         run_extraction(store, principal.tenant_id, project_id, by=principal.user_id, context_note=context_note,
                        model=model)
 
-    jobs.start(store, principal.tenant_id, project_id, "extraction", job,
+    jobs.start(store, principal.tenant_id, project_id, "extraction", job, by=principal.user_id,
                busy="an extraction is already running for this project", name=f"extract-{project_id}")
     return {"started": True, "agents": model is not None, "problem": problem}
 
@@ -269,7 +269,7 @@ async def initiate_project(
                   for filename, data in client_payloads]
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     if extract:   # the compound's values from the start, while the person and A1 work on Start (plan 2026-11-05 §3.3)
-        start_compound_job(store, principal.tenant_id, project_id)
+        start_compound_job(store, principal.tenant_id, project_id, by=principal.user_id)
     # what code could not do with the client's files, by the agent on arrival (§3.1): queued whatever else starts, so no
     # file given at the start is missed (plan 2026-11-10, R1)
     read_later(store, principal.tenant_id, project_id, [r["id"] for r in read_files if r.get("id")], by=principal.user_id)
@@ -483,7 +483,7 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
         "artifact": version_view(ws, version, with_content=False), "brief": brief.to_content(),
         "issues": [{"code": i.code, "path": i.path, "message": i.message} for i in issues],
         "blocking": len(issues), "summary": summary(brief), "catalog": catalog(),
-        "agents": agent_jobs.agents_status(), "extraction_running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "extraction"),
+        "agents": agent_jobs.agents_status("A1"), "extraction_running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "extraction"),
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "provider", "model", "started_at", "finished_at",
                                          "summary")} for r in runs[:5]],
         "start": {"problems": start_problems(brief), "issues": [i.model_dump() for i in start_issues(brief)],

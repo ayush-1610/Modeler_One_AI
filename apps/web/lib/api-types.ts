@@ -4,6 +4,160 @@
  */
 
 export interface paths {
+    "/api/v1/admin/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agents */
+        get: operations["agents_api_v1_admin_agents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/agents/{agent}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Agent */
+        put: operations["set_agent_api_v1_admin_agents__agent__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/companies/{tenant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Company */
+        get: operations["company_api_v1_admin_companies__tenant_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Keys */
+        get: operations["keys_api_v1_admin_keys_get"];
+        put?: never;
+        /** Add Key */
+        post: operations["add_key_api_v1_admin_keys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/keys/{key_id}:activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate Key */
+        post: operations["activate_key_api_v1_admin_keys__key_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/keys/{key_id}:retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retire Key */
+        post: operations["retire_key_api_v1_admin_keys__key_id__retire_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/keys/{key_id}:test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Key */
+        post: operations["test_key_api_v1_admin_keys__key_id__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview */
+        get: operations["overview_api_v1_admin_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Usage */
+        get: operations["usage_api_v1_admin_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/campaigns": {
         parameters: {
             query?: never;
@@ -236,6 +390,23 @@ export interface paths {
         put?: never;
         /** Validate M15 Table */
         post: operations["validate_m15_table_api_v1_m15_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_api_v1_me_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2225,6 +2396,56 @@ export interface components {
             ref: components["schemas"]["Ref"];
             status: components["schemas"]["ArtifactStatus"];
         };
+        /** AgentChange */
+        AgentChange: {
+            /** Agent */
+            agent: string;
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Reason */
+            reason: string;
+        };
+        /** AgentProvider */
+        AgentProvider: {
+            /** Has Active Key */
+            has_active_key: boolean;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Needs Model */
+            needs_model: boolean;
+        };
+        /**
+         * AgentRow
+         * @description One agent's model as the console sets it ("environment": the server's own configuration), and what it runs on
+         *     now (`runs_on`, the model the next run would take, or why none).
+         */
+        AgentRow: {
+            /** Agent */
+            agent: string;
+            /** Label */
+            label: string;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Provider Label */
+            provider_label: string;
+            /** Reason */
+            reason: string | null;
+            runs_on: components["schemas"]["AgentsStatus"];
+            /** Set At */
+            set_at: string | null;
+            /** Set By */
+            set_by: string | null;
+        };
         /** AgentRunDetail */
         AgentRunDetail: {
             /** Run */
@@ -2235,6 +2456,28 @@ export interface components {
             steps: {
                 [key: string]: unknown;
             }[];
+        };
+        /** AgentSet */
+        AgentSet: {
+            /**
+             * Model
+             * @default
+             */
+            model?: string;
+            /** Provider */
+            provider: string;
+            /** Reason */
+            reason: string;
+        };
+        /** AgentsPage */
+        AgentsPage: {
+            /** Agents */
+            agents: components["schemas"]["AgentRow"][];
+            environment: components["schemas"]["AgentsStatus"];
+            /** History */
+            history: components["schemas"]["AgentChange"][];
+            /** Providers */
+            providers: components["schemas"]["AgentProvider"][];
         };
         /**
          * AgentsStatus
@@ -3182,6 +3425,33 @@ export interface components {
             protocol?: string | null;
         };
         /**
+         * CompanyPage
+         * @description One company: its people (each who has signed in) and its projects, archived ones included.
+         */
+        CompanyPage: {
+            /** People */
+            people: components["schemas"]["PersonRow"][];
+            /** Priced As */
+            priced_as: string;
+            /** Projects */
+            projects: components["schemas"]["ProjectRow"][];
+            /** Tenant Id */
+            tenant_id: string;
+            usage: components["schemas"]["Usage"];
+        };
+        /** CompanyRow */
+        CompanyRow: {
+            /** Archived */
+            archived: number;
+            /** People */
+            people: number;
+            /** Projects */
+            projects: number;
+            /** Tenant Id */
+            tenant_id: string;
+            usage: components["schemas"]["Usage"];
+        };
+        /**
          * CompetitiveInhibition
          * @description Reversible competitive inhibition of an enzyme/transporter (PK-Sim ``CompetitiveInhibition``).
          */
@@ -4011,6 +4281,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[AgentsPage] */
+        Envelope_AgentsPage_: {
+            data: components["schemas"]["AgentsPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[Artifacts] */
         Envelope_Artifacts_: {
             data: components["schemas"]["Artifacts"];
@@ -4084,6 +4361,13 @@ export interface components {
         /** Envelope[ClientUpload] */
         Envelope_ClientUpload_: {
             data: components["schemas"]["ClientUpload"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[CompanyPage] */
+        Envelope_CompanyPage_: {
+            data: components["schemas"]["CompanyPage"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -4200,6 +4484,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[KeysPage] */
+        Envelope_KeysPage_: {
+            data: components["schemas"]["KeysPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[LibraryEntryView] */
         Envelope_LibraryEntryView_: {
             data: components["schemas"]["LibraryEntryView"];
@@ -4228,6 +4519,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[MeView] */
+        Envelope_MeView_: {
+            data: components["schemas"]["MeView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[MembersPage] */
         Envelope_MembersPage_: {
             data: components["schemas"]["MembersPage"];
@@ -4238,6 +4536,13 @@ export interface components {
         /** Envelope[ObservedDataset] */
         Envelope_ObservedDataset_: {
             data: components["schemas"]["ObservedDataset"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[Overview] */
+        Envelope_Overview_: {
+            data: components["schemas"]["Overview"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -4437,6 +4742,13 @@ export interface components {
         Envelope_Union_PlanPage__PlacementPreview__: {
             /** Data */
             data: components["schemas"]["PlanPage"] | components["schemas"]["PlacementPreview"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[UsagePage] */
+        Envelope_UsagePage_: {
+            data: components["schemas"]["UsagePage"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -5510,6 +5822,111 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * KeyAdd
+         * @description A key to store. Every field is optional to the validator and checked by the handler, so a refusal never echoes the
+         *     request (FastAPI's 422 answer repeats the input it rejects, which here holds a secret).
+         */
+        KeyAdd: {
+            /** Fields */
+            fields?: {
+                [key: string]: string;
+            };
+            /**
+             * Label
+             * @default
+             */
+            label?: string;
+            /**
+             * Provider
+             * @default
+             */
+            provider?: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason?: string;
+        };
+        /** KeyChange */
+        KeyChange: {
+            /** Reason */
+            reason: string;
+        };
+        /** KeyField */
+        KeyField: {
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Required */
+            required: boolean;
+            /** Secret */
+            secret: boolean;
+        };
+        /** KeyProvider */
+        KeyProvider: {
+            /** Fields */
+            fields: components["schemas"]["KeyField"][];
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * KeyView
+         * @description A stored key, never its secret: the secret fields' last 4 characters and the plain fields (an address, a
+         *     region). `due`: active for `rotate_after_days` or longer.
+         */
+        KeyView: {
+            /** Activated At */
+            activated_at: string | null;
+            /** Active Days */
+            active_days: number | null;
+            /** Added At */
+            added_at: string;
+            /** Added By */
+            added_by: string;
+            /** Due */
+            due: boolean;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Last4 */
+            last4: {
+                [key: string]: string;
+            };
+            /** Plain */
+            plain: {
+                [key: string]: string;
+            };
+            /** Provider */
+            provider: string;
+            /** Retired At */
+            retired_at: string | null;
+            /** State */
+            state: string;
+            /** Test Message */
+            test_message: string | null;
+            /** Test Ok */
+            test_ok: boolean | null;
+            /** Tested At */
+            tested_at: string | null;
+        };
+        /** KeysPage */
+        KeysPage: {
+            /** Keys */
+            keys: components["schemas"]["KeyView"][];
+            /** Master Key */
+            master_key: boolean;
+            /** Master Problem */
+            master_problem: string | null;
+            /** Providers */
+            providers: components["schemas"]["KeyProvider"][];
+            /** Rotate After Days */
+            rotate_after_days: number;
+        };
         /** Lane */
         Lane: {
             /** Name */
@@ -6229,6 +6646,22 @@ export interface components {
             };
         };
         /**
+         * MeView
+         * @description The signed-in person: what the web app shows them (the console's link only to the platform's owner).
+         */
+        MeView: {
+            /** Admin */
+            admin: boolean;
+            /** Name */
+            name: string;
+            /** Roles */
+            roles: string[];
+            /** Tenant Id */
+            tenant_id: string;
+            /** User Id */
+            user_id: string;
+        };
+        /**
          * Meal
          * @description One meal of a study (StudyRecord.meals).
          */
@@ -6686,6 +7119,18 @@ export interface components {
             status?: ("OPEN" | "NOT_AVAILABLE" | "WAIVED") | null;
         };
         /**
+         * Overview
+         * @description Every company (tenant) with its people, projects and agent use; the platform's state.
+         */
+        Overview: {
+            /** Companies */
+            companies: components["schemas"]["CompanyRow"][];
+            /** Priced As */
+            priced_as: string;
+            system: components["schemas"]["PlatformState"];
+            total: components["schemas"]["Usage"];
+        };
+        /**
          * ParamNode
          * @description A CPF parameter on D1 / D2, with its fit choice and the stages that may fit it; D2 nodes carry no source.
          */
@@ -6778,6 +7223,16 @@ export interface components {
             parameters: components["schemas"]["ParamNode"][];
             /** Process */
             process: string;
+        };
+        /** PersonRow */
+        PersonRow: {
+            /** Name */
+            name: string;
+            /** Projects */
+            projects: string[];
+            /** Subject */
+            subject: string;
+            usage: components["schemas"]["Usage"];
         };
         /** PersonView */
         PersonView: {
@@ -6912,6 +7367,14 @@ export interface components {
             signed: boolean;
             /** Violations */
             violations: components["schemas"]["Violation"][];
+        };
+        /** PlatformState */
+        PlatformState: {
+            agents: components["schemas"]["AgentsStatus"];
+            /** Deployment */
+            deployment: string;
+            /** Store */
+            store: boolean;
         };
         /** Plausibility */
         Plausibility: {
@@ -7050,6 +7513,22 @@ export interface components {
             questions?: components["schemas"]["QuestionRecord"][];
             /** Risk */
             risk: string;
+        };
+        /** ProjectRow */
+        ProjectRow: {
+            /** Archived */
+            archived: boolean;
+            /** Archived Reason */
+            archived_reason: string | null;
+            /** Compounds */
+            compounds: string[];
+            /** Id */
+            id: string;
+            /** Members */
+            members: string[];
+            /** Name */
+            name: string;
+            usage: components["schemas"]["Usage"];
         };
         /** ProjectStarted */
         ProjectStarted: {
@@ -9509,6 +9988,94 @@ export interface components {
             /** Sd */
             sd?: number | null;
         };
+        /**
+         * Usage
+         * @description Agent runs and their tokens; `usd`: what they would cost on the Claude model the page is priced at, with their
+         *     conversations cached (an estimate: the tokens are the model's that ran them).
+         */
+        Usage: {
+            /** Failed Runs */
+            failed_runs: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Last Run At */
+            last_run_at: string | null;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Runs */
+            runs: number;
+            /** Usd */
+            usd: number;
+        };
+        /** UsageGroup */
+        UsageGroup: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            usage: components["schemas"]["Usage"];
+        };
+        /**
+         * UsagePage
+         * @description Agent use since a date, per agent, project, person, company and day, and the runs themselves (newest first, at
+         *     most `limit`). `prices`: USD per million tokens of `priced_as` (input, cache write, cache read, output).
+         */
+        UsagePage: {
+            /** By Agent */
+            by_agent: components["schemas"]["UsageGroup"][];
+            /** By Company */
+            by_company: components["schemas"]["UsageGroup"][];
+            /** By Day */
+            by_day: components["schemas"]["UsageGroup"][];
+            /** By Person */
+            by_person: components["schemas"]["UsageGroup"][];
+            /** By Project */
+            by_project: components["schemas"]["UsageGroup"][];
+            /** Limit */
+            limit: number;
+            /** Priced As */
+            priced_as: string;
+            /** Prices */
+            prices: {
+                [key: string]: number;
+            };
+            /** Runs */
+            runs: components["schemas"]["UsageRun"][];
+            /** Since */
+            since: string | null;
+            /** Tenant Id */
+            tenant_id: string | null;
+            total: components["schemas"]["Usage"];
+        };
+        /** UsageRun */
+        UsageRun: {
+            /** Agent */
+            agent: string;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Model */
+            model: string;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Project Id */
+            project_id: string | null;
+            /** Run Id */
+            run_id: string;
+            /** Started At */
+            started_at: string | null;
+            /** Started By */
+            started_by: string | null;
+            /** Started By Name */
+            started_by_name: string | null;
+            /** Status */
+            status: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Turns */
+            turns: number;
+            /** Usd */
+            usd: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -9684,6 +10251,351 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    agents_api_v1_admin_agents_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_agent_api_v1_admin_agents__agent__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    company_api_v1_admin_companies__tenant_id__get: {
+        parameters: {
+            query?: {
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CompanyPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    keys_api_v1_admin_keys_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_key_api_v1_admin_keys_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_key_api_v1_admin_keys__key_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retire_key_api_v1_admin_keys__key_id__retire_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_key_api_v1_admin_keys__key_id__test_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_KeysPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overview_api_v1_admin_overview_get: {
+        parameters: {
+            query?: {
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_Overview_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    usage_api_v1_admin_usage_get: {
+        parameters: {
+            query?: {
+                since?: string | null;
+                tenant_id?: string | null;
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_UsagePage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_campaigns_api_v1_campaigns_get: {
         parameters: {
             query?: {
@@ -10069,6 +10981,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_M15Validation_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    me_api_v1_me_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_MeView_"];
                 };
             };
             /** @description Validation Error */

@@ -138,7 +138,7 @@ def test_research_start_paper_fulfilment_and_the_closed_register_answer_through_
         provider, model = "test", "scripted"
 
     calls = []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(evidence_api, "run_research_job", lambda *args, **kwargs: calls.append(kwargs))
     started = c.post("/api/v1/projects/p1/evidence:research?agent=A3", headers=H)
     assert started.status_code == 202 and started.json()["data"] == {"started": True, "provider": "test", "model": "scripted"}
@@ -258,7 +258,7 @@ def test_the_compound_sources_run_at_the_start_and_their_values_flow_in(setup, m
     c, ws = setup
     ws.commit(ArtifactKind.BRIEF, "main", brief_for(structured_answers.DRUG, by="u1").to_content(), actor="u1", reason="drug")
     monkeypatch.setattr(agent_jobs, "structured_clients", structured_answers.clients)
-    assert start_compound_job(ws.store, "t1", "p1")                         # agents off: the sources alone
+    assert start_compound_job(ws.store, "t1", "p1", by="u1")                       # agents off: the sources alone
     _wait_until_idle(jobs, ws.store, "p1")
     view = c.get("/api/v1/projects/p1/literature-run", headers=H).json()["data"]
     assert not view["running"] and view["run"]["agent"] == "A2-sources" and view["proposed"] == 8

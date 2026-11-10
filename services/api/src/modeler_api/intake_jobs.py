@@ -248,6 +248,7 @@ def drain(store: ProjectStore, tenant_id: str, project_id: str, model, held: Cal
     queue = ReadingQueue(Workspace(store, tenant_id, project_id))
     queue.recover()
     while (held is None or held()) and (item := queue.take()) is not None:
+        jobs.started_by.set(item.added_by)   # each agent run records who added the file (the admin console's usage)
         try:
             failed, note, run_ids, found = _outcome(_run_item(store, tenant_id, project_id, item, model) or {})
         except NotReadable as exc:
@@ -272,26 +273,27 @@ def sweep(store: ProjectStore, tenant_id: str, project_id: str) -> int:
     return len(queue.add(todo, task="arrival", by="code")) if todo else 0
 
 
-def kick(store: ProjectStore, tenant_id: str, project_id: str) -> bool:
-    """Start the reading job when something waits and agents are on; True when it started. While a reading runs this
-    does nothing: the running job takes what was queued, and looks again once it is released."""
-    model, _problem = agent_jobs.chat_model()
+def kick(store: ProjectStore, tenant_id: str, project_id: str, *, by: str = "code") -> bool:
+    """Start the reading job when something waits and agents are on; True when it started (`by`: who set it going).
+    While a reading runs this does nothing: the running job takes what was queued, and looks again once it is
+    released. Each file is read as started by the person who added it (`jobs.started_by`, per item)."""
+    model, _problem = agent_jobs.chat_model("A4")
     if model is None:
         return False
     if not ReadingQueue(Workspace(store, tenant_id, project_id)).pending():
         return False
     try:
         jobs.start(store, tenant_id, project_id, "reading", lambda held: drain(store, tenant_id, project_id, model, held),
-                   busy=BUSY, name=f"reading-{project_id}", after=lambda: _kick_quietly(store, tenant_id, project_id),
-                   checked=True)
+                   busy=BUSY, by=by, name=f"reading-{project_id}",
+                   after=lambda: _kick_quietly(store, tenant_id, project_id, by=by), checked=True)
     except HTTPException:
         return False
     return True
 
 
-def _kick_quietly(store: ProjectStore, tenant_id: str, project_id: str) -> None:
+def _kick_quietly(store: ProjectStore, tenant_id: str, project_id: str, *, by: str) -> None:
     try:
-        kick(store, tenant_id, project_id)
+        kick(store, tenant_id, project_id, by=by)
     except Exception:
         log.exception("could not look again at the reading queue of %s", project_id)
 
@@ -304,15 +306,15 @@ def queue_reading(store: ProjectStore, tenant_id: str, project_id: str, sid: str
     queue = ReadingQueue(ws)
     content = submission(ws, sid) or {}
     if not queue.available:   # a store without a queue: read at once, as before the queue
-        model, _problem = agent_jobs.chat_model()
+        model, _problem = agent_jobs.chat_model("A4")
         jobs.start(store, tenant_id, project_id, "reading",
                    lambda: _run_item(store, tenant_id, project_id, QueueItem(
                        id="q-0", sid=sid, file=str(content.get("file", sid)), task="read", sheets=sheets, added_by=by,
-                       added_at=""), model), busy=BUSY, name=f"reading-{project_id}")
+                       added_at=""), model), busy=BUSY, by=by, name=f"reading-{project_id}")
         return "RUNNING"
     queue.add([(sid, str(content.get("file", sid)))], task="read", by=by, sheets=sheets,
               supersede_arrival=content.get("kind") in READABLE_DOCUMENTS)
-    return "RUNNING" if kick(store, tenant_id, project_id) else "QUEUED"
+    return "RUNNING" if kick(store, tenant_id, project_id, by=by) else "QUEUED"
 
 
 def ingest_for_reading(ws: Workspace, library: DocumentLibrary, payloads: list[tuple[str, bytes]], *, by: str,
@@ -354,7 +356,7 @@ def queue_again(store: ProjectStore, tenant_id: str, project_id: str, item: Queu
     document = content.get("kind") in READABLE_DOCUMENTS
     task: QueueTask = "arrival" if not document and not item.sheets and _needs_agent(content) else "read"
     ReadingQueue(ws).add([(item.sid, item.file)], task=task, by=by, sheets=item.sheets, supersede_arrival=document)
-    return "RUNNING" if kick(store, tenant_id, project_id) else "QUEUED"
+    return "RUNNING" if kick(store, tenant_id, project_id, by=by) else "QUEUED"
 
 
 def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[str], *, by: str = "code") -> bool:
@@ -371,7 +373,7 @@ def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[
             if (content := submission(ws, sid)) is not None
             and (_needs_agent(content) or (sid in last and last[sid].state == "failed"))]
     if not queue.available:   # a store without a queue: as before it, read now or not at all
-        model, _problem = agent_jobs.chat_model()
+        model, _problem = agent_jobs.chat_model("A4")
         if model is None or not todo:
             return False
 
@@ -380,10 +382,10 @@ def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[
                 run_arrival_job(store, tenant_id, project_id, sid, model=model)
 
         try:
-            jobs.start(store, tenant_id, project_id, "reading", job, busy=BUSY, name=f"arrival-{project_id}")
+            jobs.start(store, tenant_id, project_id, "reading", job, busy=BUSY, by=by, name=f"arrival-{project_id}")
         except HTTPException:
             return False
         return True
     if todo:
         queue.add(todo, task="arrival", by=by)
-    return kick(store, tenant_id, project_id)
+    return kick(store, tenant_id, project_id, by=by)

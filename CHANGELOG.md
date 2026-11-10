@@ -15,6 +15,82 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the admin console, build C + D: each agent's model and the providers' keys (2026-11-10)
+The owner, 2026-11-10: "switching between different models that different agents use" and "api keys in admin so that
+I must be able to rotate keys timely without touching the backend"; keys "in the platform store (admin side only)".
+Plan: `docs/plans/2026-11-10-admin-console.md` (revision 2 records the owner's five answers; question 6 is open).
+- **Models** (`/admin/models`, `GET /api/v1/admin/agents`, `PUT /api/v1/admin/agents/{agent}`): each agent (A1 to A5)
+  runs "as the server's environment says" (unchanged until set), off, or on a provider with its active console key and a
+  model name. Each change needs a reason and a fresh step-up, is kept in the history and is an audit event
+  (`admin.agent.set`). `agent_jobs.chat_model(agent)` reads the setting at every start, so a change needs no restart;
+  every agent start and page status now names its agent (A1 Start, A2 literature, A3 observed data, A4 the client's
+  files, A5 planning).
+- **Keys** (`/admin/keys`, `GET/POST /api/v1/admin/keys`, `POST …/{key_id}:test`, `:activate`, `:retire`): a
+  provider's key (the in-house LiteLLM proxy; Claude on Amazon Bedrock, used from the next build) is stored sealed with
+  AES-256-GCM under `MODELER_MASTER_KEY` (the server's secrets file only; `platform_settings`), each field bound to its
+  key, never answered by the API (shown by its last 4 characters) and never written to the audit trail. A key is added,
+  tested (the proxy lists its models), made active (the provider's active key is retired) and retired; one active 90
+  days or more is flagged for rotation. Each change needs a reason and a fresh step-up and is an audit event
+  (`admin.key.add`, `.activate`, `.retire`) on the owner's chain. Without a master key the console stores nothing and
+  says how to make one.
+- The platform's settings live under `<read_root>/_platform/` (never listed as a company). `cryptography` is declared
+  by the API (already installed through `pyjwt[crypto]`; same version). `deploy/server/modeler-secrets.env.example`
+  gains `MODELER_MASTER_KEY`. API contract: seven new routes and their models (additions only).
+- Tests: `test_admin_platform.py` (6: keys sealed and never answered; rotation and the 90-day flag; an agent runs on
+  the console's model and key with no restart; a key test; owner only and fresh step-up only; no or a wrong master
+  key), `e2e/admin-console.spec.ts` (the Models and Keys pages refuse a person who is not the owner). Checked live with
+  a stand-in proxy: a key added, tested, made active, and A1 moved to it.
+
+### Added — the admin console, build A + B: companies, people, projects and the agents' use (2026-11-10)
+The owner, 2026-11-10: an admin page "only to me" to "see through the data and everything about the users, its
+projects" and "tracking their usage, project as well as user wise". Plan: `docs/plans/2026-11-10-admin-console.md`.
+- **Who.** Only the realm role `modeler-admin` (Keycloak, given to the owner alone): every `/api/v1/admin/*` route
+  answers 403 to anyone else, and the web app shows its link only to that role (`GET /api/v1/me`, new, says who is
+  signed in and whether they hold it). The development sign-in does not hold it, so a pilot without Keycloak shows the
+  refusal (plan, question 5). Read-only; each look is an audit event `admin.view` (a company's page on that company's
+  chain, the overview and the usage on the owner's own).
+- **Overview** (`/admin`): every company (tenant) with its people (those who have signed in), active and archived
+  projects, agent runs, runs that did not finish, input and output tokens and the estimated cost; the deployment and
+  the agents' configured model.
+- **A company** (`/admin/companies/[tenant]`): its people with their projects and the runs they started; its projects
+  with compounds, members, state (archived with its reason) and their runs.
+- **Usage and cost** (`/admin/usage`): per agent, project, person, company and day, and each run (newest first, up to
+  500) with who started it, its model, status, turns and tokens; filtered by a date and a company. Costs are estimates:
+  each run's recorded tokens at the chosen Claude model's list prices (Opus 5.5 by default, the dearest), its
+  conversations cached (`agent_jobs.recorded_usage`, `modeler_agents.usage_report`).
+- **Each agent run records who started it.** `jobs.start` now takes `by` (the person whose action started the job) and
+  makes it known to everything the job runs (`jobs.started_by`); `AgentRun` writes it to the run record
+  (`run.json` `started_by`), including the jobs that start on their own at a project's start and on upload. Runs
+  recorded before this read as "not recorded".
+- **API contract:** four new routes and their models (`views/admin.py`); `docs/api/openapi.json` and
+  `apps/web/lib/api-types.ts` regenerated (additions only). No locked file changed.
+- Tests: `test_admin_api.py` (5: refusal, overview, a company, usage per grouping and price, `started_by` through a
+  job), `e2e/admin-console.spec.ts` (no link and a refusal for a person who is not the owner); `test_brief_api.py`
+  checks the compound search is started with its person.
+
+### Fixed — a study card's facts read from the study's name and its file's name; fed or fasted offered (2026-11-10)
+The owner, 2026-11-10, of a study card named `395-18_N15_Ref_Fed` that was asked every fact.
+- **Defect.** The offers (build L, `study_offers`) took a study's whole name as its number, stripping only a trailing
+  arm (`-TEST`, `-REF`): `395-18_N15_Ref_Fed` was looked for in the documents as "395-18 N 15 Ref Fed", so no
+  sentence about study 395-18 was read, and the `Ref` arm was missed, so no purpose was offered either. Fasted or fed,
+  asked on every oral card, was never offered.
+- **Now.** `read_name` reads the parts after the study's own id, from the end: an arm (`TEST`, `T`, `REF`,
+  `REFERENCE`, `R`, `RLD`, `IV`), fed or fasted (`Fed`, `Fasted`, `Fasting`) and a number of subjects (`N15`, `N=15`).
+  The study's own id (`395-18`) is what the documents are searched for; the name's subjects and food state are offered
+  ("15 · the study's name (395-18_N15_Ref_Fed)"); the file's name gives the same when it names the study
+  (`230-23 Fasting Test.xlsx`). Documents naming the study give fed or fasted when a sentence states the conditions
+  ("under fed conditions", "a high-fat breakfast"; "fasted overnight" alone is not read: fed studies fast overnight
+  too). A one-part id under four characters ("395") is no longer searched for (any "395 mg" matched).
+- **Pre-selection.** The sheet's own count and the names' parts come first (they hold no quote); documents are
+  pre-selected only when they agree, so two documents that disagree leave the choice to the person (before, the first
+  document's value was taken). Nothing is saved until the person reads the sheet, as before.
+- Tests: `test_study_offers.py` (+2).
+
+### Fixed — the usage report refuses an empty or wrong store root (2026-11-10)
+The owner's first run printed "0 runs": `$MODELER_READ_ROOT` is exported only inside the deploy scripts
+(`deploy/server/_env.sh`), so in an SSH shell `--root ""` read the current folder. The report now exits 2 with what
+to give (on the server, `~/modeler-data/read-root`) when the root is empty, missing or holds no agent runs. Test:
+`test_usage_report.py` (+1).
 ### Fixed — R3 review: the tray counts files, "Read again" only does what it can (2026-11-10)
 A review of R3 (each finding checked by a second reviewer) confirmed seven defects, all fixed:
 - The tray counts and lists **files**, each at its latest reading; a file read again no longer counts twice nor keeps
@@ -109,7 +185,7 @@ added a whole delivery with "+ Add data" and the agent did not start on it; uplo
 ### Added — what the agents' runs used, per agent, priced per Claude model (2026-11-10)
 The owner, 2026-11-10, choosing an Anthropic model on AWS for the agents: "I need to know what all usage and all tokens
 we are processing, inputs, outputs, so that I can correctly pick the model".
-- `python -m modeler_agents.usage_report --root "$MODELER_READ_ROOT" [--since YYYY-MM-DD] [--json]` reads the run
+- `python -m modeler_agents.usage_report --root ~/modeler-data/read-root [--since YYYY-MM-DD] [--json]` reads the run
   records the server keeps (`<root>/<tenant>/agent_runs/*/run.json` and `steps.jsonl`) and gives, per agent: runs and
   their statuses, turns per run, input and output tokens per run (median, p90, max), the largest single turn (the
   context a model must hold), the busiest minute across all runs (against a tokens-per-minute quota), and each run's

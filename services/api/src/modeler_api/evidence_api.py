@@ -111,7 +111,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "blocking": [r.req_id for r in blocking(rows)],
         "access_requests": access_requests(ws),
         "register": version_view(ws, register, with_content=False) if register else None,
-        "agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "research"),
+        "agents": agent_jobs.agents_status("A2"), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "research"),
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "model", "started_at", "finished_at", "summary")}
                  for r in runs[:5]],
     }
@@ -151,9 +151,9 @@ def start_research(project_id: str, principal: Writer, store: StoreDep, agent: L
     ws = workspace_for(project_id, principal, store)
     _matrix(ws)
     if agent == "A3":
-        model = agent_jobs.require_chat_model("agents are off: enter the evidence by hand (Add a value)")
+        model = agent_jobs.require_chat_model("agents are off: enter the evidence by hand (Add a value)", "A3")
     else:
-        model, problem = agent_jobs.chat_model()
+        model, problem = agent_jobs.chat_model("A2")
         if problem:
             raise HTTPException(status_code=409, detail=problem)
 
@@ -163,7 +163,7 @@ def start_research(project_id: str, principal: Writer, store: StoreDep, agent: L
         else:
             run_compound_job(store, principal.tenant_id, project_id, model=model)
 
-    jobs.start(store, principal.tenant_id, project_id, "research", job, busy="a literature run is already in progress",
+    jobs.start(store, principal.tenant_id, project_id, "research", job, by=principal.user_id, busy="a literature run is already in progress",
                name=f"research-{project_id}")
     shown = model or CodeRunner()
     return envelope({"started": True, "provider": shown.provider, "model": shown.model})
