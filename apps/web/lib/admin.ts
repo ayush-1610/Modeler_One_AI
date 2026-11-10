@@ -21,6 +21,8 @@ export const getCompany = (tenantId: string, priced: PricedAs) =>
   serverGet("/api/v1/admin/companies/{tenant_id}", { tenant_id: tenantId }, { priced_as: priced });
 export const getUsage = (query: { since?: string; tenant_id?: string; priced_as: PricedAs }) =>
   serverGet("/api/v1/admin/usage", {}, query);
+export const getAgents = () => serverGet("/api/v1/admin/agents", {});
+export const getKeys = () => serverGet("/api/v1/admin/keys", {});
 
 /** The API refused: this person is not the platform's owner (403), as against a problem reaching it. */
 export function refused(problem: string | null): boolean {

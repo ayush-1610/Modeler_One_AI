@@ -124,7 +124,7 @@ def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[
     """The agent's part for the files that have just arrived (`run_arrival_job`), in the background, one file after the
     other, started by the person `by` who added them; False when agents are off, nothing needs the agent, or a reading is running already (then each file keeps its
     buttons: "Read the data in this file", "Sort the sheets", "Read this sheet")."""
-    model, _problem = agent_jobs.chat_model()
+    model, _problem = agent_jobs.chat_model("A4")
     if model is None or not sids:
         return False
     ws = Workspace(store, tenant_id, project_id)

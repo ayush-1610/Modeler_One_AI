@@ -15,6 +15,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the admin console, build C + D: each agent's model and the providers' keys (2026-11-10)
+The owner, 2026-11-10: "switching between different models that different agents use" and "api keys in admin so that
+I must be able to rotate keys timely without touching the backend"; keys "in the platform store (admin side only)".
+Plan: `docs/plans/2026-11-10-admin-console.md` (revision 2 records the owner's five answers; question 6 is open).
+- **Models** (`/admin/models`, `GET /api/v1/admin/agents`, `PUT /api/v1/admin/agents/{agent}`): each agent (A1 to A5)
+  runs "as the server's environment says" (unchanged until set), off, or on a provider with its active console key and a
+  model name. Each change needs a reason and a fresh step-up, is kept in the history and is an audit event
+  (`admin.agent.set`). `agent_jobs.chat_model(agent)` reads the setting at every start, so a change needs no restart;
+  every agent start and page status now names its agent (A1 Start, A2 literature, A3 observed data, A4 the client's
+  files, A5 planning).
+- **Keys** (`/admin/keys`, `GET/POST /api/v1/admin/keys`, `POST …/{key_id}:test`, `:activate`, `:retire`): a
+  provider's key (the in-house LiteLLM proxy; Claude on Amazon Bedrock, used from the next build) is stored sealed with
+  AES-256-GCM under `MODELER_MASTER_KEY` (the server's secrets file only; `platform_settings`), each field bound to its
+  key, never answered by the API (shown by its last 4 characters) and never written to the audit trail. A key is added,
+  tested (the proxy lists its models), made active (the provider's active key is retired) and retired; one active 90
+  days or more is flagged for rotation. Each change needs a reason and a fresh step-up and is an audit event
+  (`admin.key.add`, `.activate`, `.retire`) on the owner's chain. Without a master key the console stores nothing and
+  says how to make one.
+- The platform's settings live under `<read_root>/_platform/` (never listed as a company). `cryptography` is declared
+  by the API (already installed through `pyjwt[crypto]`; same version). `deploy/server/modeler-secrets.env.example`
+  gains `MODELER_MASTER_KEY`. API contract: seven new routes and their models (additions only).
+- Tests: `test_admin_platform.py` (6: keys sealed and never answered; rotation and the 90-day flag; an agent runs on
+  the console's model and key with no restart; a key test; owner only and fresh step-up only; no or a wrong master
+  key), `e2e/admin-console.spec.ts` (the Models and Keys pages refuse a person who is not the owner). Checked live with
+  a stand-in proxy: a key added, tested, made active, and A1 moved to it.
+
 ### Added — the admin console, build A + B: companies, people, projects and the agents' use (2026-11-10)
 The owner, 2026-11-10: an admin page "only to me" to "see through the data and everything about the users, its
 projects" and "tracking their usage, project as well as user wise". Plan: `docs/plans/2026-11-10-admin-console.md`.

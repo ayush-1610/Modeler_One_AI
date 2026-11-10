@@ -291,7 +291,7 @@ def test_every_canvas_route_answers_the_typed_page(setup, monkeypatch):
     rebased = c.post("/api/v1/projects/p1/plan:rebase", headers=H)
     assert rebased.status_code == 200 and rebased.json()["data"]["artifact"]["kind"] == "model_plan"
 
-    monkeypatch.setattr(plan_api.agent_jobs, "require_chat_model", lambda _off: object())
+    monkeypatch.setattr(plan_api.agent_jobs, "require_chat_model", lambda _off, agent=None: object())
     monkeypatch.setattr(plan_api, "run_planning_job", lambda *a, **k: None)
     draft = c.post("/api/v1/projects/p1/plan:draft", headers=H)
     assert draft.status_code == 202 and draft.json()["data"] == {"status": "RUNNING"}

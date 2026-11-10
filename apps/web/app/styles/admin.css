@@ -9,3 +9,4 @@
 .admin-grid > .card, .admin-grid > .card + .card { margin-top: 0; min-width: 0; }   /* over design.css's .card + .card */
 .admin-grid + .card { margin-top: 20px; }
 .admin-grid .table-scroll table { min-width: 0; }
+.plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

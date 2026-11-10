@@ -266,7 +266,7 @@ def test_a_triage_start_answers_through_its_typed_model(setup, monkeypatch):
         provider, model = "test", "scripted"
 
     calls = []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(client_api, "run_triage_job", lambda *args, **kwargs: calls.append(args))
     started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:triage", headers=H)
     assert started.status_code == 202 and started.json()["data"] == {"status": "RUNNING"}
@@ -338,7 +338,7 @@ def test_a_reading_start_runs_in_the_background_and_refuses_the_template_and_unk
         provider, model = "test", "scripted"
 
     calls = []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(client_api, "run_reading_job", lambda *args, **kwargs: calls.append((args, kwargs)))
     assert c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H, json={"sheets": ["Nope"]}).status_code == 404
     started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H, json={"sheets": ["Reference"]})
@@ -450,7 +450,7 @@ def test_a_client_pdf_is_read_by_the_agent_and_its_data_wait_on_inputs(setup, mo
         provider, model = "test", "scripted"
 
     calls, run_document_job = [], client_api.run_document_job
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(client_api, "run_document_job", lambda *args, **kwargs: calls.append(args))
     started = c.post(f"/api/v1/projects/p1/client-data/{sub['id']}:read", headers=H)
     assert started.status_code == 202 and started.json()["data"] == {"status": "RUNNING"}
@@ -585,7 +585,7 @@ def test_a_client_document_is_read_by_the_agent_on_arrival_when_agents_are_on(se
         provider, model = "test", "scripted"
 
     calls = []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(intake_jobs, "run_document_job", lambda *args, **kwargs: calls.append(args[3]))
     pdf = synthetic_pdf([["Study EX-8: twelve subjects received a single oral dose of 10 mg after an overnight fast."]])
     up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("EX-8 synopsis.pdf", pdf, "application/pdf"))])

@@ -138,7 +138,7 @@ def test_research_start_paper_fulfilment_and_the_closed_register_answer_through_
         provider, model = "test", "scripted"
 
     calls = []
-    monkeypatch.setattr(agent_jobs, "chat_model", lambda: (Configured(), None))
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (Configured(), None))
     monkeypatch.setattr(evidence_api, "run_research_job", lambda *args, **kwargs: calls.append(kwargs))
     started = c.post("/api/v1/projects/p1/evidence:research?agent=A3", headers=H)
     assert started.status_code == 202 and started.json()["data"] == {"started": True, "provider": "test", "model": "scripted"}

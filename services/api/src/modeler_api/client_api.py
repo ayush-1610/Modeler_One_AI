@@ -103,7 +103,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "reconciliation": recon.to_content(),
         "dissolution": {"profiles": profiles(ws), **comparisons(ws)},
         "register": version_view(ws, register, with_content=False) if register else None,
-        "agents": agent_jobs.agents_status(), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "triage") or reading,
+        "agents": agent_jobs.agents_status("A4"), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "triage") or reading,
         "reading": reading,
     }
 
@@ -230,7 +230,7 @@ def run_triage_job(store: ProjectStore, tenant_id: str, project_id: str, sid: st
 def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     _workbook(ws, sid, use=True)
-    model = agent_jobs.require_chat_model("agents are off: say what each sheet holds by hand")
+    model = agent_jobs.require_chat_model("agents are off: say what each sheet holds by hand", "A4")
 
     def job() -> None:
         run_triage_job(store, principal.tenant_id, project_id, sid, model=model)
@@ -298,7 +298,7 @@ def start_reading(project_id: str, sid: str, principal: Writer, store: StoreDep,
         raise HTTPException(status_code=404, detail=f"no sheet {', '.join(map(repr, unknown))} in this file")
     if not (sheets or _unread_sheets(content)):
         raise HTTPException(status_code=409, detail="no data sheet is left to read in this file; open a sheet to read it again")
-    model = agent_jobs.require_chat_model("agents are off: read each sheet with the form")
+    model = agent_jobs.require_chat_model("agents are off: read each sheet with the form", "A4")
 
     def job() -> None:
         run_reading_job(store, principal.tenant_id, project_id, sid, model=model, sheets=sheets or None)
@@ -315,7 +315,7 @@ def _start_document_reading(ws: Workspace, content: dict[str, Any], sid: str, pr
                                                     "restore it in the Project Document Library to read it")
     if not any(page.strip() for page in library.pages(content["sha256"])):
         raise HTTPException(status_code=409, detail=f"{content['file']} has no text to read (a scan needs OCR)")
-    model = agent_jobs.require_chat_model("agents are off: enter what the file states with the forms on Inputs")
+    model = agent_jobs.require_chat_model("agents are off: enter what the file states with the forms on Inputs", "A4")
 
     def job() -> None:
         run_document_job(store, principal.tenant_id, ws.project_id, sid, model=model)

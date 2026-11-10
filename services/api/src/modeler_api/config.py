@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     image_digest: str = PLACEHOLDER_DIGEST
     # Where the server's service logs live, for the project doctor (MODELER_LOGS; empty: ~/modeler-logs).
     logs: str = ""
+    # The key that seals the providers' keys the admin console stores (MODELER_MASTER_KEY: 32 random bytes in base64,
+    # in the server's secrets file only; `platform_settings`). Without it the console stores no key.
+    master_key: str = ""
 
 
 def verifier_kind(settings: Settings) -> Literal["dev", "oidc", "none"]:
