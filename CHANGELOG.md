@@ -15,6 +15,16 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — "Add data" with many files scrolls inside the dialog, not the page behind it (2026-11-10)
+The owner, 2026-11-10, with 31 files picked in "+ Add data": the list ran off the bottom of the screen and could not be
+reached, and the wheel scrolled the page behind the dialog instead.
+- **Every kit dialog fits the screen and scrolls inside itself** (`apps/web/app/styles/kit.css`): the base `.dialog`
+  now has `max-height: calc(100dvh - 32px)`, `overflow-y: auto` and `overscroll-behavior: contain` (only `.wide` had a
+  height cap before), and the page under an open dialog is held still (`html:has(.dialog-backdrop) { overflow: hidden }`).
+- Impact: UI only; no API, data or science change. Regression test: `e2e/library.spec.ts` "Add data with many files
+  scrolls inside the dialog" (fails before the fix, passes after); the other dialog flows (escalation, step-up, source
+  peek, client documents, feedback, Inputs) still pass.
+
 ### Changed — Build L: a study's facts pre-filled from the project; one Start scenario per strength (2026-11-08)
 The owner, 2026-11-08, of two study cards (093-26-TEST, 230-23-TEST) asking for the dose, the number of subjects, the
 dosage form and what the study is for: "it's not able to answer all the things ... this will be the way users upload
@@ -5644,3 +5654,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-06 (cloud session, branch `claude/exciting-shannon-1phqoq`) | per commit trailer | Review of the Claude Design "Modeler One App" mockup against the app and the API; the merge plan (`docs/plans/2026-11-06-app-design-merge.md`); phase A: the dashboard and the grouped, collapsible sidebar |
 | 2026-11-07 (same cloud session) | per commit trailer | The whole web app restyled to the Claude Design "Modeler One App" look (plan §5) |
 | 2026-11-07 (same cloud session) | per commit trailer | The design's motion system and feedback from the owner's theme spec (option D) |
+| 2026-11-10 (cloud session, branch `claude/quirky-mccarthy-ln0y7g`) | per commit trailer | Small UX fixes track: "Add data" dialog scrolls inside itself with many files |

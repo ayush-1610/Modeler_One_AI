@@ -73,8 +73,13 @@
 
 /* ---- the dialog (components/kit/Dialog.tsx; the backdrop and panel base rules are shared with Review & sign's) ---- */
 .dialog:focus { outline: none; }
+/* every dialog fits the screen and scrolls inside itself (a long "Add data" file list ran off the bottom); the wheel
+   stays in the dialog instead of scrolling the page behind it, and the page is held still while a dialog is open */
+.dialog { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.dialog-backdrop { overscroll-behavior: contain; }
+html:has(.dialog-backdrop) { overflow: hidden; }
 .dialog.narrow { width: min(460px, 100%); }
-.dialog.wide { width: min(760px, 100%); max-height: 90vh; overflow-y: auto; }
+.dialog.wide { width: min(760px, 100%); max-height: 90vh; }
 .dialog-title { margin: 0 0 8px; }
 .dialog-title + .muted { margin-top: 0; }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 14px; }
