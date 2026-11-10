@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from modeler_api.admin_api import router as admin_router
@@ -22,6 +22,7 @@ from modeler_api.escalations import router as escalations_router
 from modeler_api.evidence_api import router as evidence_router
 from modeler_api.inputs_api import router as inputs_router
 from modeler_api.members_api import router as members_router
+from modeler_api.ownership import owner_guard
 from modeler_api.plan_api import router as plan_router
 from modeler_api.project_api import router as project_router
 from modeler_api.read_api import router as read_router
@@ -59,21 +60,24 @@ elif _cors.dev_auth:
     # cookie-based, so allow_credentials stays false. Set MODELER_CORS_ORIGINS explicitly outside dev.
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+# The routers whose routes act on a project: only its owner changes it, a reviewer may sign it (`ownership`).
+OWNER_ONLY_WRITES = [Depends(owner_guard)]
+
 app.include_router(escalations_router)
-app.include_router(signatures_router)
-app.include_router(campaign_router)
+app.include_router(signatures_router, dependencies=OWNER_ONLY_WRITES)
+app.include_router(campaign_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(results_router)
 app.include_router(read_router)
-app.include_router(write_router)
+app.include_router(write_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(templates_router)
-app.include_router(project_router)
-app.include_router(brief_router)
-app.include_router(requirements_router)
-app.include_router(evidence_router)
-app.include_router(client_router)
-app.include_router(inputs_router)
-app.include_router(plan_router)
+app.include_router(project_router, dependencies=OWNER_ONLY_WRITES)
+app.include_router(brief_router, dependencies=OWNER_ONLY_WRITES)
+app.include_router(requirements_router, dependencies=OWNER_ONLY_WRITES)
+app.include_router(evidence_router, dependencies=OWNER_ONLY_WRITES)
+app.include_router(client_router, dependencies=OWNER_ONLY_WRITES)
+app.include_router(inputs_router, dependencies=OWNER_ONLY_WRITES)
+app.include_router(plan_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(system_router)
-app.include_router(members_router)
-app.include_router(archive_router)
+app.include_router(members_router, dependencies=OWNER_ONLY_WRITES)
+app.include_router(archive_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(admin_router)

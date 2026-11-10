@@ -6,6 +6,11 @@ administrator added its id there. The platform therefore keeps its own membershi
 in to the tenant at least once. The API admits a person to a project in their token's claim or in these memberships
 (`modeler_api.memberships`). Every change is an audit event, so a production deployment also keeps it in PostgreSQL
 (P2). Writes are atomic under a cross-process file lock; a project never loses its last member.
+
+Each project has one **owner**, the only member who edits it (the owner, 2026-11-10: "the one who creates project will
+be owner who only can edit"; the people it is shared with read it, and a reviewer among them still signs it). The owner
+is its creator, recorded at creation; for a project made before owners were kept, the member who added themselves
+first (its creator). The administrator can give a project another owner (`set_owner`); the owner stays a member.
 """
 
 from __future__ import annotations
@@ -64,6 +69,16 @@ class Memberships:
         return sorted((Member(subject=s, name=name(s), added_by=name(r["added_by"]), added_at=r["added_at"])
                        for s, r in rows.items()), key=lambda m: m.added_at)
 
+    def owner(self, project_id: str) -> str | None:
+        """The project's owner: the one recorded, else its creator (the first member who added themselves)."""
+        doc = self._read()
+        recorded = doc.get("owners", {}).get(project_id)
+        if recorded:
+            return recorded
+        rows = doc["projects"].get(project_id, {})
+        creators = sorted((r["added_at"], s) for s, r in rows.items() if r.get("added_by") == s)
+        return creators[0][1] if creators else None
+
     def people(self) -> list[Person]:
         return sorted((Person(subject=s, name=p["name"]) for s, p in self._read()["people"].items()), key=lambda p: p.name)
 
@@ -91,9 +106,27 @@ class Memberships:
                               after={"member": subject}, reason=reason)
             self._write(doc)
 
+    def set_owner(self, project_id: str, subject: str, *, by: str, reason: str) -> None:
+        """Make a member the project's owner (the only one who edits it); an audit event with the previous owner."""
+        if not reason.strip():
+            raise MembershipError("say why the project changes owner")
+        before = self.owner(project_id)
+        with file_lock(self.path):
+            doc = self._read()
+            if subject not in doc["projects"].get(project_id, {}):
+                raise MembershipError("only a member of the project can be its owner: add them first")
+            if doc.get("owners", {}).get(project_id) == subject:
+                return                    # recorded already (a creator found by derivation is recorded the first time)
+            doc.setdefault("owners", {})[project_id] = subject
+            self.audit.append(actor=by, action="project.owner.set", resource_type="project", resource_id=project_id,
+                              before={"owner": before}, after={"owner": subject}, reason=reason)
+            self._write(doc)
+
     def remove(self, project_id: str, subject: str, *, by: str, reason: str) -> None:
         if not reason.strip():
             raise MembershipError("say why the person no longer has access")
+        if subject == self.owner(project_id):
+            raise MembershipError("the owner stays a member: the administrator can give the project another owner first")
         with file_lock(self.path):
             doc = self._read()
             members = doc["projects"].get(project_id, {})

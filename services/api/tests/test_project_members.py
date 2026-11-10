@@ -58,7 +58,7 @@ def test_the_creator_opens_the_new_project_and_others_do_not(client, tmp_path):
     page = client.get(f"/api/v1/projects/{pid}/members", headers=_as("ana")).json()["data"]
     assert [(m["subject"], m["name"], m["added_by"]) for m in page["members"]] == [("ana", "Ana", "Ana")]
     assert page["managed"] is True
-    assert [e["action"] for e in _audit(tmp_path)] == ["project.member.add"]
+    assert [e["action"] for e in _audit(tmp_path)] == ["project.member.add", "project.owner.set"]   # its creator, its owner
 
 
 def test_the_project_list_shows_only_the_persons_own_projects(client):
@@ -96,8 +96,9 @@ def test_removing_needs_a_reason_and_a_project_keeps_its_last_member(client, tmp
                           headers=_as("ana"))
     assert [m["subject"] for m in removed.json()["data"]["members"]] == ["ana"]
     assert client.get(f"/api/v1/projects/{pid}", headers=_as("ben")).status_code == 403
+    # ana is the last member and the owner: the owner stays (the owner, 2026-11-10: only the owner edits a project)
     last = client.post(f"/api/v1/projects/{pid}/members:remove", json={"subject": "ana", "reason": "done"}, headers=_as("ana"))
-    assert last.status_code == 409 and "at least one member" in last.json()["detail"]
+    assert last.status_code == 409 and "the owner stays a member" in last.json()["detail"]
     assert [(e["action"], e["reason"]) for e in _audit(tmp_path)][-1] == ("project.member.remove", "left the team")
 
 
