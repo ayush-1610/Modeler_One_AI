@@ -94,16 +94,16 @@ def run_compound_job(store: ProjectStore, tenant_id: str, project_id: str, *, mo
         run_research_job(store, tenant_id, project_id, model=model, max_turns=max_turns)
 
 
-def start_compound_job(store: ProjectStore, tenant_id: str, project_id: str, *, max_turns: int = AUTO_TURNS) -> bool:
-    """Start the compound's sources and literature in the background (at the project's start); False when a literature
-    run is already going. Without a model, the structured sources alone."""
+def start_compound_job(store: ProjectStore, tenant_id: str, project_id: str, *, by: str, max_turns: int = AUTO_TURNS) -> bool:
+    """Start the compound's sources and literature in the background (at the project's start, by the person `by`); False
+    when a literature run is already going. Without a model, the structured sources alone."""
     model, _problem = agent_jobs.chat_model()
 
     def job() -> None:
         run_compound_job(store, tenant_id, project_id, model=model, max_turns=max_turns)
 
     try:
-        jobs.start(store, tenant_id, project_id, "research", job, busy="a literature run is already in progress",
+        jobs.start(store, tenant_id, project_id, "research", job, by=by, busy="a literature run is already in progress",
                    name=f"compound-{project_id}")
     except HTTPException:
         return False

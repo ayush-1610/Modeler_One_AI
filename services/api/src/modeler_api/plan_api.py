@@ -500,7 +500,7 @@ def start_draft(project_id: str, principal: Writer, store: StoreDep) -> dict[str
     def job() -> None:
         run_planning_job(store, principal.tenant_id, project_id, model=model, exploratory=exploratory)
 
-    jobs.start(store, principal.tenant_id, project_id, "planning", job, busy="A5 is already drafting",
+    jobs.start(store, principal.tenant_id, project_id, "planning", job, by=principal.user_id, busy="A5 is already drafting",
                name=f"plan-{project_id}")
     return envelope({"status": "RUNNING"})
 

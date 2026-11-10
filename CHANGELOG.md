@@ -15,6 +15,33 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the admin console, build A + B: companies, people, projects and the agents' use (2026-11-10)
+The owner, 2026-11-10: an admin page "only to me" to "see through the data and everything about the users, its
+projects" and "tracking their usage, project as well as user wise". Plan: `docs/plans/2026-11-10-admin-console.md`.
+- **Who.** Only the realm role `modeler-admin` (Keycloak, given to the owner alone): every `/api/v1/admin/*` route
+  answers 403 to anyone else, and the web app shows its link only to that role (`GET /api/v1/me`, new, says who is
+  signed in and whether they hold it). The development sign-in does not hold it, so a pilot without Keycloak shows the
+  refusal (plan, question 5). Read-only; each look is an audit event `admin.view` (a company's page on that company's
+  chain, the overview and the usage on the owner's own).
+- **Overview** (`/admin`): every company (tenant) with its people (those who have signed in), active and archived
+  projects, agent runs, runs that did not finish, input and output tokens and the estimated cost; the deployment and
+  the agents' configured model.
+- **A company** (`/admin/companies/[tenant]`): its people with their projects and the runs they started; its projects
+  with compounds, members, state (archived with its reason) and their runs.
+- **Usage and cost** (`/admin/usage`): per agent, project, person, company and day, and each run (newest first, up to
+  500) with who started it, its model, status, turns and tokens; filtered by a date and a company. Costs are estimates:
+  each run's recorded tokens at the chosen Claude model's list prices (Opus 5.5 by default, the dearest), its
+  conversations cached (`agent_jobs.recorded_usage`, `modeler_agents.usage_report`).
+- **Each agent run records who started it.** `jobs.start` now takes `by` (the person whose action started the job) and
+  makes it known to everything the job runs (`jobs.started_by`); `AgentRun` writes it to the run record
+  (`run.json` `started_by`), including the jobs that start on their own at a project's start and on upload. Runs
+  recorded before this read as "not recorded".
+- **API contract:** four new routes and their models (`views/admin.py`); `docs/api/openapi.json` and
+  `apps/web/lib/api-types.ts` regenerated (additions only). No locked file changed.
+- Tests: `test_admin_api.py` (5: refusal, overview, a company, usage per grouping and price, `started_by` through a
+  job), `e2e/admin-console.spec.ts` (no link and a refusal for a person who is not the owner); `test_brief_api.py`
+  checks the compound search is started with its person.
+
 ### Fixed — a study card's facts read from the study's name and its file's name; fed or fasted offered (2026-11-10)
 The owner, 2026-11-10, of a study card named `395-18_N15_Ref_Fed` that was asked every fact.
 - **Defect.** The offers (build L, `study_offers`) took a study's whole name as its number, stripping only a trailing

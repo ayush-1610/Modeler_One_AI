@@ -120,9 +120,9 @@ def run_arrival_job(store: ProjectStore, tenant_id: str, project_id: str, sid: s
     return out
 
 
-def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[str]) -> bool:
+def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[str], *, by: str) -> bool:
     """The agent's part for the files that have just arrived (`run_arrival_job`), in the background, one file after the
-    other; False when agents are off, nothing needs the agent, or a reading is running already (then each file keeps its
+    other, started by the person `by` who added them; False when agents are off, nothing needs the agent, or a reading is running already (then each file keeps its
     buttons: "Read the data in this file", "Sort the sheets", "Read this sheet")."""
     model, _problem = agent_jobs.chat_model()
     if model is None or not sids:
@@ -137,7 +137,7 @@ def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[
             run_arrival_job(store, tenant_id, project_id, sid, model=model)
 
     try:
-        jobs.start(store, tenant_id, project_id, "reading", job, busy="a reading run is already in progress",
+        jobs.start(store, tenant_id, project_id, "reading", job, by=by, busy="a reading run is already in progress",
                    name=f"arrival-{project_id}")
     except HTTPException:
         return False

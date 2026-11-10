@@ -213,7 +213,7 @@ def _start_extraction(store: ProjectStore, principal: Principal, project_id: str
         run_extraction(store, principal.tenant_id, project_id, by=principal.user_id, context_note=context_note,
                        model=model)
 
-    jobs.start(store, principal.tenant_id, project_id, "extraction", job,
+    jobs.start(store, principal.tenant_id, project_id, "extraction", job, by=principal.user_id,
                busy="an extraction is already running for this project", name=f"extract-{project_id}")
     return {"started": True, "agents": model is not None, "problem": problem}
 
@@ -268,9 +268,10 @@ async def initiate_project(
                   for filename, data in client_payloads]
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     if extract:   # the compound's values from the start, while the person and A1 work on Start (plan 2026-11-05 §3.3)
-        start_compound_job(store, principal.tenant_id, project_id)
+        start_compound_job(store, principal.tenant_id, project_id, by=principal.user_id)
         # and what code could not do with the client's files, by the agent on arrival (§3.1)
-        read_later(store, principal.tenant_id, project_id, [r["id"] for r in read_files if r.get("id") and not r.get("repeat")])
+        read_later(store, principal.tenant_id, project_id, [r["id"] for r in read_files if r.get("id") and not r.get("repeat")],
+                   by=principal.user_id)
     return envelope({"project_id": project_id, "name": title, "documents": [_document_view(d) for d in documents],
                      "client_files": read_files, "brief_version": version.version, "extraction": extraction})
 
