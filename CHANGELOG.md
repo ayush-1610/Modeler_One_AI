@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a large "Add data" upload no longer fails with a bare HTTP 500 (2026-11-10)
+The owner, 2026-11-10, adding 17 client files (sheets, study-report PDFs, Word plots) at once: every file came back
+"The API did not answer (HTTP 500). Is the backend running…", though the API was running.
+- **Cause:** Next's `/api` proxy (`apps/web/next.config.mjs`) cuts a request body at 10 MB and gives up on the API after
+  30 s, and answers both with a plain 500. A delivery of that size, read on arrival, passes both limits. Reproduced with
+  a 14 MB upload through the web server (500), which passes after the change.
+- **Change:** `experimental.proxyClientMaxBodySize` 500 MB and `experimental.proxyTimeout` 600 s, overridable with
+  `MODELER_UPLOAD_MAX_MB` / `MODELER_PROXY_TIMEOUT_S` on the web server. The 5xx message (`apps/web/lib/api.ts`) no
+  longer assumes the backend is down: it says the API failed, took too long or is not running, and to try fewer files.
+- Impact: web server configuration and one message; no API, data or science change. Takes effect after the web app is
+  rebuilt and redeployed. Test: `e2e/upload-limits.spec.ts`.
+
 ### Fixed — "Add data" with many files scrolls inside the dialog, not the page behind it (2026-11-10)
 The owner, 2026-11-10, with 31 files picked in "+ Add data": the list ran off the bottom of the screen and could not be
 reached, and the wheel scrolled the page behind the dialog instead.
