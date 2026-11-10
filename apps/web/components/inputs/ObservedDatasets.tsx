@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { Digitizer } from "@/components/evidence/Digitizer";
 import { InlineIssue } from "@/components/kit";
@@ -116,7 +117,12 @@ export function ObservedDatasets({ projectId, run }: { projectId: string; run: R
   const page = useResource("/api/v1/projects/{project_id}/evidence", { project_id: projectId },
     { select: (d) => narrow<View>(d), poll: (d) => d.running, interval: 4000 });
   const documents = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
-  const [digitizing, setDigitizing] = useState(false);
+  // a figure the reading tray suggested opens the digitizer on its page (?digitize=<sha>&page=<n>; plan 2026-11-10, R5)
+  const params = useSearchParams();
+  const asked = params?.get("digitize");
+  const initial = asked ? { sha: asked, page: Number(params?.get("page")) || 1 } : undefined;
+  const [digitizing, setDigitizing] = useState(Boolean(asked));
+  useEffect(() => { if (asked) setDigitizing(true); }, [asked]);
   const view = page.data;
   const docs: DocumentView[] = documents.data?.documents ?? [];
   if (page.problem) return <InlineIssue severity="error">{page.problem}</InlineIssue>;
@@ -140,7 +146,9 @@ export function ObservedDatasets({ projectId, run }: { projectId: string; run: R
       </div>
       {digitizing && (
         <div className="card" data-testid="digitizer-card">
-          <Digitizer projectId={projectId} documents={docs} onSaved={() => setDigitizing(false)} />
+          {documents.data ? <Digitizer key={initial?.sha ?? "pick"} projectId={projectId} documents={docs} initial={initial}
+                                       onSaved={() => setDigitizing(false)} />
+            : <p className="muted">Loading the documents…</p>}
         </div>
       )}
       {view.datasets.length === 0 ? <p className="muted" style={{ margin: 0 }}>No observed data yet.</p>

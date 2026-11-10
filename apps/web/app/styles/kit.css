@@ -158,4 +158,7 @@ tr.project-archived td { color: var(--ink-faint); }
 .reading-tray-file { overflow-wrap: anywhere; min-width: 0; font-weight: 500; }
 .reading-tray-why { flex-basis: 100%; color: var(--fail-ink); font-size: 13px; }
 .reading-tray-map { flex-basis: 100%; font-size: 13px; color: var(--ink-dim); }
+.reading-tray-figures { margin: 10px 0 0; }
+.reading-tray-figures ul { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.reading-tray-figures li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .add-data-reading { margin: 8px 0 0; font-size: 14px; }

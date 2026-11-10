@@ -450,7 +450,7 @@ def record_drafts(ws: Workspace, sid: str, drafts: dict[str, dict[str, Any]], *,
 def record_document_reading(ws: Workspace, sid: str, *, facts: list[dict[str, Any]], dissolution: list[dict[str, Any]],
                             links: list[dict[str, Any]], datasets: list[str], refused: list[str], digitization: list[str],
                             summary: str, run_id: str | None, by: str,
-                            compositions: list[dict[str, Any]] = ()) -> dict[str, Any]:
+                            compositions: list[dict[str, Any]] = (), figures: list[dict[str, Any]] = ()) -> dict[str, Any]:
     """What the reading agent read from one client PDF or Word file, every item quoted and checked by code (plan
     2026-11-03 §3.4, I4): study facts, dissolution rows, links between two names of one study, product or batch, a
     product's composition as reported, the datasets it proposed, and what code refused. A later reading of the same file replaces the earlier: its facts, rows and links go, and the
@@ -472,8 +472,9 @@ def record_document_reading(ws: Workspace, sid: str, *, facts: list[dict[str, An
                                reason=f"replaced by a later reading of {content['file']}")
         read = {"run_id": run_id, "by": by, "datasets": datasets, "facts": len(facts), "dissolution_rows": len(dissolution),
                 "links": len(links), "compositions": len(compositions), "refused": refused[:50], "digitization": digitization,
-                "summary": summary[:2000]}
+                "figures": len(figures), "summary": summary[:2000]}
         content.update(study_facts=facts, dissolution=dissolution, study_links=links, compositions=list(compositions),
+                       figure_suggestions=list(figures),
                        datasets=[*[d for d in content.get("datasets", []) if d not in earlier], *datasets],
                        document_reads=[*content.get("document_reads", []), read])
         ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,

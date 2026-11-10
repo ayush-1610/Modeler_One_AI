@@ -5257,6 +5257,33 @@ export interface components {
             value?: unknown;
         };
         /**
+         * FigureSuggestion
+         * @description A figure worth digitizing: no table holds its values (plan 2026-11-10, R5).
+         */
+        FigureSuggestion: {
+            /** Digitizable */
+            digitizable: boolean;
+            /** Doc Sha256 */
+            doc_sha256: string;
+            /** File */
+            file: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "concentration_time" | "dissolution";
+            /** Page */
+            page: number;
+            /** Product */
+            product: string;
+            /** Quote */
+            quote: string;
+            /** Sid */
+            sid: string;
+            /** Study Id */
+            study_id: string;
+        };
+        /**
          * FigureView
          * @description An image placed on a PDF page (`modeler_intake.documents.PdfFigure`): its box as fractions of the page as shown.
          */
@@ -7868,6 +7895,8 @@ export interface components {
             counts: {
                 [key: string]: number;
             };
+            /** Figures */
+            figures: components["schemas"]["FigureSuggestion"][];
             /** Items */
             items: components["schemas"]["ReadingItem"][];
             /** Mapped */

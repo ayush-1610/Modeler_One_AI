@@ -8444,6 +8444,65 @@
         "title": "FieldChange",
         "type": "object"
       },
+      "FigureSuggestion": {
+        "additionalProperties": false,
+        "description": "A figure worth digitizing: no table holds its values (plan 2026-11-10, R5).",
+        "properties": {
+          "digitizable": {
+            "title": "Digitizable",
+            "type": "boolean"
+          },
+          "doc_sha256": {
+            "title": "Doc Sha256",
+            "type": "string"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "concentration_time",
+              "dissolution"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "product": {
+            "title": "Product",
+            "type": "string"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "sid": {
+            "title": "Sid",
+            "type": "string"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "page",
+          "quote",
+          "study_id",
+          "product",
+          "sid",
+          "file",
+          "doc_sha256",
+          "digitizable"
+        ],
+        "title": "FigureSuggestion",
+        "type": "object"
+      },
       "FigureView": {
         "additionalProperties": false,
         "description": "An image placed on a PDF page (`modeler_intake.documents.PdfFigure`): its box as fractions of the page as shown.",
@@ -15332,6 +15391,13 @@
             "title": "Counts",
             "type": "object"
           },
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/FigureSuggestion"
+            },
+            "title": "Figures",
+            "type": "array"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/ReadingItem"
@@ -15356,7 +15422,8 @@
           "running",
           "counts",
           "items",
-          "mapped"
+          "mapped",
+          "figures"
         ],
         "title": "ReadingQueuePage",
         "type": "object"

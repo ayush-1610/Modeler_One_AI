@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — R5: a figure is suggested for digitizing only when it matters and no table holds its values (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R5; the owner's decision 3 ("suggest only when
+no table has the values, and only for those that are important, not for all digitizable plots"). Science-facing: what
+a reading may hand to a person.
+- **Before:** the document reader's `request_digitization` filed a task for a person (an access request) for any data
+  "shown only in a figure", whatever the figure, whether or not a table elsewhere held the same values.
+- **Now:** `suggest_digitization` files nothing. Code keeps a suggestion only for a study's concentration-time profile
+  (the study named as the file writes it) or a product's dissolution profile (the product named in the file), with the
+  figure's caption or title quoted verbatim from its page. Any other figure is refused with why. The suggestions are
+  kept on the file's reading (`figure_suggestions`).
+- **Shown only while no table holds the values** (`modeler_project.figure_suggestions.open_suggestions`): a suggestion
+  closes once the project has a dataset of the study (a table, a digitized figure, the literature: any not rejected) or
+  a dissolution profile of the product, by any name the client's files link to it (a document's links and the delivery
+  map's). A withdrawn file's suggestions are not shown.
+- **On Inputs:** the reading tray lists "Figures worth digitizing" (`ReadingQueuePage.figures`). For a PDF, **Digitize**
+  opens the digitizer on that file and page (`?digitize=<sha>&page=<n>`); a Word file's figure is said to be saved as an
+  image or PDF first (the digitizer does not open Word files).
+- OpenAPI and `api-types.ts` updated. Tests: the R5 tests in `services/agents/tests/test_document_reader.py` (what is
+  suggested and refused, nothing filed, open only while no table holds it, closed through a linked name, a withdrawn
+  file hidden), `e2e/library.spec.ts` "a figure that is the only source of a study's profile is suggested, and opens
+  the digitizer on its page" (`e2e/fixtures/figure_suggestion.py`: the real reading job, a scripted model).
+
 ### Added — R4: the delivery pass; a client's files are mapped together before each is read (2026-11-10)
 Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R4; the owner's decision 2 ("every upload of 2+
 files, and single files checked against the map"; no file missed). Science-facing: it changes what the reading agent is

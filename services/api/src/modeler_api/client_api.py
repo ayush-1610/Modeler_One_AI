@@ -79,6 +79,7 @@ from modeler_project.datasets import DatasetError
 from modeler_project.delivery_map import file_line
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
+from modeler_project.figure_suggestions import open_suggestions
 from modeler_project.inputs import refresh_inputs
 from modeler_project.reading_queue import ReadingQueue
 from modeler_project.requirements import RequirementMatrix, client_request
@@ -162,7 +163,8 @@ def _queue_view(ws: Workspace) -> dict[str, Any]:
             "counts": {state: sum(1 for i in latest.values() if i.state == state)
                        for state in ("queued", "reading", "done", "failed")},
             "items": [i.model_dump(mode="json") for i in items],
-            "mapped": {sid: line for sid, entry in delivery_map(ws)["files"].items() if (line := file_line(entry))}}
+            "mapped": {sid: line for sid, entry in delivery_map(ws)["files"].items() if (line := file_line(entry))},
+            "figures": open_suggestions(ws)}
 
 
 @router.get("/projects/{project_id}/reading-queue", **answers(ReadingQueuePage))

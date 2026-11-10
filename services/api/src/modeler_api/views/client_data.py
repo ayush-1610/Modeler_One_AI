@@ -97,6 +97,19 @@ class ReadingItem(View):
     found: dict[str, int]
 
 
+class FigureSuggestion(View):
+    """A figure worth digitizing: no table holds its values (plan 2026-11-10, R5)."""
+    kind: Literal["concentration_time", "dissolution"]
+    page: int
+    quote: str
+    study_id: str
+    product: str
+    sid: str
+    file: str
+    doc_sha256: str
+    digitizable: bool              # the digitizer opens the file (a PDF); a Word file's figure is saved as an image first
+
+
 class ReadingQueuePage(View):
     """The reading tray: each file the reading agent is to read, is reading or has read, and whether agents are on."""
     agents: AgentsStatus
@@ -104,6 +117,7 @@ class ReadingQueuePage(View):
     counts: dict[str, int]         # queued, reading, done, failed
     items: list[ReadingItem]
     mapped: dict[str, str]         # sid -> what the delivery map says of the file, in one line (plan 2026-11-10, R4)
+    figures: list[FigureSuggestion]   # figures worth digitizing, while no table holds their values (R5)
 
 
 class Product(View):
