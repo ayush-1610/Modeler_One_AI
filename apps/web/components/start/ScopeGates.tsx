@@ -62,13 +62,17 @@ function Dose({ path, index, stored, save }: { path: string; index: number; stor
 
 /** A value the intake agent proposed from what the proposal implies (build D): shown pre-selected with the quote it
  *  rests on, and confirmed here (changing it confirms it too). */
-function Drafted({ record, path, save, open }: { record: FieldRecord; path: string; save: Save; open: Open }) {
+function Drafted({ record, path, save, open, with: also = [] }: {
+  record: FieldRecord; path: string; save: Save; open: Open;
+  /** Other drafts confirmed with this one (a scenario's food state and dose, with its route). */
+  with?: string[];
+}) {
   if (record.status !== "DRAFTED" || record.value == null) return null;
   return (
     <span className="drafted" data-testid={`drafted-${path}`}>
       <Source record={record} open={open} />
       <button type="button" className="btn small primary" data-testid={`confirm-${path}`}
-              onClick={() => void save([{ path, status: "CONFIRMED" }])}>Confirm</button>
+              onClick={() => void save([path, ...also].map((p) => ({ path: p, status: "CONFIRMED" as const })))}>Confirm</button>
     </span>
   );
 }
@@ -98,7 +102,14 @@ function Routes({ view, save, open }: { view: BriefView; save: Save; open: Open 
           </select>
           <Dose key={recordOf(view, `scenarios[${i}].dose`).at ?? ""} path={`scenarios[${i}].dose`} index={i}
                 stored={valueOf(view, `scenarios[${i}].dose`) as number | null} save={save} />
-          <Drafted record={recordOf(view, `scenarios[${i}].route`)} path={`scenarios[${i}].route`} save={save} open={open} />
+          {(() => {
+            // the row's drafts confirmed together: the route, and the food state and dose read with it (build L)
+            const row = ["route", "food_state", "dose"].map((f) => `scenarios[${i}].${f}`)
+              .filter((p) => recordOf(view, p).status === "DRAFTED" && recordOf(view, p).value != null);
+            const first = row[0];
+            return first ? <Drafted record={recordOf(view, first)} path={first} save={save} open={open} with={row.slice(1)} />
+              : null;
+          })()}
         </div>
       ))}
       {adding ? (

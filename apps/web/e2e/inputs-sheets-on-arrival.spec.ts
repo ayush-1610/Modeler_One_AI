@@ -26,7 +26,8 @@ test("sheets are read on arrival: a complete one waits on its product, a BE arm 
     drug_name: "desvenlafaxine", extract: "false",
     files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nER tablet 50 mg, VBE.") } } });
   const projectId = (await started.json()).data.project_id as string;
-  await finishStart(request, projectId);
+  await finishStart(request, projectId, [{ path: "qoi.applications", value: ["APP-14 virtual bioequivalence"] },
+                                         { path: "scope.formulation_types", value: ["mr"] }]);
   const edit = (path: string, value: unknown) => ({ path, value, status: "EDITED", note: "from the proposal" });
   expect((await request.put(`/api/v1/projects/${projectId}/brief`, { headers: AUTH, data: { reason: "from the proposal", changes: [
     edit("products[0].name", "Desvenlafaxine succinate ER Tablets"), edit("products[0].role", "TEST"),
@@ -53,8 +54,14 @@ test("sheets are read on arrival: a complete one waits on its product, a BE arm 
   await expect(cleaning).toContainText("Below the table");
   await expect(page.getByTestId("client-file-230-23 Fasting Reference.xlsx").getByTestId("sheet-cleaning-Sheet1")).toHaveCount(1);
   await shot(page, "1-be-arm-to-finish");
-  await draft.getByTestId("need-n").fill("6");
-  await draft.getByTestId("need-formulation").selectOption("mr");
+  // what the project holds is pre-filled, with where it comes from (build L, the owner, 2026-11-08): the proposal's one
+  // dosage form on Start, and a bioequivalence arm's purpose as the VBE data plan states it; the person changes the rest
+  await expect(draft.getByTestId("need-formulation")).toHaveValue("mr");
+  await expect(draft.getByTestId("prefilled-formulation")).toContainText("the proposal's product on Start");
+  await expect(draft.getByTestId("need-purpose")).toHaveValue("external_validation");
+  await expect(draft.getByTestId("prefilled-purpose")).toContainText("REQ-vbe.be_study");
+  await expect(draft.getByTestId("need-n")).toHaveValue("6");                     // its six subjects counted
+  await expect(draft.getByTestId("prefilled-n")).toContainText("6 subjects' columns");
   await draft.getByTestId("need-purpose").selectOption("model_building");
   await draft.getByTestId("finish-Sheet1").click();
   await expect(page.getByTestId("inputs-notice")).toContainText("Sheet1: read");

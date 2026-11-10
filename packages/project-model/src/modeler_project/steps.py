@@ -83,7 +83,8 @@ def start_issues(brief: ProjectBrief) -> list[StartIssue]:
     refused here), and the open questions on the short brief. Proposal notes never hold Start up."""
     # what the intake agent or code drafted (builds D, J, K): pre-selected, a person's word still needed
     implied = [*START_REQUIRED, "drug.modality", "scope.pbpk_model", "scope.site_of_action", "scope.formulation_types",
-               *(f"scenarios[{i}].route" for i in range(len(brief.groups.get("scenarios", ())))),
+               *(f"scenarios[{i}].{f}" for i in range(len(brief.groups.get("scenarios", ())))
+                 for f in ("route", "food_state", "dose")),
                "drug.bcs_class", "scope.pathways", "scope.pathways_stated", "scope.nonlinearity", "scope.ehc"]
     drafted = [path for path in implied
                if brief.get(path).status is FieldStatus.DRAFTED and brief.get(path).value not in (None, "", [])]

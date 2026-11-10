@@ -10,7 +10,8 @@ a person confirms or changes it, and rests on the sentence it was read from, quo
 - the formulation types: the dosage forms it names (an extended-release tablet is modified release; a tablet or capsule
   with no release named is immediate release); a dissolution medium is never read as a solution;
 - the routes: oral when the product is taken by mouth or is a tablet or capsule; intravenous when an infusion or bolus is
-  named;
+  named; one scenario per strength the proposal names (the owner, 2026-11-08), each with its dose; fasted or fed when the
+  proposal names only one;
 - the modality: a biologic the proposal names (an antibody, a protein, a peptide) is a large molecule; a drug PubChem
   gives a structure, or whose product is a tablet or capsule, a small molecule.
 Two choices are defaults, said so: a full (whole-body) PBPK model of systemic action, the only model the builder makes
@@ -80,6 +81,10 @@ _USE = re.compile(r"\b(?:support|submission|regulatory|waiver|biowaiver|label(?:
 _USE_STRONG = re.compile(r"\b(?:submission|regulatory|waiver|biowaiver|label(?:ling)?|agency|approval|Health Canada|FDA|EMA|"
                          r"filing|dossier)\b", re.IGNORECASE)
 _LOCAL = re.compile(r"\b(?:topical|local(?:ly)? acting|inhaled|ophthalmic|intra-?articular)\b", re.IGNORECASE)
+_STRENGTHS = re.compile(r"\bstrengths?\b", re.IGNORECASE)
+_MG = re.compile(r"(\d+(?:\.\d+)?)\s*mg\b", re.IGNORECASE)
+_FASTED_WORDS = re.compile(r"\bfast(?:ed|ing)\b", re.IGNORECASE)
+_FED_WORDS = re.compile(r"\bfed\b|\bhigh[- ]fat\b|\bwith (?:a )?(?:meal|food)\b", re.IGNORECASE)
 _LARGE = re.compile(r"\bantibod|\bmonoclonal\b|\b[a-z]+mab\b|therapeutic protein|\bpeptides?\b|\bbiologics?\b", re.IGNORECASE)
 _ORAL_SOLID = re.compile(r"\btablets?\b|\bcapsules?\b", re.IGNORECASE)
 
@@ -121,33 +126,42 @@ class Sentence:
         return Citation(doc_sha256=self.sha, page=self.page, quote=self.text, source=self.source)
 
 
+def _sentences_of(library: DocumentLibrary, records: list[Any], source: str | None = None) -> list[Sentence]:
+    out = []
+    for record in records:
+        for number, text in enumerate(library.pages(record.sha256), start=1):
+            for match in _SENTENCE.finditer(text):
+                sentence = " ".join(match.group(0).split()).strip(" -•*#")
+                if len(sentence) >= 20:
+                    out.append(Sentence(sentence, record.sha256, number, source or record.name))
+    return out
+
+
 def sentences(library: DocumentLibrary) -> list[Sentence]:
     """The proposal's sentences, page by page (the documents the person gave as the proposal; else every document but
     the records code retrieved)."""
     records = [r for r in map(document_record, library.documents()) if r.role != "retrieved_record"]
-    proposals = [r for r in records if r.role == "proposal"] or records
-    out = []
-    for record in proposals:
-        for number, text in enumerate(library.pages(record.sha256), start=1):
-            for match in _SENTENCE.finditer(text):
-                sentence = " ".join(match.group(0).split()).strip(" -•*#")
-                if len(sentence) >= 20:
-                    out.append(Sentence(sentence, record.sha256, number, record.name))
-    return out
+    return _sentences_of(library, [r for r in records if r.role == "proposal"] or records)
+
+
+def document_sentences(library: DocumentLibrary) -> list[Sentence]:
+    """Every sentence of the project's documents but the records code retrieved: the proposal and the client's files."""
+    return _sentences_of(library, [r for r in map(document_record, library.documents()) if r.role != "retrieved_record"])
 
 
 def label_sentences(library: DocumentLibrary) -> list[Sentence]:
     """The sentences of the FDA label code stored at the project's start (its pharmacokinetics section), if any."""
-    out = []
-    for record in map(document_record, library.documents()):
-        if record.role != "retrieved_record" or not record.name.startswith(LABEL):
-            continue
-        for number, text in enumerate(library.pages(record.sha256), start=1):
-            for match in _SENTENCE.finditer(text):
-                sentence = " ".join(match.group(0).split()).strip(" -•*#")
-                if len(sentence) >= 20:
-                    out.append(Sentence(sentence, record.sha256, number, "FDA label"))
-    return out
+    return _sentences_of(library, [r for r in map(document_record, library.documents())
+                                   if r.role == "retrieved_record" and r.name.startswith(LABEL)], "FDA label")
+
+
+def _strengths(found: list[Sentence]) -> tuple[list[float], Sentence | None]:
+    """The strengths the proposal names ("two strengths: 50 mg and 100 mg"), in order, and the sentence naming them."""
+    hit = _first(found, _STRENGTHS, avoid=_MEDIUM, strong=_MG)
+    if hit is None:
+        return [], None
+    doses = list(dict.fromkeys(float(m.group(1)) for m in _MG.finditer(hit.text)))
+    return doses, hit if doses else None
 
 
 def _by_a_person(by: str | None) -> bool:
@@ -206,13 +220,36 @@ def read_for_start(library: DocumentLibrary, brief: ProjectBrief, *, by: str = C
                 forms.setdefault("mr" if mr else option, hit)
         if forms:
             put("scope.formulation_types", list(forms), "the dosage forms the proposal names", tuple(s.cite() for s in forms.values()))
-        # no scenario yet: one per route the proposal names (at most two); scenarios already there: a missing route is
-        # filled only when the proposal names one route
+        # no scenario yet: one per strength the proposal names when it names one route (the owner, 2026-11-08), else one
+        # per route (at most two); scenarios already there: a missing route is filled only when the proposal names one
+        # route, and each strength no scenario has gets one
         routes = [(option, hit) for option, pattern in ROUTES if (hit := _first(found, pattern, avoid=_MEDIUM))]
+        strengths, named_in = _strengths(found)
         items = brief.groups.get("scenarios", ())
-        chosen = routes[:2] if not items else (routes * len(items) if len(routes) == 1 else [])
+        if not items:
+            chosen = [routes[0]] * len(strengths) if len(routes) == 1 and strengths else routes[:2]
+        else:
+            chosen = routes * len(items) if len(routes) == 1 else []
         for i, (option, hit) in enumerate(chosen):
             put(f"scenarios[{i}].route", option, f"the proposal gives the product {option.replace('_', ' ')}", (hit.cite(),))
+        if strengths and named_in is not None and (len(routes) == 1 or items):
+            doses = [brief.get(f"scenarios[{i}].dose").value for i in range(len(brief.groups.get("scenarios", ())))]
+            left = [d for d in strengths if d not in {float(v) for v in doses if isinstance(v, int | float)}]
+            for i, dose in enumerate(doses):
+                if dose in (None, "") and left:
+                    put(f"scenarios[{i}].dose", left.pop(0), "a strength the proposal names", (named_in.cite(),))
+            for dose in left:                    # a strength no scenario has: its own scenario, on the first's route
+                i = len(brief.groups.get("scenarios", ()))
+                route = brief.get("scenarios[0].route").value if i else None
+                if route:
+                    put(f"scenarios[{i}].route", route, "the route of the proposal's other strengths", (named_in.cite(),))
+                    put(f"scenarios[{i}].dose", dose, "a strength the proposal names", (named_in.cite(),))
+        # fasted or fed, when the proposal names only one (a dissolution medium is not a meal)
+        fasted, fed = _first(found, _FASTED_WORDS, avoid=_MEDIUM), _first(found, _FED_WORDS, avoid=_MEDIUM)
+        if (fasted is None) != (fed is None):
+            state, hit = ("fasted", fasted) if fasted else ("fed", fed)
+            for i in range(len(brief.groups.get("scenarios", ()))):
+                put(f"scenarios[{i}].food_state", state, f"the proposal names {state} studies only", (hit.cite(),))
     # the modality: a biologic the proposal names, else a small molecule when PubChem gave a structure or the proposal
     # names a tablet or capsule (the agent read it before; with the agent off it was left empty, the owner, 2026-11-07)
     large = _first(found, _LARGE) if found else None
