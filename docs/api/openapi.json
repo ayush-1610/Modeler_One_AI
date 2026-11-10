@@ -197,6 +197,149 @@
         "title": "AffectedView",
         "type": "object"
       },
+      "AgentChange": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "provider",
+          "model",
+          "by",
+          "at",
+          "reason"
+        ],
+        "title": "AgentChange",
+        "type": "object"
+      },
+      "AgentProvider": {
+        "additionalProperties": false,
+        "properties": {
+          "has_active_key": {
+            "title": "Has Active Key",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "needs_model": {
+            "title": "Needs Model",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "needs_model",
+          "has_active_key"
+        ],
+        "title": "AgentProvider",
+        "type": "object"
+      },
+      "AgentRow": {
+        "additionalProperties": false,
+        "description": "One agent's model as the console sets it (\"environment\": the server's own configuration), and what it runs on\nnow (`runs_on`, the model the next run would take, or why none).",
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_label": {
+            "title": "Provider Label",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "runs_on": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "set_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set At"
+          },
+          "set_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set By"
+          }
+        },
+        "required": [
+          "agent",
+          "label",
+          "provider",
+          "provider_label",
+          "model",
+          "set_by",
+          "set_at",
+          "reason",
+          "runs_on"
+        ],
+        "title": "AgentRow",
+        "type": "object"
+      },
       "AgentRunDetail": {
         "additionalProperties": false,
         "properties": {
@@ -219,6 +362,67 @@
           "steps"
         ],
         "title": "AgentRunDetail",
+        "type": "object"
+      },
+      "AgentSet": {
+        "properties": {
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "reason"
+        ],
+        "title": "AgentSet",
+        "type": "object"
+      },
+      "AgentsPage": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRow"
+            },
+            "title": "Agents",
+            "type": "array"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/AgentChange"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/AgentProvider"
+            },
+            "title": "Providers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "agents",
+          "providers",
+          "environment",
+          "history"
+        ],
+        "title": "AgentsPage",
         "type": "object"
       },
       "AgentsStatus": {
@@ -5066,6 +5270,31 @@
         "title": "Envelope[AgentRunDetail]",
         "type": "object"
       },
+      "Envelope_AgentsPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AgentsPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[AgentsPage]",
+        "type": "object"
+      },
       "Envelope_Artifacts_": {
         "additionalProperties": false,
         "properties": {
@@ -5739,6 +5968,31 @@
           "errors"
         ],
         "title": "Envelope[InputsPage]",
+        "type": "object"
+      },
+      "Envelope_KeysPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/KeysPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[KeysPage]",
         "type": "object"
       },
       "Envelope_LibraryEntryView_": {
@@ -9491,6 +9745,285 @@
           "reason"
         ],
         "title": "ItemRemoval",
+        "type": "object"
+      },
+      "KeyAdd": {
+        "description": "A key to store. Every field is optional to the validator and checked by the handler, so a refusal never echoes the\nrequest (FastAPI's 422 answer repeats the input it rejects, which here holds a secret).",
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "object"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "provider": {
+            "default": "",
+            "title": "Provider",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "KeyAdd",
+        "type": "object"
+      },
+      "KeyChange": {
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "KeyChange",
+        "type": "object"
+      },
+      "KeyField": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "secret": {
+            "title": "Secret",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "secret",
+          "required"
+        ],
+        "title": "KeyField",
+        "type": "object"
+      },
+      "KeyProvider": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/KeyField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "fields"
+        ],
+        "title": "KeyProvider",
+        "type": "object"
+      },
+      "KeyView": {
+        "additionalProperties": false,
+        "description": "A stored key, never its secret: the secret fields' last 4 characters and the plain fields (an address, a\nregion). `due`: active for `rotate_after_days` or longer.",
+        "properties": {
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "active_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Days"
+          },
+          "added_at": {
+            "title": "Added At",
+            "type": "string"
+          },
+          "added_by": {
+            "title": "Added By",
+            "type": "string"
+          },
+          "due": {
+            "title": "Due",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last4": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Last4",
+            "type": "object"
+          },
+          "plain": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Plain",
+            "type": "object"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "test_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Message"
+          },
+          "test_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Ok"
+          },
+          "tested_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested At"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "label",
+          "state",
+          "plain",
+          "last4",
+          "added_by",
+          "added_at",
+          "activated_at",
+          "retired_at",
+          "tested_at",
+          "test_ok",
+          "test_message",
+          "active_days",
+          "due"
+        ],
+        "title": "KeyView",
+        "type": "object"
+      },
+      "KeysPage": {
+        "additionalProperties": false,
+        "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/KeyView"
+            },
+            "title": "Keys",
+            "type": "array"
+          },
+          "master_key": {
+            "title": "Master Key",
+            "type": "boolean"
+          },
+          "master_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Master Problem"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/KeyProvider"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "rotate_after_days": {
+            "title": "Rotate After Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "keys",
+          "providers",
+          "master_key",
+          "master_problem",
+          "rotate_after_days"
+        ],
+        "title": "KeysPage",
         "type": "object"
       },
       "Lane": {
@@ -21034,6 +21567,123 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/agents": {
+      "get": {
+        "operationId": "agents_api_v1_admin_agents_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agents",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/agents/{agent}": {
+      "put": {
+        "operationId": "set_agent_api_v1_admin_agents__agent__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent",
+            "required": true,
+            "schema": {
+              "title": "Agent",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Agent",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/companies/{tenant_id}": {
       "get": {
         "operationId": "company_api_v1_admin_companies__tenant_id__get",
@@ -21102,6 +21752,306 @@
           }
         },
         "summary": "Company",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/keys": {
+      "get": {
+        "operationId": "keys_api_v1_admin_keys_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Keys",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "add_key_api_v1_admin_keys_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Key",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/keys/{key_id}:activate": {
+      "post": {
+        "operationId": "activate_key_api_v1_admin_keys__key_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate Key",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/keys/{key_id}:retire": {
+      "post": {
+        "operationId": "retire_key_api_v1_admin_keys__key_id__retire_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retire Key",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/keys/{key_id}:test": {
+      "post": {
+        "operationId": "test_key_api_v1_admin_keys__key_id__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_KeysPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Key",
         "tags": [
           "admin"
         ]

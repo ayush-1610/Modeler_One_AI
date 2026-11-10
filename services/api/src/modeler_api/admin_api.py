@@ -1,12 +1,15 @@
-"""Who is signed in, and the platform owner's console (docs/plans/2026-11-10-admin-console.md, build A + B).
+"""Who is signed in, and the platform owner's console (docs/plans/2026-11-10-admin-console.md, builds A to D).
 
 ``GET /me`` answers anyone signed in: who they are, and whether they hold `modeler-admin`, the realm role given to the
 platform's owner alone (the web app shows the console only then). ``/admin/*`` answers only that role (403 for anyone
 else): every company (tenant) with its people, projects and agent use; one company in full; and the agents' use per
 agent, project, person, company and day, each run with who started it (recorded from 2026-11-10).
 
-Read-only. Each look is an audit event (`admin.view`): on the company's own chain when its page is opened, on the
-owner's own chain for the overview and the usage, which cover every company.
+Each look is an audit event (`admin.view`): on the company's own chain when its page is opened, on the owner's own
+chain for the overview and the usage, which cover every company. The console changes only the platform's own settings
+(`platform_settings`): each agent's model and the providers' keys. Every change needs a fresh step-up (the TOTP a
+signature asks for) and a reason, and is an audit event on the owner's chain naming the key by its last 4 characters,
+never its secret.
 
 Costs are estimates: each run's tokens priced at a Claude model's list prices with its conversations cached
 (`agent_jobs.recorded_usage`). The tokens are those of the model that ran the agents, so they are a guide to choose a
@@ -22,14 +25,16 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from modeler_api import agent_jobs
-from modeler_api.auth import CurrentPrincipal, Principal, require_role
+from modeler_api import platform_settings as ps
+from modeler_api.auth import CurrentPrincipal, Principal, ensure_step_up, require_role
 from modeler_api.config import Settings, SettingsDep
 from modeler_api.memberships import archive_for, memberships_for
 from modeler_api.part11 import audit_mirror
 from modeler_api.responses import answers, envelope
-from modeler_api.views.admin import CompanyPage, MeView, Overview, UsagePage
+from modeler_api.views.admin import AgentsPage, CompanyPage, KeysPage, MeView, Overview, UsagePage
 from modeler_contracts.runtime import runtime_env
 from modeler_project import FileProjectStore
 
@@ -55,7 +60,7 @@ def _companies(root: Path) -> list[str]:
     if not root.is_dir():
         return []
     return sorted(d.name for d in root.iterdir()
-                  if d.is_dir() and not d.name.startswith(".") and any((d / f).exists() for f in _COMPANY_FILES))
+                  if d.is_dir() and not d.name.startswith((".", "_")) and any((d / f).exists() for f in _COMPANY_FILES))
 
 
 def _usage(runs: list[dict[str, Any]], priced_as: str) -> dict[str, Any]:
@@ -189,3 +194,178 @@ def usage(principal: Admin, settings: SettingsDep, since: date | None = None, te
                   "usd": round(float(r["usd"][priced_as]), 6)} for r in runs[:shown]],
         "limit": shown,
     })
+
+
+# --- C: each agent's model -----------------------------------------------------------------------------------------
+
+
+class AgentSet(BaseModel):
+    provider: str
+    model: str = ""
+    reason: str = Field(min_length=1)
+
+
+class KeyAdd(BaseModel):
+    """A key to store. Every field is optional to the validator and checked by the handler, so a refusal never echoes the
+    request (FastAPI's 422 answer repeats the input it rejects, which here holds a secret)."""
+
+    provider: str = ""
+    label: str = ""
+    fields: dict[str, str] = Field(default_factory=dict)
+    reason: str = ""
+
+
+class KeyChange(BaseModel):
+    reason: str = Field(min_length=1)
+
+
+def _changed(settings: Settings, principal: Principal, action: str, resource_id: str, *, after: Any,
+             reason: str, before: Any = None) -> None:
+    """A change to the platform's settings, on the owner's audit chain."""
+    store = FileProjectStore(settings.read_root, audit_mirror=audit_mirror(settings))
+    store.audit(principal.tenant_id).append(actor=principal.user_id, action=action, resource_type="platform",
+                                            resource_id=resource_id, before=before, after=after, reason=reason)
+
+
+def _refused(exc: ps.SettingsError) -> HTTPException:
+    return HTTPException(status_code=409, detail=str(exc))
+
+
+def _agents_page(settings: Settings) -> dict[str, Any]:
+    store, keys = ps.AgentSettings(settings.read_root), ps.KeyStore(settings.read_root, settings.master_key)
+    doc = store.doc()
+    active = {r["provider"] for r in keys.records() if r["state"] == "active"}
+    rows = []
+    for agent, label in ps.AGENTS.items():
+        setting = doc["current"].get(agent) or {}
+        provider = setting.get("provider", "environment")
+        rows.append({"agent": agent, "label": label, "provider": provider, "provider_label": ps.AGENT_PROVIDERS[provider],
+                     "model": setting.get("model", ""), "set_by": setting.get("by"), "set_at": setting.get("at"),
+                     "reason": setting.get("reason"), "runs_on": agent_jobs.agents_status(agent)})
+    return envelope({
+        "agents": rows,
+        "providers": [{"id": p, "label": label, "needs_model": p in ps.KEY_PROVIDERS, "has_active_key": p in active}
+                      for p, label in ps.AGENT_PROVIDERS.items()],
+        "environment": agent_jobs.agents_status(),
+        "history": [{k: h[k] for k in ("agent", "provider", "model", "by", "at", "reason")}
+                    for h in reversed(doc["history"][-50:])],
+    })
+
+
+@router.get("/admin/agents", **answers(AgentsPage))
+def agents(principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    _root(settings)
+    return _agents_page(settings)
+
+
+@router.put("/admin/agents/{agent}", **answers(AgentsPage))
+def set_agent(agent: str, body: AgentSet, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    _root(settings)
+    ensure_step_up(principal)
+    store = ps.AgentSettings(settings.read_root)
+    before = store.current(agent)
+    try:
+        setting = store.set(agent, body.provider, body.model, by=principal.user_id, reason=body.reason)
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    _changed(settings, principal, "admin.agent.set", agent, reason=body.reason,
+             before={k: before[k] for k in ("provider", "model")} if before else None,
+             after={k: setting[k] for k in ("provider", "model")})
+    return _agents_page(settings)
+
+
+# --- D: the providers' keys ----------------------------------------------------------------------------------------
+
+
+def _keys_page(settings: Settings) -> dict[str, Any]:
+    keys = ps.KeyStore(settings.read_root, settings.master_key)
+    try:
+        ps.cipher(settings.master_key)
+        problem = None
+    except ps.SettingsError as exc:
+        problem = str(exc)
+    return envelope({
+        "keys": keys.view(),
+        "providers": [{"id": p, "label": spec["label"],
+                       "fields": [{"name": n, "label": label, "secret": secret, "required": required}
+                                  for n, label, secret, required in spec["fields"]]}
+                      for p, spec in ps.KEY_PROVIDERS.items()],
+        "master_key": problem is None, "master_problem": problem, "rotate_after_days": ps.ROTATE_AFTER_DAYS,
+    })
+
+
+def _key_named(record: dict[str, Any]) -> dict[str, Any]:
+    """A key as the audit trail names it: never a secret."""
+    return {"provider": record["provider"], "label": record["label"], "state": record["state"],
+            "last4": {f: v["last4"] for f, v in record["secret"].items()}}
+
+
+@router.get("/admin/keys", **answers(KeysPage))
+def keys(principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    _root(settings)
+    return _keys_page(settings)
+
+
+@router.post("/admin/keys", **answers(KeysPage))
+def add_key(body: KeyAdd, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    _root(settings)
+    ensure_step_up(principal)
+    if not body.reason.strip():
+        raise HTTPException(status_code=409, detail="say why the key is added (kept with the change)")
+    try:
+        record = ps.KeyStore(settings.read_root, settings.master_key).add(body.provider, body.label, body.fields,
+                                                                          by=principal.user_id)
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    _changed(settings, principal, "admin.key.add", record["id"], after=_key_named(record), reason=body.reason)
+    return _keys_page(settings)
+
+
+def _record(store: ps.KeyStore, key_id: str) -> dict[str, Any]:
+    record = next((r for r in store.records() if r["id"] == key_id), None)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"no key {key_id!r}")
+    return record
+
+
+@router.post("/admin/keys/{key_id}:test", **answers(KeysPage))
+def test_key(key_id: str, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    _root(settings)
+    store = ps.KeyStore(settings.read_root, settings.master_key)
+    _record(store, key_id)
+    try:
+        provider, fields = store.fields(key_id)
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    ok, message = agent_jobs.test_key(provider, fields)
+    store.record_test(key_id, ok, message)
+    return _keys_page(settings)
+
+
+@router.post("/admin/keys/{key_id}:activate", **answers(KeysPage))
+def activate_key(key_id: str, body: KeyChange, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    _root(settings)
+    ensure_step_up(principal)
+    store = ps.KeyStore(settings.read_root, settings.master_key)
+    _record(store, key_id)
+    try:
+        record, replaced = store.activate(key_id)
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    _changed(settings, principal, "admin.key.activate", key_id, after=_key_named(record) | {"retired": replaced},
+             reason=body.reason)
+    return _keys_page(settings)
+
+
+@router.post("/admin/keys/{key_id}:retire", **answers(KeysPage))
+def retire_key(key_id: str, body: KeyChange, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    _root(settings)
+    ensure_step_up(principal)
+    store = ps.KeyStore(settings.read_root, settings.master_key)
+    _record(store, key_id)
+    try:
+        record = store.retire(key_id)
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    _changed(settings, principal, "admin.key.retire", key_id, after=_key_named(record), reason=body.reason)
+    return _keys_page(settings)
