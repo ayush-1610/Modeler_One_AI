@@ -70,3 +70,20 @@ def test_an_empty_or_wrong_root_is_refused_rather_than_reported_as_no_runs(tmp_p
     assert main(["--root", str(tmp_path / "missing")]) == 2
     assert main(["--root", str(tmp_path)]) == 2
     assert "holds no agent runs" in capsys.readouterr().err
+
+
+def test_a_run_on_claude_is_priced_from_the_cache_it_reported_not_estimated(tmp_path):
+    store = FileRunStore(tmp_path, project_id="p1")
+    run_id = store.start_run(tenant_id="t1", agent="A1-proposal-intake", provider="bedrock", model="anthropic.claude-opus-5-5",
+                             campaign_id=None, budget={})
+    for seq, usage in enumerate(({"input_tokens": 40, "output_tokens": 20, "cache_creation_input_tokens": 900,
+                                  "cache_read_input_tokens": 0},
+                                 {"input_tokens": 30, "output_tokens": 8, "cache_creation_input_tokens": 60,
+                                  "cache_read_input_tokens": 900}), start=1):
+        store.record_step(run_id=run_id, seq=seq, kind="model_turn", content={"type": "model_turn", "turn": seq,
+                                                                               "usage": usage}, usage=usage)
+    (run,) = read_runs(tmp_path)
+    assert [t.input_tokens for t in run.turns] == [940, 990]          # everything each turn sent
+    # $4 uncached, $5 written, $0.20 read, $20 output per million tokens
+    assert cost(run, "claude-opus-5-5", cached=True) == pytest.approx(((40 + 30) * 4 + 960 * 5 + 900 * 0.2 + 28 * 20) / 1e6)
+    assert cost(run, "claude-opus-5-5", cached=False) == pytest.approx(((940 + 990) * 4 + 28 * 20) / 1e6)

@@ -88,10 +88,9 @@ pilot, so the console is meant for a deployment with Keycloak (question 5).
    later.
 5. **Where:** on the server with Keycloak (option A); the development sign-in keeps no console (no locked change).
 
-**Question 6 (open), from answer 4:** today a reviewer (the MIDD lead role) who did not create a project signs its
-MAP and settles its escalations: an approval by a second person, which ICH M15 and Part 11 review expect. With "only
-the owner edits", may a person the project is shared with, holding the reviewer role, still **sign** it (an approval,
-not an edit)? Proposed: yes; signing stays the reviewer's, every other change the owner's.
+6. **Signing a shared project** (asked from answer 4, answered "yes" the same day): a person a project is shared with,
+   holding the reviewer role, still signs its MAP and settles its escalations (an approval by a second person, which
+   ICH M15 and Part 11 review expect); every other change stays the owner's.
 
 ## 4. Builds
 
@@ -110,3 +109,11 @@ not an edit)? Proposed: yes; signing stays the reviewer's, every other change th
   the platform store, AES-GCM under `MODELER_MASTER_KEY`, write-only (shown by their last 4 characters), each added,
   tested, made active (the previous one retired), retired; a key older than 90 days is flagged for rotation. The
   agents read their model and the active key at the start of each run, so a change needs no restart.
+- **Claude on Amazon Bedrock (branch `bedrock-provider`):** a provider the console's Models page offers per agent,
+  with a model (`anthropic.claude-opus-5-5`, `-sonnet-5-5`, `-haiku-5-5`), an effort and a fallback model, on the
+  active Bedrock key (`modeler_agents.claude`, Anthropic's SDK `AnthropicBedrockMantle`): prompt caching of the system
+  prompt, tools and conversation; effort as Claude's `output_config.effort`; each assistant turn sent back as the model
+  wrote it (thinking included); a refusal re-asked of the fallback model by the SDK's client-side middleware (Bedrock
+  has no server-side fallback) and an overloaded model retried once on it; every turn's cache writes and reads
+  recorded, and the usage report prices them as they were. Not yet: the agents' text and page limits, set for the
+  in-house model's context, widened for Claude; the A1 and delivery evaluations run on Opus 5.5 against Sonnet 5.5.

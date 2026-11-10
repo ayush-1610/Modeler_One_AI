@@ -273,6 +273,14 @@
             "title": "Agent",
             "type": "string"
           },
+          "effort": {
+            "title": "Effort",
+            "type": "string"
+          },
+          "fallback": {
+            "title": "Fallback",
+            "type": "string"
+          },
           "label": {
             "title": "Label",
             "type": "string"
@@ -332,6 +340,8 @@
           "provider",
           "provider_label",
           "model",
+          "effort",
+          "fallback",
           "set_by",
           "set_at",
           "reason",
@@ -366,6 +376,16 @@
       },
       "AgentSet": {
         "properties": {
+          "effort": {
+            "default": "",
+            "title": "Effort",
+            "type": "string"
+          },
+          "fallback": {
+            "default": "",
+            "title": "Fallback",
+            "type": "string"
+          },
           "model": {
             "default": "",
             "title": "Model",
@@ -390,12 +410,27 @@
       },
       "AgentsPage": {
         "additionalProperties": false,
+        "description": "`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids).",
         "properties": {
           "agents": {
             "items": {
               "$ref": "#/components/schemas/AgentRow"
             },
             "title": "Agents",
+            "type": "array"
+          },
+          "claude_models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Claude Models",
+            "type": "array"
+          },
+          "efforts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Efforts",
             "type": "array"
           },
           "environment": {
@@ -420,7 +455,9 @@
           "agents",
           "providers",
           "environment",
-          "history"
+          "history",
+          "efforts",
+          "claude_models"
         ],
         "title": "AgentsPage",
         "type": "object"
