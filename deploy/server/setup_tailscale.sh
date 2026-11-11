@@ -39,12 +39,14 @@ if [ ! -x "$TS_DIR/tailscaled" ]; then
 fi
 "$TS_DIR/tailscaled" --version | head -1
 
-# Start the daemon (userspace networking, no TUN, no root).
+# Start the daemon (userspace networking, no TUN, no root). --statedir, not --state: with only a state file tailscaled
+# has no directory for its certificates, and `tailscale cert` (the Keycloak go-live, deploy/keycloak/README.md) fails
+# with "no TailscaleVarRoot". The state file stays where it was (<statedir>/tailscaled.state), so the login is kept.
 if ! pgrep -f "tailscaled.*$STATE_DIR" >/dev/null 2>&1; then
   echo "-- starting tailscaled (userspace)"
   nohup "$TS_DIR/tailscaled" \
       --tun=userspace-networking \
-      --state="$STATE_DIR/tailscaled.state" \
+      --statedir="$STATE_DIR" \
       --socket="$STATE_DIR/tailscaled.sock" \
       > "$HOME/modeler-logs/tailscaled.log" 2>&1 &
   sleep 3
@@ -59,8 +61,12 @@ echo "Tailscale IP: $("$TS_DIR/tailscale" --socket="$STATE_DIR/tailscaled.sock" 
 echo "Reachable over the tailnet: ssh (22), web (3000), API (8000)."
 
 # Survive reboots without root, via the user crontab.
-CRON_LINE="@reboot nohup $TS_DIR/tailscaled --tun=userspace-networking --state=$STATE_DIR/tailscaled.state --socket=$STATE_DIR/tailscaled.sock >> $HOME/modeler-logs/tailscaled.log 2>&1 &"
+CRON_LINE="@reboot nohup $TS_DIR/tailscaled --tun=userspace-networking --statedir=$STATE_DIR --socket=$STATE_DIR/tailscaled.sock >> $HOME/modeler-logs/tailscaled.log 2>&1 &"
 if ! crontab -l 2>/dev/null | grep -Fq "tailscaled --tun=userspace-networking"; then
   ( crontab -l 2>/dev/null; echo "$CRON_LINE" ) | crontab -
   echo "Added a @reboot entry so tailscaled restarts automatically."
+elif crontab -l 2>/dev/null | grep -Fq -- "--state=$STATE_DIR/tailscaled.state"; then
+  # an entry written before --statedir: replaced, so a reboot keeps `tailscale cert` working
+  crontab -l 2>/dev/null | grep -Fv "tailscaled --tun=userspace-networking" | { cat; echo "$CRON_LINE"; } | crontab -
+  echo "Updated the @reboot entry to --statedir."
 fi

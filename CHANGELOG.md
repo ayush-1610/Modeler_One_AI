@@ -47,6 +47,18 @@ them easily", back to the in-house model and onto Claude again.
 - **Impact:** admin console only. Each agent's own setting, and how a run reads it at its start, is unchanged. The
   next run of each agent takes the switch, with no restart.
 
+### Fixed — `tailscale cert` on the server: tailscaled started with `--statedir` (2026-11-11)
+Going live on Keycloak (deploy/keycloak/README.md, step 2), `tailscale cert` on adt-server answered `500 Internal
+Server Error: no TailscaleVarRoot`: `deploy/server/setup_tailscale.sh` started the userspace tailscaled with
+`--state=<file>`, which leaves it no folder for certificates.
+- **`setup_tailscale.sh`** starts tailscaled with `--statedir=~/.tailscale-state` (the state file stays
+  `tailscaled.state` inside it, so the login is kept). Its `@reboot` entry uses the same option, and an entry written
+  with `--state` is replaced.
+- **The README's go-live steps** say what to do when the server is signed out of Tailscale (`NAME` empty), when
+  `cert` answers `no TailscaleVarRoot`, and when a browser cannot find the server's name. They also say to write the
+  certificate's three settings only after `cert` succeeds: lines naming a missing certificate stop Keycloak.
+- **Impact:** deployment scripts and docs only; no application change.
+
 ### Added — the admin console's monthly limits: a warning to the administrator at 80 % and at 100 % (2026-11-10)
 The owner, 2026-11-10 (admin console plan, E and answer 2): limits "warn to admin (client will see and decide later
 what to show them)".
