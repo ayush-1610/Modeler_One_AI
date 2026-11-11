@@ -79,7 +79,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
         <div className="banner err" data-testid="real-data-warning" style={{ marginBottom: 14 }}>
           <strong>TEST ONLY: no real observed data.</strong> {testOnly.map(([stage, d]) => `${stage}: ${d.label}`).join(" · ")}.
           {" "}A verdict judged on synthetic, illustrative or unrecorded data is not evidence; the S4/S5 evaluation cannot be
-          signed in a project that is not exploratory (plan §9.4).
+          signed in a project that is not exploratory.
         </div>
       )}
       <AutoRefresh active={c.status === "RUNNING" || c.status === "QUEUED"} />

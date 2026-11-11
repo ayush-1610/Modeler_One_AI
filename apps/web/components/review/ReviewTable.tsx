@@ -124,7 +124,7 @@ export function ReviewTable({ projectId, review, run, busy }: { projectId: strin
         </div>
       )}
       <p className="muted review-hint">Confidence is shown, not used: it sums up the grade, the flags and how many other
-        sources agree. The value each input takes is chosen by the source-selection rule (D-32).</p>
+        sources agree. The value each input takes is chosen by the source-selection rule.</p>
     </div>
   );
 }

@@ -208,8 +208,8 @@ export function DatasetView({ data, label, unsaved = false }: {
     <div className="dataset-view" data-testid="dataset-view">
       {data.blinded ? (
         <p className="muted" data-testid="dataset-blinded">Its values are withheld until the MAP is signed
-          ({unsaved ? "blinding is on and what this study is for is not given yet" : "an external validation study"},
-          D-15): the times and the metadata are shown, not the concentrations.</p>
+          ({unsaved ? "blinding is on and what this study is for is not given yet" : "an external validation study"}):
+          the times and the metadata are shown, not the concentrations.</p>
       ) : data.kind === "profile" ? <ProfileChart data={data} label={label} /> : null}
       {!data.blinded && <Stats data={data} />}
       {data.series.length > 0 && <Points data={data} />}

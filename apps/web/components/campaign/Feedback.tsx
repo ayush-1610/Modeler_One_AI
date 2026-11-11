@@ -10,7 +10,7 @@ export function FeedbackDiagnosisView({ diagnosis }: { diagnosis: FeedbackDiagno
       <table>
         <thead>
           <tr><th>Failing study</th><th>Class</th><th>Failed</th><th>Predicted / observed</th><th>Differs from training</th>
-            <th>Parameters acting on it</th><th>MS-01 §6.6</th></tr>
+            <th>Parameters acting on it</th><th>MS-01 suggests</th></tr>
         </thead>
         <tbody>
           {diagnosis.failing.map((f) => (
@@ -47,7 +47,7 @@ export function FeedbackDiagnosisView({ diagnosis }: { diagnosis: FeedbackDiagno
       </ul>
       {diagnosis.recommendation && (
         <p style={{ fontSize: 13, margin: "8px 0 0" }} data-testid="ms01-suggestion">
-          <strong>MS-01 §6.6 suggests:</strong> {ACTION[diagnosis.recommendation.action] ?? diagnosis.recommendation.action}
+          <strong>MS-01 suggests:</strong> {ACTION[diagnosis.recommendation.action] ?? diagnosis.recommendation.action}
           {diagnosis.recommendation.action === "learn" ? ` (${diagnosis.recommendation.studies.join(", ")})` : ""} —{" "}
           <span className="muted">{diagnosis.recommendation.why}. The decision and its signature are yours.</span>
         </p>

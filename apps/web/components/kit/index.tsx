@@ -11,11 +11,15 @@ export type HeroTone = keyof typeof HUES;
 
 /** A page's head: a pill naming where you are, a large title, one sentence, and the page's actions, centred over a soft
  *  wash of the area's colour and the product's curve (decoration only: it carries no data). */
-export function Hero({ eyebrow, title, lede, actions, tone = "projects", testId }: {
-  eyebrow?: ReactNode; title: ReactNode; lede?: ReactNode; actions?: ReactNode; tone?: HeroTone; testId?: string;
+export function Hero({ eyebrow, title, lede, actions, tone = "projects", size = "compact", testId }: {
+  eyebrow?: ReactNode; title: ReactNode; lede?: ReactNode; actions?: ReactNode; tone?: HeroTone;
+  /** "full" for the landing pages (the dashboard, the 404); "compact" for the pages worked on all day, so the work
+   *  starts within the first screen (the 2026-11-11 audit, item 5). */
+  size?: "full" | "compact";
+  testId?: string;
 }) {
   return (
-    <header className="hero-band" style={{ ["--hue" as string]: HUES[tone] }} data-testid={testId}>
+    <header className={`hero-band ${size}`} style={{ ["--hue" as string]: HUES[tone] }} data-testid={testId}>
       <svg className="hero-art" aria-hidden viewBox="0 0 1440 360" preserveAspectRatio="xMidYMid slice">
         <path className="grid" d="M0 90H1440M0 180H1440M0 270H1440" />
         <path className="curve" d="M0 330C260 330 300 70 560 70s320 230 880 255" pathLength={520} />

@@ -81,8 +81,10 @@ export function Nav({ user }: { user?: string | null }) {
   const [hover, setHover] = useState(false);
   // opened by the keyboard: only a visible focus opens the panel (a click leaves focus behind and must not hold it open)
   const [keys, setKeys] = useState(false);
-  // a new page closes a panel that is not pinned
-  useEffect(() => { setHover(false); setKeys(false); }, [path]);
+  // on a phone the sidebar is a bar along the top; its menu opens over the page (the 2026-11-11 audit, item 3)
+  const [menu, setMenu] = useState(false);
+  // a new page closes a panel that is not pinned, and the phone's menu
+  useEffect(() => { setHover(false); setKeys(false); setMenu(false); }, [path]);
   const { count: inbox, live } = useInboxCount();
   const queries = useQueryClient();
   const recheck = async () => {
@@ -111,11 +113,11 @@ export function Nav({ user }: { user?: string | null }) {
   const isOpen = pinned || hover || keys;
 
   return (
-    <aside className={`sidebar${isOpen ? " open" : ""}${pinned ? " pinned" : ""}`} data-testid="sidebar"
+    <aside className={`sidebar${isOpen ? " open" : ""}${pinned ? " pinned" : ""}${menu ? " menu-open" : ""}`} data-testid="sidebar"
            onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
            // choosing a destination closes the panel even with the pointer still on it; it opens again when the pointer
            // leaves and comes back (a panel held open over the next page would cover its left edge)
-           onClickCapture={(e) => { if ((e.target as Element).closest("a, .nav-action")) { setHover(false); setKeys(false); } }}
+           onClickCapture={(e) => { if ((e.target as Element).closest("a, .nav-action")) { setHover(false); setKeys(false); setMenu(false); } }}
            onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty("--my", `${(e.clientY - r.top).toFixed(0)}px`); }}
            onFocus={(e) => setKeys((e.target as Element).matches(":focus-visible"))}
            onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeys(false); }}>
@@ -126,7 +128,13 @@ export function Nav({ user }: { user?: string | null }) {
                 title="Keep the panel open" data-testid="nav-pin">
           <Icon d={ICONS.collapse} />
         </button>
+        <button type="button" className="nav-menu" onClick={() => setMenu(!menu)} aria-expanded={menu} aria-controls="nav-panel"
+                aria-label={menu ? "Close the menu" : "Open the menu"} data-testid="nav-menu">
+          <Icon d={menu ? "M6 6l12 12 M18 6L6 18" : "M4 7h16 M4 12h16 M4 17h16"} />
+          {inbox > 0 && !menu && <span className="nav-dot" aria-hidden />}
+        </button>
       </div>
+      <div className="nav-panel" id="nav-panel">
       <nav className="nav" aria-label="Main">
         <span className="nav-heading"><span className="nav-heading-text">Work</span></span>
         {work.map((l) => <NavLink key={l.href} l={l} />)}
@@ -171,6 +179,7 @@ export function Nav({ user }: { user?: string | null }) {
                   title={live ? "Live: the API answers" : live === false ? "The API does not answer" : "Checking the API"}
                   aria-label={live ? "Live: the API answers. Check again" : "The API does not answer. Check again"} />
         </div>
+      </div>
       </div>
     </aside>
   );

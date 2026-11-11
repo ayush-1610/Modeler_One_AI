@@ -16,6 +16,7 @@ import { useMutation, useResource } from "@/lib/hooks";
 import { ROLE_LABEL, planApi, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
 import { startCampaign } from "@/lib/writes";
 import { celebrate, toast } from "@/components/kit/Motion";
+import { StepBlocked } from "@/components/kit/StepBlocked";
 
 type Pending = { studyId: string; from: Role; to: Role; where: string; preview: Violation[] | null; problem: string | null;
                  deviation?: boolean };
@@ -33,7 +34,7 @@ function DropDialog({ pending, onConfirm, onCancel }: { pending: Pending; onConf
         <p className="muted" style={{ marginTop: 0 }}>Dropped on {pending.where}. The validator&apos;s answer for this move:</p>
         {pending.problem && <div className="banner err">{pending.problem}</div>}
         {pending.deviation && (
-          <div className="banner warn" data-testid="move-deviation">The MAP is signed: this move is a MAP deviation (D-14). It is
+          <div className="banner warn" data-testid="move-deviation">The MAP is signed: this move is a MAP deviation. It is
             recorded and applies only once the MIDD lead signs it into a new MAP version.</div>
         )}
         {pending.preview === null && !pending.problem && <p className="muted">checking…</p>}
@@ -133,7 +134,7 @@ function BlindingPanel({ projectId }: { projectId: string }) {
   if (!state) return null;
   return (
     <div data-testid="blinding" style={{ fontSize: 12 }}>
-      <h3>Blinding (D-15)</h3>
+      <h3>Blinding</h3>
       <p className="muted" style={{ margin: "0 0 4px" }}>
         {state.map_signed ? "Lifted: the MAP is signed." : state.on
           ? `On — ${state.blinded.length} external stud${state.blinded.length === 1 ? "y's" : "ies'"} values withheld until the MAP is signed.`
@@ -172,7 +173,11 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
   if (page.problem || !view) {
     return (
       <PageShell tone="review" steps={steps} eyebrow="Step 3 · Review & sign" title="Review & sign">
-        {page.problem ? <div className="banner err" data-testid="plan-problem">{page.problem}</div>
+        {page.problem && /not ready/i.test(page.problem)
+          // the plan is made from ready inputs: say what Inputs still waits on and go there, not an error on an empty page
+          ? <StepBlocked projectId={projectId} step="review" title="Review & sign opens when the inputs are ready"
+                         detail={page.problem} testId="plan-blocked" />
+          : page.problem ? <div className="banner err" data-testid="plan-problem">{page.problem}</div>
           : <p className="muted">Computing the MS-01 default plan…</p>}
       </PageShell>
     );
@@ -205,7 +210,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
       tone="review" steps={steps}
       eyebrow="Step 3 · Review & sign"
       title={<>Review &amp; sign · {view.plan.compound}</>}
-      lede={<>The one review before the run (D-27): the studies and their roles, every input with its source, and the model&apos;s
+      lede={<>The one review before the run: the studies and their roles, every input with its source, and the model&apos;s
         credibility. The plan starts as the MS-01 default; each change has a reason, and the MAP is generated from the plan
         and signed only when the validator has nothing open.</>}
       actions={<span className={`chip ${view.blocking ? "high" : "low"}`} data-testid="blocking-chip">
@@ -255,7 +260,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
         {signed && <p className="muted" style={{ fontSize: 13 }} data-testid="map-signed">MAP v{view.map?.map_version ?? view.map?.version} signed{signature ? `: ${signature.manifestation}` : ""} · {view.map?.map_sha256.slice(0, 12)}{view.map?.supersedes ? " · supersedes the earlier version" : ""}</p>}
         {signed && pendingDeviations.length > 0 && (
           <div className="banner warn" data-testid="deviations-pending" style={{ marginTop: 8 }}>
-            <strong>MAP deviations pending signature (D-14, ICH M15 §4.2).</strong> They apply to campaigns once the MIDD
+            <strong>MAP deviations pending signature (ICH M15).</strong> They apply to campaigns once the MIDD
             lead signs them into a new MAP version; until then the signed MAP stands.
             <ul className="plain" style={{ marginTop: 6 }}>
               {pendingDeviations.map((d, i) => <li key={i}><code>{d.target}</code> {d.change} — {d.reason}</li>)}

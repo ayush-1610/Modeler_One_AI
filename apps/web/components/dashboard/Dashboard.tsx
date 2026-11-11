@@ -69,7 +69,7 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
 
   return (
     <>
-      <Hero tone="projects" eyebrow="Modeler One" title="Dashboard" testId="dash-hero"
+      <Hero size="full" tone="projects" eyebrow="Modeler One" title="Dashboard" testId="dash-hero"
             lede="Every PBPK program on the Open Systems Pharmacology Suite: where each stands, what waits on you, and what is running."
             actions={<Link className="btn primary" href="/projects/start" data-testid="dash-new-project">+ New project</Link>} />
       {notice}

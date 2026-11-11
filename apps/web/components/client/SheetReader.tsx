@@ -513,7 +513,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
                   ))}</tbody>
                 </table>
               )}
-              {sample?.values_hidden && <p className="muted rf-hint">Values hidden: external data stay blinded until the analysis plan is signed (D-15).</p>}
+              {sample?.values_hidden && <p className="muted rf-hint">Values hidden: external data stay blinded until the analysis plan is signed.</p>}
               {result.issues.length > 0 && <Problems issues={result.issues} />}
               {result.questions.length > 0 && <ul className="problems">{result.questions.map((q) => <li key={q}>{q}</li>)}</ul>}
             </div>

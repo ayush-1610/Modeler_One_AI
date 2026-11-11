@@ -116,6 +116,7 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await table.getByRole("button", { name: "Add the study" }).click();
   const typed = page.getByTestId("study-po-typed");
   await expect(typed).toBeVisible();
+  await typed.getByRole("button", { name: "Leave po-typed out" }).click();          // the reason is asked for only now
   await typed.getByLabel("reason for po-typed").fill("assay not validated");
   await typed.getByRole("button", { name: "Leave out" }).click();
   await expect(page.getByTestId("study-po-typed")).toContainText("left out: assay not validated");

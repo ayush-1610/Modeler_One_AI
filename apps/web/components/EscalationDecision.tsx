@@ -91,7 +91,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
           })}
           {needsDeviation && (
             <textarea rows={2} value={beyondCap} onChange={(e) => setBeyondCap(e.target.value)} data-testid="beyond-cap"
-              placeholder="This class already had its learn cycle (D-05). Why another one is justified — recorded as a deviation." />
+              placeholder="This class already had its learn cycle. Why another one is justified — recorded as a deviation." />
           )}
         </div>
       )}
@@ -112,7 +112,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
             style={{ marginTop: 6 }} />
           <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
             The whole chain re-runs from the new CPF and S5 re-judges the same studies; the report says the change was
-            prompted by S5, and the verdict needs a model-risk review (D-06).
+            prompted by S5, and the verdict needs a model-risk review.
           </p>
         </div>
       )}

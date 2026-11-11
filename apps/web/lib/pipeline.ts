@@ -2,6 +2,7 @@
 // Server-side reads return `Live<T>` (data or the problem that prevented it), like every other read in the app.
 
 import { narrow, serverGet, type Live, type Narrow, type Schema } from "@/lib/api";
+import { plain } from "@/lib/plain";
 
 // The answers are the API's generated response models (lib/api-types.ts); an artifact's stored content is the caller's.
 export type ArtifactStatus = Schema<"ArtifactStatus">;
@@ -28,7 +29,8 @@ export const STEP_ROUTES: Record<StepId, (projectId: string) => string> = {
 
 export async function getSteps(projectId: string): Promise<Live<StepRow[]>> {
   const live = await serverGet("/api/v1/projects/{project_id}/steps", { project_id: projectId });
-  return { ...live, data: live.data ? live.data.steps : null };
+  // the reasons as a person reads them: the decision numbers stay in the record (lib/plain.ts)
+  return { ...live, data: live.data ? live.data.steps.map((s) => ({ ...s, reasons: s.reasons.map(plain) })) : null };
 }
 
 /** What was made from inputs that have since changed, with why. */

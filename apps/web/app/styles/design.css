@@ -336,3 +336,80 @@ td.num, th.num { white-space: nowrap; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 .stepper-wrap.compact .step-waiting { visibility: hidden; }
+
+/* ---------- long recorded text in one line (components/kit/Clip.tsx) ---------- */
+.clip summary { cursor: pointer; list-style: none; }
+.clip summary::-webkit-details-marker { display: none; }
+.clip-lead { overflow-wrap: anywhere; }
+.clip-more { white-space: nowrap; font-size: 12.5px; font-weight: 600; color: var(--sim); }
+.clip[open] .clip-more { color: var(--ink-dim); }
+.clip-full { margin: 8px 0 0; max-height: 280px; overflow: auto; padding: 12px 14px; border-radius: 12px; background: var(--raised);
+  font: 12px/1.5 var(--font-mono, ui-monospace, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* a filter of links (server-rendered, so it works before the page's code loads) */
+.filter-links { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; margin: 0 0 14px; border-radius: 12px; background: var(--fill); }
+.filter-links a { padding: 6px 14px; border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--ink); text-decoration: none; }
+.filter-links a[aria-current="true"] { background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
+.filter-links .count { margin-left: 6px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+/* a step that cannot open yet (components/kit/StepBlocked.tsx) */
+.step-blocked { max-width: 760px; margin-top: 32px; }
+.step-blocked h2 { margin: 0 0 6px; }
+.step-blocked ul { margin: 6px 0 18px; padding-left: 20px; display: grid; gap: 4px; }
+.step-blocked-detail { margin: 16px 0 0; font-size: 12.5px; color: var(--ink-dim); }
+
+/* ================= phones and narrow windows (the 2026-11-11 audit, item 3) ================= */
+.nav-panel { display: contents; }
+.nav-menu { display: none; }
+@media (max-width: 900px) {
+  /* the sidebar is a bar along the top; the menu opens over the page and closes on any choice */
+  .sidebar, .sidebar.open { position: sticky; top: 0; z-index: 40; width: 100%; height: auto; padding: 8px 12px; gap: 0;
+    border-radius: 0 0 20px 20px; border-right: 0; border-bottom: 1px solid var(--hairline); box-shadow: none; overflow: visible; }
+  .brand { height: 44px; }
+  .brand .nav-text { opacity: 1; transform: none; }
+  .nav-menu { position: relative; display: grid; place-items: center; margin-left: auto; width: 44px; height: 44px; border: 0;
+    border-radius: 12px; background: none; color: var(--ink); cursor: pointer; }
+  .nav-menu:hover { background: var(--fill-btn); }
+  .nav-menu .nav-dot { top: 8px; right: 8px; }
+  .nav-panel { display: none; }
+  .sidebar.menu-open .nav-panel { display: grid; gap: 12px; padding: 8px 0 6px; max-height: calc(100vh - 70px); overflow-y: auto;
+    animation: mo-fade 200ms var(--ease) both; }
+  .sidebar.menu-open { box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.35); }
+  .sidebar .nav a, .sidebar .nav-action { height: 46px; }
+  .nav-foot { margin-top: 4px; }
+  .content, .app:has(> .sidebar.pinned) .content { padding-left: 0; }
+  .content .stepper-wrap { top: 72px; }
+
+  /* nothing wider than the screen: wide tables scroll inside their panel, forms and tools wrap */
+  .card, .dash-panel, .input-block, .start-block { padding: 18px; border-radius: 20px; }
+  .card:has(table), .table-scroll { overflow-x: auto; }
+  .card .spread, .card .row, .library-tools, .dash-tools { flex-wrap: wrap; }
+  .card .spread > input, .library-tools > * { flex: 1 1 140px; min-width: 0; }
+  .inputs-layout, .inputs-area, .rail-nav, .shell-main { min-width: 0; max-width: 100%; }
+  .rail-nav .rail-confirm { margin-left: 0; }
+  .input-head { grid-template-columns: minmax(0, 1fr) auto 32px; }
+  .input-head .input-name { grid-column: 1 / -1; }
+  .input-head .input-value { grid-column: 1; }
+  .input-head .input-source { grid-column: 1 / -1; }
+  .sb-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .hero-inner { padding: 40px 16px 56px; gap: 12px; }
+  .hero-band h1 { font-size: clamp(32px, 10vw, 44px); }
+  .hero-actions .btn { padding: 11px 18px; font-size: 14px; }
+}
+/* Inputs: the to-do beside one folded panel of checks and sources (the 2026-11-11 audit, item 4) */
+.rail-side { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+@media (max-width: 900px) { .rail-side { grid-template-columns: minmax(0, 1fr); } }
+.inputs-more summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; list-style: none; }
+.inputs-more summary::-webkit-details-marker { display: none; }
+.inputs-more summary::after { content: "Show"; font-size: 12.5px; font-weight: 600; color: var(--sim); }
+.inputs-more[open] summary::after { content: "Hide"; }
+.inputs-more-title { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); margin-right: auto; }
+.inputs-more[open] .checks { margin-top: 12px; }
+/* the compact head of a working page (the 2026-11-11 audit, item 5): the same parts, a third of the height */
+.hero-band.compact .hero-inner { padding: 36px 24px 52px; gap: 10px; }
+.hero-band.compact h1 { font-size: clamp(30px, 4.2vw, 46px); letter-spacing: -0.04em; }
+.hero-band.compact .hero-lede { font-size: 15.5px; max-width: 70ch; }
+.hero-band.compact .hero-actions { margin-top: 4px; }
+.hero-band.compact .hero-actions .btn { padding: 10px 20px; font-size: 14px; }
+@media (max-width: 900px) { .hero-band.compact .hero-inner { padding: 28px 16px 44px; } }
+.hero-note { display: block; margin-top: 6px; font-size: 12.5px; color: var(--ink-dim); }
+/* a grid item may shrink below its content (a wide table scrolls in its box instead of widening the page) */
+.shell-main > *, .tabpanel > *, .dash-projects > * { min-width: 0; }

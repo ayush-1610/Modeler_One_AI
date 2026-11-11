@@ -58,7 +58,7 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
       </p>
       {d.blinded && (
         <div className="banner warn" data-testid={`blinded-${d.id}`} style={{ margin: "6px 0" }}>
-          External study: its values are blinded until the MAP is signed (D-15, ICH M15 §4.1). The metadata above is
+          External study: its values are blinded until the MAP is signed (ICH M15). The metadata above is
           what the split uses. To check this dataset now, give the reason; the access is recorded in the audit trail.
           <div className="row" style={{ marginTop: 6 }}>
             <input style={{ flex: 1, minWidth: 180 }} placeholder="why it must be seen now (required)" value={revealReason}

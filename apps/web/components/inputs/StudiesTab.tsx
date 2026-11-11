@@ -40,19 +40,30 @@ function Regimen({ s, projectId, run }: { s: StudyRow; projectId: string; run: R
   );
 }
 
-/** Leave a study out of the model, or take it back, with the reason (kept with the inputs and shown at the review). */
+/** Leave a study out of the model, or take it back, with the reason (kept with the inputs and shown at the review). One
+ *  small button per row; the reason is asked for only when it is pressed (the 2026-11-11 audit, item 4). */
 function LeaveOut({ s, projectId, run }: { s: StudyRow; projectId: string; run: Run }) {
+  const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const verb = s.excluded ? "Include again" : "Leave out";
+  if (!open) {
+    return (
+      <button type="button" className="link-btn" onClick={() => setOpen(true)}
+              aria-label={s.excluded ? `Include ${s.study_id} again` : `Leave ${s.study_id} out`}>{verb}…</button>
+    );
+  }
   return (
     <div className="row" style={{ gap: 4 }}>
-      <input placeholder={s.excluded ? "why include it again" : "why leave it out"} value={reason} onChange={(x) => setReason(x.target.value)}
-             style={{ width: 160 }} aria-label={`reason for ${s.study_id}`} />
+      <input autoFocus placeholder={s.excluded ? "why include it again" : "why leave it out"} value={reason}
+             onChange={(x) => setReason(x.target.value)} style={{ width: 160 }} aria-label={`reason for ${s.study_id}`}
+             onKeyDown={(x) => { if (x.key === "Escape") setOpen(false); }} />
       <button className="btn" disabled={!reason.trim()}
               onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
                                                  { kind: "excluded_studies", key: s.study_id, value: s.excluded ? null : reason, reason }),
                                       s.excluded ? `${s.study_id} is used again.` : `${s.study_id} is left out: ${reason}.`)}>
-        {s.excluded ? "Include again" : "Leave out"}
+        {verb}
       </button>
+      <button type="button" className="link-btn" onClick={() => setOpen(false)}>Cancel</button>
     </div>
   );
 }
@@ -172,7 +183,7 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
                 <tr key={s.study_id} data-testid={`study-${s.study_id}`} id={`study-${s.study_id}`} className={s.excluded ? "left-out" : ""}>
                   <td><strong>{s.study_id}</strong>
                     <div className="muted" style={{ fontSize: 12 }}>{(s.purpose ?? "").replace(/_/g, " ")} · {(s.origin ?? "").toLowerCase().replace("_", " ")}</div>
-                    {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed (D-15)">blinded</span>}</td>
+                    {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed">blinded</span>}</td>
                   <td>{String(fact(s, "route") ?? "").replace("_", " ")} · {fact(s, "dose_mg")} {s.facts.dose_per_kg ? "mg/kg" : "mg"} ·{" "}
                     {fact(s, "food_state")} · {fact(s, "formulation_name") ?? fact(s, "formulation")} · n {fact(s, "n")}
                     {!s.evaluable && !s.excluded && <div className="muted" style={{ fontSize: 12 }}>no mean profile: not judged</div>}</td>

@@ -22,7 +22,7 @@ export function ValidationPlan({ review }: { review: ReviewPage }) {
               {v.studies.map((s) => (
                 <li key={s.study_id} data-testid={`validation-${v.stage}-${s.study_id}`}>
                   <code>{s.study_id}</code>
-                  {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed (D-15)">blinded</span>}
+                  {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed">blinded</span>}
                 </li>
               ))}
             </ul>

@@ -268,7 +268,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
       eyebrow="Step 2 of 4"
       title="Inputs"
       lede={<>Every value not excluded flows in; where sources give several, one is kept by source and grade and the others
-        stay listed for the review. Values are never averaged. <span className="muted">({view.selection_rule})</span></>}
+        stay listed for the review. Values are never averaged.<span className="hero-note">Source selection rules: {view.selection_rule}</span></>}
       actions={(
         <>
           {view.published_models.map((m) => (
@@ -328,22 +328,32 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
           ) : (
             <SidePanel title="Assembling" testId="assembling"><p style={{ margin: 0 }}>The inputs are being put together.</p></SidePanel>
           )}
-          {readiness && (
-            <SidePanel title="Readiness">
-              <ul className="checks" data-testid="readiness">
-                {readiness.checks.map((c) => (
-                  <li key={c.check} data-testid={`check-${c.check}`}>
-                    <span className={`chip ${c.ok ? "low" : "high"}`}>{c.ok ? "ok" : "open"}</span> {c.check}
-                  </li>
-                ))}
-              </ul>
-              <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>PK-Sim dry run: {readiness.engine_dry_run}</p>
-            </SidePanel>
-          )}
-          <SidePanel title="Where values come from">
+          {/* the checks and where values come from, folded: the to-do above is what the page is for (2026-11-11 audit, item 4) */}
+          <details className="side-panel inputs-more" data-testid="inputs-more">
+            <summary>
+              <span className="inputs-more-title">Readiness and sources</span>
+              {readiness && (() => {
+                const open = readiness.checks.filter((c) => !c.ok).length;
+                return <span className={`chip ${open ? "high" : "low"}`}>{open ? `${open} check${open === 1 ? "" : "s"} open` : "all checks ok"}</span>;
+              })()}
+            </summary>
+            {readiness && (
+              <>
+                <ul className="checks" data-testid="readiness">
+                  {readiness.checks.map((c) => (
+                    <li key={c.check} data-testid={`check-${c.check}`}>
+                      <span className={`chip ${c.ok ? "low" : "high"}`}>{c.ok ? "ok" : "open"}</span> {c.check}
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>PK-Sim dry run: {readiness.engine_dry_run}</p>
+              </>
+            )}
+            <h3 style={{ margin: "14px 0 4px" }}>Where values come from</h3>
             <p style={{ margin: 0, fontSize: 13 }}>The client&apos;s files and figures; PubChem, the FDA label and ChEMBL, read by
-              code at the project&apos;s start; the literature agent; and the published OSP model of the drug. Where several give a value, the client&apos;s comes first, then the literature by grade.</p>
-          </SidePanel>
+              code at the project&apos;s start; the literature agent; and the published OSP model of the drug. Where several give a value,
+              the client&apos;s comes first, then the literature by grade.</p>
+          </details>
         </div>
       </Tabs>
       <div className="inputs-area">

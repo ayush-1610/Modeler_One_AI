@@ -139,7 +139,7 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
           {kept ? <>
             {kept.source.title || kept.source_type.toLowerCase().replace(/_/g, " ")}{kept.source.year ? ` · ${kept.source.year}` : ""}
             <span className="muted"> · grade {kept.confidence}</span>
-            {row.state === "kept" && agree > 0 && <span className="chip low" title="sources within 10 % of the kept value (D-32)">+{agree} agree</span>}
+            {row.state === "kept" && agree > 0 && <span className="chip low" title="sources within 10 % of the kept value">+{agree} agree</span>}
           </> : row.state === "conflict" ? <span className="muted">{row.alternatives.length} sources disagree</span> : <span className="muted">no source yet</span>}
         </div>
         <div className="input-state">

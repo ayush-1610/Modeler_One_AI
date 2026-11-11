@@ -238,7 +238,7 @@ export function EstimationPlan({ projectId, review, apply }: { projectId: string
                     </> : r.diagnosis_may_fit ? <>
                       <span className="chip brand" data-testid={`diagnosis-may-fit-${r.id}`}>the diagnosis may fit it in {r.diagnosis_may_fit.stages.join(", ")}</span>
                       <div className="review-note">{bounds(r.diagnosis_may_fit.lower, r.diagnosis_may_fit.upper, r.diagnosis_may_fit.scale)}</div>
-                      <div className="muted review-note">MS-01&apos;s default (D-37)</div>
+                      <div className="muted review-note">MS-01&apos;s default</div>
                     </> : r.held_fixed ? <>
                       <span className="chip neutral" data-testid={`held-fixed-${r.id}`}>held fixed</span>
                       <div className="muted review-note">{r.held_fixed.reason}</div>
@@ -287,12 +287,12 @@ export function EstimationPlan({ projectId, review, apply }: { projectId: string
         </div>
       )}
       <Groups projectId={projectId} groups={review.fit_groups} estimated={rows.filter((r) => r.estimated !== null)} apply={apply} />
-      <p className="muted review-hint">Proposed bounds follow MS-01 §2.2&apos;s default bounds ({rule.source}, data rule v{rule.version},{" "}
+      <p className="muted review-hint">Proposed bounds follow MS-01&apos;s default bounds ({rule.source}, data rule v{rule.version},{" "}
         {rule.status === "UNVERIFIED" ? "provisional until the SME signs" : rule.status}): relative ones around the start value,
         absolute ones only in MS-01&apos;s unit, each kept within the registry&apos;s physical bounds. The MAP may narrow them;
         wider bounds are said and acknowledged. A parameter MS-01 gives no default for gets 0.1–10× its start value.
         An MS-01 candidate you neither estimate nor keep fixed may be fitted by the diagnosis at its stages, within MS-01&apos;s
-        own default (D-37); the signed MAP lists each one.</p>
+        own default; the signed MAP lists each one.</p>
     </div>
   );
 }

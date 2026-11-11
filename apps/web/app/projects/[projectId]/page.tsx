@@ -8,6 +8,7 @@ import { SystemPanel } from "@/components/system/SystemPanel";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
 import { Hero } from "@/components/kit";
+import { StepBlocked } from "@/components/kit/StepBlocked";
 
 function points(study: { profile?: { times: number[] } | null }) {
   return study.profile?.times?.length ?? 0;
@@ -45,6 +46,21 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       <EscalationPopup campaignIds={(campaigns ?? []).map((c) => c.id)} />
       {(liveStudies.problem || liveCampaigns.problem) && (
         <ApiProblem problem={(liveStudies.problem ?? liveCampaigns.problem)!} />
+      )}
+
+      {!runnable && !liveStudies.problem && (
+        // a campaign cannot start yet: what is missing, in words, and the way there (not a page that just lacks its button)
+        <StepBlocked projectId={project.id} step="run" title="A campaign can run once these are in place" testId="run-blocked"
+                     fallback={(
+                       <>
+                         <ul>
+                           {!question && <li>a question of interest (set on Start)</li>}
+                           {!compound && <li>a compound with its parameter framework</li>}
+                           {!(studies && studies.length) && <li>at least one observed study to fit and validate against (added on Inputs)</li>}
+                         </ul>
+                         <Link className="btn primary" href={`/projects/${project.id}/inputs?tab=studies`}>Go to Inputs</Link>
+                       </>
+                     )} />
       )}
 
       {runnable && (

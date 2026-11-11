@@ -27,6 +27,7 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await page.getByRole("button", { name: "Cancel" }).click();
 
   // a valid move, onto the arrow leading into S5, with its reason
+  await page.getByTestId("edge-S4-S5").scrollIntoViewIfNeeded();   // the arrow in view first: a drag that scrolls drops nothing
   await page.getByTestId("overall-data").getByTestId("chip-po-10").dragTo(page.getByTestId("edge-S4-S5"));
   await expect(page.getByTestId("move-ok")).toBeVisible();
   await page.getByTestId("move-reason").fill("the low dose is kept to validate the dose range externally");

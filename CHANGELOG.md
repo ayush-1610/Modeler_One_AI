@@ -15,6 +15,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the six worst frontend flaws from the 2026-11-11 audit (web only)
+The owner, 2026-11-11, after the audit of every page on a laptop and a phone with the published Dapagliflozin model's
+data: fix items 1 to 6. No API change, no science change.
+1. **History is readable.** A change reason or an audit reason that carries a whole value (an expression profile is
+   thousands of characters of JSON) is one line: what it is about and how long the rest is, the full text one click
+   away (`components/kit/Clip.tsx`, a native disclosure). The artifacts are filtered by kind with counts, 25 at a time
+   with "Show all"; the audit trail is newest first, the last 50 with "Show all". The page measured 34,600 px; nothing in
+   the record changes.
+2. **No dead ends.** Review & sign, when the inputs are not ready, and Run, when no campaign can start, say what the
+   earlier step still waits on, in a list, with the button to go there (`components/kit/StepBlocked.tsx`), instead of a
+   red error on an empty page or a page that simply lacks its button.
+3. **Phones.** The sidebar is a bar along the top with a menu that opens over the page and closes on any choice (it
+   was a full menu filling the first screen of every page). Nothing is wider than the screen: the Inputs value rows
+   stack, forms and tool bars wrap, wide tables scroll inside their panel (Inputs, Run and Library were 604–694 px wide
+   on a 390 px phone).
+4. **Inputs, simplified.** The to-do stays beside one folded "Readiness and sources" panel (its label says how many
+   checks are open). On the Studies tab, "Leave out…" is one small button per row; the reason is asked for when it is
+   pressed (a text box and a button sat on every row).
+5. **A compact head on working pages.** The large head stays on the dashboard and the 404; the step pages, History,
+   the inbox and the library use a head a third of the height, so the work starts in the first screen.
+6. **Plain words.** Decision numbers and plan sections ("D-29", "plan §9.4", "MS-01 §6.6") are gone from the pages and
+   from the step reasons as shown (`lib/plain.ts`; the record keeps them). MS-01, ICH M15 and every UNVERIFIED mark stay.
+   The Inputs source-selection rule moved from the lede to a note under it.
+- Tests: `inputs-workspace.spec.ts` presses "Leave po-typed out" before giving the reason; `model-plan.spec.ts` brings
+  the S4 → S5 arrow into view before the drag (the shorter head moved the canvas; a drag that scrolls drops nothing).
+
 ### Changed — only a project's owner changes it; the people it is shared with read it, a reviewer among them signs (2026-11-10)
 The owner, 2026-11-10 (admin console plan, answers 4 and 6): "the one who creates project will be owner who only can
 edit and do anything in project"; the people it is shared with in the same company "can only see/read only"; a
