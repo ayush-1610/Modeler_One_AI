@@ -15,6 +15,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the admin console's monthly limits: a warning to the administrator at 80 % and at 100 % (2026-11-10)
+The owner, 2026-11-10 (admin console plan, E and answer 2): limits "warn to admin (client will see and decide later
+what to show them)".
+- **A monthly limit** on the agents' estimated spend (USD) and/or tokens (in and out), on a company, a project or a
+  person.
+  - It is kept in the platform store (`_platform/limits.json`, `platform_settings.LimitSettings`), with the history of
+    changes.
+  - Set, changed or removed at `PUT /api/v1/admin/limits` (`modeler-admin` only), each change with a fresh step-up
+    and a reason.
+  - Each change is an `admin.limit.set` or `admin.limit.remove` audit event (before and after) on the owner's chain.
+- **This month's use** (calendar month, UTC) against each limit: `GET /api/v1/admin/limits`.
+  - Spend is priced as on the usage page (Opus 5.5 unless another Claude model is chosen).
+  - A limit reads `near` from 80 % of either measure and `reached` from 100 %.
+- **The administrator is warned:**
+  - a banner on the console's overview (`Overview.warnings`, `month`);
+  - the same banner on the new Limits page (`/admin/limits`), where limits are set.
+- **Impact:** nothing stops an agent at a limit, and no answer outside `/admin` carries one: the companies' people see
+  nothing of it (answer 2). An email or push warning is not built yet; it comes with the console's routines (G).
 ### Added — R6: the delivery report, and its score against a person's answer key (2026-11-11)
 Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R6 (§6, the runbook). The cloud session cannot
 reach the server nor hold a model key, so R6 is run on the server by the owner; this is what it runs.
