@@ -9,11 +9,13 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { EmptyState, InlineIssue } from "@/components/kit";
+import { SortHeader, TableMore } from "@/components/kit/SortableTable";
 import { PeekButton } from "@/components/kit/SourcePeek";
 import type { useMutation } from "@/lib/hooks";
 import {
   CONFIDENCE_CHIP, FILTERS, matches, reviewApi, STATE_LABEL, type Filter, type ReviewPage, type ReviewRow,
 } from "@/lib/review";
+import { numericKey, ordinal, useTableView } from "@/lib/tableView";
 
 type Run = ReturnType<typeof useMutation>["run"];
 
@@ -55,9 +57,25 @@ function Exclude({ row, onExclude, busy }: { row: ReviewRow; onExclude: (reason:
   );
 }
 
+// sortable by its heads, 25 rows at a time (the 2026-11-11 audit, item 11); an input that waits on a person (a conflict,
+// a held value, a missing input) is never paged or filtered out
+const confidenceOrder = ordinal(["high", "medium", "low"]);
+const REVIEW_KEYS = {
+  input: (r: ReviewRow) => r.id, value: (r: ReviewRow) => numericKey(r.value), source: (r: ReviewRow) => where(r),
+  grade: (r: ReviewRow) => r.grade ?? null, by: (r: ReviewRow) => r.supplied_by ?? null,
+  confidence: (r: ReviewRow) => confidenceOrder(r.confidence ?? null),
+};
+
 export function ReviewTable({ projectId, review, run, busy }: { projectId: string; review: ReviewPage; run: Run; busy: boolean }) {
   const [filter, setFilter] = useState<Filter>("all");
-  const rows = review.rows.filter((r) => matches(r, filter));
+  // a row the person has worked in (an exclusion reason opened) stays shown, so its typed text is not lost
+  const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
+  const view = useTableView({
+    rows: review.rows, keys: REVIEW_KEYS, pageSize: 25, filter: (r) => matches(r, filter), filterKey: filter,
+    keep: (r) => r.state !== "kept" || touched.has(r.id),
+  });
+  const rows = view.visible;
+  const touch = (id: string) => { if (!touched.has(id)) setTouched(new Set([...touched, id])); };
   const count: Record<Filter, number> = review.counts;
 
   async function exclude(row: ReviewRow, reason: string): Promise<string | null> {
@@ -82,14 +100,16 @@ export function ReviewTable({ projectId, review, run, busy }: { projectId: strin
         <div className="table-scroll">
           <table>
             <thead>
-              <tr><th>Input</th><th className="num">Value</th><th>Source and quote</th><th>Grade</th><th>Supplied by</th>
-                <th>Confidence</th><th /></tr>
+              <tr><SortHeader view={view} col="input" label="Input" /><SortHeader view={view} col="value" label="Value" numeric />
+                <SortHeader view={view} col="source" label="Source and quote" /><SortHeader view={view} col="grade" label="Grade" />
+                <SortHeader view={view} col="by" label="Supplied by" /><SortHeader view={view} col="confidence" label="Confidence" /><th /></tr>
             </thead>
-            <tbody>
+            <tbody className="paged-rows">
               {rows.map((r) => {
                 const state = STATE_LABEL[r.state];
                 return (
-                  <tr key={r.id} data-testid={`review-row-${r.id}`} className={r.state === "kept" ? "" : "waiting"}>
+                  <tr key={r.id} data-testid={`review-row-${r.id}`} className={r.state === "kept" ? "" : "waiting"}
+                      onFocusCapture={() => touch(r.id)}>
                     <td>
                       <code>{r.id}</code>
                       {r.state !== "kept" && <div><span className={`chip ${state.chip}`}>{state.label}</span></div>}
@@ -123,6 +143,7 @@ export function ReviewTable({ projectId, review, run, busy }: { projectId: strin
           </table>
         </div>
       )}
+      <TableMore view={view} noun="inputs" testId="review-more" />
       <p className="muted review-hint">Confidence is shown, not used: it sums up the grade, the flags and how many other
         sources agree. The value each input takes is chosen by the source-selection rule.</p>
     </div>

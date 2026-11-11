@@ -5,8 +5,10 @@ import { useState } from "react";
 import type { Act, Retag } from "@/components/client/ClientFiles";
 import type { View as ClientView } from "@/components/client/types";
 import { EmptyState, InlineIssue } from "@/components/kit";
+import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { apiFile, send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
+import { numericKey, ordinal, useTableView } from "@/lib/tableView";
 
 import { type Run, TodoCard, type TodoItem } from "./InputsTodo";
 import { ObservedDatasets } from "./ObservedDatasets";
@@ -21,6 +23,88 @@ const ROLE: Record<string, string> = {
 };
 
 const fact = (s: StudyRow, key: string) => s.facts[key] as string | number | null | undefined;
+
+// the Role column sorts in the pipeline's order, not alphabetically
+const roleOrder = ordinal(["S1", "S2", "S3", "S5", "S6", "SUPPORTIVE"]);
+const SHOW = [
+  { id: "all", label: "All", test: () => true },
+  { id: "used", label: "Used", test: (s: StudyRow) => !s.excluded },
+  { id: "out", label: "Left out", test: (s: StudyRow) => Boolean(s.excluded) },
+  { id: "blinded", label: "Blinded", test: (s: StudyRow) => s.blinded },
+  { id: "unjudged", label: "No mean profile", test: (s: StudyRow) => !s.evaluable && !s.excluded },
+] as const;
+type Show = (typeof SHOW)[number]["id"];
+const STUDY_KEYS = {
+  study: (s: StudyRow) => s.study_id,
+  protocol: (s: StudyRow) => `${String(fact(s, "route") ?? "")} ${String(numericKey(fact(s, "dose_mg")) ?? "").padStart(12, "0")}`,
+  role: (s: StudyRow) => roleOrder(s.role),
+  used: (s: StudyRow) => (s.excluded ? 1 : 0),
+};
+const studyText = (s: StudyRow) => [s.study_id, s.purpose, s.origin, fact(s, "formulation"), fact(s, "formulation_name"), fact(s, "route")]
+  .filter(Boolean).join(" ").replace(/_/g, " ");
+
+/** The studies table: sortable by its heads, filtered by text or by where a study stands, 20 rows at a time. A study
+ *  that needs the person (blinded, its regimen missing) or whose row is being edited is never paged or filtered out. */
+function StudiesTable({ studies, projectId, run, onIndividuals }: {
+  studies: StudyRow[]; projectId: string; run: Run; onIndividuals: () => void;
+}) {
+  const [show, setShow] = useState<Show>("all");
+  // a row the person has worked in (a regimen typed, a reason opened) stays shown, so its typed text is not lost
+  const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
+  const view = useTableView({
+    rows: studies, keys: STUDY_KEYS, text: studyText, pageSize: 20,
+    filter: SHOW.find((x) => x.id === show)!.test, filterKey: show,
+    keep: (s) => s.blinded || s.regimen_missing || touched.has(s.study_id),
+  });
+  const touch = (id: string) => { if (!touched.has(id)) setTouched(new Set([...touched, id])); };
+  return (
+    <div>
+      <TableFilter view={view} placeholder="Filter studies: id, purpose, origin, formulation…" label="Filter the studies"
+                   testId="studies-filter">
+        <div className="table-chips" role="group" aria-label="Show studies">
+          {SHOW.map((x) => (
+            <button key={x.id} type="button" aria-pressed={show === x.id} data-testid={`studies-show-${x.id}`}
+                    onClick={() => setShow(x.id)}>{x.label}</button>
+          ))}
+        </div>
+      </TableFilter>
+      <div className="table-scroll">
+        <table className="studies-table">
+          <caption className="sr-only">Studies</caption>
+          <thead><tr>
+            <SortHeader view={view} col="study" label="Study" /><SortHeader view={view} col="protocol" label="Protocol" />
+            <SortHeader view={view} col="role" label="Role" /><th>Individual</th><th>Regimen</th>
+            <SortHeader view={view} col="used" label="Used" />
+          </tr></thead>
+          <tbody className="paged-rows">
+            {view.visible.map((s) => (
+              <tr key={s.study_id} data-testid={`study-${s.study_id}`} id={`study-${s.study_id}`} className={s.excluded ? "left-out" : ""}
+                  onFocusCapture={() => touch(s.study_id)}>
+                <td><strong>{s.study_id}</strong>
+                  <div className="muted" style={{ fontSize: 12 }}>{(s.purpose ?? "").replace(/_/g, " ")} · {(s.origin ?? "").toLowerCase().replace("_", " ")}</div>
+                  {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed">blinded</span>}</td>
+                <td>{String(fact(s, "route") ?? "").replace("_", " ")} · {fact(s, "dose_mg")} {s.facts.dose_per_kg ? "mg/kg" : "mg"} ·{" "}
+                  {fact(s, "food_state")} · {fact(s, "formulation_name") ?? fact(s, "formulation")} · n {fact(s, "n")}
+                  {!s.evaluable && !s.excluded && <div className="muted" style={{ fontSize: 12 }}>no mean profile: not judged</div>}</td>
+                <td>{s.role ? <span className="chip neutral" title={s.role_source === "proposed"
+                  ? "proposed by the MS-01 split; changed on Review & sign, with a reason" : "the plan's placement"}>
+                  {s.role} · {ROLE[s.role] ?? s.role.toLowerCase()}</span> : <span className="muted">—</span>}</td>
+                <td><button type="button" className="link-btn" onClick={onIndividuals}>
+                  {{ entered: "entered", published: "published individual", default: "healthy adult default", missing: "not stated" }[s.demographics]}
+                </button></td>
+                <td><Regimen s={s} projectId={projectId} run={run} /></td>
+                <td>{s.excluded && <div className="muted" style={{ fontSize: 12 }}>left out: {s.excluded}</div>}
+                  <LeaveOut s={s} projectId={projectId} run={run} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {view.visible.length === 0 && <p className="muted table-none">No study matches this filter.</p>}
+      <TableMore view={view} noun="studies" testId="studies-more" />
+    </div>
+  );
+}
 
 function Regimen({ s, projectId, run }: { s: StudyRow; projectId: string; run: Run }) {
   const [doses, setDoses] = useState("");
@@ -175,32 +259,7 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
       {todo.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}
       {studies.length === 0 ? <EmptyState title="No studies yet">Add observed data below: the client&apos;s sheets, a published
         figure or a table typed in.</EmptyState> : (
-        <div className="table-scroll">
-          <table className="studies-table">
-            <thead><tr><th>Study</th><th>Protocol</th><th>Role</th><th>Individual</th><th>Regimen</th><th>Used</th></tr></thead>
-            <tbody>
-              {studies.map((s) => (
-                <tr key={s.study_id} data-testid={`study-${s.study_id}`} id={`study-${s.study_id}`} className={s.excluded ? "left-out" : ""}>
-                  <td><strong>{s.study_id}</strong>
-                    <div className="muted" style={{ fontSize: 12 }}>{(s.purpose ?? "").replace(/_/g, " ")} · {(s.origin ?? "").toLowerCase().replace("_", " ")}</div>
-                    {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed">blinded</span>}</td>
-                  <td>{String(fact(s, "route") ?? "").replace("_", " ")} · {fact(s, "dose_mg")} {s.facts.dose_per_kg ? "mg/kg" : "mg"} ·{" "}
-                    {fact(s, "food_state")} · {fact(s, "formulation_name") ?? fact(s, "formulation")} · n {fact(s, "n")}
-                    {!s.evaluable && !s.excluded && <div className="muted" style={{ fontSize: 12 }}>no mean profile: not judged</div>}</td>
-                  <td>{s.role ? <span className="chip neutral" title={s.role_source === "proposed"
-                    ? "proposed by the MS-01 split; changed on Review & sign, with a reason" : "the plan's placement"}>
-                    {s.role} · {ROLE[s.role] ?? s.role.toLowerCase()}</span> : <span className="muted">—</span>}</td>
-                  <td><button type="button" className="link-btn" onClick={onIndividuals}>
-                    {{ entered: "entered", published: "published individual", default: "healthy adult default", missing: "not stated" }[s.demographics]}
-                  </button></td>
-                  <td><Regimen s={s} projectId={projectId} run={run} /></td>
-                  <td>{s.excluded && <div className="muted" style={{ fontSize: 12 }}>left out: {s.excluded}</div>}
-                    <LeaveOut s={s} projectId={projectId} run={run} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <StudiesTable studies={studies} projectId={projectId} run={run} onIndividuals={onIndividuals} />
       )}
       <FilesHere tab="studies" projectId={projectId} client={client} act={act} onRetag={onRetag} onSaved={async (m) => onSaved(m)}>
         <p className="muted" style={{ fontSize: 13, margin: "0 0 8px" }}>

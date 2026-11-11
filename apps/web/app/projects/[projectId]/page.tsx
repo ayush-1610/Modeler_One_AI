@@ -93,7 +93,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
             <table>
               <thead><tr><th>Study</th><th>Route</th><th className="num">Dose</th><th className="num">Points</th></tr></thead>
               <tbody>
-                {studies.map((s) => (
+                {/* a summary: the first ten; the whole list, sortable and filtered, is on Inputs (audit item 11) */}
+                {studies.slice(0, 10).map((s) => (
                   <tr key={s.study_id}>
                     <td><code>{s.study_id}</code></td>
                     <td>{s.route?.replace("_", " ") ?? "—"}</td>
@@ -103,7 +104,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
                 ))}
               </tbody>
             </table>
-          ) : (
+          ) : null}
+          {studies && studies.length > 10 && (
+            <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }} data-testid="overview-studies-more">
+              10 of {studies.length} studies shown.{" "}
+              <Link href={`/projects/${project.id}/inputs?tab=studies`}>All {studies.length} studies on Inputs →</Link>
+            </p>
+          )}
+          {studies && studies.length > 0 ? null : (
             <p className="muted" style={{ margin: 0 }}>
               No observed data yet. Use <strong>Add data</strong> to upload a clinical profile — a campaign
               needs at least one study to fit and validate against.

@@ -9,6 +9,10 @@ import { VbeCard } from "@/components/campaign/Vbe";
 import { OpenDecisionButton } from "@/components/campaign/OpenDecisionButton";
 import { getCampaign } from "@/lib/reads";
 import { Hero } from "@/components/kit";
+import { SortableTable } from "@/components/kit/SortableTable";
+
+// the stages in pipeline order, for sorting the round history by stage
+const STAGE_ORDER = ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"];
 
 function mmss(s: number) {
   const m = Math.floor(s / 60);
@@ -118,28 +122,36 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
       </Card>
 
       <Card title="Round history" action={<span className="muted">each round&apos;s agreement with the observed data</span>}>
-          <table>
-            <thead>
-              <tr><th>Stage</th>{cycles && <th className="num">Cycle</th>}<th className="num">Round</th><th>Action</th><th>AUC vs observed</th><th>Cmax vs observed</th><th>Judged studies</th><th>Verdict</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i}>
-                  <td>{r.stage}</td>
-                  {cycles && <td className="num">{r.cycle ?? 1}</td>}
-                  <td className="num">{r.round}</td>
-                  <td><code>{r.action}</code></td>
-                  <td><FoldError ratio={r.aucGmfe ?? null} limit={foldLimit} label={`${r.stage} round ${r.round} AUC`} /></td>
-                  <td><FoldError ratio={r.cmaxGmfe ?? null} limit={foldLimit} label={`${r.stage} round ${r.round} Cmax`} /></td>
-                  <td className="muted" title={Object.entries(r.realData?.byOrigin ?? {}).map(([o, n]) => `${o.toLowerCase().replace("_", " ")} ${n}`).join(", ")}>
-                    {r.realData ? `${r.realData.real} of ${r.realData.judged} real` : "—"}
-                  </td>
-                  <td>{r.verdict === "passed" ? <span className="chip low">passed</span>
-                       : r.realData && r.realData.judged > 0 && !r.realData.passable ? <span className="chip high">{r.verdict}</span> : r.verdict}</td>
-                </tr>
-              ))}
-            </tbody>
-        </table>
+        {/* sortable by its heads; the default is the order the rounds ran, the newest 20 shown first (audit item 11) */}
+        <SortableTable testId="round-history" label="Round history" noun="rounds" pageSize={20} tail
+                       columns={[
+                         { key: "stage", label: "Stage" },
+                         ...(cycles ? [{ key: "cycle", label: "Cycle", numeric: true }] : []),
+                         { key: "round", label: "Round", numeric: true }, { key: "action", label: "Action" },
+                         { key: "auc", label: "AUC vs observed" }, { key: "cmax", label: "Cmax vs observed" },
+                         { key: "judged", label: "Judged studies", className: "muted" }, { key: "verdict", label: "Verdict" },
+                       ]}
+                       rows={rows.map((r, i) => ({
+                         key: String(i),
+                         cells: [
+                           r.stage,
+                           ...(cycles ? [r.cycle ?? 1] : []),
+                           r.round,
+                           <code key="a">{r.action}</code>,
+                           <FoldError key="auc" ratio={r.aucGmfe ?? null} limit={foldLimit} label={`${r.stage} round ${r.round} AUC`} />,
+                           <FoldError key="cmax" ratio={r.cmaxGmfe ?? null} limit={foldLimit} label={`${r.stage} round ${r.round} Cmax`} />,
+                           <span key="j" title={Object.entries(r.realData?.byOrigin ?? {}).map(([o, n]) => `${o.toLowerCase().replace("_", " ")} ${n}`).join(", ")}>
+                             {r.realData ? `${r.realData.real} of ${r.realData.judged} real` : "—"}</span>,
+                           r.verdict === "passed" ? <span key="v" className="chip low">passed</span>
+                             : r.realData && r.realData.judged > 0 && !r.realData.passable ? <span key="v" className="chip high">{r.verdict}</span> : r.verdict,
+                         ],
+                         sort: [
+                           STAGE_ORDER.indexOf(r.stage) < 0 ? STAGE_ORDER.length : STAGE_ORDER.indexOf(r.stage),
+                           ...(cycles ? [r.cycle ?? 1] : []),
+                           r.round, r.action, r.aucGmfe ?? null, r.cmaxGmfe ?? null,
+                           r.realData ? r.realData.real : null, r.verdict ?? null,
+                         ],
+                       }))} />
       </Card>
 
       {(c.feedbackPending || (c.feedback?.length ?? 0) > 0) && (

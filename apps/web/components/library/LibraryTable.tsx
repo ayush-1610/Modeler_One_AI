@@ -16,15 +16,23 @@ import { useMemo, useState } from "react";
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
 import { EmptyState, InlineIssue } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
+import { SortHeader, TableMore } from "@/components/kit/SortableTable";
 import { RELATED_STEPS } from "@/components/library/AddData";
 import { send, type Schema } from "@/lib/api";
 import { TAG_KINDS, TAG_LABELS, type TagKind, tagLabel } from "@/lib/fileTags";
 import { useMutation, useResource } from "@/lib/hooks";
 import { STEP_ROUTES, type StepId } from "@/lib/pipeline";
+import { type SortState, useTableView } from "@/lib/tableView";
 
 type Row = Schema<"LibraryRowView">;
 type Contribution = Schema<"ContributionView">;
 type Sort = "newest" | "oldest" | "name";
+const SORTS: Record<Sort, NonNullable<SortState>> = {
+  newest: { col: "added", dir: "descending" }, oldest: { col: "added", dir: "ascending" }, name: { col: "name", dir: "ascending" },
+};
+const LIBRARY_KEYS = {
+  name: (r: Row) => r.name, added: (r: Row) => r.added_at, role: (r: Row) => ROLE[r.role] ?? r.role, versions: (r: Row) => r.versions,
+};
 type Change = { row: Row; action: "withdraw" | "restore" };
 const STEP_LABEL = Object.fromEntries(RELATED_STEPS);
 
@@ -171,21 +179,23 @@ export function LibraryTable({ projectId }: { projectId: string }) {
   const [role, setRole] = useState("");
   const [source, setSource] = useState("");
   const [status, setStatus] = useState("");
-  const [sort, setSort] = useState<Sort>("newest");
   const [open, setOpen] = useState<string | null>(null);
   const [change, setChange] = useState<Change | null>(null);
   const rows = useMemo(() => page.data?.documents ?? [], [page.data]);
 
-  const shown = useMemo(() => {
+  const filtered = useMemo(() => {
     const words = query.trim().toLowerCase();
     const hit = (r: Row) => !words || [r.name, r.role, r.added_by, r.relates_to?.task ?? "", r.withdrawn?.reason ?? "",
       r.retrieved ? `${r.retrieved.source} ${r.retrieved.pmid} ${r.retrieved.doi} ${HELD[r.retrieved.held] ?? ""}` : "",
       ...r.contributions.map((c) => `${c.target} ${c.value}`)].join(" ").toLowerCase().includes(words);
-    const list = rows.filter((r) => hit(r) && (!role || r.role === role) && (!source || r.source === source)
+    return rows.filter((r) => hit(r) && (!role || r.role === role) && (!source || r.source === source)
       && (!status || (status === "withdrawn") === Boolean(r.withdrawn)));
-    return [...list].sort((a, b) => sort === "name" ? a.name.localeCompare(b.name)
-      : sort === "oldest" ? a.added_at.localeCompare(b.added_at) : b.added_at.localeCompare(a.added_at));
-  }, [rows, query, role, source, status, sort]);
+  }, [rows, query, role, source, status]);
+  // the Sort select and the column heads drive one order (the 2026-11-11 audit, item 11); newest first, as before
+  const view = useTableView({ rows: filtered, keys: LIBRARY_KEYS, pageSize: 50, initialSort: SORTS.newest,
+                              filterKey: `${query}|${role}|${source}|${status}` });
+  const shown = view.visible;
+  const sort = (Object.keys(SORTS) as Sort[]).find((k) => SORTS[k].col === view.sort?.col && SORTS[k].dir === view.sort?.dir) ?? "custom";
 
   if (page.problem) return <div className="banner err">{page.problem}</div>;
   if (!page.data) return <p className="muted">Loading the library…</p>;
@@ -211,12 +221,14 @@ export function LibraryTable({ projectId }: { projectId: string }) {
           <option value="current">in use</option>
           <option value="withdrawn">withdrawn</option>
         </select>
-        <select aria-label="Sort" value={sort} data-testid="library-sort" onChange={(e) => setSort(e.target.value as Sort)}>
+        <select aria-label="Sort" value={sort} data-testid="library-sort"
+                onChange={(e) => { if (e.target.value in SORTS) view.setSort(SORTS[e.target.value as Sort]); }}>
+          {sort === "custom" && <option value="custom">{view.sort ? "as the column heads say" : "as added to the project"}</option>}
           <option value="newest">newest first</option>
           <option value="oldest">oldest first</option>
           <option value="name">by name</option>
         </select>
-        <span className="muted">{shown.length} of {rows.length}</span>
+        <span className="muted">{filtered.length} of {rows.length}</span>
       </div>
       {rows.length === 0 ? (
         <EmptyState title="No documents yet">The proposal, and every file added with “+ Add data”, appear here.</EmptyState>
@@ -224,10 +236,12 @@ export function LibraryTable({ projectId }: { projectId: string }) {
         <div className="table-scroll">
           <table className="library-table">
             <thead>
-              <tr><th>Document</th><th>Added</th><th>Role and tag</th><th>Relates to</th><th>Format</th><th className="num">Versions</th>
+              <tr><SortHeader view={view} col="name" label="Document" /><SortHeader view={view} col="added" label="Added" />
+                <SortHeader view={view} col="role" label="Role and tag" /><th>Relates to</th><th>Format</th>
+                <SortHeader view={view} col="versions" label="Versions" numeric />
                 <th>Data extracted / project contribution</th><th><span className="sr-only">Actions</span></th></tr>
             </thead>
-            <tbody>
+            <tbody className="paged-rows">
               {shown.map((r) => (
                 <tr key={r.sha256} data-testid={`library-row-${r.name}`} className={r.withdrawn ? "withdrawn" : undefined}>
                   <td>
@@ -259,6 +273,7 @@ export function LibraryTable({ projectId }: { projectId: string }) {
           </table>
         </div>
       )}
+      {rows.length > 0 && <TableMore view={view} noun="documents" testId="library-more" />}
       {change && <ChangeDialog key={change.row.sha256} projectId={projectId} change={change} onClose={() => setChange(null)} />}
       {open && docs.data && (
         <Dialog title="The document" size="wide" onClose={() => setOpen(null)} testId="library-viewer">

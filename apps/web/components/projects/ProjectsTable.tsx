@@ -9,10 +9,20 @@ import { useState } from "react";
 
 import { InlineIssue } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
+import { SortHeader } from "@/components/kit/SortableTable";
 import { RiskChip } from "@/components/ui";
 import { send } from "@/lib/api";
 import { useMutation } from "@/lib/hooks";
+import { ordinal, useTableView } from "@/lib/tableView";
 import type { Project } from "@/lib/types";
+
+// sortable by its heads, in the order the projects arrive until one is pressed (the 2026-11-11 audit, item 11); not paged,
+// so a project just made is never on a later page
+const riskOrder = ordinal(["low", "medium", "high"]);
+const PROJECT_KEYS = {
+  name: (p: Project) => p.name, compounds: (p: Project) => p.compounds.join(", "),
+  questions: (p: Project) => p.openQuestions, risk: (p: Project) => riskOrder(p.risk),
+};
 
 type Pending = { project: Project; action: "archive" | "restore" } | null;
 
@@ -23,7 +33,8 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
   const [reason, setReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const archived = projects.filter((p) => p.archived);
-  const shown = showArchived ? projects : projects.filter((p) => !p.archived);
+  const view = useTableView({ rows: showArchived ? projects : projects.filter((p) => !p.archived), keys: PROJECT_KEYS });
+  const shown = view.visible;
 
   function ask(project: Project, action: "archive" | "restore") {
     setPending({ project, action });
@@ -51,10 +62,10 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
       <table>
         <thead>
           <tr>
-            <th>Project</th>
-            <th>Compounds</th>
-            <th className="num">Open questions</th>
-            <th>Program risk</th>
+            <SortHeader view={view} col="name" label="Project" />
+            <SortHeader view={view} col="compounds" label="Compounds" />
+            <SortHeader view={view} col="questions" label="Open questions" numeric />
+            <SortHeader view={view} col="risk" label="Program risk" />
             <th>Record</th>
             <th />
           </tr>

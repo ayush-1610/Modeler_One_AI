@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 
 import { Digitizer } from "@/components/evidence/Digitizer";
 import { InlineIssue } from "@/components/kit";
+import { TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { narrow, send, upload, type Narrow, type Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
 import { useResource } from "@/lib/hooks";
+import { useTableView } from "@/lib/tableView";
 
 import type { Run } from "./InputsTodo";
 
@@ -30,6 +32,52 @@ function standing(d: Listed): [string, string] {
   if (d.state === "REJECTED") return ["neutral", "left out"];
   if (d.origin === "FIGURE_DIGITIZED" && d.state !== "ACCEPTED" && !d.digitization?.overlay_approved_by) return ["medium", "overlay to check"];
   return ["low", "used"];
+}
+
+const SHOW = [
+  { id: "all", label: "All", test: () => true },
+  { id: "used", label: "Used", test: (d: Listed) => standing(d)[1] === "used" },
+  { id: "out", label: "Left out", test: (d: Listed) => d.state === "REJECTED" },
+  { id: "overlay", label: "Overlay to check", test: (d: Listed) => standing(d)[1] === "overlay to check" },
+  { id: "blinded", label: "Blinded", test: (d: Listed) => Boolean(d.blinded) },
+] as const;
+type Show = (typeof SHOW)[number]["id"];
+const NO_KEYS = {};
+const datasetText = (d: Listed) => [d.study.study_id, d.origin, d.purpose, d.kind, d.study.route, d.study.formulation, d.source.title,
+  standing(d)[1]].filter(Boolean).join(" ").replace(/_/g, " ");
+
+/** The dataset cards, ten at a time with a text and a state filter; a blinded dataset or a figure whose overlay is still
+ *  to check is always shown (the 2026-11-11 audit, item 11). */
+function DatasetList({ datasets, projectId, run }: { datasets: Listed[]; projectId: string; run: Run }) {
+  const [show, setShow] = useState<Show>("all");
+  const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
+  const view = useTableView({
+    rows: datasets, keys: NO_KEYS, text: datasetText, pageSize: 10,
+    filter: SHOW.find((x) => x.id === show)!.test, filterKey: show,
+    keep: (d) => Boolean(d.blinded) || standing(d)[1] === "overlay to check" || touched.has(d.id),
+  });
+  const touch = (id: string) => { if (!touched.has(id)) setTouched(new Set([...touched, id])); };
+  return (
+    <>
+      {datasets.length > 10 && (
+        <TableFilter view={view} placeholder="Filter datasets: study, origin, source…" label="Filter the datasets" testId="datasets-filter">
+          <div className="table-chips" role="group" aria-label="Show datasets">
+            {SHOW.map((x) => (
+              <button key={x.id} type="button" aria-pressed={show === x.id} data-testid={`datasets-show-${x.id}`}
+                      onClick={() => setShow(x.id)}>{x.label}</button>
+            ))}
+          </div>
+        </TableFilter>
+      )}
+      <div className="paged-cards">
+        {view.visible.map((d) => (
+          <div key={d.id} onFocusCapture={() => touch(d.id)}><DatasetCard d={d} projectId={projectId} run={run} /></div>
+        ))}
+      </div>
+      {view.visible.length === 0 && <p className="muted table-none">No dataset matches this filter.</p>}
+      <TableMore view={view} noun="datasets" testId="datasets-more" />
+    </>
+  );
 }
 
 function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: string; run: Run }) {
@@ -152,7 +200,7 @@ export function ObservedDatasets({ projectId, run }: { projectId: string; run: R
         </div>
       )}
       {view.datasets.length === 0 ? <p className="muted" style={{ margin: 0 }}>No observed data yet.</p>
-        : view.datasets.map((d) => <DatasetCard key={d.id} d={d} projectId={projectId} run={run} />)}
+        : <DatasetList datasets={view.datasets} projectId={projectId} run={run} />}
     </section>
   );
 }

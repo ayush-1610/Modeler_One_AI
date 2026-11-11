@@ -2,6 +2,9 @@ import { ApiProblem, Card, Completeness, ProvenanceChip } from "@/components/ui"
 import { MEASURED_SOURCES } from "@/lib/types";
 import { getCompoundCpf } from "@/lib/reads";
 import { Hero } from "@/components/kit";
+import { Clip } from "@/components/kit/Clip";
+import { SortableTable } from "@/components/kit/SortableTable";
+import { numericKey } from "@/lib/tableSort";
 
 export default async function CompoundPage({ params }: { params: Promise<{ projectId: string; compound: string }> }) {
   const { projectId, compound } = await params;
@@ -38,26 +41,26 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
       </Card>
 
       <Card title="Parameters">
-        <table>
-          <thead>
-            <tr>
-              <th>Parameter</th><th className="num">Value</th><th>Unit</th><th>Provenance</th>
-              <th>Reference</th><th>Fittable stages</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cpf.parameters.map((p) => (
-              <tr key={p.id}>
-                <td><code>{p.id}</code></td>
-                <td className="num">{p.value ?? "—"}</td>
-                <td>{p.unit || <span className="muted">—</span>}</td>
-                <td><ProvenanceChip source={p.source} /></td>
-                <td className="muted">{p.reference || "—"}</td>
-                <td>{p.fittableStages.length ? p.fittableStages.join(", ") : <span className="muted">fixed</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* sortable, filterable, 50 rows at a time (the 2026-11-11 audit, item 11); the default order is the CPF's */}
+        <SortableTable testId="cpf-parameters" label="Parameters" noun="parameters" pageSize={50} tableClassName="cpf-table"
+                       filterPlaceholder="Filter parameters: id, unit, provenance, reference…"
+                       columns={[
+                         { key: "id", label: "Parameter" }, { key: "value", label: "Value", numeric: true }, { key: "unit", label: "Unit" },
+                         { key: "source", label: "Provenance" }, { key: "reference", label: "Reference", className: "muted cpf-ref" },
+                         { key: "stages", label: "Fittable stages" },
+                       ]}
+                       rows={cpf.parameters.map((p) => ({
+                         key: p.id,
+                         cells: [
+                           <code key="id">{p.id}</code>, p.value ?? "—", p.unit || <span className="muted">—</span>,
+                           <ProvenanceChip key="src" source={p.source} />, <Clip key="ref" text={p.reference} max={90} />,
+                           p.fittableStages.length ? p.fittableStages.join(", ") : <span className="muted">fixed</span>,
+                         ],
+                         // fixed parameters sort after the fittable ones
+                         sort: [p.id, numericKey(p.value), p.unit || null, p.source, p.reference || null,
+                                p.fittableStages.length ? p.fittableStages.join(", ") : null],
+                         filter: [p.id, p.unit, p.source, p.reference, p.fittableStages.join(" ")].filter(Boolean).join(" "),
+                       }))} />
       </Card>
     </main>
   );

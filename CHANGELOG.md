@@ -15,6 +15,34 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — long tables sort by their heads, filter and page; rows that need action are always shown (audit item 11, web only)
+- **What:** a reusable sort/filter/page hook (`apps/web/lib/tableView.ts`, pure helpers in `lib/tableSort.ts`) and a
+  serializable-prop `components/kit/SortableTable.tsx` (server pages pass rendered cells plus primitive sort keys). Each
+  sortable head is a real `<button>` inside the `th`, with `aria-sort` on the `th` (none → ascending → descending → back
+  to the arriving order); nulls sort last; numbers inside text sort as numbers; Role, Stage, Risk and Confidence sort by
+  an explicit order map, not alphabetically. A footer under (outside) each table says "N of M · K need attention, always
+  shown" with "Show N more" / "Show all"; focus stays on the footer. Applied to: the Inputs **Studies** table (sort Study,
+  Protocol, Role, Used; text filter and All / Used / Left out / Blinded / No mean profile chips; 20 at a time), the
+  **Every dataset** cards (text and state filter; 10 at a time), the **CPF parameters** (sort every column, text filter,
+  50 at a time, the reference clipped with `Clip` and long values wrapped so rows stay short), the campaign **Round
+  history** (sortable, the newest 20 shown with "Show more" for earlier rounds; still chronological by default), the
+  **Library** (the Sort select and the column heads drive one order; 50 at a time), **Review & sign**'s input table
+  (sortable; 25 at a time) and the **Projects** list (sortable, not paged, so a new project is never on a later page).
+  The project overview's Observed studies is a summary of the first ten, with a link to all of them on Inputs. Rows
+  shown by "Show more" fade in (opacity only, nothing moves under the pointer; off under reduced motion).
+- **Why:** the published Dapagliflozin model brings 40 studies, 40 dataset cards and 42 parameters, so the Inputs page
+  was about 11,900 px with no way to order or narrow it (the 2026-11-11 audit, item 11).
+- **Impact:** the default order everywhere is the order the API sends (the Library keeps "newest first"), so nothing
+  reshuffles until a head is pressed. A row that needs the person's action is **never** hidden by paging or a filter:
+  a blinded study or one whose regimen is missing, a dataset that is blinded or whose overlay is still to check, and a
+  Review & sign input in conflict, held or missing are pinned in place, and so is any row the person has started to
+  edit (its typed text is not lost). Every row test id and `id` is unchanged. No API change; `docs/api/openapi.json` is
+  untouched. Not done here: History's audit/artifact tables (server, URL-param sorting), the ledger and influence map,
+  the admin tables and the dashboard search in list view.
+- **Tests:** new `e2e/table-sort.spec.ts` (first page in the API's order with pinned rows, "Show more", the Study head
+  ascending / descending from the keyboard / back, the filter keeping pinned rows). `e2e/published-model.spec.ts` now
+  filters the dataset cards for the Boulton card, because the 40 cards are shown ten at a time (deliberate change).
+
 ### Changed — the Review inbox is removed: a decision is asked on the page the person is on (item 8, web only)
 - **What:** the "Review inbox" item is gone from the sidebar, and `/review` is now a server redirect to the dashboard, so
   old links and bookmarks still land. The escalation pop-up (`components/campaign/EscalationPopup.tsx`) is mounted once,
