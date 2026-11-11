@@ -236,6 +236,21 @@ and raised 12 more; all are fixed.
 - A withdrawn file is counted apart (never as failed); each file's row shows what its readings found overall; a "|" or
   a line break in a name or quote no longer breaks the table.
 
+### Added — the admin console switches every agent to one model in one step (2026-11-11)
+The owner, 2026-11-11: access to Claude on Amazon Bedrock may be lost, so "I must be able to switch between any of
+them easily", back to the in-house model and onto Claude again.
+- **`PUT /api/v1/admin/agents`** (`modeler-admin`, a fresh step-up and a reason) puts all five agents on one provider
+  and model, with Claude's effort and fallback model.
+  - Each agent's change is its own `admin.agent.set` audit event (before and after, marked `every_agent`), with the
+    same reason.
+  - **Refused, with nothing changed,** when the provider has no active key under Keys. A switch made in a hurry cannot
+    leave every agent with nothing to run on.
+  - "As the server's environment says" (the in-house model from the server's secrets file) and "Off" need no key.
+- **Models page:** a "Switch every agent" card above the per-agent table names what the agents run on now. It offers
+  a provider without an active key only once the key is active.
+- **Impact:** admin console only. Each agent's own setting, and how a run reads it at its start, is unchanged. The
+  next run of each agent takes the switch, with no restart.
+
 ### Fixed — `tailscale cert` on the server: tailscaled started with `--statedir` (2026-11-11)
 Going live on Keycloak (deploy/keycloak/README.md, step 2), `tailscale cert` on adt-server answered `500 Internal
 Server Error: no TailscaleVarRoot`: `deploy/server/setup_tailscale.sh` started the userspace tailscaled with

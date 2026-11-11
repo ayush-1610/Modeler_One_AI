@@ -13,7 +13,14 @@ export interface paths {
         };
         /** Agents */
         get: operations["agents_api_v1_admin_agents_get"];
-        put?: never;
+        /**
+         * Set Every Agent
+         * @description Put every agent on one provider and model in one step (the owner, 2026-11-11: "I must be able to switch between
+         *     any of them easily", for when Claude on Bedrock is lost and the in-house model takes over, or back). Each agent's
+         *     change is its own audit event with the same reason. Refused, with nothing changed, when the provider has no active
+         *     key: a switch made in a hurry must not leave every agent with nothing to run on.
+         */
+        put: operations["set_every_agent_api_v1_admin_agents_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -10527,6 +10534,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_every_agent_api_v1_admin_agents_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentSet"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

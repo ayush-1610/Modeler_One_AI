@@ -323,6 +323,34 @@ def set_agent(agent: str, body: AgentSet, principal: Admin, settings: SettingsDe
     return _agents_page(settings)
 
 
+@router.put("/admin/agents", **answers(AgentsPage))
+def set_every_agent(body: AgentSet, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    """Put every agent on one provider and model in one step (the owner, 2026-11-11: "I must be able to switch between
+    any of them easily", for when Claude on Bedrock is lost and the in-house model takes over, or back). Each agent's
+    change is its own audit event with the same reason. Refused, with nothing changed, when the provider has no active
+    key: a switch made in a hurry must not leave every agent with nothing to run on."""
+    _root(settings)
+    ensure_step_up(principal)
+    store = ps.AgentSettings(settings.read_root)
+    if body.provider in ps.KEY_PROVIDERS:
+        active = {r["provider"] for r in ps.KeyStore(settings.read_root, settings.master_key).records() if r["state"] == "active"}
+        if body.provider not in active:
+            raise HTTPException(status_code=409, detail=f"{ps.AGENT_PROVIDERS[body.provider]} has no active key: add one under "
+                                                        "Keys and make it active first; no agent was changed")
+    fields = ("provider", "model", "effort", "fallback")
+    try:
+        for agent in ps.AGENTS:
+            before = store.current(agent)
+            setting = store.set(agent, body.provider, body.model, by=principal.user_id, reason=body.reason,
+                                effort=body.effort, fallback=body.fallback)
+            _changed(settings, principal, "admin.agent.set", agent, reason=body.reason,
+                     before={k: before.get(k, "") for k in fields} if before else None,
+                     after={k: setting[k] for k in fields} | {"every_agent": True})
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    return _agents_page(settings)
+
+
 # --- D: the providers' keys ----------------------------------------------------------------------------------------
 
 
