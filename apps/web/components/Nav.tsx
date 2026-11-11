@@ -50,8 +50,8 @@ function Logo() {
  *  for is gone (2026-11-11). */
 function useApiLive(): boolean | null {
   const esc = useResource("/api/v1/escalations", {}, { select: (d) => d.escalations.length });
-  // the API answered (live) or not; null until the first answer
-  return esc.data !== null ? true : esc.problem ? false : null;
+  // the last read failed (not live, even with an earlier answer still cached), the API answered (live), or neither yet
+  return esc.problem ? false : esc.data !== null ? true : null;
 }
 
 type Item = { href: string; label: string; icon: string; active: boolean; testId?: string };

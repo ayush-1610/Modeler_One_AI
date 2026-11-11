@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { FoldError } from "@/components/FoldError";
 import { PackageDownloads } from "@/components/PackageDownloads";
@@ -27,19 +29,28 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
   const [live, liveEscalations] = await Promise.all([getCampaign(campaignId), getEscalations()]);
   const c = live.data;
   if (!c) {
-    // Never a sample campaign in its place: say what is actually the case, and keep checking.
+    // Never a sample campaign in its place: say what is actually the case. A campaign just started is checked for half a
+    // minute and then said not to be recorded (a mistyped or deleted id must not promise it will appear); an API that does
+    // not answer is asked again less and less often, up to every 30 s.
     return (
       <main>
         <Hero tone="run" eyebrow="Campaign" title={<code>{campaignId}</code>} />
         {live.notFound ? (
-          <div className="banner warn" data-testid="campaign-pending">
-            This campaign is not recorded yet. A campaign you have just started appears within a few seconds;
-            this page checks again on its own. If it never appears, the API log says why it did not start.
-          </div>
+          <AutoRefresh active giveUpAfterMs={30_000} gaveUp={
+            <div className="banner warn" role="status" data-testid="campaign-not-found">
+              No campaign with this id is recorded. Open it from its project&apos;s Run step, or from <Link href="/">Projects</Link>.
+            </div>}>
+            <div className="banner warn" data-testid="campaign-pending">
+              This campaign is not recorded yet. A campaign you have just started appears within a few seconds; this page
+              checks again on its own for half a minute.
+            </div>
+          </AutoRefresh>
         ) : (
-          <ApiProblem problem={live.problem ?? "The campaign could not be read."} />
+          <>
+            <ApiProblem problem={live.problem ?? "The campaign could not be read."} />
+            <AutoRefresh active backoff />
+          </>
         )}
-        <AutoRefresh active />
       </main>
     );
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type Series = {
   name: string;
@@ -12,14 +12,29 @@ export type Series = {
   upper?: number[];
 };
 
-export function ConcentrationTimePlot({ series }: { series: Series[] }) {
+type Plotly = typeof import("plotly.js-dist-min");
+
+export function ConcentrationTimePlot({ series: given }: { series: Series[] }) {
   const container = useRef<HTMLDivElement>(null);
+  const plotly = useRef<Plotly | null>(null);
   const [logScale, setLogScale] = useState(true);
+  const [failed, setFailed] = useState(false);
+  // keyed on the content: a running campaign's page refreshes every few seconds with an equal but new array, which must
+  // not re-plot (nor move the chart under the pointer)
+  const key = JSON.stringify(given);
+  const series = useMemo(() => JSON.parse(key) as Series[], [key]);
+
+  // the plot is released when the page goes
+  useEffect(() => {
+    const el = container.current;
+    return () => { if (plotly.current && el) plotly.current.purge(el); };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     import("plotly.js-dist-min").then((Plotly) => {
       if (cancelled || !container.current) return;
+      plotly.current = Plotly;
       // Read the series colours off the design tokens so the plot says the same thing as the rest of the
       // interface: blue is the model's prediction, amber is what was measured in the clinic.
       const css = getComputedStyle(document.documentElement);
@@ -53,16 +68,18 @@ export function ConcentrationTimePlot({ series }: { series: Series[] }) {
         return [band, main];
       });
       const unit = series[0]?.unit ?? "";
-      void Plotly.react(
+      return Plotly.react(
         container.current,
         traces,
         {
+          // Plotly keeps the person's zoom and pan across new data; a change of scale resets the y axis only
+          uirevision: "gof",
           autosize: true,
           margin: { l: 64, r: 16, t: 8, b: 48 },
           font: { color: ink, family: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, system-ui, sans-serif", size: 12 },
           xaxis: { title: { text: "Time (h)" }, gridcolor: grid, zerolinecolor: grid },
           yaxis: { title: { text: `Plasma concentration (${unit})` }, type: logScale ? "log" : "linear",
-                   gridcolor: grid, zerolinecolor: grid },
+                   uirevision: logScale ? "log" : "linear", gridcolor: grid, zerolinecolor: grid },
           legend: { orientation: "h", y: -0.22 },
           paper_bgcolor: "rgba(0,0,0,0)",
           plot_bgcolor: "rgba(0,0,0,0)",
@@ -72,7 +89,7 @@ export function ConcentrationTimePlot({ series }: { series: Series[] }) {
         // the grid column is sized after this effect runs; force Plotly to measure the settled width
         if (container.current) Plotly.Plots.resize(container.current);
       });
-    });
+    }).catch(() => { if (!cancelled) setFailed(true); });
     return () => {
       cancelled = true;
     };
@@ -84,7 +101,10 @@ export function ConcentrationTimePlot({ series }: { series: Series[] }) {
         <input id="log-scale" type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
         Log scale
       </label>
-      <div ref={container} className="w-full h-360" />
+      {failed && (
+        <p className="banner err" role="status" data-testid="plot-failed">The plot could not be loaded; reload the page.</p>
+      )}
+      <div ref={container} className="w-full h-360" hidden={failed} />
     </figure>
   );
 }

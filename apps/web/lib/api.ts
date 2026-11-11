@@ -84,6 +84,18 @@ async function serverBearer(): Promise<string> {
   return (await cookies()).get(COOKIE.access)?.value ?? "";
 }
 
+/** How long a read (a GET) waits for the API before it says so, instead of leaving the page loading for minutes:
+ *  45 s unless NEXT_PUBLIC_MODELER_READ_TIMEOUT_S (the browser and the web server) or MODELER_READ_TIMEOUT_S (the web
+ *  server) says otherwise. Writes and uploads have no such limit: they wait for the proxy's own (next.config.mjs). */
+const READ_TIMEOUT_S = Number(process.env.NEXT_PUBLIC_MODELER_READ_TIMEOUT_S || process.env.MODELER_READ_TIMEOUT_S || 45);
+const READ_TIMEOUT_MS = READ_TIMEOUT_S * 1000;
+const TIMED_OUT = `The API did not answer within ${READ_TIMEOUT_S} s; what is shown may be out of date.`;
+
+function timedOut(err: unknown): boolean {
+  const name = (err as { name?: string } | null)?.name;
+  return name === "TimeoutError" || name === "AbortError";
+}
+
 /** A typed server-side read of a route: `serverGet("/api/v1/projects/{project_id}/phases", { project_id })`. */
 export async function serverGet<R extends RouteFor<"get">>(
   route: R, params: Params<R>, query?: Record<string, string | undefined>,
@@ -93,8 +105,10 @@ export async function serverGet<R extends RouteFor<"get">>(
     response = await fetch(`${SERVER_API_BASE}${path(route, params, query)}`, {
       headers: { Authorization: `Bearer ${await serverBearer()}` },
       cache: "no-store",
+      signal: AbortSignal.timeout(READ_TIMEOUT_MS),
     });
   } catch (err) {
+    if (timedOut(err)) return { data: null, notFound: false, problem: TIMED_OUT };
     const cause = (err as { cause?: { code?: string } })?.cause?.code ?? (err as Error)?.message ?? "no answer";
     return { data: null, notFound: false,
              problem: `The API at ${SERVER_API_BASE} is not reachable (${cause}). Start it, or point MODELER_API_BASE at it.` };
@@ -132,9 +146,13 @@ async function withSession(call: () => Promise<Response>): Promise<Response> {
   return call();
 }
 
+/** What a call was: a read (GET, a download), a change (POST/PUT with a JSON body) or an upload (files). */
+type CallKind = "read" | "change" | "upload";
+
 /** Turn any non-success answer into a readable message: the API's own `detail` when it sent one, else the HTTP
- *  status, with a hint when the web server's proxy could not reach the API at all. */
-async function failure(res: Response): Promise<string> {
+ *  status, in one sentence when the web server's proxy could not reach the API at all. Operator advice (the API log,
+ *  MODELER_API_BASE) is not for this page; the web server's own read says it in its log and on the server-rendered page. */
+async function failure(res: Response, kind: CallKind): Promise<string> {
   const text = await res.text().catch(() => "");
   try {
     const body = JSON.parse(text) as { detail?: unknown; errors?: { message: string }[] };
@@ -155,8 +173,9 @@ async function failure(res: Response): Promise<string> {
   }
   if (res.status >= 500) {
     // the web server's proxy answers a bare 500 when the API is down, failed, or took longer than the proxy waits
-    return `The API did not answer (HTTP ${res.status}): it failed, took too long, or is not running. Try fewer files ` +
-      "at once; if it keeps happening, check the API log and that the web server's MODELER_API_BASE points at it.";
+    if (kind === "read") return `The API is not answering right now (HTTP ${res.status}); what is shown may be out of date.`;
+    const said = `The API did not answer (HTTP ${res.status}): it failed, took too long, or is not running.`;
+    return kind === "upload" ? `${said} Try fewer files at once.` : said;
   }
   return `HTTP ${res.status} ${res.statusText}`.trim();
 }
@@ -175,11 +194,13 @@ async function request<T>(url: string, method: "GET" | "POST" | "PUT", body?: un
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${BROWSER_TOKEN}` },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
+      // a read gives up after READ_TIMEOUT_S; a change waits for its answer (it may be doing the work)
+      signal: method === "GET" ? AbortSignal.timeout(READ_TIMEOUT_MS) : undefined,
     }));
-  } catch {
-    return errorEnvelope(UNREACHABLE);
+  } catch (err) {
+    return errorEnvelope(method === "GET" && timedOut(err) ? TIMED_OUT : UNREACHABLE);
   }
-  if (!res.ok) return errorEnvelope(await failure(res));
+  if (!res.ok) return errorEnvelope(await failure(res, method === "GET" ? "read" : "change"));
   return (await res.json()) as Envelope<T>;
 }
 
@@ -191,7 +212,7 @@ async function multipart<T>(url: string, form: FormData): Promise<Envelope<T>> {
   } catch {
     return errorEnvelope(UNREACHABLE);
   }
-  if (!res.ok) return errorEnvelope(await failure(res));
+  if (!res.ok) return errorEnvelope(await failure(res, "upload"));
   return (await res.json()) as Envelope<T>;
 }
 
@@ -223,7 +244,7 @@ export async function apiFile(url: string): Promise<{ file: Blob | null; problem
   } catch {
     return { file: null, problem: UNREACHABLE };
   }
-  if (!res.ok) return { file: null, problem: await failure(res) };
+  if (!res.ok) return { file: null, problem: await failure(res, "read") };
   return { file: await res.blob(), problem: null };
 }
 
@@ -242,7 +263,7 @@ export async function post<R extends RouteFor<"post">>(route: R, params: Params<
   } catch {
     return errorEnvelope(UNREACHABLE);
   }
-  if (!res.ok) return errorEnvelope(await failure(res));
+  if (!res.ok) return errorEnvelope(await failure(res, "change"));
   return { data: (await res.json()) as Answer<R, "post">, meta: { request_id: "", timestamp: "", api_version: "" }, errors: [] };
 }
 

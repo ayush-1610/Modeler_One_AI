@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — Resilience: honest liveness, polling that recovers, read timeouts, plain outage messages (web)
+Frontend audit 2, item 9 (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** the sidebar's liveness tests the
+last read's failure before its cached answer, so it no longer says "live" after the API stops. A polled `useResource`
+read that fails keeps polling at a doubling interval capped at 30 s (it stopped for good before, so the decision pop-up,
+the liveness and a run's progress never recovered without a reload); `useResource` also returns `updatedAt` and `stale`.
+Every GET (`serverGet`, the browser's `get`) gives up after 45 s (`NEXT_PUBLIC_MODELER_READ_TIMEOUT_S` /
+`MODELER_READ_TIMEOUT_S`) with one sentence ("The API did not answer within 45 s; what is shown may be out of date.");
+writes and multipart uploads keep the proxy's long timeout. A bare 5xx now reads "The API is not answering right now
+(HTTP 500); what is shown may be out of date." for a read; "Try fewer files at once" is kept for uploads only, and the
+MODELER_API_BASE operator hint no longer reaches the browser. `AutoRefresh` skips hidden tabs (one refresh on return),
+backs off to 30 s while the API does not answer, and can give up: a campaign id that is not recorded is checked for
+30 s, then the page says "No campaign with this id is recorded." instead of promising it will appear. The
+goodness-of-fit plot keeps the person's zoom and pan (`uirevision`), re-plots only when the series' content changes,
+is purged on unmount and says "The plot could not be loaded; reload the page." when Plotly fails to load. Sections
+waiting to fade in carry `.reveal-pending` instead of an inline opacity; a print rule and a `beforeprint` handler show
+them, and the 1.8 s safety-net interval runs only while something waits. **Why:** the API outage states lied (live
+when down, never recovering), a hung API left pages loading for minutes, every outage gave upload and operator advice,
+a wrong campaign id polled forever, the running campaign's plot reset the zoom under the pointer every 2.5 s, and a
+printed or PDF-saved page lost every section not scrolled to. **Impact:** web only; no API or science change.
+**Tests:** new `e2e/resilience.spec.ts` (liveness after a later failure, recovery of a first failed poll, the one-line
+read failure, the not-recorded campaign giving up, print and `beforeprint` showing pending sections).
+
 ### Fixed — Phone layout: no sideways page, a 44 px step bar, wide tables that show their key column and their action (web)
 Frontend audit 2, item 8 (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** `.table-scroll` and the panels that
 scroll a table (`.card:has(> table)`, `.card:has(table)` at ≤900px) are now `position: relative`, so absolutely
