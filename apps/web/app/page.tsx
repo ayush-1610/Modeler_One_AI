@@ -5,7 +5,7 @@ import { getCampaigns, getEscalations, getProjects } from "@/lib/reads";
 
 // What a project's next action is called, by the step it waits at (plan 2026-11-06-app-design-merge §3 A).
 const NEXT: Record<StepRow["step"], string> = {
-  start: "Confirm the brief", inputs: "Finish the inputs", review: "Sign the MAP", run: "Run the campaign",
+  start: "Confirm the brief", inputs: "Finish the inputs", review: "Sign the plan (MAP)", run: "Run the campaign",
 };
 
 /** Where a project stands, read from its four steps: the step that waits on a person first, then one that runs. */

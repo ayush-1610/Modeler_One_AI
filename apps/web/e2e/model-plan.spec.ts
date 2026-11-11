@@ -1,6 +1,7 @@
 // T-50: the P5 canvas. The plan starts as the MS-01 default; a dataset dragged onto a D3 node is checked by the
 // validator before the person gives the reason; a rule-breaking move blocks the signature; warnings are acknowledged;
-// the MAP is generated from the plan, signed, and the campaign starts from it.
+// the MAP is generated from the plan, signed after a confirmation that states what is signed, and the campaign starts
+// from it on the Run step, the one start (the owner's decision 2 of 2026-11-11).
 import { expect, test } from "@playwright/test";
 
 import { dropEscalations } from "./fixtures/escalations";
@@ -20,6 +21,12 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
     { study_id: "po-10", route: "oral", dose_mg: 10 }, { study_id: "po-50", route: "oral", dose_mg: 50 },
     { study_id: "po-100", route: "oral", dose_mg: 100 }, { study_id: "ddi-itra", route: "oral", dose_mg: 50, co_medication: "itraconazole" },
   ]);
+  // before the signature the Run step starts nothing: it waits on Review & sign and links there (decision 2)
+  await page.goto(`/projects/${projectId}`);
+  await expect(page.getByTestId("run-blocked")).toContainText("Review & sign is not finished");
+  await expect(page.getByTestId("run-blocked").getByTestId("step-blocked-go")).toHaveAttribute("href", `/projects/${projectId}/plan`);
+  await expect(page.getByRole("button", { name: "Run campaign" })).toHaveCount(0);
+
   await page.goto(`/projects/${projectId}/plan`);
   await expect(page.getByTestId("overall-data")).toContainText("Overall Data");
   await expect(page.getByTestId("node-S1")).toContainText("iv-250");          // the MS-01 default
@@ -62,7 +69,7 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await expect(page.getByTestId("violation-risk:model_risk")).toHaveCount(0);
   await expect(settings.getByLabel("Time budget (hours)")).toHaveValue("8");    // the platform default, split by MS-01
 
-  // warnings are acknowledged with a reason; then the validator is green and Approve and Sign is enabled
+  // warnings are acknowledged with a reason; then the validator is green and "Sign the plan (MAP)" is enabled
   const sign = page.getByTestId("approve-and-sign");
   for (let i = 0; i < 6 && !(await page.getByTestId("validator-green").isVisible()); i++) {
     const warning = page.locator("[data-testid^='violation-']").first();
@@ -75,9 +82,33 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   }
   await expect(page.getByTestId("validator-green")).toBeVisible();
   await expect(sign).toBeEnabled();
+  await expect(sign).toHaveText("Sign the plan (MAP)");
   await page.screenshot({ path: test.info().outputPath("plan.png"), fullPage: true });
+
+  // the signature is confirmed first, saying what is signed and what it means; Cancel signs nothing
   await sign.click();
+  const confirm = page.getByTestId("sign-confirm-dialog");
+  await expect(confirm.getByTestId("sign-confirm-what")).toContainText("MAP v1 for Planamide");
+  await expect(confirm.getByTestId("sign-confirm-what")).toContainText("Approved");
+  await expect(confirm.getByTestId("sign-confirm-what")).toContainText("step-up");
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByTestId("map-signed")).toHaveCount(0);
+
+  // a refused signature is an error, read aloud (role=alert), never a green note. The refusal is the API's own answer
+  // shape, returned for this one request so the refusal is certain; the next attempt goes to the API.
+  await page.route("**/plan:sign", (route) => route.fulfill({ status: 409, contentType: "application/json",
+                                                               body: JSON.stringify({ detail: "the validator has an open violation" }) }), { times: 1 });
+  await sign.click();
+  await page.getByTestId("sign-confirm").click();
+  await expect(page.getByTestId("plan-message")).toHaveAttribute("role", "alert");
+  await expect(page.getByTestId("plan-message")).toHaveClass(/\berr\b/);
+  await expect(page.getByTestId("plan-message")).toContainText("The MAP was not signed: the validator has an open violation");
+  await expect(page.getByTestId("map-signed")).toHaveCount(0);
+
+  await sign.click();
+  await page.getByTestId("sign-confirm").click();
   await expect(page.getByTestId("map-signed")).toContainText("MAP v1 signed");
+  await expect(page.getByTestId("plan-message")).toHaveAttribute("role", "status");
 
   // D-14: after the signature a move is a MAP deviation — recorded, then signed into MAP v2, before the run
   // the canvas in view first, as a person would have it: the taller page head (plan 2026-11-06 §5) left the signature
@@ -89,12 +120,26 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await page.getByTestId("move-reason").fill("the external dose range is covered by po-50; po-10 trains absorption");
   await page.getByTestId("move-confirm").click();
   await expect(page.getByTestId("deviations-pending")).toContainText("po-10");
-  await expect(page.getByTestId("run-campaign")).toHaveCount(0);           // nothing runs on an unsigned deviation
+  await expect(page.getByTestId("go-to-run")).toHaveCount(0);              // nothing runs on an unsigned deviation
   await expect(sign).toHaveText("Sign the deviation (1)");
+  // nor on the Run step: it says what Review & sign still waits on and links back
+  await page.goto(`/projects/${projectId}`);
+  await expect(page.getByTestId("run-blocked").getByTestId("step-blocked-go")).toHaveAttribute("href", `/projects/${projectId}/plan`);
+  await expect(page.getByRole("button", { name: "Run campaign" })).toHaveCount(0);
+  await page.getByTestId("run-blocked").getByTestId("step-blocked-go").click();
+  await page.waitForURL(/\/plan$/);
   await sign.click();
+  await expect(page.getByTestId("sign-confirm-what")).toContainText("1 MAP deviation for Planamide into MAP v2, which supersedes MAP v1");
+  await expect(page.getByTestId("sign-confirm-dialog")).toContainText("po-10");
+  await page.getByTestId("sign-confirm").click();
   await expect(page.getByTestId("map-signed")).toContainText("MAP v2 signed");
   await expect(page.getByTestId("map-signed")).toContainText("supersedes");
-  await page.getByTestId("run-campaign").click();
+  // the plan has no run button of its own: it links to the Run step, whose one start runs from the signed MAP v2
+  // (this used to click a second "Run the campaign (P6)" button here; decision 2 of 2026-11-11 leaves one start)
+  await page.getByTestId("go-to-run").click();
+  await page.waitForURL(new RegExp(`/projects/${projectId}$`));
+  await expect(page.getByTestId("run-from-map")).toContainText("MAP v2");
+  await page.getByRole("button", { name: "Run campaign" }).click();
   await page.waitForURL(/\/campaigns\/[^/]+$/);
   await expect(page.getByRole("heading", { name: "Planamide" })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("campaign-status")).toHaveText(/completed|escalated|awaiting_signature|aborted|failed/,

@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { InlineIssue, PageShell } from "@/components/kit";
+import { Banner, InlineIssue, PageShell } from "@/components/kit";
+import { Dialog } from "@/components/kit/Dialog";
 import { D3Dag, STUDY_MIME, StudyChip } from "@/components/plan/D3Dag";
 import { D1Disposition, D2Absorption } from "@/components/plan/Diagrams";
 import { Credibility, StudiesTable } from "@/components/review/Credibility";
@@ -14,7 +16,6 @@ import { Card } from "@/components/ui";
 import type { Envelope, Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
 import { ROLE_LABEL, planApi, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
-import { startCampaign } from "@/lib/writes";
 import { celebrate, toast } from "@/components/kit/Motion";
 import { StepBlocked } from "@/components/kit/StepBlocked";
 
@@ -165,7 +166,9 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
   const mutation = useMutation();
   const [tab, setTab] = useState<(typeof TABS)[number]>(TABS[0]);
   const [pending, setPending] = useState<Pending | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  // a result or a refusal: a refusal (a rejected signature, a rebase the API turned down) is an error, read aloud
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [note, setNote] = useState("");
   const [signature, setSignature] = useState<Schema<"SignatureView"> | null>(null);
   const view = page.data;
@@ -186,7 +189,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
   // a change to the plan, then the plan and the phase rail read again; answers the API's reason when it refused
   const apply = async <T,>(call: () => Promise<Envelope<T>>, ok?: string) => {
     const { problem } = await mutation.run(call);
-    if (!problem && ok) setMessage(ok);
+    if (!problem && ok) setMessage({ ok: true, text: ok });
     return problem;
   };
   const onDrop = async (studyId: string, role: Role, where: string) => {
@@ -204,6 +207,10 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
   // before the first signature: sign the plan; after it: sign the deviations (D-14), nothing else to sign
   const canSign = view.blocking === 0 && !stale && (!signed || pendingDeviations.length > 0);
   const studies = view.overall_data.studies;
+  // one label for the one signature, here and on the dashboard (NEXT.review)
+  const signLabel = signed && pendingDeviations.length
+    ? `Sign the deviation${pendingDeviations.length === 1 ? "" : "s"} (${pendingDeviations.length})` : "Sign the plan (MAP)";
+  const nextMapVersion = signed ? (view.map?.map_version ?? 1) + 1 : 1;
 
   return (
     <PageShell
@@ -220,7 +227,10 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
         {stale && (
           <div className="banner warn" data-testid="plan-stale">
             The inputs changed since this plan ({view.artifact.stale_reasons.join("; ")}).
-            <button className="btn tiny ml-8" onClick={() => apply(() => planApi.rebase(projectId), "Plan brought up to date; your choices kept.")}>
+            <button className="btn tiny ml-8" onClick={async () => {
+              const problem = await apply(() => planApi.rebase(projectId), "Plan brought up to date; your choices kept.");
+              if (problem) setMessage({ ok: false, text: `The plan was not brought up to date: ${problem}` });
+            }}>
               Bring it up to date</button>
           </div>
         )}
@@ -229,28 +239,20 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
         </p>
         <div className="row">
           <button className="btn" disabled={!view.agents.enabled || view.running || signed}
-                  onClick={async () => setMessage(await apply(() => planApi.draft(projectId)) ?? "A5 is drafting the rationale; proposals appear in the diff.")}>
+                  onClick={async () => {
+                    const problem = await apply(() => planApi.draft(projectId));
+                    setMessage(problem ? { ok: false, text: problem } : { ok: true, text: "A5 is drafting the rationale; proposals appear in the diff." });
+                  }}>
             Draft with A5</button>
           <input placeholder="signature note" value={note} onChange={(e) => setNote(e.target.value)} className="flex-1 minw-140" />
-          <button className="btn primary" disabled={!canSign} data-testid="approve-and-sign"
+          <button className="btn primary" disabled={!canSign || mutation.busy} data-testid="approve-and-sign"
                   title={canSign ? "generate the MAP from this plan and sign it (MIDD lead)"
                     : signed ? "the MAP is signed; a change now is a deviation to sign" : "resolve or acknowledge every violation first"}
-                  onClick={async () => {
-                    const done = pendingDeviations.length
-                      ? `Deviations signed: MAP v${(view.map?.map_version ?? 1) + 1} supersedes v${view.map?.map_version ?? 1}.`
-                      : "MAP generated from the plan and signed.";
-                    const { data, problem } = await mutation.run(() => planApi.sign(projectId, note));
-                    if (data) { setSignature(data.signature); celebrate(); toast(done); }
-                    setMessage(problem ?? done);
-                  }}>
-            {signed && pendingDeviations.length ? `Sign the deviation${pendingDeviations.length === 1 ? "" : "s"} (${pendingDeviations.length})` : "Approve and Sign"}</button>
+                  onClick={() => setConfirming(true)}>
+            {signLabel}</button>
           {signed && view.map && !pendingDeviations.length && (
-            <button className="btn" data-testid="run-campaign" onClick={async () => {
-              // the MAP artifact's staged campaign inputs (stored content), the body a campaign starts from
-              const started = await startCampaign(projectId, view.map!.campaign as Parameters<typeof startCampaign>[1]);
-              if (started.campaign_id) window.location.assign(`/campaigns/${started.campaign_id}`);
-              else setMessage(`The campaign did not start: ${started.error ?? "no campaign id returned"}`);
-            }}>Run the campaign (P6)</button>
+            // the one start is on the Run step, from this signed MAP (the owner's decision 2 of 2026-11-11)
+            <Link className="btn" href={`/projects/${projectId}`} data-testid="go-to-run">Go to Run</Link>
           )}
         </div>
         {!canSign && !signed && view.blocking > 0 && (
@@ -271,7 +273,45 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
           <p className="muted fs-12 m-4-0-0">A change now is a MAP deviation: it is recorded and
             waits for the MIDD lead&apos;s signature.</p>
         )}
-        {message && <div className="banner ok mt-8">{message}</div>}
+        {message && <div className="mt-8"><Banner tone={message.ok ? "ok" : "err"} testId="plan-message">{message.text}</Banner></div>}
+        {confirming && (
+          // what is signed, and what the signature means, before it is made (Part 11 §11.50), as for an escalation's decision
+          <Dialog title="Electronic signature" size="narrow" testId="sign-confirm-dialog"
+                  onClose={() => { if (!mutation.busy) setConfirming(false); }}>
+            <>
+              <p className="muted" data-testid="sign-confirm-what">
+                {pendingDeviations.length ? (
+                  <>You are about to sign {pendingDeviations.length} MAP deviation{pendingDeviations.length === 1 ? "" : "s"} for{" "}
+                    <strong>{view.plan.compound}</strong> into <strong>MAP v{nextMapVersion}</strong>, which supersedes
+                    MAP v{nextMapVersion - 1}:</>
+                ) : (
+                  <>You are about to sign <strong>MAP v{nextMapVersion}</strong> for <strong>{view.plan.compound}</strong>,
+                    generated from model plan v{view.artifact.version}.</>
+                )}{" "}
+                It is recorded as an <em>Approved</em> signature (MIDD lead) bound to the MAP&apos;s content; your password
+                is never entered into Modeler One — the signature is taken from your session&apos;s step-up authentication.
+              </p>
+              {pendingDeviations.length > 0 && (
+                <ul className="plain">
+                  {pendingDeviations.map((d, i) => <li key={i}><code>{d.target}</code> {d.change} — {d.reason}</li>)}
+                </ul>
+              )}
+              {note.trim() && <p className="muted fs-13">Signature note: {note.trim()}</p>}
+              <div className="dialog-actions">
+                <button className="btn" disabled={mutation.busy} onClick={() => setConfirming(false)}>Cancel</button>
+                <button className="btn primary" disabled={mutation.busy} data-testid="sign-confirm" onClick={async () => {
+                  const done = pendingDeviations.length
+                    ? `Deviations signed: MAP v${nextMapVersion} supersedes v${nextMapVersion - 1}.`
+                    : "MAP generated from the plan and signed.";
+                  const { data, problem } = await mutation.run(() => planApi.sign(projectId, note));
+                  setConfirming(false);
+                  if (data) { setSignature(data.signature); celebrate(); toast(done); }
+                  setMessage(problem ? { ok: false, text: `The MAP was not signed: ${problem}` } : { ok: true, text: done });
+                }}>{mutation.busy ? "Signing…" : signLabel}</button>
+              </div>
+            </>
+          </Dialog>
+        )}
       </Card>
       <nav className="review-nav" aria-label="Review sections">
         <a href="#review-studies">Studies and roles</a><a href="#review-inputs">The inputs</a>

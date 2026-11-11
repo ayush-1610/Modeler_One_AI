@@ -2,76 +2,49 @@
 
 import { useState } from "react";
 
-import { prepareCampaign, signMap, startCampaign } from "@/lib/writes";
+import { Banner } from "@/components/kit";
+import { startCampaign } from "@/lib/writes";
+
+type CampaignBody = Parameters<typeof startCampaign>[1];
 
 /**
- * One-click run of a project's modeling campaign: generate the MAP from the stored CPF + studies, sign it
- * (Part 11), start the campaign on the engine, then open the live monitor. This is the whole MS-01 entry
- * point for a project that already has its CPF and observed data loaded.
+ * The one start of a project's modeling campaign: the campaign starts from the MAP signed on Review & sign, with the
+ * inputs that signature staged (the MAP artifact's `campaign`), then the live monitor opens. Nothing is generated or
+ * signed here (the owner's decision 2 of 2026-11-11): the one review and the one signature are on Review & sign.
  */
-export function RunCampaignButton({
-  projectId,
-  questionId,
-  compound,
-  stages,
-}: {
+export function RunCampaignButton({ projectId, campaign }: {
   projectId: string;
-  questionId: string;
-  compound: string;
-  /** Omit to run every MS-01 stage (the default): a stage without data is skipped with its reason. */
-  stages?: string[];
+  /** The signed MAP's staged campaign inputs, as plan:sign stored them (stored content, read on the server). */
+  campaign: Record<string, unknown>;
 }) {
   const [busy, setBusy] = useState(false);
-  const [step, setStep] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function run() {
     setBusy(true);
     setError(null);
     try {
-      setStep("Generating the Model Analysis Plan…");
-      const prep = await prepareCampaign(projectId, questionId, { compound, stages });
-      if (prep.errors?.length || !prep.data) {
-        setError(prep.errors?.[0]?.message ?? "Could not generate the MAP.");
+      const started = await startCampaign(projectId, campaign as CampaignBody);
+      if (started.campaign_id) {
+        window.location.assign(`/campaigns/${started.campaign_id}`);
         return;
       }
-      setStep("Signing the MAP…");
-      const signed = await signMap(projectId, { record_id: prep.data.map_id, record_sha256: prep.data.map_sha256 });
-      if (!signed.ok) {
-        setError(`The MAP signature was rejected: ${signed.error ?? "step-up required"}`);
-        return;
-      }
-      setStep("Starting the campaign on the engine…");
-      const started = await startCampaign(projectId, {
-        compound,
-        map_id: prep.data.map_id,
-        cpf_uri: prep.data.cpf_uri,
-        cpf_sha256: prep.data.cpf_sha256,
-        map_uri: prep.data.map_uri,
-        observed_uri: prep.data.observed_uri,
-        // the tier prepare resolved: the one the question was asked with, never an assumed medium
-        model_risk: prep.data.tier as "low" | "medium" | "high",
-        stages: prep.data.stages,
-      });
-      if (started.campaign_id) window.location.assign(`/campaigns/${started.campaign_id}`);
-      else setError(`The campaign did not start: ${started.error ?? "no campaign id returned"}`);
+      setError(`The campaign did not start: ${started.error ?? "no campaign id returned"}`);
     } catch {
       setError("Could not reach the API.");
-    } finally {
-      setBusy(false);
-      setStep("");
     }
+    setBusy(false);
   }
 
   return (
     <div>
       <div className="row items-center gap-10">
-        <button className="btn primary" disabled={busy} onClick={run}>
-          {busy ? "Running…" : "Run campaign"}
+        <button className="btn primary" disabled={busy} onClick={run} data-testid="run-campaign">
+          {busy ? "Starting…" : "Run campaign"}
         </button>
-        {step && <span className="muted">{step}</span>}
+        {busy && <span className="muted">Starting the campaign on the engine…</span>}
       </div>
-      {error && <div className="banner err mt-10">{error}</div>}
+      {error && <div className="mt-10"><Banner tone="err" testId="run-error">{error}</Banner></div>}
     </div>
   );
 }

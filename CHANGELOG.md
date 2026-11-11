@@ -15,6 +15,31 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Run starts only from the MAP signed on Review & sign; the plan signature is confirmed first (web)
+- **What:** (audit 2, item 6 a–c; the owner's decision 2 of 2026-11-11) the Run step's "Run campaign" no longer generates
+  a fresh default MAP (`campaign:prepare`), signs it (`map_approval`, "Approved") and starts it in one click. The project
+  page reads the steps on the server and, once Review & sign is done, the plan: the Run card shows only for a signed,
+  current MAP with no deviation waiting, says which MAP version (and hash) it starts from, and its one button posts the
+  inputs that plan:sign staged (`map.campaign`) to `POST /projects/{id}/campaigns`. Otherwise `<StepBlocked step="run"
+  waitOn="review">` says what Review & sign still waits on and links there (StepBlocked gains `waitOn`). The plan's own
+  "Run the campaign (P6)" button becomes a "Go to Run" link, so one start remains. "Approve and Sign" is now "Sign the
+  plan (MAP)" (the dashboard's next action uses the same label) and opens an "Electronic signature" dialog first, as an
+  escalation's decision does: the compound, the MAP version (or the deviations and the version they supersede), the
+  meaning "Approved" (MIDD lead) and that the signature comes from step-up, never a password; Cancel signs nothing. The
+  plan's messages are `{ok, text}` in the kit `<Banner>`, so a refused signature, draft or rebase is an error with
+  role=alert, not a green note; the rebase's refusal, which was dropped, is shown. `prepareCampaign` and `signMap` are
+  removed from `lib/writes.ts`; the API routes stay for scripts and CI. No API change.
+- **Why:** the one-click start signed a second, unreviewed MAP and bypassed Review & sign, the one review D-27 relies
+  on, and there were two run buttons with different meanings. Part 11 §11.50 favours stating what is signed and its
+  meaning before signing.
+- **Impact:** a template-loaded project with no signed plan can no longer be run from the web app; it is run through the
+  API's scripted route, as the reference runs and CI do. Not done here (item 6 d–e): the Plan page's 409 read on the
+  server, the keyboard "Move…" on study chips, the kit Dialog for the move and kit Tabs for the diagrams.
+- **Tests:** `e2e/model-plan.spec.ts`: the Run step is blocked and links to Review & sign before the signature and while
+  a deviation waits; the confirmation names MAP v1 / the deviation into v2; Cancel signs nothing; a refused signature
+  shows with role=alert and the `err` tone; the run starts from the Run step and shows "MAP v2". `e2e/campaign-monitor.spec.ts`:
+  the template project's Run step is blocked with no Run button, and both runs start through the scripted API route.
+
 ### Changed — Inputs › Populations: each held value once, on its row; profiles clipped; settled individuals one line (web)
 - **What:** (audit 2, item 2) the Populations tab renders its values in one `InputRows` call, so a held `indiv.*` value's
   Accept/Reject sits on its row once (it was drawn twice, each copy with its own buttons). The individual's values are
