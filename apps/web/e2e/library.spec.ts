@@ -116,6 +116,23 @@ test("Add data with many files scrolls inside the dialog, not the page behind it
   expect(await page.evaluate(() => window.scrollY)).toBe(pageTop);                     // the page behind does not
   await expect(page.getByTestId("add-data-goes-study-31-PK Table.csv")).toBeInViewport();
   await expect(page.getByTestId("add-data-step")).toBeInViewport();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe("hidden");   // held
+
+  // closed, the page scrolls again (the owner, 2026-11-11: it "stops scrolling" at random; a CSS :has lock was not
+  // released by Safari): the lock is the dialog's own and goes with it, however often a dialog opens and closes
+  await page.getByTestId("add-data-close").click();
+  await expect(card).toHaveCount(0);
+  for (let n = 0; n < 3; n++) {
+    await page.getByTestId("nav-add-data").click();
+    await page.keyboard.press("Escape");
+    await expect(card).toHaveCount(0);
+  }
+  expect(await page.evaluate(() => document.documentElement.dataset.dialogs)).toBeUndefined();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe("hidden");
+  await page.setViewportSize({ width: 1280, height: 360 });
+  await page.mouse.move(640, 300);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });
 
 test("Add data reads documents for data by default, and a large delivery goes up in batches", async ({ page, request }) => {

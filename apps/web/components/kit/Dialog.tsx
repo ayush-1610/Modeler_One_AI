@@ -38,6 +38,18 @@ export function Dialog({ title, onClose, size, above, dismiss, testId, children 
     return () => { if (before?.isConnected) before.focus(); };
   }, []);
 
+  // the page behind is held still while any dialog is open, counted so nested dialogs release it only when the last
+  // one closes (kit.css: html[data-dialogs]); set and removed here, so it never outlives the dialog
+  useEffect(() => {
+    const html = document.documentElement;
+    html.dataset.dialogs = String(Number(html.dataset.dialogs ?? 0) + 1);
+    return () => {
+      const left = Number(html.dataset.dialogs ?? 1) - 1;
+      if (left > 0) html.dataset.dialogs = String(left);
+      else delete html.dataset.dialogs;
+    };
+  }, []);
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape" && close.current) {
       e.stopPropagation();
