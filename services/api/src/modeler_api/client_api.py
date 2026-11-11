@@ -31,6 +31,7 @@ from modeler_api.deps import (
 )
 from modeler_api.intake_jobs import (  # noqa: F401  (run_document_job, run_reading_job: the e2e fixture's and tests' names)
     kick,
+    map_note,
     needs_agent,
     queue_again,
     queue_reading,
@@ -63,6 +64,7 @@ from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import (
     READABLE_DOCUMENTS,
     REGISTER,
+    delivery_map,
     ingest,
     reconcile,
     set_triage,
@@ -75,8 +77,10 @@ from modeler_project.client_review import groups as review_groups
 from modeler_project.dataset_points import card_points
 from modeler_project.dataset_register import dataset
 from modeler_project.datasets import DatasetError
+from modeler_project.delivery_map import file_line
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
+from modeler_project.figure_suggestions import open_suggestions
 from modeler_project.inputs import refresh_inputs
 from modeler_project.reading_queue import ReadingQueue
 from modeler_project.requirements import RequirementMatrix, client_request
@@ -159,7 +163,9 @@ def _queue_view(ws: Workspace) -> dict[str, Any]:
     return {"agents": agent_jobs.agents_status("A4"), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "reading"),
             "counts": {state: sum(1 for i in latest.values() if i.state == state)
                        for state in ("queued", "reading", "done", "failed")},
-            "items": [i.model_dump(mode="json") for i in items]}
+            "items": [i.model_dump(mode="json") for i in items],
+            "mapped": {sid: line for sid, entry in delivery_map(ws)["files"].items() if (line := file_line(entry))},
+            "figures": open_suggestions(ws)}
 
 
 @router.get("/projects/{project_id}/reading-queue", **answers(ReadingQueuePage))
@@ -281,7 +287,7 @@ def run_triage_job(store: ProjectStore, tenant_id: str, project_id: str, sid: st
     run = agent_jobs.AgentRun(store.root, tenant_id=tenant_id, project_id=project_id,  # type: ignore[attr-defined]
                               agent="A4-sheet-triage", model=model, max_turns=max_turns)
     ctx, outcome = agent_jobs.sheet_triage(model, workbook=workbook, sheets=undecided, actor=run.actor, max_turns=max_turns,
-                                           log_step=run.log_step)
+                                           log_step=run.log_step, context=map_note(ws, sid))
     for triaged in ctx.accepted:
         set_triage(ws, sid, triaged, by=ctx.actor, reason=triaged.note or "A4, header quoted")
     summary = {"classified": len(ctx.accepted), "rejected": len(ctx.rejected), "summary": outcome.final_text[:2000],

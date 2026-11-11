@@ -85,6 +85,38 @@ export function ReadingTray({ projectId }: { projectId: string }) {
         </p>
       )}
       {problem && <p className="reading-tray-problem" role="alert">{problem}</p>}
+      {data.figures.length > 0 && (
+        <div className="reading-tray-figures" data-testid="figure-suggestions">
+          <strong>Figures worth digitizing</strong>{" "}
+          <span className="muted">(no table in the client&apos;s files holds their values)</span>
+          <ul>
+            {data.figures.map((f) => (
+              <li key={`${f.sid}-${f.n}`} data-testid={`figure-${f.file}-${f.page}`}>
+                <span>
+                  {/* a Word file has no pages: its text is read in parts, which are not Word's pages */}
+                  {f.file}, {f.file.toLowerCase().endsWith(".pdf") ? "p." : "part"} {f.page}:{" "}
+                  {f.kind === "concentration_time" ? `concentration-time profile of study ${f.study_id}`
+                    : `dissolution profile of ${f.product}${f.ph.length ? ` at pH ${f.ph.join(", ")}` : ""}${f.medium ? ` in ${f.medium}` : ""}`}
+                </span>
+                <span className="muted"> · “{f.quote}”</span>
+                {f.digitizable ? (
+                  // a full load: the Studies tab opens with the digitizer on the figure's page
+                  <a className="btn small" data-testid={`digitize-${f.file}-${f.page}`}
+                     href={`/projects/${encodeURIComponent(projectId)}/inputs?tab=studies&digitize=${f.doc_sha256}&page=${f.page}&study=${encodeURIComponent(f.study_id)}#observed-datasets`}>
+                    Digitize
+                  </a>
+                ) : f.kind === "dissolution" ? (
+                  <span className="muted"> · the digitizer makes concentration-time profiles: enter its % dissolved in the
+                    product&apos;s dissolution data</span>
+                ) : (
+                  <span className="muted"> · a Word file: save this figure as an image or a PDF, add it with Add data, then
+                    digitize it</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {open && (
         <ul className="reading-tray-list" data-testid="reading-tray-list">
           {items.map((item) => (
@@ -92,10 +124,16 @@ export function ReadingTray({ projectId }: { projectId: string }) {
               <span className={`chip ${STATE_TONE[item.state]}`}>{STATE_LABEL[item.state]}</span>
               <span className="reading-tray-file">{item.file}</span>
               <span className="muted">
-                {item.task === "read" ? "a person's Read" : "on arrival"}
+                {item.task === "read" ? "a person's Read" : item.task === "map" ? "read by code; mapped with the others" : "on arrival"}
                 {item.sheets.length ? ` · ${item.sheets.join(", ")}` : ""}
                 {item.state === "done" && ` · ${foundText(item.found)}`}
               </span>
+              {data.mapped[item.sid] && (
+                <span className="reading-tray-map" data-testid={`reading-map-${item.file}`}
+                      title="What the delivery pass found this file is about, each value quoted from it">
+                  {data.mapped[item.sid]}
+                </span>
+              )}
               {item.state === "failed" && <span className="reading-tray-why">{item.note || "failed"}</span>}
               {(item.state === "failed" || item.state === "done") && (
                 <button type="button" className="btn small" disabled={mutation.busy} onClick={() => void again(item.id)}

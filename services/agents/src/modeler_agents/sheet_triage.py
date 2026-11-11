@@ -54,7 +54,7 @@ def _show(workbook: WorkbookGrid, sheets: list[str]) -> str:
 
 
 def run_triage(model: ChatModel, ctx: TriageContext, *, max_turns: int = 6,
-               log_step: Callable[[dict[str, Any]], None] = lambda s: None):
+               log_step: Callable[[dict[str, Any]], None] = lambda s: None, context: str = ""):
     tool = Tool(
         name="classify_sheet", description="Record what one sheet holds, quoting the header cell that shows it.",
         parameters={"type": "object", "required": ["sheet", "category"], "properties": {
@@ -64,4 +64,6 @@ def run_triage(model: ChatModel, ctx: TriageContext, *, max_turns: int = 6,
             "note": {"type": "string"}}},
         handler=lambda **kw: classify_sheet(ctx, **kw))
     user = f"Workbook {ctx.workbook.file_name}. Classify these sheets:\n\n{_show(ctx.workbook, ctx.sheets)}"
+    if context:   # what the delivery map says (plan 2026-11-10, R4)
+        user += f"\n\n{context}"
     return run_tool_loop(model, system=SYSTEM_PROMPT, user=user, tools=[tool], max_turns=max_turns, log_step=log_step)

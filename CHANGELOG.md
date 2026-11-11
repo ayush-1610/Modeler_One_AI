@@ -70,6 +70,105 @@ Bedrock". Plan: `docs/plans/2026-11-10-admin-console.md` (revision 3 also record
   with its cache markers, effort and tools; turns sent back unchanged; cache tokens counted; a refusal; an overloaded
   model falling back; refused credentials; the fallback boundary rule; configuration), `test_usage_report.py` (+1),
   `test_admin_platform.py` (+1: an agent on Claude takes its model, effort, fallback and the active Bedrock key).
+### Fixed — R5 review: a figure is suggested while no table of the same values exists; the R4 guards hold (2026-11-10)
+A review of R5 and of the R4 review fixes (each finding checked by a second reviewer) confirmed 8 defects and raised 9
+more; all are fixed except one noted below.
+- **The right tables close a figure:** a concentration-time figure stays suggested until the study has a
+  concentration-time **profile** (an NCA table of Cmax and AUC no longer closes it); a dissolution figure records the
+  medium and each pH its caption names (checked on the page) and stays until the product has a profile in each. Names
+  follow the person's answers on Inputs: a link they refused no longer counts, an alias they confirmed does; links from
+  withdrawn files do not count.
+- **Captions:** "Figure S2", "time course" and "concentration-time" are figure captions; a table's title ("Table 4 …")
+  is not.
+- **Digitize** is offered only for a PDF's concentration-time figure (the digitizer makes concentration-time
+  profiles) and opens with the study's id filled in; a dissolution figure says to enter its % dissolved; a Word file's
+  figure is named by its text part, not a page.
+- **The sheet reader's guard** checks each cell on its own (a value is never pieced together from two cells) and the
+  sheet's name; an evidence entry must cite a cell of the sheet read; a strength or dose quote must state the number
+  with its unit.
+- **Mapping:** opening Inputs no longer queues every old file to be mapped (the tray showed read files as waiting); the
+  pass also maps the project's files never mapped, when it runs. A file gets one pass per reading job, twice in all,
+  and adding it again (or "Read again") lets it be mapped again. The reading job waits until no file has arrived for 8 s
+  (at most 90 s). A workbook's overview names every sheet and stays within its budget. A fuller name may replace a
+  shorter one for the same field.
+- Not changed: the literature agent's own `request_digitization` (A3, papers found by the agent) still files a task;
+  decision 3 was about the client's delivery.
+- OpenAPI and `api-types.ts` updated (`FigureSuggestion.medium`, `.ph`, `.n`). Tests in `test_document_reader.py`,
+  `test_sheet_reader.py`, `test_delivery_pass.py`, `test_client_api.py` (T-47) and `e2e/library.spec.ts`.
+
+### Fixed — R4 review: the map stays context; code's checks on the delivery pass tightened (2026-11-10)
+An adversarial review of R4 (science, robustness, the owner's own delivery; each finding checked by a second reviewer)
+confirmed 9 defects and raised 12 more; all are fixed here.
+- **The map cannot become data (high):** the sheet reader checked quotes only for units, LLOQ, dose, n and strength, so a
+  batch, medium, product, role, pH, study, food state, route or formulation copied from the map (another file) could
+  be saved unquoted. Now a reading that changes any of these from code's first filling is refused unless this sheet
+  (a cited cell or any cell of its first rows) or the file's name states it (`sheet_reader._unquoted_changes`).
+- **A number is checked with its unit:** strength is the number before "mg" (not "mg/kg", no ×100); pH the number
+  after "pH", between 0 and 14. Names are checked as whole words ("93" is not "093-26"); an underscore or hyphen
+  separates words, so "Fast_230-23" says fasted and study 230-23. A cell quote is at least 3 characters.
+- **Every sheet is seen:** the overview names every sheet of a workbook and gives each its share of the rows (it cut
+  the later sheets of a dissolution workbook); a sheet's tab name ("pH 4.5") can be quoted for that sheet's facts;
+  `read_sheet` lists the sheets when asked for one that does not exist.
+- **One value per file or sheet:** a second, different product or strength for the same file is refused (a comparison
+  file gives them per sheet) instead of replacing the first silently. A link needs a page or cell quote writing both
+  names, which are not one name nor one inside the other; never a file name.
+- **A delivery is mapped together:** the reading job waits until no file has arrived for 3 s (at most 45 s), so a
+  delivery "Add data" sends in batches of 8 is mapped as one.
+- **A pass that does not finish** (the provider down, turns used up) no longer marks its files as mapped: they are
+  tried again, twice in all, then read without the map; opening Inputs queues a file never mapped. A failure to map
+  never stops the reading.
+- **Withdrawn files** are left out of what the map tells the pass and each reading. Each reading's agent run logs the
+  map note it was given. "Sort the sheets" by a person is told the map too. A link the map found from a cell is asked
+  as "<file> (pH 6.8!A1) says …", not "(p. None)"; a link a document already said is not asked twice.
+- Tests: the R4 review tests in `services/agents/tests/test_delivery_pass.py` and `test_sheet_reader.py`, and in
+  `services/api/tests/test_client_api.py` (T-47); `services/api/tests/conftest.py` starts readings at once in tests.
+
+### Changed — R5: a figure is suggested for digitizing only when it matters and no table holds its values (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R5; the owner's decision 3 ("suggest only when
+no table has the values, and only for those that are important, not for all digitizable plots"). Science-facing: what
+a reading may hand to a person.
+- **Before:** the document reader's `request_digitization` filed a task for a person (an access request) for any data
+  "shown only in a figure", whatever the figure, whether or not a table elsewhere held the same values.
+- **Now:** `suggest_digitization` files nothing. Code keeps a suggestion only for a study's concentration-time profile
+  (the study named as the file writes it) or a product's dissolution profile (the product named in the file), with the
+  figure's caption or title quoted verbatim from its page. Any other figure is refused with why. The suggestions are
+  kept on the file's reading (`figure_suggestions`).
+- **Shown only while no table holds the values** (`modeler_project.figure_suggestions.open_suggestions`): a suggestion
+  closes once the project has a dataset of the study (a table, a digitized figure, the literature: any not rejected) or
+  a dissolution profile of the product, by any name the client's files link to it (a document's links and the delivery
+  map's). A withdrawn file's suggestions are not shown.
+- **On Inputs:** the reading tray lists "Figures worth digitizing" (`ReadingQueuePage.figures`). For a PDF, **Digitize**
+  opens the digitizer on that file and page (`?digitize=<sha>&page=<n>`); a Word file's figure is said to be saved as an
+  image or PDF first (the digitizer does not open Word files).
+- OpenAPI and `api-types.ts` updated. Tests: the R5 tests in `services/agents/tests/test_document_reader.py` (what is
+  suggested and refused, nothing filed, open only while no table holds it, closed through a linked name, a withdrawn
+  file hidden), `e2e/library.spec.ts` "a figure that is the only source of a study's profile is suggested, and opens
+  the digitizer on its page" (`e2e/fixtures/figure_suggestion.py`: the real reading job, a scripted model).
+
+### Added — R4: the delivery pass; a client's files are mapped together before each is read (2026-11-10)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R4; the owner's decision 2 ("every upload of 2+
+files, and single files checked against the map"; no file missed). Science-facing: it changes what the reading agent is
+told, not what code accepts.
+- **The pass (A4, `modeler_agents.delivery_pass`, agent run `A4-delivery-map`):** before the next file is read, every
+  waiting file the map has not seen is looked at together (20 per pass), against what the map already says of earlier
+  files (a single file is checked against it). The agent sees each file's name, its sheets' headers or its first page,
+  and proposes, per file or per workbook sheet: study, product, role (TEST, RLD, REFERENCE), strength_mg, batch,
+  food_state, medium, pH; and links between two names of one study, product or batch across files.
+- **Code checks every value:** the quote is verbatim on its page, in its cell, or in the file's name; and it states the
+  value (the name; the number with mg, or with pH; a word for fed or fasted, test or reference; every word of a
+  medium or batch). What code refuses is told to the agent and kept with the pass's run.
+- **The map** is kept by `client_data` (reserved client-submission record `delivery`: versioned and audited like the
+  others; each pass's run id, who, the files looked at, what was refused). A file's later values replace earlier ones
+  field by field. Its links reach the person's questions on Inputs (`document_links`), as a document's links do.
+- **Context, never data:** each reading (document reader, sheet sorting, sheet reader) is told what the map says of its
+  file (or sheet) and one line per other file, with the instruction that every value it proposes must still be quoted
+  from its own file. No value flows from the map into a dataset, a study fact or a dissolution condition.
+- Files code reads whole (no agent needed) are queued as `map` items so they are mapped too; the tray shows each file's
+  map line ("study 093-26 · product APL 50 · TEST · 50 mg · fasted"). `ReadingQueuePage.mapped`; OpenAPI and
+  `api-types.ts` updated.
+- Tests: `services/agents/tests/test_delivery_pass.py` (what code accepts and refuses per field and source; the map;
+  the context; links into the review), `test_a_delivery_is_mapped_together_first_and_each_reading_is_told_the_map`
+  (T-47). Scripted models only: the pass's quality on a real delivery is to be measured on the server (plan R6).
 
 ### Added — the admin console, build C + D: each agent's model and the providers' keys (2026-11-10)
 The owner, 2026-11-10: "switching between different models that different agents use" and "api keys in admin so that

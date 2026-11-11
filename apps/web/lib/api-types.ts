@@ -5300,6 +5300,39 @@ export interface components {
             value?: unknown;
         };
         /**
+         * FigureSuggestion
+         * @description A figure worth digitizing: no table holds its values (plan 2026-11-10, R5).
+         */
+        FigureSuggestion: {
+            /** Digitizable */
+            digitizable: boolean;
+            /** Doc Sha256 */
+            doc_sha256: string;
+            /** File */
+            file: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "concentration_time" | "dissolution";
+            /** Medium */
+            medium: string;
+            /** N */
+            n: number;
+            /** Page */
+            page: number;
+            /** Ph */
+            ph: number[];
+            /** Product */
+            product: string;
+            /** Quote */
+            quote: string;
+            /** Sid */
+            sid: string;
+            /** Study Id */
+            study_id: string;
+        };
+        /**
          * FigureView
          * @description An image placed on a PDF page (`modeler_intake.documents.PdfFigure`): its box as fractions of the page as shown.
          */
@@ -7915,7 +7948,7 @@ export interface components {
              * Task
              * @enum {string}
              */
-            task: "arrival" | "read";
+            task: "arrival" | "read" | "map";
         };
         /**
          * ReadingQueuePage
@@ -7927,8 +7960,14 @@ export interface components {
             counts: {
                 [key: string]: number;
             };
+            /** Figures */
+            figures: components["schemas"]["FigureSuggestion"][];
             /** Items */
             items: components["schemas"]["ReadingItem"][];
+            /** Mapped */
+            mapped: {
+                [key: string]: string;
+            };
             /** Running */
             running: boolean;
         };
