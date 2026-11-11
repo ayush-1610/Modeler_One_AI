@@ -191,7 +191,10 @@ th[aria-sort="descending"] .sort-ind::after { content: "▼"; opacity: 1; color:
 /* a row shown by "Show more" or a cleared filter fades in where it stands: opacity only, nothing moves under the pointer */
 .sortable tbody tr, .paged-rows > tr, .paged-cards > * { animation: table-row-in 220ms var(--ease, ease-out) both; }
 @keyframes table-row-in { from { opacity: 0; } to { opacity: 1; } }
-/* the CPF's parameters: a long reference or value wraps in its own column, so a row stays short */
+/* the CPF's parameters (audit 2, item 3): a number stays whole on one line at its stored precision (td.num is nowrap);
+   a text value wraps as text; a structured value is one summary line with its verbatim text in a capped box; an id breaks
+   only after its '.' and '|' (<wbr>), never mid-word */
 .cpf-table td.cpf-ref { max-width: 32ch; overflow-wrap: anywhere; }
-.cpf-table td.num { white-space: normal; overflow-wrap: anywhere; max-width: 16ch; }
-.cpf-table code { overflow-wrap: anywhere; }
+.cpf-table .cpf-number { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cpf-table td.cpf-text { min-width: 18ch; max-width: 40ch; white-space: normal; overflow-wrap: break-word; }
+.cpf-table .clip-full { max-width: min(60ch, 80vw); }

@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the compound CPF page: a number is never split, a structured value is one summary line, the page stays short (web only)
+- **What.** The CPF table's Value cell now branches on the value (`compounds/[compound]/page.tsx`). A number, or a string
+  that reads as one, shows on one line (nowrap, tabular figures) exactly as stored: no rounding, since the CPF is the
+  system of record. A structured value (a string starting with `{` or `[`, e.g. `expr.profile.<molecule>`) is one line,
+  `structured value · …`, built only from keys the document holds (`Category Healthy · Molecule CYP3A4 · Parameters: 15
+  entries`; fallback `N entries`), with the verbatim stored text one click away in the kit `Clip` box (now capped at
+  `min(60ch, 80vw)` wide). Other text (method names) wraps in a left-aligned, non-numeric cell. Parameter ids break only
+  after `.` and `|` (`<wbr>`), not mid-word. `kit.css` drops `overflow-wrap:anywhere; max-width:16ch` from the value and
+  id cells. `.prov` tags take the `.chip` pill geometry and never wrap. Kit: `Clip` takes an optional `lead`;
+  `SortableTable` rows take an optional per-cell `cellClassName`.
+- **Why.** Frontend audit 2, item 3: the page was 79,498 px tall at 1280 (170,739 px at 390) for 42 parameters because
+  each expression profile (2.4k–12k characters of JSON) was printed in a 16ch cell, and numbers broke mid-digit
+  (`0.22100414 / 53`, `3.96846947 / 92e-05`), so a reviewer could misread a stored value.
+- **Impact.** The published Dapagliflozin CPF page is 4,874 px at 1280; every value is still shown in full and
+  unchanged. No API change.
+- **Tests.** New `e2e/cpf-page.spec.ts` (the OSP Dapagliflozin reference CPF): page height under 15,000 px at 1280,
+  each structured value summarised once with its verbatim text behind it, every number one line and equal to the stored
+  value, provenance tags nowrap, no sideways page scroll at 390. `table-sort` and `protected-text` specs still pass.
+
 ### Changed — the escalation pop-up asks on the campaign's own project and counts elsewhere; "Decide later" holds for the tab (web only)
 Plan `docs/plans/2026-11-11-frontend-audit-2.md`, work item 4, under the owner's decision 1 of 2026-11-11.
 - **What.** `EscalationPopup` opens the decision dialog by itself only on the escalated campaign's own page

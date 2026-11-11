@@ -11,10 +11,13 @@ function head(text: string, max: number): { lead: string; rest: number } {
   return { lead: `${text.slice(0, max).trimEnd()}…`, rest: text.length - max };
 }
 
-export function Clip({ text, max = MAX, testId }: { text: string | null | undefined; max?: number; testId?: string }) {
+/** `lead`, when given, says what the text is (a structured value's one-line summary) and the whole text is behind it. */
+export function Clip({ text, max = MAX, testId, lead: said }: {
+  text: string | null | undefined; max?: number; testId?: string; lead?: string;
+}) {
   if (!text) return <span className="muted">—</span>;
-  if (text.length <= max) return <span data-testid={testId}>{text}</span>;
-  const { lead, rest } = head(text, max);
+  if (said === undefined && text.length <= max) return <span data-testid={testId}>{text}</span>;
+  const { lead, rest } = said === undefined ? head(text, max) : { lead: said, rest: text.length };
   return (
     <details className="clip" data-testid={testId}>
       <summary>

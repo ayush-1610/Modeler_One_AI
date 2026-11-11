@@ -213,8 +213,9 @@ tbody tr:last-child td { border-bottom: none; }
 .chip.neutral { color: var(--ink-quiet); background: var(--raised); }
 .chip.brand { color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 14%, transparent); }
 
-.prov { font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); font-weight: 600;
-        border: 1px solid var(--line); background: var(--raised); color: var(--ink-dim); }
+/* a provenance tag has the .chip pill geometry and never wraps (audit 2, item 3); its variants set only the colours */
+.prov { display: inline-flex; align-items: center; font-size: 12px; padding: 3px 10px; border-radius: 999px; font-weight: 600;
+        border: 0; white-space: nowrap; background: var(--raised); color: var(--ink-dim); }
 .prov.fitted { color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 13%, transparent); border-color: transparent; }
 .prov.measured { color: var(--pass-ink); background: color-mix(in srgb, var(--pass) 13%, transparent); border-color: transparent; }
 .prov.predicted { color: var(--warn-ink); background: color-mix(in srgb, var(--warn) 13%, transparent); border-color: transparent; }
