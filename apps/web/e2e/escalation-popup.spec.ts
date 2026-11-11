@@ -1,6 +1,9 @@
-// A campaign waiting for a decision asks for it on whatever page the person is on (the owner's requests of 2026-10-17
-// and 2026-11-11: the review inbox is gone, decisions are asked in place). The campaign state is seeded in the API's
-// read root (software test data, no engine run); the signed decision itself is feedback.spec.ts.
+// A campaign waiting for a decision asks for it in place (the owner's requests of 2026-10-17 and 2026-11-11: the review
+// inbox is gone), scoped by the owner's decision 1 of 2026-11-11 (docs/plans/2026-11-11-frontend-audit-2.md): the dialog
+// opens by itself only on the campaign's own page and its project's pages; every other page shows the corner control
+// with a count, which opens the dialog anywhere; "Decide later" holds for the rest of the tab's session. The campaign
+// state is seeded in the API's read root (software test data, no engine run); the signed decision itself is
+// feedback.spec.ts.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -38,10 +41,26 @@ async function seed(request: APIRequestContext) {
 // the seeded decisions are never signed here: close them, or they would ask over the next specs' pages
 test.afterAll(() => dropEscalations((r) => r.campaignId.startsWith("camp-popup-")));
 
-test("an escalation opens as a dialog on any page, and \"Decide later\" leaves a way back", async ({ page, request }) => {
+test("an escalation asks on its own project, shows a count elsewhere, and \"Decide later\" holds for the tab", async ({ page, request, context }) => {
   const { projectId, id } = await seed(request);
-  await page.goto(`/projects/${projectId}`);
+  const other = await request.post("/api/v1/projects", { headers: AUTH, data: { name: `Popup other ${Date.now()}`, compound: "Otherol" } });
+  const otherId = (await other.json()).data.id as string;
   const popup = page.getByTestId("escalation-popup");
+  const waiting = page.getByTestId("escalation-waiting");
+
+  // (this test replaces the 2026-11-11 rule "asks on any page": decision 1 of the 2026-11-11 audit scopes it)
+  // another project's pages, Start and the dashboard show the count, and no dialog takes the page (the control renders
+  // only once the open escalations are placed on the page, so its presence means the dialog was not asked here)
+  for (const url of [`/projects/${otherId}`, "/projects/start", "/"]) {
+    await page.goto(url);
+    await expect(waiting).toContainText(/\d+ decisions? waiting · Open/);
+    await expect(popup).toHaveCount(0);
+  }
+  // the dashboard's attention item opens the campaign, no longer the review inbox
+  await expect(page.getByTestId("dash-attention").locator(`a[href="/campaigns/${id}"]`)).toBeVisible();
+
+  // the campaign's own project asks
+  await page.goto(`/projects/${projectId}`);
   await expect(popup).toContainText(`campaign ${id}, stage S2`);
   await expect(popup.getByTestId("decision-select")).toBeVisible();      // the signed decision (feedback.spec.ts)
 
@@ -60,31 +79,57 @@ test("an escalation opens as a dialog on any page, and \"Decide later\" leaves a
   await expect(popup.getByTestId("decision-sign")).toBeFocused();          // and focus went back where it was
   await page.keyboard.press("Escape");                                      // "Decide later"
   await expect(popup).toHaveCount(0);
-  const waiting = page.getByTestId("escalation-waiting");
   await expect(waiting).toContainText("waiting · Open");                    // a way back, without a reload
   await expect(waiting).toBeFocused();                                      // and focus is on it, not lost to the page
-  await page.reload();                                                      // it is only closed for this visit
-  await expect(popup).toBeVisible();
 
-  await popup.getByTestId("escalation-later").click();
+  // "Decide later" holds for the tab's session: a reload, and a deep link to the campaign itself, show the count only
+  await page.reload();
+  await expect(waiting).toBeVisible();
+  await expect(popup).toHaveCount(0);
+  await page.goto(`/campaigns/${id}`);
+  await expect(waiting).toBeVisible();
   await expect(popup).toHaveCount(0);
   // the control stays on the next page too (the sidebar's link: the layout, and what was put off, stay)
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Projects" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(waiting).toBeVisible();
-  // the dashboard's attention item opens the campaign, no longer the review inbox
-  await expect(page.getByTestId("dash-attention").locator(`a[href="/campaigns/${id}"]`)).toBeVisible();
-  await waiting.click();
-  await expect(popup).toBeVisible();
-  await expect(waiting).toHaveCount(0);
+  await expect(popup).toHaveCount(0);
 
-  // a page that has nothing to do with the campaign asks too
-  await page.goto("/projects/start");
-  await expect(popup).toBeVisible();
-
-  // the campaign's own page asks for its own decision first
-  await page.goto(`/campaigns/${id}`);
+  // the control is reached by the keyboard (it is in the tab order, right after the skip link) and opens the dialog here
+  let reached = false;
+  for (let i = 0; i < 10 && !reached; i++) {
+    await page.keyboard.press("Tab");
+    reached = await waiting.evaluate((el) => el === document.activeElement);
+  }
+  expect(reached).toBe(true);
+  await page.keyboard.press("Enter");
   await expect(popup).toContainText(`campaign ${id}, stage S2`);
+  await expect(waiting).toHaveCount(0);
+  await popup.getByTestId("escalation-later").click();
+  await expect(waiting).toBeVisible();
+
+  // sessionStorage is per tab: a new tab on the campaign's page asks again
+  const tab = await context.newPage();
+  await tab.goto(`/campaigns/${id}`);
+  await expect(tab.getByTestId("escalation-popup")).toContainText(`campaign ${id}, stage S2`);
+  await tab.close();
+});
+
+test("a dialog that would open after the person has started using the page goes to the count instead", async ({ page, request }) => {
+  const { projectId } = await seed(request);
+  // hold the first escalations read back until the person has clicked on the page
+  let release!: () => void;
+  const held = new Promise<void>((r) => { release = r; });
+  await page.route("**/api/v1/escalations*", async (route) => { await held; await route.continue(); });
+  await page.goto(`/projects/${projectId}`);
+  await page.locator("h1").first().click();                                 // a click already made when the dialog would arrive
+  release();
+  await expect(page.getByTestId("escalation-waiting")).toBeVisible();
+  await expect(page.getByTestId("escalation-popup")).toHaveCount(0);
+  await page.unroute("**/api/v1/escalations*");
+  // the decision stays one click away
+  await page.getByTestId("escalation-waiting").click();
+  await expect(page.getByTestId("escalation-popup")).toBeVisible();
 });
 
 test("a campaign whose record cannot be read can still be decided", async ({ page }) => {

@@ -6,6 +6,7 @@ import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
 import { FeedbackDiagnosisView, FeedbackTimeline } from "@/components/campaign/Feedback";
 import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
 import { VbeCard } from "@/components/campaign/Vbe";
+import { EscalationsExpected } from "@/components/campaign/EscalationPopup";
 import { OpenDecisionButton } from "@/components/campaign/OpenDecisionButton";
 import { getCampaign } from "@/lib/reads";
 import { Hero } from "@/components/kit";
@@ -86,6 +87,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
         </div>
       )}
       <AutoRefresh active={c.status === "RUNNING" || c.status === "QUEUED"} />
+      {(c.status === "RUNNING" || c.status === "QUEUED") && <EscalationsExpected />}
 
       <Card title="Stage progress" action={<span className="muted">current: {c.currentStage}</span>}>
         <div className="timeline">

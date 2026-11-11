@@ -15,6 +15,33 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the escalation pop-up asks on the campaign's own project and counts elsewhere; "Decide later" holds for the tab (web only)
+Plan `docs/plans/2026-11-11-frontend-audit-2.md`, work item 4, under the owner's decision 1 of 2026-11-11.
+- **What.** `EscalationPopup` opens the decision dialog by itself only on the escalated campaign's own page
+  (`/campaigns/<id>`) and its project's pages (the project's campaigns, read from `/api/v1/campaigns?project=`). Every
+  other page (the dashboard, Start, the Library, another project), and a project page whose campaigns cannot be read,
+  shows the corner control "N decisions waiting · Open", which is a button right after the skip link in the tab order
+  and opens the dialog on any page, so every escalation stays decidable from anywhere. "Decide later" keeps the put-off
+  escalation ids in `sessionStorage` (`modeler:decide-later`, every read and write in try/catch): a reload or a deep link
+  in the same tab shows the count, not the dialog; ids that are no longer open are dropped, so a new escalation (another
+  stage) asks again; reopening from the control or the campaign page's "Open the decision" clears them. The open
+  escalations are placed again on each navigation, and the dialog does not open when a pointer button is down, another
+  dialog is open, or the person has pressed a pointer or a key on the page since navigating (the first placement used to
+  skip this guard, so a click already started could land on the backdrop of a late dialog). Escalations are read every
+  15 s, and every 5 s only on a running or queued campaign's page (`<EscalationsExpected />`); the sidebar's liveness
+  observes the same read instead of adding its own poll (two observers on one key polled every 5 s on every page).
+- **Why.** The dialog opened over every page on every full load, including another project's Start and Inputs, and
+  "Decide later" was forgotten on reload and on every deep link (audit 2: decisions findings 1, 2 and 6, workflow-copy,
+  perf-errors). The decision itself is unchanged: still the signed `EscalationDecision`, the signature from the step-up;
+  putting it off decides nothing and the escalation stays open and audited on the server.
+- **Impact.** No API change. `sessionStorage` is per tab, so a new tab asks again on the campaign's own pages.
+- **Tests.** `e2e/escalation-popup.spec.ts` rewritten for the rule: another project, Start and the dashboard show the
+  count and no dialog; the own project asks; a reload and a deep link after "Decide later" show the count; the control is
+  reached with Tab and opens the dialog with Enter; a new tab asks again; a new test holds the first read back until a
+  click is made and checks the dialog goes to the count (it fails without the guard). The signed-decision, step-up and
+  unreadable-campaign tests are kept. `e2e/dashboard.spec.ts` adds a seeded escalation: the dashboard counts it, opens no
+  dialog by itself, and the control opens it. Ran escalation-popup, dashboard, feedback, campaign-monitor and model-plan.
+
 ### Changed — review fixes on audit items 7–12: tables, the escalation pop-up, a skeleton (web only)
 - **Tables (item 11).** `useTableView` now separates rows that need attention (`keep`, counted in "N need attention")
   from rows the person has typed in (`pin`, shown but not counted). Both are protected from paging and the text filter

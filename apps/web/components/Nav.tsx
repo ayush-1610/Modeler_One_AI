@@ -45,10 +45,11 @@ function Logo() {
   );
 }
 
-/** Whether the API answers: its open-escalations read (the same read the decision pop-up polls), every half minute.
- *  The review inbox it once counted for is gone (2026-11-11): a decision is asked on the page the person is on. */
+/** Whether the API answers: its open-escalations read. This observes the read the decision pop-up (root layout) already
+ *  polls, every 15 s (5 s on a running campaign's page); it adds no poll of its own. The review inbox it once counted
+ *  for is gone (2026-11-11). */
 function useApiLive(): boolean | null {
-  const esc = useResource("/api/v1/escalations", {}, { select: (d) => d.escalations.length, poll: () => true, interval: 30_000 });
+  const esc = useResource("/api/v1/escalations", {}, { select: (d) => d.escalations.length });
   // the API answered (live) or not; null until the first answer
   return esc.data !== null ? true : esc.problem ? false : null;
 }

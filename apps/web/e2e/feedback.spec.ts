@@ -62,8 +62,8 @@ test.beforeAll(() => {
 // the S4/S5 signature this flow leaves waiting would otherwise ask over the next specs' pages
 test.afterAll(() => dropEscalations((r) => r.campaignId === ID));
 
-// A waiting decision is asked as a dialog on any page (escalation-popup.spec.ts); the review inbox it was decided in
-// before is gone (2026-11-11), so this flow puts it off, reads the page, opens it again and decides it in the dialog.
+// A waiting decision is asked as a dialog on its campaign's own page (escalation-popup.spec.ts); the review inbox it was
+// decided in before is gone (2026-11-11), so this flow puts it off, reads the page, opens it again and decides it there.
 async function decideLater(page: Page) {
   await page.getByTestId("escalation-popup").getByTestId("escalation-later").click();
   await expect(page.getByTestId("escalation-popup")).toHaveCount(0);
