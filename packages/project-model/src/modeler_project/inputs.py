@@ -588,7 +588,27 @@ def evidence_view(item: EvidenceItem) -> dict[str, Any]:
             "source": {"title": s.title, "authors": s.authors, "year": s.year, "doi": s.doi, "page": s.page,
                        "locator": s.locator, "doc_sha256": s.doc_sha256, "url": s.url, "pmid": s.pmid},
             "quote": item.quote[:300], "extraction": item.extraction.value, "proposed_by": item.proposed_by,
-            "decided_by": item.decided_by}
+            "decided_by": item.decided_by, "allowed_units": pksim_units(item)}
+
+
+# ids a published PK-Sim snapshot sets at a harvested path of the Individual or the Simulation (osp_import keeps the
+# snapshot's own unit on them, as PK-Sim wrote it)
+_SNAPSHOT_PATH_IDS = ("indiv.", "sim.", "sim[")
+
+
+def pksim_units(item: EvidenceItem) -> list[str] | None:
+    """The PK-Sim units a person may give a held number in when it has no PK-Sim value yet (owner's decision 3 of
+    2026-11-11): only units harvested for its parameter, never invented. They are the units PK-Sim's process table
+    places the parameter in (`process_bindings`, harvested), or, for a value a published PK-Sim snapshot sets at a
+    harvested path, that snapshot's own unit ("" is dimensionless). None: the value already has its PK-Sim value, is not
+    a number, or no harvested unit is known. The person types the value; nothing is converted."""
+    if not isinstance(item.value, int | float) or isinstance(item.value, bool) or item.value_pksim is not None:
+        return None
+    if is_process_id(item.target) and placement(item.target) == "process":
+        return sorted({c.unit or "" for c in binding_candidates(item.target)}) or None
+    if item.source_type is SourceType.OSP_LIBRARY and item.target.startswith(_SNAPSHOT_PATH_IDS):
+        return [item.unit or ""]
+    return None
 
 
 def _suggestions(target: str) -> dict[str, Any]:

@@ -15,6 +15,36 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a held number with no automatic conversion is accepted on its row, typed in a harvested PK-Sim unit (web + API read)
+- **What.** On Inputs, a held number with no PK-Sim value (flag `needs_conversion`) now shows two labelled controls in
+  its row: *Value in PK-Sim's unit* (`inputMode=decimal`, always empty, never prefilled or converted) and *PK-Sim unit*
+  (nothing chosen at first). Visible text replaces the hover title: "No automatic conversion: type the value in PK-Sim's
+  unit to accept it." Accept turns on once a reason, a finite number and a unit are given, and sends
+  `{state: ACCEPTED, reason, value_pksim, unit_pksim}`; each value is still accepted one at a time. The units come
+  from a new read-only field, `allowed_units`, on each evidence row of `GET/POST …/inputs` (`inputs.pksim_units`). It
+  lists only units harvested for that parameter. A process parameter gets the unit PK-Sim's harvested process table
+  places it in (`process_bindings`, e.g. Km → `µmol/l`). A published snapshot's value at an Individual or Simulation
+  path (`indiv.*`, `sim.*`) gets the snapshot's own unit (`""` = dimensionless). Otherwise the field is `null`, and the
+  row says that no PK-Sim unit is harvested for this parameter, so it cannot be accepted there and must be corrected or
+  rejected. `…/evidence/{id}:decide` refuses (422) a typed value whose unit is not among the harvested ones, and stores
+  the dimensionless `""` as no unit.
+- **Why.** Owner's decision 3 of 2026-11-11: the person types the value in PK-Sim's unit, and the unit comes only from
+  the harvested PK-Sim units (CLAUDE.md: never invent units; nothing is converted). Until now Accept was permanently
+  disabled on these rows, and its tooltip pointed to a "Literature page" that R5 removed. So every published-model
+  `indiv.*` value stayed in "Still missing to run" for good, and Inputs could not finish for a project that imports a
+  published OSP snapshot. Owner's decision 4: the `InputsWorkspace` comment saying "nothing is accepted here, the one
+  review is at the MAP signature" was stale. It now says that values are accepted per value on Inputs and that the
+  MAP signature covers the inputs as a whole.
+- **Impact.** API contract: an additive response field (`EvidenceView.allowed_units`); `docs/api/openapi.json` and
+  `apps/web/lib/api-types.ts` are regenerated. No locked file changed, and no PK-Sim name, path or unit was added: the
+  units are read from the harvested process table and from the snapshot itself. A value whose parameter has no harvested
+  unit stays held, as before.
+- **Tests.** `services/api/tests/test_inputs_api.py::test_a_held_number_without_its_pksim_value_offers_only_harvested_units_and_takes_the_typed_value`
+  checks the units offered, the 422 on a unit that was not harvested, and the stored acceptance. A new e2e spec,
+  `e2e/held-value-pksim-unit.spec.ts`, accepts the published Dapagliflozin model's EHC continuous fraction through the
+  UI: the field starts empty, only the harvested unit is offered, Accept stays off for "1,0" and while no unit is chosen,
+  and the stored value is the typed one. `inputs-todo.spec.ts` and `published-model.spec.ts` still pass.
+
 ### Fixed — the compound CPF page: a number is never split, a structured value is one summary line, the page stays short (web only)
 - **What.** The CPF table's Value cell now branches on the value (`compounds/[compound]/page.tsx`). A number, or a string
   that reads as one, shows on one line (nowrap, tabular figures) exactly as stored: no rounding, since the CPF is the

@@ -30,6 +30,9 @@ class EvidenceView(View):
     extraction: str                   # TEXT, TABLE, FIGURE_DIGITIZED or CELL (a client template read by code)
     proposed_by: str                  # who supplied it: "agent:<run>", a person's id, or the system reading a file
     decided_by: str | None            # who last accepted, corrected or excluded it
+    # a held number without its PK-Sim value: the harvested PK-Sim units it may be typed in ("" dimensionless); None
+    # when none is needed or none is harvested (`inputs.pksim_units`, owner's decision 3 of 2026-11-11)
+    allowed_units: list[str] | None
 
 
 class AlternativeView(EvidenceView):

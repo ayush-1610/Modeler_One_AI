@@ -179,3 +179,34 @@ def test_the_inputs_assemble_after_each_change_and_the_plan_reads_them_without_a
                                                                 "value": "MetabolizationSpecific_FirstOrder", "reason": "x"})
     plan = c.get("/api/v1/projects/p1/plan", headers=H)
     assert plan.status_code == 200, plan.text                                          # nothing accepted
+
+
+def test_a_held_number_without_its_pksim_value_offers_only_harvested_units_and_takes_the_typed_value(setup):
+    """Owner's decision 3 (2026-11-11): the person types the value in PK-Sim's unit, chosen only from the units harvested
+    for the parameter; nothing is converted. A published snapshot's value at an Individual path offers its own unit
+    (dimensionless here); a process parameter offers the unit PK-Sim's process table places it in."""
+    c, ws, _read_root = setup
+    path = "indiv.Organism|Liver|EHC continuous fraction"
+    snap = propose(ws, EvidenceItem(id=new_id(), target=path, value=1.0, unit=None, source_type=SourceType.OSP_LIBRARY,
+                                    source=SourceRef(title="OSP model", locator="PK-Sim snapshot"), quote="published model"),
+                   actor="u1")
+    clint = propose(ws, EvidenceItem(id=new_id(), target="elim.hepatic.CYP3A4.km", value=12.0, unit="ng/ml",
+                                     source_type=SourceType.REGULATORY_REVIEW, source=SourceRef(title="FDA review"),
+                                     quote="Km 12 ng/ml"), actor="u1")
+    assert snap.value_pksim is None and clint.value_pksim is None   # nothing converted: both held for a person
+    view = c.post("/api/v1/projects/p1/inputs:assemble", headers=H).json()["data"]
+    held = {e["id"]: e for t in view["todo"] for e in t.get("items", []) if isinstance(e, dict) and "allowed_units" in e}
+    assert held[snap.id]["allowed_units"] == [""] and held[clint.id]["allowed_units"] == ["µmol/l"]
+
+    wrong = c.post(f"/api/v1/projects/p1/evidence/{clint.id}:decide", headers=H,
+                   json={"state": "ACCEPTED", "reason": "MW 450", "value_pksim": 0.0267, "unit_pksim": "mg/l"})
+    assert wrong.status_code == 422 and "µmol/l" in wrong.json()["detail"]
+    pct = c.post(f"/api/v1/projects/p1/evidence/{snap.id}:decide", headers=H,
+                 json={"state": "ACCEPTED", "reason": "as published", "value_pksim": 100, "unit_pksim": "%"})
+    assert pct.status_code == 422 and "dimensionless" in pct.json()["detail"]
+    ok = c.post(f"/api/v1/projects/p1/evidence/{snap.id}:decide", headers=H,
+                json={"state": "ACCEPTED", "reason": "as published", "value_pksim": 1.0, "unit_pksim": ""})
+    assert ok.status_code == 200, ok.text
+    stored = EvidenceItem.from_content(ws.latest(ArtifactKind.EVIDENCE, snap.id).content)
+    assert stored.state is EvidenceState.ACCEPTED and stored.value_pksim == 1.0 and stored.unit_pksim is None
+    assert not any(f.startswith("needs_conversion") for f in stored.flags)

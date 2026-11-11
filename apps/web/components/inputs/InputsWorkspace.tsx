@@ -150,7 +150,9 @@ function FilesDrawer({ projectId, files, onClose, onRetag, onOpen }: {
 
 /** Step 2 · Inputs (redesign §3.2): one workspace in PK-Sim's building blocks. Values flow in from every source not
  *  excluded and the source-selection rule keeps one per input (D-32); the side list says what is still missing to run,
- *  and each item opens where it is settled. Nothing is accepted here: the one review is at the MAP signature (D-27). */
+ *  and each item opens where it is settled. A value held for a check is accepted or rejected here, one value at a time,
+ *  each with the person's reason (owner's decision 4 of 2026-11-11); the MAP signature on Review & sign then covers the
+ *  inputs as a whole. */
 export function InputsWorkspace({ projectId, initialTab = "compound", steps }: { projectId: string; initialTab?: Tab; steps?: ReactNode }) {
   const page = useResource("/api/v1/projects/{project_id}/inputs", { project_id: projectId }, { select: (d) => narrow<View>(d) });
   const client = useResource("/api/v1/projects/{project_id}/client-data", { project_id: projectId },

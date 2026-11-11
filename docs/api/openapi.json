@@ -514,6 +514,20 @@
         "additionalProperties": false,
         "description": "A source the selection did not keep (D-32): how far it stands from the kept value.",
         "properties": {
+          "allowed_units": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Units"
+          },
           "conditions": {
             "additionalProperties": true,
             "title": "Conditions",
@@ -673,6 +687,7 @@
           "extraction",
           "proposed_by",
           "decided_by",
+          "allowed_units",
           "relation",
           "differs_pct"
         ],
@@ -8094,6 +8109,20 @@
         "additionalProperties": false,
         "description": "An evidence item as the page shows it (`inputs.evidence_view`): the value in both units, its source and grade.",
         "properties": {
+          "allowed_units": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Units"
+          },
           "conditions": {
             "additionalProperties": true,
             "title": "Conditions",
@@ -8229,7 +8258,8 @@
           "quote",
           "extraction",
           "proposed_by",
-          "decided_by"
+          "decided_by",
+          "allowed_units"
         ],
         "title": "EvidenceView",
         "type": "object"

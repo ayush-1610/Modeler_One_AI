@@ -4,6 +4,11 @@
   display: grid; gap: 6px; }
 .todo-item + .todo-item { margin-top: 10px; }
 .todo-row { border-top: 1px solid var(--line-soft); padding-top: 8px; }
+/* a held number accepted with the value the person types in PK-Sim's unit (owner's decision 3, 2026-11-11) */
+.pksim-entry { display: grid; gap: 6px; margin-top: 6px; }
+.pksim-field { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--ink-dim); }
+.pksim-controls { align-items: flex-end; }
+.pksim-field input { width: 150px; }
 .todo-table td, .todo-table th { padding: 6px 8px; }
 .todo-table tr { cursor: pointer; }
 .todo-table tr.picked { background: color-mix(in srgb, var(--sim) 10%, transparent); }

@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { send, type Envelope } from "@/lib/api";
 
 export type Ev = {
   id: string; target: string; value: number | string | null; unit: string | null; value_pksim: number | null;
-  unit_pksim: string | null; state: string; confidence: string; flags: string[]; provider: string; source_type: string;
+  unit_pksim: string | null; state: string;
+  // a held number without its PK-Sim value: the PK-Sim units harvested for its parameter ("" dimensionless), or null
+  // when none is needed or none is harvested (the API's `inputs.pksim_units`)
+  allowed_units?: string[] | null; confidence: string; flags: string[]; provider: string; source_type: string;
   conditions: Record<string, string>; quote: string;
   source: { title: string; authors: string; year: number | null; doi: string | null; page: number | null; locator: string | null;
             doc_sha256?: string | null; url?: string | null; pmid?: string | null };
@@ -157,21 +160,64 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
   );
 }
 
+const UNSET = "\u0000unset";   // no unit chosen yet ("" is the dimensionless unit, a real choice)
+const unitLabel = (u: string) => (u === "" ? "dimensionless (no unit)" : u);
+
+/** Accept or reject one held value. A number with no PK-Sim value yet (no automatic conversion) is accepted only with
+ *  the value the person types in PK-Sim's unit, the unit chosen from those harvested for its parameter (owner's
+ *  decision 3 of 2026-11-11): the field starts empty and nothing is prefilled or converted. */
 export function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: Run }) {
   const [reason, setReason] = useState("");
+  const [typed, setTyped] = useState("");
+  const [unit, setUnit] = useState(UNSET);
+  const ids = useId();
+  const needsValue = typeof e.value === "number" && e.value_pksim === null;
+  const units = e.allowed_units ?? null;
+  const number = typed.trim() === "" ? NaN : Number(typed.trim());
+  const valueReady = !needsValue || (units !== null && Number.isFinite(number) && unit !== UNSET);
+  const body = needsValue ? { state: "ACCEPTED" as const, reason, value_pksim: number, unit_pksim: unit === UNSET ? null : unit || null }
+                          : { state: "ACCEPTED" as const, reason };
+  const accepted = needsValue ? `${e.target} = ${typed.trim()}${unit && unit !== UNSET ? ` ${unit}` : ""} accepted, typed in PK-Sim's unit.`
+                              : `${e.target} = ${fmt(e.value_pksim ?? e.value)} accepted.`;
   return (
     <div className="todo-row">
       <div className="row items-start gap-14">
         <div className="minw-110"><code>{e.target}</code><div><Value e={e} /></div></div>
         <div className="flex-1 minw-220"><Source e={e} /></div>
       </div>
+      {needsValue && (
+        <div className="pksim-entry" data-testid={`pksim-entry-${e.id}`}>
+          {units !== null ? (
+            <>
+              <p className="muted fs-13 m-0">No automatic conversion: type the value in PK-Sim&apos;s unit to accept it.</p>
+              <div className="row gap-6 pksim-controls">
+                <label className="pksim-field" htmlFor={`${ids}-v`}>
+                  <span>Value in PK-Sim&apos;s unit</span>
+                  <input id={`${ids}-v`} type="text" inputMode="decimal" autoComplete="off" value={typed}
+                         onChange={(x) => setTyped(x.target.value)} aria-invalid={typed.trim() !== "" && !Number.isFinite(number)} />
+                </label>
+                <label className="pksim-field" htmlFor={`${ids}-u`}>
+                  <span>PK-Sim unit</span>
+                  <select id={`${ids}-u`} value={unit} onChange={(x) => setUnit(x.target.value)}>
+                    <option value={UNSET} disabled>choose…</option>
+                    {units.map((u) => <option key={u} value={u}>{unitLabel(u)}</option>)}
+                  </select>
+                </label>
+              </div>
+              {typed.trim() !== "" && !Number.isFinite(number) && <p className="fs-12 m-0" role="status">Type a number, e.g. 0.42.</p>}
+            </>
+          ) : (
+            <p className="muted fs-13 m-0">No automatic conversion, and no PK-Sim unit is harvested for this parameter: it
+              cannot be accepted here. Correct it to the parameter it belongs to, or reject it.</p>
+          )}
+        </div>
+      )}
       <div className="row gap-6 mt-6">
         <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
                aria-label={`reason for ${e.id}`} />
-        <button className="btn primary" disabled={!reason.trim() || (typeof e.value === "number" && e.value_pksim === null)}
-                title={typeof e.value === "number" && e.value_pksim === null ? "no automatic conversion: accept it on the Literature page with its PK-Sim value" : undefined}
-                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "ACCEPTED", reason }),
-                                        `${e.target} = ${fmt(e.value_pksim ?? e.value)} accepted.`)}>Accept</button>
+        <button className="btn primary" disabled={!reason.trim() || !valueReady}
+                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, body),
+                                        accepted)}>Accept</button>
         <button className="btn" disabled={!reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
                                         `${e.id} rejected.`)}>Reject</button>
