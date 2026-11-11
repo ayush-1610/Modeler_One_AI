@@ -15,6 +15,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the page no longer stops scrolling at random (2026-11-11)
+The owner, 2026-11-11, testing in Safari: the page "stops scrolling in between, randomly".
+- **The page lock under a dialog is the dialog's own:** it was a CSS rule, `html:has(.dialog-backdrop) { overflow:
+  hidden }` (added 2026-11-10 with the "Add data" scroll fix), which Safari did not always re-check once a dialog
+  closed, leaving the page unable to scroll until something else redrew it. The kit's Dialog now sets
+  `data-dialogs` on the page while it is open (counted, for a dialog over a dialog) and removes it as it closes;
+  `kit.css` holds the page still on `html[data-dialogs]`.
+- **The reading tray's file list lets the page scroll on:** its `overscroll-behavior: contain` stopped the wheel at the
+  end of the list whenever the pointer was over it; removed (dialogs keep theirs: they are modal).
+- Test: `e2e/library.spec.ts` "Add data with many files scrolls inside the dialog": the page is held while the dialog
+  is open, and after a dialog has opened and closed four times the page carries no lock and scrolls. The test browser
+  is Chromium, which re-checked the old rule correctly: Safari's behaviour itself could not be reproduced here.
+
 ### Added — the admin console's people and companies, kept in Keycloak (F, 2026-11-11)
 The owner, 2026-11-10: the console must create "the users, groups, tenants, companies". Built from the admin console
 plan's F, with its limits (§2): no password passes through the platform, nobody is deleted, nobody acts as another
