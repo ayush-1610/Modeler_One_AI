@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { AdminTabs, NotForYou, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/admin/AdminParts";
+import { AdminTabs, LimitWarnings, NotForYou, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/admin/AdminParts";
 import { Hero } from "@/components/kit";
 import { ApiProblem, Card } from "@/components/ui";
 import { getOverview, pricedAs, refused } from "@/lib/admin";
@@ -24,6 +24,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           {live.problem && <ApiProblem problem={live.problem} />}
           {data && (
             <>
+              <LimitWarnings warnings={data.warnings} month={data.month} priced={priced} />
               <Card title="All companies">
                 <UsageKpis usage={data.total} />
               </Card>

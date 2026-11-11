@@ -23,6 +23,9 @@ export const getUsage = (query: { since?: string; tenant_id?: string; priced_as:
   serverGet("/api/v1/admin/usage", {}, query);
 export const getAgents = () => serverGet("/api/v1/admin/agents", {});
 export const getKeys = () => serverGet("/api/v1/admin/keys", {});
+export const getLimits = (priced: PricedAs) => serverGet("/api/v1/admin/limits", {}, { priced_as: priced });
+
+export type LimitRow = Schema<"LimitRow">;
 
 /** The API refused: this person is not the platform's owner (403), as against a problem reaching it. */
 export function refused(problem: string | null): boolean {
@@ -32,3 +35,4 @@ export function refused(problem: string | null): boolean {
 export const tokens = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)} M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)} k` : String(n));
 export const usd = (n: number) => (n > 0 && n < 0.01 ? "< $0.01" : `$${n.toFixed(2)}`);
 export const when = (iso: string | null) => (iso ? iso.slice(0, 16).replace("T", " ") : "—");
+export const percent = (share: number | null) => (share === null ? "—" : `${Math.round(share * 100)} %`);

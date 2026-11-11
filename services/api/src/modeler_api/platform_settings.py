@@ -1,13 +1,15 @@
-"""The platform's own settings, kept from the owner's console (docs/plans/2026-11-10-admin-console.md, C and D): the
-model each agent uses, and the providers' keys.
+"""The platform's own settings, kept from the owner's console (docs/plans/2026-11-10-admin-console.md, C, D and E): the
+model each agent uses, the providers' keys, and the monthly limits the administrator is warned against.
 
-Two files under `<read_root>/_platform/` (a name `admin_api` never lists as a company):
+Three files under `<read_root>/_platform/` (a name `admin_api` never lists as a company):
 - `agents.json`: each agent's current setting and the history of changes, each with who, when and why;
 - `keys.json`: the providers' keys. Every secret field is sealed with AES-GCM under the master key, which lives only
   in the server's environment (`MODELER_MASTER_KEY`, 32 random bytes in base64); the record keeps the field's last 4
   characters to be recognised by, who added it and when, its state (new, active, retired) and its last test. A key
   is added, tested, made active (the provider's active key is then retired) and retired; one active longer than
-  `ROTATE_AFTER_DAYS` is due for rotation.
+  `ROTATE_AFTER_DAYS` is due for rotation;
+- `limits.json`: a monthly spend and token limit per company, project or person, and the history of changes. A limit
+  only warns the administrator (at `WARN_AT` of it and when it is reached); it never stops an agent (answer 2).
 
 Secrets leave this module only to build an agent's model (`model_env`) or to test a key: no answer of the API holds
 one. An agent left "as the environment says" keeps the server's own configuration (`MODELER_LLM_*`, `LITELLM_*`).
@@ -283,3 +285,55 @@ def model_env(read_root: str, master_key: str, agent: str) -> dict[str, str] | N
             return env | {"BEDROCK_API_KEY": key["api_key"]}
         return env | {"AWS_ACCESS_KEY_ID": key["aws_access_key"], "AWS_SECRET_ACCESS_KEY": key["aws_secret_key"]}
     raise SettingsError(f"{setting['provider']} cannot run an agent yet")
+
+
+# --- E: monthly limits ---------------------------------------------------------------------------------------------
+
+LIMIT_SCOPES: dict[str, str] = {"company": "Company", "project": "Project", "person": "Person"}
+WARN_AT = 0.8          # the administrator is warned at 80 % of a limit, and again when it is reached (answer 2)
+
+
+def limit_id(scope: str, tenant_id: str, subject: str = "") -> str:
+    """`company:acme`, `project:acme/p-1`, `person:acme/ana`."""
+    return f"{scope}:{tenant_id}" if scope == "company" else f"{scope}:{tenant_id}/{subject}"
+
+
+class LimitSettings:
+    """The monthly limits on the agents' use (estimated spend in USD, tokens in and out), per company, project or
+    person. Either measure may be left without a limit; with neither the limit is removed."""
+
+    def __init__(self, read_root: str):
+        self.path = _folder(read_root) / "limits.json"
+
+    def doc(self) -> dict[str, Any]:
+        return _read(self.path, {"limits": {}, "history": []})
+
+    def set(self, scope: str, tenant_id: str, subject: str, *, usd: float | None, tokens: int | None, by: str,
+            reason: str) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """Set (or, with neither measure, remove) one limit; the limit before and after."""
+        if scope not in LIMIT_SCOPES:
+            raise SettingsError(f"a limit applies to one of: {', '.join(LIMIT_SCOPES)}")
+        subject = subject.strip()
+        if not tenant_id.strip() or (scope != "company") != bool(subject):
+            raise SettingsError("a company's limit names the company; a project's or a person's names the company and "
+                                "the project or the person")
+        if (usd is not None and usd <= 0) or (tokens is not None and tokens <= 0):
+            raise SettingsError("a limit is above zero (leave a measure empty for no limit on it)")
+        if not reason.strip():
+            raise SettingsError("say why (kept with the change)")
+        key = limit_id(scope, tenant_id, subject)
+        with file_lock(self.path):
+            doc = _read(self.path, {"limits": {}, "history": []})
+            before = doc["limits"].get(key)
+            if usd is None and tokens is None:
+                if before is None:
+                    raise SettingsError("there is no limit to remove")
+                after = None
+                doc["limits"].pop(key)
+            else:
+                after = {"scope": scope, "tenant_id": tenant_id, "subject": subject, "usd": usd, "tokens": tokens,
+                         "by": by, "at": _now(), "reason": reason.strip()}
+                doc["limits"][key] = after
+            doc["history"].append({"id": key, "usd": usd, "tokens": tokens, "by": by, "at": _now(), "reason": reason.strip()})
+            _write(self.path, doc)
+        return before, after

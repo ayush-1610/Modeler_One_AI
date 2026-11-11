@@ -41,6 +41,25 @@ data: fix items 1 to 6. No API change, no science change.
 - Tests: `inputs-workspace.spec.ts` presses "Leave po-typed out" before giving the reason; `model-plan.spec.ts` brings
   the S4 → S5 arrow into view before the drag (the shorter head moved the canvas; a drag that scrolls drops nothing).
 
+### Added — the admin console's monthly limits: a warning to the administrator at 80 % and at 100 % (2026-11-10)
+The owner, 2026-11-10 (admin console plan, E and answer 2): limits "warn to admin (client will see and decide later
+what to show them)".
+- **A monthly limit** on the agents' estimated spend (USD) and/or tokens (in and out), on a company, a project or a
+  person.
+  - It is kept in the platform store (`_platform/limits.json`, `platform_settings.LimitSettings`), with the history of
+    changes.
+  - Set, changed or removed at `PUT /api/v1/admin/limits` (`modeler-admin` only), each change with a fresh step-up
+    and a reason.
+  - Each change is an `admin.limit.set` or `admin.limit.remove` audit event (before and after) on the owner's chain.
+- **This month's use** (calendar month, UTC) against each limit: `GET /api/v1/admin/limits`.
+  - Spend is priced as on the usage page (Opus 5.5 unless another Claude model is chosen).
+  - A limit reads `near` from 80 % of either measure and `reached` from 100 %.
+- **The administrator is warned:**
+  - a banner on the console's overview (`Overview.warnings`, `month`);
+  - the same banner on the new Limits page (`/admin/limits`), where limits are set.
+- **Impact:** nothing stops an agent at a limit, and no answer outside `/admin` carries one: the companies' people see
+  nothing of it (answer 2). An email or push warning is not built yet; it comes with the console's routines (G).
+
 ### Changed — only a project's owner changes it; the people it is shared with read it, a reviewer among them signs (2026-11-10)
 The owner, 2026-11-10 (admin console plan, answers 4 and 6): "the one who creates project will be owner who only can
 edit and do anything in project"; the people it is shared with in the same company "can only see/read only"; a
