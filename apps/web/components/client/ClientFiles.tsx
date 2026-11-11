@@ -30,7 +30,7 @@ export function FileTagLine({ file, onRetag }: { file: ClientFile; onRetag: Reta
   const retag = async (kind: TagKind) => setError(await onRetag(file, kind));
   return (
     <div className="file-tag" data-testid={`file-tag-${file.file}`}>
-      <label className="row" style={{ gap: 6 }}>
+      <label className="row gap-6">
         <span className="muted">This file is</span>
         <select value={file.tag?.kind ?? ""} aria-label={`what ${file.file} is`} onChange={(e) => void retag(e.target.value as TagKind)}>
           {!file.tag && <option value="" disabled>not said yet</option>}
@@ -40,7 +40,7 @@ export function FileTagLine({ file, onRetag }: { file: ClientFile; onRetag: Reta
       {proposal && (
         <div className="tag-proposal" data-testid={`tag-proposal-${file.file}`}>
           <span>Its content reads as <strong>{TAG_LABELS[proposal.kind].toLowerCase()}</strong>: {proposal.why}.</span>
-          <span className="row" style={{ gap: 8 }}>
+          <span className="row gap-8">
             <button type="button" className="btn" onClick={() => void retag(proposal.kind)}>Use it</button>
             {file.tag && <button type="button" className="linkish" onClick={() => void retag(file.tag!.kind)}>
               Keep {TAG_LABELS[file.tag.kind].toLowerCase()}</button>}
@@ -71,15 +71,15 @@ function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify }: {
       <td><code>{t.sheet}</code></td>
       <td>
         <span className={`chip ${t.category === "OTHER" ? "medium" : data ? "brand" : "neutral"}`}>{CATEGORY_LABEL[t.category] ?? t.category.toLowerCase()}</span>
-        {t.evidence_quote && <div className="muted" style={{ fontSize: 12 }}>“{t.evidence_quote}” {t.evidence_cell.split("!")[1]}</div>}
+        {t.evidence_quote && <div className="muted fs-12">“{t.evidence_quote}” {t.evidence_cell.split("!")[1]}</div>}
         <CleaningRecord lines={reading?.cleaning} testId={`sheet-cleaning-${t.sheet}`} />
         {!changing && <button className="linkish" onClick={() => setChanging(true)}>change</button>}
         {changing && (
-          <div className="row" style={{ gap: 4, marginTop: 4 }}>
+          <div className="row gap-4 mt-4">
             <select value={category} onChange={(e) => setCategory(e.target.value as Category)} aria-label={`category of ${t.sheet}`}>
               {Object.keys(CATEGORY_LABEL).map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
             </select>
-            <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 140 }} />
+            <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} className="w-140" />
             <button className="btn" disabled={!reason.trim() || category === t.category}
                     onClick={async () => { const e = await onClassify(category, reason); setError(e); if (!e) setChanging(false); }}>Set</button>
           </div>
@@ -90,7 +90,7 @@ function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify }: {
                : byCode ? <span className="chip medium" title="read on arrival; what the sheet does not say is asked on its study's or product's card">
                    read by {reading?.by === "code" ? "code" : "the reading agent"} · {byCode.length} to give on its card</span>
                : proposed ? <span className="chip brand" title="checked by code; open it, check it and save">reading proposed</span>
-               : data ? <span className="chip medium">not read yet</span> : <span className="muted" style={{ fontSize: 12 }}>no data to read</span>}</td>
+               : data ? <span className="chip medium">not read yet</span> : <span className="muted fs-12">no data to read</span>}</td>
       <td className="num"><button className={`btn${!read && data ? " primary" : ""}`} onClick={onRead}>{read ? "Read again" : "Read this sheet"}</button></td>
     </tr>
   );
@@ -145,7 +145,7 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
               <ul className="flags">{last.refused.map((r, k) => <li key={k}>{r}</li>)}</ul>
             </details>
           )}
-          {last.summary && <p className="muted" style={{ margin: "4px 0 0" }}>{last.summary}</p>}
+          {last.summary && <p className="muted m-4-0-0">{last.summary}</p>}
         </div>
       )}
       {notice && <div className="banner ok">{notice}</div>}
@@ -195,11 +195,11 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
         <DocumentReading projectId={projectId} file={file} agents={agents} running={running} agentReading={agentReading} act={act} />
       )}
       {!spreadsheet && !READABLE_DOCUMENTS.has(file.kind) && (
-        <p className="muted" style={{ margin: "4px 0" }}>Kept as a citable document: the literature agents and you can quote it.</p>
+        <p className="muted m-4-0">Kept as a citable document: the literature agents and you can quote it.</p>
       )}
-      {file.template && <p className="muted" style={{ margin: "4px 0" }}>The client-data template is read automatically, cell by cell.</p>}
+      {file.template && <p className="muted m-4-0">The client-data template is read automatically, cell by cell.</p>}
       {spreadsheet && !file.template && (
-        <table style={{ marginTop: 6 }}>
+        <table className="mt-6">
           <thead><tr><th>Sheet</th><th>Holds</th><th>Read</th><th /></tr></thead>
           <tbody>
             {file.triage.map((t) => (
@@ -218,7 +218,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
         <ul className="flags" aria-label="Problems found">{file.issues.map((i, k) => <li key={k}><code>{i.location}</code> {i.message}</li>)}</ul>
       )}
       {file.brief_mismatches.length > 0 && (
-        <div className="banner warn" style={{ marginTop: 6 }}>
+        <div className="banner warn mt-6">
           Not in the brief: {file.brief_mismatches.join(" · ")}. Check with the client or update the brief.
         </div>
       )}
@@ -256,7 +256,7 @@ function ProfileRow({ p, onPropose }: { p: Profile; onPropose: (formulation: str
   const fit = p.fit;
   return (
     <tr data-testid={`profile-${p.id}`}>
-      <td>{p.label}<div className="muted" style={{ fontSize: 12 }}>n {p.n} · {p.files.join(", ")}</div>
+      <td>{p.label}<div className="muted fs-12">n {p.n} · {p.files.join(", ")}</div>
         {p.flags.length > 0 && <ul className="flags">{p.flags.map((f) => <li key={f}>{f}</li>)}</ul>}</td>
       <td><ReleasePlot p={p} /></td>
       <td>
@@ -266,12 +266,12 @@ function ProfileRow({ p, onPropose }: { p: Profile; onPropose: (formulation: str
             shape {fit.shape === null ? "—" : +fit.shape.toPrecision(4)}{fit.se_shape !== null ? ` ± ${fit.se_shape.toPrecision(2)}` : ""} ·
             RMSE {fit.rmse_percent} %</div>
         )}
-        {fit && !fit.engine_confirmed && <div className="muted" style={{ fontSize: 12 }}>equation not yet compared with PK-Sim&apos;s own curve</div>}
+        {fit && !fit.engine_confirmed && <div className="muted fs-12">equation not yet compared with PK-Sim&apos;s own curve</div>}
       </td>
       <td>
         {p.release_model !== "Table" && (
-          <div className="row" style={{ gap: 4 }}>
-            <input placeholder="formulation name" value={name} onChange={(e) => setName(e.target.value)} style={{ width: 130 }} />
+          <div className="row gap-4">
+            <input placeholder="formulation name" value={name} onChange={(e) => setName(e.target.value)} className="w-130" />
             <button className="btn" disabled={!name.trim()} onClick={async () => setError(await onPropose(name))}>Propose as release model</button>
           </div>
         )}
@@ -289,7 +289,7 @@ export function Dissolution({ projectId, d, act }: {
   const label = (id: string) => d.profiles.find((p) => p.id === id)?.label ?? id;
   return (
     <Card title={`Dissolution (${d.profiles.length} profiles)`}>
-      <p className="muted" style={{ margin: "0 0 6px", fontSize: 13 }}>
+      <p className="muted m-0-0-6 fs-13">
         Each profile is fitted with PK-Sim&apos;s Weibull release (t50, shape, lag 0). Which profile stands for release in
         the body is a planning decision; proposing one makes its values flow into the formulation, for the review.
       </p>
@@ -303,17 +303,17 @@ export function Dissolution({ projectId, d, act }: {
         </tbody>
       </table>
       {d.comparisons.length > 0 && (
-        <table style={{ marginTop: 10 }}>
+        <table className="mt-10">
           <thead><tr><th>Test vs reference</th><th>Condition</th><th className="num">f2</th><th>Verdict</th></tr></thead>
           <tbody>
             {d.comparisons.map((c) => (
               <tr key={`${c.test}-${c.reference}`} data-testid="f2-row">
-                <td>{label(c.test)}<div className="muted" style={{ fontSize: 12 }}>vs {label(c.reference)}</div></td>
+                <td>{label(c.test)}<div className="muted fs-12">vs {label(c.reference)}</div></td>
                 <td>{c.condition}</td>
                 <td className="num">{c.f2 ?? "—"}</td>
                 <td>{c.applicable ? <span className={`chip ${c.similar ? "low" : "high"}`}>{c.similar ? "similar" : "not similar"}</span>
-                     : <span className="muted" style={{ fontSize: 13 }}>{c.reasons.join("; ")}</span>}
-                  <div className="muted" style={{ fontSize: 11 }}>{c.ruleset}</div></td>
+                     : <span className="muted fs-13">{c.reasons.join("; ")}</span>}
+                  <div className="muted fs-11">{c.ruleset}</div></td>
               </tr>
             ))}
           </tbody>

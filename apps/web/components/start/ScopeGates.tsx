@@ -52,7 +52,7 @@ function Dose({ path, index, stored, save }: { path: string; index: number; stor
   const changed = text.trim() !== (stored == null ? "" : String(stored));
   return (
     <span className="route-dose">
-      <input type="number" min={0} step="any" value={text} aria-label={`Dose of scenario ${index + 1} (mg)`} style={{ width: 90 }}
+      <input type="number" min={0} step="any" value={text} aria-label={`Dose of scenario ${index + 1} (mg)`} className="w-90"
              data-testid={`dose-${index}`} onChange={(e) => setText(e.target.value)}
              onBlur={() => changed && save([text.trim() ? { path, status: "EDITED", value: Number(text) } : { path, status: "MISSING" }])} />
       <span className="muted"> mg</span>

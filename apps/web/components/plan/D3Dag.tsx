@@ -152,7 +152,7 @@ export function D3Dag({ view, onDrop, onLayout }: {
                 {here.map((s) => derived
                   ? <span key={s.study_id} className="study-chip ghost">■ {s.study_id}</span>
                   : <StudyChip key={s.study_id} s={s} view={view} compact />)}
-                {here.length === 0 && <span className="muted" style={{ fontSize: 12 }}>{n.role ? "drop datasets here" : "nothing trained"}</span>}
+                {here.length === 0 && <span className="muted fs-12">{n.role ? "drop datasets here" : "nothing trained"}</span>}
               </div>
               {fits.length > 0 && (
                 <div className="dag-fits">fits {fits.map(([pid, f]) => <code key={pid} title={f.reason}>{pid} [{f.lower}, {f.upper}]</code>)}</div>

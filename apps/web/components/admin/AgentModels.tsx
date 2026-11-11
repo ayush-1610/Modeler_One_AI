@@ -92,7 +92,7 @@ export function AgentModels({ initial }: { initial: Page }) {
     <>
       <datalist id="claude-models">{page.claude_models.map((m) => <option key={m} value={m} />)}</datalist>
       <Card title="Each agent's model">
-        <p className="muted" style={{ marginTop: 0 }}>
+        <p className="muted mt-0">
           An agent left &ldquo;as the server&apos;s environment says&rdquo; runs on{" "}
           <strong>{env.enabled ? `${env.provider} · ${env.model}` : "nothing (agents off)"}</strong>. A provider chosen
           here uses its active key (Keys). The next run takes the change; nothing restarts. On Claude, effort sets how

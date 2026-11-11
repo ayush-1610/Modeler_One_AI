@@ -31,7 +31,7 @@ export const TITLE: Record<string, string> = {
   conflict: "Values more than 2-fold apart: keep one", correct: "Filed under the wrong parameter", pka: "pKa: acidic or basic?",
   missing: "Missing for S0", datasets: "Observed data to judge the model on", formulation: "Formulation of the tablet studies",
   process: "Which PK-Sim process carries the pathway", unit: "Unit to convert", check: "Software build",
-  review: "Held until you check it", regimen: "Multiple-dose regimen", demographics: "Demographics (D-29)",
+  review: "Held until you check it", regimen: "Multiple-dose regimen", demographics: "Demographics",
   confirm: "The client's data to confirm",
 };
 export const LABEL: Record<string, string> = {
@@ -48,7 +48,7 @@ export function Source({ e }: { e: Ev }) {
   const s = e.source;
   const who = [s.authors, s.year].filter(Boolean).join(" ");
   return (
-    <div style={{ fontSize: 12 }}>
+    <div className="fs-12">
       <div>{s.title || e.source_type.toLowerCase()}{who ? ` · ${who}` : ""}{s.page ? ` · p.${s.page}` : ""}{s.locator ? ` · ${s.locator}` : ""}</div>
       <div className="muted">{e.provider.toLowerCase()} · {e.source_type.toLowerCase().replace(/_/g, " ")} · grade {e.confidence}
         {Object.keys(e.conditions).length > 0 && ` · ${Object.entries(e.conditions).map(([k, v]) => `${k} ${v}`).join(", ")}`}</div>
@@ -63,7 +63,7 @@ export function Value({ e }: { e: Ev }) {
     <span>
       <strong>{fmt(e.value)}</strong> {e.unit ?? ""}
       {e.value_pksim !== null && (e.value_pksim !== e.value || (e.unit_pksim ?? null) !== (e.unit ?? null)) &&
-        <div className="muted" style={{ fontSize: 12 }}>PK-Sim: {fmt(e.value_pksim)} {e.unit_pksim ?? ""}</div>}
+        <div className="muted fs-12">PK-Sim: {fmt(e.value_pksim)} {e.unit_pksim ?? ""}</div>}
     </span>
   );
 }
@@ -86,9 +86,8 @@ function Conflict({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
           ))}
         </tbody>
       </table>
-      <div className="row" style={{ gap: 6 }}>
-        <input placeholder="why this value (kept in the audit trail)" value={reason} onChange={(e) => setReason(e.target.value)}
-               style={{ flex: 1, minWidth: 220 }} aria-label={`reason for ${t.target}`} />
+      <div className="row gap-6">
+        <input placeholder="why this value (kept in the audit trail)" value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1 minw-220" aria-label={`reason for ${t.target}`} />
         <button className="btn primary" disabled={!keep || !reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:choose", { project_id: projectId, evidence_id: keep }, { reason }),
                                         `${t.target}: one value kept, the others rejected with your reason.`)}>
@@ -112,11 +111,11 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
   const pka = t.kind === "pka";
   return (
     <div className="todo-row">
-      <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>
-        <div style={{ minWidth: 110 }}><code>{e.target}</code><div><Value e={e} /></div></div>
-        <div style={{ flex: 1, minWidth: 220 }}><Source e={e} /></div>
+      <div className="row items-start gap-14">
+        <div className="minw-110"><code>{e.target}</code><div><Value e={e} /></div></div>
+        <div className="flex-1 minw-220"><Source e={e} /></div>
       </div>
-      <div className="row" style={{ gap: 6, marginTop: 6 }}>
+      <div className="row gap-6 mt-6">
         {pka ? (
           <select value={kind} onChange={(x) => setKind(x.target.value)} aria-label={`acid or base for ${e.id}`}>
             <option value="">acidic or basic?</option><option value="acid">acidic pKa</option><option value="base">basic pKa</option>
@@ -133,13 +132,12 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
               </select>
             )}
             {statement && <>
-              <input type="number" step="any" placeholder="number in the quote" value={number} onChange={(x) => setNumber(x.target.value)}
-                     style={{ width: 150 }} aria-label={`number for ${e.id}`} />
-              <input placeholder="unit" value={unit} onChange={(x) => setUnit(x.target.value)} style={{ width: 80 }} aria-label={`unit for ${e.id}`} />
+              <input type="number" step="any" placeholder="number in the quote" value={number} onChange={(x) => setNumber(x.target.value)} className="w-150" aria-label={`number for ${e.id}`} />
+              <input placeholder="unit" value={unit} onChange={(x) => setUnit(x.target.value)} className="w-80" aria-label={`unit for ${e.id}`} />
             </>}
           </>
         )}
-        <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} style={{ flex: 1, minWidth: 160 }}
+        <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
                aria-label={`reason for ${e.id}`} />
         <button className="btn primary" disabled={!reason.trim() || (pka ? !kind : !target || (needsMolecule && !molecule) || (statement && !number))}
                 title={statement ? "a sentence becomes a value only as a number its quote states" : undefined}
@@ -163,12 +161,12 @@ export function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: R
   const [reason, setReason] = useState("");
   return (
     <div className="todo-row">
-      <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>
-        <div style={{ minWidth: 110 }}><code>{e.target}</code><div><Value e={e} /></div></div>
-        <div style={{ flex: 1, minWidth: 220 }}><Source e={e} /></div>
+      <div className="row items-start gap-14">
+        <div className="minw-110"><code>{e.target}</code><div><Value e={e} /></div></div>
+        <div className="flex-1 minw-220"><Source e={e} /></div>
       </div>
-      <div className="row" style={{ gap: 6, marginTop: 6 }}>
-        <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} style={{ flex: 1, minWidth: 160 }}
+      <div className="row gap-6 mt-6">
+        <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
                aria-label={`reason for ${e.id}`} />
         <button className="btn primary" disabled={!reason.trim() || (typeof e.value === "number" && e.value_pksim === null)}
                 title={typeof e.value === "number" && e.value_pksim === null ? "no automatic conversion: accept it on the Literature page with its PK-Sim value" : undefined}
@@ -191,7 +189,7 @@ function StudyFix({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
   const params = { project_id: projectId, dataset_id: t.dataset_id ?? "" };
   return (
     <>
-      <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>{t.message}</p>
+      <p className="muted m-2-0 fs-13">{t.message}</p>
       {t.dataset_id && t.kind === "demographics" && (
         <button className="btn" onClick={() => void run(() => send("post", path, params, { demographics_choice: "healthy_adult_default" }),
                                                         `${t.target}: the healthy adult default, listed as a limitation of the MAP.`)}>
@@ -199,7 +197,7 @@ function StudyFix({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
         </button>
       )}
       {t.dataset_id && t.kind === "regimen" && (
-        <div className="row" style={{ gap: 6 }}>
+        <div className="row gap-6">
           <input placeholder="number of doses" value={doses} onChange={(x) => setDoses(x.target.value)} aria-label={`doses for ${t.target}`} />
           <input placeholder="interval (h)" value={every} onChange={(x) => setEvery(x.target.value)} aria-label={`interval for ${t.target}`} />
           <button className="btn primary" disabled={!(Number(doses) > 0 && Number(every) > 0)}
@@ -221,10 +219,10 @@ function Datasets({ t }: { t: TodoItem }) {
           {t.warnings!.map((w) => <li key={w}>{w}. Read the sheet again under the client&apos;s sheets below (the new reading replaces the old one).</li>)}
         </ul>
       )}
-      {rows.length === 0 && <p className="muted" style={{ margin: 0 }}>No datasets yet: add data below (the client&apos;s sheets, a
+      {rows.length === 0 && <p className="muted m-0">No datasets yet: add data below (the client&apos;s sheets, a
         typed table or a digitized figure).</p>}
       {meanless.length > 0 && (
-        <p className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
+        <p className="muted fs-13 m-6-0">
           {meanless.map((d) => d.study_id).join(", ")}: individual subjects only. The campaign judges a mean profile, so these
           studies are kept for the population evaluation; for model building and validation you need studies with a mean profile
           (e.g. the published mean data of an IV or oral study).
@@ -242,15 +240,15 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
       {t.kind === "conflict" && <Conflict t={t} projectId={projectId} run={run} />}
       {(t.kind === "correct" || t.kind === "pka") && (
         <>
-          <p className="muted" style={{ margin: "2px 0 4px", fontSize: 13 }}>{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
+          <p className="muted m-2-0-4 fs-13">{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
           {(t.items as Ev[]).map((e) => <Correction key={e.id} e={e} t={t} projectId={projectId} run={run} />)}
         </>
       )}
       {t.kind === "missing" && (
         <>
           {t.identity && (
-            <div className="row" style={{ gap: 6, margin: "4px 0" }}>
-              <span style={{ fontSize: 13 }}>The brief&apos;s PubChem record ({t.identity.name}, CID {t.identity.cid}) says
+            <div className="row gap-6 m-4-0">
+              <span className="fs-13">The brief&apos;s PubChem record ({t.identity.name}, CID {t.identity.cid}) says
                 <strong> {t.identity.value} g/mol</strong>. Check it is the free base, not the salt.</span>
               <button className="btn" onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/inputs:propose-identity", { project_id: projectId }),
                                                                 "Molecular weight proposed from PubChem.")}>Propose it</button>
@@ -261,7 +259,7 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
       )}
       {t.kind === "review" && (
         <>
-          <p className="muted" style={{ margin: "2px 0 4px", fontSize: 13 }}>{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
+          <p className="muted m-2-0-4 fs-13">{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
           {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
         </>
       )}
@@ -269,13 +267,13 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
       {t.kind === "datasets" && <Datasets t={t} />}
       {t.kind === "formulation" && (
         <>
-          <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>{t.message}. Propose the release model from the test
+          <p className="muted m-2-0 fs-13">{t.message}. Propose the release model from the test
             product&apos;s dissolution profile (below), or give the formulation&apos;s values with their source.</p>
           {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
         </>
       )}
       {(t.kind === "process" || t.kind === "unit" || t.kind === "check") && (
-        <p className="muted" style={{ margin: "2px 0", fontSize: 13 }}>{t.message}</p>
+        <p className="muted m-2-0 fs-13">{t.message}</p>
       )}
     </>
   );

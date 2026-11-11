@@ -6,7 +6,7 @@ import { Hero } from "@/components/kit";
 export default function NotFound() {
   return (
     <main data-testid="page-not-found">
-      <Hero tone="projects" eyebrow="404" title="There is no page here"
+      <Hero size="full" tone="projects" eyebrow="404" title="There is no page here"
             lede="The address may be mistyped, or the page may have been retired in the redesign. Every project is reached from the projects list."
             actions={<>
               <Link className="btn primary" href="/">Projects</Link>

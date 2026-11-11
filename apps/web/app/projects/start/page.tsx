@@ -73,7 +73,7 @@ export default function StartProjectPage() {
             <textarea id="context" rows={6} value={context} onChange={(e) => setContext(e.target.value)}
                       placeholder="Anything the proposal does not say: client, deadline, what was agreed in the kick-off…" />
           </div>
-          <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+          <p className="muted fs-13 m-0">
             The context you type here is stored as a document too, so the agent can cite it like the proposal.
           </p>
         </Card>
@@ -83,16 +83,16 @@ export default function StartProjectPage() {
         </Card>
       </div>
 
-      {error && <div className="banner err" data-testid="start-error" style={{ marginTop: 16 }}>{error}</div>}
+      {error && <div className="banner err mt-16" data-testid="start-error">{error}</div>}
       {check && (
-        <div className="banner warn start-check" data-testid="start-unread" style={{ marginTop: 16 }}>
+        <div className="banner warn start-check mt-16" data-testid="start-unread">
           <strong>The project started. A look at {check.files.filter((f) => f.problem || f.needs_ocr || f.tag_proposal?.decided === "open").length === 1
             ? "one file" : "these files"} first:</strong>
           <TagProposals projectId={check.projectId} files={check.files} testId="start-tag-proposals" />
           <Link className="btn primary" href={`/projects/${check.projectId}/start`} data-testid="start-continue">Continue to Start</Link>
         </div>
       )}
-      <div className="row" style={{ marginTop: 16 }}>
+      <div className="row mt-16">
         <button className="btn primary" data-testid="start-project" disabled={!ready} onClick={start}>
           {busy ? "Uploading…" : "Start the project and prepare the brief"}
         </button>

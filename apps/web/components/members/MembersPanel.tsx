@@ -45,13 +45,13 @@ export function MembersPanel({ projectId }: { projectId: string }) {
     <Card title="Members" action={<span className="muted">{data.members.length} with access</span>}>
       <div data-testid="members-panel">
         {!data.managed && (
-          <p className="muted" style={{ marginTop: 0 }}>
+          <p className="muted mt-0">
             This deployment&apos;s development sign-in opens every project. Members take effect when people sign in
             through Keycloak.
           </p>
         )}
         {data.managed && !data.you_change_it && (
-          <p className="banner warn" style={{ marginTop: 0 }} data-testid="members-read-only">
+          <p className="banner warn mt-0" data-testid="members-read-only">
             Shared with you to read. Only the owner, {data.owner_name}, changes this project
             {" "}(a reviewer can still sign it).
           </p>
@@ -74,13 +74,13 @@ export function MembersPanel({ projectId }: { projectId: string }) {
             ))}
           </tbody>
         </table>
-        <div className="spread" style={{ marginTop: 10, gap: 8 }}>
+        <div className="spread mt-10 gap-8">
           <select aria-label="Person to add" value={adding} onChange={(e) => setAdding(e.target.value)}
                   disabled={data.people.length === 0}>
             <option value="">{data.people.length ? "Add a person…" : "Everyone who has signed in is a member"}</option>
             {data.people.map((p) => <option key={p.subject} value={p.subject}>{p.name}</option>)}
           </select>
-          <input aria-label="Reason" placeholder="Reason (required to remove)" value={reason} style={{ flex: 1 }}
+          <input aria-label="Reason" placeholder="Reason (required to remove)" value={reason} className="flex-1"
                  onChange={(e) => setReason(e.target.value)} />
           <button className="btn" disabled={busy || !adding || !data.you_change_it} onClick={add}>{busy ? "Saving…" : "Add member"}</button>
         </div>

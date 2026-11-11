@@ -78,7 +78,7 @@ export function InfluenceHeatMap({ map }: { map: InfluenceMap }) {
           </tbody>
         </table>
       </div>
-      <p className="muted" style={{ fontSize: 12 }}>
+      <p className="muted fs-12">
         {map.quantitative
           ? "Shaded: the engine's normalized local sensitivity (AUC, else Cmax; hover for both) from S6. · = in the study's simulation, not among its most influential. Blank = not in the simulation."
           : "Structural only (· = the parameter is in the study's simulation; blank = not). The engine's sensitivities appear once S6 has run."}

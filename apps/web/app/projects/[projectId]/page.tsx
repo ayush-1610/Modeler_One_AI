@@ -1,13 +1,13 @@
 import Link from "next/link";
 
-import { Stepper } from "@/components/kit/Stepper";
+import { preloadSteps, Stepper } from "@/components/kit/Stepper";
 import { RunCampaignButton } from "@/components/RunCampaignButton";
-import { EscalationPopup } from "@/components/campaign/EscalationPopup";
 import { MembersPanel } from "@/components/members/MembersPanel";
 import { SystemPanel } from "@/components/system/SystemPanel";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
 import { Hero } from "@/components/kit";
+import { StepBlocked } from "@/components/kit/StepBlocked";
 
 function points(study: { profile?: { times: number[] } | null }) {
   return study.profile?.times?.length ?? 0;
@@ -15,6 +15,7 @@ function points(study: { profile?: { times: number[] } | null }) {
 
 export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
+  preloadSteps(projectId); // the step bar's read runs beside the page's own, not after them (audit item 9)
   const [live, liveStudies, liveCampaigns] = await Promise.all([
     getProject(projectId),
     getStudies(projectId),
@@ -40,20 +41,34 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
     <main>
       <Hero tone="run" eyebrow="Step 4 of 4" title={project.name}
             lede="Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table."
-            actions={<><RiskChip rating={project.risk} /><Link className="btn" href="/review">Review inbox</Link></>} />
+            actions={<RiskChip rating={project.risk} />} />
       <Stepper projectId={project.id} current="run" />
-      <EscalationPopup campaignIds={(campaigns ?? []).map((c) => c.id)} />
       {(liveStudies.problem || liveCampaigns.problem) && (
         <ApiProblem problem={(liveStudies.problem ?? liveCampaigns.problem)!} />
       )}
 
+      {!runnable && !liveStudies.problem && (
+        // a campaign cannot start yet: what is missing, in words, and the way there (not a page that just lacks its button)
+        <StepBlocked projectId={project.id} step="run" title="A campaign can run once these are in place" testId="run-blocked"
+                     fallback={(
+                       <>
+                         <ul>
+                           {!question && <li>a question of interest (set on Start)</li>}
+                           {!compound && <li>a compound with its parameter framework</li>}
+                           {!(studies && studies.length) && <li>at least one observed study to fit and validate against (added on Inputs)</li>}
+                         </ul>
+                         <Link className="btn primary" href={`/projects/${project.id}/inputs?tab=studies`}>Go to Inputs</Link>
+                       </>
+                     )} />
+      )}
+
       {runnable && (
         <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S7</span>}>
-          <p className="muted" style={{ marginTop: 0 }}>
+          <p className="muted mt-0">
             Generates the Model Analysis Plan from this project&apos;s CPF and {studies!.length} observed
             study(ies), records the Part 11 signature, then runs the stage loop on the OSP engine — building
-            the model, simulating, scoring it against the acceptance tier, and either passing or escalating
-            to the review inbox.
+            the model, simulating, scoring it against the acceptance tier, and either passing or stopping to
+            ask you for a signed decision, on whatever page you are on.
           </p>
           <RunCampaignButton projectId={project.id} questionId={question!.id} compound={compound} />
         </Card>
@@ -79,7 +94,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
             <table>
               <thead><tr><th>Study</th><th>Route</th><th className="num">Dose</th><th className="num">Points</th></tr></thead>
               <tbody>
-                {studies.map((s) => (
+                {/* a summary: the first ten; the whole list, sortable and filtered, is on Inputs (audit item 11) */}
+                {studies.slice(0, 10).map((s) => (
                   <tr key={s.study_id}>
                     <td><code>{s.study_id}</code></td>
                     <td>{s.route?.replace("_", " ") ?? "—"}</td>
@@ -89,8 +105,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
                 ))}
               </tbody>
             </table>
-          ) : (
-            <p className="muted" style={{ margin: 0 }}>
+          ) : null}
+          {studies && studies.length > 10 && (
+            <p className="muted m-8-0-0 fs-13" data-testid="overview-studies-more">
+              10 of {studies.length} studies shown.{" "}
+              <Link href={`/projects/${project.id}/inputs?tab=studies`}>All {studies.length} studies on Inputs →</Link>
+            </p>
+          )}
+          {studies && studies.length > 0 ? null : (
+            <p className="muted m-0">
               No observed data yet. Use <strong>Add data</strong> to upload a clinical profile — a campaign
               needs at least one study to fit and validate against.
             </p>
@@ -116,7 +139,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
             </tbody>
           </table>
         ) : (
-          <p className="muted" style={{ margin: 0 }}>
+          <p className="muted m-0">
             No campaigns yet — run one above and this table will fill in as it progresses.
           </p>
         )}

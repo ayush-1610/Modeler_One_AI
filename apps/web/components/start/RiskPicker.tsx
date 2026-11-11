@@ -35,9 +35,9 @@ function InternalTarget({ view, save, marks, tier }: { view: BriefView; save: Sa
     <div className={`risk-row${marks.issues(path).length ? " needs-you" : ""}`} data-testid="risk-target">
       <label className="sb-label" htmlFor="risk-target-input">Internal target</label>
       <div className="sb-value">
-        <div className="row" style={{ gap: 6, alignItems: "center" }}>
+        <div className="row gap-6 items-center">
           <span className="muted">|prediction error| at most</span>
-          <input id="risk-target-input" type="number" min={0} step="any" value={text} style={{ width: 90 }} placeholder="none"
+          <input id="risk-target-input" type="number" min={0} step="any" value={text} className="w-90" placeholder="none"
                  data-testid="risk-target-input" onChange={(e) => setText(e.target.value)} />
           <span className="muted">%</span>
           <button type="button" className="btn" disabled={!changed} data-testid="risk-target-save"
@@ -58,7 +58,7 @@ function InternalTarget({ view, save, marks, tier }: { view: BriefView; save: Sa
             </span>
           )}
         </div>
-        <span className="muted" style={{ fontSize: 12.5 }}>
+        <span className="muted fs-12-5">
           Applied to the internal AUC and Cmax comparisons (S1–S4), on top of the tier
           {widest != null ? `; at most ${widest} % at the ${tier} tier.` : "; rate the tier first."}
         </span>
@@ -118,12 +118,12 @@ function Suggestion({ dimension, stored, suggested, differs, reasoned, who, save
         <span className="muted" data-testid={`${testId}-kept`}>Kept {differs.rating}: {differs.reason}</span>
       ) : (
         <>
-          <div className="row" style={{ gap: 6 }}>
+          <div className="row gap-6">
             <button type="button" className="btn" data-testid={`${testId}-take`} onClick={() => onTake(differs.suggested)}>
               Take {differs.suggested}</button>
-            <span className="muted" style={{ fontSize: 12.5 }}>then save the model risk below</span>
+            <span className="muted fs-12-5">then save the model risk below</span>
           </div>
-          <label className="muted" style={{ fontSize: 12.5 }} htmlFor={`${testId}-reason`}>or keep {differs.rating}, and say why</label>
+          <label className="muted fs-12-5" htmlFor={`${testId}-reason`}>or keep {differs.rating}, and say why</label>
           <textarea id={`${testId}-reason`} rows={2} value={reason} data-testid={`${testId}-reason`}
                     onChange={(e) => setReason(e.target.value)} />
           <div className="row">
@@ -229,7 +229,7 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
               </span>
             )}
             {shownTier && view.start.risk.criteria[shownTier] && (
-              <span className="muted" style={{ fontSize: 12.5 }} data-testid="risk-criteria">
+              <span className="muted fs-12-5" data-testid="risk-criteria">
                 {shownTier}: {view.start.risk.criteria[shownTier]} · {view.start.risk.ruleset}
               </span>
             )}
@@ -239,8 +239,7 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
           <div className="risk-row">
             <label className="sb-label" htmlFor="risk-why">Why this tier</label>
             <div className="sb-value">
-              <textarea id="risk-why" rows={2} value={why} data-testid="risk-why" onChange={(e) => setWhy(e.target.value)}
-                        style={{ width: "100%" }}
+              <textarea id="risk-why" rows={2} value={why} data-testid="risk-why" onChange={(e) => setWhy(e.target.value)} className="w-full"
                         placeholder="Influence and consequence differ: say why the risk is the tier you chose" />
               {agentWhy && why.trim() === agentWhy && (
                 <span className="risk-suggestion risk-preselected" data-testid="risk-why-drafted">
@@ -251,7 +250,7 @@ export function RiskPicker({ view, save, open, marks }: { view: BriefView; save:
           </div>
         )}
       </div>
-      <div className="row" style={{ marginTop: 10 }}>
+      <div className="row mt-10">
         <button type="button" className="btn primary" disabled={!changed || (needsWhy && !!draftTier && !why.trim() && !stored.why)}
                 data-testid="risk-save" onClick={commit}>Save the model risk</button>
         {stored.tier && <span className="muted" data-testid="risk-current">Saved: {stored.tier}</span>}

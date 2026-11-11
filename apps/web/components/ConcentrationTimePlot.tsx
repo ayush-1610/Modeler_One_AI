@@ -79,12 +79,12 @@ export function ConcentrationTimePlot({ series }: { series: Series[] }) {
   }, [series, logScale]);
 
   return (
-    <figure style={{ margin: 0 }}>
-      <label style={{ display: "inline-flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
+    <figure className="m-0">
+      <label className="inline-flex gap-6 items-center mb-8">
         <input id="log-scale" type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
         Log scale
       </label>
-      <div ref={container} style={{ width: "100%", height: 360 }} />
+      <div ref={container} className="w-full h-360" />
     </figure>
   );
 }

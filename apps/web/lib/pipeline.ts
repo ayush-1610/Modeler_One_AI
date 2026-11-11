@@ -1,7 +1,13 @@
 // The project start-up pipeline: the redesign's four steps, what has gone stale, versioned artifacts, their history and the audit trail.
 // Server-side reads return `Live<T>` (data or the problem that prevented it), like every other read in the app.
 
+// The reads are wrapped in React's cache(): within one server render, a page and the components in it (the step bar, the
+// page's own checks) share one request per read instead of asking the API again. It never outlives the request: every
+// page still reads the API afresh (serverGet stays `no-store`), so a status shown is never an earlier one (audit item 9).
+import { cache } from "react";
+
 import { narrow, serverGet, type Live, type Narrow, type Schema } from "@/lib/api";
+import { plain } from "@/lib/plain";
 
 // The answers are the API's generated response models (lib/api-types.ts); an artifact's stored content is the caller's.
 export type ArtifactStatus = Schema<"ArtifactStatus">;
@@ -26,21 +32,22 @@ export const STEP_ROUTES: Record<StepId, (projectId: string) => string> = {
   run: (p) => `/projects/${p}`,
 };
 
-export async function getSteps(projectId: string): Promise<Live<StepRow[]>> {
+export const getSteps = cache(async (projectId: string): Promise<Live<StepRow[]>> => {
   const live = await serverGet("/api/v1/projects/{project_id}/steps", { project_id: projectId });
-  return { ...live, data: live.data ? live.data.steps : null };
-}
+  // the reasons as a person reads them: the decision numbers stay in the record (lib/plain.ts)
+  return { ...live, data: live.data ? live.data.steps.map((s) => ({ ...s, reasons: s.reasons.map(plain) })) : null };
+});
 
 /** What was made from inputs that have since changed, with why. */
-export async function getStale(projectId: string): Promise<Live<StaleArtifact[]>> {
+export const getStale = cache(async (projectId: string): Promise<Live<StaleArtifact[]>> => {
   const live = await serverGet("/api/v1/projects/{project_id}/stale", { project_id: projectId });
   return { ...live, data: live.data ? live.data.stale : null };
-}
+});
 
-export async function getArtifacts(projectId: string, kind?: string): Promise<Live<ArtifactView[]>> {
+export const getArtifacts = cache(async (projectId: string, kind?: string): Promise<Live<ArtifactView[]>> => {
   const live = await serverGet("/api/v1/projects/{project_id}/artifacts", { project_id: projectId }, { kind });
   return { ...live, data: live.data ? live.data.artifacts : null };
-}
+});
 
 export async function getArtifact<C>(projectId: string, kind: string, id: string): Promise<Live<ArtifactView<C>>> {
   const live = await serverGet("/api/v1/projects/{project_id}/artifacts/{kind}/{artifact_id}", { project_id: projectId, kind, artifact_id: id });

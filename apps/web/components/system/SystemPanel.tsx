@@ -61,7 +61,7 @@ export function SystemPanel({ projectId }: { projectId: string }) {
   return (
     <Card title="Model system" action={<span className="muted">MS-01 v1.3 · {system.compounds.length} compounds</span>}>
       <div data-testid="system-panel">
-        {system.problem && <div className="banner err" style={{ marginBottom: 12 }}>{system.problem}</div>}
+        {system.problem && <div className="banner err mb-12">{system.problem}</div>}
         <table>
           <thead><tr><th>Compound</th><th>Role</th><th>CPF</th></tr></thead>
           <tbody>
@@ -92,7 +92,7 @@ export function SystemPanel({ projectId }: { projectId: string }) {
         )}
 
         <h3>Products and dose fractions</h3>
-        <p className="muted" style={{ marginTop: 0 }}>
+        <p className="muted mt-0">
           The fraction of a product&apos;s reported dose each compound receives (salt correction × enantiomer share).
           Required for every dosed compound; never defaulted.
         </p>
@@ -104,15 +104,14 @@ export function SystemPanel({ projectId }: { projectId: string }) {
                 <td>{product}</td>
                 <td>{compound}</td>
                 <td className="num">
-                  <input aria-label={`Dose fraction of ${compound} in ${product}`} value={text} inputMode="decimal"
-                         style={{ width: 110, textAlign: "right" }}
+                  <input aria-label={`Dose fraction of ${compound} in ${product}`} value={text} inputMode="decimal" className="w-110 text-right"
                          onChange={(e) => setDraft({ ...fractions, [product]: { ...fractions[product], [compound]: e.target.value } })} />
                 </td>
               </tr>
             )))}
           </tbody>
         </table>
-        <div className="spread" style={{ marginTop: 10 }}>
+        <div className="spread mt-10">
           <span className={outcome?.ok ? "muted" : ""} data-testid="system-outcome">
             {outcome && (outcome.ok ? outcome.message : <span className="chip high">{outcome.message}</span>)}
           </span>

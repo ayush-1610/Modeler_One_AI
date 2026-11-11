@@ -57,15 +57,15 @@ export function BriefList({ projectId, group, fields, title, lede, testId }: {
   const marks = startMarks(view, answer);
   return (
     <section className="card brief-list" data-testid={testId}>
-      <h3 style={{ marginTop: 0 }}>{title} <span className="muted">· {items.length}</span></h3>
-      <p className="muted" style={{ marginTop: 0 }}>{lede}</p>
+      <h3 className="mt-0">{title} <span className="muted">· {items.length}</span></h3>
+      <p className="muted mt-0">{lede}</p>
       {items.map((_, i) => (
         <div key={i} className="note-item" data-testid={`${testId}-${i}`}>
           <Fields view={view} paths={paths(i)} save={save} open={open} marks={marks} />
           {removing === i ? (
-            <div className="row" style={{ gap: 6 }}>
+            <div className="row gap-6">
               <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why it goes (kept with the brief)"
-                     aria-label={`why ${noun} ${i + 1} goes`} style={{ flex: 1 }} />
+                     aria-label={`why ${noun} ${i + 1} goes`} className="flex-1" />
               <button type="button" className="btn" disabled={!reason.trim()} onClick={() => remove(i)}>Remove it</button>
               <button type="button" className="btn" onClick={() => setRemoving(null)}>Keep it</button>
             </div>
@@ -77,7 +77,7 @@ export function BriefList({ projectId, group, fields, title, lede, testId }: {
       ))}
       {adding ? (
         <div className="note-item adding" data-testid={`${testId}-new`}>
-          <p className="muted" style={{ margin: "0 0 4px", fontSize: 13 }}>A new {noun}: it is kept once one of its fields is saved.</p>
+          <p className="muted m-0-0-4 fs-13">A new {noun}: it is kept once one of its fields is saved.</p>
           <Fields key={items.length} view={view} paths={paths(items.length)} save={save} open={open} marks={marks} />
           <button type="button" className="link-btn" onClick={() => setAdding(false)}>Done</button>
         </div>

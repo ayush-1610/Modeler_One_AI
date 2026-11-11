@@ -36,7 +36,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
 
   async function submit() {
     setResult(null);
-    // a signed decision, then the inbox and the monitor (server-rendered) read again
+    // a signed decision, then the open escalations and the monitor (server-rendered) read again
     const { data, problem } = await run(() => resolveEscalation(escalation.campaignId, escalation.stage, {
         action: choice as "retry" | "accept_best" | "abort" | "approve" | "learn" | "new_evidence",
         note: rationale,
@@ -58,7 +58,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
 
   return (
     <div>
-      <div className="banner warn" style={{ marginBottom: 12 }}>
+      <div className="banner warn mb-12">
         <strong>{escalation.reasonCode}</strong> — {escalation.evidence}
       </div>
       {fb && <FeedbackDiagnosisView diagnosis={fb} />}
@@ -72,7 +72,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
           ))}
         </select>
         {escalation.options.filter((o) => o.disabled).map((o) => (
-          <p key={o.id} className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{o.label.split(":")[0]}: {o.disabled}</p>
+          <p key={o.id} className="muted fs-12 m-4-0-0">{o.label.split(":")[0]}: {o.disabled}</p>
         ))}
       </div>
 
@@ -82,7 +82,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
           {fb.failing.map((f) => {
             const cls = fb.classes[f.class];
             return (
-              <label key={f.study_id} className="row" style={{ gap: 6, fontWeight: 400 }}>
+              <label key={f.study_id} className="row gap-6 fw-400">
                 <input type="checkbox" disabled={!cls?.learn.possible} checked={studies.includes(f.study_id)}
                   onChange={(e) => setStudies((cur) => e.target.checked ? [...cur, f.study_id] : cur.filter((x) => x !== f.study_id))} />
                 <code>{f.study_id}</code> trains {f.learn_stage}; then S5 judges {cls?.unspent.join(", ") || "nothing"}
@@ -91,7 +91,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
           })}
           {needsDeviation && (
             <textarea rows={2} value={beyondCap} onChange={(e) => setBeyondCap(e.target.value)} data-testid="beyond-cap"
-              placeholder="This class already had its learn cycle (D-05). Why another one is justified — recorded as a deviation." />
+              placeholder="This class already had its learn cycle. Why another one is justified — recorded as a deviation." />
           )}
         </div>
       )}
@@ -99,20 +99,19 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
       {choice === "new_evidence" && (
         <div className="field" data-testid="evidence-form">
           <label>The measured value (in the CPF&apos;s own unit; it replaces the parameter and is not fitted again)</label>
-          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          <div className="row gap-6 flex-wrap">
             <input placeholder="CPF parameter id, e.g. phys.solubility.ref" value={evidence.parameter}
               onChange={(e) => setEvidence({ ...evidence, parameter: e.target.value })} data-testid="evidence-parameter" />
-            <input placeholder="value" inputMode="decimal" value={evidence.value} style={{ width: 100 }}
+            <input placeholder="value" inputMode="decimal" value={evidence.value} className="w-100"
               onChange={(e) => setEvidence({ ...evidence, value: e.target.value })} data-testid="evidence-value" />
-            <input placeholder="unit" value={evidence.unit} style={{ width: 100 }}
+            <input placeholder="unit" value={evidence.unit} className="w-100"
               onChange={(e) => setEvidence({ ...evidence, unit: e.target.value })} data-testid="evidence-unit" />
           </div>
           <input placeholder="Source: the report or publication it was measured in" value={evidence.reference}
-            onChange={(e) => setEvidence({ ...evidence, reference: e.target.value })} data-testid="evidence-reference"
-            style={{ marginTop: 6 }} />
-          <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+            onChange={(e) => setEvidence({ ...evidence, reference: e.target.value })} data-testid="evidence-reference" className="mt-6" />
+          <p className="muted fs-12 m-4-0-0">
             The whole chain re-runs from the new CPF and S5 re-judges the same studies; the report says the change was
-            prompted by S5, and the verdict needs a model-risk review (D-06).
+            prompted by S5, and the verdict needs a model-risk review.
           </p>
         </div>
       )}
@@ -132,7 +131,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
       </div>
 
       {result && (
-        <div className={`banner ${result.kind === "ok" ? "ok" : "err"}`} style={{ marginTop: 12 }}>
+        <div className={`banner ${result.kind === "ok" ? "ok" : "err"} mt-12`}>
           {result.message}
         </div>
       )}

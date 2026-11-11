@@ -82,13 +82,15 @@ test.beforeAll(async () => {
   }] }));
 });
 
+// Signs in on the seeded campaign's page (it was the review inbox, gone since 2026-11-11: the decision is asked on the
+// page the person is on), so the first sign-in lands where its escalation asks for the signed decision.
 async function signIn(page: Page, who: Person = PERSON) {
-  await page.goto("/review");
+  await page.goto(`/campaigns/${ID}`);
   await expect(page).toHaveURL(new RegExp(`^${ISSUER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/protocol/openid-connect/auth`));
   await page.locator("#username").fill(who.username);
   await page.locator("#password").fill(who.password);
   await page.locator("#kc-login").click();
-  await expect(page).toHaveURL(/\/review$/);
+  await expect(page).toHaveURL(new RegExp(`/campaigns/${ID}$`));
 }
 
 test("sign-in through Keycloak, and a signature asks for the password and the authenticator code again", async ({ page }) => {
@@ -102,7 +104,9 @@ test("sign-in through Keycloak, and a signature asks for the password and the au
   })).json(), PROJECT);
   expect(unsigned.detail.code).toBe("STEP_UP_REQUIRED");
 
-  const card = page.locator(".card", { hasText: `campaign ${ID}, stage S2` });
+  // the decision is asked in the pop-up, on this page
+  const card = page.getByTestId("escalation-popup");
+  await expect(card).toContainText(`campaign ${ID}, stage S2`);
   await card.getByTestId("decision-select").selectOption("abort");
   await card.locator("textarea").first().fill("the sign-in test stops this seeded campaign");
   await card.getByTestId("decision-sign").click();
@@ -123,7 +127,7 @@ test("sign-in through Keycloak, and a signature asks for the password and the au
 
   // the decision was sent again with the step-up and accepted: the escalation is gone
   await expect(page.getByTestId("step-up-dialog")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: `Escalation — campaign ${ID}, stage S2` })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: `Your decision is needed: campaign ${ID}, stage S2` })).toHaveCount(0);
 
   // a second signature asks for both again (nothing is reused, 21 CFR 11.200)
   const again = page.evaluate(async (project) => (await fetch(`/api/v1/projects/${project}/signatures`, {
@@ -132,14 +136,14 @@ test("sign-in through Keycloak, and a signature asks for the password and the au
   })).status, PROJECT);
   expect([201, 403]).toContain(await again);  // 201 only within the 300 s the API allows after a step-up
   const stepUp = await page.context().newPage();
-  await stepUp.goto("/auth/login?step_up=1&return=/review");
+  await stepUp.goto("/auth/login?step_up=1&return=/");
   await expect(stepUp.locator("#password")).toBeVisible();
   await stepUp.locator("#password").fill(PERSON.password);
   await stepUp.locator("#kc-login").click();
   await new Promise((r) => setTimeout(r, Math.max(0, 30_000 - (Date.now() % 30_000)) + 500));  // a new TOTP window
   await stepUp.locator("#otp").fill(totp(totpKey));
   await stepUp.locator("#kc-login").click();
-  await expect(stepUp).toHaveURL(/\/review$/);
+  await expect(stepUp).toHaveURL(/\/$/);
   const signed = await stepUp.evaluate(async (project) => (await fetch(`/api/v1/projects/${project}/signatures`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ meaning: "Approved", record_type: "test", record_id: "r3", record_sha256: "c".repeat(64) }),

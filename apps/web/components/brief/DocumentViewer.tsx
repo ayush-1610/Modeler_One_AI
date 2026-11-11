@@ -44,23 +44,23 @@ export function DocumentViewer({
 
   return (
     <section className="card doc-viewer" data-testid="start-document">
-      <div className="spread" style={{ marginBottom: 8 }}>
+      <div className="spread mb-8">
         <select value={sha ?? ""} onChange={(e) => { setSha(e.target.value); setPageNo(1); }} aria-label="Document">
           {documents.map((d) => (
             <option key={d.sha256} value={d.sha256}>{d.name} · {d.role.replace("_", " ")}</option>
           ))}
         </select>
         {doc && (
-          <span className="row" style={{ gap: 6 }}>
+          <span className="row gap-6">
             <button className="btn" disabled={pageNo <= 1} onClick={() => setPageNo(pageNo - 1)}>‹</button>
-            <span className="muted" style={{ fontVariantNumeric: "tabular-nums" }}>p. {pageNo} / {doc.n_pages}</span>
+            <span className="muted tnum">p. {pageNo} / {doc.n_pages}</span>
             <button className="btn" disabled={pageNo >= doc.n_pages} onClick={() => setPageNo(pageNo + 1)}>›</button>
             <a className="btn" href={`/api/v1/projects/${projectId}/documents/${doc.sha256}/raw`} target="_blank"
                rel="noreferrer">Original</a>
           </span>
         )}
       </div>
-      {doc?.warnings.map((w) => <div key={w} className="banner warn" style={{ marginBottom: 8 }}>{w}</div>)}
+      {doc?.warnings.map((w) => <div key={w} className="banner warn mb-8">{w}</div>)}
       {problem && <div className="banner err">{problem}</div>}
       <pre className="doc-page">{page ? highlight(page.text, quote) : "…"}</pre>
     </section>

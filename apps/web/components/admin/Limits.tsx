@@ -85,7 +85,7 @@ export function Limits({ initial, priced }: { initial: Page; priced: PricedAs })
             </table>
           </div>
         )}
-        <p className="muted" style={{ marginBottom: 0 }}>
+        <p className="muted mb-0">
           Spend is estimated as on the usage page: each run&apos;s tokens at the chosen Claude model&apos;s list prices, cached.
           Tokens are those in and out. A month is a calendar month (UTC).
         </p>
@@ -125,7 +125,7 @@ export function Limits({ initial, priced }: { initial: Page; priced: PricedAs })
             </button>
           )}
         </form>
-        {problem && <div className="banner err" style={{ marginTop: 10 }} data-testid="limit-problem">{problem}</div>}
+        {problem && <div className="banner err mt-10" data-testid="limit-problem">{problem}</div>}
       </Card>
       <Card title="Changes">
         {page.history.length === 0 ? <p className="muted">No change yet.</p> : (

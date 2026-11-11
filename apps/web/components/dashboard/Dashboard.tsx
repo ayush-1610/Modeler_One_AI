@@ -57,6 +57,9 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
   const questions = active.reduce((n, p) => n + p.openQuestions, 0);
   const q = query.trim().toLowerCase();
   const shown = active.filter((p) => matches(p, filter) && (!q || `${p.name} ${p.compounds.join(" ")}`.toLowerCase().includes(q)));
+  // every open escalation is listed (a decision is never hidden behind "and N more"), then the other items up to eight
+  const urgent = attention.filter((a) => a.tone === "fail");
+  const listed = [...urgent, ...attention.filter((a) => a.tone !== "fail").slice(0, Math.max(0, 8 - urgent.length))];
   const risks = (["high", "medium", "low"] as const).map((r) => ({ r, n: active.filter((p) => p.risk === r).length })).filter((x) => x.n);
   const unrated = active.length - risks.reduce((n, x) => n + x.n, 0);
 
@@ -69,7 +72,7 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
 
   return (
     <>
-      <Hero tone="projects" eyebrow="Modeler One" title="Dashboard" testId="dash-hero"
+      <Hero size="full" tone="projects" eyebrow="Modeler One" title="Dashboard" testId="dash-hero"
             lede="Every PBPK program on the Open Systems Pharmacology Suite: where each stands, what waits on you, and what is running."
             actions={<Link className="btn primary" href="/projects/start" data-testid="dash-new-project">+ New project</Link>} />
       {notice}
@@ -125,7 +128,7 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
               <p className="dash-clear">Nothing waits on you.</p>
             ) : (
               <ul className="attention">
-                {attention.slice(0, 8).map((a) => (
+                {listed.map((a) => (
                   <li key={a.key}>
                     <Link href={a.href} className={a.tone}>
                       <span className="attention-dot" aria-hidden />
@@ -136,7 +139,7 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
                 ))}
               </ul>
             )}
-            {attention.length > 8 && <p className="muted" style={{ margin: "8px 0 0" }}>and {attention.length - 8} more</p>}
+            {attention.length > listed.length && <p className="muted m-8-0-0">and {attention.length - listed.length} more</p>}
           </section>
 
           <section className="dash-panel" aria-labelledby="risk-title" data-testid="dash-risk">
@@ -166,7 +169,7 @@ function ProjectCard({ p, i }: { p: DashboardProject; i: number }) {
   return (
     <li>
       <Link href={p.href} className={`pcard ${p.state}`} data-testid={`project-card-${p.id}`} data-magnet
-            style={{ animationDelay: `${i * 60}ms` }}>
+            style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
         <div className="pcard-head">
           <span className="pcard-mono" aria-hidden>{(p.compounds[0] ?? p.name).charAt(0).toUpperCase()}</span>
           <span className="pcard-title">

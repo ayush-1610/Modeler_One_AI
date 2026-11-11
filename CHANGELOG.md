@@ -15,6 +15,210 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — review fixes on audit items 7–12: tables, the escalation pop-up, a skeleton (web only)
+- **Tables (item 11).** `useTableView` now separates rows that need attention (`keep`, counted in "N need attention")
+  from rows the person has typed in (`pin`, shown but not counted). Both are protected from paging and the text filter
+  only; a pressed chip ("From an agent", "Left out", "Used"…) now narrows them too, so "No input matches this filter"
+  can show again while inputs wait. A row is pinned when it is typed in (bubbling input events), no longer when it gets focus,
+  so tabbing through a table no longer unpages it or inflates the count (Review table, studies, datasets).
+  `TableMore` keeps focus on "Show N more" while it is there, moves it to the count line only when the last page is
+  shown (the line now stays, so focus is not lost to `<body>`), and the line gets a visible `:focus-visible` outline.
+  `SortableTable` says "No rounds yet." for an empty table instead of 'No rounds match “”.' `Clip` now cuts at the
+  `max` it is given (the CPF parameters' references at 90 read "+ -30 characters" before).
+- **Escalation pop-up (item 8).** The dialog opens by itself only when a page loads, or on the campaign's own page when
+  no other dialog is open and no pointer button is down; an escalation that arrives later elsewhere shows the corner
+  "A decision is waiting · Open" control, so nothing opens over a drag, a digitized point or another dialog. The
+  escalation shown is held until it is decided or put off (a newer one joins "N more after this one"), so a typed
+  rationale is never replaced; on a project page the first dialog waits for that project's campaigns to set the order.
+  After "Decide later" or Escape, focus goes to the corner control.
+- **Skeleton (item 9).** The project run page's skeleton says "Step 4 of 4", as the page does.
+- Impact: web behaviour only; no API, ruleset or engine change. Tests: `e2e/table-sort.spec.ts` now also checks that
+  focus lands on the count line after the last "Show N more"; `e2e/escalation-popup.spec.ts` that focus is on the
+  corner control after Escape ("Decide later").
+
+### Changed — static inline styles moved into utility classes (audit item 10, web only)
+- **What:** 334 static `style={{…}}` literals in 50 files under `apps/web/app` and `apps/web/components` (plus the
+  conditional fail colour in `components/campaign/Feedback.tsx`) are now classes from a new sheet,
+  `apps/web/app/styles/utilities.css`, imported last in `app/layout.tsx` (after `targets.css`). `style={{` went from
+  351 to 17; the 17 left are data-driven (meter and band widths, budget %, skeleton widths, DAG layout x/y/w/h, per-series
+  colours from `color(i)`, the dashboard bars' `flexGrow`, the stagger delay, the digitizer zoom width, the `--hue`
+  property), plus the conditional heat colour in `components/campaign/History.tsx`. The digitizer's crosshair cursor
+  moved to `.cursor-crosshair`; only its zoom width stays inline.
+- **Why:** inline styles sat outside the design system: they could not be themed, overridden or reused, and the same
+  dozen values were retyped hundreds of times. The utilities are named for their property and exact value (`fs-12`,
+  `gap-6`, `mt-10`, `m-4-0-0`, `w-90`, `minw-220`, `tnum`, `text-fail` …), so the move is mechanical and reviewable.
+- **Impact:** no visual change intended. Each utility carries the inline style's exact value and is `!important`, which
+  keeps the precedence the inline style had over more specific page rules (`.card .row`, `.field input`,
+  `.start-block .row > select`). Folding the values into a smaller scale (12.5px type, gap 14, the 60–100px input
+  widths) is left for a separate pass because it moves pixels. The names avoid the existing `.note` and `.small`
+  modifiers; the only existing class with a shared name, `td.nowrap` in `review.css`, has the same meaning. No motion is
+  added. No science, API contract, locked file or `UNVERIFIED` mark is touched.
+- **Tests:** no spec asserts inline styles (none use `toHaveCSS`, `[style]` or `getAttribute("style")`); no spec was
+  changed. The whole Playwright suite was re-run, since nearly every screen is touched.
+
+### Changed — faster page loads with short, fade-only loading animations (audit item 9, web only)
+- **What:** (1) The page transition is now a 180 ms CSS fade of the entering `<main>` (`.content > main` in
+  `app/styles/design.css`); `components/kit/Motion.tsx` no longer blanks the painted page to opacity 0 and fades it back
+  over 500 ms after a 40 ms timer. The head (`.hero-inner`) and the dashboard's project cards (`.pcard`) enter with an
+  opacity-only fade (240 / 260 ms) instead of the 700 ms rise-and-scale, and the cards' stagger is 30 ms, capped at the
+  ninth card (was 60 ms per card, uncapped). (2) Per-route skeletons in the page's own shape (`components/kit/Skeleton.tsx`:
+  `PageSkeleton`, `StepperSkeleton`, `Skeleton`): `loading.tsx` for a project, Start, Inputs, Review & sign, History,
+  the Library, a campaign and the admin console; `app/loading.tsx` uses the same component. Each keeps
+  `data-testid="page-loading"` with `role="status"` and `aria-busy`, and shows no figures. The skeleton colours are tokens
+  (`var(--fill)`, `var(--surface)`) instead of a hard-coded `#ececf0`. (3) The server reads in `lib/reads.ts`
+  (projects, project, studies, campaigns, campaign, escalations) and `lib/pipeline.ts` (steps, stale, artifacts) are
+  wrapped in React `cache()`, so a page and its step bar share one request per read within a render; `serverGet` stays
+  `no-store`, so nothing is cached across requests. (4) The step bar streams: `Stepper` renders its body inside
+  `<Suspense>` with a skeleton of the bar's own place and size, and the Run and History pages start the steps read with
+  their own (`preloadSteps`), so the head paints without waiting for `/steps`. On Inputs the page's own steps read and
+  the bar's are now one request.
+- **Why:** audit item 9 (faster loads, smooth and pleasing loading animations). Every navigation paid about 0.5-0.7 s
+  of animation before the page was fully visible, a hard load flashed (painted, hidden, faded back), the step bar's read
+  ran after the page's reads, and Inputs read `/steps` twice.
+- **Impact (measured):** production build (`next build && next start`, the Playwright web server, stub API, fresh
+  data, one project), median of 5. "Settled" means the page's marker is visible and `<main>` and its head are fully
+  opaque. Before → after (two after runs):
+  hard load: dashboard 1126 → 467 / 483 ms, Run 866 → 428 / 524 ms, Inputs 873 → 423 / 442 ms, Review & sign
+  830 → 407 / 378 ms;
+  in-app navigation: Run → Inputs 867 → 539 / 575 ms, Inputs → Review & sign 906 → 516 / 563 ms, Review & sign →
+  Projects 1218 → 597 / 632 ms.
+  The time until the content first shows is about the same. It is noisy (about 150-530 ms per sample, set by the API and
+  the client-side reads) and is not what changed; Run → Inputs content was 194 → 300-502 ms, within that noise but
+  possibly up to a frame or two slower because the new skeleton commits first. The gain is the animation no longer
+  holding a page back. Motion stays opacity-only on interactive content, so nothing moves under the pointer while a page
+  enters; `prefers-reduced-motion` still removes it. No API contract or locked file changed and there is no batched
+  steps route, so the dashboard still reads each project's steps (in parallel). Not done here: the layout-level step bar,
+  passing server steps to `StepBlocked`, and a streamed dashboard grid (plan steps 5-10).
+- **Tests:** no spec changed. Run on the production build, 26 passed: shell, dashboard, dashboard-partial, start-step,
+  start-project, review-sign, model-plan, inputs-workspace, inputs-todo, projects-archive, digitize, campaign-monitor,
+  admin-console and library. The measurement was a temporary spec, deleted after use.
+
+### Changed — long tables sort by their heads, filter and page; rows that need action are always shown (audit item 11, web only)
+- **What:** a reusable sort/filter/page hook (`apps/web/lib/tableView.ts`, pure helpers in `lib/tableSort.ts`) and a
+  serializable-prop `components/kit/SortableTable.tsx` (server pages pass rendered cells plus primitive sort keys). Each
+  sortable head is a real `<button>` inside the `th`, with `aria-sort` on the `th` (none → ascending → descending → back
+  to the arriving order); nulls sort last; numbers inside text sort as numbers; Role, Stage, Risk and Confidence sort by
+  an explicit order map, not alphabetically. A footer under (outside) each table says "N of M · K need attention, always
+  shown" with "Show N more" / "Show all"; focus stays on the footer. Applied to: the Inputs **Studies** table (sort Study,
+  Protocol, Role, Used; text filter and All / Used / Left out / Blinded / No mean profile chips; 20 at a time), the
+  **Every dataset** cards (text and state filter; 10 at a time), the **CPF parameters** (sort every column, text filter,
+  50 at a time, the reference clipped with `Clip` and long values wrapped so rows stay short), the campaign **Round
+  history** (sortable, the newest 20 shown with "Show more" for earlier rounds; still chronological by default), the
+  **Library** (the Sort select and the column heads drive one order; 50 at a time), **Review & sign**'s input table
+  (sortable; 25 at a time) and the **Projects** list (sortable, not paged, so a new project is never on a later page).
+  The project overview's Observed studies is a summary of the first ten, with a link to all of them on Inputs. Rows
+  shown by "Show more" fade in (opacity only, nothing moves under the pointer; off under reduced motion).
+- **Why:** the published Dapagliflozin model brings 40 studies, 40 dataset cards and 42 parameters, so the Inputs page
+  was about 11,900 px with no way to order or narrow it (the 2026-11-11 audit, item 11).
+- **Impact:** the default order everywhere is the order the API sends (the Library keeps "newest first"), so nothing
+  reshuffles until a head is pressed. A row that needs the person's action is **never** hidden by paging or a filter:
+  a blinded study or one whose regimen is missing, a dataset that is blinded or whose overlay is still to check, and a
+  Review & sign input in conflict, held or missing are pinned in place, and so is any row the person has started to
+  edit (its typed text is not lost). Every row test id and `id` is unchanged. No API change; `docs/api/openapi.json` is
+  untouched. Not done here: History's audit/artifact tables (server, URL-param sorting), the ledger and influence map,
+  the admin tables and the dashboard search in list view.
+- **Tests:** new `e2e/table-sort.spec.ts` (first page in the API's order with pinned rows, "Show more", the Study head
+  ascending / descending from the keyboard / back, the filter keeping pinned rows). `e2e/published-model.spec.ts` now
+  filters the dataset cards for the Boulton card, because the 40 cards are shown ten at a time (deliberate change).
+
+### Changed — the Review inbox is removed: a decision is asked on the page the person is on (item 8, web only)
+- **What:** the "Review inbox" item is gone from the sidebar, and `/review` is now a server redirect to the dashboard, so
+  old links and bookmarks still land. The escalation pop-up (`components/campaign/EscalationPopup.tsx`) is mounted once,
+  in the root layout, over **every** open escalation of the tenant (no longer filtered to a project's campaigns), so a
+  decision is asked on any page; the per-page mounts on the Run page and the campaign page are removed (no double
+  pop-up). It reads only `/api/v1/escalations`, so a campaign whose record the API cannot read can still be decided. The
+  campaign on screen (or, on a project page, that project's campaigns) comes first. "Decide later" closes it for this
+  visit and leaves a small "A decision is waiting · Open" control in the bottom-right corner on every page (it fades in,
+  never moves), which opens it again without a reload; the campaign page's feedback banner has an "Open the decision"
+  button for the same. The dashboard's escalation items link to `/campaigns/{id}` and are never cut by the eight-item
+  limit. The Run page's "Review inbox" button is removed and its text reworded. The sidebar's API live dot (`nav-conn`)
+  keeps working from the same escalations read (`useInboxCount` renamed `useApiLive`); the inbox badge, its phone-menu dot
+  and their CSS are removed. The agent parameter proposals card and the dashboard's "parameter proposals to review" item
+  are dropped with `getProposals` and the `Proposal` web type.
+- **Why:** the owner's decision of 2026-11-11 ("we handle these in place: on the ongoing screen it will show or ask").
+  The adversarial checks of the plan found that the pop-up on two pages alone would leave some decisions unreachable once
+  the inbox went (a campaign record that cannot be read, a failed campaign list, a 9th escalation on the dashboard,
+  "Decide later" with no way back); the global mount and the reopen control close each gap. Agent proposals have no
+  writer anywhere in the backend (`upsert_proposal` has no caller; agents' values are decided on Inputs and the Plan step),
+  so the card was always empty.
+- **Impact:** the signed decision itself is unchanged (`EscalationDecision`, the signature from the step-up). An open
+  escalation now asks over whatever page is open, for everyone in the tenant, as the inbox listed it for everyone before.
+  `GET /api/v1/proposals` stays in the API and `docs/api/openapi.json` with no web reader and no writer; its removal, and
+  the "(review inbox)" wording of the escalations/proposals route descriptions, are a separate API-contract change. Not
+  updated here (outside `apps/web`): `docs/USING_THE_TOOL.md` and `docs/CONTINUATION_PACKAGE.md` still describe the inbox.
+- **Tests:** `escalation-popup.spec.ts` checks the pop-up on the project page, the dashboard and `/projects/start`, the
+  "waiting · Open" control across a page change, the dashboard link to the campaign, and a new case: an escalation whose
+  campaign record does not exist is still asked on its page. `feedback.spec.ts` now decides S5 in the pop-up, reopened
+  from the banner, and sees S6 asked next (it decided in the inbox before). `shell.spec.ts` checks that `/review` redirects
+  to the dashboard and that no "Review inbox" link remains (aria-current is checked on "Start from proposal" instead).
+  `dashboard.spec.ts` checks the rail's "Start from proposal" link instead of "Review inbox". `oidc-signing.spec.ts` signs
+  in on the seeded campaign page and signs in its pop-up (the inbox card before), step-up return to `/`. A new e2e helper,
+  `e2e/fixtures/escalations.ts`, lets a spec close the escalations it leaves open, since an open one now asks over the
+  next specs' pages (a full run showed it: the Dapagliflozin run's escalation covered the next test's Run campaign
+  button). `escalation-popup`, `feedback` and `campaign-monitor` call it after their tests; `model-plan` now waits for
+  its campaign to stop (it left it running before) and then calls it.
+
+### Changed — target sizes: small controls are at least 24 x 24 px to the pointer (WCAG 2.2 2.5.8; audit item 7, web only)
+- **What:** a new stylesheet, `apps/web/app/styles/targets.css`, loaded right after `design.css` in `app/layout.tsx`. The
+  link buttons (`.link-btn`), the citation chips (`.cite`), the chip remove x, the Clip "show all" toggle and lone links in
+  table cells keep their look and get an invisible `::after` hit area of at least 24 x 24 px (44 px on a touch screen;
+  32 px for the citations and the chip x, so one never covers its neighbour). The Start row's Change / Set (`.sb-change`)
+  is 32 px tall, with a negative margin so the row does not move; the API live dot (`.nav-conn`) has a 24 px area (not 44,
+  which would cover Sign out); the chip x is an 18 px round button; the profile chart's linear / log toggle is 26 px;
+  checkboxes and radios are 18 px with a 3 px margin; `.btn.tiny` is at least 28 px (32 px when primary); fold-out
+  summaries are at least 24 px. Dead duplicate rules removed: `.sb-change` in `start.css` and `.btn.tiny` in `plan.css`
+  (both overridden by `design.css`), and the `padding: 0` of `.sb-change` in `design.css`.
+- **Why:** the 2026-11-11 audit measured the Change control, link buttons and citations on Start at about 19-21 px tall,
+  the chip x at about 9 x 18 px and the API dot at 10 x 10 px, under the 24 px minimum of WCAG 2.2 SC 2.5.8.
+- **Impact:** CSS only; no API, science or locked file touched. Text and rows stay where they were (the hit areas are
+  invisible and nothing animates); checkboxes and small buttons grow by a few pixels.
+- **Tests:** new `apps/web/e2e/target-size.spec.ts` measures, on Start, a link button, the Change control (also at least
+  32 px), a citation and the API dot (box or `::after`, whichever is larger) and checks that Change still opens its editor.
+
+### Changed — admin console: a non-admin gets the app's 404, not the console's head (audit item 12, web only)
+- **What:** at `/admin` and every `/admin/*` page (usage, companies/<id>, limits, models, keys), a person whose sign-in
+  lacks `modeler-admin` now gets the app's generic 404 ("There is no page here") instead of the console's hero (title,
+  lede, "Admin console" eyebrow, for a company page the typed tenant id) followed by a refusal card naming the role. A new
+  `hideUnlessAdmin(problem)` in `apps/web/lib/admin.ts` calls `notFound()` only on the API's 403 (`refused()`); the
+  company page folds it into its existing unknown-company `notFound()`, so an unknown company and a non-admin look the
+  same. `NotForYou` (`admin-refused`) is removed.
+- **Why:** the sidebar already hides the console from non-admins; the page itself disclosed its existence, purpose and
+  role name. A 404 is the only answer that discloses nothing.
+- **Impact:** presentation only. The API's 403 stays the authoritative check and is unchanged (no contract change). Any
+  other problem — the API unreachable, a 5xx — still renders `ApiProblem`, so an outage never looks like a missing page
+  to the real admin. Diagnosing an admin whose token lacks the role (a Keycloak misconfiguration) now goes through
+  `GET /api/v1/me` (lists the roles) or the API's 403 detail (names `modeler-admin`), not the page. The 404 may arrive
+  with HTTP 200 because the root loading boundary streams.
+- **Tests:** `e2e/admin-console.spec.ts` now expects `page-not-found` at all six addresses and asserts that no
+  `admin-hero`, `admin-tabs` or "Admin console" text appears, besides the existing no-data checks (it used to expect the
+  removed refusal card). `e2e/shell.spec.ts` (the generic 404) unchanged and run alongside.
+
+### Changed — the six worst frontend flaws from the 2026-11-11 audit (web only)
+The owner, 2026-11-11, after the audit of every page on a laptop and a phone with the published Dapagliflozin model's
+data: fix items 1 to 6. No API change, no science change.
+1. **History is readable.** A change reason or an audit reason that carries a whole value (an expression profile is
+   thousands of characters of JSON) is one line: what it is about and how long the rest is, the full text one click
+   away (`components/kit/Clip.tsx`, a native disclosure). The artifacts are filtered by kind with counts, 25 at a time
+   with "Show all"; the audit trail is newest first, the last 50 with "Show all". The page measured 34,600 px; nothing in
+   the record changes.
+2. **No dead ends.** Review & sign, when the inputs are not ready, and Run, when no campaign can start, say what the
+   earlier step still waits on, in a list, with the button to go there (`components/kit/StepBlocked.tsx`), instead of a
+   red error on an empty page or a page that simply lacks its button.
+3. **Phones.** The sidebar is a bar along the top with a menu that opens over the page and closes on any choice (it
+   was a full menu filling the first screen of every page). Nothing is wider than the screen: the Inputs value rows
+   stack, forms and tool bars wrap, wide tables scroll inside their panel (Inputs, Run and Library were 604–694 px wide
+   on a 390 px phone).
+4. **Inputs, simplified.** The to-do stays beside one folded "Readiness and sources" panel (its label says how many
+   checks are open). On the Studies tab, "Leave out…" is one small button per row; the reason is asked for when it is
+   pressed (a text box and a button sat on every row).
+5. **A compact head on working pages.** The large head stays on the dashboard and the 404; the step pages, History,
+   the inbox and the library use a head a third of the height, so the work starts in the first screen.
+6. **Plain words.** Decision numbers and plan sections ("D-29", "plan §9.4", "MS-01 §6.6") are gone from the pages and
+   from the step reasons as shown (`lib/plain.ts`; the record keeps them). MS-01, ICH M15 and every UNVERIFIED mark stay.
+   The Inputs source-selection rule moved from the lede to a note under it.
+- Tests: `inputs-workspace.spec.ts` presses "Leave po-typed out" before giving the reason; `model-plan.spec.ts` brings
+  the S4 → S5 arrow into view before the drag (the shorter head moved the canvas; a drag that scrolls drops nothing).
+
 ### Fixed — R6 review: the delivery report no longer misleads (2026-11-11)
 A review of the R6 report ("can it mislead the owner?", each finding checked by a second reviewer) confirmed 6 defects
 and raised 12 more; all are fixed.

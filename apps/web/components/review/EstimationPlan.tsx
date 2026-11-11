@@ -55,7 +55,7 @@ function EstimateForm({ row, onSave, onClose }: {
   };
   return (
     <div className="estimate-form" data-testid={`estimate-form-${row.id}`}>
-      <div className="row" style={{ gap: 8 }}>
+      <div className="row gap-8">
         {["S1", "S2", "S3"].map((st) => (
           <label key={st} className="estimate-stage">
             <input type="checkbox" checked={stages.includes(st)} aria-label={`estimate ${row.id} in ${st}`}
@@ -73,9 +73,9 @@ function EstimateForm({ row, onSave, onClose }: {
             Use the proposed bounds</button>
         )}
       </div>
-      <div className="row" style={{ gap: 8, marginTop: 6 }}>
+      <div className="row gap-8 mt-6">
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why estimate it (required)"
-               aria-label={`why estimate ${row.id}`} style={{ flex: 1, minWidth: 220 }} />
+               aria-label={`why estimate ${row.id}`} className="flex-1 minw-220" />
         <button type="button" className="btn tiny primary" data-testid={`estimate-save-${row.id}`}
                 disabled={!reason.trim() || !stages.length || lower.trim() === "" || upper.trim() === ""}
                 onClick={async () => {
@@ -129,7 +129,7 @@ function GroupForm({ estimated, onSave, onClose }: {
         Each member is simulated at the factor times its start value, so their split is kept and the data estimate only
         the factor (1 is the start values). Use it for parallel pathways the data cannot tell apart.
       </p>
-      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+      <div className="row gap-8 flex-wrap">
         {estimated.map((r) => (
           <label key={r.id} className="estimate-stage">
             <input type="checkbox" checked={members.includes(r.id)} aria-label={`fit ${r.id} in the group`}
@@ -139,7 +139,7 @@ function GroupForm({ estimated, onSave, onClose }: {
           </label>
         ))}
       </div>
-      <div className="row" style={{ gap: 8, marginTop: 6 }}>
+      <div className="row gap-8 mt-6">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="group name, e.g. hepatic"
                aria-label="group name" data-testid="group-name" />
         <select value={scale} onChange={(e) => setScale(e.target.value as "linear" | "log")} aria-label="scale of the factor">
@@ -148,13 +148,13 @@ function GroupForm({ estimated, onSave, onClose }: {
         <input value={lower} onChange={(e) => setLower(e.target.value)} aria-label="lower bound of the factor" placeholder="lower" />
         <input value={upper} onChange={(e) => setUpper(e.target.value)} aria-label="upper bound of the factor" placeholder="upper" />
       </div>
-      <div className="row" style={{ gap: 8, marginTop: 6 }}>
-        <input value={splitSource} onChange={(e) => setSplitSource(e.target.value)} style={{ flex: 1, minWidth: 220 }}
+      <div className="row gap-8 mt-6">
+        <input value={splitSource} onChange={(e) => setSplitSource(e.target.value)} className="flex-1 minw-220"
                placeholder="where the split comes from, e.g. in vitro fm, HLM (Author 2020) (required)"
                aria-label="where the split comes from" data-testid="group-split-source" />
       </div>
-      <div className="row" style={{ gap: 8, marginTop: 6 }}>
-        <input value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 220 }}
+      <div className="row gap-8 mt-6">
+        <input value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1 minw-220"
                placeholder="why fit them as one (required)" aria-label="why fit them as one" data-testid="group-reason" />
         <button type="button" className="btn tiny primary" disabled={!ready} data-testid="group-save"
                 onClick={async () => {
@@ -238,7 +238,7 @@ export function EstimationPlan({ projectId, review, apply }: { projectId: string
                     </> : r.diagnosis_may_fit ? <>
                       <span className="chip brand" data-testid={`diagnosis-may-fit-${r.id}`}>the diagnosis may fit it in {r.diagnosis_may_fit.stages.join(", ")}</span>
                       <div className="review-note">{bounds(r.diagnosis_may_fit.lower, r.diagnosis_may_fit.upper, r.diagnosis_may_fit.scale)}</div>
-                      <div className="muted review-note">MS-01&apos;s default (D-37)</div>
+                      <div className="muted review-note">MS-01&apos;s default</div>
                     </> : r.held_fixed ? <>
                       <span className="chip neutral" data-testid={`held-fixed-${r.id}`}>held fixed</span>
                       <div className="muted review-note">{r.held_fixed.reason}</div>
@@ -287,12 +287,12 @@ export function EstimationPlan({ projectId, review, apply }: { projectId: string
         </div>
       )}
       <Groups projectId={projectId} groups={review.fit_groups} estimated={rows.filter((r) => r.estimated !== null)} apply={apply} />
-      <p className="muted review-hint">Proposed bounds follow MS-01 §2.2&apos;s default bounds ({rule.source}, data rule v{rule.version},{" "}
+      <p className="muted review-hint">Proposed bounds follow MS-01&apos;s default bounds ({rule.source}, data rule v{rule.version},{" "}
         {rule.status === "UNVERIFIED" ? "provisional until the SME signs" : rule.status}): relative ones around the start value,
         absolute ones only in MS-01&apos;s unit, each kept within the registry&apos;s physical bounds. The MAP may narrow them;
         wider bounds are said and acknowledged. A parameter MS-01 gives no default for gets 0.1–10× its start value.
         An MS-01 candidate you neither estimate nor keep fixed may be fitted by the diagnosis at its stages, within MS-01&apos;s
-        own default (D-37); the signed MAP lists each one.</p>
+        own default; the signed MAP lists each one.</p>
     </div>
   );
 }

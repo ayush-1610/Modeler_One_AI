@@ -162,3 +162,36 @@ tr.project-archived td { color: var(--ink-faint); }
 .reading-tray-figures ul { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .reading-tray-figures li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .add-data-reading { margin: 8px 0 0; font-size: 14px; }
+
+/* ---- a long table: sortable heads, its filter and its "Show more" footer (components/kit/SortableTable.tsx,
+ *      lib/tableView.ts; the 2026-11-11 audit, item 11) ---- */
+.sort-th { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 4px; min-height: 24px;
+  cursor: pointer; border-radius: var(--radius-sm); }
+.sort-th:hover { color: var(--brand-ink); }
+.sort-th:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
+th.num .sort-th { flex-direction: row-reverse; }
+.sort-ind { display: inline-block; width: 0.9em; text-align: center; color: var(--ink-faint); font-size: 0.85em; }
+.sort-ind::after { content: "↕"; opacity: 0.55; }
+th[aria-sort="ascending"] .sort-ind::after { content: "▲"; opacity: 1; color: var(--sim); }
+th[aria-sort="descending"] .sort-ind::after { content: "▼"; opacity: 1; color: var(--sim); }
+.table-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+.table-tools input[type="search"] { flex: 1 1 220px; min-width: 0; max-width: 420px; }
+.table-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.table-chips button { font: inherit; font-size: 12.5px; min-height: 24px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-dim); }
+.table-chips button[aria-pressed="true"] { border-color: var(--sim); color: var(--brand-ink);
+  background: color-mix(in srgb, var(--sim) 10%, var(--surface)); }
+.table-chips button:focus-visible { outline: 2px solid var(--sim); outline-offset: 1px; }
+.table-more { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 0; font-size: 13px; color: var(--ink-dim);
+  max-width: none; }
+.table-more:focus { outline: none; }
+.table-more:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; border-radius: 4px; }
+.table-attention { color: var(--warn-ink); font-weight: 600; }
+.table-none { margin: 8px 0 0; font-size: 13px; }
+/* a row shown by "Show more" or a cleared filter fades in where it stands: opacity only, nothing moves under the pointer */
+.sortable tbody tr, .paged-rows > tr, .paged-cards > * { animation: table-row-in 220ms var(--ease, ease-out) both; }
+@keyframes table-row-in { from { opacity: 0; } to { opacity: 1; } }
+/* the CPF's parameters: a long reference or value wraps in its own column, so a row stays short */
+.cpf-table td.cpf-ref { max-width: 32ch; overflow-wrap: anywhere; }
+.cpf-table td.num { white-space: normal; overflow-wrap: anywhere; max-width: 16ch; }
+.cpf-table code { overflow-wrap: anywhere; }

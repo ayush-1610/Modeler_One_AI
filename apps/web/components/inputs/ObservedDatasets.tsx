@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 
 import { Digitizer } from "@/components/evidence/Digitizer";
 import { InlineIssue } from "@/components/kit";
+import { TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { narrow, send, upload, type Narrow, type Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
 import { useResource } from "@/lib/hooks";
+import { useTableView } from "@/lib/tableView";
 
 import type { Run } from "./InputsTodo";
 
@@ -32,6 +34,52 @@ function standing(d: Listed): [string, string] {
   return ["low", "used"];
 }
 
+const SHOW = [
+  { id: "all", label: "All", test: () => true },
+  { id: "used", label: "Used", test: (d: Listed) => standing(d)[1] === "used" },
+  { id: "out", label: "Left out", test: (d: Listed) => d.state === "REJECTED" },
+  { id: "overlay", label: "Overlay to check", test: (d: Listed) => standing(d)[1] === "overlay to check" },
+  { id: "blinded", label: "Blinded", test: (d: Listed) => Boolean(d.blinded) },
+] as const;
+type Show = (typeof SHOW)[number]["id"];
+const NO_KEYS = {};
+const datasetText = (d: Listed) => [d.study.study_id, d.origin, d.purpose, d.kind, d.study.route, d.study.formulation, d.source.title,
+  standing(d)[1]].filter(Boolean).join(" ").replace(/_/g, " ");
+
+/** The dataset cards, ten at a time with a text and a state filter; a blinded dataset or a figure whose overlay is still
+ *  to check is always shown (the 2026-11-11 audit, item 11). */
+function DatasetList({ datasets, projectId, run }: { datasets: Listed[]; projectId: string; run: Run }) {
+  const [show, setShow] = useState<Show>("all");
+  const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
+  const view = useTableView({
+    rows: datasets, keys: NO_KEYS, text: datasetText, pageSize: 10,
+    filter: SHOW.find((x) => x.id === show)!.test, filterKey: show,
+    keep: (d) => Boolean(d.blinded) || standing(d)[1] === "overlay to check", pin: (d) => touched.has(d.id),
+  });
+  const touch = (id: string) => { if (!touched.has(id)) setTouched(new Set([...touched, id])); };
+  return (
+    <>
+      {datasets.length > 10 && (
+        <TableFilter view={view} placeholder="Filter datasets: study, origin, source…" label="Filter the datasets" testId="datasets-filter">
+          <div className="table-chips" role="group" aria-label="Show datasets">
+            {SHOW.map((x) => (
+              <button key={x.id} type="button" aria-pressed={show === x.id} data-testid={`datasets-show-${x.id}`}
+                      onClick={() => setShow(x.id)}>{x.label}</button>
+            ))}
+          </div>
+        </TableFilter>
+      )}
+      <div className="paged-cards">
+        {view.visible.map((d) => (
+          <div key={d.id} onInput={() => touch(d.id)}><DatasetCard d={d} projectId={projectId} run={run} /></div>
+        ))}
+      </div>
+      {view.visible.length === 0 && <p className="muted table-none">No dataset matches this filter.</p>}
+      <TableMore view={view} noun="datasets" testId="datasets-more" />
+    </>
+  );
+}
+
 function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: string; run: Run }) {
   const [reason, setReason] = useState("");
   const [revealed, setRevealed] = useState<Listed | null>(null);
@@ -52,16 +100,16 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
         </div>
         <span className="muted">{d.purpose.replace(/_/g, " ")}</span>
       </div>
-      <p className="muted" style={{ margin: "4px 0", fontSize: 13 }}>
+      <p className="muted m-4-0 fs-13">
         {String(s.route).replace("_", " ")} · {String(s.dose_mg)} mg · {String(s.formulation ?? "")} · {String(s.food_state ?? "fasted")} · n {String(s.n)}
         {" · "}{d.source.title || "source"}{d.source.locator ? ` · ${d.source.locator}` : ""}{d.source.page ? ` p.${d.source.page}` : ""}
       </p>
       {d.blinded && (
-        <div className="banner warn" data-testid={`blinded-${d.id}`} style={{ margin: "6px 0" }}>
-          External study: its values are blinded until the MAP is signed (D-15, ICH M15 §4.1). The metadata above is
+        <div className="banner warn m-6-0" data-testid={`blinded-${d.id}`}>
+          External study: its values are blinded until the MAP is signed (ICH M15). The metadata above is
           what the split uses. To check this dataset now, give the reason; the access is recorded in the audit trail.
-          <div className="row" style={{ marginTop: 6 }}>
-            <input style={{ flex: 1, minWidth: 180 }} placeholder="why it must be seen now (required)" value={revealReason}
+          <div className="row mt-6">
+            <input className="flex-1 minw-180" placeholder="why it must be seen now (required)" value={revealReason}
                    onChange={(e) => setRevealReason(e.target.value)} aria-label={`why ${String(s.study_id)} must be seen now`} />
             <button className="btn" disabled={!revealReason.trim()} onClick={async () => {
               const env = await send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
@@ -79,14 +127,14 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
       ))}
       {!d.blinded && d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${r.parameter} ${r.value} ${r.unit}`).join(" · ")}</div>}
       {d.digitization && (
-        <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
+        <p className="muted m-4-0 fs-12">
           digitized from p.{d.digitization.page}{d.digitization.crop ? ", cropped to the figure" : ""}; resolution ±{(d.digitization.resolution.x / 2).toPrecision(2)} {d.time_unit},
           ±{(d.digitization.resolution.y / 2).toPrecision(2)} {d.unit}; overlay {d.digitization.overlay_approved_by ? `checked by ${d.digitization.overlay_approved_by}` : "not checked yet"}
         </p>
       )}
       {d.flags.length > 0 && <ul className="flags">{d.flags.map((f) => <li key={f}>{f}</li>)}</ul>}
-      {out && d.decision_reason && <p className="muted" style={{ margin: 0, fontSize: 12 }}>left out by {d.decided_by}: {d.decision_reason}</p>}
-      <div className="row" style={{ marginTop: 6 }}>
+      {out && d.decision_reason && <p className="muted m-0 fs-12">left out by {d.decided_by}: {d.decision_reason}</p>}
+      <div className="row mt-6">
         {d.digitization && !d.digitization.overlay_approved_by && !out && (
           <button className="btn primary" data-testid={`overlay-${d.id}`}
                   onClick={async () => setProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
@@ -95,7 +143,7 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
             The overlay matches the figure
           </button>
         )}
-        <input style={{ flex: 1, minWidth: 180 }} placeholder={out ? "why use it again" : "why leave it out"} value={reason}
+        <input className="flex-1 minw-180" placeholder={out ? "why use it again" : "why leave it out"} value={reason}
                onChange={(e) => setReason(e.target.value)} aria-label={`reason for dataset ${String(s.study_id)}`} />
         <button className="btn" disabled={!reason.trim()} data-testid={`dataset-exclude-${d.id}`}
                 onClick={async () => setProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:decide",
@@ -151,8 +199,8 @@ export function ObservedDatasets({ projectId, run }: { projectId: string; run: R
             : <p className="muted">Loading the documents…</p>}
         </div>
       )}
-      {view.datasets.length === 0 ? <p className="muted" style={{ margin: 0 }}>No observed data yet.</p>
-        : view.datasets.map((d) => <DatasetCard key={d.id} d={d} projectId={projectId} run={run} />)}
+      {view.datasets.length === 0 ? <p className="muted m-0">No observed data yet.</p>
+        : <DatasetList datasets={view.datasets} projectId={projectId} run={run} />}
     </section>
   );
 }
@@ -165,13 +213,13 @@ export function AccessRequests({ projectId, run }: { projectId: string; run: Run
   if (!requests.length) return null;
   return (
     <section className="card" data-testid="access-requests">
-      <h3 style={{ marginTop: 0 }}>Papers the literature agent could not read ({requests.length})</h3>
+      <h3 className="mt-0">Papers the literature agent could not read ({requests.length})</h3>
       <ul className="access-requests">
         {requests.map((r) => (
           <li key={r.id} data-testid={`access-${r.id}`}>
             <strong>{r.title}</strong>
             <span className="muted"> · {r.authors}{r.doi ? ` · doi ${r.doi}` : ""} · for {r.needed_for}</span>
-            <label className="btn" style={{ marginLeft: 8 }}>
+            <label className="btn ml-8">
               Store the paper
               <input type="file" hidden accept=".pdf,.docx,.md,.txt" onChange={(e) => {
                 const file = e.target.files?.[0];

@@ -45,11 +45,11 @@ function FormulationChoice({ study, options, projectId, run }: { study: string; 
   const [value, setValue] = useState(options[0] ?? "");
   const [reason, setReason] = useState("");
   return (
-    <div className="row" style={{ gap: 4 }}>
+    <div className="row gap-4">
       <select value={value} onChange={(e) => setValue(e.target.value)} aria-label={`formulation of ${study}`}>
         {options.map((o) => <option key={o}>{o}</option>)}
       </select>
-      <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 160 }} />
+      <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} className="w-160" />
       <button className="btn" disabled={!reason.trim() || !value}
               onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
                                                  { kind: "formulation", key: study, value, reason }), `${study}: ${value}.`)}>Choose</button>
@@ -268,7 +268,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
       eyebrow="Step 2 of 4"
       title="Inputs"
       lede={<>Every value not excluded flows in; where sources give several, one is kept by source and grade and the others
-        stay listed for the review. Values are never averaged. <span className="muted">({view.selection_rule})</span></>}
+        stay listed for the review. Values are never averaged.<span className="hero-note">Source selection rules: {view.selection_rule}</span></>}
       actions={(
         <>
           {view.published_models.map((m) => (
@@ -298,7 +298,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
         <button type="button" className="btn rail-files" onClick={() => setDrawer(true)} data-testid="inputs-files"
                 aria-haspopup="dialog">
           <span>The client&apos;s files</span>
-          <span className="row" style={{ gap: 4 }}>
+          <span className="row gap-4">
             {unplaced > 0 && <span className="chip medium" data-testid="files-unplaced" title="files no area shows yet: say what each is">
               {unplaced} to place</span>}
             <span className="chip neutral">{client.data?.files.length ?? 0}</span>
@@ -322,28 +322,38 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
             </SidePanel>
           ) : readiness?.ready ? (
             <SidePanel title="Inputs are ready" tone="ok" testId="inputs-ready">
-              <p style={{ margin: "0 0 8px" }}>Everything S0 needs is here, and every planned simulation builds.</p>
+              <p className="m-0-0-8">Everything S0 needs is here, and every planned simulation builds.</p>
               <Link className="btn primary" href={STEP_ROUTES.review(projectId)}>Go to Review &amp; sign</Link>
             </SidePanel>
           ) : (
-            <SidePanel title="Assembling" testId="assembling"><p style={{ margin: 0 }}>The inputs are being put together.</p></SidePanel>
+            <SidePanel title="Assembling" testId="assembling"><p className="m-0">The inputs are being put together.</p></SidePanel>
           )}
-          {readiness && (
-            <SidePanel title="Readiness">
-              <ul className="checks" data-testid="readiness">
-                {readiness.checks.map((c) => (
-                  <li key={c.check} data-testid={`check-${c.check}`}>
-                    <span className={`chip ${c.ok ? "low" : "high"}`}>{c.ok ? "ok" : "open"}</span> {c.check}
-                  </li>
-                ))}
-              </ul>
-              <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>PK-Sim dry run: {readiness.engine_dry_run}</p>
-            </SidePanel>
-          )}
-          <SidePanel title="Where values come from">
-            <p style={{ margin: 0, fontSize: 13 }}>The client&apos;s files and figures; PubChem, the FDA label and ChEMBL, read by
-              code at the project&apos;s start; the literature agent; and the published OSP model of the drug. Where several give a value, the client&apos;s comes first, then the literature by grade.</p>
-          </SidePanel>
+          {/* the checks and where values come from, folded: the to-do above is what the page is for (2026-11-11 audit, item 4) */}
+          <details className="side-panel inputs-more" data-testid="inputs-more">
+            <summary>
+              <span className="inputs-more-title">Readiness and sources</span>
+              {readiness && (() => {
+                const open = readiness.checks.filter((c) => !c.ok).length;
+                return <span className={`chip ${open ? "high" : "low"}`}>{open ? `${open} check${open === 1 ? "" : "s"} open` : "all checks ok"}</span>;
+              })()}
+            </summary>
+            {readiness && (
+              <>
+                <ul className="checks" data-testid="readiness">
+                  {readiness.checks.map((c) => (
+                    <li key={c.check} data-testid={`check-${c.check}`}>
+                      <span className={`chip ${c.ok ? "low" : "high"}`}>{c.ok ? "ok" : "open"}</span> {c.check}
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted fs-12 m-6-0-0">PK-Sim dry run: {readiness.engine_dry_run}</p>
+              </>
+            )}
+            <h3 className="m-14-0-4">Where values come from</h3>
+            <p className="m-0 fs-13">The client&apos;s files and figures; PubChem, the FDA label and ChEMBL, read by
+              code at the project&apos;s start; the literature agent; and the published OSP model of the drug. Where several give a value,
+              the client&apos;s comes first, then the literature by grade.</p>
+          </details>
         </div>
       </Tabs>
       <div className="inputs-area">
@@ -368,7 +378,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
                      empty="No formulation yet: a solution needs none; a tablet's release comes from its dissolution profile or the literature." />
           {used.some((s) => SOLID.includes(String(s.facts.formulation))) && (
             <section className="card">
-              <h3 style={{ marginTop: 0 }}>The formulation of each solid study</h3>
+              <h3 className="mt-0">The formulation of each solid study</h3>
               <table>
                 <tbody>
                   {used.filter((s) => SOLID.includes(String(s.facts.formulation))).map((s) => (
@@ -413,7 +423,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
           <InputRows rows={rows("settings")} todo={panelTodo("settings")} projectId={projectId} run={run}
                      empty="The calculation methods are PK-Sim's defaults unless the published model sets them." />
           <section className="card">
-            <h3 style={{ marginTop: 0 }}>Solver settings</h3>
+            <h3 className="mt-0">Solver settings</h3>
             <table>
               <tbody>
                 {used.map((s) => {

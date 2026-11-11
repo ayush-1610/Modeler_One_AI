@@ -259,7 +259,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
   return (
     <div className="reader" data-testid={`reader-${sheet}`}>
       <div className="spread">
-        <h3 style={{ margin: 0, fontSize: 15, color: "var(--ink)" }}>Read “{sheet}” <span className="muted">· {file.file}</span></h3>
+        <h3 className="m-0 fs-15 text-ink">Read “{sheet}” <span className="muted">· {file.file}</span></h3>
         <div className="row">
           {last && <button className="btn" onClick={useLast} title="columns, units, LLOQ and cell texts; not the rows or the study">
             Same layout as the last sheet</button>}
@@ -269,13 +269,13 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
       {view.read_before.length > 0 && (
         <div className="banner warn">
           This sheet was read before ({view.read_before.reduce((n, r) => n + r.datasets.length, 0)} dataset(s)).{" "}
-          <label style={{ fontWeight: 500 }}>
+          <label className="fw-500">
             <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} aria-label="replace the earlier reading" />{" "}
             This reading replaces it (the earlier datasets are rejected with that reason)
           </label>
         </div>
       )}
-      <p className="muted" data-testid="reading-source" style={{ margin: "4px 0", fontSize: 13 }}>
+      <p className="muted m-4-0 fs-13" data-testid="reading-source">
         {view.proposed_by === "code"
           ? "Filled in first by code from what the sheet states."
           : "Proposed by the reading agent and checked by code: every quote is in its cell and the reading applies without a "
@@ -480,7 +480,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
           )}
 
           {form.evidence.length > 0 && (
-            <p className="muted rf-hint" style={{ margin: 0 }}>
+            <p className="muted rf-hint m-0">
               Quoted from the sheet: {form.evidence.map((e) => `${e.supports} (${e.cell.split("!")[1]})`).join(" · ")}
             </p>
           )}
@@ -489,7 +489,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
             <button className="btn primary" disabled={busy || !result?.ready || needs.length > 0} onClick={() => void save()}
                     title={needs.length ? `Fill in: ${needs.join(", ")}` : undefined}>Save these data</button>
           </div>
-          {needs.length > 0 && <p className="muted rf-hint" style={{ margin: 0 }}>Still to fill in: {needs.join(", ")}.</p>}
+          {needs.length > 0 && <p className="muted rf-hint m-0">Still to fill in: {needs.join(", ")}.</p>}
           {error && <div className="banner err">{error}</div>}
           {result && (
             <div className={`read-result ${result.ready ? "ok" : "bad"}`} data-testid="read-result">
@@ -513,7 +513,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
                   ))}</tbody>
                 </table>
               )}
-              {sample?.values_hidden && <p className="muted rf-hint">Values hidden: external data stay blinded until the analysis plan is signed (D-15).</p>}
+              {sample?.values_hidden && <p className="muted rf-hint">Values hidden: external data stay blinded until the analysis plan is signed.</p>}
               {result.issues.length > 0 && <Problems issues={result.issues} />}
               {result.questions.length > 0 && <ul className="problems">{result.questions.map((q) => <li key={q}>{q}</li>)}</ul>}
             </div>

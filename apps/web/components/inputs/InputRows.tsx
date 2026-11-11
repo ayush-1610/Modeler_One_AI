@@ -33,20 +33,20 @@ function AddValue({ row, projectId, run }: { row: Row; projectId: string; run: R
   const [quote, setQuote] = useState("");
   const numeric = value.trim() !== "" && !Number.isNaN(Number(value));
   const cited = type === "ASSUMPTION" || link.trim() !== "";
-  if (!row.req_id) return <p className="muted" style={{ fontSize: 13, margin: 0 }}>This input has no item on the data checklist to file a value under.</p>;
+  if (!row.req_id) return <p className="muted fs-13 m-0">This input has no item on the data checklist to file a value under.</p>;
   return (
     <div className="add-value" data-testid={`add-${row.id}`}>
-      <div className="row" style={{ gap: 6 }}>
-        <input placeholder="value" value={value} onChange={(e) => setValue(e.target.value)} style={{ width: 110 }} aria-label={`value for ${row.id}`} />
-        <input placeholder="unit" value={unit} onChange={(e) => setUnit(e.target.value)} style={{ width: 90 }} aria-label={`unit for ${row.id}`} />
+      <div className="row gap-6">
+        <input placeholder="value" value={value} onChange={(e) => setValue(e.target.value)} className="w-110" aria-label={`value for ${row.id}`} />
+        <input placeholder="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-90" aria-label={`unit for ${row.id}`} />
         <select value={type} onChange={(e) => setType(e.target.value as typeof type)} aria-label={`source type for ${row.id}`}>
           {SOURCE_TYPES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
         </select>
-        <input placeholder="title" value={title} onChange={(e) => setTitle(e.target.value)} style={{ flex: 1, minWidth: 140 }} aria-label={`title for ${row.id}`} />
-        <input placeholder="DOI or URL" value={link} onChange={(e) => setLink(e.target.value)} style={{ width: 170 }} aria-label={`link for ${row.id}`} />
+        <input placeholder="title" value={title} onChange={(e) => setTitle(e.target.value)} className="flex-1 minw-140" aria-label={`title for ${row.id}`} />
+        <input placeholder="DOI or URL" value={link} onChange={(e) => setLink(e.target.value)} className="w-170" aria-label={`link for ${row.id}`} />
       </div>
-      <div className="row" style={{ gap: 6, marginTop: 4 }}>
-        <input placeholder="the sentence that states it" value={quote} onChange={(e) => setQuote(e.target.value)} style={{ flex: 1, minWidth: 220 }}
+      <div className="row gap-6 mt-4">
+        <input placeholder="the sentence that states it" value={quote} onChange={(e) => setQuote(e.target.value)} className="flex-1 minw-220"
                aria-label={`quote for ${row.id}`} />
         <button className="btn primary" disabled={!value.trim() || !cited}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence", { project_id: projectId }, {
@@ -70,8 +70,8 @@ function SourceLine({ e, projectId, run }: { e: Ev; projectId: string; run: Run 
         <PeekButton projectId={projectId} source={{ ...e.source, quote: e.quote }} label={`${e.target} (${e.id})`}
                     testId={`peek-${e.id}`} />
       </div>
-      <div className="row" style={{ gap: 6, marginTop: 4 }}>
-        <input placeholder="why exclude it" value={reason} onChange={(x) => setReason(x.target.value)} style={{ flex: 1, minWidth: 160 }}
+      <div className="row gap-6 mt-4">
+        <input placeholder="why exclude it" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
                aria-label={`reason to exclude ${e.id}`} />
         <button className="btn" disabled={!reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide",
@@ -86,7 +86,7 @@ function AlternativeLine({ a, projectId }: { a: Alternative; projectId: string }
   const e = ev(a);
   return (
     <li className="source-line">
-      <div className="row" style={{ gap: 8 }}>
+      <div className="row gap-8">
         <Value e={e} />
         <PeekButton projectId={projectId} source={{ ...e.source, quote: e.quote }} label={`${e.target} (${e.id})`}
                     testId={`peek-${e.id}`} />
@@ -103,11 +103,11 @@ function ChooseProcess({ row, projectId, run }: { row: Row; projectId: string; r
   const [value, setValue] = useState(row.candidates[0] ?? "");
   const [reason, setReason] = useState("");
   return (
-    <div className="row" style={{ gap: 4 }}>
+    <div className="row gap-4">
       <select value={value} onChange={(e) => setValue(e.target.value)} aria-label={`process for ${row.id}`}>
         {row.candidates.map((c) => <option key={c}>{c}</option>)}
       </select>
-      <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 150 }} />
+      <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} className="w-150" />
       <button className="btn" disabled={!reason.trim()}
               onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
                                                  { kind: "process", key: row.id.split(".").slice(0, -1).join("."), value, reason }),
@@ -139,12 +139,12 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
           {kept ? <>
             {kept.source.title || kept.source_type.toLowerCase().replace(/_/g, " ")}{kept.source.year ? ` · ${kept.source.year}` : ""}
             <span className="muted"> · grade {kept.confidence}</span>
-            {row.state === "kept" && agree > 0 && <span className="chip low" title="sources within 10 % of the kept value (D-32)">+{agree} agree</span>}
+            {row.state === "kept" && agree > 0 && <span className="chip low" title="sources within 10 % of the kept value">+{agree} agree</span>}
           </> : row.state === "conflict" ? <span className="muted">{row.alternatives.length} sources disagree</span> : <span className="muted">no source yet</span>}
         </div>
         <div className="input-state">
           <span className={`chip ${state}`}>{label}</span>
-          {row.binding && <div className="muted" style={{ fontSize: 12 }} title={row.binding.parameter ?? ""}>{row.binding.process ?? row.binding.parameter}</div>}
+          {row.binding && <div className="muted fs-12" title={row.binding.parameter ?? ""}>{row.binding.process ?? row.binding.parameter}</div>}
         </div>
         <div className="input-peek">
           {kept && <PeekButton projectId={projectId} source={{ ...kept.source, quote: kept.quote }} label={LABEL[row.id] ?? row.id}
@@ -159,7 +159,7 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
         </div>
       ))}
       {row.state === "held" && items.length === 0 && row.sources.map(ev).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
-      <div className="row" style={{ gap: 6 }}>
+      <div className="row gap-6">
         {(row.sources.length > 0 || row.alternatives.length > 0) && row.state === "kept" && (
           <button type="button" className="link-btn" onClick={() => setOpen(!open)} aria-expanded={open}>
             {open ? "Hide the sources" : `Sources (${row.sources.length + row.alternatives.length})`}
@@ -171,7 +171,7 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
       {open && row.state === "kept" && (
         <ul className="sources">
           {row.sources.map(ev).map((e) => <SourceLine key={e.id} e={e} projectId={projectId} run={run} />)}
-          {row.alternatives.length > 0 && <li className="muted" style={{ fontSize: 12 }}>Not used (listed for the review):</li>}
+          {row.alternatives.length > 0 && <li className="muted fs-12">Not used (listed for the review):</li>}
           {row.alternatives.map((a) => <AlternativeLine key={a.id} a={a} projectId={projectId} />)}
         </ul>
       )}

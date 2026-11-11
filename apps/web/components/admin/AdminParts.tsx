@@ -16,7 +16,7 @@ export function AdminTabs({ here, priced = "claude-opus-5-5", base, query = {} }
     return `${base}?${params.toString()}`;
   };
   return (
-    <div className="spread" style={{ marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+    <div className="spread mb-16 flex-wrap gap-12">
       <nav className="tabs" aria-label="Admin console" data-testid="admin-tabs">
         <Link href={`/admin?priced_as=${priced}`} className={here === "overview" ? "active" : ""}>Overview</Link>
         <Link href={`/admin/usage?priced_as=${priced}`} className={here === "usage" ? "active" : ""}>Usage and cost</Link>
@@ -90,18 +90,6 @@ export function UsageTable({ title, column, rows, testId }: { title: string; col
   );
 }
 
-/** What a person who is not the platform's owner sees: the API refused them. */
-export function NotForYou() {
-  return (
-    <Card>
-      <p data-testid="admin-refused">
-        The admin console is for the platform&apos;s owner only (the <code>modeler-admin</code> role). Your sign-in does not
-        hold it.
-      </p>
-    </Card>
-  );
-}
-
 /** What a limit's level reads as: reached (100 %), or near it (80 %). */
 export function LimitLevel({ row }: { row: LimitRow }) {
   const tone = row.level === "over" ? "high" : row.level === "warn" ? "medium" : "low";
@@ -114,10 +102,10 @@ export function LimitWarnings({ warnings, month, priced }: { warnings: LimitRow[
   if (warnings.length === 0) return null;
   const reached = warnings.some((w) => w.level === "over");
   return (
-    <div className={`banner ${reached ? "err" : "warn"}`} style={{ marginBottom: 16 }} data-testid="limit-warnings">
+    <div className={`banner ${reached ? "err" : "warn"} mb-16`} data-testid="limit-warnings">
       <strong>{reached ? "A monthly limit is reached" : "A monthly limit is near"}</strong> ({month}; you are warned at 80 % and
       at 100 %; the agents keep running, and the companies&apos; people see nothing of it):
-      <ul className="plain-list" style={{ margin: "6px 0 0" }}>
+      <ul className="plain-list m-6-0-0">
         {warnings.map((w) => (
           <li key={w.id} data-testid={`limit-warning-${w.id}`}>
             <strong>{w.level === "over" ? "reached" : "near"}</strong> · {w.label}, {w.scope}:{" "}

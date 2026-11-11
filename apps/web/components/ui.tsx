@@ -34,11 +34,11 @@ export function ProvenanceChip({ source }: { source: string }) {
 export function Completeness({ value }: { value: number }) {
   const pct = Math.round(value * 100);
   return (
-    <div className="row" style={{ gap: 8 }}>
-      <div className="meter" style={{ width: 120 }}>
+    <div className="row gap-8">
+      <div className="meter w-120">
         <span style={{ width: `${pct}%` }} />
       </div>
-      <span className="muted" style={{ fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
+      <span className="muted tnum">{pct}%</span>
     </div>
   );
 }
@@ -57,8 +57,8 @@ export function Card({ title, action, children }: { title?: string; action?: Rea
   return (
     <section className="card">
       {(title || action) && (
-        <div className="spread" style={{ marginBottom: 12 }}>
-          {title && <h2 style={{ margin: 0 }}>{title}</h2>}
+        <div className="spread mb-12">
+          {title && <h2 className="m-0">{title}</h2>}
           {action}
         </div>
       )}
@@ -69,5 +69,5 @@ export function Card({ title, action, children }: { title?: string; action?: Rea
 
 /** What stopped a page from showing live data. Never paired with sample data. */
 export function ApiProblem({ problem }: { problem: string }) {
-  return <div className="banner err" data-testid="api-problem" style={{ marginBottom: 14 }}>{problem}</div>;
+  return <div className="banner err mb-14" data-testid="api-problem">{problem}</div>;
 }

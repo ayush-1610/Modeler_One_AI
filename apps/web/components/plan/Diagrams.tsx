@@ -26,9 +26,9 @@ function FitForm({ p, onSave, onRemove }: { p: ParamNode; onSave: FitSave; onRem
   }
   return (
     <div className="fit-form" data-testid={`fit-form-${p.id}`}>
-      <div className="row" style={{ gap: 6 }}>
+      <div className="row gap-6">
         {["S1", "S2", "S3"].map((st) => (
-          <label key={st} style={{ fontSize: 12 }}>
+          <label key={st} className="fs-12">
             <input type="checkbox" checked={stages.includes(st)}
                    onChange={(e) => setStages(e.target.checked ? [...stages, st] : stages.filter((x) => x !== st))} /> {st}
             {p.candidate_at.includes(st) ? "" : "*"}
@@ -38,18 +38,18 @@ function FitForm({ p, onSave, onRemove }: { p: ParamNode; onSave: FitSave; onRem
           <option value="log">log</option><option value="linear">linear</option>
         </select>
       </div>
-      <div className="row" style={{ gap: 4 }}>
-        <input value={lower} onChange={(e) => setLower(e.target.value)} placeholder="lower" style={{ width: 80 }} aria-label="lower bound" />
-        <input value={upper} onChange={(e) => setUpper(e.target.value)} placeholder="upper" style={{ width: 80 }} aria-label="upper bound" />
-        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why (required)" style={{ flex: 1 }} />
+      <div className="row gap-4">
+        <input value={lower} onChange={(e) => setLower(e.target.value)} placeholder="lower" className="w-80" aria-label="lower bound" />
+        <input value={upper} onChange={(e) => setUpper(e.target.value)} placeholder="upper" className="w-80" aria-label="upper bound" />
+        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why (required)" className="flex-1" />
       </div>
-      <div className="row" style={{ gap: 4 }}>
+      <div className="row gap-4">
         <button className="btn tiny primary" disabled={!reason.trim() || !stages.length}
                 onClick={async () => setError(await onSave(p.id, { stages, lower: Number(lower), upper: Number(upper), scale, reason }))}>Save</button>
         {p.fit && <button className="btn tiny" disabled={!reason.trim()} onClick={async () => setError(await onRemove(p.id, reason))}>Fix again</button>}
         <button className="btn tiny" onClick={() => setOpen(false)}>Close</button>
       </div>
-      <p className="muted" style={{ fontSize: 11, margin: 0 }}>* not an MS-01 candidate at that stage (the validator warns)</p>
+      <p className="muted fs-11 m-0">* not an MS-01 candidate at that stage (the validator warns)</p>
       {error && <div className="banner err">{error}</div>}
     </div>
   );
@@ -61,7 +61,7 @@ function Param({ p, onSave, onRemove }: { p: ParamNode; onSave: FitSave; onRemov
     <div className={`param-node ${p.fit ? "fitted" : ""}`} title={p.source ?? ""} data-testid={`param-${p.id}`}>
       <div className="spread"><code>{p.id}</code><span className="chip neutral">{p.status.toLowerCase()}</span></div>
       <div>{value} {p.unit ?? ""}</div>
-      <div className="muted" style={{ fontSize: 12 }}>
+      <div className="muted fs-12">
         {p.fit ? `fitted in ${p.fit.stages.join(", ")} [${p.fit.lower}, ${p.fit.upper}] ${p.fit.scale}`
           : p.candidate_at.length ? `MS-01 candidate at ${p.candidate_at.join(", ")}` : "fixed"}
       </div>
@@ -103,12 +103,12 @@ export function D2Absorption({ view, onFit, onUnfit, onStructure }: {
   const [error, setError] = useState<string | null>(null);
   return (
     <div data-testid="d2">
-      <div className="row" style={{ marginBottom: 10, gap: 8 }}>
+      <div className="row mb-10 gap-8">
         <span>Food effect:</span>
         <span className={`chip ${d.food_effect_in_question ? "medium" : "neutral"}`}>
           {d.food_effect_in_question ? "the question — fed predicted, never fitted (MS-01 rule 5)" : "not the question"}
         </span>
-        <input placeholder="why change it" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 200 }} />
+        <input placeholder="why change it" value={reason} onChange={(e) => setReason(e.target.value)} className="w-200" />
         <button className="btn tiny" disabled={!reason.trim()}
                 onClick={async () => setError(await onStructure("food_effect_in_question", !d.food_effect_in_question, reason))}>
           {d.food_effect_in_question ? "Not the question" : "Make it the question"}
@@ -123,17 +123,17 @@ export function D2Absorption({ view, onFit, onUnfit, onStructure }: {
           {d.lanes.map((lane) => (
             <div key={lane.name} className="pathway" data-testid={`lane-${lane.name}`}>
               <div className="spread"><strong>{lane.name}</strong><span className="muted">release: {lane.release}</span></div>
-              {lane.parameters.map((p) => <div key={p.id} className="muted" style={{ fontSize: 12 }}><code>{p.id}</code> {String(p.value)} {p.unit ?? ""}</div>)}
+              {lane.parameters.map((p) => <div key={p.id} className="muted fs-12"><code>{p.id}</code> {String(p.value)} {p.unit ?? ""}</div>)}
               <div className="dag-chips">
                 {lane.studies.map((s) => <span key={s.study_id} className="study-chip ghost" title={ROLE_LABEL[s.role]}>■ {s.study_id} · {s.food_state} · {s.role}</span>)}
-                {lane.studies.length === 0 && <span className="muted" style={{ fontSize: 12 }}>no oral study with this product</span>}
+                {lane.studies.length === 0 && <span className="muted fs-12">no oral study with this product</span>}
               </div>
             </div>
           ))}
         </div>
         <div className="flow-arrow">→</div>
         <div className="flow-col"><h4>Dissolution</h4>
-          {d.dissolution.map((p) => <div key={p.id} className="param-node"><span className="sq">◆</span> {p.label}<div className="muted" style={{ fontSize: 12 }}>{p.release_model?.toLowerCase() ?? "release model not set"}</div></div>)}
+          {d.dissolution.map((p) => <div key={p.id} className="param-node"><span className="sq">◆</span> {p.label}<div className="muted fs-12">{p.release_model?.toLowerCase() ?? "release model not set"}</div></div>)}
           {d.dissolution.length === 0 && <div className="param-node muted">no dissolution profile</div>}
         </div>
       </div>

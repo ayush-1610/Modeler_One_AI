@@ -30,23 +30,12 @@ export function Motion() {
   // magnetic surfaces, once for the whole document
   useEffect(() => magnet(document.body), []);
 
-  // scroll life and the page transition, for each page
+  // scroll life, for each page. The page transition is CSS (design.css `.content > main`): a short fade on the new page's
+  // own entry, so nothing that is already painted is hidden again and a page is never held back by a timer. A fade, not
+  // a rise: a page used at once (a drop on the plan canvas, a point on a figure) must not move under the pointer.
   useEffect(() => {
     const area = document.querySelector<HTMLElement>(".content");
     if (!area) return;
-    const main = area.querySelector<HTMLElement>(":scope > main");
-    if (main && !reducedMotion()) {
-      // a fade, not a rise: a page used at once (a drop on the plan canvas, a point on a figure) must not move under the
-      // pointer while it enters
-      main.style.transition = "none"; main.style.opacity = "0";
-      const t = window.setTimeout(() => {
-        main.style.transition = "opacity 500ms cubic-bezier(0.25,1,0.5,1)";
-        main.style.opacity = "";
-      }, 40);
-      const clear = window.setTimeout(() => { main.style.transition = ""; }, 700);
-      const stop = scrollFx(area);
-      return () => { window.clearTimeout(t); window.clearTimeout(clear); stop(); };
-    }
     return scrollFx(area);
   }, [path]);
 

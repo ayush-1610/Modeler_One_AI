@@ -135,7 +135,7 @@ function Pathways({ view, save, open, marks }: { view: BriefView; save: Save; op
         ) : <span className="sb-missing">not set</span>}
         {!editing && sources.map((r, i) => <Source key={i} record={r} open={open} />)}
         {!editing && drafted.length > 0 && (
-          <button type="button" className="btn small primary" style={{ alignSelf: "flex-start" }} data-testid="confirm-pathways"
+          <button type="button" className="btn small primary self-start" data-testid="confirm-pathways"
                   onClick={confirm}>Confirm</button>
         )}
         {!editing && view.start.pathways_not_named.map((name) => (
@@ -198,7 +198,7 @@ function Stated({ path, label, view, save, open, marks }: {
         {text && state === "yes" && typeof value === "string" && <span className="sb-text">{value}</span>}
         <Source record={record} open={open} />
         {drafted && (
-          <button type="button" className="btn small primary" style={{ alignSelf: "flex-start" }} data-testid={`confirm-${path}`}
+          <button type="button" className="btn small primary self-start" data-testid={`confirm-${path}`}
                   onClick={confirm}>Confirm</button>
         )}
         <NeedsYou issues={issues} />

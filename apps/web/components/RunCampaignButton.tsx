@@ -65,13 +65,13 @@ export function RunCampaignButton({
 
   return (
     <div>
-      <div className="row" style={{ alignItems: "center", gap: 10 }}>
+      <div className="row items-center gap-10">
         <button className="btn primary" disabled={busy} onClick={run}>
           {busy ? "Running…" : "Run campaign"}
         </button>
         {step && <span className="muted">{step}</span>}
       </div>
-      {error && <div className="banner err" style={{ marginTop: 10 }}>{error}</div>}
+      {error && <div className="banner err mt-10">{error}</div>}
     </div>
   );
 }
