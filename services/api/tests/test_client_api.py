@@ -1165,3 +1165,34 @@ def test_a_withdrawn_file_is_left_out_of_what_the_map_tells_a_reading(setup):
     DocumentLibrary(ws).withdraw(b["sha256"], by="u1", reason="wrong study")
     note = intake_jobs.map_note(ws, a["id"])
     assert "B.pdf" not in note and "Study Bee" not in note
+
+
+@pytest.mark.req("T-47")
+def test_documents_added_before_reading_for_data_are_listed_and_read_on_request(setup):
+    # the owner, 2026-11-11: a delivery added as annexes before R2 stayed stored only ("Nothing taken from it yet"); the
+    # tray lists them and reads them for data on request, leaving out what an agent fetched or a person withdrew
+    from modeler_project.client_data import submissions
+    from modeler_project.documents import DocumentLibrary
+    from modeler_project.reading_queue import ReadingQueue
+
+    c, ws = setup
+    added = c.post("/api/v1/projects/p1/documents", headers=H, data={"role": "annex", "step": "inputs"}, files=[
+        ("files", ("093-26 Summary Statistics.pdf", _pdf("Study 093-26: Cmax 40 ng/mL."), "application/pdf")),
+        ("files", ("094-26 Outlier Report.pdf", _pdf("Study 094-26: subject 7 excluded."), "application/pdf")),
+        ("files", ("notes.md", b"# Notes", "text/markdown"))]).json()["data"]["documents"]
+    DocumentLibrary(ws).withdraw(added[1]["sha256"], by="u1", reason="superseded")
+    tray = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]
+    assert tray["unread_documents"] == ["093-26 Summary Statistics.pdf"]          # not the withdrawn one, nor Markdown
+    assert submissions(ws) == [] and tray["items"] == []
+
+    read = c.post("/api/v1/projects/p1/documents:read-for-data", headers=H)
+    assert read.status_code == 202 and read.json()["data"] == {"reading": ["093-26 Summary Statistics.pdf"], "not_read": []}
+    assert [s["file"] for s in submissions(ws)] == ["093-26 Summary Statistics.pdf"]
+    assert [(i.file, i.state) for i in ReadingQueue(ws).items() if i.task == "arrival"] == [("093-26 Summary Statistics.pdf", "queued")]
+    entry = DocumentLibrary(ws).entry(added[0]["sha256"])
+    assert entry.relates_to is not None and entry.relates_to.step == "inputs"          # what it relates to is kept
+    roles = {d["name"]: d["role"] for d in c.get("/api/v1/projects/p1/documents", headers=H).json()["data"]["documents"]}
+    assert roles["093-26 Summary Statistics.pdf"] == "annex"                            # its library role too
+    again = c.get("/api/v1/projects/p1/reading-queue", headers=H).json()["data"]
+    assert again["unread_documents"] == []                                               # read once, not listed again
+    assert c.post("/api/v1/projects/p1/documents:read-for-data", headers=H).json()["data"]["reading"] == []

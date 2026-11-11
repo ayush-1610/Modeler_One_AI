@@ -1309,6 +1309,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/documents:read-for-data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Library For Data
+         * @description Read for data every document a person added to the library that was never read (an annex added before "Read for
+         *     data" existed, say): each becomes a client file too, read by code and queued for the reading agent.
+         */
+        post: operations["read_library_for_data_api_v1_projects__project_id__documents_read_for_data_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/evidence": {
         parameters: {
             query?: never;
@@ -4260,6 +4281,16 @@ export interface components {
             reading: string[];
         };
         /**
+         * DocumentsRead
+         * @description The library's documents now read for data (queued for the reading agent), and the ones not read, with why.
+         */
+        DocumentsRead: {
+            /** Not Read */
+            not_read: string[];
+            /** Reading */
+            reading: string[];
+        };
+        /**
          * DosePhase
          * @description One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),
          *     ``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two
@@ -4467,6 +4498,13 @@ export interface components {
         /** Envelope[DocumentsAdded] */
         Envelope_DocumentsAdded_: {
             data: components["schemas"]["DocumentsAdded"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DocumentsRead] */
+        Envelope_DocumentsRead_: {
+            data: components["schemas"]["DocumentsRead"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -8145,6 +8183,8 @@ export interface components {
             };
             /** Running */
             running: boolean;
+            /** Unread Documents */
+            unread_documents: string[];
         };
         /** ReadingRequest */
         ReadingRequest: {
@@ -13186,6 +13226,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_LibraryEntryView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_library_for_data_api_v1_projects__project_id__documents_read_for_data_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DocumentsRead_"];
                 };
             };
             /** @description Validation Error */

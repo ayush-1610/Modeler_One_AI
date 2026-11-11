@@ -151,6 +151,7 @@ tr.project-archived td { color: var(--ink-faint); }
 .reading-tray-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
 .reading-tray-head .link-btn { margin-left: auto; }
 .reading-tray-off, .reading-tray-problem { margin: 8px 0 0; }
+.reading-tray-backlog { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
 .reading-tray-problem { color: var(--fail-ink); }
 .reading-tray-list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 340px;
   overflow-y: auto; overscroll-behavior: contain; }
