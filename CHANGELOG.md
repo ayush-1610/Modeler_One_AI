@@ -15,6 +15,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — admin console: a non-admin gets the app's 404, not the console's head (audit item 12, web only)
+- **What:** at `/admin` and every `/admin/*` page (usage, companies/<id>, limits, models, keys), a person whose sign-in
+  lacks `modeler-admin` now gets the app's generic 404 ("There is no page here") instead of the console's hero (title,
+  lede, "Admin console" eyebrow, for a company page the typed tenant id) followed by a refusal card naming the role. A new
+  `hideUnlessAdmin(problem)` in `apps/web/lib/admin.ts` calls `notFound()` only on the API's 403 (`refused()`); the
+  company page folds it into its existing unknown-company `notFound()`, so an unknown company and a non-admin look the
+  same. `NotForYou` (`admin-refused`) is removed.
+- **Why:** the sidebar already hides the console from non-admins; the page itself disclosed its existence, purpose and
+  role name. A 404 is the only answer that discloses nothing.
+- **Impact:** presentation only. The API's 403 stays the authoritative check and is unchanged (no contract change). Any
+  other problem — the API unreachable, a 5xx — still renders `ApiProblem`, so an outage never looks like a missing page
+  to the real admin. Diagnosing an admin whose token lacks the role (a Keycloak misconfiguration) now goes through
+  `GET /api/v1/me` (lists the roles) or the API's 403 detail (names `modeler-admin`), not the page. The 404 may arrive
+  with HTTP 200 because the root loading boundary streams.
+- **Tests:** `e2e/admin-console.spec.ts` now expects `page-not-found` at all six addresses and asserts that no
+  `admin-hero`, `admin-tabs` or "Admin console" text appears, besides the existing no-data checks (it used to expect the
+  removed refusal card). `e2e/shell.spec.ts` (the generic 404) unchanged and run alongside.
+
 ### Changed — the six worst frontend flaws from the 2026-11-11 audit (web only)
 The owner, 2026-11-11, after the audit of every page on a laptop and a phone with the published Dapagliflozin model's
 data: fix items 1 to 6. No API change, no science change.

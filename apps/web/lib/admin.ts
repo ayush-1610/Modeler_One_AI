@@ -1,5 +1,9 @@
 // The platform owner's console (docs/plans/2026-11-10-admin-console.md): server reads of /api/v1/admin/*. The API
-// answers only the realm role modeler-admin; anyone else gets its 403, shown as "only the platform's owner".
+// answers only the realm role modeler-admin; anyone else gets its 403, and the page then renders the app's 404
+// (notFound), as for an address that does not exist, so the console is not disclosed. Any other problem (the API
+// unreachable, a 5xx) still shows as an ApiProblem, never as a missing page.
+
+import { notFound } from "next/navigation";
 
 import { serverGet, type Schema } from "@/lib/api";
 
@@ -30,6 +34,11 @@ export type LimitRow = Schema<"LimitRow">;
 /** The API refused: this person is not the platform's owner (403), as against a problem reaching it. */
 export function refused(problem: string | null): boolean {
   return Boolean(problem?.includes("HTTP 403"));
+}
+
+/** Every console page calls this first: the API's 403 renders the app's 404, nothing of the console. */
+export function hideUnlessAdmin(problem: string | null): void {
+  if (refused(problem)) notFound();
 }
 
 export const tokens = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)} M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)} k` : String(n));

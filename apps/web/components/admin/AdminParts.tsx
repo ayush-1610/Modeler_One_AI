@@ -90,18 +90,6 @@ export function UsageTable({ title, column, rows, testId }: { title: string; col
   );
 }
 
-/** What a person who is not the platform's owner sees: the API refused them. */
-export function NotForYou() {
-  return (
-    <Card>
-      <p data-testid="admin-refused">
-        The admin console is for the platform&apos;s owner only (the <code>modeler-admin</code> role). Your sign-in does not
-        hold it.
-      </p>
-    </Card>
-  );
-}
-
 /** What a limit's level reads as: reached (100 %), or near it (80 %). */
 export function LimitLevel({ row }: { row: LimitRow }) {
   const tone = row.level === "over" ? "high" : row.level === "warn" ? "medium" : "low";
