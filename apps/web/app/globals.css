@@ -156,8 +156,6 @@ p { max-width: var(--measure); }
 .nav-icon { flex-shrink: 0; }
 .nav .nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .nav-action { color: var(--brand-ink); font-weight: 600; }
-.nav-badge { min-width: 20px; padding: 1px 6px; border-radius: 999px; text-align: center; font-size: 11.5px; font-weight: 600;
-  background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn-ink); }
 .nav-project { margin-top: 16px; }
 .nav-heading { display: block; padding: 0 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--ink-quiet); white-space: nowrap; }

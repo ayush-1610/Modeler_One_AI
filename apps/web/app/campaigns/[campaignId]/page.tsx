@@ -6,7 +6,7 @@ import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
 import { FeedbackDiagnosisView, FeedbackTimeline } from "@/components/campaign/Feedback";
 import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
 import { VbeCard } from "@/components/campaign/Vbe";
-import { EscalationPopup } from "@/components/campaign/EscalationPopup";
+import { OpenDecisionButton } from "@/components/campaign/OpenDecisionButton";
 import { getCampaign } from "@/lib/reads";
 import { Hero } from "@/components/kit";
 
@@ -56,7 +56,6 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
       <Hero tone="run" eyebrow="Campaign" title={c.compound} lede={c.question}
             actions={<>{c.status && <span data-testid="campaign-status"><StatusChip status={c.status} /></span>}
               <RiskChip rating={c.modelRisk} /></>} />
-      <EscalationPopup campaignIds={[campaignId]} />
       <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
         Campaign <code>{c.id}</code> · acceptance within {foldLimit}-fold at {c.modelRisk} model risk
         {c.internalTargetPe != null && (
@@ -149,8 +148,8 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
           {c.feedbackPending && (
             <>
               <div className="banner warn" data-testid="feedback-pending" style={{ margin: "8px 0" }}>
-                External validation failed: a signed decision is needed in the <a href="/review">review inbox</a> —
-                record a limitation, learn from the failing study, bring new evidence, or stop.
+                External validation failed: a signed decision is needed — record a limitation, learn from the failing
+                study, bring new evidence, or stop. <OpenDecisionButton campaignId={c.id} />
               </div>
               <FeedbackDiagnosisView diagnosis={c.feedbackPending} />
             </>

@@ -1,10 +1,12 @@
-// A campaign waiting for a decision opens it on its project and campaign pages (the owner's request, 2026-10-17):
-// nobody has to go to the review inbox to find it. The campaign state is seeded in the API's read root (software test
-// data, no engine run); the decision itself is the inbox's signed decision (feedback.spec.ts).
+// A campaign waiting for a decision asks for it on whatever page the person is on (the owner's requests of 2026-10-17
+// and 2026-11-11: the review inbox is gone, decisions are asked in place). The campaign state is seeded in the API's
+// read root (software test data, no engine run); the signed decision itself is feedback.spec.ts.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { expect, test, type APIRequestContext } from "@playwright/test";
+
+import { dropEscalations } from "./fixtures/escalations";
 
 const AUTH = { Authorization: "Bearer dev" };
 
@@ -33,12 +35,15 @@ async function seed(request: APIRequestContext) {
   return { projectId, id };
 }
 
-test("an escalation opens as a dialog on the project and campaign pages", async ({ page, request }) => {
+// the seeded decisions are never signed here: close them, or they would ask over the next specs' pages
+test.afterAll(() => dropEscalations((r) => r.campaignId.startsWith("camp-popup-")));
+
+test("an escalation opens as a dialog on any page, and \"Decide later\" leaves a way back", async ({ page, request }) => {
   const { projectId, id } = await seed(request);
   await page.goto(`/projects/${projectId}`);
   const popup = page.getByTestId("escalation-popup");
   await expect(popup).toContainText(`campaign ${id}, stage S2`);
-  await expect(popup.getByTestId("decision-select")).toBeVisible();      // the same signed decision as in the inbox
+  await expect(popup.getByTestId("decision-select")).toBeVisible();      // the signed decision (feedback.spec.ts)
 
   // the dialog behaves as one: named by its title, focus inside, Tab kept in, Escape closes the innermost only
   const named = page.getByRole("dialog", { name: /Your decision is needed/ });
@@ -55,14 +60,45 @@ test("an escalation opens as a dialog on the project and campaign pages", async 
   await expect(popup.getByTestId("decision-sign")).toBeFocused();          // and focus went back where it was
   await page.keyboard.press("Escape");                                      // "Decide later"
   await expect(popup).toHaveCount(0);
+  const waiting = page.getByTestId("escalation-waiting");
+  await expect(waiting).toContainText("waiting · Open");                    // a way back, without a reload
   await page.reload();                                                      // it is only closed for this visit
   await expect(popup).toBeVisible();
 
   await popup.getByTestId("escalation-later").click();
   await expect(popup).toHaveCount(0);
+  // the control stays on the next page too (the sidebar's link: the layout, and what was put off, stay)
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Projects" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(waiting).toBeVisible();
+  // the dashboard's attention item opens the campaign, no longer the review inbox
+  await expect(page.getByTestId("dash-attention").locator(`a[href="/campaigns/${id}"]`)).toBeVisible();
+  await waiting.click();
+  await expect(popup).toBeVisible();
+  await expect(waiting).toHaveCount(0);
 
+  // a page that has nothing to do with the campaign asks too
+  await page.goto("/projects/start");
+  await expect(popup).toBeVisible();
+
+  // the campaign's own page asks for its own decision first
   await page.goto(`/campaigns/${id}`);
-  await expect(page.getByTestId("escalation-popup")).toContainText("stage S2");
+  await expect(popup).toContainText(`campaign ${id}, stage S2`);
+});
+
+test("a campaign whose record cannot be read can still be decided", async ({ page }) => {
+  // an escalation whose campaign the API does not know: the pop-up reads only the open escalations
+  const id = `camp-popup-orphan-${Date.now()}`;
+  const root = join(process.env.E2E_DATA_DIR!, "read-root", "dev");
+  upsert(join(root, "escalations.json"), "escalations", {
+    id: `${id}-S3`, campaignId: id, stage: "S3", reasonCode: "ROUNDS_EXHAUSTED", evidence: "Seeded: no campaign record.",
+    options: [{ id: "abort", label: "Stop the campaign", requiresSignature: true }],
+  });
+  await page.goto(`/campaigns/${id}`);
+  await expect(page.getByTestId("campaign-pending")).toBeVisible();        // the page says the campaign is not recorded
+  const popup = page.getByTestId("escalation-popup");
+  await expect(popup).toContainText(`campaign ${id}, stage S3`);           // and the decision is asked all the same
+  await expect(popup.getByTestId("decision-select")).toBeVisible();
 });
 
 test("the signing step-up opens over the decision, is named, and Escape cancels it", async ({ page, request }) => {

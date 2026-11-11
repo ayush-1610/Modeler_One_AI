@@ -37,7 +37,9 @@ test("the dashboard reads each project's steps, filters by them, and the sidebar
   // the sidebar is a rail that opens over the page on hover and can be pinned open; the pin survives a reload
   const nav = page.getByRole("navigation", { name: "Main" });
   await expect(page.getByTestId("sidebar")).not.toHaveClass(/open/);
-  await expect(nav.getByRole("link", { name: "Review inbox" })).toBeVisible();      // named on the rail too
+  // named on the rail too (this was the "Review inbox" link, removed 2026-11-11; escalation-popup.spec.ts checks that an
+  // escalation's attention item opens its campaign)
+  await expect(nav.getByRole("link", { name: "Start from proposal" })).toBeVisible();
   await page.getByTestId("sidebar").hover();
   await expect(page.getByTestId("sidebar")).toHaveClass(/open/);
   await page.getByTestId("nav-pin").click();

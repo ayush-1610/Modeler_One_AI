@@ -14,7 +14,6 @@ import { useResource } from "@/lib/hooks";
 const ICONS = {
   projects: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   start: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 12v6 M9 15h6",
-  inbox: "M22 12h-6l-2 3h-4l-2-3H2 M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z",
   add: "M12 5v14 M5 12h14",
   library: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z",
   history: "M12 7v5l3 2 M21 12a9 9 0 1 1-3-6.7 M21 4v5h-5",
@@ -46,29 +45,27 @@ function Logo() {
   );
 }
 
-/** What waits in the Review inbox: open escalations and agent proposals, read again every half minute. */
-function useInboxCount(): { count: number; live: boolean | null } {
+/** Whether the API answers: its open-escalations read (the same read the decision pop-up polls), every half minute.
+ *  The review inbox it once counted for is gone (2026-11-11): a decision is asked on the page the person is on. */
+function useApiLive(): boolean | null {
   const esc = useResource("/api/v1/escalations", {}, { select: (d) => d.escalations.length, poll: () => true, interval: 30_000 });
-  const props = useResource("/api/v1/proposals", {}, { select: (d) => d.proposals.length, poll: () => true, interval: 30_000 });
   // the API answered (live) or not; null until the first answer
-  const live = esc.data !== null ? true : esc.problem ? false : null;
-  return { count: (esc.data ?? 0) + (props.data ?? 0), live };
+  return esc.data !== null ? true : esc.problem ? false : null;
 }
 
-type Item = { href: string; label: string; icon: string; active: boolean; badge?: number; testId?: string };
+type Item = { href: string; label: string; icon: string; active: boolean; testId?: string };
 
 function NavLink({ l }: { l: Item }) {
   return (
     <Link href={l.href} className={l.active ? "active" : ""} aria-current={l.active ? "page" : undefined} title={l.label} data-testid={l.testId}>
-      <span className="nav-glyph"><Icon d={l.icon} />{l.badge ? <span className="nav-dot" aria-hidden /> : null}</span>
+      <span className="nav-glyph"><Icon d={l.icon} /></span>
       <span className="nav-text">{l.label}</span>
-      {l.badge ? <span className="nav-badge" data-testid="nav-inbox-count" aria-label={`${l.badge} waiting`}>{l.badge}</span> : null}
     </Link>
   );
 }
 
 /** The sidebar (the "Modeler One App" design): a rail of icons that opens over the page when the pointer or the keyboard
- *  is in it, or stays open when pinned (kept in this browser). The work (projects, a new one, the inbox), the open
+ *  is in it, or stays open when pinned (kept in this browser). The work (projects, a new one), the open
  *  project's own pages, and the person. `user` is the person signed in through Keycloak; with the DEV sign-in
  *  there is none to show. */
 export function Nav({ user }: { user?: string | null }) {
@@ -85,7 +82,7 @@ export function Nav({ user }: { user?: string | null }) {
   const [menu, setMenu] = useState(false);
   // a new page closes a panel that is not pinned, and the phone's menu
   useEffect(() => { setHover(false); setKeys(false); setMenu(false); }, [path]);
-  const { count: inbox, live } = useInboxCount();
+  const live = useApiLive();
   const queries = useQueryClient();
   const recheck = async () => {
     await queries.refetchQueries({ queryKey: ["/api/v1/escalations"] });
@@ -105,7 +102,6 @@ export function Nav({ user }: { user?: string | null }) {
   const work: Item[] = [
     { href: "/", label: "Projects", icon: ICONS.projects, active: is("/") || Boolean(open) },
     { href: "/projects/start", label: "Start from proposal", icon: ICONS.start, active: is("/projects/start") },
-    { href: "/review", label: "Review inbox", icon: ICONS.inbox, active: is("/review"), badge: inbox },
   ];
   // the console's link only for the platform's owner (the API's own answer; it refuses everyone else in any case)
   const admin = useResource("/api/v1/me", {}, { select: (d) => d.admin }).data === true;
@@ -131,7 +127,6 @@ export function Nav({ user }: { user?: string | null }) {
         <button type="button" className="nav-menu" onClick={() => setMenu(!menu)} aria-expanded={menu} aria-controls="nav-panel"
                 aria-label={menu ? "Close the menu" : "Open the menu"} data-testid="nav-menu">
           <Icon d={menu ? "M6 6l12 12 M18 6L6 18" : "M4 7h16 M4 12h16 M4 17h16"} />
-          {inbox > 0 && !menu && <span className="nav-dot" aria-hidden />}
         </button>
       </div>
       <div className="nav-panel" id="nav-panel">

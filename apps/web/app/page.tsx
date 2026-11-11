@@ -1,7 +1,7 @@
 import { Dashboard, type DashboardProject, type Attention } from "@/components/dashboard/Dashboard";
 import { ApiProblem } from "@/components/ui";
 import { getSteps, STEP_ROUTES, type StepRow } from "@/lib/pipeline";
-import { getCampaigns, getEscalations, getProjects, getProposals } from "@/lib/reads";
+import { getCampaigns, getEscalations, getProjects } from "@/lib/reads";
 
 // What a project's next action is called, by the step it waits at (plan 2026-11-06-app-design-merge §3 A).
 const NEXT: Record<StepRow["step"], string> = {
@@ -21,16 +21,13 @@ function standing(steps: StepRow[] | null): Pick<DashboardProject, "state" | "fo
 }
 
 export default async function DashboardPage() {
-  const [live, liveCampaigns, liveEscalations, liveProposals] = await Promise.all([
-    getProjects(), getCampaigns(), getEscalations(), getProposals(),
-  ]);
+  const [live, liveCampaigns, liveEscalations] = await Promise.all([getProjects(), getCampaigns(), getEscalations()]);
   const projects = live.data ?? [];
   // the steps are read per project (no list route carries them yet: plan §4, gap 3); archived projects are not asked
   const liveSteps = await Promise.all(projects.map((p) => (p.archived ? Promise.resolve(null) : getSteps(p.id))));
   const steps = liveSteps.map((s) => s?.data ?? null);
   const campaigns = liveCampaigns.data ?? [];
   const escalations = liveEscalations.data ?? [];
-  const proposals = liveProposals.data ?? [];
 
   const rows: DashboardProject[] = projects.map((p, i) => {
     const st = standing(steps[i] ?? null);
@@ -46,14 +43,11 @@ export default async function DashboardPage() {
   const projectOf = new Map(campaigns.map((c) => [c.id, projects.find((p) => p.id === c.project)?.name ?? c.project]));
   const attention: Attention[] = [
     ...escalations.map((e) => ({
-      key: `esc-${e.id}`, tone: "fail" as const, href: "/review",
+      // the campaign's own page; the decision itself is asked on any page (EscalationPopup in the root layout)
+      key: `esc-${e.id}`, tone: "fail" as const, href: `/campaigns/${encodeURIComponent(e.campaignId)}`,
       title: `Escalation at ${e.stage} · ${projectOf.get(e.campaignId) ?? e.campaignId}`,
       detail: e.reasonCode.replace(/_/g, " ").toLowerCase(),
     })),
-    ...(proposals.length > 0
-      ? [{ key: "proposals", tone: "warn" as const, href: "/review", title: `${proposals.length} parameter proposal${proposals.length === 1 ? "" : "s"} to review`,
-           detail: "agent values with their citations" }]
-      : []),
     ...rows.filter((r) => !r.archived && r.state === "needs_you").map((r) => ({
       key: `step-${r.id}`, tone: "warn" as const, href: r.href, title: `${r.next} · ${r.name}`, detail: r.reason ?? "waiting on you",
     })),
@@ -65,7 +59,6 @@ export default async function DashboardPage() {
   const partial = [
     liveCampaigns.problem && `The campaigns could not be read (${liveCampaigns.problem}); "Running now" is not shown.`,
     liveEscalations.problem && `The escalations could not be read (${liveEscalations.problem}); they are missing from "Needs your attention".`,
-    liveProposals.problem && `The parameter proposals could not be read (${liveProposals.problem}).`,
     liveSteps.some((s) => s?.problem) && `The steps of ${liveSteps.filter((s) => s?.problem).length} project(s) could not be read; their cards say "Steps not read".`,
   ].filter((m): m is string => Boolean(m));
   return (

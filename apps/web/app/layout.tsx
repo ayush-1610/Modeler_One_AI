@@ -20,6 +20,7 @@ import "./styles/admin.css";
 import "./styles/design.css";
 // target sizes (WCAG 2.2 2.5.8): after the look, so its hit areas and sizes hold
 import "./styles/targets.css";
+import { EscalationPopup } from "@/components/campaign/EscalationPopup";
 import { Motion } from "@/components/kit/Motion";
 import { Nav } from "@/components/Nav";
 import { Providers } from "@/components/Providers";
@@ -56,6 +57,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {/* the sidebar is inside the providers too: its "Add data" card changes the project and refreshes the page */}
         <Providers>
           <Motion />
+          {/* an open escalation asks for its signed decision on any page (the review inbox is gone, 2026-11-11) */}
+          <EscalationPopup />
           <div className="app">
             <Nav user={user} />
             <div className="content">

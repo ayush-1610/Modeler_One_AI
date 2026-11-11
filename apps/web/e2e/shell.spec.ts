@@ -18,9 +18,15 @@ test("the skip link, the current page in the sidebar, and an address with no pag
 
   const nav = page.getByRole("navigation", { name: "Main" });
   await expect(nav.getByRole("link", { name: "Projects" })).toHaveAttribute("aria-current", "page");
-  await page.goto("/review");
-  await expect(nav.getByRole("link", { name: "Review inbox" })).toHaveAttribute("aria-current", "page");
+  await page.goto("/projects/start");
+  await expect(nav.getByRole("link", { name: "Start from proposal" })).toHaveAttribute("aria-current", "page");
   await expect(nav.getByRole("link", { name: "Projects" })).not.toHaveAttribute("aria-current", "page");
+  // the review inbox is gone (2026-11-11: a decision is asked where the person is): no link to it, and an old link to
+  // /review lands on the dashboard rather than a 404
+  await expect(nav.getByRole("link", { name: "Review inbox" })).toHaveCount(0);
+  await page.goto("/review");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(nav.getByRole("link", { name: "Projects" })).toHaveAttribute("aria-current", "page");
 
   const missing = await page.goto("/no-such-page");
   expect(missing?.status()).toBe(404);

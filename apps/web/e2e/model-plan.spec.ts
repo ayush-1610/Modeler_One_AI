@@ -3,7 +3,12 @@
 // the MAP is generated from the plan, signed, and the campaign starts from it.
 import { expect, test } from "@playwright/test";
 
+import { dropEscalations } from "./fixtures/escalations";
 import { projectWithInputs } from "./fixtures/inputs";
+
+// The campaign this flow starts may stop for a decision, and the decision pop-up asks for it on every page (the review
+// inbox is gone, 2026-11-11): the flow waits for its run to stop, then closes what it left open for the next specs.
+test.afterAll(() => dropEscalations());
 
 // The canvas is large: a drag whose target is below the fold makes Playwright scroll mid-drag, and Chromium then
 // starts no HTML5 drag at all. A desktop-sized viewport keeps source and target on screen, as for a person.
@@ -92,4 +97,6 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await page.getByTestId("run-campaign").click();
   await page.waitForURL(/\/campaigns\/[^/]+$/);
   await expect(page.getByRole("heading", { name: "Planamide" })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("campaign-status")).toHaveText(/completed|escalated|awaiting_signature|aborted|failed/,
+                                                               { timeout: 8 * 60_000 });
 });

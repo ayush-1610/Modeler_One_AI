@@ -61,12 +61,6 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
 .nav a.active::before { left: -12px; top: 10px; bottom: auto; height: 20px; width: 3px; border-radius: 3px; background: var(--sim);
   box-shadow: 0 0 12px color-mix(in srgb, var(--sim) 50%, transparent); }
 .nav-glyph { position: relative; display: grid; place-items: center; flex: none; width: 18px; height: 18px; }
-.nav-dot { position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border-radius: 50%; background: #ff453a;
-  box-shadow: 0 0 0 2px var(--surface); }
-.sidebar.open .nav-dot { display: none; }
-.nav-badge { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600;
-  text-align: center; color: #fff; background: #ff3b30; opacity: 0; transition: opacity 320ms; }
-.sidebar.open .nav-badge { opacity: 1; }
 .nav-foot { margin-top: auto; padding-top: 0; display: grid; gap: 10px; }
 .nav-user { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 8px 5px 0; border-top: 1px solid var(--hairline);
   white-space: nowrap; font-size: 12px; line-height: 1.25; color: var(--ink-dim); }
@@ -192,8 +186,8 @@ code { background: color-mix(in srgb, var(--sim) 8%, transparent); }
 @media (max-width: 900px) {
   .content, .app:has(> .sidebar.pinned) .content { padding-left: 0; }
   .sidebar, .sidebar.open { position: static; width: 100%; border-radius: 0 0 24px 24px; }
-  .sidebar .nav-text, .sidebar .nav-heading-text, .sidebar .nav-badge { opacity: 1; transform: none; pointer-events: auto; }
-  .nav-pin, .nav-dot { display: none; }
+  .sidebar .nav-text, .sidebar .nav-heading-text { opacity: 1; transform: none; pointer-events: auto; }
+  .nav-pin { display: none; }
   .content > main { padding-left: 16px; padding-right: 16px; }
   .hero-band { margin: 0 -16px; }
   .hero-inner { padding: 48px 16px 64px; }
@@ -270,6 +264,11 @@ td.num, th.num { white-space: nowrap; }
   transition: opacity 450ms var(--ease), transform 450ms var(--ease); }
 .mo-toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 .mo-toast:empty { visibility: hidden; }
+
+/* a decision put off with "Decide later": a small control in the bottom-right corner, on every page, that opens it
+   again (EscalationPopup). Under the dialogs, over the page; it fades in and never moves (no rise under the pointer) */
+.decision-waiting { position: fixed; right: 20px; bottom: 20px; z-index: 45; animation: mo-fade 300ms var(--ease) both; }
+.decision-waiting .btn { border-radius: 999px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); }
 
 /* the celebration burst after a signature */
 .mo-burst { position: fixed; inset: 0; z-index: 55; pointer-events: none; opacity: 0; transform: scale(0.6);
@@ -368,7 +367,6 @@ td.num, th.num { white-space: nowrap; }
   .nav-menu { position: relative; display: grid; place-items: center; margin-left: auto; width: 44px; height: 44px; border: 0;
     border-radius: 12px; background: none; color: var(--ink); cursor: pointer; }
   .nav-menu:hover { background: var(--fill-btn); }
-  .nav-menu .nav-dot { top: 8px; right: 8px; }
   .nav-panel { display: none; }
   .sidebar.menu-open .nav-panel { display: grid; gap: 12px; padding: 8px 0 6px; max-height: calc(100vh - 70px); overflow-y: auto;
     animation: mo-fade 200ms var(--ease) both; }

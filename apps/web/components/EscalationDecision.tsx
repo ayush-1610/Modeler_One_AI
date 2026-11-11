@@ -36,7 +36,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
 
   async function submit() {
     setResult(null);
-    // a signed decision, then the inbox and the monitor (server-rendered) read again
+    // a signed decision, then the open escalations and the monitor (server-rendered) read again
     const { data, problem } = await run(() => resolveEscalation(escalation.campaignId, escalation.stage, {
         action: choice as "retry" | "accept_best" | "abort" | "approve" | "learn" | "new_evidence",
         note: rationale,

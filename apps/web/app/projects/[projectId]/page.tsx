@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { Stepper } from "@/components/kit/Stepper";
 import { RunCampaignButton } from "@/components/RunCampaignButton";
-import { EscalationPopup } from "@/components/campaign/EscalationPopup";
 import { MembersPanel } from "@/components/members/MembersPanel";
 import { SystemPanel } from "@/components/system/SystemPanel";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
@@ -41,9 +40,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
     <main>
       <Hero tone="run" eyebrow="Step 4 of 4" title={project.name}
             lede="Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table."
-            actions={<><RiskChip rating={project.risk} /><Link className="btn" href="/review">Review inbox</Link></>} />
+            actions={<RiskChip rating={project.risk} />} />
       <Stepper projectId={project.id} current="run" />
-      <EscalationPopup campaignIds={(campaigns ?? []).map((c) => c.id)} />
       {(liveStudies.problem || liveCampaigns.problem) && (
         <ApiProblem problem={(liveStudies.problem ?? liveCampaigns.problem)!} />
       )}
@@ -68,8 +66,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
           <p className="muted" style={{ marginTop: 0 }}>
             Generates the Model Analysis Plan from this project&apos;s CPF and {studies!.length} observed
             study(ies), records the Part 11 signature, then runs the stage loop on the OSP engine — building
-            the model, simulating, scoring it against the acceptance tier, and either passing or escalating
-            to the review inbox.
+            the model, simulating, scoring it against the acceptance tier, and either passing or stopping to
+            ask you for a signed decision, on whatever page you are on.
           </p>
           <RunCampaignButton projectId={project.id} questionId={question!.id} compound={compound} />
         </Card>

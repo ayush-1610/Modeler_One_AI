@@ -3,6 +3,8 @@
 // two failure modes that used to be hidden behind sample data: a campaign that is not recorded, and an illustrative run.
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
+import { dropEscalations } from "./fixtures/escalations";
+
 const AUTH = { Authorization: "Bearer dev" };
 const TERMINAL = /completed|escalated|awaiting_signature|aborted|failed/;
 
@@ -23,6 +25,11 @@ async function fromTemplate(request: APIRequestContext, templateId: string) {
   expect(studies.ok(), await studies.text()).toBeTruthy();
   return { projectId, compound: template.compound as string };
 }
+
+// a run that stops for a decision leaves an escalation open, and the decision pop-up asks for it on every page (the
+// review inbox is gone, 2026-11-11): close it after each test (each waits for its run to stop), or it would sit over the
+// next test's Run campaign button and the next specs' pages
+test.afterEach(() => dropEscalations());
 
 test("a campaign on the published Dapagliflozin model's real data runs from the project page to the monitor", async ({ page, request }) => {
   const { projectId, compound } = await fromTemplate(request, "dapagliflozin-osp");

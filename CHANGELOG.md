@@ -15,6 +15,43 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the Review inbox is removed: a decision is asked on the page the person is on (item 8, web only)
+- **What:** the "Review inbox" item is gone from the sidebar, and `/review` is now a server redirect to the dashboard, so
+  old links and bookmarks still land. The escalation pop-up (`components/campaign/EscalationPopup.tsx`) is mounted once,
+  in the root layout, over **every** open escalation of the tenant (no longer filtered to a project's campaigns), so a
+  decision is asked on any page; the per-page mounts on the Run page and the campaign page are removed (no double
+  pop-up). It reads only `/api/v1/escalations`, so a campaign whose record the API cannot read can still be decided. The
+  campaign on screen (or, on a project page, that project's campaigns) comes first. "Decide later" closes it for this
+  visit and leaves a small "A decision is waiting · Open" control in the bottom-right corner on every page (it fades in,
+  never moves), which opens it again without a reload; the campaign page's feedback banner has an "Open the decision"
+  button for the same. The dashboard's escalation items link to `/campaigns/{id}` and are never cut by the eight-item
+  limit. The Run page's "Review inbox" button is removed and its text reworded. The sidebar's API live dot (`nav-conn`)
+  keeps working from the same escalations read (`useInboxCount` renamed `useApiLive`); the inbox badge, its phone-menu dot
+  and their CSS are removed. The agent parameter proposals card and the dashboard's "parameter proposals to review" item
+  are dropped with `getProposals` and the `Proposal` web type.
+- **Why:** the owner's decision of 2026-11-11 ("we handle these in place: on the ongoing screen it will show or ask").
+  The adversarial checks of the plan found that the pop-up on two pages alone would leave some decisions unreachable once
+  the inbox went (a campaign record that cannot be read, a failed campaign list, a 9th escalation on the dashboard,
+  "Decide later" with no way back); the global mount and the reopen control close each gap. Agent proposals have no
+  writer anywhere in the backend (`upsert_proposal` has no caller; agents' values are decided on Inputs and the Plan step),
+  so the card was always empty.
+- **Impact:** the signed decision itself is unchanged (`EscalationDecision`, the signature from the step-up). An open
+  escalation now asks over whatever page is open, for everyone in the tenant, as the inbox listed it for everyone before.
+  `GET /api/v1/proposals` stays in the API and `docs/api/openapi.json` with no web reader and no writer; its removal, and
+  the "(review inbox)" wording of the escalations/proposals route descriptions, are a separate API-contract change. Not
+  updated here (outside `apps/web`): `docs/USING_THE_TOOL.md` and `docs/CONTINUATION_PACKAGE.md` still describe the inbox.
+- **Tests:** `escalation-popup.spec.ts` checks the pop-up on the project page, the dashboard and `/projects/start`, the
+  "waiting · Open" control across a page change, the dashboard link to the campaign, and a new case: an escalation whose
+  campaign record does not exist is still asked on its page. `feedback.spec.ts` now decides S5 in the pop-up, reopened
+  from the banner, and sees S6 asked next (it decided in the inbox before). `shell.spec.ts` checks that `/review` redirects
+  to the dashboard and that no "Review inbox" link remains (aria-current is checked on "Start from proposal" instead).
+  `dashboard.spec.ts` checks the rail's "Start from proposal" link instead of "Review inbox". `oidc-signing.spec.ts` signs
+  in on the seeded campaign page and signs in its pop-up (the inbox card before), step-up return to `/`. A new e2e helper,
+  `e2e/fixtures/escalations.ts`, lets a spec close the escalations it leaves open, since an open one now asks over the
+  next specs' pages (a full run showed it: the Dapagliflozin run's escalation covered the next test's Run campaign
+  button). `escalation-popup`, `feedback` and `campaign-monitor` call it after their tests; `model-plan` now waits for
+  its campaign to stop (it left it running before) and then calls it.
+
 ### Changed — target sizes: small controls are at least 24 x 24 px to the pointer (WCAG 2.2 2.5.8; audit item 7, web only)
 - **What:** a new stylesheet, `apps/web/app/styles/targets.css`, loaded right after `design.css` in `app/layout.tsx`. The
   link buttons (`.link-btn`), the citation chips (`.cite`), the chip remove x, the Clip "show all" toggle and lone links in

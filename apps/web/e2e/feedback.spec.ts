@@ -6,6 +6,8 @@ import { join } from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { dropEscalations } from "./fixtures/escalations";
+
 const ID = "camp-feedback-e2e";
 
 function upsert(file: string, key: string, row: Record<string, unknown>) {
@@ -57,7 +59,11 @@ test.beforeAll(() => {
   });
 });
 
-// The campaign page opens a waiting decision as a dialog (escalation-popup.spec.ts); this flow decides in the inbox.
+// the S4/S5 signature this flow leaves waiting would otherwise ask over the next specs' pages
+test.afterAll(() => dropEscalations((r) => r.campaignId === ID));
+
+// A waiting decision is asked as a dialog on any page (escalation-popup.spec.ts); the review inbox it was decided in
+// before is gone (2026-11-11), so this flow puts it off, reads the page, opens it again and decides it in the dialog.
 async function decideLater(page: Page) {
   await page.getByTestId("escalation-popup").getByTestId("escalation-later").click();
   await expect(page.getByTestId("escalation-popup")).toHaveCount(0);
@@ -69,8 +75,10 @@ test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", 
   await expect(page.getByTestId("feedback-pending")).toBeVisible();
   await expect(page.getByTestId("feedback-diagnosis")).toContainText("fed, and no fed study trains the model");
 
-  await page.goto("/review");
-  const card = page.locator(".card", { hasText: `campaign ${ID}, stage S5` });
+  // the banner opens the decision again, in place
+  await page.getByTestId("feedback-pending").getByTestId("open-decision").click();
+  const card = page.getByTestId("escalation-popup");
+  await expect(card).toContainText(`campaign ${ID}, stage S5`);
   await expect(card.getByTestId("feedback-diagnosis")).toContainText("over-predicted");
   await expect(card.getByTestId("ms01-suggestion")).toContainText("record a limitation");
   await expect(card.getByTestId("decision-select").locator("option[value=learn]")).toBeDisabled();
@@ -82,9 +90,10 @@ test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", 
   await card.locator("textarea").first().fill("fed claims are withdrawn from the context of use");
   await card.getByTestId("decision-sign").click();
   await page.getByTestId("decision-confirm").click();
-  // the inbox refreshes: the S5 decision is gone and the S4/S5 evaluation now waits for its signature
-  await expect(page.getByRole("heading", { name: `Escalation — campaign ${ID}, stage S6` })).toBeVisible();
-  await expect(page.getByRole("heading", { name: `Escalation — campaign ${ID}, stage S5` })).toHaveCount(0);
+  // the dialog reads the open escalations again: the S5 decision is gone and the S4/S5 evaluation now waits for its
+  // signature, asked in the same place
+  await expect(page.getByRole("dialog", { name: `Your decision is needed: campaign ${ID}, stage S6` })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("dialog", { name: `Your decision is needed: campaign ${ID}, stage S5` })).toHaveCount(0);
 
   await page.goto(`/campaigns/${ID}`);
   await decideLater(page);                                                  // the S4/S5 signature now waits
