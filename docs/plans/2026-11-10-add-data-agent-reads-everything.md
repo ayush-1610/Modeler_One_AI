@@ -74,3 +74,32 @@ reading agents' prompts and code's checks, so they each get a CHANGELOG entry an
 
 Deviation recorded: the builds go on the session's one branch (`claude/quirky-mccarthy-ln0y7g`), one commit per build,
 reviewed as one PR, because this session may push to that branch only.
+
+## 6. R6: the owner's delivery on the server (runbook, 2026-11-11)
+The cloud sessions that built R1–R5 cannot reach the server (it is on the owner's network) nor hold a model key, so R6 is
+run on the server by the owner; the report it writes is what the next session reads. Every step is read-only except
+the upload itself.
+
+1. Merge the R6 PR and deploy from `main`: `bash deploy/dev/deploy_to_server.sh` (from the Mac, in a checkout of `main`).
+2. Admin console → Models: give **A4** (the reading agent) its model and the provider's key. The tray says "the reading
+   agent is off" until then.
+3. Start a new project for the drug, then **+ Add data** with the whole delivery at once (every file "Read for data",
+   the default). Do not re-use a project that read some files before R4: start clean.
+4. Wait until the reading tray on Inputs shows no file waiting or reading (one delivery pass, then each file; a few
+   minutes per file with a large model). Note any file it shows as failed, with its reason.
+5. Write the answer key: start from `docs/evaluations/delivery-key.example.yaml` (or the draft the R6 session wrote from
+   the file names), open each file, and write what it states. Copy it to the server, e.g. `~/delivery-key.yaml`.
+6. On the server (`ssh adt-server`, then `cd ~/Modeler_One_AI`):
+
+       uv run python -m modeler_project.delivery_report --root ~/modeler-data/read-root \
+           --project <the project's id, from its address> --key ~/delivery-key.yaml --out ~/delivery-report.md
+       uv run python -m modeler_agents.usage_report --root ~/modeler-data/read-root --since <today> > ~/delivery-usage.txt
+
+7. Send `~/delivery-report.md` and `~/delivery-usage.txt` to the next session (paste them, or add them to the
+   repository's scratch area, never to `main`): each mismatch is either the agent's (a prompt or a check to change, with
+   a test from the case) or the key's.
+
+What the report holds: per file, how far its reading got, the delivery map's line, what was found and the first
+refusals; the studies with a concentration-time profile, the dissolution profiles, the links, the figures suggested,
+each delivery pass; with the key, per field found / wrong / missing, the studies and dissolution conditions expected
+and found, and what was found that the key does not name.

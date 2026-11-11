@@ -15,6 +15,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — R6: the delivery report, and its score against a person's answer key (2026-11-11)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R6 (§6, the runbook). The cloud session cannot
+reach the server nor hold a model key, so R6 is run on the server by the owner; this is what it runs.
+- `uv run python -m modeler_project.delivery_report --root … --project <id> [--key key.yaml] [--json] [--out …]`,
+  read-only: per client file, how far its reading got (the reading queue), the delivery map's line, what was found
+  (datasets, study facts, dissolution rows, links, sheets read), the first refusals; for the project, the studies with
+  a concentration-time profile, the dissolution profiles, the links between names, the figures suggested, each
+  delivery pass. With an answer key (`docs/evaluations/delivery-key.example.yaml`): each field of each file found,
+  wrong or missing; each study and dissolution condition expected found or missing (under any name a person confirmed
+  or the files link); what was found that the key does not name.
+- Impact: nothing changes in the app; no science change. Tests: `services/agents/tests/test_delivery_report.py`
+  (T-47).
+
 ### Changed — only a project's owner changes it; the people it is shared with read it, a reviewer among them signs (2026-11-10)
 The owner, 2026-11-10 (admin console plan, answers 4 and 6): "the one who creates project will be owner who only can
 edit and do anything in project"; the people it is shared with in the same company "can only see/read only"; a

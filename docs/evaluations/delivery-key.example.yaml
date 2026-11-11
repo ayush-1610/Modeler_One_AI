@@ -1,0 +1,31 @@
+# A person's reading of a client delivery, to score what the agents made of it (plan 2026-11-10, R6):
+#   uv run python -m modeler_project.delivery_report --root ~/modeler-data/read-root --project <id> --key <this file>
+# Write only what you have read in the files; leave out what you have not checked. A mismatch in the report is a question
+# to look at, either way: the key is a reading, not a fact.
+
+files:
+  # each file by its exact name, and the fields it states (study, product, role, strength_mg, batch, food_state,
+  # medium, ph); a workbook whose sheets differ gives them per sheet
+  - name: "EX-101 synopsis.pdf"
+    study: "EX-101"
+    food_state: fasted            # fasted | fed
+  - name: "EX-101 PK Table.xlsx"
+    study: "EX-101"
+  - name: "APL 50 dissolution.xlsx"
+    product: "APL 50"
+    role: TEST                    # TEST | RLD | REFERENCE
+    strength_mg: 50
+    sheets:
+      "pH 1.2": {medium: "0.1 N HCl", ph: 1.2}
+      "pH 6.8": {medium: "phosphate buffer", ph: 6.8}
+
+studies:
+  # each study whose concentration-time profile the client's files hold (names: what other files call it)
+  - id: "EX-101"
+    names: ["Protocol XYZ-01"]
+
+dissolution:
+  # each product, and the pH of each dissolution profile its files hold
+  - product: "APL 50"
+    names: ["Test product"]
+    ph: [1.2, 4.5, 6.8]
