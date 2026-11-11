@@ -125,8 +125,16 @@ export function EscalationDecision({ escalation, engine, engineUnknown, actions,
             );
           })}
           {needsDeviation && (
-            <textarea rows={2} value={beyondCap} aria-label="Why another learn cycle is justified" onChange={(e) => setBeyondCap(e.target.value)} data-testid="beyond-cap"
-              placeholder="This class already had its learn cycle. Why another one is justified — recorded as a deviation." />
+            // a visible name with the required mark, like every other reason (ReasonField): the placeholder goes once
+            // the person types (audit 2 review)
+            <>
+              <label htmlFor={`${ids}-beyond-cap`} className="mt-6">
+                <span className="ctl-label">Why another learn cycle is justified <span className="req">· required</span></span>
+              </label>
+              <textarea id={`${ids}-beyond-cap`} rows={2} value={beyondCap} aria-required onChange={(e) => setBeyondCap(e.target.value)}
+                data-testid="beyond-cap"
+                placeholder="This class already had its learn cycle. Recorded as a deviation." />
+            </>
           )}
         </div>
       )}

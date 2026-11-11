@@ -48,6 +48,8 @@ test("the CPF page summarises structured values, keeps every number whole and st
   await expect(first.locator("summary")).toContainText("structured value");
   const full = await first.locator(".clip-full").textContent();
   expect(structured.map((p) => p.value)).toContain(full);
+  // the summary is not the start of the text, so it gives the whole length, never "+ N characters" (audit 2 review)
+  await expect(first.locator(".clip-more")).toHaveText(`show the full text (${full!.length.toLocaleString("en-US")} characters)`);
 
   // a number is never split: every numeric value cell is one line and shows the stored value as stored
   const numbers = table.locator(".cpf-number");

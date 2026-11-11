@@ -39,9 +39,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   const questions = project.questions ?? [];
   // The owner's decision 2 (2026-11-11): a campaign starts only from the MAP signed on Review & sign, with the inputs
   // that signature staged. The plan is read only once Review & sign is done (the steps say so from a signed, current MAP);
-  // a signed MAP with deviations still waiting for their signature does not run (D-14).
+  // a signed MAP with deviations still waiting for their signature does not run (D-14). The read-only route: a viewer
+  // may open Run too, and a page that only shows the plan never uses the canvas route that can write one.
   const reviewDone = liveSteps.data?.find((s) => s.step === "review")?.state === "done";
-  const plan = reviewDone ? await serverGet("/api/v1/projects/{project_id}/plan", { project_id: projectId }) : null;
+  const plan = reviewDone ? await serverGet("/api/v1/projects/{project_id}/plan:view", { project_id: projectId }) : null;
   const map = plan?.data?.signed ? plan.data.map : null;
   const pendingDeviations = (plan?.data?.deviations ?? []).filter((d) => !d.signature_id);
   const campaign = map && !pendingDeviations.length ? map.campaign : null;

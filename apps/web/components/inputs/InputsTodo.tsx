@@ -174,7 +174,7 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
             </>}
           </>
         )}
-        <ReasonField value={reason} onChange={setReason} className="flex-1 minw-160" ariaLabel={`reason for ${e.id}`} />
+        <ReasonField value={reason} onChange={setReason} className="flex-1 minw-160" ariaLabel={`reason for ${e.target}`} />
         <button className="btn primary" disabled={!reason.trim() || (pka ? !kind : !target || (needsMolecule && !molecule) || (statement && !number))}
                 title={statement ? "a sentence becomes a value only as a number its quote states" : undefined}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:correct",
@@ -216,6 +216,10 @@ export function Decide({ e, projectId, run, card }: { e: Ev; projectId: string; 
   const accepted = needsValue ? `${e.target} = ${typed.trim()}${unit && unit !== UNSET ? ` ${unit}` : ""} accepted, typed in PK-Sim's unit.`
                               : `${e.target} = ${fmt(e.value_pksim ?? e.value)} accepted.`;
   const shown = typeof e.value === "string" && e.value.length > 40 ? `${e.value.slice(0, 40)}…` : String(fmt(e.value));
+  // Accept is named after the value it records: the typed PK-Sim value and its unit when one is needed (never the
+  // source number, which is not what is stored), or the target alone until both are given (audit 2 review)
+  const acceptName = !needsValue ? `Accept ${e.target} = ${shown}`
+    : valueReady ? `Accept ${e.target} = ${typed.trim()}${unit === "" ? " (dimensionless)" : ` ${unit}`}` : `Accept ${e.target}`;
   const decide = async (body: Schema<"Decision">, ok: string) => {
     const next = afterThis(why.current);
     const p = await run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide",
@@ -257,9 +261,9 @@ export function Decide({ e, projectId, run, card }: { e: Ev; projectId: string; 
         </div>
       )}
       <div className="ctl-row mt-6">
-        <ReasonField value={reason} onChange={setReason} className="flex-1 minw-160" ariaLabel={`reason for ${e.id}`}
+        <ReasonField value={reason} onChange={setReason} className="flex-1 minw-160" ariaLabel={`reason for ${e.target}`}
                      inputRef={why} why={e.id} />
-        <button className="btn primary" disabled={!reason.trim() || !valueReady} aria-label={`Accept ${e.target} = ${shown}`}
+        <button className="btn primary" disabled={!reason.trim() || !valueReady} aria-label={acceptName}
                 onClick={() => void decide(body, accepted)}>Accept</button>
         <button className="btn" disabled={!reason.trim()} aria-label={`Reject ${e.target} = ${shown}`}
                 onClick={() => void decide({ state: "REJECTED", reason }, `${e.id} rejected.`)}>Reject</button>

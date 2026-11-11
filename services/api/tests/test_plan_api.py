@@ -191,6 +191,15 @@ def test_approve_and_sign_generates_the_map_signs_it_and_stages_the_campaign(set
     v2 = json.loads(Path(unquote(urlparse(data["map"]["campaign"]["map_uri"]).path)).read_text())
     assert v2["status"] == "SIGNED" and any("Deviation from MAP v1 (role, po-10)" in r for r in v2["split_rationale"])
     assert c.post("/api/v1/projects/p1/plan:sign", headers=H, json={}).status_code == 409    # nothing new to sign
+    # the Run page reads the signed plan through the read-only route, which a viewer may use; the canvas route is a
+    # writer's (it can write a default plan), so a viewer opening Run after the signature gets no 403 (audit 2 review)
+    ROLES["value"] = ["modeler-viewer"]
+    assert c.get("/api/v1/projects/p1/plan", headers=H).status_code == 403
+    viewed = c.get("/api/v1/projects/p1/plan:view", headers=H)
+    assert viewed.status_code == 200, viewed.text
+    assert viewed.json()["data"]["signed"] and viewed.json()["data"]["map"]["campaign"]["map_uri"]
+    assert viewed.json()["data"]["deviations_pending"] == 0
+    ROLES["value"] = ["modeler-curator", "modeler-reviewer"]
     # phase 6e: MAP/main is written and read through modeler_project.map_artifact; its stored content keeps the keys the
     # router wrote before and reads back byte for byte (the audit chain hashes content)
     from modeler_project.map_artifact import MapArtifact

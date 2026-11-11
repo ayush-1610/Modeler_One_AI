@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — Audit 2 review: viewer-safe Run read, harvested-unit check on the server, control edge and focus ring, honest names (web, API)
+Review of the audit 2 commits (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** the Run page reads the signed
+plan through the read-only `GET …/plan:view` (Reader) instead of the canvas route `GET …/plan` (Writer, and able to
+write a default plan), so a viewer opening Run after Review & sign no longer gets a 403 banner in place of the run card.
+`POST …/evidence/{id}:decide` checks a typed PK-Sim value against the parameter's harvested units whatever the item holds
+(`inputs.harvested_units`, split out of `pksim_units`), so a re-decide of an accepted value takes no free-text unit; for a
+parameter with no harvested unit it takes only the source's own number in its own unit, and never overwrites a value
+already converted (before, both cases stored any `value_pksim` / `unit_pksim` sent and cleared `needs_conversion`).
+`--control-border` is opaque `#86868b` (3.6:1 on the card, 3.3:1 on the page; the `rgba(0,0,0,0.1)` it was is about
+1.25:1 against the comment's "3:1"). The dashboard / library / table search fields no longer set `outline: none` and
+keep the 2 px focus ring. The concentration–time chart drops `role="img"` from the Plotly surface (it hid the modebar's
+download control); the figure is described by a summary (`aria-describedby`), and its caption names only the kinds
+plotted. A held value's Accept is named after the value it records (the typed PK-Sim value and unit, or the target
+alone until both are given), and its reason field after the target, not the evidence id. The escalation's "why another
+learn cycle" reason has a visible label with the required mark. `Clip` with a summary says "show the full text (N
+characters)" instead of "+ N characters". **Why:** findings of the audit 2 review. **Impact:** no API contract change
+(the 422 is the existing refusal); no SME content touched. **Tests:** `test_plan_api` (a viewer reads `plan:view` after
+the signature, `GET …/plan` stays 403), `test_inputs_api` (re-decide with a non-harvested unit, a parameter with no
+harvested unit, a converted value not overwritten); e2e `a11y-pass` (control edge ≥ 3:1 on card and page, search focus
+ring 2 px), `held-value-pksim-unit` (Accept and reason names; `inputs-populations` now finds Accept by the target alone), `campaign-monitor` (summary, no `role="img"`, caption
+names only the kinds drawn; this asserted the surface's aria-label before), `cpf-page` (the Clip wording).
+
 ### Fixed — Accessibility and wording pass: motion that stops, AA contrast, outline, chart text alternative, one name per step (web)
 Frontend audit 2, item 10 (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** the hero curve draws once (2.4 s)
 instead of every 7 s forever (WCAG 2.2.2); both reduced-motion blocks now also set `animation-iteration-count: 1` and

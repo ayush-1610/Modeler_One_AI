@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 export type Series = {
   name: string;
@@ -134,13 +134,24 @@ export function ConcentrationTimePlot({ series: given }: { series: Series[] }) {
   const summary = series.length
     ? `Plasma concentration (${unit}) against time: ${series.length} series (${kinds}), ${span}, ${logScale ? "log" : "linear"} scale`
     : "No series to plot yet";
+  // the caption names only what is drawn: a chart with no observed series never says "observed (points)"
+  const predicted = series.some((s) => s.kind === "simulated");
+  const observed = series.some((s) => s.kind === "observed");
+  const band = series.some((s) => s.kind === "simulated" && s.lower && s.upper) ? ", with the 5th-95th percentile band" : "";
+  const drawn = [predicted && `Predicted (line${band})`, observed && (predicted ? "observed (points)" : "Observed (points)")]
+    .filter(Boolean).join(" and ");
+  const summaryId = useId();
 
   return (
-    <figure className="m-0" data-testid="gof-figure">
+    // the figure is named by its caption and described by the summary; the chart surface carries no role="img", which
+    // would hide the modebar's download control inside it from assistive technology (audit 2 review)
+    <figure className="m-0" data-testid="gof-figure" aria-describedby={summaryId}>
       <figcaption className="muted mb-8" data-testid="gof-caption">
-        Predicted (line{series.some((s) => s.lower && s.upper) ? ", with the 5th-95th percentile band" : ""}) and observed
-        (points) plasma concentration in {unit || "the series' unit"} against time in hours, on a {logScale ? "log" : "linear"} scale.
+        {series.length
+          ? <>{drawn} plasma concentration in {unit || "the series' unit"} against time in hours, on a {logScale ? "log" : "linear"} scale.</>
+          : "No series to plot yet."}
       </figcaption>
+      <p className="sr-only" id={summaryId} data-testid="gof-summary">{summary}</p>
       <label className="inline-flex gap-6 items-center mb-8">
         <input id="log-scale" type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
         Log scale
@@ -148,7 +159,7 @@ export function ConcentrationTimePlot({ series: given }: { series: Series[] }) {
       {failed && (
         <p className="banner err" role="alert" data-testid="plot-failed">The plot could not be loaded; reload the page.</p>
       )}
-      <div ref={container} className="w-full h-360" hidden={failed} role="img" aria-label={summary} data-testid="gof-plot" />
+      <div ref={container} className="w-full h-360" hidden={failed} data-testid="gof-plot" />
       {series.length > 0 && (
         // the chart's text alternative: every point it draws, series by series (as the dataset cards do)
         <details className="dataset-points" data-testid="gof-data">

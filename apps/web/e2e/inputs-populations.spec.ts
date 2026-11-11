@@ -30,7 +30,9 @@ test("each held value on Populations is drawn once, as a row, and the page stays
   await expect(row).toBeVisible();
   await expect(page.getByTestId(`todo-review-${EHC}`)).toHaveCount(1);
   await expect(row.getByTestId(`todo-review-${EHC}`)).toHaveCount(1);
-  await expect(page.getByRole("button", { name: `Accept ${EHC} =` })).toHaveCount(1);
+  // Accept names the value it records: the target alone until a PK-Sim value and unit are typed (audit 2 review; it was
+  // named after the source number before, which is not what is recorded)
+  await expect(page.getByRole("button", { name: `Accept ${EHC}`, exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: `Reject ${EHC} =` })).toHaveCount(1);
   await expect(page.locator("input[data-why]")).toHaveCount(await page.locator("[data-testid^='todo-review-']").count());
   // a readable name from the path's own segments, the full path once in the row

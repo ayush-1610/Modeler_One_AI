@@ -43,10 +43,11 @@
   --warn-ink: #9a4500;
   --fail-ink: #a5381f;
   --ink-quiet: #6e6e73;
-  /* the filled primary button (white on it 5.2:1; --sim stays the chart colour) and the edge of a form control (3:1) */
+  /* the filled primary button (white on it 5.2:1; --sim stays the chart colour) and the edge of a form control: opaque,
+   * 3.6:1 on --surface and 3.3:1 on --raised / --bg (WCAG 1.4.11; the rgba(0,0,0,0.1) it was is about 1.25:1) */
   --primary: #0071e3;
   --on-primary: #ffffff;
-  --control-border: rgba(0, 0, 0, 0.1);
+  --control-border: #86868b;
 
   /* risk ratings (ICH M15) and aliases */
   --low: var(--pass);

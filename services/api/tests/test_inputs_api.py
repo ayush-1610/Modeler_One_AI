@@ -15,7 +15,7 @@ from modeler_project.brief import empty_brief
 from modeler_project.dataset_register import decide_dataset, propose_dataset
 from modeler_project.datasets import ObservedDataset, Origin, Series, new_dataset_id
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceRef, SourceType, new_id
-from modeler_project.evidence_register import decide, propose
+from modeler_project.evidence_register import decide, items, propose
 from modeler_project.requirements import derive
 from modeler_storage.filestore import FileWriteStore
 
@@ -210,3 +210,30 @@ def test_a_held_number_without_its_pksim_value_offers_only_harvested_units_and_t
     stored = EvidenceItem.from_content(ws.latest(ArtifactKind.EVIDENCE, snap.id).content)
     assert stored.state is EvidenceState.ACCEPTED and stored.value_pksim == 1.0 and stored.unit_pksim is None
     assert not any(f.startswith("needs_conversion") for f in stored.flags)
+    # the check reads the parameter's harvested units, not what the item holds: a re-decide of the value just accepted
+    # takes no free-text unit either (audit 2 review)
+    again = c.post(f"/api/v1/projects/p1/evidence/{snap.id}:decide", headers=H,
+                   json={"state": "ACCEPTED", "reason": "again", "value_pksim": 1.0, "unit_pksim": "mg/l"})
+    assert again.status_code == 422 and "dimensionless" in again.json()["detail"]
+    assert EvidenceItem.from_content(ws.latest(ArtifactKind.EVIDENCE, snap.id).content).unit_pksim is None
+    # a parameter with no harvested PK-Sim unit takes no free-text unit and no other number: only its own value in its
+    # own unit, as recorded from the source
+    placeholder = propose(ws, EvidenceItem(id=new_id(), target="elim", value=0.45, unit=None,
+                                           source_type=SourceType.REGULATORY_REVIEW, source=SourceRef(title="FDA review"),
+                                           quote="elim 0.45"), actor="u1")
+    for typed in ({"value_pksim": 0.45, "unit_pksim": "mg/l"}, {"value_pksim": 0.5, "unit_pksim": None}):
+        free = c.post(f"/api/v1/projects/p1/evidence/{placeholder.id}:decide", headers=H,
+                      json={"state": "ACCEPTED", "reason": "typed", **typed})
+        assert free.status_code == 422 and "no PK-Sim unit is harvested" in free.json()["detail"], typed
+    held = EvidenceItem.from_content(ws.latest(ArtifactKind.EVIDENCE, placeholder.id).content)
+    assert held.state is EvidenceState.PROPOSED and held.value_pksim is None
+    same = c.post(f"/api/v1/projects/p1/evidence/{placeholder.id}:decide", headers=H,
+                  json={"state": "ACCEPTED", "reason": "as stated", "value_pksim": 0.45})
+    assert same.status_code == 200, same.text
+    # an automatically converted value is never overwritten by a typed one (bind.fu, converted on proposal)
+    fu = next(e for e in items(ws) if e.target == "bind.fu")
+    assert fu.value_pksim is not None
+    over = c.post(f"/api/v1/projects/p1/evidence/{fu.id}:decide", headers=H,
+                  json={"state": "ACCEPTED", "reason": "again", "value_pksim": fu.value, "unit_pksim": fu.unit})
+    assert over.status_code == 422
+    assert EvidenceItem.from_content(ws.latest(ArtifactKind.EVIDENCE, fu.id).content).value_pksim == fu.value_pksim

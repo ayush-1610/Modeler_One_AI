@@ -598,11 +598,19 @@ _SNAPSHOT_PATH_IDS = ("indiv.", "sim.", "sim[")
 
 def pksim_units(item: EvidenceItem) -> list[str] | None:
     """The PK-Sim units a person may give a held number in when it has no PK-Sim value yet (owner's decision 3 of
-    2026-11-11): only units harvested for its parameter, never invented. They are the units PK-Sim's process table
+    2026-11-11): only units harvested for its parameter, never invented (`harvested_units`). None: the value already has
+    its PK-Sim value, is not a number, or no harvested unit is known. The person types the value; nothing is converted."""
+    if item.value_pksim is not None:
+        return None
+    return harvested_units(item)
+
+
+def harvested_units(item: EvidenceItem) -> list[str] | None:
+    """The PK-Sim units harvested for a numeric item's parameter, whatever it holds now: the units PK-Sim's process table
     places the parameter in (`process_bindings`, harvested), or, for a value a published PK-Sim snapshot sets at a
-    harvested path, that snapshot's own unit ("" is dimensionless). None: the value already has its PK-Sim value, is not
-    a number, or no harvested unit is known. The person types the value; nothing is converted."""
-    if not isinstance(item.value, int | float) or isinstance(item.value, bool) or item.value_pksim is not None:
+    harvested path, that snapshot's own unit ("" is dimensionless). None: not a number, or no harvested unit is known.
+    The decide route checks a typed PK-Sim value against this, so a re-decide cannot store a unit nobody harvested."""
+    if not isinstance(item.value, int | float) or isinstance(item.value, bool):
         return None
     if is_process_id(item.target) and placement(item.target) == "process":
         return sorted({c.unit or "" for c in binding_candidates(item.target)}) or None

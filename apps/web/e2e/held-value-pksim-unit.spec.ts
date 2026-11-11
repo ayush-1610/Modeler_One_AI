@@ -37,7 +37,10 @@ test("a needs-conversion value is accepted on its row with the value typed in a 
   // only the harvested unit is offered (the snapshot's own: dimensionless), with nothing chosen yet
   await expect(unit.locator("option:not([disabled])")).toHaveText(["dimensionless (no unit)"]);
 
-  await card.locator("input[placeholder='why']").fill("as the published model sets it, checked against the snapshot");
+  // the reason is named after the parameter, never an internal evidence id; Accept names the value it would record:
+  // the target alone until a value and unit are given, then the typed value, never the source number (audit 2 review)
+  await card.getByLabel(`reason for ${EHC}`).fill("as the published model sets it, checked against the snapshot");
+  await expect(accept).toHaveAccessibleName(`Accept ${EHC}`);
   await expect(accept).toBeDisabled();                   // no value typed yet
   await value.fill("1,0");
   await expect(accept).toBeDisabled();                   // not a number: nothing is guessed
@@ -45,6 +48,7 @@ test("a needs-conversion value is accepted on its row with the value typed in a 
   await expect(accept).toBeDisabled();                   // no unit chosen yet
   await unit.selectOption({ label: "dimensionless (no unit)" });
   await expect(accept).toBeEnabled();
+  await expect(accept).toHaveAccessibleName(`Accept ${EHC} = 1.0 (dimensionless)`);
   await accept.click();
   await expect(page.getByText(`${EHC} = 1.0 accepted, typed in PK-Sim's unit.`)).toBeVisible();
   await expect(page.getByTestId(`todo-review-${EHC}`)).toHaveCount(0);

@@ -206,7 +206,8 @@ h3 { font-size: 13px; color: var(--ink-dim); }
 :where(input:disabled, select:disabled, textarea:disabled) { opacity: 0.6; cursor: not-allowed; }
 .dash-tools input[type="search"], .library-tools input[type="search"], .table-tools input[type="search"] { border-radius: 999px; border: 1px solid var(--line);
   background: var(--raised); padding: 10px 16px; font-size: 14px; }
-.dash-tools input[type="search"]:focus, .library-tools input[type="search"]:focus, .table-tools input[type="search"]:focus { border-color: var(--sim); background: var(--surface); outline: none; }
+/* no outline: none here: the search fields keep the global 2 px :focus-visible ring (audit 2 review) */
+.dash-tools input[type="search"]:focus, .library-tools input[type="search"]:focus, .table-tools input[type="search"]:focus { border-color: var(--sim); background: var(--surface); }
 thead th { font-size: 12px; font-weight: 500; color: var(--ink-dim); letter-spacing: 0; }
 th, td { padding: 12px 10px; border-bottom-color: var(--hairline); }
 .chip { padding: 3px 10px; }

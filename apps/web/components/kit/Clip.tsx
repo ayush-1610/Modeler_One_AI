@@ -18,11 +18,14 @@ export function Clip({ text, max = MAX, testId, lead: said }: {
   if (!text) return <span className="muted">—</span>;
   if (said === undefined && text.length <= max) return <span data-testid={testId}>{text}</span>;
   const { lead, rest } = said === undefined ? head(text, max) : { lead: said, rest: text.length };
+  // a given summary is not the start of the text: say the whole length, never "+ N" as if N more followed it
+  const more = said === undefined ? `+ ${rest.toLocaleString()} characters · show all`
+                                  : `show the full text (${text.length.toLocaleString()} characters)`;
   return (
     <details className="clip" data-testid={testId}>
       <summary>
         <span className="clip-lead">{lead}</span>{" "}
-        <span className="clip-more">+ {rest.toLocaleString()} characters · show all</span>
+        <span className="clip-more">{more}</span>
       </summary>
       <pre className="clip-full">{text}</pre>
     </details>

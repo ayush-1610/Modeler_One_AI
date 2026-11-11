@@ -21,6 +21,43 @@ test("no text rule is coloured --ink-faint (2.99:1 on --bg): it is for rules, ic
   expect(offenders, "small text uses --ink-quiet (4.66:1 on --bg)").toEqual([]);
 });
 
+test("a form control's edge is 3:1 on the card and on the page (WCAG 1.4.11)", () => {
+  // the base rule for every bare input, select and textarea draws its edge in --control-border (audit 2 review: it was
+  // rgba(0,0,0,0.1), about 1.25:1, while the token's comment said 3:1)
+  const css = readFileSync(join(APP, "globals.css"), "utf8");
+  const token = (name: string) => css.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`))?.[1];
+  const luminance = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a: string, b: string) => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const edge = token("control-border");
+  expect(edge, "--control-border is an opaque #rrggbb colour").toBeTruthy();
+  for (const ground of ["surface", "raised", "bg"]) {
+    expect(ratio(edge!, token(ground)!), `--control-border on --${ground}`).toBeGreaterThanOrEqual(3);
+  }
+});
+
+test("a search field keeps the 2 px focus ring", async ({ page }) => {
+  // .dash-tools / .library-tools / .table-tools search fields set outline: none on :focus, above the global
+  // :focus-visible ring, so only a 1 px border change was left (audit 2 review)
+  await page.goto("/");
+  const search = page.getByTestId("dash-search");
+  await expect(search).toBeVisible();
+  // polled: on a cold first load the page can hydrate (and re-render the field) between the focus and the read
+  await expect.poll(async () => {
+    await search.focus();
+    return search.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { style: s.outlineStyle, width: s.outlineWidth };
+    });
+  }).toEqual({ style: "solid", width: "2px" });
+});
+
 test("the hero curve draws once, and not at all under reduced motion", async ({ page }) => {
   await page.goto("/");
   const curve = page.locator(".hero-art .curve").first();
