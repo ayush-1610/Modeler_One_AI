@@ -2,6 +2,7 @@ import { Dashboard, type DashboardProject, type Attention } from "@/components/d
 import { ApiProblem } from "@/components/ui";
 import { getSteps, STEP_ROUTES, type StepRow } from "@/lib/pipeline";
 import { getCampaigns, getEscalations, getProjects } from "@/lib/reads";
+import { reasonSentence } from "@/lib/reason";
 
 // What a project's next action is called, by the step it waits at (plan 2026-11-06-app-design-merge §3 A).
 const NEXT: Record<StepRow["step"], string> = {
@@ -29,13 +30,20 @@ export default async function DashboardPage() {
   const campaigns = liveCampaigns.data ?? [];
   const escalations = liveEscalations.data ?? [];
 
+  // the project each open escalation belongs to (read from the campaigns): a project whose campaign waits for a decision
+  // has that decision as its next action, on the campaign's own page, not "Run the campaign" (the 2026-11-11 audit, item 5)
+  const campaignProject = new Map(campaigns.map((c) => [c.id, c.project]));
+  const decisionOf = (projectId: string) => escalations.find((e) => campaignProject.get(e.campaignId) === projectId) ?? null;
   const rows: DashboardProject[] = projects.map((p, i) => {
+    const decision = p.archived ? null : decisionOf(p.id);
     const st = standing(steps[i] ?? null);
     return {
       id: p.id, name: p.name, compounds: p.compounds, openQuestions: p.openQuestions, risk: p.risk,
       archived: Boolean(p.archived), steps: (steps[i] ?? []).map((s) => ({ step: s.step, label: s.label, state: s.state })),
       ...st,
-      href: st.focus ? STEP_ROUTES[st.focus](p.id) : `/projects/${p.id}`,
+      ...(decision ? { state: "needs_you" as const, next: "Make the decision", reason: reasonSentence(decision.reasonCode) } : {}),
+      href: decision ? `/campaigns/${encodeURIComponent(decision.campaignId)}`
+        : st.focus ? STEP_ROUTES[st.focus](p.id) : `/projects/${p.id}`,
       running: campaigns.filter((c) => c.project === p.id && c.status === "RUNNING").length,
     };
   });
@@ -46,9 +54,10 @@ export default async function DashboardPage() {
       // the campaign's own page; the decision itself is asked on any page (EscalationPopup in the root layout)
       key: `esc-${e.id}`, tone: "fail" as const, href: `/campaigns/${encodeURIComponent(e.campaignId)}`,
       title: `Escalation at ${e.stage} · ${projectOf.get(e.campaignId) ?? e.campaignId}`,
-      detail: e.reasonCode.replace(/_/g, " ").toLowerCase(),
+      detail: reasonSentence(e.reasonCode),
     })),
-    ...rows.filter((r) => !r.archived && r.state === "needs_you").map((r) => ({
+    // a project whose waiting step is that decision is listed once, by the escalation above
+    ...rows.filter((r) => !r.archived && r.state === "needs_you" && !decisionOf(r.id)).map((r) => ({
       key: `step-${r.id}`, tone: "warn" as const, href: r.href, title: `${r.next} · ${r.name}`, detail: r.reason ?? "waiting on you",
     })),
   ];

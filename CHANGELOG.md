@@ -15,6 +15,34 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Escalation dialog: names the project and engine, links the campaign, keeps the signed result on screen (web)
+- **What:** (audit 2, item 5) the decision dialog's title is "Your decision is needed · <project> · stage <stage>" (the
+  project is read client-side from the campaign and project records, no API change); the campaign id sits once in a muted
+  mono line under it, with the compound and a "See the campaign" link that puts the decision off before it navigates.
+  When the campaign ran on a software fixture (`engine.kind !== "pksim"`) the dialog shows the same "Not a PBPK result"
+  banner as the campaign page (now one `EngineWarning` component); when the campaign record cannot be read it says the
+  engine is not known. After a decision is signed, the dialog keeps it on screen with the signature's manifestation and
+  offers "Close" and "Next decision (n waiting)"; the next decision opens only on that click (`EscalationDecision` gains
+  `onSubmit`/`onDecided`/`actions`). "Sign & submit" moves into the dialog's action row beside "Decide later", with what is
+  still missing named next to it; Decision, Rationale and the measured-value fields (parameter, value, unit, source) have
+  labels tied to their controls. The reason code reads as a sentence ("Rounds exhausted", `lib/reason.ts`) in the
+  dialog and on the dashboard. `.dialog-title` wraps (`overflow-wrap: anywhere`) and `.dialog.wide` is capped at
+  `min(90vh, 100dvh - 32px)`. The campaign page shows "Stage X is waiting for your signed decision" with "Open the
+  decision" when an escalation is open (and the external-validation banner is not already shown); the project's Campaigns
+  table has "Open the decision" on escalated rows. On the dashboard a project with an open escalation has "Make the
+  decision" → `/campaigns/<id>` as its next action and is listed once in "Needs your attention".
+- **Why:** a Part 11 decision was signed from a dialog that named only a 32-character id (clipped on a phone), gave no
+  project, no way to the GoF plot and rounds, and no warning that the sweep's escalation came from a stub-engine campaign
+  (CLAUDE.md: fixture numbers are never PBPK evidence). The signed confirmation unmounted at once and the next decision,
+  possibly another project's, replaced the dialog under the pointer.
+- **Impact:** web only; how a decision is signed (step-up, the confirmation dialog, the API call) is unchanged. The
+  rationale stays optional (making it required needs the owner). The campaign id is shown in full, wrapped, rather than
+  shortened, so the record the person signs is identifiable.
+- **Tests:** `e2e/escalation-popup.spec.ts` (title, engine warning, engine unknown, campaign-page banner and table action,
+  a decided escalation kept until "Next decision", a 390 px guard: no sideways scroll, title wraps, action row on
+  screen); `e2e/dashboard.spec.ts` ("Make the decision", listed once, reason in words); `e2e/feedback.spec.ts` and
+  `e2e/oidc-signing.spec.ts` follow the new title and the "Next decision" click.
+
 ### Changed — Run starts only from the MAP signed on Review & sign; the plan signature is confirmed first (web)
 - **What:** (audit 2, item 6 a–c; the owner's decision 2 of 2026-11-11) the Run step's "Run campaign" no longer generates
   a fresh default MAP (`campaign:prepare`), signs it (`map_approval`, "Approved") and starts it in one click. The project

@@ -7,8 +7,10 @@ import { FeedbackDiagnosisView, FeedbackTimeline } from "@/components/campaign/F
 import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
 import { VbeCard } from "@/components/campaign/Vbe";
 import { EscalationsExpected } from "@/components/campaign/EscalationPopup";
+import { EngineWarning } from "@/components/campaign/EngineWarning";
 import { OpenDecisionButton } from "@/components/campaign/OpenDecisionButton";
-import { getCampaign } from "@/lib/reads";
+import { getCampaign, getEscalations } from "@/lib/reads";
+import { reasonSentence } from "@/lib/reason";
 import { Hero } from "@/components/kit";
 import { SortableTable } from "@/components/kit/SortableTable";
 
@@ -22,7 +24,7 @@ function mmss(s: number) {
 
 export default async function CampaignPage({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await params;
-  const live = await getCampaign(campaignId);
+  const [live, liveEscalations] = await Promise.all([getCampaign(campaignId), getEscalations()]);
   const c = live.data;
   if (!c) {
     // Never a sample campaign in its place: say what is actually the case, and keep checking.
@@ -54,6 +56,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
     : [];
   const testOnly = Object.entries(c.realData ?? {}).filter(([, d]) => d.judged > 0 && !d.passable);
   const fmt = (v: number) => (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toPrecision(3));
+  // a decision this campaign waits for: the page says so and opens it (the dialog may have been put off); the
+  // external-validation banner below already does when that is the reason
+  const waitingOn = (liveEscalations.data ?? []).find((e) => e.campaignId === c.id) ?? null;
+  const decisionBanner = !c.feedbackPending && (waitingOn !== null || (c.status === "ESCALATED" && liveEscalations.problem !== null));
   const cycles = (c.cycle ?? 1) > 1; // a feedback cycle ran: rounds and changes say which cycle they belong to
 
   return (
@@ -67,15 +73,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
           <span data-testid="internal-target"> and, for the internal studies, |prediction error| ≤ {c.internalTargetPe} % (the signed MAP)</span>
         )}
       </p>
-      {c.engine && c.engine.kind !== "pksim" && (
-        <div className="banner err mb-14" data-testid="engine-warning">
-          {c.engine.kind === "software-fixture"
-            ? <>Not a PBPK result: this campaign ran on a software test fixture (<code>{c.engine.command}</code>). Its
-                curves are synthetic; it checks the software path only. Run on PK-Sim for model evidence.</>
-            : <>The engine this campaign ran on is not identified as PK-Sim (<code>{c.engine.command}</code>). Treat
-                its numbers as unverified.</>}
-        </div>
-      )}
+      <EngineWarning engine={c.engine} />
       {c.engine?.kind === "pksim" && (
         <p className="muted fs-12 mt-0">Engine: PK-Sim (<code>{c.engine.command}</code>)</p>
       )}
@@ -84,6 +82,15 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
           <strong>TEST ONLY: no real observed data.</strong> {testOnly.map(([stage, d]) => `${stage}: ${d.label}`).join(" · ")}.
           {" "}A verdict judged on synthetic, illustrative or unrecorded data is not evidence; the S4/S5 evaluation cannot be
           signed in a project that is not exploratory.
+        </div>
+      )}
+      {decisionBanner && (
+        <div className="banner warn mb-14" role="status" data-testid="escalation-pending">
+          {waitingOn
+            ? <>Stage {waitingOn.stage} is waiting for your signed decision: {reasonSentence(waitingOn.reasonCode)}.{" "}
+                <OpenDecisionButton campaignId={c.id} /></>
+            : <>Stage {c.currentStage} stopped for a decision, but the open decisions could not be read
+                {" "}({liveEscalations.problem}). <OpenDecisionButton campaignId={c.id} /></>}
         </div>
       )}
       <AutoRefresh active={c.status === "RUNNING" || c.status === "QUEUED"} />

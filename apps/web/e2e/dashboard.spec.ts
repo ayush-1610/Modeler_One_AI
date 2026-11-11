@@ -61,7 +61,8 @@ test("the dashboard reads each project's steps, filters by them, and the sidebar
 // Decision 1 of 2026-11-11: the dashboard is not a campaign's own page, so an open escalation never opens its dialog
 // here by itself; the corner control counts it, and opens the dialog on this page (software test data in the read root).
 test("the dashboard counts a waiting decision and never opens its dialog by itself", async ({ page, request }) => {
-  const created = await request.post("/api/v1/projects", { headers: AUTH, data: { name: `Dash decision ${Date.now()}`, compound: "Dashol" } });
+  const name = `Dash decision ${Date.now()}`;
+  const created = await request.post("/api/v1/projects", { headers: AUTH, data: { name, compound: "Dashol" } });
   const projectId = (await created.json()).data.id as string;
   const id = `camp-dash-${Date.now()}`;
   const stage = (s: string, status: string) => ({ stage: s, label: s, status, rounds: [], notes: [] });
@@ -80,6 +81,14 @@ test("the dashboard counts a waiting decision and never opens its dialog by itse
     const waiting = page.getByTestId("escalation-waiting");
     await expect(waiting).toContainText(/\d+ decisions? waiting · Open/);
     await expect(page.getByTestId("escalation-popup")).toHaveCount(0);
+    // the project's next action is the decision, on the campaign's page, and it is listed once in "Needs your attention",
+    // by the escalation, in words (item 5 of the 2026-11-11 audit)
+    const card = page.getByTestId(`project-card-${projectId}`);
+    await expect(card).toContainText("Make the decision");
+    await expect(card).toHaveAttribute("href", `/campaigns/${id}`);
+    const listed = page.getByTestId("dash-attention").getByRole("link").filter({ hasText: name });
+    await expect(listed).toHaveCount(1);
+    await expect(listed).toContainText("Rounds exhausted");
     await waiting.click();
     await expect(page.getByTestId("escalation-popup")).toBeVisible();     // still decidable from here
   } finally {

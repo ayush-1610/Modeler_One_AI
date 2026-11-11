@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { preloadSteps, Stepper } from "@/components/kit/Stepper";
+import { OpenDecisionButton } from "@/components/campaign/OpenDecisionButton";
 import { RunCampaignButton } from "@/components/RunCampaignButton";
 import { MembersPanel } from "@/components/members/MembersPanel";
 import { SystemPanel } from "@/components/system/SystemPanel";
@@ -145,7 +146,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
               {campaigns.map((c) => (
                 <tr key={c.id}>
                   <td><Link href={`/campaigns/${c.id}`}><code>{c.id}</code></Link></td>
-                  <td>{c.status ? <StatusChip status={c.status} /> : "—"}</td>
+                  <td>
+                    {c.status ? <StatusChip status={c.status} /> : "—"}
+                    {/* the waiting decision, one click away from its row (it may have been put off) */}
+                    {c.status === "ESCALATED" && <> <OpenDecisionButton campaignId={c.id} /></>}
+                  </td>
                   <td>{c.currentStage}</td>
                   <td>{c.compound}</td>
                 </tr>

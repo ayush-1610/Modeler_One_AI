@@ -79,10 +79,20 @@
 .dialog-backdrop { overscroll-behavior: contain; }
 html:has(.dialog-backdrop) { overflow: hidden; }
 .dialog.narrow { width: min(460px, 100%); }
-.dialog.wide { width: min(760px, 100%); max-height: 90vh; }
-.dialog-title { margin: 0 0 8px; }
+/* 100dvh, not 100vh: on a phone the browser's toolbar would cover the action row (the 2026-11-11 audit, item 5) */
+.dialog.wide { width: min(760px, 100%); max-height: min(90vh, calc(100dvh - 32px)); }
+/* a long name or id in a title wraps instead of running off a phone's dialog */
+.dialog-title { margin: 0 0 8px; overflow-wrap: anywhere; }
 .dialog-title + .muted { margin-top: 0; }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 14px; }
+/* the escalation dialog: the campaign's id and its link under the title, what is missing before it can be signed, and the
+   measured-value fields, each labelled */
+.decision-id { margin: 0 0 12px; overflow-wrap: anywhere; }
+.decision-id code { overflow-wrap: anywhere; }
+.decision-missing { margin-right: auto; align-self: center; }
+.field-legend { font-size: 12px; font-weight: 600; color: var(--ink-dim); }
+.evidence-fields > label { flex: 1 1 220px; margin: 0; }
+.evidence-fields > label + label { flex: 0 1 120px; }
 tr.project-archived td { color: var(--ink-faint); }
 
 /* ---- tabs, a table's labelled scroller, text for screen readers only ---- */
