@@ -1,8 +1,10 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 
-import { send, type Envelope } from "@/lib/api";
+import { InlineIssue } from "@/components/kit";
+import { Clip } from "@/components/kit/Clip";
+import { send, type Envelope, type Schema } from "@/lib/api";
 
 export type Ev = {
   id: string; target: string; value: number | string | null; unit: string | null; value_pksim: number | null;
@@ -47,6 +49,37 @@ export const LABEL: Record<string, string> = {
 
 export const fmt = (v: number | string | null) => (v === null ? "—" : typeof v === "number" ? +v.toPrecision(4) : v);
 
+/** A name to read for a CPF id: its LABEL, else, for a harvested PK-Sim path ("indiv.Organism|Lumen|Caecum|Effective
+ *  surface area enhancement factor"), the path's own last segment after its container ("Caecum · Effective surface area
+ *  enhancement factor"); an expression profile document by its molecule. Only the path's segments are used, verbatim
+ *  (no PK-Sim name is made up); the full id is still shown once beside it. */
+export function readable(id: string): string {
+  if (LABEL[id]) return LABEL[id];
+  const profile = /^expr\.profile\.(.+)$/.exec(id);
+  if (profile) return `${profile[1]} · expression profile`;
+  const path = /^(?:indiv|expr)\.(.+)$/.exec(id)?.[1];
+  if (!path || !path.includes("|")) return id;
+  const parts = path.split("|");
+  const container = parts.length > 2 || parts[0] !== "Organism" ? parts[parts.length - 2] : null;
+  return container ? `${container} · ${parts[parts.length - 1]}` : parts[parts.length - 1];
+}
+
+/** A flag code said as a sentence; the code stays in the title for traceability (modeler_project.evidence). */
+function flagText(f: string): string {
+  const [code, ...rest] = f.split(": ");
+  const detail = rest.join(": ");
+  if (code === "needs_conversion") return `No automatic conversion to PK-Sim's unit${detail ? ` (${detail})` : ""}.`;
+  if (f === "value_not_in_quote") return "The number is not in the quoted text: check it against the source.";
+  if (code === "species_mismatch") return `Measured in another species${detail ? ` (${detail})` : ""}, not human.`;
+  const range = /^outside_physical_range (.+)$/.exec(f);
+  if (range) return `Outside the physically possible range (${range[1]}).`;
+  return f;
+}
+
+/** A stored string value: a long one (an expression profile document) is clipped with "show all", never printed whole. */
+export const ValueText = ({ v }: { v: number | string | null }) =>
+  typeof v === "string" ? <Clip text={v} max={40} /> : <>{fmt(v)}</>;
+
 export function Source({ e }: { e: Ev }) {
   const s = e.source;
   const who = [s.authors, s.year].filter(Boolean).join(" ");
@@ -56,7 +89,7 @@ export function Source({ e }: { e: Ev }) {
       <div className="muted">{e.provider.toLowerCase()} · {e.source_type.toLowerCase().replace(/_/g, " ")} · grade {e.confidence}
         {Object.keys(e.conditions).length > 0 && ` · ${Object.entries(e.conditions).map(([k, v]) => `${k} ${v}`).join(", ")}`}</div>
       {e.quote && <div className="quote">“{e.quote}”</div>}
-      {e.flags.length > 0 && <ul className="flags">{e.flags.map((f) => <li key={f}>{f}</li>)}</ul>}
+      {e.flags.length > 0 && <ul className="flags">{e.flags.map((f) => <li key={f} title={f}>{flagText(f)}</li>)}</ul>}
     </div>
   );
 }
@@ -64,7 +97,7 @@ export function Source({ e }: { e: Ev }) {
 export function Value({ e }: { e: Ev }) {
   return (
     <span>
-      <strong>{fmt(e.value)}</strong> {e.unit ?? ""}
+      <strong><ValueText v={e.value} /></strong> {e.unit ?? ""}
       {e.value_pksim !== null && (e.value_pksim !== e.value || (e.unit_pksim ?? null) !== (e.unit ?? null)) &&
         <div className="muted fs-12">PK-Sim: {fmt(e.value_pksim)} {e.unit_pksim ?? ""}</div>}
     </span>
@@ -166,8 +199,10 @@ const unitLabel = (u: string) => (u === "" ? "dimensionless (no unit)" : u);
 /** Accept or reject one held value. A number with no PK-Sim value yet (no automatic conversion) is accepted only with
  *  the value the person types in PK-Sim's unit, the unit chosen from those harvested for its parameter (owner's
  *  decision 3 of 2026-11-11): the field starts empty and nothing is prefilled or converted. */
-export function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: Run }) {
+export function Decide({ e, projectId, run, card }: { e: Ev; projectId: string; run: Run; card?: string }) {
   const [reason, setReason] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const why = useRef<HTMLInputElement>(null);
   const [typed, setTyped] = useState("");
   const [unit, setUnit] = useState(UNSET);
   const ids = useId();
@@ -179,10 +214,18 @@ export function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: R
                           : { state: "ACCEPTED" as const, reason };
   const accepted = needsValue ? `${e.target} = ${typed.trim()}${unit && unit !== UNSET ? ` ${unit}` : ""} accepted, typed in PK-Sim's unit.`
                               : `${e.target} = ${fmt(e.value_pksim ?? e.value)} accepted.`;
+  const shown = typeof e.value === "string" && e.value.length > 40 ? `${e.value.slice(0, 40)}…` : String(fmt(e.value));
+  const decide = async (body: Schema<"Decision">, ok: string) => {
+    const next = afterThis(why.current);
+    const p = await run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide",
+                                   { project_id: projectId, evidence_id: e.id }, body), ok);
+    setProblem(p);
+    if (!p) next();
+  };
   return (
     <div className="todo-row">
       <div className="row items-start gap-14">
-        <div className="minw-110"><code>{e.target}</code><div><Value e={e} /></div></div>
+        <div className="minw-110">{e.target !== card && <code>{e.target}</code>}<div><Value e={e} /></div></div>
         <div className="flex-1 minw-220"><Source e={e} /></div>
       </div>
       {needsValue && (
@@ -214,16 +257,32 @@ export function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: R
       )}
       <div className="row gap-6 mt-6">
         <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
-               aria-label={`reason for ${e.id}`} />
-        <button className="btn primary" disabled={!reason.trim() || !valueReady}
-                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, body),
-                                        accepted)}>Accept</button>
-        <button className="btn" disabled={!reason.trim()}
-                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
-                                        `${e.id} rejected.`)}>Reject</button>
+               aria-label={`reason for ${e.id}`} ref={why} data-why={e.id} />
+        <button className="btn primary" disabled={!reason.trim() || !valueReady} aria-label={`Accept ${e.target} = ${shown}`}
+                onClick={() => void decide(body, accepted)}>Accept</button>
+        <button className="btn" disabled={!reason.trim()} aria-label={`Reject ${e.target} = ${shown}`}
+                onClick={() => void decide({ state: "REJECTED", reason }, `${e.id} rejected.`)}>Reject</button>
       </div>
+      {problem && <InlineIssue severity="error" testId={`decide-problem-${e.id}`}>{problem}</InlineIssue>}
     </div>
   );
+}
+
+/** Where focus goes once this held value is decided and its row is gone: the next held value's "why" (never its Accept,
+ *  so no value is accepted by pressing Enter again), else the one before, else the tab's heading. Read before the call,
+ *  applied after the refresh has re-rendered the list (the 2026-11-11 audit 2, item 2). */
+function afterThis(mine: HTMLInputElement | null): () => void {
+  if (!mine) return () => undefined;
+  const all = [...document.querySelectorAll<HTMLInputElement>("input[data-why]")];
+  const at = all.indexOf(mine);
+  const order = [...all.slice(at + 1), ...all.slice(0, Math.max(at, 0)).reverse()].map((x) => x.dataset.why!);
+  const panel = mine.closest<HTMLElement>("[role=tabpanel]");
+  return () => requestAnimationFrame(() => {
+    const next = order.map((id) => document.querySelector<HTMLInputElement>(`input[data-why="${CSS.escape(id)}"]`)).find(Boolean);
+    if (next) { next.focus(); return; }
+    const heading = panel?.querySelector<HTMLElement>("h2, h3");
+    if (heading) { heading.tabIndex = -1; heading.focus(); }
+  });
 }
 
 // A study fact the model needs (D-29 demographics, a multiple-dose regimen), set on the study's dataset. The Studies tab
@@ -300,13 +359,14 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
                                                                 "Molecular weight proposed from PubChem.")}>Propose it</button>
             </div>
           )}
-          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
+          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} card={t.target} />)}
         </>
       )}
       {t.kind === "review" && (
         <>
-          <p className="muted m-2-0-4 fs-13">{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
-          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
+          {/* the message repeats the target and the value the row below shows: only said when there is no row */}
+          {t.items.length === 0 && <p className="muted m-2-0-4 fs-13">{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>}
+          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} card={t.target} />)}
         </>
       )}
       {(t.kind === "regimen" || t.kind === "demographics") && <StudyFix t={t} projectId={projectId} run={run} />}
@@ -330,8 +390,9 @@ export function TodoCard({ t, projectId, run }: { t: TodoItem; projectId: string
   return (
     <div className="todo-item" data-testid={`todo-${t.kind}-${t.target}`} id={`todo-${t.kind}-${t.target}`}>
       <div className="spread">
-        <strong>{TITLE[t.kind]}{t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : ""}</strong>
-        <code className="muted">{t.target}</code>
+        <strong>{TITLE[t.kind]}{t.kind !== "datasets" && t.kind !== "check" ? ` · ${readable(t.target)}` : ""}</strong>
+        {/* the full id once, when the title does not already say it */}
+        {(t.kind === "datasets" || t.kind === "check" || readable(t.target) !== t.target) && <code className="muted">{t.target}</code>}
       </div>
       <TodoAction t={t} projectId={projectId} run={run} />
     </div>

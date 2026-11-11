@@ -19,7 +19,7 @@ import { ReadingTray } from "./ReadingTray";
 import { ClientRequest } from "./ClientRequest";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
-import { LABEL, ORDER, type Run, TITLE, type TodoItem } from "./InputsTodo";
+import { ORDER, readable, type Run, TITLE, type TodoItem } from "./InputsTodo";
 import { AccessRequests } from "./ObservedDatasets";
 import { type Options, StudiesTab } from "./StudiesTab";
 import { AREA_LABEL, fileArea, FilesBar, FilesHere, whereShown } from "./TabFiles";
@@ -314,7 +314,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
                   <li key={`${t.kind}-${t.target}-${i}`}>
                     <button type="button" className="link-btn" onClick={() => open(t)} data-testid={`missing-${t.kind}-${t.target}`}>
                       {TITLE[t.kind]}{t.kind === "confirm" ? ` · ${(review.data?.groups ?? []).find((g) => g.id === t.target)?.title ?? t.target}`
-                        : t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : ""}
+                        : t.kind !== "datasets" && t.kind !== "check" ? ` · ${readable(t.target)}` : ""}
                     </button>
                     <span className="muted"> · {TAB_LABEL[(t.tab ?? "compound") as Tab]}</span>
                   </li>
@@ -409,13 +409,13 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
                      fields={["kind", "age_range", "sex", "ethnicity", "impairment_class", "genotype", "species"]}
                      title="The populations the proposal names"
                      lede="The populations the predictions are made for; each study below is simulated in its own individual." />
-          {panelTodo("individuals").filter((t) => t.kind !== "demographics").length > 0 && (
-            <InputRows rows={[]} todo={panelTodo("individuals").filter((t) => t.kind !== "demographics")} projectId={projectId} run={run} empty="" />
-          )}
           <h3>Each study&apos;s individual</h3>
           <StudyIndividuals studies={studies} projectId={projectId} run={run} options={options} />
           <h3>Values set on the individual</h3>
-          <InputRows rows={rows("individuals")} todo={[]} projectId={projectId} run={run}
+          {/* one call: a held value's Accept/Reject sits on its row, once (the 2026-11-11 audit 2, item 2); only an item
+              about no row of this tab stays a card of its own */}
+          <InputRows rows={rows("individuals")} todo={panelTodo("individuals").filter((t) => t.kind !== "demographics")} byOrgan
+                     projectId={projectId} run={run}
                      empty="None: enzyme and transporter expression and individual values appear here when a source gives them." />
         </TabPanel>
       )}

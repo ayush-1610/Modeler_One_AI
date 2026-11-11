@@ -151,3 +151,27 @@
 .value-reuse { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .value-reuse h3 { margin: 0 0 4px; font-size: 14px; }
 .value-reuse ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+
+/* Audit 2, item 2 (2026-11-11): a held value is a hairline row like the panel's values, never wider than the screen. A
+   long value (an expression profile document) is clipped; a long PK-Sim path wraps instead of pushing the page wide. */
+.input-value { min-width: 0; overflow-wrap: anywhere; }
+.todo-item { border: 0; border-top: 1px solid var(--hairline); border-radius: 0; padding: 12px 0 12px 14px;
+  box-shadow: inset 3px 0 0 var(--warn); }
+.todo-item + .todo-item { margin-top: 0; }
+.todo-item .spread { flex-wrap: wrap; }
+.todo-item code, .todo-row code, .todo-row .fs-12 { overflow-wrap: anywhere; }
+.input-row, .input-fix, .todo-item { grid-template-columns: minmax(0, 1fr); }
+.todo-row input:not([type=checkbox]):not([type=radio]), .todo-row select { min-height: 32px; }
+/* the individual's values, folded by organ */
+.organ-group { display: block; min-width: 0; max-width: 100%; }
+.organ-group > summary { cursor: pointer; }
+.organ-group:not([open]) > summary { padding-bottom: 18px; }
+.organ-more { margin: 10px 0 16px; }
+/* a study whose individual is settled: one line, the form behind "Edit" */
+.individual.settled { padding: 8px 12px; }
+.individual-summary { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.individual input, .individual select { min-height: 32px; }
+@media (max-width: 760px) {
+  .todo-row .minw-110, .todo-row .minw-160, .todo-row .minw-220 { min-width: 0 !important; flex-basis: 100%; }
+  .todo-row .row { flex-wrap: wrap; }
+}

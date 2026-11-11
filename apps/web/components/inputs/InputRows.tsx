@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { EmptyState } from "@/components/kit";
 import { send, type Schema } from "@/lib/api";
 
 import { PeekButton } from "@/components/kit/SourcePeek";
 
-import { Decide, type Ev, LABEL, type Run, Source, TodoAction, TodoCard, type TodoItem, Value } from "./InputsTodo";
+import { Decide, type Ev, type Run, readable, Source, TodoAction, TodoCard, type TodoItem, Value, ValueText } from "./InputsTodo";
 
 export type Row = Schema<"CompoundRow">;
 type Alternative = Schema<"AlternativeView">;
@@ -128,12 +128,12 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
     <div className={`input-row ${row.state}`} data-testid={`record-${row.id}`} id={`row-${row.id}`}>
       <div className="input-head">
         <div className="input-name">
-          <strong>{LABEL[row.id] ?? row.id}</strong>
-          <code className="muted">{row.id}</code>
+          <strong>{readable(row.id)}</strong>
+          {readable(row.id) !== row.id && <code className="muted" title={row.id}>{row.id}</code>}
         </div>
         <div className="input-value">
           {row.value === null ? <span className="muted">—</span>
-            : <><strong>{typeof row.value === "number" ? +row.value.toPrecision(5) : row.value}</strong> {row.unit ?? ""}</>}
+            : <><strong>{typeof row.value === "number" ? +row.value.toPrecision(5) : <ValueText v={row.value} />}</strong> {row.unit ?? ""}</>}
         </div>
         <div className="input-source">
           {kept ? <>
@@ -147,7 +147,7 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
           {row.binding && <div className="muted fs-12" title={row.binding.parameter ?? ""}>{row.binding.process ?? row.binding.parameter}</div>}
         </div>
         <div className="input-peek">
-          {kept && <PeekButton projectId={projectId} source={{ ...kept.source, quote: kept.quote }} label={LABEL[row.id] ?? row.id}
+          {kept && <PeekButton projectId={projectId} source={{ ...kept.source, quote: kept.quote }} label={readable(row.id)}
                                testId={`peek-${row.id}`} />}
         </div>
       </div>
@@ -190,11 +190,39 @@ const BLOCKS: [string, RegExp][] = [
 ];
 const blockOf = (id: string) => BLOCKS.find(([, rule]) => rule.test(id))?.[0] ?? "Other";
 
+// The individual's values by organ, from the harvested path's own container ("indiv.Organism|Liver|…" under Liver);
+// expression values and profiles together; anything else under the individual itself.
+const organOf = (id: string) => {
+  const organ = /^indiv\.Organism\|([^|]+)\|/.exec(id)?.[1];
+  return organ ?? (id.startsWith("expr.") ? "Expression profiles" : "The individual");
+};
+const PAGE = 20;
+
+/** One organ's values, folded (open while one waits on a person), 20 at a time. */
+function OrganGroup({ name, list, one }: { name: string; list: Row[]; one: (r: Row) => ReactNode }) {
+  const waiting = list.filter((r) => r.state !== "kept").length;
+  const [limit, setLimit] = useState(PAGE);
+  // open at first while a value waits; never folded by itself afterwards (nothing moves under the pointer)
+  const [opened] = useState(waiting > 0);
+  const shown = list.slice(0, Math.max(limit, waiting));
+  return (
+    <details className="input-block organ-group" open={opened} data-testid={`organ-${name}`}>
+      <summary className="input-block-title">{name}
+        <span className="muted"> · {list.length} {list.length === 1 ? "value" : "values"}{waiting > 0 && ` · ${waiting} open`}</span></summary>
+      {shown.map(one)}
+      {list.length > shown.length && (
+        <button type="button" className="link-btn organ-more" onClick={() => setLimit(limit + PAGE)}>
+          Show {Math.min(PAGE, list.length - shown.length)} more of {list.length - shown.length}</button>
+      )}
+    </details>
+  );
+}
+
 /** The model inputs of one tab, each in its row, with what waits on a person settled where it is. Items about no row
  *  of the tab (a placeholder parameter, a build) come first. `grouped`: the compound's rows under their building
  *  blocks, each block's open rows first. */
-export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
-  rows: Row[]; todo: TodoItem[]; projectId: string; run: Run; empty: string; grouped?: boolean;
+export function InputRows({ rows, todo, projectId, run, empty, grouped, byOrgan }: {
+  rows: Row[]; todo: TodoItem[]; projectId: string; run: Run; empty: string; grouped?: boolean; byOrgan?: boolean;
 }) {
   const ids = new Set(rows.map((r) => r.id));
   const loose = todo.filter((t) => !ids.has(t.target));
@@ -204,10 +232,13 @@ export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
     .map((name) => [name, sorted.filter((r) => blockOf(r.id) === name)] as const).filter(([, list]) => list.length);
   return (
     <>
-      {loose.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}
+      {/* keyed by kind and target, so a decided card going does not remount the ones after it (focus moves to them) */}
+      {loose.map((t) => <TodoCard key={`${t.kind}-${t.target}`} t={t} projectId={projectId} run={run} />)}
       {rows.length === 0 && loose.length === 0
         ? <EmptyState title="Nothing on this tab yet">{empty}</EmptyState>
-        : grouped ? blocks.map(([name, list]) => (
+        : byOrgan ? [...new Set(sorted.map((r) => organOf(r.id)))].sort().map((name) => (
+          <OrganGroup key={name} name={name} list={sorted.filter((r) => organOf(r.id) === name)} one={one} />
+        )) : grouped ? blocks.map(([name, list]) => (
           <section key={name} className="input-block" aria-label={name} data-testid={`block-${name}`}>
             <h3 className="input-block-title">{name}
               {list.some((r) => r.state !== "kept") && <span className="muted"> · {list.filter((r) => r.state !== "kept").length} open</span>}</h3>

@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — Inputs › Populations: each held value once, on its row; profiles clipped; settled individuals one line (web)
+- **What:** (audit 2, item 2) the Populations tab renders its values in one `InputRows` call, so a held `indiv.*` value's
+  Accept/Reject sits on its row once (it was drawn twice, each copy with its own buttons). The individual's values are
+  folded by organ, from the harvested path's own container (open while a value waits, 20 rows at a time). Rows and cards
+  are titled with a readable name built only from the path's own segments ("Liver · EHC continuous fraction"); the full
+  id is shown once. The held-value message is dropped when the row already shows it, and Decide no longer repeats the
+  target. Flag codes are said as sentences, the code kept in a title. String values (the `expr.profile.*` documents,
+  ~37k characters) go through the kit `<Clip max={40}>`. The 40 study individuals page by 20 under a filter; the open ones
+  (not stated, healthy adult default) stay pinned and open, the entered and published ones are one line with an Edit
+  disclosure. After a decision focus goes to the next held value's "why" field (never its Accept), Accept/Reject carry
+  per-value names, and a refused decision or save is shown in its row (`InlineIssue`) as well as in the banner. CSS:
+  `.input-value{min-width:0;overflow-wrap:anywhere}`, hairline `.todo-item` rows, wrapping paths and `minw-*` overrides
+  at ≤760 px, controls at least 32 px tall in held rows and individual forms.
+- **Why:** the tab was 44,224 px at 1280 and 809 px wide on a phone, with every held value decidable twice.
+- **Impact:** with the published Dapagliflozin model, 7,921 px at 1280 and scrollWidth 390 at 390 px. No API change; no
+  value is converted or accepted for the person; motion unchanged (opacity-only reveal).
+- **Tests:** new `e2e/inputs-populations.spec.ts` (todo-review and its Accept/Reject once, the readable name, clipped
+  documents, settled individuals with no form, height < 12,000 at 1280, scrollWidth ≤ 390, focus after a decision);
+  held-value-pksim-unit, inputs-todo, inputs-workspace, published-model, model-inputs, target-size, value-reuse,
+  inputs-data-cards, compound-sources, studies-client-sheets, inputs-files-by-area, client-confirm, source-peek pass.
+
 ### Fixed — a held number with no automatic conversion is accepted on its row, typed in a harvested PK-Sim unit (web + API read)
 - **What.** On Inputs, a held number with no PK-Sim value (flag `needs_conversion`) now shows two labelled controls in
   its row: *Value in PK-Sim's unit* (`inputMode=decimal`, always empty, never prefilled or converted) and *PK-Sim unit*
