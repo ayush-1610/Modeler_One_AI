@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminTabs, LimitWarnings, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/admin/AdminParts";
+import { AddCompany } from "@/components/admin/CompanyAdmin";
 import { Hero } from "@/components/kit";
 import { ApiProblem, Card } from "@/components/ui";
 import { getOverview, hideUnlessAdmin, pricedAs } from "@/lib/admin";
@@ -37,7 +38,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 <tbody>
                   {data.companies.map((c) => (
                     <tr key={c.tenant_id}>
-                      <td><Link href={`/admin/companies/${encodeURIComponent(c.tenant_id)}?priced_as=${priced}`}>{c.tenant_id}</Link></td>
+                      <td>
+                        <Link href={`/admin/companies/${encodeURIComponent(c.tenant_id)}?priced_as=${priced}`}>{c.tenant_id}</Link>
+                        {c.name && <div className="muted">{c.name}</div>}
+                        {c.disabled && <span className="chip high"><span className="chip-dot" />disabled</span>}
+                      </td>
                       <td className="num">{c.people}</td>
                       <td className="num">{c.projects}</td>
                       <td className="num">{c.archived || "—"}</td>
@@ -48,6 +53,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               </table>
             </div>
           </Card>
+          <AddCompany />
           <Card title="The platform">
             <dl className="facts" data-testid="admin-system">
               <dt>Deployment</dt><dd>{data.system.deployment}</dd>

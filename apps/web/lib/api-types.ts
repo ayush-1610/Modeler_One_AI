@@ -45,6 +45,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Company
+         * @description A new company (a tenant): its folder in the store, its name, and its own audit chain from its first event.
+         */
+        post: operations["add_company_api_v1_admin_companies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/companies/{tenant_id}": {
         parameters: {
             query?: never;
@@ -56,6 +76,44 @@ export interface paths {
         get: operations["company_api_v1_admin_companies__tenant_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/companies/{tenant_id}:disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable Company
+         * @description Every person of the company can no longer sign in (their sessions end as their tokens expire); its projects,
+         *     records and people are kept, and enabling it lets the same people in again.
+         */
+        post: operations["disable_company_api_v1_admin_companies__tenant_id__disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/companies/{tenant_id}:enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable Company */
+        post: operations["enable_company_api_v1_admin_companies__tenant_id__enable_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -185,6 +243,61 @@ export interface paths {
         get: operations["overview_api_v1_admin_overview_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** People */
+        get: operations["people_api_v1_admin_people_get"];
+        put?: never;
+        /**
+         * Add Person
+         * @description A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in.
+         */
+        post: operations["add_person_api_v1_admin_people_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/people/{user_id}:change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change Person */
+        post: operations["change_person_api_v1_admin_people__user_id__change_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/people/{user_id}:reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Person */
+        post: operations["reset_person_api_v1_admin_people__user_id__reset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3495,11 +3608,30 @@ export interface components {
             /** Protocol */
             protocol?: string | null;
         };
+        /** CompanyChange */
+        CompanyChange: {
+            /** Reason */
+            reason: string;
+        };
+        /** CompanyNew */
+        CompanyNew: {
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+            /** Tenant Id */
+            tenant_id: string;
+        };
         /**
          * CompanyPage
-         * @description One company: its people (each who has signed in) and its projects, archived ones included.
+         * @description One company: its people (each who has signed in) and its projects, archived ones included; its name, and why it is
+         *     disabled when it is.
          */
         CompanyPage: {
+            /** Disabled Reason */
+            disabled_reason: string | null;
+            /** Name */
+            name: string;
             /** People */
             people: components["schemas"]["PersonRow"][];
             /** Priced As */
@@ -3514,6 +3646,10 @@ export interface components {
         CompanyRow: {
             /** Archived */
             archived: number;
+            /** Disabled */
+            disabled: boolean;
+            /** Name */
+            name: string;
             /** People */
             people: number;
             /** Projects */
@@ -4621,6 +4757,13 @@ export interface components {
         /** Envelope[Overview] */
         Envelope_Overview_: {
             data: components["schemas"]["Overview"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[PeoplePage] */
+        Envelope_PeoplePage_: {
+            data: components["schemas"]["PeoplePage"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -6987,7 +7130,7 @@ export interface components {
             /** Owner Name */
             owner_name: string | null;
             /** People */
-            people: components["schemas"]["PersonView"][];
+            people: components["schemas"]["modeler_api__views__members__PersonView"][];
             /** You Change It */
             you_change_it: boolean;
         };
@@ -7491,6 +7634,84 @@ export interface components {
             /** Process */
             process: string;
         };
+        /**
+         * PeoplePage
+         * @description The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.
+         *     `smtp`: Keycloak can email a person their set-password link; without it the owner sets a first password in
+         *     Keycloak's own console (`notice_link`). Passwords never pass through the platform.
+         */
+        PeoplePage: {
+            /** Companies */
+            companies: string[];
+            /** Notice */
+            notice: string | null;
+            /** Notice Link */
+            notice_link: string | null;
+            /** People */
+            people: components["schemas"]["modeler_api__views__admin__PersonView"][];
+            /** Problem */
+            problem: string | null;
+            /** Ready */
+            ready: boolean;
+            /** Roles */
+            roles: string[];
+            /** Service Client */
+            service_client: string;
+            /** Smtp */
+            smtp: boolean;
+        };
+        /**
+         * PersonChange
+         * @description What changes: whether they can sign in, roles given or taken, their company. Omitted: unchanged.
+         */
+        PersonChange: {
+            /** Add Roles */
+            add_roles?: string[];
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Reason */
+            reason: string;
+            /** Remove Roles */
+            remove_roles?: string[];
+            /** Tenant Id */
+            tenant_id?: string | null;
+        };
+        /** PersonNew */
+        PersonNew: {
+            /** Email */
+            email: string;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /** Reason */
+            reason: string;
+            /** Roles */
+            roles?: string[];
+            /** Tenant Id */
+            tenant_id: string;
+            /** Username */
+            username: string;
+        };
+        /**
+         * PersonReset
+         * @description A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email
+         *     link, or a temporary one set by the owner in Keycloak's console: the platform never handles it).
+         */
+        PersonReset: {
+            /**
+             * Authenticator
+             * @default false
+             */
+            authenticator?: boolean;
+            /**
+             * Password
+             * @default false
+             */
+            password?: boolean;
+            /** Reason */
+            reason: string;
+        };
         /** PersonRow */
         PersonRow: {
             /** Name */
@@ -7500,13 +7721,6 @@ export interface components {
             /** Subject */
             subject: string;
             usage: components["schemas"]["Usage"];
-        };
-        /** PersonView */
-        PersonView: {
-            /** Name */
-            name: string;
-            /** Subject */
-            subject: string;
         };
         /** PinnedApplication */
         PinnedApplication: {
@@ -10515,6 +10729,42 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * PersonView
+         * @description A person of the realm as Keycloak keeps them: their company (`tenant_id`), roles, whether they can sign in and
+         *     have set up their authenticator, and what Keycloak will ask of them at their next sign-in.
+         */
+        modeler_api__views__admin__PersonView: {
+            /** Authenticator */
+            authenticator: boolean;
+            /** Console Link */
+            console_link: string;
+            /** Created At */
+            created_at: string | null;
+            /** Email */
+            email: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Required Actions */
+            required_actions: string[];
+            /** Roles */
+            roles: string[];
+            /** Tenant Id */
+            tenant_id: string;
+            /** Username */
+            username: string;
+        };
+        /** PersonView */
+        modeler_api__views__members__PersonView: {
+            /** Name */
+            name: string;
+            /** Subject */
+            subject: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -10627,6 +10877,41 @@ export interface operations {
             };
         };
     };
+    add_company_api_v1_admin_companies_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyNew"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CompanyPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     company_api_v1_admin_companies__tenant_id__get: {
         parameters: {
             query?: {
@@ -10641,6 +10926,80 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CompanyPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_company_api_v1_admin_companies__tenant_id__disable_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CompanyPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enable_company_api_v1_admin_companies__tenant_id__enable_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyChange"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10962,6 +11321,148 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_Overview_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    people_api_v1_admin_people_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PeoplePage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_person_api_v1_admin_people_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonNew"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PeoplePage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_person_api_v1_admin_people__user_id__change_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PeoplePage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_person_api_v1_admin_people__user_id__reset_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonReset"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PeoplePage_"];
                 };
             };
             /** @description Validation Error */

@@ -2963,10 +2963,65 @@
         "title": "CoCompoundSpec",
         "type": "object"
       },
+      "CompanyChange": {
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CompanyChange",
+        "type": "object"
+      },
+      "CompanyNew": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "name",
+          "reason"
+        ],
+        "title": "CompanyNew",
+        "type": "object"
+      },
       "CompanyPage": {
         "additionalProperties": false,
-        "description": "One company: its people (each who has signed in) and its projects, archived ones included.",
+        "description": "One company: its people (each who has signed in) and its projects, archived ones included; its name, and why it is\ndisabled when it is.",
         "properties": {
+          "disabled_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabled Reason"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
           "people": {
             "items": {
               "$ref": "#/components/schemas/PersonRow"
@@ -2995,6 +3050,8 @@
         },
         "required": [
           "tenant_id",
+          "name",
+          "disabled_reason",
           "people",
           "projects",
           "usage",
@@ -3009,6 +3066,14 @@
           "archived": {
             "title": "Archived",
             "type": "integer"
+          },
+          "disabled": {
+            "title": "Disabled",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
           },
           "people": {
             "title": "People",
@@ -3028,6 +3093,8 @@
         },
         "required": [
           "tenant_id",
+          "name",
+          "disabled",
           "people",
           "projects",
           "archived",
@@ -6319,6 +6386,31 @@
           "errors"
         ],
         "title": "Envelope[Overview]",
+        "type": "object"
+      },
+      "Envelope_PeoplePage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PeoplePage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[PeoplePage]",
         "type": "object"
       },
       "Envelope_PlanPage_": {
@@ -12852,7 +12944,7 @@
           },
           "people": {
             "items": {
-              "$ref": "#/components/schemas/PersonView"
+              "$ref": "#/components/schemas/modeler_api__views__members__PersonView"
             },
             "title": "People",
             "type": "array"
@@ -14228,6 +14320,222 @@
         "title": "Pathway",
         "type": "object"
       },
+      "PeoplePage": {
+        "additionalProperties": false,
+        "description": "The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.\n`smtp`: Keycloak can email a person their set-password link; without it the owner sets a first password in\nKeycloak's own console (`notice_link`). Passwords never pass through the platform.",
+        "properties": {
+          "companies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Companies",
+            "type": "array"
+          },
+          "notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice"
+          },
+          "notice_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice Link"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/modeler_api__views__admin__PersonView"
+            },
+            "title": "People",
+            "type": "array"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "service_client": {
+            "title": "Service Client",
+            "type": "string"
+          },
+          "smtp": {
+            "title": "Smtp",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ready",
+          "problem",
+          "smtp",
+          "service_client",
+          "roles",
+          "companies",
+          "people",
+          "notice",
+          "notice_link"
+        ],
+        "title": "PeoplePage",
+        "type": "object"
+      },
+      "PersonChange": {
+        "description": "What changes: whether they can sign in, roles given or taken, their company. Omitted: unchanged.",
+        "properties": {
+          "add_roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Add Roles",
+            "type": "array"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "remove_roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Remove Roles",
+            "type": "array"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "PersonChange",
+        "type": "object"
+      },
+      "PersonNew": {
+        "properties": {
+          "email": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "First Name",
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Last Name",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 64,
+            "minLength": 2,
+            "pattern": "^[a-z0-9][a-z0-9._@-]*$",
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "email",
+          "first_name",
+          "last_name",
+          "tenant_id",
+          "reason"
+        ],
+        "title": "PersonNew",
+        "type": "object"
+      },
+      "PersonReset": {
+        "description": "A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email\nlink, or a temporary one set by the owner in Keycloak's console: the platform never handles it).",
+        "properties": {
+          "authenticator": {
+            "default": false,
+            "title": "Authenticator",
+            "type": "boolean"
+          },
+          "password": {
+            "default": false,
+            "title": "Password",
+            "type": "boolean"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "PersonReset",
+        "type": "object"
+      },
       "PersonRow": {
         "additionalProperties": false,
         "properties": {
@@ -14257,25 +14565,6 @@
           "usage"
         ],
         "title": "PersonRow",
-        "type": "object"
-      },
-      "PersonView": {
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "subject": {
-            "title": "Subject",
-            "type": "string"
-          }
-        },
-        "required": [
-          "subject",
-          "name"
-        ],
-        "title": "PersonView",
         "type": "object"
       },
       "PinnedApplication": {
@@ -22374,6 +22663,103 @@
         ],
         "title": "WithdrawalView",
         "type": "object"
+      },
+      "modeler_api__views__admin__PersonView": {
+        "additionalProperties": false,
+        "description": "A person of the realm as Keycloak keeps them: their company (`tenant_id`), roles, whether they can sign in and\nhave set up their authenticator, and what Keycloak will ask of them at their next sign-in.",
+        "properties": {
+          "authenticator": {
+            "title": "Authenticator",
+            "type": "boolean"
+          },
+          "console_link": {
+            "title": "Console Link",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Actions",
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "name",
+          "email",
+          "tenant_id",
+          "roles",
+          "enabled",
+          "authenticator",
+          "required_actions",
+          "created_at",
+          "console_link"
+        ],
+        "title": "PersonView",
+        "type": "object"
+      },
+      "modeler_api__views__members__PersonView": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "name"
+        ],
+        "title": "PersonView",
+        "type": "object"
       }
     }
   },
@@ -22558,6 +22944,66 @@
         ]
       }
     },
+    "/api/v1/admin/companies": {
+      "post": {
+        "description": "A new company (a tenant): its folder in the store, its name, and its own audit chain from its first event.",
+        "operationId": "add_company_api_v1_admin_companies_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyNew"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CompanyPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Company",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/companies/{tenant_id}": {
       "get": {
         "operationId": "company_api_v1_admin_companies__tenant_id__get",
@@ -22626,6 +23072,143 @@
           }
         },
         "summary": "Company",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/companies/{tenant_id}:disable": {
+      "post": {
+        "description": "Every person of the company can no longer sign in (their sessions end as their tokens expire); its projects,\nrecords and people are kept, and enabling it lets the same people in again.",
+        "operationId": "disable_company_api_v1_admin_companies__tenant_id__disable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CompanyPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disable Company",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/companies/{tenant_id}:enable": {
+      "post": {
+        "operationId": "enable_company_api_v1_admin_companies__tenant_id__enable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CompanyPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enable Company",
         "tags": [
           "admin"
         ]
@@ -23196,6 +23779,265 @@
           }
         },
         "summary": "Overview",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/people": {
+      "get": {
+        "operationId": "people_api_v1_admin_people_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PeoplePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "People",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in.",
+        "operationId": "add_person_api_v1_admin_people_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonNew"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PeoplePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Person",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/people/{user_id}:change": {
+      "post": {
+        "operationId": "change_person_api_v1_admin_people__user_id__change_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PeoplePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Person",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/people/{user_id}:reset": {
+      "post": {
+        "operationId": "reset_person_api_v1_admin_people__user_id__reset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonReset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PeoplePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Person",
         "tags": [
           "admin"
         ]

@@ -9,7 +9,9 @@ Three files under `<read_root>/_platform/` (a name `admin_api` never lists as a 
   is added, tested, made active (the provider's active key is then retired) and retired; one active longer than
   `ROTATE_AFTER_DAYS` is due for rotation;
 - `limits.json`: a monthly spend and token limit per company, project or person, and the history of changes. A limit
-  only warns the administrator (at `WARN_AT` of it and when it is reached); it never stops an agent (answer 2).
+  only warns the administrator (at `WARN_AT` of it and when it is reached); it never stops an agent (answer 2);
+- `companies.json`: the companies the console created (their names) and those it disabled (whose people it disabled,
+  so enabling the company enables them again). People themselves are kept in Keycloak (`keycloak_admin`).
 
 Secrets leave this module only to build an agent's model (`model_env`) or to test a key: no answer of the API holds
 one. An agent left "as the environment says" keeps the server's own configuration (`MODELER_LLM_*`, `LITELLM_*`).
@@ -59,6 +61,10 @@ KEY_PROVIDERS: dict[str, dict[str, Any]] = {
                 "fields": (("aws_region", "AWS region", False, True), ("api_key", "Bedrock API key", True, False),
                            ("aws_access_key", "AWS access key ID", True, False),
                            ("aws_secret_key", "AWS secret access key", True, False))},
+    # the console's people and companies (F): the realm's service-account client, `keycloak_admin`
+    "keycloak": {"label": "Keycloak service account (people and companies)",
+                 "fields": (("client_id", "Client ID (modeler-admin-api)", False, True),
+                            ("client_secret", "Client secret", True, True))},
 }
 
 
@@ -337,3 +343,48 @@ class LimitSettings:
             doc["history"].append({"id": key, "usd": usd, "tokens": tokens, "by": by, "at": _now(), "reason": reason.strip()})
             _write(self.path, doc)
         return before, after
+
+
+# --- F: companies ----------------------------------------------------------------------------------------------------
+
+
+class CompanyRegistry:
+    """The companies the console names, disables and enables. A company is a tenant: its folder in the store and the
+    `tenant_id` its people carry in Keycloak; nothing here is ever removed."""
+
+    def __init__(self, read_root: str):
+        self.path = _folder(read_root) / "companies.json"
+
+    def doc(self) -> dict[str, Any]:
+        return _read(self.path, {"companies": {}})
+
+    def get(self, tenant_id: str) -> dict[str, Any] | None:
+        return self.doc()["companies"].get(tenant_id)
+
+    def _change(self, tenant_id: str, change: Any) -> dict[str, Any]:
+        with file_lock(self.path):
+            doc = _read(self.path, {"companies": {}})
+            record = doc["companies"].setdefault(tenant_id, {"name": "", "created_by": None, "created_at": None,
+                                                             "disabled": None})
+            change(record)
+            _write(self.path, doc)
+        return record
+
+    def add(self, tenant_id: str, name: str, *, by: str) -> dict[str, Any]:
+        if self.get(tenant_id) is not None:
+            raise SettingsError(f"the company {tenant_id!r} exists already")
+        return self._change(tenant_id, lambda r: r.update(name=name.strip(), created_by=by, created_at=_now()))
+
+    def disable(self, tenant_id: str, people: list[str], *, by: str, reason: str) -> dict[str, Any]:
+        if (self.get(tenant_id) or {}).get("disabled"):
+            raise SettingsError(f"the company {tenant_id!r} is disabled already")
+        return self._change(tenant_id, lambda r: r.update(disabled={"by": by, "at": _now(), "reason": reason.strip(),
+                                                                    "people": people}))
+
+    def enable(self, tenant_id: str) -> list[str]:
+        """Enable the company again; the people its disabling disabled (to enable them again)."""
+        disabled = (self.get(tenant_id) or {}).get("disabled")
+        if not disabled:
+            raise SettingsError(f"the company {tenant_id!r} is not disabled")
+        self._change(tenant_id, lambda r: r.update(disabled=None))
+        return list(disabled.get("people") or [])

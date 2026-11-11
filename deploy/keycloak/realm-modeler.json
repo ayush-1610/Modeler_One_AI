@@ -113,6 +113,20 @@
       "bearerOnly": true,
       "standardFlowEnabled": false,
       "publicClient": false
+    },
+    {
+      "clientId": "modeler-admin-api",
+      "name": "Modeler One admin console (service account)",
+      "description": "The admin console's people and companies (docs/plans/2026-11-10-admin-console.md, F): the API calls Keycloak's admin API as this client's service account, with only realm-management view-realm, view-users, query-users and manage-users. No browser sign-in, no password grant. Its secret is stored in the console under Keys.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "frontchannelLogout": false
     }
   ],
   "authenticatorConfig": [
@@ -246,5 +260,20 @@
         }
       }
     ]
-  }
+  },
+  "users": [
+    {
+      "username": "service-account-modeler-admin-api",
+      "enabled": true,
+      "serviceAccountClientId": "modeler-admin-api",
+      "clientRoles": {
+        "realm-management": [
+          "view-realm",
+          "view-users",
+          "query-users",
+          "manage-users"
+        ]
+      }
+    }
+  ]
 }

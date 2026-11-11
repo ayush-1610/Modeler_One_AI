@@ -184,6 +184,32 @@ changes. Every person who uses the app must then be on the tailnet.
 8. **The certificate lasts 90 days.** Renew it each month with step 2's `$TS cert …` line, then
    `bash deploy/server/stop_modeler.sh && bash deploy/server/run_modeler.sh`.
 
+## The admin console's people and companies (F, 2026-11-11)
+
+The console adds people and companies, disables them, gives roles, moves a person to another company and resets a lost
+authenticator. It does this through Keycloak's admin API as the service account of the client `modeler-admin-api`.
+That account holds only `realm-management`'s `view-realm`, `view-users`, `query-users` and `manage-users`.
+- **A realm imported from now on** has the client and its roles. Only its secret is missing: step 3 below.
+- **A realm that exists already** (adt-server) keeps its clients when `install` runs again, so create the client once
+  in Keycloak's admin console (`https://$NAME:8443/admin`, realm **modeler**):
+  1. *Clients → Create client*: Client type OpenID Connect, Client ID `modeler-admin-api` → *Next*. Turn **Client
+     authentication** On; under Authentication flow, untick *Standard flow* and *Direct access grants*, tick
+     **Service accounts roles** → *Next* → *Save*.
+  2. *Service account roles* tab → *Assign role* → *Client roles* (or *Filter by clients*) → search `realm-management`
+     → tick `manage-users`, `query-users`, `view-realm`, `view-users` → *Assign*.
+  3. *Credentials* tab → copy the **Client secret** (*Regenerate* first if you are not sure who has seen it).
+- **In Modeler One's console:** *Keys → Add a key*, provider **Keycloak service account**, Client ID
+  `modeler-admin-api`, the client secret, a reason → *Add the key* → *Test* (it should say the service account can read
+  the realm's people) → *Make active*. The *People* tab then lists the realm's people.
+- **First passwords:** the platform never sets, sees or sends one.
+  - With a mail server in Keycloak (*Realm settings → Email*: host, port, from address, login; *Test connection*), the
+    console asks Keycloak to email each new person a link, valid 12 hours, to set their password and authenticator.
+  - Without one, the console links to the new person's *Credentials* page in Keycloak: *Set password*, Temporary on,
+    and give them that temporary password yourself. At their first sign-in they choose their own and set up their
+    authenticator.
+- **What the console never does:** delete a person (they are disabled), give `modeler-admin` (the owner's alone; only
+  here, in Keycloak's console), or disable, move or lock out the owner.
+
 ## Limits, recorded
 - **Re-running `install` keeps the existing realm** (`--override=false`), so users and their TOTP survive. A later
   change to `realm-modeler.json` therefore does not reach a running realm. Apply it in the admin console, or with a
