@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AdminTabs, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/admin/AdminParts";
+import { CompanyState } from "@/components/admin/CompanyAdmin";
 import { GiveProjects } from "@/components/admin/GiveProjects";
 import { Hero } from "@/components/kit";
 import { ApiProblem, Card } from "@/components/ui";
@@ -21,12 +22,17 @@ export default async function CompanyPage({ params, searchParams }: {
 
   return (
     <main>
-      <Hero tone="admin" eyebrow={<Link href={`/admin?priced_as=${priced}`}>Admin console</Link>} title={tenantId}
+      <Hero tone="admin" eyebrow={<Link href={`/admin?priced_as=${priced}`}>Admin console</Link>} title={data?.name || tenantId}
             lede="Its people (everyone who has signed in), its projects (archived ones too) and what their agents used." />
       <AdminTabs here="company" priced={priced} base={base} />
       {live.problem && <ApiProblem problem={live.problem} />}
       {data && (
         <>
+          {data.disabled_reason !== null && (
+            <div className="banner err" style={{ marginBottom: 16 }} data-testid="company-disabled">
+              Disabled: none of its people can sign in ({data.disabled_reason}).
+            </div>
+          )}
           <Card title="This company"><UsageKpis usage={data.usage} /></Card>
           <Card title="People">
             <div className="table-scroll">
@@ -68,6 +74,7 @@ export default async function CompanyPage({ params, searchParams }: {
           </Card>
           <GiveProjects tenantId={tenantId} people={data.people.map((p) => ({ subject: p.subject, name: p.name,
                                                                                projects: p.projects }))} />
+          <CompanyState tenantId={tenantId} disabledReason={data.disabled_reason} />
           <p><Link href={`/admin/usage?tenant_id=${encodeURIComponent(tenantId)}&priced_as=${priced}`}>
             This company&apos;s runs, one by one →</Link></p>
         </>
