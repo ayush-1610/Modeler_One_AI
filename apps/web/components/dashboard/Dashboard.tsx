@@ -169,7 +169,7 @@ function ProjectCard({ p, i }: { p: DashboardProject; i: number }) {
   return (
     <li>
       <Link href={p.href} className={`pcard ${p.state}`} data-testid={`project-card-${p.id}`} data-magnet
-            style={{ animationDelay: `${i * 60}ms` }}>
+            style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
         <div className="pcard-head">
           <span className="pcard-mono" aria-hidden>{(p.compounds[0] ?? p.name).charAt(0).toUpperCase()}</span>
           <span className="pcard-title">

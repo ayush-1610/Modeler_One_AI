@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Stepper } from "@/components/kit/Stepper";
+import { preloadSteps, Stepper } from "@/components/kit/Stepper";
 import { ApiProblem, Card, StatusChip } from "@/components/ui";
 import { getArtifacts, getAudit, getHistory, getStale, type Change } from "@/lib/pipeline";
 import { Hero } from "@/components/kit";
@@ -34,6 +34,7 @@ export default async function HistoryPage({
 }) {
   const { projectId } = await params;
   const { kind, id, show: only, audit: auditAll, artifacts: artifactsAll } = await searchParams;
+  preloadSteps(projectId); // the step bar's read runs beside the page's own, not after them (audit item 9)
   const [artifacts, stale, audit, history] = await Promise.all([
     getArtifacts(projectId),
     getStale(projectId),

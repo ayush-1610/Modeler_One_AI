@@ -84,7 +84,8 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
 .hero-art .dots { fill: var(--ink-h); fill-opacity: 0.5; }
 @keyframes hero-draw { 0% { stroke-dashoffset: 520; opacity: 0; } 12% { opacity: 1; } 70%, 100% { stroke-dashoffset: 0; opacity: 1; } }
 .hero-inner { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding: 72px 24px 84px; text-align: center;
-  display: grid; justify-items: center; gap: 16px; animation: hero-up 700ms var(--ease) both; }
+  display: grid; justify-items: center; gap: 16px; animation: mo-fade 240ms var(--ease) both; }
+/* the head holds the page's actions, so it fades in place; only the curve behind it (.hero-art) moves (audit item 9) */
 @keyframes hero-up { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: none; } }
 .hero-pill { padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
   color: hsl(var(--hue), 70%, 36%); background: color-mix(in srgb, var(--surface) 70%, transparent);
@@ -322,14 +323,23 @@ td.num, th.num { white-space: nowrap; }
 
 /* loading: skeleton rows with a light sweeping across, never a spinner on its own */
 .skeleton { display: grid; gap: 14px; }
-.skeleton-row { position: relative; overflow: hidden; height: 18px; border-radius: 9px; background: #ececf0; }
+.skeleton-row { position: relative; overflow: hidden; height: 18px; border-radius: 9px; background: var(--fill); }
 .skeleton-row.tall { height: 120px; border-radius: 24px; }
 .skeleton-row::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent); animation: mo-sweep 1.4s var(--ease) infinite; }
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 70%, transparent), transparent);
+  animation: mo-sweep 1.4s var(--ease) infinite; }
+/* a page's skeleton (components/kit/Skeleton.tsx): the shape of the page it stands for, with no figures in it */
+.skeleton-row.pill { height: 52px; border-radius: 999px; }
+.skeleton-row.card { height: 180px; border-radius: 24px; }
+.skeleton-cols { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+/* the page transition (components/kit/Motion.tsx): a short fade of the new page as it enters, opacity only, so nothing
+   moves under the pointer; a page that is already painted is never hidden again (audit item 9) */
+.content > main { animation: mo-fade 180ms var(--ease) both; }
 
 /* the head's lede is the secondary ink of the design */
 .hero-lede { color: var(--ink-2); }
-.hero-art, .hero-inner { will-change: translate; }
+.hero-art { will-change: translate; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

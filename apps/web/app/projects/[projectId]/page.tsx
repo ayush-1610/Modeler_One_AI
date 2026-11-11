@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Stepper } from "@/components/kit/Stepper";
+import { preloadSteps, Stepper } from "@/components/kit/Stepper";
 import { RunCampaignButton } from "@/components/RunCampaignButton";
 import { MembersPanel } from "@/components/members/MembersPanel";
 import { SystemPanel } from "@/components/system/SystemPanel";
@@ -15,6 +15,7 @@ function points(study: { profile?: { times: number[] } | null }) {
 
 export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
+  preloadSteps(projectId); // the step bar's read runs beside the page's own, not after them (audit item 9)
   const [live, liveStudies, liveCampaigns] = await Promise.all([
     getProject(projectId),
     getStudies(projectId),

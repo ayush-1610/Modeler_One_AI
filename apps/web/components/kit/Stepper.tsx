@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { Suspense } from "react";
+
+import { StepperSkeleton } from "@/components/kit/Skeleton";
 
 import { getSteps, STEP_ROUTES, type StepId, type StepState } from "@/lib/pipeline";
 
@@ -13,12 +16,31 @@ const STATE_LABEL: Record<StepState, string> = {
  *  page belongs to is marked, and what it waits on is written out under the row. Until Start is done the steps after it
  *  that have not begun cannot be opened from here (page review 1); a step that has begun stays open, so a project whose
  *  Start gains a requirement later is never locked out of its plan or its campaign. The project's history is on the
- *  Projects page. */
-export async function Stepper({ projectId, current, waiting = true }: {
+ *  Projects page.
+ *
+ *  The steps stream in (audit item 9): the page's head paints at once and the bar's place is held by a skeleton of its
+ *  size until /steps answers. A page starts that read with its own (`preloadSteps`), so the two run side by side and the
+ *  bar shares the page's answer (lib/pipeline.ts getSteps is cache()d for the request). */
+export function Stepper(props: StepperProps) {
+  return (
+    <Suspense fallback={<StepperSkeleton />}>
+      <StepperBody {...props} />
+    </Suspense>
+  );
+}
+
+/** Start reading the project's steps now, alongside the page's other reads; the Stepper then uses the same answer. */
+export function preloadSteps(projectId: string) {
+  void getSteps(projectId);
+}
+
+type StepperProps = {
   projectId: string; current?: StepId;
   /** Write out what the current step waits on (off where the page lists it itself, as Start does). */
   waiting?: boolean;
-}) {
+};
+
+async function StepperBody({ projectId, current, waiting = true }: StepperProps) {
   const live = await getSteps(projectId);
   if (!live.data) return null; // the stepper is navigation; the page itself reports a read problem
   const here = live.data.find((s) => s.step === current);

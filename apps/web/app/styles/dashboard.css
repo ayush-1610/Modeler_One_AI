@@ -36,7 +36,9 @@
 .pcard { height: 100%; display: grid; gap: 14px; align-content: start; padding: 20px; border-radius: var(--radius-lg);
   border: 1px solid var(--hairline); color: var(--ink); text-decoration: none;
   background: radial-gradient(300px circle at 70% -30%, color-mix(in srgb, var(--sim) 12%, transparent), transparent 70%), var(--raised);
-  animation: hero-up 700ms var(--ease) both;
+  /* an opacity-only entry with a short stagger (capped at the ninth card): a card is clicked at once, so it never moves
+     while it enters (audit item 9) */
+  animation: mo-fade 260ms var(--ease) both;
   transition: transform 450ms var(--spring), box-shadow 450ms var(--ease); }
 .pcard:hover { transform: translateY(-4px); box-shadow: 0 26px 50px -24px rgba(0, 0, 0, 0.3); }
 .pcard:active { transform: scale(0.98); }

@@ -15,6 +15,43 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — faster page loads with short, fade-only loading animations (audit item 9, web only)
+- **What:** (1) The page transition is now a 180 ms CSS fade of the entering `<main>` (`.content > main` in
+  `app/styles/design.css`); `components/kit/Motion.tsx` no longer blanks the painted page to opacity 0 and fades it back
+  over 500 ms after a 40 ms timer. The head (`.hero-inner`) and the dashboard's project cards (`.pcard`) enter with an
+  opacity-only fade (240 / 260 ms) instead of the 700 ms rise-and-scale, and the cards' stagger is 30 ms, capped at the
+  ninth card (was 60 ms per card, uncapped). (2) Per-route skeletons in the page's own shape (`components/kit/Skeleton.tsx`:
+  `PageSkeleton`, `StepperSkeleton`, `Skeleton`): `loading.tsx` for a project, Start, Inputs, Review & sign, History,
+  the Library, a campaign and the admin console; `app/loading.tsx` uses the same component. Each keeps
+  `data-testid="page-loading"` with `role="status"` and `aria-busy`, and shows no figures. The skeleton colours are tokens
+  (`var(--fill)`, `var(--surface)`) instead of a hard-coded `#ececf0`. (3) The server reads in `lib/reads.ts`
+  (projects, project, studies, campaigns, campaign, escalations) and `lib/pipeline.ts` (steps, stale, artifacts) are
+  wrapped in React `cache()`, so a page and its step bar share one request per read within a render; `serverGet` stays
+  `no-store`, so nothing is cached across requests. (4) The step bar streams: `Stepper` renders its body inside
+  `<Suspense>` with a skeleton of the bar's own place and size, and the Run and History pages start the steps read with
+  their own (`preloadSteps`), so the head paints without waiting for `/steps`. On Inputs the page's own steps read and
+  the bar's are now one request.
+- **Why:** audit item 9 (faster loads, smooth and pleasing loading animations). Every navigation paid about 0.5-0.7 s
+  of animation before the page was fully visible, a hard load flashed (painted, hidden, faded back), the step bar's read
+  ran after the page's reads, and Inputs read `/steps` twice.
+- **Impact (measured):** production build (`next build && next start`, the Playwright web server, stub API, fresh
+  data, one project), median of 5. "Settled" means the page's marker is visible and `<main>` and its head are fully
+  opaque. Before → after (two after runs):
+  hard load: dashboard 1126 → 467 / 483 ms, Run 866 → 428 / 524 ms, Inputs 873 → 423 / 442 ms, Review & sign
+  830 → 407 / 378 ms;
+  in-app navigation: Run → Inputs 867 → 539 / 575 ms, Inputs → Review & sign 906 → 516 / 563 ms, Review & sign →
+  Projects 1218 → 597 / 632 ms.
+  The time until the content first shows is about the same. It is noisy (about 150-530 ms per sample, set by the API and
+  the client-side reads) and is not what changed; Run → Inputs content was 194 → 300-502 ms, within that noise but
+  possibly up to a frame or two slower because the new skeleton commits first. The gain is the animation no longer
+  holding a page back. Motion stays opacity-only on interactive content, so nothing moves under the pointer while a page
+  enters; `prefers-reduced-motion` still removes it. No API contract or locked file changed and there is no batched
+  steps route, so the dashboard still reads each project's steps (in parallel). Not done here: the layout-level step bar,
+  passing server steps to `StepBlocked`, and a streamed dashboard grid (plan steps 5-10).
+- **Tests:** no spec changed. Run on the production build, 26 passed: shell, dashboard, dashboard-partial, start-step,
+  start-project, review-sign, model-plan, inputs-workspace, inputs-todo, projects-archive, digitize, campaign-monitor,
+  admin-console and library. The measurement was a temporary spec, deleted after use.
+
 ### Changed — long tables sort by their heads, filter and page; rows that need action are always shown (audit item 11, web only)
 - **What:** a reusable sort/filter/page hook (`apps/web/lib/tableView.ts`, pure helpers in `lib/tableSort.ts`) and a
   serializable-prop `components/kit/SortableTable.tsx` (server pages pass rendered cells plus primitive sort keys). Each
