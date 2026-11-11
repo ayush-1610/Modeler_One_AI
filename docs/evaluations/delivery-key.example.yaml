@@ -4,8 +4,9 @@
 # to look at, either way: the key is a reading, not a fact.
 
 files:
-  # each file by its exact name, and the fields it states (study, product, role, strength_mg, batch, food_state,
-  # medium, ph); a workbook whose sheets differ gives them per sheet
+  # each file by its name (spacing and case aside), and the fields it states: study, product, role, strength_mg (or
+  # strength), batch, food_state (or food), medium, ph (or pH); a workbook whose sheets differ gives them per sheet.
+  # A name is compared whole (APL 50 is not APL 500); give a list to accept several spellings: [APL 50, "APL 50 mg"].
   - name: "EX-101 synopsis.pdf"
     study: "EX-101"
     food_state: fasted            # fasted | fed
@@ -25,7 +26,8 @@ studies:
     names: ["Protocol XYZ-01"]
 
 dissolution:
-  # each product, and the pH of each dissolution profile its files hold
+  # each product, and the pH of each dissolution profile its files hold (one number, a list, or none: the product's
+  # presence alone)
   - product: "APL 50"
     names: ["Test product"]
     ph: [1.2, 4.5, 6.8]

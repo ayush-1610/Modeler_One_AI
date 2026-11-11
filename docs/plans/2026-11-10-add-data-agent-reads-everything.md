@@ -87,8 +87,10 @@ the upload itself.
    the default). Do not re-use a project that read some files before R4: start clean.
 4. Wait until the reading tray on Inputs shows no file waiting or reading (one delivery pass, then each file; a few
    minutes per file with a large model). Note any file it shows as failed, with its reason.
-5. Write the answer key: start from `docs/evaluations/delivery-key.example.yaml` (or the draft the R6 session wrote from
-   the file names), open each file, and write what it states. Copy it to the server, e.g. `~/delivery-key.yaml`.
+5. Write the answer key: start from `docs/evaluations/delivery-key.example.yaml` (or the draft key from the file names
+   the R6 session handed over; it is not in the repository, as it names the client's files), open each file, and write
+   what it states. Copy it to the server, e.g. `~/delivery-key.yaml`. The report lists every key entry it could not
+   use (a misspelt field, a sheet the workbook does not have), so check that list first.
 6. On the server (`ssh adt-server`, then `cd ~/Modeler_One_AI`):
 
        uv run python -m modeler_project.delivery_report --root ~/modeler-data/read-root \

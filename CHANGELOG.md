@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — R6 review: the delivery report no longer misleads (2026-11-11)
+A review of the R6 report ("can it mislead the owner?", each finding checked by a second reviewer) confirmed 6 defects
+and raised 12 more; all are fixed.
+- **Names are compared whole:** "APL 500" no longer counts as finding "APL 50", nor "B123" as "B12", nor an empty key
+  entry as anything; a key may list several spellings.
+- **What waits for a person counts, and says so:** a sheet read by code or the agent and waiting for a person's answers
+  (a profile sheet always waits for n and purpose) was invisible; it is now a study or dissolution profile found,
+  "read and waiting for a person's answers", with each such sheet and what it needs.
+- **The key is read as a person writes it:** `pH`, `strength`, `food` are the fields; a pH may be one number, a list
+  or none (the product's presence); file and sheet names are matched spacing and case aside. Anything the score cannot
+  use is listed ("Key entries not used"), a sheet the workbook does not have is "no such sheet", and a malformed key is
+  refused with the entry named.
+- **Only confirmed names count:** a study or product found only through a link the agents proposed is shown, not
+  counted; a link a person refused, or one from a withdrawn file, is not used.
+- A withdrawn file is counted apart (never as failed); each file's row shows what its readings found overall; a "|" or
+  a line break in a name or quote no longer breaks the table.
+
 ### Added — the admin console's monthly limits: a warning to the administrator at 80 % and at 100 % (2026-11-10)
 The owner, 2026-11-10 (admin console plan, E and answer 2): limits "warn to admin (client will see and decide later
 what to show them)".
