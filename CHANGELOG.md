@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — target sizes: small controls are at least 24 x 24 px to the pointer (WCAG 2.2 2.5.8; audit item 7, web only)
+- **What:** a new stylesheet, `apps/web/app/styles/targets.css`, loaded right after `design.css` in `app/layout.tsx`. The
+  link buttons (`.link-btn`), the citation chips (`.cite`), the chip remove x, the Clip "show all" toggle and lone links in
+  table cells keep their look and get an invisible `::after` hit area of at least 24 x 24 px (44 px on a touch screen;
+  32 px for the citations and the chip x, so one never covers its neighbour). The Start row's Change / Set (`.sb-change`)
+  is 32 px tall, with a negative margin so the row does not move; the API live dot (`.nav-conn`) has a 24 px area (not 44,
+  which would cover Sign out); the chip x is an 18 px round button; the profile chart's linear / log toggle is 26 px;
+  checkboxes and radios are 18 px with a 3 px margin; `.btn.tiny` is at least 28 px (32 px when primary); fold-out
+  summaries are at least 24 px. Dead duplicate rules removed: `.sb-change` in `start.css` and `.btn.tiny` in `plan.css`
+  (both overridden by `design.css`), and the `padding: 0` of `.sb-change` in `design.css`.
+- **Why:** the 2026-11-11 audit measured the Change control, link buttons and citations on Start at about 19-21 px tall,
+  the chip x at about 9 x 18 px and the API dot at 10 x 10 px, under the 24 px minimum of WCAG 2.2 SC 2.5.8.
+- **Impact:** CSS only; no API, science or locked file touched. Text and rows stay where they were (the hit areas are
+  invisible and nothing animates); checkboxes and small buttons grow by a few pixels.
+- **Tests:** new `apps/web/e2e/target-size.spec.ts` measures, on Start, a link button, the Change control (also at least
+  32 px), a citation and the API dot (box or `::after`, whichever is larger) and checks that Change still opens its editor.
+
 ### Changed — admin console: a non-admin gets the app's 404, not the console's head (audit item 12, web only)
 - **What:** at `/admin` and every `/admin/*` page (usage, companies/<id>, limits, models, keys), a person whose sign-in
   lacks `modeler-admin` now gets the app's generic 404 ("There is no page here") instead of the console's hero (title,

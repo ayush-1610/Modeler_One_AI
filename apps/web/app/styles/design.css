@@ -238,7 +238,7 @@ code { background: color-mix(in srgb, var(--sim) 8%, transparent); }
   border-top: 1px solid var(--hairline); }
 .sb-rows > .sb-row:first-child { border-top: 0; }
 .sb-label { font-weight: 400; }
-.sb-change { padding: 0; background: none; color: var(--sim); font-size: 13px; font-weight: 600; }
+.sb-change { background: none; color: var(--sim); font-size: 13px; font-weight: 600; }
 .sb-change:hover:not(:disabled) { background: none; text-decoration: underline; }
 .start-continue { border-radius: var(--radius-lg); padding: 24px 28px; }
 .input-name code, .input-row code.muted { background: none; padding: 0; color: var(--ink-dim); font-size: 12px; }

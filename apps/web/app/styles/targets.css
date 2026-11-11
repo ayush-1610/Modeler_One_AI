@@ -1,0 +1,51 @@
+/* ---------- target size: WCAG 2.2 SC 2.5.8, minimum 24 x 24 CSS px (2026-11-11 audit, item 7) ----------
+   Loaded after design.css (app/layout.tsx), so these rules win the cascade.
+   The rule here: the visual size stays and the hit area grows. A small control gets an invisible ::after, centred on it,
+   at least 24px each way (44px on a touch screen), so nothing reflows and no row gets taller. Where real padding is
+   added (.sb-change), a negative margin of the same size keeps the layout where it was. Nothing here animates. */
+
+/* the invisible hit area. `.link-btn` is `all: unset` in start.css, which clears position too: this sheet loads later,
+   so position: relative holds and the ::after sits on the link, not on some ancestor. A disabled control keeps its area:
+   it should swallow the click, not pass it to whatever is underneath. */
+:is(.link-btn, .cite, .chip-list .chip button, .clip-more, td > a:only-child) { position: relative; }
+:is(.link-btn, .cite, .chip-list .chip button, .clip-more, td > a:only-child)::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 24px; height: 24px; min-width: 100%; min-height: 100%;
+  transform: translate(-50%, -50%);
+}
+@media (pointer: coarse) {
+  :is(.link-btn, .clip-more, td > a:only-child)::after { width: 44px; height: 44px; }
+  /* citations sit 4px apart in a wrapped row and the chip's x sits on its own label: 32px, not 44, so one target never
+     covers the next */
+  :is(.cite, .chip-list .chip button)::after { height: 32px; }
+}
+
+/* the Change / Set control on every Start row: 32px tall; the negative margin keeps the row height and its baseline */
+.sb-change { padding: 6px 8px; margin: -6px -8px; min-height: 32px; display: inline-flex; align-items: center; }
+/* after a Confirm button: start at its edge rather than 2px over it, so the later button never takes Confirm's clicks */
+.sb-actions > :not(.sb-change) + .sb-change { margin-left: -6px; }
+
+/* the x that removes a chip from a Start list: an 18px round button inside the chip (the negative margin keeps the chip's
+   height). Its extra hit area grows up and down, and only 3px sideways, so it does not spill over the chip's label. */
+.chip-list .chip button { display: inline-grid; place-items: center; width: 18px; height: 18px; margin: -2px -6px -2px 0;
+  padding: 0; border-radius: 50%; line-height: 1; }
+.chip-list .chip button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.chip-list .chip button::after { min-width: 0; width: auto; left: -3px; right: -3px; transform: translateY(-50%); }
+
+/* the API live/offline dot next to Sign out: 24px everywhere. A 44px area would cover the end of the Sign out link. */
+.nav-conn { position: relative; }
+.nav-conn::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
+
+/* the linear / log toggle on a concentration-time chart: 26px tall (its bar centres it and has the room) */
+.profile-chart .seg button { padding: 4px 10px; min-height: 26px; }
+
+/* checkboxes and radios with no text label around them: 18px, and the 3px margin keeps the 24px spacing circle clear of a
+   neighbour */
+:where(input[type="checkbox"], input[type="radio"]) { width: 18px; height: 18px; margin: 3px; accent-color: var(--sim); }
+.rf input[type="checkbox"] { width: 18px; height: 18px; }
+
+/* small buttons: at least 28px, 32px when they are the primary action (Save in an inline form) */
+.btn.tiny { min-height: 28px; padding: 5px 12px; }
+.btn.tiny.primary { min-height: 32px; }
+
+/* fold-out toggles. The Clip toggle has its ::after above; the inputs side panel's summary is its own flex row. */
+details:not(.clip):not(.inputs-more) > summary { min-height: 24px; padding-block: 2px; }

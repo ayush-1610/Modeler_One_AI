@@ -48,7 +48,6 @@
 .param-node.fitted { border-color: var(--sim); }
 .pathway { border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .fit-form { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
-.btn.tiny { padding: 3px 8px; font-size: 12px; }
 .violations { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .violations li { display: flex; flex-direction: column; gap: 2px; }
 .flags.warn li { color: var(--warn-ink); }
