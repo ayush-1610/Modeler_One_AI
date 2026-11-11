@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type { Act, Retag } from "@/components/client/ClientFiles";
 import type { View as ClientView } from "@/components/client/types";
-import { EmptyState, InlineIssue } from "@/components/kit";
+import { EmptyState, InlineIssue, LabeledControl, ReasonField, WaitingFor } from "@/components/kit";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { apiFile, send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
@@ -138,10 +138,9 @@ function LeaveOut({ s, projectId, run }: { s: StudyRow; projectId: string; run: 
     );
   }
   return (
-    <div className="row gap-4">
-      <input autoFocus placeholder={s.excluded ? "why include it again" : "why leave it out"} value={reason}
-             onChange={(x) => setReason(x.target.value)} className="w-160" aria-label={`reason for ${s.study_id}`}
-             onKeyDown={(x) => { if (x.key === "Escape") setOpen(false); }} />
+    <div className="ctl-row" onKeyDown={(x) => { if (x.key === "Escape") setOpen(false); }}>
+      <ReasonField autoFocus placeholder={s.excluded ? "why include it again" : "why leave it out"} value={reason}
+                   onChange={setReason} className="w-160" ariaLabel={`reason for ${s.study_id}`} />
       <button className="btn" disabled={!reason.trim()}
               onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
                                                  { kind: "excluded_studies", key: s.study_id, value: s.excluded ? null : reason, reason }),
@@ -166,28 +165,52 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
   const set = (k: keyof typeof f) => (x: { target: { value: string } }) => setF({ ...f, [k]: x.target.value });
   const times = list(f.times), values = list(f.values);
   const example = f.origin === "ILLUSTRATIVE";
-  const ok = f.study_id.trim() && Number(f.dose_mg) > 0 && Number(f.n) > 0 && times.length > 1 && times.length === values.length
-    && !times.some(Number.isNaN) && !values.some(Number.isNaN) && (example || f.title.trim() || f.link.trim())
-    && (!system || (f.analyte && f.product));
+  // each condition of "Add the study", said in words beside the button (2026-11-11 audit 2, item 7): never a silent disable
+  const doseBad = f.dose_mg.trim() !== "" && !(Number(f.dose_mg) > 0);
+  const nBad = f.n.trim() !== "" && !(Number.isInteger(Number(f.n)) && Number(f.n) > 0);
+  const needed = [
+    !f.study_id.trim() && "the study id",
+    !(Number(f.dose_mg) > 0) && "the dose, a number above 0 in mg",
+    !(Number.isInteger(Number(f.n)) && Number(f.n) > 0) && "n, the number of subjects",
+    times.some(Number.isNaN) && "times as numbers only",
+    values.some(Number.isNaN) && "concentrations as numbers only",
+    times.length < 2 && "at least two times",
+    times.length > 1 && times.length !== values.length && "one concentration per time",
+    !(example || f.title.trim() || f.link.trim()) && "a source title or link",
+    system && !f.analyte && "the analyte measured",
+    system && !f.product && "the product given",
+  ].filter((x): x is string => Boolean(x));
+  const ok = needed.length === 0;
   const pick = (k: keyof typeof f, values: string[]) => (
     <select value={f[k]} onChange={set(k)} aria-label={k.replace("_", " ")}>{values.map((v) => <option key={v} value={v}>{v.replace(/_/g, " ")}</option>)}</select>
   );
   return (
     <div className="typed-table" data-testid="typed-table">
-      <div className="row gap-6">
-        <input placeholder="study id" value={f.study_id} onChange={set("study_id")} className="w-140" aria-label="study id" />
-        {pick("route", options.route)}
-        <input placeholder="dose (mg)" value={f.dose_mg} onChange={set("dose_mg")} className="w-90" aria-label="dose" />
-        {pick("formulation", options.formulation)}
-        {pick("food_state", options.food_state)}
-        <input placeholder="n" value={f.n} onChange={set("n")} className="w-60" aria-label="subjects" />
-        {pick("purpose", options.purpose)}
-        <select value={f.origin} onChange={set("origin")} aria-label="where the data come from" data-testid="typed-origin">
-          <option value="LITERATURE">a published table or text</option>
-          <option value="CLIENT">the client&apos;s data</option>
-          <option value="ILLUSTRATIVE">example data (test only, never evidence)</option>
-        </select>
+      <div className="ctl-row">
+        <LabeledControl label="Study id" required className="w-140">
+          <input placeholder="study id" value={f.study_id} onChange={set("study_id")} aria-label="study id" />
+        </LabeledControl>
+        <LabeledControl label="Route">{pick("route", options.route)}</LabeledControl>
+        <LabeledControl label="Dose (mg)" required className="w-110">
+          <input placeholder="dose (mg)" value={f.dose_mg} onChange={set("dose_mg")} aria-label="dose" inputMode="decimal"
+                 aria-invalid={doseBad} />
+        </LabeledControl>
+        <LabeledControl label="Formulation">{pick("formulation", options.formulation)}</LabeledControl>
+        <LabeledControl label="Food">{pick("food_state", options.food_state)}</LabeledControl>
+        <LabeledControl label="Subjects (n)" required className="w-110">
+          <input placeholder="n" value={f.n} onChange={set("n")} aria-label="subjects" inputMode="numeric" aria-invalid={nBad} />
+        </LabeledControl>
+        <LabeledControl label="Purpose">{pick("purpose", options.purpose)}</LabeledControl>
+        <LabeledControl label="Where the data come from">
+          <select value={f.origin} onChange={set("origin")} aria-label="where the data come from" data-testid="typed-origin">
+            <option value="LITERATURE">a published table or text</option>
+            <option value="CLIENT">the client&apos;s data</option>
+            <option value="ILLUSTRATIVE">example data (test only, never evidence)</option>
+          </select>
+        </LabeledControl>
       </div>
+      {doseBad && <InlineIssue severity="warn" testId="typed-dose-issue">The dose must be a number above 0, in mg (no unit in the field).</InlineIssue>}
+      {nBad && <InlineIssue severity="warn" testId="typed-n-issue">n must be a whole number of subjects above 0.</InlineIssue>}
       {system && (
         <div className="row gap-6 mt-4">
           <select value={f.analyte} onChange={set("analyte")} aria-label="analyte measured" data-testid="typed-analyte">
@@ -204,15 +227,29 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
           </select>
         </div>
       )}
-      <div className="row gap-6 mt-4">
-        <input placeholder="times, e.g. 0.5 1 2 4 8" value={f.times} onChange={set("times")} className="flex-1 minw-180" aria-label="times" />
-        <input placeholder="unit" value={f.time_unit} onChange={set("time_unit")} className="w-60" aria-label="time unit" />
-        <input placeholder="mean concentrations" value={f.values} onChange={set("values")} className="flex-1 minw-180" aria-label="values" />
-        <input placeholder="unit" value={f.unit} onChange={set("unit")} className="w-80" aria-label="concentration unit" />
+      <div className="ctl-row mt-4">
+        <LabeledControl label="Times" required className="flex-1 minw-180">
+          <input placeholder="e.g. 0.5 1 2 4 8" value={f.times} onChange={set("times")} aria-label="times"
+                 aria-invalid={times.some(Number.isNaN)} />
+        </LabeledControl>
+        <LabeledControl label="Time unit" className="w-90">
+          <input placeholder="unit" value={f.time_unit} onChange={set("time_unit")} aria-label="time unit" />
+        </LabeledControl>
+        <LabeledControl label="Mean concentrations" required className="flex-1 minw-180">
+          <input placeholder="one per time" value={f.values} onChange={set("values")} aria-label="values"
+                 aria-invalid={values.some(Number.isNaN)} />
+        </LabeledControl>
+        <LabeledControl label="Concentration unit" className="w-110">
+          <input placeholder="unit" value={f.unit} onChange={set("unit")} aria-label="concentration unit" />
+        </LabeledControl>
       </div>
-      <div className="row gap-6 mt-4">
-        <input placeholder="source title" value={f.title} onChange={set("title")} className="flex-1 minw-180" aria-label="source title" />
-        <input placeholder="DOI or URL" value={f.link} onChange={set("link")} className="w-200" aria-label="source link" />
+      <div className="ctl-row mt-4">
+        <LabeledControl label={example ? "Source title" : "Source title (or a link)"} className="flex-1 minw-180">
+          <input placeholder="source title" value={f.title} onChange={set("title")} aria-label="source title" />
+        </LabeledControl>
+        <LabeledControl label="DOI or URL" className="w-200">
+          <input placeholder="DOI or URL" value={f.link} onChange={set("link")} aria-label="source link" />
+        </LabeledControl>
         <button className="btn primary" disabled={!ok}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/datasets", { project_id: projectId }, {
                   study: { study_id: f.study_id.trim(), route: f.route, dose_mg: Number(f.dose_mg), formulation: f.formulation,
@@ -227,6 +264,7 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
           Add the study
         </button>
       </div>
+      {!ok && <p className="waiting-for m-4-0" data-testid="typed-needed">Still needed: {needed.join(", ")}.</p>}
       {times.length !== values.length && values.length > 0 && <p className="inline-issue warn">{times.length} times but {values.length} values.</p>}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { type ReactNode, useState } from "react";
 
-import { EmptyState } from "@/components/kit";
+import { EmptyState, InlineIssue, LabeledControl, ReasonField, WaitingFor } from "@/components/kit";
 import { send, type Schema } from "@/lib/api";
 
 import { PeekButton } from "@/components/kit/SourcePeek";
@@ -63,6 +63,7 @@ function AddValue({ row, projectId, run }: { row: Row; projectId: string; run: R
 /** A source the selection kept or agreed with, and how to exclude it (with a reason; the next best source takes over). */
 function SourceLine({ e, projectId, run }: { e: Ev; projectId: string; run: Run }) {
   const [reason, setReason] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
   return (
     <li className="source-line">
       <div className="source-line-head">
@@ -70,14 +71,16 @@ function SourceLine({ e, projectId, run }: { e: Ev; projectId: string; run: Run 
         <PeekButton projectId={projectId} source={{ ...e.source, quote: e.quote }} label={`${e.target} (${e.id})`}
                     testId={`peek-${e.id}`} />
       </div>
-      <div className="row gap-6 mt-4">
-        <input placeholder="why exclude it" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
-               aria-label={`reason to exclude ${e.id}`} />
+      <div className="ctl-row mt-4">
+        <ReasonField placeholder="why exclude it" value={reason} onChange={setReason} className="flex-1 minw-160"
+                     ariaLabel={`reason to exclude ${e.id}`} />
         <button className="btn" disabled={!reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide",
                                                    { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
-                                        `${e.id} excluded; the next best source is used.`)}>Exclude</button>
+                                        `${e.id} excluded; the next best source is used.`).then(setProblem)}>Exclude</button>
+        {!reason.trim() && <WaitingFor>Type a reason to exclude it.</WaitingFor>}
       </div>
+      {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
     </li>
   );
 }
@@ -102,16 +105,23 @@ function AlternativeLine({ a, projectId }: { a: Alternative; projectId: string }
 function ChooseProcess({ row, projectId, run }: { row: Row; projectId: string; run: Run }) {
   const [value, setValue] = useState(row.candidates[0] ?? "");
   const [reason, setReason] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
   return (
-    <div className="row gap-4">
-      <select value={value} onChange={(e) => setValue(e.target.value)} aria-label={`process for ${row.id}`}>
-        {row.candidates.map((c) => <option key={c}>{c}</option>)}
-      </select>
-      <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} className="w-150" />
-      <button className="btn" disabled={!reason.trim()}
-              onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
-                                                 { kind: "process", key: row.id.split(".").slice(0, -1).join("."), value, reason }),
-                                      `${row.id}: carried by ${value}.`)}>Choose</button>
+    <div>
+      <div className="ctl-row">
+        <LabeledControl label="PK-Sim process">
+          <select value={value} onChange={(e) => setValue(e.target.value)} aria-label={`process for ${row.id}`}>
+            {row.candidates.map((c) => <option key={c}>{c}</option>)}
+          </select>
+        </LabeledControl>
+        <ReasonField value={reason} onChange={setReason} className="minw-160" ariaLabel={`reason for the process of ${row.id}`} />
+        <button className="btn" disabled={!reason.trim()}
+                onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
+                                                   { kind: "process", key: row.id.split(".").slice(0, -1).join("."), value, reason }),
+                                        `${row.id}: carried by ${value}.`).then(setProblem)}>Choose</button>
+        {!reason.trim() && <WaitingFor>Type a reason to choose.</WaitingFor>}
+      </div>
+      {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
     </div>
   );
 }

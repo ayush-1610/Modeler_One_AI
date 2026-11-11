@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 
-import { InlineIssue } from "@/components/kit";
+import { InlineIssue, ReasonField, WaitingFor } from "@/components/kit";
 import { Clip } from "@/components/kit/Clip";
 import { send, type Envelope, type Schema } from "@/lib/api";
 
@@ -122,13 +122,14 @@ function Conflict({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
           ))}
         </tbody>
       </table>
-      <div className="row gap-6">
-        <input placeholder="why this value (kept in the audit trail)" value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1 minw-220" aria-label={`reason for ${t.target}`} />
+      <div className="ctl-row">
+        <ReasonField placeholder="why this value" value={reason} onChange={setReason} className="flex-1 minw-220" ariaLabel={`reason for ${t.target}`} />
         <button className="btn primary" disabled={!keep || !reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:choose", { project_id: projectId, evidence_id: keep }, { reason }),
                                         `${t.target}: one value kept, the others rejected with your reason.`)}>
           Keep the selected value, reject the others
         </button>
+        {(!keep || !reason.trim()) && <WaitingFor>{!keep ? "Pick the value to keep" : "Type a reason"} to record the choice.</WaitingFor>}
       </div>
     </>
   );
@@ -151,7 +152,7 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
         <div className="minw-110"><code>{e.target}</code><div><Value e={e} /></div></div>
         <div className="flex-1 minw-220"><Source e={e} /></div>
       </div>
-      <div className="row gap-6 mt-6">
+      <div className="ctl-row mt-6">
         {pka ? (
           <select value={kind} onChange={(x) => setKind(x.target.value)} aria-label={`acid or base for ${e.id}`}>
             <option value="">acidic or basic?</option><option value="acid">acidic pKa</option><option value="base">basic pKa</option>
@@ -173,8 +174,7 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
             </>}
           </>
         )}
-        <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
-               aria-label={`reason for ${e.id}`} />
+        <ReasonField value={reason} onChange={setReason} className="flex-1 minw-160" ariaLabel={`reason for ${e.id}`} />
         <button className="btn primary" disabled={!reason.trim() || (pka ? !kind : !target || (needsMolecule && !molecule) || (statement && !number))}
                 title={statement ? "a sentence becomes a value only as a number its quote states" : undefined}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:correct",
@@ -188,6 +188,7 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
         <button className="btn" disabled={!reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
                                         `${e.id} rejected.`)}>Reject</button>
+        {!reason.trim() && <WaitingFor>Type a reason to {pka ? "save" : "correct"} or reject.</WaitingFor>}
       </div>
     </div>
   );
@@ -255,13 +256,16 @@ export function Decide({ e, projectId, run, card }: { e: Ev; projectId: string; 
           )}
         </div>
       )}
-      <div className="row gap-6 mt-6">
-        <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
-               aria-label={`reason for ${e.id}`} ref={why} data-why={e.id} />
+      <div className="ctl-row mt-6">
+        <ReasonField value={reason} onChange={setReason} className="flex-1 minw-160" ariaLabel={`reason for ${e.id}`}
+                     inputRef={why} why={e.id} />
         <button className="btn primary" disabled={!reason.trim() || !valueReady} aria-label={`Accept ${e.target} = ${shown}`}
                 onClick={() => void decide(body, accepted)}>Accept</button>
         <button className="btn" disabled={!reason.trim()} aria-label={`Reject ${e.target} = ${shown}`}
                 onClick={() => void decide({ state: "REJECTED", reason }, `${e.id} rejected.`)}>Reject</button>
+        {!reason.trim() ? <WaitingFor testId={`decide-waiting-${e.id}`}>Type a reason to accept or reject.</WaitingFor>
+          : !valueReady && units !== null ? <WaitingFor testId={`decide-waiting-${e.id}`}>Type the value and choose its PK-Sim unit to accept.</WaitingFor>
+          : null}
       </div>
       {problem && <InlineIssue severity="error" testId={`decide-problem-${e.id}`}>{problem}</InlineIssue>}
     </div>

@@ -208,3 +208,12 @@ th[aria-sort="descending"] .sort-ind::after { content: "▼"; opacity: 1; color:
 .cpf-table .cpf-number { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cpf-table td.cpf-text { min-width: 18ch; max-width: 40ch; white-space: normal; overflow-wrap: break-word; }
 .cpf-table .clip-full { max-width: min(60ch, 80vw); }
+
+/* ---- labelled small controls (kit ReasonField, LabeledControl, WaitingFor; 2026-11-11 audit 2, item 7) ---- */
+.reason-field, .ctl-field { display: grid; gap: 3px; min-width: 0; align-content: end; }
+.reason-field input, .ctl-field input, .ctl-field select { width: 100%; }
+.ctl-label { font-size: 12px; font-weight: 600; color: var(--ink-dim); line-height: 1.3; }
+.ctl-label .req { font-weight: 500; color: var(--ink-quiet, var(--ink-dim)); }
+.waiting-for { font-size: 12.5px; color: var(--ink-dim); }
+/* a row of labelled controls and its buttons: the buttons sit on the controls' line, not on the labels' */
+.ctl-row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: flex-end; }

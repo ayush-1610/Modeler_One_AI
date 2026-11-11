@@ -169,11 +169,23 @@ h3 { font-size: 13px; color: var(--ink-dim); }
   background: var(--surface); color: var(--ink); border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
 
 /* ---------- forms, chips, tables, banners, dialogs ---------- */
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea) {
-  border-radius: 12px; }
-.dash-tools input[type="search"], .library-tools input[type="search"] { border-radius: 999px; border: 1px solid var(--line);
+/* every bare text control, select and textarea (2026-11-11 audit 2, item 7): without this they rendered at the browser's
+   13.33px font and 1px padding, about 21px tall beside 36px buttons. :where() keeps it at zero specificity, so every
+   scoped rule (.field, .sb-editor, start.css, the client-data .rf reading fields) still wins. No min-height: the compact
+   .rf inputs stay compact; the padding alone makes a bare control about 34px tall. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]), select, textarea) {
+  font: inherit; font-size: 14px; line-height: 1.3; padding: 7px 10px; border: 1px solid var(--control-border);
+  border-radius: var(--r-ctl); background: var(--raised); color: var(--ink); min-width: 0;
+  transition: border-color 120ms var(--ease), background-color 120ms var(--ease); }
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]), select, textarea):where(:hover:not(:disabled)) {
+  border-color: var(--ink-dim); }
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]), select, textarea):where(:focus) {
+  border-color: var(--sim); background: var(--surface); }
+:where(input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"]) { border-color: var(--fail); }
+:where(input:disabled, select:disabled, textarea:disabled) { opacity: 0.6; cursor: not-allowed; }
+.dash-tools input[type="search"], .library-tools input[type="search"], .table-tools input[type="search"] { border-radius: 999px; border: 1px solid var(--line);
   background: var(--raised); padding: 10px 16px; font-size: 14px; }
-.dash-tools input[type="search"]:focus, .library-tools input[type="search"]:focus { border-color: var(--sim); background: var(--surface); outline: none; }
+.dash-tools input[type="search"]:focus, .library-tools input[type="search"]:focus, .table-tools input[type="search"]:focus { border-color: var(--sim); background: var(--surface); outline: none; }
 thead th { font-size: 12px; font-weight: 500; color: var(--ink-dim); letter-spacing: 0; }
 th, td { padding: 12px 10px; border-bottom-color: var(--hairline); }
 .chip { padding: 3px 10px; }

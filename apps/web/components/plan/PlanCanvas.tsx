@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { Banner, InlineIssue, PageShell } from "@/components/kit";
+import { Banner, InlineIssue, PageShell, ReasonField, WaitingFor } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
 import { D3Dag, STUDY_MIME, StudyChip } from "@/components/plan/D3Dag";
 import { D1Disposition, D2Absorption } from "@/components/plan/Diagrams";
@@ -77,9 +77,9 @@ function DiffView({ rows, onDecide }: { rows: DiffRow[]; onDecide: (id: string, 
               <td className="fs-13">{d.by}{d.status === "PENDING" ? " (proposed)" : ""}<div className="muted">{d.reason}</div></td>
               <td>
                 {d.status === "PENDING" && d.proposal ? (
-                  <div className="row gap-4">
-                    <input placeholder="why" value={reasons[d.proposal] ?? ""} className="w-120"
-                           onChange={(e) => setReasons({ ...reasons, [d.proposal as string]: e.target.value })} />
+                  <div className="ctl-row">
+                    <ReasonField value={reasons[d.proposal] ?? ""} className="w-160" ariaLabel={`reason for the change to ${d.target}`}
+                                 onChange={(v) => setReasons({ ...reasons, [d.proposal as string]: v })} />
                     <button className="btn tiny" disabled={!reasons[d.proposal]?.trim()}
                             onClick={async () => setError(await onDecide(d.proposal as string, true, reasons[d.proposal as string]))}>Accept</button>
                     <button className="btn tiny" disabled={!reasons[d.proposal]?.trim()}
@@ -109,11 +109,12 @@ function ValidatorPanel({ view, onAcknowledge }: { view: PlanView; onAcknowledge
             <li key={v.id} className={v.severity} data-testid={`violation-${v.id}`}>
               <span className={`chip ${v.severity === "error" ? "high" : "medium"}`}>{v.severity}</span> {v.message}
               {v.severity === "warning" && (
-                <span className="row gap-4 mt-4">
-                  <input placeholder="accept it because…" value={reasons[v.id] ?? ""} className="flex-1"
-                         onChange={(e) => setReasons({ ...reasons, [v.id]: e.target.value })} />
+                <span className="ctl-row mt-4">
+                  <ReasonField placeholder="accept it because…" value={reasons[v.id] ?? ""} className="flex-1 minw-160"
+                               ariaLabel={`reason to acknowledge ${v.id}`} onChange={(x) => setReasons({ ...reasons, [v.id]: x })} />
                   <button className="btn tiny" disabled={!reasons[v.id]?.trim()}
                           onClick={async () => setError(await onAcknowledge(v.id, reasons[v.id]))}>Acknowledge</button>
+                  {!reasons[v.id]?.trim() && <WaitingFor>Type a reason to acknowledge it.</WaitingFor>}
                 </span>
               )}
             </li>

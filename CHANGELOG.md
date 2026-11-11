@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — Forms: one base control style, visible required reasons, validation that never drops typed data (web)
+- **What:** (audit 2, item 7) a base rule in `design.css`, at `:where()` specificity, gives every bare text field, select
+  and textarea `font: inherit`, 14 px, 7 × 10 px padding, the control border and radius tokens and hover / focus / invalid
+  borders; there is no global min-height, so the compact client-data `.rf` fields and the scoped Start rules are unchanged;
+  `.table-tools` search fields join the pill style. New kit `ReasonField` (visible label "Reason, kept in the audit trail ·
+  required", `aria-required`), `LabeledControl` and `WaitingFor` (what a disabled action still waits for, in words). Used
+  for every reason on Inputs (keep one, correct, accept / reject, exclude a source, choose a process, leave a study out)
+  and on Review & sign (accept / reject a plan change, acknowledge a warning, a parameter's fit, the food-effect question).
+  Populations: each individual field has a visible label with its unit, `inputMode=decimal`, required marks on population,
+  sex and mean age, and Save stays disabled while a typed field is not a finite number or age from ≤ mean ≤ age to does not
+  hold; what is missing is listed beside the button. Studies' typed table: every field labelled (including "Time unit" and
+  "Concentration unit"), a "Still needed: …" list from the same checks as the button, and a per-field note for a dose or
+  n that is not a number. The fit form refuses non-numeric bounds (they were sent as NaN). Start: a refused route / model
+  choice (Pick), formulation types or scenario dose now shows the refusal under the control; Pick and formulations go back
+  to the stored value, the dose keeps what was typed and is marked `aria-invalid`.
+- **Why:** bare controls rendered at the browser default (about 21 px tall at 13.33 px; 288 such controls on Populations);
+  every Accept / Reject was gated on a placeholder-only "why"; the individual form sent "70 kg" as `null` and still said the
+  individual was entered; "Add the study" was disabled behind nine unstated conditions; Start's saves dropped their errors.
+- **Impact:** web only, no API change. Placeholders and aria-labels are kept, so the existing selectors still hold.
+- **Tests:** new `e2e/forms.spec.ts`: visible text controls are ≥ 28 px tall on Start, Inputs (Studies, Populations), Run,
+  Review & sign and Library (fails on the old CSS with a 21 px dose field on Start); the typed table names what it still
+  needs; "70 kg" keeps Save disabled and says why; the age range is checked; reason fields carry the required label.
+
 ### Changed — Escalation dialog: names the project and engine, links the campaign, keeps the signed result on screen (web)
 - **What:** (audit 2, item 5) the decision dialog's title is "Your decision is needed · <project> · stage <stage>" (the
   project is read client-side from the campaign and project records, no API change); the campaign id sits once in a muted
