@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — R6 review: the delivery report no longer misleads (2026-11-11)
+A review of the R6 report ("can it mislead the owner?", each finding checked by a second reviewer) confirmed 6 defects
+and raised 12 more; all are fixed.
+- **Names are compared whole:** "APL 500" no longer counts as finding "APL 50", nor "B123" as "B12", nor an empty key
+  entry as anything; a key may list several spellings.
+- **What waits for a person counts, and says so:** a sheet read by code or the agent and waiting for a person's answers
+  (a profile sheet always waits for n and purpose) was invisible; it is now a study or dissolution profile found,
+  "read and waiting for a person's answers", with each such sheet and what it needs.
+- **The key is read as a person writes it:** `pH`, `strength`, `food` are the fields; a pH may be one number, a list
+  or none (the product's presence); file and sheet names are matched spacing and case aside. Anything the score cannot
+  use is listed ("Key entries not used"), a sheet the workbook does not have is "no such sheet", and a malformed key is
+  refused with the entry named.
+- **Only confirmed names count:** a study or product found only through a link the agents proposed is shown, not
+  counted; a link a person refused, or one from a withdrawn file, is not used.
+- A withdrawn file is counted apart (never as failed); each file's row shows what its readings found overall; a "|" or
+  a line break in a name or quote no longer breaks the table.
+
 ### Added — the admin console's monthly limits: a warning to the administrator at 80 % and at 100 % (2026-11-10)
 The owner, 2026-11-10 (admin console plan, E and answer 2): limits "warn to admin (client will see and decide later
 what to show them)".
@@ -33,6 +50,18 @@ what to show them)".
   - the same banner on the new Limits page (`/admin/limits`), where limits are set.
 - **Impact:** nothing stops an agent at a limit, and no answer outside `/admin` carries one: the companies' people see
   nothing of it (answer 2). An email or push warning is not built yet; it comes with the console's routines (G).
+### Added — R6: the delivery report, and its score against a person's answer key (2026-11-11)
+Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md`, build R6 (§6, the runbook). The cloud session cannot
+reach the server nor hold a model key, so R6 is run on the server by the owner; this is what it runs.
+- `uv run python -m modeler_project.delivery_report --root … --project <id> [--key key.yaml] [--json] [--out …]`,
+  read-only: per client file, how far its reading got (the reading queue), the delivery map's line, what was found
+  (datasets, study facts, dissolution rows, links, sheets read), the first refusals; for the project, the studies with
+  a concentration-time profile, the dissolution profiles, the links between names, the figures suggested, each
+  delivery pass. With an answer key (`docs/evaluations/delivery-key.example.yaml`): each field of each file found,
+  wrong or missing; each study and dissolution condition expected found or missing (under any name a person confirmed
+  or the files link); what was found that the key does not name.
+- Impact: nothing changes in the app; no science change. Tests: `services/agents/tests/test_delivery_report.py`
+  (T-47).
 
 ### Changed — only a project's owner changes it; the people it is shared with read it, a reviewer among them signs (2026-11-10)
 The owner, 2026-11-10 (admin console plan, answers 4 and 6): "the one who creates project will be owner who only can
