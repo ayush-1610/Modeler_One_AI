@@ -45,6 +45,21 @@ person.
   Keycloak's console, then store its secret under Keys.
 - **Not yet:** groups or teams within a company (with the access management the owner left for later), and the email
   link's own redirect back to the web app.
+### Fixed — documents added before reading for data are read on request; the reading tray is always shown (2026-11-11)
+The owner, 2026-11-11, after deploying R1–R6: "I can't see any difference in the tool." The Desvenlafaxine project's 23
+files had been added on 2026-11-10 with "Add data" as annexes, before R2: stored in the library only, never client
+files, never queued ("Nothing taken from it yet"; "The client's files 0"; the reading queue empty). The tray hid itself
+with an empty queue, so nothing of R1–R5 showed.
+- **The backlog is read on request:** `GET …/reading-queue` lists `unread_documents` (a person's annex, context, paper
+  or other document, a PDF, Word file or workbook, not withdrawn, not fetched by an agent, not a client file yet);
+  `POST /projects/{id}/documents:read-for-data` (`DocumentsRead`) makes each a client file too (its library role and
+  what it relates to kept), read by code and queued for the reading agent, as "Read for data" does for a new upload.
+- **The tray is always on Inputs:** it says whether the reading agent is on and with which model, "no file queued for
+  the agent yet" when nothing is, and offers "Read all N for data" for the backlog.
+- **Add data:** client-data rows say they are read for data too (documents have their "Read for data" tickbox).
+- OpenAPI and `api-types.ts` updated. Tests: `test_documents_added_before_reading_for_data_are_listed_and_read_on_
+  request` (T-47), `e2e/library.spec.ts` "documents added before reading for data are listed on Inputs and read on
+  request".
 
 ### Changed — review fixes on audit items 7–12: tables, the escalation pop-up, a skeleton (web only)
 - **Tables (item 11).** `useTableView` now separates rows that need attention (`keep`, counted in "N need attention")

@@ -5176,6 +5176,32 @@
         "title": "DocumentsAdded",
         "type": "object"
       },
+      "DocumentsRead": {
+        "additionalProperties": false,
+        "description": "The library's documents now read for data (queued for the reading agent), and the ones not read, with why.",
+        "properties": {
+          "not_read": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Read",
+            "type": "array"
+          },
+          "reading": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reading",
+            "type": "array"
+          }
+        },
+        "required": [
+          "reading",
+          "not_read"
+        ],
+        "title": "DocumentsRead",
+        "type": "object"
+      },
       "DosePhase": {
         "additionalProperties": false,
         "description": "One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),\n``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two\nphases (OSP Voriconazole, Saari 2006: 400 mg twice 12 h apart, then 200 mg every 12 h from 24 h).",
@@ -5836,6 +5862,31 @@
           "errors"
         ],
         "title": "Envelope[DocumentsAdded]",
+        "type": "object"
+      },
+      "Envelope_DocumentsRead_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DocumentsRead"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DocumentsRead]",
         "type": "object"
       },
       "Envelope_Documents_": {
@@ -16207,6 +16258,13 @@
           "running": {
             "title": "Running",
             "type": "boolean"
+          },
+          "unread_documents": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unread Documents",
+            "type": "array"
           }
         },
         "required": [
@@ -16215,7 +16273,8 @@
           "counts",
           "items",
           "mapped",
-          "figures"
+          "figures",
+          "unread_documents"
         ],
         "title": "ReadingQueuePage",
         "type": "object"
@@ -28280,6 +28339,65 @@
         "summary": "Withdraw Document",
         "tags": [
           "brief"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/documents:read-for-data": {
+      "post": {
+        "description": "Read for data every document a person added to the library that was never read (an annex added before \"Read for\ndata\" existed, say): each becomes a client file too, read by code and queued for the reading agent.",
+        "operationId": "read_library_for_data_api_v1_projects__project_id__documents_read_for_data_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DocumentsRead_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Library For Data",
+        "tags": [
+          "client-data"
         ]
       }
     },

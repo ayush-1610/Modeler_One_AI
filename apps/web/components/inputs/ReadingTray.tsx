@@ -53,13 +53,21 @@ export function ReadingTray({ projectId }: { projectId: string }) {
     seen.current = newest;
   }, [newest]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!data || data.items.length === 0) return null;
+  if (!data) return null;
   const { counts, agents } = data;
+  const backlog = data.unread_documents;
   const waiting = counts.queued + counts.reading;
   // each file once, at its latest reading: what is being read and waits first, then what finished most recently
   const order = { reading: 0, queued: 1, failed: 2, done: 3 } as const;
   const latest = new Map(data.items.map((i) => [i.sid, i]));
   const items = [...latest.values()].reverse().sort((a, b) => order[a.state] - order[b.state]);
+
+  async function readLibrary() {
+    const { data: read, problem: failed } = await mutation.run(() => send("post",
+      "/api/v1/projects/{project_id}/documents:read-for-data", { project_id: projectId }));
+    setProblem(failed ?? (read?.not_read.length ? `Not read: ${read.not_read.join("; ")}` : null));
+    if (read?.reading.length) setOpen(true);
+  }
 
   async function again(id: string) {
     const { problem: failed } = await mutation.run(() => send("post", "/api/v1/projects/{project_id}/reading-queue/{item_id}:again",
@@ -71,11 +79,19 @@ export function ReadingTray({ projectId }: { projectId: string }) {
     <section className={`reading-tray${counts.failed ? " has-failed" : ""}`} data-testid="reading-tray">
       <div className="reading-tray-head">
         <strong>The client&apos;s files, read by the agent</strong>
-        <span className="muted" data-testid="reading-tray-counts" role="status" aria-live="polite">{trayLine(counts)}</span>
+        <span className="muted" data-testid="reading-tray-counts" role="status" aria-live="polite">
+          {data.items.length ? trayLine(counts) : "no file queued for the agent yet"}
+        </span>
+        <span className={`chip ${agents.enabled ? "low" : "medium"}`} data-testid="reading-tray-agent"
+              title={agents.problem ?? undefined}>
+          {agents.enabled ? `agent on${agents.model ? ` · ${agents.model}` : ""}` : "agent off"}
+        </span>
+        {data.items.length > 0 && (
         <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)}
                 data-testid="reading-tray-toggle">
           {open ? "Hide the files" : "Show each file"}
         </button>
+        )}
       </div>
       {!agents.enabled && waiting > 0 && (
         <p className="reading-tray-off" data-testid="reading-tray-off" title={agents.problem ?? undefined}>
@@ -83,6 +99,19 @@ export function ReadingTray({ projectId }: { projectId: string }) {
           {waiting === 1 ? "waits" : "wait"} and {waiting === 1 ? "is" : "are"} read once it is on. Meanwhile, read each
           sheet with its form in the area of its data, or ask your administrator to turn the agents on.
         </p>
+      )}
+      {backlog.length > 0 && (
+        <div className="reading-tray-backlog" data-testid="reading-tray-backlog">
+          <span>
+            {backlog.length === 1 ? "1 document" : `${backlog.length} documents`} in the project&apos;s library{" "}
+            {backlog.length === 1 ? "was" : "were"} added without being read for data (before reading for data existed,
+            or with it unticked): <span className="muted">{backlog.slice(0, 4).join(", ")}{backlog.length > 4 ? ", …" : ""}</span>
+          </span>
+          <button type="button" className="btn small primary" disabled={mutation.busy} onClick={() => void readLibrary()}
+                  data-testid="read-library">
+            Read {backlog.length === 1 ? "it" : `all ${backlog.length}`} for data
+          </button>
+        </div>
       )}
       {problem && <p className="reading-tray-problem" role="alert">{problem}</p>}
       {data.figures.length > 0 && (
