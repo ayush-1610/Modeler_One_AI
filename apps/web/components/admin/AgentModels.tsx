@@ -85,12 +85,90 @@ function AgentEditor({ row, page, onSaved }: { row: Row; page: Page; onSaved: (p
   );
 }
 
+/** Every agent onto one provider in one step (the owner, 2026-11-11): Claude on Bedrock, or back to the in-house model
+ *  when Bedrock is lost. A provider whose key is not active is refused by the API, and offered here only once it is. */
+function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) => void }) {
+  const [provider, setProvider] = useState("environment");
+  const [model, setModel] = useState(page.claude_models[0] ?? "");
+  const [effort, setEffort] = useState("");
+  const [fallback, setFallback] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const chosen = page.providers.find((p) => p.id === provider);
+  const needsModel = chosen?.needs_model ?? false;
+  const claude = provider === "bedrock";
+  const usable = !needsModel || Boolean(chosen?.has_active_key);
+  const now = [...new Set(page.agents.map((a) => (a.runs_on.enabled ? `${a.runs_on.provider} · ${a.runs_on.model}` : "off")))];
+
+  async function save() {
+    setBusy(true);
+    setProblem(null);
+    setDone(null);
+    const env = await send("put", "/api/v1/admin/agents", {},
+                           { provider, model: needsModel ? model.trim() : "", effort: claude ? effort : "",
+                             fallback: claude ? fallback : "", reason: reason.trim() });
+    setBusy(false);
+    if (env.errors?.length || !env.data) { setProblem(env.errors?.[0]?.message ?? "no answer"); return; }
+    setReason("");
+    setDone(`Every agent now: ${chosen?.label ?? provider}${needsModel ? ` · ${model.trim()}` : ""}. The next run of each takes it.`);
+    onSaved(env.data);
+  }
+
+  return (
+    <Card title="Switch every agent">
+      <p className="muted" style={{ marginTop: 0 }}>
+        Puts all {page.agents.length} agents on one model at once, for example back on the in-house model (&ldquo;as the
+        server&apos;s environment says&rdquo;) if Claude on Bedrock stops answering, and onto Claude again later. Running
+        now on: <strong data-testid="agents-now">{now.join(", ")}</strong>.
+      </p>
+      <form className="admin-filter" onSubmit={(e) => { e.preventDefault(); void save(); }} data-testid="switch-every-agent">
+        <label>Provider
+          <select value={provider} onChange={(e) => setProvider(e.target.value)} data-testid="switch-provider">
+            {page.providers.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}{p.needs_model && !p.has_active_key ? " (no active key: add one under Keys)" : ""}</option>
+            ))}
+          </select>
+        </label>
+        {needsModel && (
+          <label>Model<input value={model} onChange={(e) => setModel(e.target.value)} list={claude ? "claude-models" : undefined}
+                             placeholder={claude ? page.claude_models[0] : "qwen-coder"} data-testid="switch-model" /></label>
+        )}
+        {claude && (
+          <>
+            <label>Effort
+              <select value={effort} onChange={(e) => setEffort(e.target.value)} data-testid="switch-effort">
+                <option value="">the model&apos;s default</option>
+                {page.efforts.map((e) => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </label>
+            <label>Fallback model
+              <select value={fallback} onChange={(e) => setFallback(e.target.value)} data-testid="switch-fallback">
+                <option value="">none</option>
+                {page.claude_models.filter((m) => m !== model.trim()).map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </label>
+          </>
+        )}
+        <label>Why<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="kept with each agent's change"
+                         data-testid="switch-reason" /></label>
+        <button type="submit" className="btn primary" data-testid="switch-submit"
+                disabled={busy || !usable || !reason.trim() || (needsModel && !model.trim())}>Switch every agent</button>
+      </form>
+      {problem && <div className="banner err" style={{ marginTop: 10 }} data-testid="switch-problem">{problem}</div>}
+      {done && <div className="banner ok" style={{ marginTop: 10 }} data-testid="switch-done">{done}</div>}
+    </Card>
+  );
+}
+
 export function AgentModels({ initial }: { initial: Page }) {
   const [page, setPage] = useState(initial);
   const env = page.environment;
   return (
     <>
       <datalist id="claude-models">{page.claude_models.map((m) => <option key={m} value={m} />)}</datalist>
+      <SwitchEveryAgent page={page} onSaved={setPage} />
       <Card title="Each agent's model">
         <p className="muted" style={{ marginTop: 0 }}>
           An agent left &ldquo;as the server&apos;s environment says&rdquo; runs on{" "}

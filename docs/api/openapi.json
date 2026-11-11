@@ -22430,6 +22430,64 @@
         "tags": [
           "admin"
         ]
+      },
+      "put": {
+        "description": "Put every agent on one provider and model in one step (the owner, 2026-11-11: \"I must be able to switch between\nany of them easily\", for when Claude on Bedrock is lost and the in-house model takes over, or back). Each agent's\nchange is its own audit event with the same reason. Refused, with nothing changed, when the provider has no active\nkey: a switch made in a hurry must not leave every agent with nothing to run on.",
+        "operationId": "set_every_agent_api_v1_admin_agents_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Every Agent",
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/api/v1/admin/agents/{agent}": {

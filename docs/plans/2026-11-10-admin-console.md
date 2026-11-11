@@ -133,3 +133,6 @@ pilot, so the console is meant for a deployment with Keycloak (question 5).
   audit event on the owner's chain. Nothing stops an agent, and no answer outside `/admin` carries a limit (answer 2).
   Not yet: a warning sent to the administrator (email or push) rather than shown in the console; that comes with the
   routines (G).
+- **Switch every agent (branch `agents-switch-all`, 2026-11-11):** the owner may lose access to Claude on Bedrock, so
+  the Models page puts all five agents on one provider and model in one step (back to the in-house model, or onto
+  Claude again), each agent's change audited with the same reason; refused when the provider has no active key.

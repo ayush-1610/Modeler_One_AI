@@ -179,3 +179,32 @@ def test_an_agent_on_claude_on_bedrock_takes_its_model_effort_fallback_and_the_a
                        ({"fallback": "anthropic.claude-opus-5-5"}, "must differ from the model")):
         refused = client.put("/api/v1/admin/agents/A1", json=body | wrong, headers=_as("owner"))
         assert refused.status_code == 409 and why in refused.json()["detail"]
+
+
+def test_every_agent_switches_in_one_step_and_back_and_a_provider_without_an_active_key_is_refused(client, tmp_path):
+    """The owner, 2026-11-11: switch between Claude on Bedrock and the in-house model easily, for when one is lost."""
+    claude = {"provider": "bedrock", "model": "anthropic.claude-opus-5-5", "effort": "medium",
+              "fallback": "anthropic.claude-sonnet-5-5", "reason": "Claude for every agent"}
+    refused = client.put("/api/v1/admin/agents", json=claude, headers=_as("owner"))
+    assert refused.status_code == 409 and "has no active key" in refused.json()["detail"]
+    assert ps.AgentSettings(str(tmp_path)).doc()["current"] == {}                          # nothing changed
+    stale = client.put("/api/v1/admin/agents", json=claude, headers=_as("owner-stale"))
+    assert stale.status_code == 403 and stale.json()["detail"]["code"] == "STEP_UP_REQUIRED"
+
+    fields = {"aws_region": "ap-south-1", "api_key": FAKE_BEDROCK}
+    key_id = client.post("/api/v1/admin/keys", json={"provider": "bedrock", "fields": fields, "reason": "Claude"},
+                         headers=_as("owner")).json()["data"]["keys"][0]["id"]
+    client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
+    page = client.put("/api/v1/admin/agents", json=claude, headers=_as("owner")).json()["data"]
+    assert {(a["provider"], a["model"], a["effort"]) for a in page["agents"]} == {("bedrock", "anthropic.claude-opus-5-5", "medium")}
+    assert all(agent_jobs.chat_model(a)[0].model == "anthropic.claude-opus-5-5" for a in ps.AGENTS)
+
+    # Bedrock lost: every agent back on the server's own (in-house) model in one step, no key needed for that
+    back = client.put("/api/v1/admin/agents", json={"provider": "environment", "reason": "Bedrock access lost"},
+                      headers=_as("owner")).json()["data"]
+    assert [a["provider"] for a in back["agents"]] == ["environment"] * 5
+    events = [e for e in _audit(tmp_path) if e["action"] == "admin.agent.set"]
+    assert len(events) == 10 and {e["resource_id"] for e in events} == set(ps.AGENTS)
+    assert events[-1]["after"] == {"provider": "environment", "model": "", "effort": "", "fallback": "", "every_agent": True}
+    assert events[-1]["before"]["provider"] == "bedrock" and events[-1]["reason"] == "Bedrock access lost"
+    assert client.put("/api/v1/admin/agents", json={"provider": "off", "reason": "x"}, headers=_as("ana")).status_code == 403
