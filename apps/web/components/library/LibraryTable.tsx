@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
-import { EmptyState, InlineIssue } from "@/components/kit";
+import { Banner, EmptyState, InlineIssue } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
 import { SortHeader, TableMore } from "@/components/kit/SortableTable";
 import { RELATED_STEPS } from "@/components/library/AddData";
@@ -197,7 +197,7 @@ export function LibraryTable({ projectId }: { projectId: string }) {
   const shown = view.visible;
   const sort = (Object.keys(SORTS) as Sort[]).find((k) => SORTS[k].col === view.sort?.col && SORTS[k].dir === view.sort?.dir) ?? "custom";
 
-  if (page.problem) return <div className="banner err">{page.problem}</div>;
+  if (page.problem) return <Banner tone="err">{page.problem}</Banner>;
   if (!page.data) return <p className="muted">Loading the library…</p>;
   const roles = [...new Set(rows.map((r) => r.role))];
 

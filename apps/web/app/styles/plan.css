@@ -5,7 +5,7 @@
 .overall-data { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; padding: 12px; border: 1px solid var(--line);
                 border-radius: var(--radius); background: var(--surface); }
 .overall-data h2 { font-size: 16px; margin: 0 0 4px; }
-.overall-data h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); margin: 14px 0 6px; }
+.overall-data h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-quiet); margin: 14px 0 6px; }
 .overall-study { margin-bottom: 6px; }
 .param-list { list-style: none; padding: 0; margin: 0; font-size: 12px; }
 .param-list li { padding: 2px 0; overflow-wrap: anywhere; }
@@ -24,7 +24,7 @@
 .dag { position: relative; }
 .dag-layer { position: absolute; border: 1px dashed var(--line); border-radius: 10px; }
 .dag-layer.over { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 6%, transparent); }
-.dag-layer-label { position: absolute; left: 10px; top: -10px; font-size: 11px; color: var(--ink-faint); background: var(--surface); padding: 0 6px; }
+.dag-layer-label { position: absolute; left: 10px; top: -10px; font-size: 11px; color: var(--ink-quiet); background: var(--surface); padding: 0 6px; }
 .dag-edges { position: absolute; inset: 0; pointer-events: none; }
 .dag-edge { stroke: var(--ink-faint); stroke-width: 1.6; fill: none; }
 .dag-arrowhead { fill: var(--ink-faint); }
@@ -42,7 +42,7 @@
 .flow { display: flex; gap: 10px; align-items: flex-start; overflow-x: auto; padding-bottom: 6px; }
 .flow-col { min-width: 170px; display: flex; flex-direction: column; gap: 6px; }
 .flow-col.wide { min-width: 280px; flex: 1; }
-.flow-col h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); }
+.flow-col h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-quiet); }
 .flow-arrow { align-self: center; color: var(--ink-faint); font-size: 20px; }
 .param-node { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 13px; background: var(--raised); }
 .param-node.fitted { border-color: var(--sim); }
@@ -51,7 +51,7 @@
 .violations { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .violations li { display: flex; flex-direction: column; gap: 2px; }
 .flags.warn li { color: var(--warn-ink); }
-.diff-from { text-decoration: line-through; color: var(--ink-faint); }
+.diff-from { text-decoration: line-through; color: var(--ink-quiet); }
 .diff-to { color: var(--sim); font-weight: 600; }
 .dialog-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.28); display: grid; place-items: center; z-index: 50; padding: 16px; }
 .dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; width: min(560px, 100%); }

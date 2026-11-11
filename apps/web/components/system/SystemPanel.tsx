@@ -9,6 +9,7 @@ import { useState } from "react";
 import { ApiProblem, Card } from "@/components/ui";
 import { send, type Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
+import { Banner } from "@/components/kit";
 
 type SystemDetail = Schema<"SystemDetail">;
 type Fractions = Record<string, Record<string, string>>;
@@ -61,7 +62,7 @@ export function SystemPanel({ projectId }: { projectId: string }) {
   return (
     <Card title="Model system" action={<span className="muted">MS-01 v1.3 · {system.compounds.length} compounds</span>}>
       <div data-testid="system-panel">
-        {system.problem && <div className="banner err mb-12">{system.problem}</div>}
+        {system.problem && <Banner tone="err" className="mb-12">{system.problem}</Banner>}
         <table>
           <thead><tr><th>Compound</th><th>Role</th><th>CPF</th></tr></thead>
           <tbody>

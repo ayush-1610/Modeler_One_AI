@@ -40,7 +40,8 @@ test("the dashboard reads each project's steps, filters by them, and the sidebar
   await expect(page.getByTestId("sidebar")).not.toHaveClass(/open/);
   // named on the rail too (this was the "Review inbox" link, removed 2026-11-11; escalation-popup.spec.ts checks that an
   // escalation's attention item opens its campaign)
-  await expect(nav.getByRole("link", { name: "Start from proposal" })).toBeVisible();
+  // one name for the creation page, the dashboard's "+ New project" (audit 2, item 10)
+  await expect(nav.getByRole("link", { name: "New project" })).toBeVisible();
   await page.getByTestId("sidebar").hover();
   await expect(page.getByTestId("sidebar")).toHaveClass(/open/);
   await page.getByTestId("nav-pin").click();

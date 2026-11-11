@@ -112,3 +112,6 @@
 
 /* pointer */
 .cursor-crosshair { cursor: crosshair !important; }
+
+/* text */
+.overflow-anywhere { overflow-wrap: anywhere !important; }

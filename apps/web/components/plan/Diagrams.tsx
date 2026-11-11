@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { LabeledControl, ReasonField, WaitingFor } from "@/components/kit";
+import { Banner, LabeledControl, ReasonField, WaitingFor } from "@/components/kit";
 import type { Schema } from "@/lib/api";
 import { ROLE_LABEL, type ParamNode, type PlanView } from "@/lib/plan";
 
@@ -65,7 +65,7 @@ function FitForm({ p, onSave, onRemove }: { p: ParamNode; onSave: FitSave; onRem
         )}
       </div>
       <p className="muted fs-11 m-0">* not an MS-01 candidate at that stage (the validator warns)</p>
-      {error && <div className="banner err">{error}</div>}
+      {error && <Banner tone="err">{error}</Banner>}
     </div>
   );
 }
@@ -129,7 +129,7 @@ export function D2Absorption({ view, onFit, onUnfit, onStructure }: {
                 onClick={async () => setError(await onStructure("food_effect_in_question", !d.food_effect_in_question, reason))}>
           {d.food_effect_in_question ? "Not the question" : "Make it the question"}
         </button>
-        {error && <span className="banner err">{error}</span>}
+        {error && <span className="banner err" role="alert">{error}</span>}
       </div>
       <div className="flow">
         <div className="flow-col"><h4>Solubility · permeability</h4>

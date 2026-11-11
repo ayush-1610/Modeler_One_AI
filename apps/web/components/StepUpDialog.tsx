@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Dialog } from "@/components/kit/Dialog";
 import { registerStepUpDialog } from "@/lib/step-up";
+import { Banner } from "@/components/kit";
 
 type Answer = (confirmed: boolean) => void;
 
@@ -40,11 +41,11 @@ export function StepUpDialog() {
           Keycloak asks for them in a small window; the signature is sent as soon as you are done.
         </p>
         {blocked && (
-          <div className="banner warn" data-testid="step-up-blocked">
+          <Banner tone="warn" testId="step-up-blocked">
             Your browser blocked the window. Allow pop-ups for this site, or{" "}
             <a href={`/auth/login?step_up=1&return=${encodeURIComponent(here)}`}>confirm in this tab</a> and sign again
             afterwards (what you typed on this page is not kept).
-          </div>
+          </Banner>
         )}
         <div className="dialog-actions">
           <button className="btn" onClick={cancel} data-testid="step-up-cancel">Cancel</button>

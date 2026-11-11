@@ -33,21 +33,21 @@ function DropDialog({ pending, onConfirm, onCancel }: { pending: Pending; onConf
       <div className="dialog">
         <h3 className="mt-0">{pending.studyId}: {ROLE_LABEL[pending.from]} → {ROLE_LABEL[pending.to]}</h3>
         <p className="muted mt-0">Dropped on {pending.where}. The validator&apos;s answer for this move:</p>
-        {pending.problem && <div className="banner err">{pending.problem}</div>}
+        {pending.problem && <Banner tone="err">{pending.problem}</Banner>}
         {pending.deviation && (
-          <div className="banner warn" data-testid="move-deviation">The MAP is signed: this move is a MAP deviation. It is
-            recorded and applies only once the MIDD lead signs it into a new MAP version.</div>
+          <Banner tone="warn" testId="move-deviation">The MAP is signed: this move is a MAP deviation. It is
+            recorded and applies only once the MIDD lead signs it into a new MAP version.</Banner>
         )}
         {pending.preview === null && !pending.problem && <p className="muted">checking…</p>}
         {pending.preview !== null && (errors.length === 0
-          ? <div className="banner ok" data-testid="move-ok">No MS-01 rule is broken by this move.</div>
+          ? <Banner tone="ok" testId="move-ok">No MS-01 rule is broken by this move.</Banner>
           : <ul className="flags" data-testid="move-errors">{errors.map((v) => <li key={v.id}>{v.message}</li>)}</ul>)}
         {pending.preview && mine.filter((v) => v.severity === "warning" && !v.acknowledged).length > 0 && (
           <ul className="flags warn">{mine.filter((v) => v.severity === "warning" && !v.acknowledged).map((v) => <li key={v.id}>{v.message}</li>)}</ul>
         )}
         <label className="muted fs-13">Why (at least one sentence; it goes into the MAP)</label>
         <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className="w-full" data-testid="move-reason" />
-        {error && <div className="banner err">{error}</div>}
+        {error && <Banner tone="err">{error}</Banner>}
         <div className="row justify-end mt-8">
           <button className="btn" onClick={onCancel}>Cancel</button>
           <button className="btn primary" disabled={reason.trim().length < 8} data-testid="move-confirm"
@@ -91,7 +91,7 @@ function DiffView({ rows, onDecide }: { rows: DiffRow[]; onDecide: (id: string, 
           ))}
         </tbody>
       </table>
-      {error && <div className="banner err">{error}</div>}
+      {error && <Banner tone="err">{error}</Banner>}
     </>
   );
 }
@@ -103,7 +103,7 @@ function ValidatorPanel({ view, onAcknowledge }: { view: PlanView; onAcknowledge
   const done = view.violations.filter((v) => v.severity === "warning" && v.acknowledged);
   return (
     <div data-testid="validator">
-      {open.length === 0 ? <div className="banner ok" data-testid="validator-green">Green: no open MS-01 rule violation.</div> : (
+      {open.length === 0 ? <Banner tone="ok" testId="validator-green">Green: no open MS-01 rule violation.</Banner> : (
         <ul className="violations">
           {open.map((v) => (
             <li key={v.id} className={v.severity} data-testid={`violation-${v.id}`}>
@@ -122,7 +122,7 @@ function ValidatorPanel({ view, onAcknowledge }: { view: PlanView; onAcknowledge
         </ul>
       )}
       {done.length > 0 && <p className="muted fs-12">Acknowledged (they become MAP limitations): {done.map((v) => v.message).join(" · ")}</p>}
-      {error && <div className="banner err">{error}</div>}
+      {error && <Banner tone="err">{error}</Banner>}
     </div>
   );
 }
@@ -152,7 +152,7 @@ function BlindingPanel({ projectId }: { projectId: string }) {
           }}>{state.on ? "Turn off" : "Turn on"}</button>
         </div>
       )}
-      {error && <div className="banner err mt-4">{error}</div>}
+      {error && <Banner tone="err" className="mt-4">{error}</Banner>}
     </div>
   );
 }
@@ -176,12 +176,12 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
 
   if (page.problem || !view) {
     return (
-      <PageShell tone="review" steps={steps} eyebrow="Step 3 · Review & sign" title="Review & sign">
+      <PageShell tone="review" steps={steps} eyebrow="Step 3 of 4 · Review & sign" title="Review & sign">
         {page.problem && /not ready/i.test(page.problem)
           // the plan is made from ready inputs: say what Inputs still waits on and go there, not an error on an empty page
           ? <StepBlocked projectId={projectId} step="review" title="Review & sign opens when the inputs are ready"
                          detail={page.problem} testId="plan-blocked" />
-          : page.problem ? <div className="banner err" data-testid="plan-problem">{page.problem}</div>
+          : page.problem ? <Banner tone="err" testId="plan-problem">{page.problem}</Banner>
           : <p className="muted">Computing the MS-01 default plan…</p>}
       </PageShell>
     );
@@ -216,7 +216,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
   return (
     <PageShell
       tone="review" steps={steps}
-      eyebrow="Step 3 · Review & sign"
+      eyebrow="Step 3 of 4 · Review & sign"
       title={<>Review &amp; sign · {view.plan.compound}</>}
       lede={<>The one review before the run: the studies and their roles, every input with its source, and the model&apos;s
         credibility. The plan starts as the MS-01 default; each change has a reason, and the MAP is generated from the plan
@@ -226,14 +226,14 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
     >
       <Card title={`Model plan v${view.artifact.version} · the signature`}>
         {stale && (
-          <div className="banner warn" data-testid="plan-stale">
+          <Banner tone="warn" testId="plan-stale">
             The inputs changed since this plan ({view.artifact.stale_reasons.join("; ")}).
             <button className="btn tiny ml-8" onClick={async () => {
               const problem = await apply(() => planApi.rebase(projectId), "Plan brought up to date; your choices kept.");
               if (problem) setMessage({ ok: false, text: `The plan was not brought up to date: ${problem}` });
             }}>
               Bring it up to date</button>
-          </div>
+          </Banner>
         )}
         <p className="muted m-0-0-8 fs-13">
           {view.plan.structure.objective} · {view.plan.structure.context_of_use}
@@ -242,9 +242,10 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
           <button className="btn" disabled={!view.agents.enabled || view.running || signed}
                   onClick={async () => {
                     const problem = await apply(() => planApi.draft(projectId));
-                    setMessage(problem ? { ok: false, text: problem } : { ok: true, text: "A5 is drafting the rationale; proposals appear in the diff." });
-                  }}>
-            Draft with A5</button>
+                    setMessage(problem ? { ok: false, text: problem } : { ok: true, text: "The rationale is being drafted; its proposals appear in the diff." });
+                  }}
+                  title="The plan agent (A5) drafts the rationale; you review each proposal in the diff">
+            Draft the rationale</button>
           <input placeholder="signature note" value={note} onChange={(e) => setNote(e.target.value)} className="flex-1 minw-140" />
           <button className="btn primary" disabled={!canSign || mutation.busy} data-testid="approve-and-sign"
                   title={canSign ? "generate the MAP from this plan and sign it (MIDD lead)"
@@ -262,13 +263,13 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
         )}
         {signed && <p className="muted fs-13" data-testid="map-signed">MAP v{view.map?.map_version ?? view.map?.version} signed{signature ? `: ${signature.manifestation}` : ""} · {view.map?.map_sha256.slice(0, 12)}{view.map?.supersedes ? " · supersedes the earlier version" : ""}</p>}
         {signed && pendingDeviations.length > 0 && (
-          <div className="banner warn mt-8" data-testid="deviations-pending">
+          <Banner tone="warn" className="mt-8" testId="deviations-pending">
             <strong>MAP deviations pending signature (ICH M15).</strong> They apply to campaigns once the MIDD
             lead signs them into a new MAP version; until then the signed MAP stands.
             <ul className="plain mt-6">
               {pendingDeviations.map((d, i) => <li key={i}><code>{d.target}</code> {d.change} — {d.reason}</li>)}
             </ul>
-          </div>
+          </Banner>
         )}
         {signed && !pendingDeviations.length && (
           <p className="muted fs-12 m-4-0-0">A change now is a MAP deviation: it is recorded and

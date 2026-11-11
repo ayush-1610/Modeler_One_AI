@@ -54,7 +54,7 @@
 @media (max-width: 1000px) { .shell-body.with-side { grid-template-columns: minmax(0, 1fr); } .shell-side { position: static; } }
 
 .side-panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); padding: 12px 14px; display: grid; gap: 8px; }
-.side-panel h3 { margin: 0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
+.side-panel h3, .side-panel .side-panel-title { margin: 0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
 .side-panel.warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
 .side-panel.ok { border-color: color-mix(in srgb, var(--pass) 45%, var(--line)); background: color-mix(in srgb, var(--pass) 7%, var(--surface)); }
 
@@ -110,7 +110,7 @@ html:has(.dialog-backdrop) { overflow: hidden; }
 .field-legend { font-size: 12px; font-weight: 600; color: var(--ink-dim); }
 .evidence-fields > label { flex: 1 1 220px; margin: 0; }
 .evidence-fields > label + label { flex: 0 1 120px; }
-tr.project-archived td { color: var(--ink-faint); }
+tr.project-archived td { color: var(--ink-quiet); }
 
 /* ---- tabs, a table's labelled scroller, text for screen readers only ---- */
 .tabpanel { display: grid; gap: 16px; align-content: start; min-width: 0; }
@@ -201,7 +201,7 @@ tr.project-archived td { color: var(--ink-faint); }
 .sort-th:hover { color: var(--brand-ink); }
 .sort-th:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
 th.num .sort-th { flex-direction: row-reverse; }
-.sort-ind { display: inline-block; width: 0.9em; text-align: center; color: var(--ink-faint); font-size: 0.85em; }
+.sort-ind { display: inline-block; width: 0.9em; text-align: center; color: var(--ink-quiet); font-size: 0.85em; }
 .sort-ind::after { content: "↕"; opacity: 0.55; }
 th[aria-sort="ascending"] .sort-ind::after { content: "▲"; opacity: 1; color: var(--sim); }
 th[aria-sort="descending"] .sort-ind::after { content: "▼"; opacity: 1; color: var(--sim); }

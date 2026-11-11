@@ -34,12 +34,13 @@
   --warn: #ff9f0a;
   --fail: #ff3b30;
   --brand-ink: #0066cc;
+  --brand-ink-chip: #0058b0;   /* a 12 px chip on its 14% tint over --bg needs the darker ink for 4.5:1 */
 
   /* Text-grade twins of the series and verdict colours: the base colours above are for dots, fills and borders (they are
    * 3.4-4.5:1 on a tint and fail AA as small text); these are >= 4.5:1 on the surface and on their own tints.
    * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. */
-  --pass-ink: #1e7b45;
-  --warn-ink: #b25000;
+  --pass-ink: #17663a;
+  --warn-ink: #9a4500;
   --fail-ink: #a5381f;
   --ink-quiet: #6e6e73;
   /* the filled primary button (white on it 5.2:1; --sim stays the chart colour) and the edge of a form control (3:1) */
@@ -186,7 +187,7 @@ p { max-width: var(--measure); }
 /* Panels are flat with a hairline. Radius encodes role rather than being sprayed everywhere. */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
 .card + .card { margin-top: 16px; }
-.cols-2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 16px; }
+.cols-2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 16px; align-items: start; }
 .cols-2 > .card { margin-top: 0; min-width: 0; }
 .cols-2 table { display: block; overflow-x: auto; }
 .cols-intake { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
@@ -211,7 +212,7 @@ tbody tr:last-child td { border-bottom: none; }
 .chip.medium { color: var(--warn-ink); background: color-mix(in srgb, var(--warn) 16%, transparent); }
 .chip.high { color: var(--fail-ink); background: color-mix(in srgb, var(--fail) 14%, transparent); }
 .chip.neutral { color: var(--ink-quiet); background: var(--raised); }
-.chip.brand { color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 14%, transparent); }
+.chip.brand { color: var(--brand-ink-chip); background: color-mix(in srgb, var(--sim) 14%, transparent); }
 
 /* a provenance tag has the .chip pill geometry and never wraps (audit 2, item 3); its variants set only the colours */
 .prov { display: inline-flex; align-items: center; font-size: 12px; padding: 3px 10px; border-radius: 999px; font-weight: 600;
@@ -274,7 +275,11 @@ tbody tr:last-child td { border-bottom: none; }
   .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* one 0.01 ms cycle, not an infinite flicker of arbitrary phases (the hero curve, the skeleton sweep); JS scrolls jump */
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+                           transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .hero-art .curve { animation: none; stroke-dashoffset: 0; }
+  .skeleton-row::after { animation: none; }
 }
 
 /* Shared by several review pages (tabs, citations, editors, quotes, flags). */

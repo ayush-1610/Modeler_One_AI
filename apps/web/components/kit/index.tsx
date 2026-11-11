@@ -60,13 +60,15 @@ export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, ch
   );
 }
 
-/** A box of the side panel: a short heading and what it says. */
-export function SidePanel({ title, tone, children, testId }: {
-  title: string; tone?: "warn" | "ok"; children: ReactNode; testId?: string;
+/** A box of the side panel: a short heading and what it says. `level` 2 where the panel is the first thing under the
+ *  page's h1 (the Inputs rail), so the outline never jumps from h1 to h3; it looks the same at either level. */
+export function SidePanel({ title, tone, children, testId, level = 3 }: {
+  title: string; tone?: "warn" | "ok"; children: ReactNode; testId?: string; level?: 2 | 3;
 }) {
+  const Heading = level === 2 ? "h2" : "h3";
   return (
     <section className={`side-panel${tone ? ` ${tone}` : ""}`} data-testid={testId}>
-      <h3>{title}</h3>
+      <Heading className="side-panel-title">{title}</Heading>
       {children}
     </section>
   );
@@ -128,8 +130,14 @@ export function WaitingFor({ children, testId }: { children: ReactNode; testId?:
 }
 
 /** A result or a refusal the person should hear about: a note for what went fine or a caution, an alert for a refusal. */
-export function Banner({ tone, children, testId }: { tone: "ok" | "warn" | "err"; children: ReactNode; testId?: string }) {
-  return <div className={`banner ${tone}`} role={tone === "err" ? "alert" : "status"} data-testid={testId}>{children}</div>;
+export function Banner({ tone, children, testId, className }: {
+  tone: "ok" | "warn" | "err"; children: ReactNode; testId?: string; className?: string;
+}) {
+  return (
+    <div className={`banner ${tone}${className ? ` ${className}` : ""}`} role={tone === "err" ? "alert" : "status"} data-testid={testId}>
+      {children}
+    </div>
+  );
 }
 
 export type Column<T> = { key: string; label: string; numeric?: boolean; render: (row: T) => ReactNode };

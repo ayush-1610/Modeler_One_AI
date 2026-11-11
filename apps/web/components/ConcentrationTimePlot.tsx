@@ -14,6 +14,25 @@ export type Series = {
 
 type Plotly = typeof import("plotly.js-dist-min");
 
+const KIND = { simulated: "Predicted", observed: "Observed" } as const;
+
+/** A colour token (#rrggbb, #rgb or rgb()) at the given alpha, for Plotly, which reads no CSS color-mix(). */
+function withAlpha(colour: string, alpha: number): string {
+  const hex = colour.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
+  const rgb = hex
+    ? (hex.length === 3 ? [...hex].map((c) => parseInt(c + c, 16)) : [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)))
+    : colour.match(/\d+(\.\d+)?/g)?.slice(0, 3).map(Number);
+  return rgb?.length === 3 ? `rgba(${rgb.join(", ")}, ${alpha})` : colour;
+}
+
+/** A number as the table prints it: four significant figures (the full series is the API's own JSON). */
+const sig = (v: number) => (Number.isFinite(v) ? Number(v.toPrecision(4)).toString() : "");
+
+/** The series' legend name: Predicted / Observed, with the study when the chart holds more than one. */
+function seriesName(s: Series, several: boolean) {
+  return several ? `${KIND[s.kind]} · ${s.name}` : KIND[s.kind];
+}
+
 export function ConcentrationTimePlot({ series: given }: { series: Series[] }) {
   const container = useRef<HTMLDivElement>(null);
   const plotly = useRef<Plotly | null>(null);
@@ -43,10 +62,15 @@ export function ConcentrationTimePlot({ series: given }: { series: Series[] }) {
       const ink = css.getPropertyValue("--ink-dim").trim() || "#6e6e73";
       const grid = css.getPropertyValue("--line").trim() || "#e3e3e8";
 
+      const several = new Set(series.map((s) => s.name)).size > 1;
       const traces = series.flatMap((s) => {
         const colour = s.kind === "observed" ? obs : sim;
+        const name = seriesName(s, several);
         const main = {
-          name: s.name,
+          name,
+          legendgroup: name,
+          // the study is named on hover even when the legend says only Predicted / Observed
+          hovertemplate: `${s.name}<br>%{x} h, %{y:.4g} ${s.unit}<extra>${KIND[s.kind]}</extra>`,
           x: s.time_h,
           y: s.concentration,
           type: "scatter" as const,
@@ -56,13 +80,16 @@ export function ConcentrationTimePlot({ series: given }: { series: Series[] }) {
         };
         if (!s.lower || !s.upper) return [main];
         const band = {
-          name: `${s.name} 5th-95th percentile`,
+          name: `${name} 5th-95th percentile`,
+          legendgroup: name,
+          showlegend: false,
           x: [...s.time_h, ...[...s.time_h].reverse()],
           y: [...s.upper, ...[...s.lower].reverse()],
           type: "scatter" as const,
           fill: "toself" as const,
-          line: { width: 0 },
-          opacity: 0.2,
+          // the band in the series' own colour (the token), not the next colour of Plotly's default palette
+          fillcolor: withAlpha(colour, 0.18),
+          line: { width: 0, color: colour },
           hoverinfo: "skip" as const,
         };
         return [band, main];
@@ -77,14 +104,18 @@ export function ConcentrationTimePlot({ series: given }: { series: Series[] }) {
           autosize: true,
           margin: { l: 64, r: 16, t: 8, b: 48 },
           font: { color: ink, family: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, system-ui, sans-serif", size: 12 },
-          xaxis: { title: { text: "Time (h)" }, gridcolor: grid, zerolinecolor: grid },
+          // powers of ten, never SI suffixes: a '100µ' tick beside a µmol/l title reads as 100 µmol/l
+          xaxis: { title: { text: "Time (h)" }, gridcolor: grid, zerolinecolor: grid, exponentformat: "power" },
           yaxis: { title: { text: `Plasma concentration (${unit})` }, type: logScale ? "log" : "linear",
-                   uirevision: logScale ? "log" : "linear", gridcolor: grid, zerolinecolor: grid },
+                   uirevision: logScale ? "log" : "linear", gridcolor: grid, zerolinecolor: grid, exponentformat: "power" },
           legend: { orientation: "h", y: -0.22 },
           paper_bgcolor: "rgba(0,0,0,0)",
           plot_bgcolor: "rgba(0,0,0,0)",
         },
-        { responsive: true, displaylogo: false },
+        // only the download stays in the modebar
+        { responsive: true, displaylogo: false,
+          modeBarButtonsToRemove: ["zoom2d", "pan2d", "select2d", "lasso2d", "zoomIn2d", "zoomOut2d", "autoScale2d",
+                                   "resetScale2d", "hoverClosestCartesian", "hoverCompareCartesian", "toggleSpikelines"] },
       ).then(() => {
         // the grid column is sized after this effect runs; force Plotly to measure the settled width
         if (container.current) Plotly.Plots.resize(container.current);
@@ -95,16 +126,50 @@ export function ConcentrationTimePlot({ series: given }: { series: Series[] }) {
     };
   }, [series, logScale]);
 
+  const unit = series[0]?.unit ?? "";
+  const several = new Set(series.map((s) => s.name)).size > 1;
+  const kinds = [...new Set(series.map((s) => KIND[s.kind].toLowerCase()))].join(" and ");
+  const times = series.flatMap((s) => s.time_h);
+  const span = times.length ? `${sig(Math.min(...times))} to ${sig(Math.max(...times))} h` : "no points";
+  const summary = series.length
+    ? `Plasma concentration (${unit}) against time: ${series.length} series (${kinds}), ${span}, ${logScale ? "log" : "linear"} scale`
+    : "No series to plot yet";
+
   return (
-    <figure className="m-0">
+    <figure className="m-0" data-testid="gof-figure">
+      <figcaption className="muted mb-8" data-testid="gof-caption">
+        Predicted (line{series.some((s) => s.lower && s.upper) ? ", with the 5th-95th percentile band" : ""}) and observed
+        (points) plasma concentration in {unit || "the series' unit"} against time in hours, on a {logScale ? "log" : "linear"} scale.
+      </figcaption>
       <label className="inline-flex gap-6 items-center mb-8">
         <input id="log-scale" type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
         Log scale
       </label>
       {failed && (
-        <p className="banner err" role="status" data-testid="plot-failed">The plot could not be loaded; reload the page.</p>
+        <p className="banner err" role="alert" data-testid="plot-failed">The plot could not be loaded; reload the page.</p>
       )}
-      <div ref={container} className="w-full h-360" hidden={failed} />
+      <div ref={container} className="w-full h-360" hidden={failed} role="img" aria-label={summary} data-testid="gof-plot" />
+      {series.length > 0 && (
+        // the chart's text alternative: every point it draws, series by series (as the dataset cards do)
+        <details className="dataset-points" data-testid="gof-data">
+          <summary>The data ({series.length} series)</summary>
+          {series.map((s, i) => (
+            <div className="table-scroll" key={`${s.kind}-${s.name}-${i}`}>
+              <table>
+                <caption>{seriesName(s, several)}{several ? "" : ` · ${s.name}`}</caption>
+                <thead><tr><th className="num">Time (h)</th><th className="num">Concentration ({s.unit})</th>
+                  {s.lower && s.upper && <><th className="num">5th percentile</th><th className="num">95th percentile</th></>}</tr></thead>
+                <tbody>
+                  {s.time_h.map((t, k) => (
+                    <tr key={k}><td className="num">{sig(t)}</td><td className="num">{sig(s.concentration[k])}</td>
+                      {s.lower && s.upper && <><td className="num">{sig(s.lower[k])}</td><td className="num">{sig(s.upper[k])}</td></>}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </details>
+      )}
     </figure>
   );
 }

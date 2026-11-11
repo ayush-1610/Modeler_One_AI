@@ -38,6 +38,8 @@
 .individual { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); }
 .individual + .individual { margin-top: 8px; }
 .studies-table td { vertical-align: top; }
+/* short values stay on one line ("Leave out…", "not stated", a role); the Study column takes the slack */
+.studies-table .link-btn, .studies-table .chip { white-space: nowrap; }
 .studies-table tr.left-out td { opacity: 0.6; }
 .add-data { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; }
 .add-data h3 { margin: 0 0 6px; }

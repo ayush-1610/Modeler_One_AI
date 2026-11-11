@@ -8,6 +8,7 @@ import { EmptyState, InlineIssue, LabeledControl, ReasonField, WaitingFor } from
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { apiFile, send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
+import { type Role, ROLE_LABEL } from "@/lib/plan";
 import { numericKey, ordinal, useTableView } from "@/lib/tableView";
 
 import { type Run, TodoCard, type TodoItem } from "./InputsTodo";
@@ -17,10 +18,6 @@ import { FilesHere } from "./TabFiles";
 export type StudyRow = Schema<"InputStudyRow">;
 export type Options = Record<"route" | "formulation" | "food_state" | "purpose" | "sex" | "population", string[]>;
 
-const ROLE: Record<string, string> = {
-  S1: "calibration (IV)", S2: "calibration (oral)", S3: "calibration (formulation)", S5: "external validation",
-  S6: "application", SUPPORTIVE: "supportive",
-};
 
 const fact = (s: StudyRow, key: string) => s.facts[key] as string | number | null | undefined;
 
@@ -84,12 +81,13 @@ function StudiesTable({ studies, projectId, run, onIndividuals }: {
                 <td><strong>{s.study_id}</strong>
                   <div className="muted fs-12">{(s.purpose ?? "").replace(/_/g, " ")} · {(s.origin ?? "").toLowerCase().replace("_", " ")}</div>
                   {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed">blinded</span>}</td>
-                <td>{String(fact(s, "route") ?? "").replace("_", " ")} · {fact(s, "dose_mg")} {s.facts.dose_per_kg ? "mg/kg" : "mg"} ·{" "}
-                  {fact(s, "food_state")} · {fact(s, "formulation_name") ?? fact(s, "formulation")} · n {fact(s, "n")}
+                <td>{String(fact(s, "route") ?? "").replace("_", " ")} · {fact(s, "dose_mg")}{"\u00a0"}{s.facts.dose_per_kg ? "mg/kg" : "mg"} ·{" "}
+                  {fact(s, "food_state")} · {fact(s, "formulation_name") ?? fact(s, "formulation")} · n{"\u00a0"}{fact(s, "n")}
                   {!s.evaluable && !s.excluded && <div className="muted fs-12">no mean profile: not judged</div>}</td>
                 <td>{s.role ? <span className="chip neutral" title={s.role_source === "proposed"
                   ? "proposed by the MS-01 split; changed on Review & sign, with a reason" : "the plan's placement"}>
-                  {s.role} · {ROLE[s.role] ?? s.role.toLowerCase()}</span> : <span className="muted">—</span>}</td>
+                  {/* the Plan's own names (lib/plan.ts), so a placement reads the same in both steps */}
+                  {ROLE_LABEL[s.role as Role] ?? s.role.toLowerCase()}</span> : <span className="muted">—</span>}</td>
                 <td><button type="button" className="link-btn" onClick={onIndividuals}>
                   {{ entered: "entered", published: "published individual", default: "healthy adult default", missing: "not stated" }[s.demographics]}
                 </button></td>

@@ -44,7 +44,7 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
 .nav { position: relative; display: grid; gap: 2px; }
 .nav + .nav { margin-top: 12px; }
 .nav-heading { position: relative; height: 20px; padding: 0; font-size: 11px; font-weight: 500; text-transform: none;
-  letter-spacing: 0; color: var(--ink-faint); }
+  letter-spacing: 0; color: var(--ink-quiet); }
 .nav-heading-text { position: absolute; left: 11px; top: 2px; white-space: nowrap; }
 .nav-heading::after { content: ""; position: absolute; left: 11px; top: 9px; width: 18px; height: 1.5px; border-radius: 2px;
   background: var(--line); transition: opacity 300ms; }
@@ -79,10 +79,11 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
 .hero-art { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.9; --ink-h: hsl(var(--hue), 70%, 36%); }
 .hero-art .grid { stroke: var(--hairline); stroke-width: 1; fill: none; }
 .hero-art .curve { fill: none; stroke: var(--ink-h); stroke-opacity: 0.35; stroke-width: 2; stroke-linecap: round;
-  stroke-dasharray: 520; animation: hero-draw 7s var(--ease) infinite; }
+  stroke-dasharray: 520; animation: hero-draw 2.4s var(--ease) 1 both; }
+/* the curve draws once and stays drawn: a loop beside the page's actions would need a stop control (WCAG 2.2.2) */
 .hero-art .curve2 { fill: none; stroke: var(--ink-h); stroke-opacity: 0.25; stroke-width: 1.5; stroke-dasharray: 3 8; stroke-linecap: round; }
 .hero-art .dots { fill: var(--ink-h); fill-opacity: 0.5; }
-@keyframes hero-draw { 0% { stroke-dashoffset: 520; opacity: 0; } 12% { opacity: 1; } 70%, 100% { stroke-dashoffset: 0; opacity: 1; } }
+@keyframes hero-draw { 0% { stroke-dashoffset: 520; opacity: 0; } 12% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 1; } }
 .hero-inner { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding: 72px 24px 84px; text-align: center;
   display: grid; justify-items: center; gap: 16px; animation: mo-fade 240ms var(--ease) both; }
 /* the head holds the page's actions, so it fades in place; only the curve behind it (.hero-art) moves (audit item 9) */
@@ -114,7 +115,7 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
   content: ""; flex: 1; min-width: 8px; height: 2px; border-radius: 999px; background: var(--line); }
 .stepper .step.done:not(:last-child) a::after { background: var(--pass); }
 .stepper .step.current:not(.done):not(:last-child) a::after { background: linear-gradient(90deg, var(--sim) 50%, var(--line) 50%); }
-.stepper .step-n { width: 22px; height: 22px; font: 700 11px/1 inherit; border: 1.5px solid var(--ink-faint); color: var(--ink-faint);
+.stepper .step-n { width: 22px; height: 22px; font: 700 11px/1 inherit; border: 1.5px solid var(--ink-faint); color: var(--ink-quiet);
   background: var(--surface); transition: all 500ms var(--spring); }
 .stepper .step-text { line-height: 1.2; }
 .stepper .step-label { font-size: 13px; font-weight: 600; }
@@ -166,7 +167,7 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
 .shell-main { gap: 20px; }
 .side-panel { border-radius: 20px; border-color: var(--hairline); background: var(--glass); box-shadow: var(--shadow-card);
   -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); padding: 20px 22px; }
-.side-panel h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-dim); }
+.side-panel h3, .side-panel .side-panel-title { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-dim); }
 .empty-state { border-radius: 20px; }
 h2 { font-size: 20px; letter-spacing: -0.02em; }
 h3 { font-size: 13px; color: var(--ink-dim); }
@@ -379,7 +380,11 @@ td.num, th.num { white-space: nowrap; }
 .hero-art { will-change: translate; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* one 0.01 ms cycle, not an infinite flicker of arbitrary phases (the hero curve, the skeleton sweep); JS scrolls jump */
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+                           transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .hero-art .curve { animation: none; stroke-dashoffset: 0; }
+  .skeleton-row::after { animation: none; }
 }
 .stepper-wrap.compact .step-waiting { visibility: hidden; }
 
@@ -395,7 +400,7 @@ td.num, th.num { white-space: nowrap; }
 .filter-links { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; margin: 0 0 14px; border-radius: 12px; background: var(--fill); }
 .filter-links a { padding: 6px 14px; border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--ink); text-decoration: none; }
 .filter-links a[aria-current="true"] { background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
-.filter-links .count { margin-left: 6px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.filter-links .count { margin-left: 6px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 /* a step that cannot open yet (components/kit/StepBlocked.tsx) */
 .step-blocked { max-width: 760px; margin-top: 32px; }
 .step-blocked h2 { margin: 0 0 6px; }
@@ -450,7 +455,7 @@ td.num, th.num { white-space: nowrap; }
 .inputs-more summary::-webkit-details-marker { display: none; }
 .inputs-more summary::after { content: "Show"; font-size: 12.5px; font-weight: 600; color: var(--sim); }
 .inputs-more[open] summary::after { content: "Hide"; }
-.inputs-more-title { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); margin-right: auto; }
+.inputs-more-title { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); margin-right: auto; }
 .inputs-more[open] .checks { margin-top: 12px; }
 /* the compact head of a working page (the 2026-11-11 audit, item 5): the same parts, a third of the height */
 .hero-band.compact .hero-inner { padding: 36px 24px 52px; gap: 10px; }

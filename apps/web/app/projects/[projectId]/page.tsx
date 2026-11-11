@@ -48,8 +48,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
 
   return (
     <main>
-      <Hero tone="run" eyebrow="Step 4 of 4" title={project.name}
-            lede="Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table."
+      <Hero tone="run" eyebrow="Step 4 of 4 · Run" title={<>Run · {project.name}</>}
+            lede="Start the modeling campaign from the signed plan and follow it here. The project's compounds, observed studies and members are below."
             actions={<RiskChip rating={project.risk} />} />
       <Stepper projectId={project.id} current="run" />
       {(liveStudies.problem || liveCampaigns.problem) && (
@@ -112,7 +112,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
                 {/* a summary: the first ten; the whole list, sortable and filtered, is on Inputs (audit item 11) */}
                 {studies.slice(0, 10).map((s) => (
                   <tr key={s.study_id}>
-                    <td><code>{s.study_id}</code></td>
+                    <td><strong className="overflow-anywhere">{s.study_id}</strong></td>
                     <td>{s.route?.replace("_", " ") ?? "—"}</td>
                     <td className="num">{s.dose_mg} mg</td>
                     <td className="num">{points(s)}</td>

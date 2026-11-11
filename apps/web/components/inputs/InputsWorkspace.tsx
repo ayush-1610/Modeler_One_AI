@@ -12,6 +12,7 @@ import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { useMutation, useRefresh, useResource } from "@/lib/hooks";
+import { reducedMotion } from "@/lib/motion";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 
 import { ConfirmGroups } from "./ClientConfirm";
@@ -214,8 +215,8 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
 
   if (page.problem || !view) {
     return (
-      <PageShell tone="inputs" steps={steps} eyebrow="Step 2 of 4" title="Inputs">
-        {page.problem ? <div className="banner err">{page.problem}</div> : <p className="muted">Loading the inputs…</p>}
+      <PageShell tone="inputs" steps={steps} eyebrow="Step 2 of 4 · Inputs" title="Inputs">
+        {page.problem ? <Banner tone="err">{page.problem}</Banner> : <p className="muted">Loading the inputs…</p>}
       </PageShell>
     );
   }
@@ -261,13 +262,13 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
 
   function open(t: TodoItem) {
     setTab((t.tab ?? "compound") as Tab);
-    window.setTimeout(() => document.getElementById(`todo-${t.kind}-${t.target}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+    window.setTimeout(() => document.getElementById(`todo-${t.kind}-${t.target}`)?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" }), 50);
   }
 
   return (
     <PageShell
       tone="inputs" steps={steps}
-      eyebrow="Step 2 of 4"
+      eyebrow="Step 2 of 4 · Inputs"
       title="Inputs"
       lede={<>Every value not excluded flows in; where sources give several, one is kept by source and grade and the others
         stay listed for the review. Values are never averaged.<span className="hero-note">Source selection rules: {view.selection_rule}</span></>}
@@ -308,7 +309,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
         </button>
         <div className="rail-side">
           {todo.length > 0 ? (
-            <SidePanel title={`Still missing to run (${todo.length})`} tone="warn" testId="still-missing">
+            <SidePanel title={`Still needed before Review & sign (${todo.length})`} tone="warn" testId="still-missing" level={2}>
               <ul className="missing-list">
                 {todo.map((t, i) => (
                   <li key={`${t.kind}-${t.target}-${i}`}>
@@ -323,17 +324,17 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
               <ClientRequest projectId={projectId} />
             </SidePanel>
           ) : readiness?.ready ? (
-            <SidePanel title="Inputs are ready" tone="ok" testId="inputs-ready">
-              <p className="m-0-0-8">Everything S0 needs is here, and every planned simulation builds.</p>
+            <SidePanel title="Inputs are ready" tone="ok" testId="inputs-ready" level={2}>
+              <p className="m-0-0-8">Everything the model build needs is here, and every planned simulation builds.</p>
               <Link className="btn primary" href={STEP_ROUTES.review(projectId)}>Go to Review &amp; sign</Link>
             </SidePanel>
           ) : (
-            <SidePanel title="Assembling" testId="assembling"><p className="m-0">The inputs are being put together.</p></SidePanel>
+            <SidePanel title="Assembling" testId="assembling" level={2}><p className="m-0">The inputs are being put together.</p></SidePanel>
           )}
           {/* the checks and where values come from, folded: the to-do above is what the page is for (2026-11-11 audit, item 4) */}
           <details className="side-panel inputs-more" data-testid="inputs-more">
             <summary>
-              <span className="inputs-more-title">Readiness and sources</span>
+              <h2 className="inputs-more-title">Readiness and sources</h2>
               {readiness && (() => {
                 const open = readiness.checks.filter((c) => !c.ok).length;
                 return <span className={`chip ${open ? "high" : "low"}`}>{open ? `${open} check${open === 1 ? "" : "s"} open` : "all checks ok"}</span>;
@@ -458,7 +459,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
                                 setDrawer(false);
                                 setOnlyToConfirm(false);
                                 setTab(area);
-                                window.setTimeout(() => document.getElementById(`client-file-${f.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
+                                window.setTimeout(() => document.getElementById(`client-file-${f.id}`)?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" }), 80);
                               }} />}
     </PageShell>
   );

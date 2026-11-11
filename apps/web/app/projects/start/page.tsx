@@ -9,7 +9,7 @@ import { FilePicker, type Picked } from "@/components/start/FilePicker";
 import { Card } from "@/components/ui";
 import { upload, type Schema } from "@/lib/api";
 import { tagsField } from "@/lib/fileTags";
-import { Hero } from "@/components/kit";
+import { Banner, Hero } from "@/components/kit";
 
 /** P0 · Initiate (plan §5.2; redesign §3.1, block 1), the "Start from proposal" page: the drug, any context, and one
  *  upload for the technical proposal, its annexes and the client's data files, which go straight to Inputs (map rows
@@ -52,7 +52,7 @@ export default function StartProjectPage() {
 
   return (
     <main>
-      <Hero tone="new" eyebrow="Step 1 · Start" title="Start a project"
+      <Hero tone="new" eyebrow="New project" title="New project"
             lede={<>Give the drug and drop every file in one go: the proposal and its annexes are read for the brief, and the
               client&apos;s files, each tagged with what it is, wait on Inputs, marked “to confirm”. Anything the files do not
               state is left for you, never guessed.</>} />
@@ -83,14 +83,14 @@ export default function StartProjectPage() {
         </Card>
       </div>
 
-      {error && <div className="banner err mt-16" data-testid="start-error">{error}</div>}
+      {error && <Banner tone="err" className="mt-16" testId="start-error">{error}</Banner>}
       {check && (
-        <div className="banner warn start-check mt-16" data-testid="start-unread">
+        <Banner tone="warn" className="start-check mt-16" testId="start-unread">
           <strong>The project started. A look at {check.files.filter((f) => f.problem || f.needs_ocr || f.tag_proposal?.decided === "open").length === 1
             ? "one file" : "these files"} first:</strong>
           <TagProposals projectId={check.projectId} files={check.files} testId="start-tag-proposals" />
-          <Link className="btn primary" href={`/projects/${check.projectId}/start`} data-testid="start-continue">Continue to Start</Link>
-        </div>
+          <Link className="btn primary" href={`/projects/${check.projectId}/start`} data-testid="start-continue">Open Start</Link>
+        </Banner>
       )}
       <div className="row mt-16">
         <button className="btn primary" data-testid="start-project" disabled={!ready} onClick={start}>

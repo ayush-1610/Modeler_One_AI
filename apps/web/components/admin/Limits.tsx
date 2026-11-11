@@ -11,6 +11,7 @@ import { LimitLevel } from "@/components/admin/AdminParts";
 import { Card } from "@/components/ui";
 import { send, type Schema } from "@/lib/api";
 import { percent, tokens, usd, when, type PricedAs } from "@/lib/admin";
+import { Banner } from "@/components/kit";
 
 type Page = Schema<"LimitsPage">;
 type Scope = "company" | "project" | "person";
@@ -125,7 +126,7 @@ export function Limits({ initial, priced }: { initial: Page; priced: PricedAs })
             </button>
           )}
         </form>
-        {problem && <div className="banner err mt-10" data-testid="limit-problem">{problem}</div>}
+        {problem && <Banner tone="err" className="mt-10" testId="limit-problem">{problem}</Banner>}
       </Card>
       <Card title="Changes">
         {page.history.length === 0 ? <p className="muted">No change yet.</p> : (

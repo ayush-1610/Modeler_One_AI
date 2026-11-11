@@ -9,7 +9,7 @@
 .brief-table .note { font-size: 12px; margin-top: 2px; }
 .group-table td { white-space: nowrap; }
 .group-table .cell { all: unset; cursor: pointer; border-bottom: 1px dotted var(--ink-faint); }
-.group-table td.cell-missing .cell { color: var(--ink-faint); }
+.group-table td.cell-missing .cell { color: var(--ink-quiet); }
 .multi { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; font-size: 13px; }
 .doc-viewer select { max-width: 60%; }
 .doc-page { white-space: pre-wrap; font-family: var(--font-mono), monospace; font-size: 12px; line-height: 1.55;

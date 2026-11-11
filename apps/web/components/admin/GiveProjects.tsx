@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { Card } from "@/components/ui";
 import { send } from "@/lib/api";
+import { Banner } from "@/components/kit";
 
 type Person = { subject: string; name: string; projects: string[] };
 
@@ -67,8 +68,8 @@ export function GiveProjects({ tenantId, people }: { tenantId: string; people: P
                          data-testid="give-reason" /></label>
         <button type="submit" className="btn primary" disabled={busy || !to || !reason.trim()} data-testid="give-submit">Give</button>
       </form>
-      {problem && <div className="banner err mt-10">{problem}</div>}
-      {done && <div className="banner ok mt-10" data-testid="give-done">{done}</div>}
+      {problem && <Banner tone="err" className="mt-10">{problem}</Banner>}
+      {done && <Banner tone="ok" className="mt-10" testId="give-done">{done}</Banner>}
     </Card>
   );
 }

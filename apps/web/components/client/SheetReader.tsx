@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { Banner } from "@/components/kit";
 import { narrow, send } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
 
@@ -165,7 +166,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
     return Array.from({ length: width }, (_, i) => letter(i));
   }, [view]);
 
-  if (sheetView.problem && !view) return <div className="banner err">{sheetView.problem}</div>;
+  if (sheetView.problem && !view) return <Banner tone="err">{sheetView.problem}</Banner>;
   if (!view || !form) return <p className="muted">Reading the sheet…</p>;
 
   const header = (c: string) => (form.header_row ? view.rows[form.header_row - 1]?.[index(c)] ?? "" : "");
@@ -267,13 +268,13 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
         </div>
       </div>
       {view.read_before.length > 0 && (
-        <div className="banner warn">
+        <Banner tone="warn">
           This sheet was read before ({view.read_before.reduce((n, r) => n + r.datasets.length, 0)} dataset(s)).{" "}
           <label className="fw-500">
             <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} aria-label="replace the earlier reading" />{" "}
             This reading replaces it (the earlier datasets are rejected with that reason)
           </label>
-        </div>
+        </Banner>
       )}
       <p className="muted m-4-0 fs-13" data-testid="reading-source">
         {view.proposed_by === "code"
@@ -490,7 +491,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
                     title={needs.length ? `Fill in: ${needs.join(", ")}` : undefined}>Save these data</button>
           </div>
           {needs.length > 0 && <p className="muted rf-hint m-0">Still to fill in: {needs.join(", ")}.</p>}
-          {error && <div className="banner err">{error}</div>}
+          {error && <Banner tone="err">{error}</Banner>}
           {result && (
             <div className={`read-result ${result.ready ? "ok" : "bad"}`} data-testid="read-result">
               <strong>

@@ -13,7 +13,7 @@ import { EngineWarning } from "@/components/campaign/EngineWarning";
 import { OpenDecisionButton } from "@/components/campaign/OpenDecisionButton";
 import { getCampaign, getEscalations } from "@/lib/reads";
 import { reasonSentence } from "@/lib/reason";
-import { Hero } from "@/components/kit";
+import { Banner, Hero } from "@/components/kit";
 import { SortableTable } from "@/components/kit/SortableTable";
 
 // the stages in pipeline order, for sorting the round history by stage
@@ -40,10 +40,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
             <div className="banner warn" role="status" data-testid="campaign-not-found">
               No campaign with this id is recorded. Open it from its project&apos;s Run step, or from <Link href="/">Projects</Link>.
             </div>}>
-            <div className="banner warn" data-testid="campaign-pending">
+            <Banner tone="warn" testId="campaign-pending">
               This campaign is not recorded yet. A campaign you have just started appears within a few seconds; this page
               checks again on its own for half a minute.
-            </div>
+            </Banner>
           </AutoRefresh>
         ) : (
           <>
@@ -89,11 +89,11 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
         <p className="muted fs-12 mt-0">Engine: PK-Sim (<code>{c.engine.command}</code>)</p>
       )}
       {testOnly.length > 0 && (
-        <div className="banner err mb-14" data-testid="real-data-warning">
+        <Banner tone="err" className="mb-14" testId="real-data-warning">
           <strong>TEST ONLY: no real observed data.</strong> {testOnly.map(([stage, d]) => `${stage}: ${d.label}`).join(" · ")}.
           {" "}A verdict judged on synthetic, illustrative or unrecorded data is not evidence; the S4/S5 evaluation cannot be
           signed in a project that is not exploratory.
-        </div>
+        </Banner>
       )}
       {decisionBanner && (
         <div className="banner warn mb-14" role="status" data-testid="escalation-pending">
@@ -179,10 +179,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
           {(c.feedback?.length ?? 0) > 0 && <FeedbackTimeline decisions={c.feedback!} />}
           {c.feedbackPending && (
             <>
-              <div className="banner warn m-8-0" data-testid="feedback-pending">
+              <Banner tone="warn" className="m-8-0" testId="feedback-pending">
                 External validation failed: a signed decision is needed — record a limitation, learn from the failing
                 study, bring new evidence, or stop. <OpenDecisionButton campaignId={c.id} />
-              </div>
+              </Banner>
               <FeedbackDiagnosisView diagnosis={c.feedbackPending} />
             </>
           )}

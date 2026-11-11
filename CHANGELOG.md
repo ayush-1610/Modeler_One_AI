@@ -15,6 +15,34 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — Accessibility and wording pass: motion that stops, AA contrast, outline, chart text alternative, one name per step (web)
+Frontend audit 2, item 10 (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** the hero curve draws once (2.4 s)
+instead of every 7 s forever (WCAG 2.2.2); both reduced-motion blocks now also set `animation-iteration-count: 1` and
+`scroll-behavior: auto`, stop the hero curve at its drawn state and the skeleton sweep (they flickered at 0.01 ms per
+cycle), and the three JS `scrollIntoView` calls jump under reduced motion. Small text no longer uses `--ink-faint`
+(2.99:1): 13 rules move to `--ink-quiet` (4.66:1). `--pass-ink` #17663a and `--warn-ink` #9a4500 (were 4.03 and 4.29:1
+on their 12 px chip tints over `--bg`, now 5.35 and 5.37:1), a `--brand-ink-chip` #0058b0 for `.chip.brand` (5.29:1),
+and `--ink-2` for the filter counts (6.34:1); there is no dark theme to re-check. `SidePanel` takes a `level`; the Inputs
+rail's panels and "Readiness and sources" are h2, so Inputs has no h1 → h3 jump. Escape closes the phone menu and returns
+focus to its toggle. The raw `.banner` divs become the kit `<Banner>` (role alert for errors, status otherwise; it gains
+`className`), and the inline span/li banners get role alert. The goodness-of-fit chart has a figcaption, a labelled
+`role="img"` plot, a "The data" table of every point it draws, powers-of-ten ticks (no '100µ' beside µmol/l), a band in
+the series' own token colour without its own legend entry, 'Predicted' / 'Observed' legend names (the study on hover, or
+in the name when the chart has several) and a modebar with only the download. One step pattern, "Step n of 4 · <label>",
+on every step page and its loading skeleton; the Run page reads "Run · <project>" with a lede about the run; the creation
+page is "New project" (nav, head; its button "Open Start"). Labels lose internal codes: "Draft the rationale" (A5 in the
+tooltip), "Missing before the model can be built", "Everything the model build needs", "fitted" and "ready to build" on
+the compound page (the PK-Sim origin in the chip's title). Inputs › Studies uses the Plan's `ROLE_LABEL` (no more
+"SUPPORTIVE · supportive"), a no-break space in "n 6" and "10 mg", and one-line link buttons and chips. `.cols-2` aligns
+its cards to the top (the one-row Compounds card no longer stretches ~600 px), and study ids on the project overview are
+plain text, as on Inputs. CPF values keep their full stored precision (the skeptic's correction). **Why:** each was low
+to medium, but most touched every page. **Impact:** wording and styling only; no data, route or API change.
+**Tests:** new `e2e/a11y-pass.spec.ts` (no `color: var(--ink-faint)` text rule; the hero curve plays once and not at all
+under reduced motion, with no infinite animation left; Escape closes the phone menu and refocuses its toggle; no heading
+skip on the three Inputs tabs and the "Step 2 of 4 · Inputs" eyebrow); `campaign-monitor.spec.ts` checks the chart's
+caption, label, data table and that no y tick ends in an SI suffix. `shell`, `dashboard` and `inputs-todo` specs updated
+for the renamed nav item and side panel (deliberate wording changes, commented).
+
 ### Fixed — Resilience: honest liveness, polling that recovers, read timeouts, plain outage messages (web)
 Frontend audit 2, item 9 (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** the sidebar's liveness tests the
 last read's failure before its cached answer, so it no longer says "live" after the API stops. A polled `useResource`

@@ -68,6 +68,15 @@ test("a campaign on the published Dapagliflozin model's real data runs and is fo
   // T-54: the influence map (parameters × studies) is drawn from the signed MAP and the working parameter set
   await expect(page.getByTestId("influence-map")).toBeVisible();
   await expect(page.getByTestId("influence-map")).toContainText("elim.hepatic.UGT1A9.clspec");
+  // the goodness-of-fit chart has a text alternative (audit 2, item 10): a caption, a labelled image, and its points in
+  // a table; the log axis prints powers of ten, never an SI suffix ('100µ' beside a µmol/l title)
+  const gof = page.getByTestId("gof-figure");
+  await expect(gof.getByTestId("gof-caption")).toContainText("against time in hours");
+  await expect(gof.getByTestId("gof-plot")).toHaveAttribute("aria-label", /Plasma concentration \(.+\) against time/);
+  await expect(gof.getByTestId("gof-data")).toBeAttached();
+  await expect(gof.locator(".ytick text").first()).toBeAttached();
+  const ticks = await gof.locator(".ytick text").allTextContents();
+  expect(ticks.filter((t) => /\d\s*[µmkMGn]$/.test(t)), ticks.join(" | ")).toEqual([]);
   await page.screenshot({ path: test.info().outputPath("monitor.png"), fullPage: true });
   // on a phone the parameter names are a sticky 140 px column, so heat cells are on screen beside them (audit 2, item 8:
   // the 220 px+ name column filled the box and every cell was off to the right)

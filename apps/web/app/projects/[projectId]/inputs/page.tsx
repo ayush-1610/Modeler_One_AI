@@ -24,7 +24,7 @@ export default async function InputsPage({ params, searchParams }: {
   if (start?.state === "needs_you" && inputs?.state === "not_started") {
     return (
       <main>
-        <Hero tone="inputs" eyebrow="Step 2 of 4" title="Inputs" lede="The inputs are gathered once Start is finished." />
+        <Hero tone="inputs" eyebrow="Step 2 of 4 · Inputs" title="Inputs" lede="The inputs are gathered once Start is finished." />
         <Stepper projectId={projectId} current="inputs" />
         <section className="card inputs-blocked" data-testid="inputs-blocked">
           <h2>Inputs come after Start</h2>

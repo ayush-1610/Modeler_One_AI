@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui";
 import { send, type Schema } from "@/lib/api";
 import { when } from "@/lib/admin";
+import { Banner } from "@/components/kit";
 
 type Page = Schema<"KeysPage">;
 type Key = Page["keys"][number];
@@ -58,7 +59,7 @@ function AddKey({ page, onDone }: { page: Page; onDone: (p: Page) => void }) {
           Add the key
         </button>
       </form>
-      {problem && <div className="banner err mt-10" data-testid="key-problem">{problem}</div>}
+      {problem && <Banner tone="err" className="mt-10" testId="key-problem">{problem}</Banner>}
       <p className="muted mb-0">A new key is not used until it is made active. Test it first.</p>
     </Card>
   );
@@ -96,7 +97,7 @@ function KeyActions({ k, onDone }: { k: Key; onDone: (p: Page) => void }) {
       )}
       <button type="button" className="btn" disabled={busy || !reason.trim()} onClick={() => void act("retire")}
               data-testid={`key-retire-${k.id}`}>Retire</button>
-      {problem && <span className="banner err">{problem}</span>}
+      {problem && <span className="banner err" role="alert">{problem}</span>}
     </div>
   );
 }
@@ -106,7 +107,7 @@ export function ProviderKeys({ initial }: { initial: Page }) {
   const label = (id: string) => page.providers.find((p) => p.id === id)?.label ?? id;
   return (
     <>
-      {!page.master_key && <div className="banner err" data-testid="master-key-missing">{page.master_problem}</div>}
+      {!page.master_key && <Banner tone="err" testId="master-key-missing">{page.master_problem}</Banner>}
       <Card title="Keys">
         {page.keys.length === 0 ? <p className="muted">No key stored yet: the agents use the server&apos;s environment.</p> : (
           <div className="table-scroll">
@@ -125,7 +126,7 @@ export function ProviderKeys({ initial }: { initial: Page }) {
                     <td>
                       <span className={`chip ${STATE_CHIP[k.state] ?? "neutral"}`} data-testid={`key-state-${k.id}`}>{k.state}</span>
                       {k.active_days !== null && <div className="muted">{k.active_days} days active</div>}
-                      {k.due && <div className="banner warn" data-testid={`key-due-${k.id}`}>Due for rotation ({page.rotate_after_days} days)</div>}
+                      {k.due && <Banner tone="warn" testId={`key-due-${k.id}`}>Due for rotation ({page.rotate_after_days} days)</Banner>}
                     </td>
                     <td>{when(k.added_at)}<div className="muted">{k.added_by}</div></td>
                     <td>{k.tested_at ? <>{k.test_ok ? "answers" : "failed"} · {when(k.tested_at)}

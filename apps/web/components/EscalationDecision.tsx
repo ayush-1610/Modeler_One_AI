@@ -10,6 +10,7 @@ import { reasonSentence } from "@/lib/reason";
 import type { EngineIdentity, Escalation } from "@/lib/types";
 import { resolveEscalation } from "@/lib/writes";
 import { celebrate, toast } from "@/components/kit/Motion";
+import { Banner } from "@/components/kit";
 
 type Result = { kind: "ok" | "err"; message: string } | null;
 
@@ -92,9 +93,9 @@ export function EscalationDecision({ escalation, engine, engineUnknown, actions,
           See the campaign before you decide.
         </div>
       )}
-      <div className="banner warn mb-12">
+      <Banner tone="warn" className="mb-12">
         <strong title={escalation.reasonCode}>{reasonSentence(escalation.reasonCode)}</strong> — {escalation.evidence}
-      </div>
+      </Banner>
       {fb && <FeedbackDiagnosisView diagnosis={fb} />}
 
       <div className="field">

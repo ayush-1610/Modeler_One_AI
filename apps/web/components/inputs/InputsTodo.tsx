@@ -34,7 +34,7 @@ export const ORDER = ["confirm", "conflict", "correct", "pka", "missing", "revie
                "unit", "check"];
 export const TITLE: Record<string, string> = {
   conflict: "Values more than 2-fold apart: keep one", correct: "Filed under the wrong parameter", pka: "pKa: acidic or basic?",
-  missing: "Missing for S0", datasets: "Observed data to judge the model on", formulation: "Formulation of the tablet studies",
+  missing: "Missing before the model can be built", datasets: "Observed data to judge the model on", formulation: "Formulation of the tablet studies",
   process: "Which PK-Sim process carries the pathway", unit: "Unit to convert", check: "Software build",
   review: "Held until you check it", regimen: "Multiple-dose regimen", demographics: "Demographics",
   confirm: "The client's data to confirm",

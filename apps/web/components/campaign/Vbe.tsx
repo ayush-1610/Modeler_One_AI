@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui";
 import type { Vbe } from "@/lib/types";
+import { Banner } from "@/components/kit";
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 
@@ -14,14 +15,14 @@ export function VbeCard({ vbe }: { vbe: Vbe }) {
         {vbe.status === "RUN" ? vbe.validation.status.replace("_", " ").toLowerCase() : "not run"}
       </span>}>
       {vbe.status !== "RUN" ? (
-        <div className="banner warn" data-testid="vbe-not-run">{name} did not run: {vbe.reason}</div>
+        <Banner tone="warn" testId="vbe-not-run">{name} did not run: {vbe.reason}</Banner>
       ) : (
         <>
           {!validated && (
-            <div className="banner warn" data-testid="vbe-not-validated">
+            <Banner tone="warn" testId="vbe-not-validated">
               Not validated against an observed BE study ({vbe.validation.status}): {vbe.validation.reason}. This result
               does not support a bioequivalence decision on its own.
-            </div>
+            </Banner>
           )}
           <p className="muted">
             {vbe.formulations?.test} against {vbe.formulations?.reference} · {name} · {vbe.n_trials_run} of{" "}

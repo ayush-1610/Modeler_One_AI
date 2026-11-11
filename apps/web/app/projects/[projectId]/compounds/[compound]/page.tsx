@@ -58,10 +58,10 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
         <div className="kpi">
           <div className="k"><div className="v">{cpf.parameters.length}</div><div className="l">parameters</div></div>
           <div className="k"><div className="v">{measured}</div><div className="l">measured / literature</div></div>
-          <div className="k"><div className="v">{fitted}</div><div className="l">fitted (PI)</div></div>
+          <div className="k"><div className="v">{fitted}</div><div className="l">fitted</div></div>
           <div className="k">
             <div className="v">{Math.round(cpf.completeness * 100)}%</div>
-            <div className="l">S0 readiness</div>
+            <div className="l">ready to build</div>
           </div>
         </div>
         <div className="mt-12"><Completeness value={cpf.completeness} /></div>

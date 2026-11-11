@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -102,12 +102,13 @@ export function Nav({ user }: { user?: string | null }) {
 
   const work: Item[] = [
     { href: "/", label: "Projects", icon: ICONS.projects, active: is("/") || Boolean(open) },
-    { href: "/projects/start", label: "Start from proposal", icon: ICONS.start, active: is("/projects/start") },
+    { href: "/projects/start", label: "New project", icon: ICONS.start, active: is("/projects/start") },
   ];
   // the console's link only for the platform's owner (the API's own answer; it refuses everyone else in any case)
   const admin = useResource("/api/v1/me", {}, { select: (d) => d.admin }).data === true;
   const projectHref = open ? `/projects/${encodeURIComponent(open)}` : "";
   const isOpen = pinned || hover || keys;
+  const menuButton = useRef<HTMLButtonElement>(null);
 
   return (
     <aside className={`sidebar${isOpen ? " open" : ""}${pinned ? " pinned" : ""}${menu ? " menu-open" : ""}`} data-testid="sidebar"
@@ -117,7 +118,9 @@ export function Nav({ user }: { user?: string | null }) {
            onClickCapture={(e) => { if ((e.target as Element).closest("a, .nav-action")) { setHover(false); setKeys(false); setMenu(false); } }}
            onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty("--my", `${(e.clientY - r.top).toFixed(0)}px`); }}
            onFocus={(e) => setKeys((e.target as Element).matches(":focus-visible"))}
-           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeys(false); }}>
+           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeys(false); }}
+           // Escape closes the phone menu and gives focus back to its toggle
+           onKeyDown={(e) => { if (menu && e.key === "Escape") { setMenu(false); menuButton.current?.focus(); } }}>
       <div className="brand">
         <Logo />
         <span className="nav-text">Modeler One</span>
@@ -125,7 +128,7 @@ export function Nav({ user }: { user?: string | null }) {
                 title="Keep the panel open" data-testid="nav-pin">
           <Icon d={ICONS.collapse} />
         </button>
-        <button type="button" className="nav-menu" onClick={() => setMenu(!menu)} aria-expanded={menu} aria-controls="nav-panel"
+        <button type="button" className="nav-menu" ref={menuButton} onClick={() => setMenu(!menu)} aria-expanded={menu} aria-controls="nav-panel"
                 aria-label={menu ? "Close the menu" : "Open the menu"} data-testid="nav-menu">
           <Icon d={menu ? "M6 6l12 12 M18 6L6 18" : "M4 7h16 M4 12h16 M4 17h16"} />
         </button>

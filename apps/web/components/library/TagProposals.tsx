@@ -67,7 +67,7 @@ export function TagProposals({ projectId, files, testId = "tag-proposals" }: {
           </li>
         );
       })}
-      {problem && <li className="banner err">{problem}</li>}
+      {problem && <li className="banner err" role="alert">{problem}</li>}
     </ul>
   );
 }
