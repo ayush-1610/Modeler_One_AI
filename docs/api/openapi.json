@@ -6146,6 +6146,31 @@
         "title": "Envelope[LibraryPage]",
         "type": "object"
       },
+      "Envelope_LimitsPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LimitsPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[LimitsPage]",
+        "type": "object"
+      },
       "Envelope_LiteratureRun_": {
         "additionalProperties": false,
         "properties": {
@@ -10634,6 +10659,356 @@
         "title": "LibraryRowView",
         "type": "object"
       },
+      "LimitChange": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
+          },
+          "usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd"
+          }
+        },
+        "required": [
+          "id",
+          "usd",
+          "tokens",
+          "by",
+          "at",
+          "reason"
+        ],
+        "title": "LimitChange",
+        "type": "object"
+      },
+      "LimitRow": {
+        "additionalProperties": false,
+        "description": "One monthly limit and this month's use against it (spend at the page's prices, tokens in and out). `level`:\n`ok` below `warn_at` of every measure, `warn` from there, `over` once a measure is reached. A limit only warns.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "set_at": {
+            "title": "Set At",
+            "type": "string"
+          },
+          "set_by": {
+            "title": "Set By",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
+          },
+          "tokens_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Share"
+          },
+          "usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd"
+          },
+          "usd_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd Share"
+          },
+          "used_tokens": {
+            "title": "Used Tokens",
+            "type": "integer"
+          },
+          "used_usd": {
+            "title": "Used Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "tenant_id",
+          "subject",
+          "label",
+          "usd",
+          "tokens",
+          "used_usd",
+          "used_tokens",
+          "usd_share",
+          "tokens_share",
+          "level",
+          "set_by",
+          "set_at",
+          "reason"
+        ],
+        "title": "LimitRow",
+        "type": "object"
+      },
+      "LimitSet": {
+        "description": "A limit on a company (`subject` empty), a project (its id) or a person (their subject), each month: the estimated\nspend in USD and the tokens in and out. A measure left empty has no limit; both empty removes the limit.",
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "company",
+              "project",
+              "person"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "subject": {
+            "default": "",
+            "title": "Subject",
+            "type": "string"
+          },
+          "tenant_id": {
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
+          },
+          "usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd"
+          }
+        },
+        "required": [
+          "scope",
+          "tenant_id",
+          "reason"
+        ],
+        "title": "LimitSet",
+        "type": "object"
+      },
+      "LimitTarget": {
+        "additionalProperties": false,
+        "description": "A company, with the projects and people a limit can be set on.",
+        "properties": {
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/LimitTargetPerson"
+            },
+            "title": "People",
+            "type": "array"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/LimitTargetProject"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "projects",
+          "people"
+        ],
+        "title": "LimitTarget",
+        "type": "object"
+      },
+      "LimitTargetPerson": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "name"
+        ],
+        "title": "LimitTargetPerson",
+        "type": "object"
+      },
+      "LimitTargetProject": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "LimitTargetProject",
+        "type": "object"
+      },
+      "LimitsPage": {
+        "additionalProperties": false,
+        "description": "The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can\nbe set on. A limit warns the administrator and never stops an agent; the companies' people never see it.",
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/LimitChange"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/components/schemas/LimitRow"
+            },
+            "title": "Limits",
+            "type": "array"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "priced_as": {
+            "title": "Priced As",
+            "type": "string"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/LimitTarget"
+            },
+            "title": "Targets",
+            "type": "array"
+          },
+          "warn_at": {
+            "title": "Warn At",
+            "type": "number"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/LimitRow"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "priced_as",
+          "warn_at",
+          "limits",
+          "warnings",
+          "history",
+          "targets"
+        ],
+        "title": "LimitsPage",
+        "type": "object"
+      },
       "LiteratureRun": {
         "additionalProperties": false,
         "description": "Where the literature agent stands (plan 2026-11-05 §3.3): searching or not, its latest run (the structured\nsources' reading is one, `A2-sources`), the turns it has taken of its budget, the values it has proposed so far (they\nflow into the inputs when it finishes), and what the structured sources gave.",
@@ -13474,7 +13849,7 @@
       },
       "Overview": {
         "additionalProperties": false,
-        "description": "Every company (tenant) with its people, projects and agent use; the platform's state.",
+        "description": "Every company (tenant) with its people, projects and agent use; the platform's state; the limits this month's use\nhas reached 80 % of, or passed (`warnings`, for the administrator only).",
         "properties": {
           "companies": {
             "items": {
@@ -13482,6 +13857,10 @@
             },
             "title": "Companies",
             "type": "array"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
           },
           "priced_as": {
             "title": "Priced As",
@@ -13492,13 +13871,22 @@
           },
           "total": {
             "$ref": "#/components/schemas/Usage"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/LimitRow"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
           "companies",
           "total",
           "priced_as",
-          "system"
+          "system",
+          "month",
+          "warnings"
         ],
         "title": "Overview",
         "type": "object"
@@ -22549,6 +22937,143 @@
           }
         },
         "summary": "Test Key",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/limits": {
+      "get": {
+        "operationId": "limits_api_v1_admin_limits_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LimitsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Limits",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Set, change or remove a monthly limit (a fresh step-up and a reason; an audit event on the owner's chain).",
+        "operationId": "set_limit_api_v1_admin_limits_put",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LimitSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LimitsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Limit",
         "tags": [
           "admin"
         ]

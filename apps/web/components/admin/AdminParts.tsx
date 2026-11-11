@@ -2,12 +2,12 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Card } from "@/components/ui";
-import { PRICED_AS, tokens, usd, when, type PricedAs, type Usage, type UsageGroup } from "@/lib/admin";
+import { PRICED_AS, percent, tokens, usd, when, type LimitRow, type PricedAs, type Usage, type UsageGroup } from "@/lib/admin";
 
 /** The console's pages, and (on the pages with costs) the model the costs are priced at: a link per model, since the
  *  page is read on the server. */
 export function AdminTabs({ here, priced = "claude-opus-5-5", base, query = {} }: {
-  here: "overview" | "usage" | "company" | "models" | "keys"; priced?: PricedAs; base?: string;
+  here: "overview" | "usage" | "company" | "limits" | "models" | "keys"; priced?: PricedAs; base?: string;
   query?: Record<string, string | undefined>;
 }) {
   const href = (p: PricedAs) => {
@@ -20,6 +20,7 @@ export function AdminTabs({ here, priced = "claude-opus-5-5", base, query = {} }
       <nav className="tabs" aria-label="Admin console" data-testid="admin-tabs">
         <Link href={`/admin?priced_as=${priced}`} className={here === "overview" ? "active" : ""}>Overview</Link>
         <Link href={`/admin/usage?priced_as=${priced}`} className={here === "usage" ? "active" : ""}>Usage and cost</Link>
+        <Link href={`/admin/limits?priced_as=${priced}`} className={here === "limits" ? "active" : ""}>Limits</Link>
         <Link href="/admin/models" className={here === "models" ? "active" : ""}>Models</Link>
         <Link href="/admin/keys" className={here === "keys" ? "active" : ""}>Keys</Link>
       </nav>
@@ -98,5 +99,35 @@ export function NotForYou() {
         hold it.
       </p>
     </Card>
+  );
+}
+
+/** What a limit's level reads as: reached (100 %), or near it (80 %). */
+export function LimitLevel({ row }: { row: LimitRow }) {
+  const tone = row.level === "over" ? "high" : row.level === "warn" ? "medium" : "low";
+  const text = row.level === "over" ? "reached" : row.level === "warn" ? "near" : "within";
+  return <span className={`chip ${tone}`} data-testid={`limit-level-${row.id}`}><span className="chip-dot" />{text}</span>;
+}
+
+/** The limits this month's use is near (80 %) or has reached: for the administrator alone. Agents keep running. */
+export function LimitWarnings({ warnings, month, priced }: { warnings: LimitRow[]; month: string; priced: PricedAs }) {
+  if (warnings.length === 0) return null;
+  const reached = warnings.some((w) => w.level === "over");
+  return (
+    <div className={`banner ${reached ? "err" : "warn"}`} style={{ marginBottom: 16 }} data-testid="limit-warnings">
+      <strong>{reached ? "A monthly limit is reached" : "A monthly limit is near"}</strong> ({month}; you are warned at 80 % and
+      at 100 %; the agents keep running, and the companies&apos; people see nothing of it):
+      <ul className="plain-list" style={{ margin: "6px 0 0" }}>
+        {warnings.map((w) => (
+          <li key={w.id} data-testid={`limit-warning-${w.id}`}>
+            <strong>{w.level === "over" ? "reached" : "near"}</strong> · {w.label}, {w.scope}:{" "}
+            {[w.usd !== null && `spend ${usd(w.used_usd)} of ${usd(w.usd)} (${percent(w.usd_share)})`,
+              w.tokens !== null && `tokens ${tokens(w.used_tokens)} of ${tokens(w.tokens)} (${percent(w.tokens_share)})`]
+              .filter(Boolean).join("; ")}
+          </li>
+        ))}
+      </ul>
+      <Link href={`/admin/limits?priced_as=${priced}`}>Open the limits</Link>
+    </div>
   );
 }

@@ -41,13 +41,37 @@ class PlatformState(View):
     agents: AgentsStatus
 
 
+class LimitRow(View):
+    """One monthly limit and this month's use against it (spend at the page's prices, tokens in and out). `level`:
+    `ok` below `warn_at` of every measure, `warn` from there, `over` once a measure is reached. A limit only warns."""
+
+    id: str
+    scope: str
+    tenant_id: str
+    subject: str
+    label: str
+    usd: float | None
+    tokens: int | None
+    used_usd: float
+    used_tokens: int
+    usd_share: float | None
+    tokens_share: float | None
+    level: str
+    set_by: str
+    set_at: str
+    reason: str
+
+
 class Overview(View):
-    """Every company (tenant) with its people, projects and agent use; the platform's state."""
+    """Every company (tenant) with its people, projects and agent use; the platform's state; the limits this month's use
+    has reached 80 % of, or passed (`warnings`, for the administrator only)."""
 
     companies: list[CompanyRow]
     total: Usage
     priced_as: str
     system: PlatformState
+    month: str
+    warnings: list[LimitRow]
 
 
 class PersonRow(View):
@@ -201,3 +225,43 @@ class KeysPage(View):
     master_key: bool
     master_problem: str | None
     rotate_after_days: int
+
+
+class LimitChange(View):
+    id: str
+    usd: float | None
+    tokens: int | None
+    by: str
+    at: str
+    reason: str
+
+
+class LimitTargetProject(View):
+    id: str
+    name: str
+
+
+class LimitTargetPerson(View):
+    subject: str
+    name: str
+
+
+class LimitTarget(View):
+    """A company, with the projects and people a limit can be set on."""
+
+    tenant_id: str
+    projects: list[LimitTargetProject]
+    people: list[LimitTargetPerson]
+
+
+class LimitsPage(View):
+    """The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can
+    be set on. A limit warns the administrator and never stops an agent; the companies' people never see it."""
+
+    month: str
+    priced_as: str
+    warn_at: float
+    limits: list[LimitRow]
+    warnings: list[LimitRow]
+    history: list[LimitChange]
+    targets: list[LimitTarget]

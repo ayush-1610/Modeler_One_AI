@@ -1,4 +1,4 @@
-"""Who is signed in, and the platform owner's console (docs/plans/2026-11-10-admin-console.md, builds A to D).
+"""Who is signed in, and the platform owner's console (docs/plans/2026-11-10-admin-console.md, builds A to E).
 
 ``GET /me`` answers anyone signed in: who they are, and whether they hold `modeler-admin`, the realm role given to the
 platform's owner alone (the web app shows the console only then). ``/admin/*`` answers only that role (403 for anyone
@@ -6,10 +6,13 @@ else): every company (tenant) with its people, projects and agent use; one compa
 agent, project, person, company and day, each run with who started it (recorded from 2026-11-10).
 
 Each look is an audit event (`admin.view`): on the company's own chain when its page is opened, on the owner's own
-chain for the overview and the usage, which cover every company. The console changes only the platform's own settings
-(`platform_settings`): each agent's model and the providers' keys. Every change needs a fresh step-up (the TOTP a
-signature asks for) and a reason, and is an audit event on the owner's chain naming the key by its last 4 characters,
-never its secret.
+chain for the overview, the usage and the limits, which cover every company. The console changes only the platform's
+own settings (`platform_settings`): each agent's model, the providers' keys and the monthly limits. Every change needs a
+fresh step-up (the TOTP a signature asks for) and a reason, and is an audit event on the owner's chain naming a key by
+its last 4 characters, never its secret.
+
+A monthly limit (E) on a company's, a project's or a person's agent use warns the administrator at 80 % and when it is
+reached (the overview and the Limits page); it never stops an agent, and the companies' people never see it (answer 2).
 
 Costs are estimates: each run's tokens priced at a Claude model's list prices with its conversations cached
 (`agent_jobs.recorded_usage`). The tokens are those of the model that ran the agents, so they are a guide to choose a
@@ -34,7 +37,7 @@ from modeler_api.config import Settings, SettingsDep
 from modeler_api.memberships import archive_for, memberships_for
 from modeler_api.part11 import audit_mirror
 from modeler_api.responses import answers, envelope
-from modeler_api.views.admin import AgentsPage, CompanyPage, KeysPage, MeView, Overview, UsagePage
+from modeler_api.views.admin import AgentsPage, CompanyPage, KeysPage, LimitsPage, MeView, Overview, UsagePage
 from modeler_contracts.runtime import runtime_env
 from modeler_project import FileProjectStore
 from modeler_project.members import MembershipError
@@ -106,9 +109,11 @@ def overview(principal: Admin, settings: SettingsDep, priced_as: PricedAs = DEFA
                           "archived": sum(1 for i in ids if i in archived),
                           "usage": _usage(by_company[tenant_id], priced_as)})
     _saw(settings, principal, principal.tenant_id, "overview")
+    month, limits = _limit_rows(settings, priced_as)
     return envelope({"companies": companies, "total": _usage(runs, priced_as), "priced_as": priced_as,
                      "system": {"deployment": runtime_env().deployment_kind, "store": True,
-                                "agents": agent_jobs.agents_status()}})
+                                "agents": agent_jobs.agents_status()},
+                     "month": month, "warnings": [row for row in limits if row["level"] != "ok"]})
 
 
 @router.get("/admin/companies/{tenant_id}", **answers(CompanyPage))
@@ -413,3 +418,106 @@ def retire_key(key_id: str, body: KeyChange, principal: Admin, settings: Setting
         raise _refused(exc) from exc
     _changed(settings, principal, "admin.key.retire", key_id, after=_key_named(record), reason=body.reason)
     return _keys_page(settings)
+
+
+# --- E: monthly limits, a warning to the administrator only ----------------------------------------------------------
+
+
+class LimitSet(BaseModel):
+    """A limit on a company (`subject` empty), a project (its id) or a person (their subject), each month: the estimated
+    spend in USD and the tokens in and out. A measure left empty has no limit; both empty removes the limit."""
+
+    scope: Literal["company", "project", "person"]
+    tenant_id: str = Field(min_length=1)
+    subject: str = ""
+    usd: float | None = None
+    tokens: int | None = None
+    reason: str = Field(min_length=1)
+
+
+def _month(now: datetime | None = None) -> datetime:
+    now = now or datetime.now(UTC)
+    return datetime(now.year, now.month, 1, tzinfo=UTC)
+
+
+def _share(used: float, limit: float | None) -> float | None:
+    return round(used / limit, 4) if limit else None
+
+
+def _limit_rows(settings: Settings, priced_as: str, now: datetime | None = None) -> tuple[str, list[dict[str, Any]]]:
+    """This month's use against each limit (calendar month, UTC), the fullest first."""
+    root = _root(settings)
+    start = _month(now)
+    limits = ps.LimitSettings(settings.read_root).doc()["limits"]
+    if not limits:
+        return start.strftime("%Y-%m"), []
+    runs = agent_jobs.recorded_usage(root, start)
+    tenants = {limit["tenant_id"] for limit in limits.values()}
+    names = _names(settings, tenants)
+    projects = {(t, str(p.get("id"))): str(p.get("name") or p.get("id")) for t in tenants for p in _projects(settings, t)}
+    rows = []
+    for key, limit in limits.items():
+        tenant, scope, subject = limit["tenant_id"], limit["scope"], limit["subject"]
+        mine = [r for r in runs if r["tenant_id"] == tenant and (
+            scope == "company" or (scope == "project" and r["project_id"] == subject)
+            or (scope == "person" and r["started_by"] == subject))]
+        used_usd = round(float(sum(r["usd"][priced_as] for r in mine)), 4)
+        used_tokens = sum(r["input_tokens"] + r["output_tokens"] for r in mine)
+        usd_share, tokens_share = _share(used_usd, limit["usd"]), _share(used_tokens, limit["tokens"])
+        top = max(s for s in (usd_share, tokens_share, 0.0) if s is not None)
+        label = tenant if scope == "company" else (
+            f"{projects.get((tenant, subject), subject)} ({tenant})" if scope == "project"
+            else f"{names.get((tenant, subject), subject)} ({tenant})")
+        rows.append({"id": key, "scope": scope, "tenant_id": tenant, "subject": subject, "label": label,
+                     "usd": limit["usd"], "tokens": limit["tokens"], "used_usd": used_usd, "used_tokens": used_tokens,
+                     "usd_share": usd_share, "tokens_share": tokens_share,
+                     "level": "over" if top >= 1 else "warn" if top >= ps.WARN_AT else "ok",
+                     "set_by": limit["by"], "set_at": limit["at"], "reason": limit["reason"], "_top": top})
+    rows.sort(key=lambda row: (-row["_top"], row["id"]))
+    return start.strftime("%Y-%m"), [{k: v for k, v in row.items() if k != "_top"} for row in rows]
+
+
+def _limits_page(settings: Settings, priced_as: str) -> dict[str, Any]:
+    month, rows = _limit_rows(settings, priced_as)
+    targets = []
+    for tenant_id in _companies(_root(settings)):
+        projects = [{"id": str(p["id"]), "name": str(p.get("name") or p["id"])} for p in _projects(settings, tenant_id) if p.get("id")]
+        people = [{"subject": p.subject, "name": p.name} for p in memberships_for(settings, tenant_id).people()]
+        if projects or people:                       # the owner's own folder (only the console's audit trail) is not one
+            targets.append({"tenant_id": tenant_id, "projects": projects, "people": people})
+    history = ps.LimitSettings(settings.read_root).doc()["history"]
+    return envelope({"month": month, "priced_as": priced_as, "warn_at": ps.WARN_AT, "limits": rows,
+                     "warnings": [row for row in rows if row["level"] != "ok"],
+                     "history": [{k: h[k] for k in ("id", "usd", "tokens", "by", "at", "reason")} for h in reversed(history[-50:])],
+                     "targets": targets})
+
+
+@router.get("/admin/limits", **answers(LimitsPage))
+def limits(principal: Admin, settings: SettingsDep, priced_as: PricedAs = DEFAULT_PRICE) -> dict[str, Any]:
+    page = _limits_page(settings, priced_as)
+    _saw(settings, principal, principal.tenant_id, "limits")
+    return page
+
+
+@router.put("/admin/limits", **answers(LimitsPage))
+def set_limit(body: LimitSet, principal: Admin, settings: SettingsDep, priced_as: PricedAs = DEFAULT_PRICE) -> dict[str, Any]:
+    """Set, change or remove a monthly limit (a fresh step-up and a reason; an audit event on the owner's chain)."""
+    root = _root(settings)
+    ensure_step_up(principal)
+    if body.tenant_id not in _companies(root):
+        raise HTTPException(status_code=404, detail=f"no company {body.tenant_id!r}")
+    known = {"project": {str(p.get("id")) for p in _projects(settings, body.tenant_id)},
+             "person": {p.subject for p in memberships_for(settings, body.tenant_id).people()}}
+    if body.scope in known and body.subject.strip() and body.subject.strip() not in known[body.scope]:
+        raise HTTPException(status_code=409, detail=f"{body.tenant_id} has no {body.scope} {body.subject!r}")
+    try:
+        before, after = ps.LimitSettings(settings.read_root).set(body.scope, body.tenant_id, body.subject, usd=body.usd,
+                                                                  tokens=body.tokens, by=principal.user_id, reason=body.reason)
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    measures = ("usd", "tokens")
+    key = ps.limit_id(body.scope, body.tenant_id, body.subject.strip())
+    _changed(settings, principal, "admin.limit.set" if after else "admin.limit.remove", key, reason=body.reason,
+             before={k: before[k] for k in measures} if before else None,
+             after={k: after[k] for k in measures} if after else None)
+    return _limits_page(settings, priced_as)

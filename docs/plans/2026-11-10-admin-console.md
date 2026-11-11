@@ -124,3 +124,12 @@ pilot, so the console is meant for a deployment with Keycloak (question 5).
   a reviewer it is shared with signs its MAP, its records and its campaigns' escalations; the owner stays a member; the
   console's "Give a person projects" can make the person the owner. Not yet: the pages marked read-only for the people
   a project is shared with (their edit buttons answer with the refusal).
+- **E, limits (branch `limit-warnings`):** a monthly limit on the agents' estimated spend (USD) and tokens (in and
+  out), on a company, a project or a person, kept in the platform store (`_platform/limits.json`, with every change).
+  This calendar month's use (UTC) is measured against each, at the page's Claude prices (Opus 5.5 unless another is
+  chosen, so a budget is not exceeded on the cheaper models). At 80 % of a measure the administrator is warned, and
+  again when it is reached: a banner on the console's overview and on its Limits page (`/admin/limits`), where limits
+  are set, changed and removed, each with a reason and a fresh step-up, an `admin.limit.set` or `admin.limit.remove`
+  audit event on the owner's chain. Nothing stops an agent, and no answer outside `/admin` carries a limit (answer 2).
+  Not yet: a warning sent to the administrator (email or push) rather than shown in the console; that comes with the
+  routines (G).
