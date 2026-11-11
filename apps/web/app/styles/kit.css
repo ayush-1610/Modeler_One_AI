@@ -94,7 +94,10 @@
    stays in the dialog instead of scrolling the page behind it, and the page is held still while a dialog is open */
 .dialog { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
 .dialog-backdrop { overscroll-behavior: contain; }
-html:has(.dialog-backdrop) { overflow: hidden; }
+/* the page under an open dialog is held still: the Dialog component sets data-dialogs while one is open and removes it
+   when the last one closes (an `html:has(.dialog-backdrop)` rule was not re-checked by Safari after a dialog closed,
+   leaving the page unable to scroll) */
+html[data-dialogs] { overflow: hidden; }
 .dialog.narrow { width: min(460px, 100%); }
 /* 100dvh, not 100vh: on a phone the browser's toolbar would cover the action row (the 2026-11-11 audit, item 5) */
 .dialog.wide { width: min(760px, 100%); max-height: min(90vh, calc(100dvh - 32px)); }
@@ -182,9 +185,10 @@ tr.project-archived td { color: var(--ink-quiet); }
 .reading-tray-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
 .reading-tray-head .link-btn { margin-left: auto; }
 .reading-tray-off, .reading-tray-problem { margin: 8px 0 0; }
+.reading-tray-backlog { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
 .reading-tray-problem { color: var(--fail-ink); }
 .reading-tray-list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 340px;
-  overflow-y: auto; overscroll-behavior: contain; }
+  overflow-y: auto; }   /* at its end, the wheel scrolls the page on (no overscroll containment on the page itself) */
 .reading-tray-list li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
 .reading-tray-file { overflow-wrap: anywhere; min-width: 0; font-weight: 500; }
 .reading-tray-why { flex-basis: 100%; color: var(--fail-ink); font-size: 13px; }

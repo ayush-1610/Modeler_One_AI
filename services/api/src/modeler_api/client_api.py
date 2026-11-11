@@ -35,10 +35,12 @@ from modeler_api.intake_jobs import (  # noqa: F401  (run_document_job, run_read
     needs_agent,
     queue_again,
     queue_reading,
+    read_documents_for_data,
     read_later,
     run_document_job,
     run_reading_job,
     sweep,
+    unread_documents,
     unread_sheets,
 )
 from modeler_api.responses import answers, envelope
@@ -46,6 +48,7 @@ from modeler_api.views.client_data import (
     ClientDataPage,
     ClientReviewPage,
     ClientUpload,
+    DocumentsRead,
     MapPreview,
     MapReading,
     ReadingQueuePage,
@@ -165,7 +168,7 @@ def _queue_view(ws: Workspace) -> dict[str, Any]:
                        for state in ("queued", "reading", "done", "failed")},
             "items": [i.model_dump(mode="json") for i in items],
             "mapped": {sid: line for sid, entry in delivery_map(ws)["files"].items() if (line := file_line(entry))},
-            "figures": open_suggestions(ws)}
+            "figures": open_suggestions(ws), "unread_documents": [d["name"] for d in unread_documents(ws)]}
 
 
 @router.get("/projects/{project_id}/reading-queue", **answers(ReadingQueuePage))
@@ -177,6 +180,14 @@ def get_reading_queue(project_id: str, principal: Reader, store: StoreDep) -> di
     sweep(store, principal.tenant_id, project_id)
     kick(store, principal.tenant_id, project_id, by=principal.user_id)
     return envelope(_queue_view(ws))
+
+
+@router.post("/projects/{project_id}/documents:read-for-data", status_code=202, **answers(DocumentsRead))
+def read_library_for_data(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Read for data every document a person added to the library that was never read (an annex added before "Read for
+    data" existed, say): each becomes a client file too, read by code and queued for the reading agent."""
+    workspace_for(project_id, principal, store)
+    return envelope(read_documents_for_data(store, principal.tenant_id, project_id, by=principal.user_id))
 
 
 @router.post("/projects/{project_id}/reading-queue/{item_id}:again", status_code=202, **answers(TriageStart))

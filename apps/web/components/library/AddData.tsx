@@ -169,6 +169,12 @@ export function AddData({ projectId, step: initial, onClose }: { projectId: stri
                     {DOCS.map(([role, label]) => <option key={role} value={`doc:${role}`}>{label}</option>)}
                   </optgroup>
                 </select>
+                {goes.startsWith("client:") && (
+                  <span className="add-data-read muted" data-testid={`add-data-reads-${file.name}`}
+                        title="Client data is always read for data: by code at once, then by the agent where code could not">
+                    read for data
+                  </span>
+                )}
                 {goes.startsWith("doc:") && READABLE.test(file.name) && (
                   <label className="add-data-read" title="The reading agent reads it for study data, profiles and dissolution">
                     <input type="checkbox" checked={files[i].read} data-testid={`add-data-read-${file.name}`}

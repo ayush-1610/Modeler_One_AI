@@ -31,13 +31,23 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from modeler_api import agent_jobs
+from modeler_api import keycloak_admin as kc
 from modeler_api import platform_settings as ps
 from modeler_api.auth import CurrentPrincipal, Principal, ensure_step_up, require_role
 from modeler_api.config import Settings, SettingsDep
 from modeler_api.memberships import archive_for, memberships_for
 from modeler_api.part11 import audit_mirror
 from modeler_api.responses import answers, envelope
-from modeler_api.views.admin import AgentsPage, CompanyPage, KeysPage, LimitsPage, MeView, Overview, UsagePage
+from modeler_api.views.admin import (
+    AgentsPage,
+    CompanyPage,
+    KeysPage,
+    LimitsPage,
+    MeView,
+    Overview,
+    PeoplePage,
+    UsagePage,
+)
 from modeler_contracts.runtime import runtime_env
 from modeler_project import FileProjectStore
 from modeler_project.members import MembershipError
@@ -101,10 +111,13 @@ def overview(principal: Admin, settings: SettingsDep, priced_as: PricedAs = DEFA
     for run in runs:
         by_company[run["tenant_id"]].append(run)
     companies = []
+    registry = ps.CompanyRegistry(settings.read_root)
     for tenant_id in _companies(root):
         ids = [p.get("id") for p in _projects(settings, tenant_id)]
         archived = archive_for(settings, tenant_id).archived()
-        companies.append({"tenant_id": tenant_id, "people": len(memberships_for(settings, tenant_id).people()),
+        named = registry.get(tenant_id) or {}
+        companies.append({"tenant_id": tenant_id, "name": named.get("name") or "", "disabled": bool(named.get("disabled")),
+                          "people": len(memberships_for(settings, tenant_id).people()),
                           "projects": sum(1 for i in ids if i not in archived),
                           "archived": sum(1 for i in ids if i in archived),
                           "usage": _usage(by_company[tenant_id], priced_as)})
@@ -136,8 +149,10 @@ def company(tenant_id: str, principal: Admin, settings: SettingsDep, priced_as: 
                "usage": _usage([r for r in runs if r["started_by"] == person.subject], priced_as)}
               for person in memberships.people()]
     _saw(settings, principal, tenant_id, "company")
-    return envelope({"tenant_id": tenant_id, "people": people, "projects": projects, "usage": _usage(runs, priced_as),
-                     "priced_as": priced_as})
+    named = ps.CompanyRegistry(settings.read_root).get(tenant_id) or {}
+    return envelope({"tenant_id": tenant_id, "name": named.get("name") or "",
+                     "disabled_reason": (named.get("disabled") or {}).get("reason"), "people": people,
+                     "projects": projects, "usage": _usage(runs, priced_as), "priced_as": priced_as})
 
 
 class GiveProjects(BaseModel):
@@ -414,7 +429,7 @@ def test_key(key_id: str, principal: Admin, settings: SettingsDep) -> dict[str, 
         provider, fields = store.fields(key_id)
     except ps.SettingsError as exc:
         raise _refused(exc) from exc
-    ok, message = agent_jobs.test_key(provider, fields)
+    ok, message = kc.test_key(settings, fields) if provider == "keycloak" else agent_jobs.test_key(provider, fields)
     store.record_test(key_id, ok, message)
     return _keys_page(settings)
 
@@ -549,3 +564,287 @@ def set_limit(body: LimitSet, principal: Admin, settings: SettingsDep, priced_as
              before={k: before[k] for k in measures} if before else None,
              after={k: after[k] for k in measures} if after else None)
     return _limits_page(settings, priced_as)
+
+
+# --- F: people and companies (kept in Keycloak; `keycloak_admin`) ----------------------------------------------------
+
+
+def _on_chain(settings: Settings, principal: Principal, tenant_id: str, action: str, resource_type: str,
+              resource_id: str, *, after: Any, reason: str, before: Any = None) -> None:
+    """A change to a company or one of its people, on that company's own audit chain."""
+    store = FileProjectStore(settings.read_root, audit_mirror=audit_mirror(settings))
+    store.audit(tenant_id).append(actor=principal.user_id, action=action, resource_type=resource_type,
+                                  resource_id=resource_id, before=before, after=after, reason=reason)
+
+
+def _when(ms: Any) -> str | None:
+    return datetime.fromtimestamp(int(ms) / 1000, UTC).isoformat() if ms else None
+
+
+def _person(directory: kc.Directory, p: dict[str, Any]) -> dict[str, Any]:
+    return {"id": p["id"], "username": p["username"], "name": f"{p['first_name']} {p['last_name']}".strip() or p["username"],
+            "email": p["email"], "tenant_id": p["tenant_id"], "roles": [r for r in kc.SHOWN_ROLES if r in p["roles"]],
+            "enabled": p["enabled"], "authenticator": p["authenticator"], "required_actions": p["required_actions"],
+            "created_at": _when(p.get("created_ms")), "console_link": directory.console_link(p["id"], "settings")}
+
+
+def _people_page(directory: kc.Directory, settings: Settings, tenant_id: str | None = None, *,
+                 notice: str | None = None, link: str | None = None) -> dict[str, Any]:
+    companies = _companies(_root(settings))
+    page = {"ready": False, "problem": directory.problem, "smtp": False, "service_client": kc.SERVICE_CLIENT,
+            "roles": list(kc.ROLES), "companies": companies, "people": [], "notice": notice, "notice_link": link}
+    if directory.problem:
+        return envelope(page)
+    try:
+        people, smtp = directory.people(), directory.smtp()
+    except kc.DirectoryError as exc:
+        return envelope(page | {"problem": str(exc)})
+    rows = [_person(directory, p) for p in people if tenant_id is None or p["tenant_id"] == tenant_id]
+    rows.sort(key=lambda r: (r["tenant_id"], r["name"].lower()))
+    return envelope(page | {"ready": True, "smtp": smtp, "people": rows})
+
+
+def _refused_by(exc: kc.DirectoryError) -> HTTPException:
+    return HTTPException(status_code=409, detail=str(exc))
+
+
+def _find(directory: kc.Directory, user_id: str) -> dict[str, Any]:
+    try:
+        person = next((p for p in directory.people() if p["id"] == user_id), None)
+    except kc.DirectoryError as exc:
+        raise _refused_by(exc) from exc
+    if person is None:
+        raise HTTPException(status_code=404, detail=f"no person {user_id!r} in the realm")
+    return person
+
+
+def _company_open(settings: Settings, tenant_id: str) -> None:
+    if tenant_id not in _companies(_root(settings)):
+        raise HTTPException(status_code=409, detail=f"there is no company {tenant_id!r}: add it first (Overview)")
+    if (ps.CompanyRegistry(settings.read_root).get(tenant_id) or {}).get("disabled"):
+        raise HTTPException(status_code=409, detail=f"the company {tenant_id!r} is disabled: enable it first")
+
+
+def _roles_given(roles: list[str]) -> list[str]:
+    unknown = sorted(set(roles) - set(kc.ROLES))
+    if unknown:
+        raise HTTPException(status_code=409, detail=f"the console gives only {', '.join(kc.ROLES)} (not {', '.join(unknown)}); "
+                                                    "modeler-admin stays with the platform's owner")
+    return [r for r in kc.ROLES if r in roles]
+
+
+class PersonNew(BaseModel):
+    username: str = Field(min_length=2, max_length=64, pattern=r"^[a-z0-9][a-z0-9._@-]*$")
+    email: str = Field(min_length=3, max_length=200)
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    tenant_id: str
+    roles: list[str] = Field(default_factory=lambda: ["modeler-viewer", "modeler-curator"])
+    reason: str = Field(min_length=1)
+
+
+class PersonChange(BaseModel):
+    """What changes: whether they can sign in, roles given or taken, their company. Omitted: unchanged."""
+
+    enabled: bool | None = None
+    add_roles: list[str] = Field(default_factory=list)
+    remove_roles: list[str] = Field(default_factory=list)
+    tenant_id: str | None = None
+    reason: str = Field(min_length=1)
+
+
+class PersonReset(BaseModel):
+    """A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email
+    link, or a temporary one set by the owner in Keycloak's console: the platform never handles it)."""
+
+    password: bool = False
+    authenticator: bool = False
+    reason: str = Field(min_length=1)
+
+
+class CompanyNew(BaseModel):
+    tenant_id: str
+    name: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=1)
+
+
+class CompanyChange(BaseModel):
+    reason: str = Field(min_length=1)
+
+
+@router.get("/admin/people", **answers(PeoplePage))
+def people(principal: Admin, settings: SettingsDep, directory: kc.DirectoryDep, tenant_id: str | None = None) -> dict[str, Any]:
+    page = _people_page(directory, settings, tenant_id)
+    _saw(settings, principal, principal.tenant_id, "people", company=tenant_id)
+    return page
+
+
+@router.post("/admin/people", **answers(PeoplePage))
+def add_person(body: PersonNew, principal: Admin, settings: SettingsDep, directory: kc.DirectoryDep) -> dict[str, Any]:
+    """A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in."""
+    _root(settings)
+    ensure_step_up(principal)
+    _company_open(settings, body.tenant_id)
+    roles = _roles_given(body.roles)
+    if not roles or "@" not in body.email:
+        raise HTTPException(status_code=409, detail="a person needs an email address and at least one role")
+    try:
+        user_id = directory.create(username=body.username, email=body.email.strip(), first_name=body.first_name.strip(),
+                                   last_name=body.last_name.strip(), tenant_id=body.tenant_id, roles=roles)
+    except kc.DirectoryError as exc:
+        raise _refused_by(exc) from exc
+    name = f"{body.first_name.strip()} {body.last_name.strip()}"
+    _on_chain(settings, principal, body.tenant_id, "admin.person.add", "person", user_id, reason=body.reason,
+              after={"username": body.username, "name": name, "email": body.email.strip(), "tenant_id": body.tenant_id,
+                     "roles": roles})
+    notice, link = _first_password(directory, user_id, name, body.email.strip(), list(kc.FIRST_SIGN_IN))
+    return _people_page(directory, settings, notice=notice, link=link)
+
+
+def _first_password(directory: kc.Directory, user_id: str, name: str, email: str, actions: list[str]) -> tuple[str, str | None]:
+    """Keycloak emails the person their link when it has a mail server; else the owner sets a temporary password in
+    Keycloak's own console (the link). Either way the platform never sees a password."""
+    try:
+        if directory.smtp():
+            directory.email_actions(user_id, actions)
+            what = "password and authenticator" if "CONFIGURE_TOTP" in actions else "password"
+            return f"Keycloak emailed {name} ({email}) a link, valid 12 hours, to set their {what}.", None
+        problem = "Keycloak has no mail server, so it cannot email them."
+    except kc.DirectoryError as exc:
+        problem = f"Keycloak could not email them ({exc})."
+    told = (f"{problem} Open their page in Keycloak (the link), Credentials → Set password, Temporary on, and give the "
+            f"temporary password to {name} yourself (in person or by phone, never by this platform). At their first "
+            "sign-in they choose their own and set up their authenticator.")
+    return told, directory.console_link(user_id)
+
+
+@router.post("/admin/people/{user_id}:change", **answers(PeoplePage))
+def change_person(user_id: str, body: PersonChange, principal: Admin, settings: SettingsDep,
+                  directory: kc.DirectoryDep) -> dict[str, Any]:
+    _root(settings)
+    ensure_step_up(principal)
+    person = _find(directory, user_id)
+    yourself = user_id == principal.user_id
+    if yourself and (body.enabled is False or (body.tenant_id and body.tenant_id != person["tenant_id"])):
+        raise HTTPException(status_code=409, detail="you cannot disable yourself or move yourself to another company "
+                                                    "from the console (do it in Keycloak's own console)")
+    add = [r for r in _roles_given(body.add_roles) if r not in person["roles"]]
+    remove = [r for r in _roles_given(body.remove_roles) if r in person["roles"]]
+    moving = body.tenant_id is not None and body.tenant_id != person["tenant_id"]
+    if moving:
+        _company_open(settings, body.tenant_id or "")
+    enabling = body.enabled is not None and body.enabled != person["enabled"]
+    if not (add or remove or moving or enabling):
+        raise HTTPException(status_code=409, detail="nothing to change")
+    try:
+        if enabling:
+            directory.set_enabled(user_id, bool(body.enabled))
+        if add or remove:
+            directory.set_roles(user_id, add=add, remove=remove)
+        if moving:
+            directory.set_tenant(user_id, body.tenant_id or "")
+    except kc.DirectoryError as exc:
+        raise _refused_by(exc) from exc
+    before = {"enabled": person["enabled"], "roles": person["roles"], "tenant_id": person["tenant_id"]}
+    after = {"enabled": body.enabled if enabling else person["enabled"],
+             "roles": sorted((set(person["roles"]) | set(add)) - set(remove)),
+             "tenant_id": body.tenant_id if moving else person["tenant_id"], "username": person["username"]}
+    for tenant in {person["tenant_id"], after["tenant_id"]} - {""}:
+        _on_chain(settings, principal, tenant, "admin.person.change", "person", user_id, before=before, after=after,
+                  reason=body.reason)
+    return _people_page(directory, settings)
+
+
+@router.post("/admin/people/{user_id}:reset", **answers(PeoplePage))
+def reset_person(user_id: str, body: PersonReset, principal: Admin, settings: SettingsDep,
+                 directory: kc.DirectoryDep) -> dict[str, Any]:
+    _root(settings)
+    ensure_step_up(principal)
+    if not (body.password or body.authenticator):
+        raise HTTPException(status_code=409, detail="choose the password, the authenticator or both")
+    person = _find(directory, user_id)
+    name = f"{person['first_name']} {person['last_name']}".strip() or person["username"]
+    removed = 0
+    notice, link = None, None
+    try:
+        if body.authenticator:
+            removed = directory.remove_authenticator(user_id)
+            directory.require(user_id, ["CONFIGURE_TOTP"])
+            notice = f"{name}'s authenticator is removed; they set up a new one at their next sign-in."
+    except kc.DirectoryError as exc:
+        raise _refused_by(exc) from exc
+    if body.password:
+        told, link = _first_password(directory, user_id, name, person["email"], ["UPDATE_PASSWORD"])
+        notice = f"{notice} {told}" if notice else told
+    _on_chain(settings, principal, person["tenant_id"] or principal.tenant_id, "admin.person.reset", "person", user_id,
+              reason=body.reason, after={"username": person["username"], "authenticators_removed": removed,
+                                         "password": ("link given to set it in Keycloak" if link else "emailed")
+                                         if body.password else None})
+    return _people_page(directory, settings, notice=notice, link=link)
+
+
+@router.post("/admin/companies", **answers(CompanyPage))
+def add_company(body: CompanyNew, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    """A new company (a tenant): its folder in the store, its name, and its own audit chain from its first event."""
+    root = _root(settings)
+    ensure_step_up(principal)
+    if not kc.TENANT_ID.match(body.tenant_id):
+        raise HTTPException(status_code=409, detail="a company's id is 2 to 40 lowercase letters, digits or hyphens "
+                                                    "(it is the tenant its people carry and cannot change later)")
+    if body.tenant_id in _companies(root):
+        raise HTTPException(status_code=409, detail=f"the company {body.tenant_id!r} exists already")
+    try:
+        ps.CompanyRegistry(settings.read_root).add(body.tenant_id, body.name, by=principal.user_id)
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    _on_chain(settings, principal, body.tenant_id, "admin.company.add", "tenant", body.tenant_id, reason=body.reason,
+              after={"name": body.name.strip()})
+    return company(body.tenant_id, principal, settings, DEFAULT_PRICE)
+
+
+@router.post("/admin/companies/{tenant_id}:disable", **answers(CompanyPage))
+def disable_company(tenant_id: str, body: CompanyChange, principal: Admin, settings: SettingsDep,
+                    directory: kc.DirectoryDep) -> dict[str, Any]:
+    """Every person of the company can no longer sign in (their sessions end as their tokens expire); its projects,
+    records and people are kept, and enabling it lets the same people in again."""
+    root = _root(settings)
+    ensure_step_up(principal)
+    if tenant_id not in _companies(root):
+        raise HTTPException(status_code=404, detail=f"no company {tenant_id!r}")
+    if tenant_id == principal.tenant_id:
+        raise HTTPException(status_code=409, detail="this is your own company: disabling it would lock you out")
+    if (ps.CompanyRegistry(settings.read_root).get(tenant_id) or {}).get("disabled"):
+        raise HTTPException(status_code=409, detail=f"the company {tenant_id!r} is disabled already")
+    try:
+        members = [p for p in directory.people() if p["tenant_id"] == tenant_id and p["enabled"]]
+        for person in members:
+            directory.set_enabled(person["id"], False)
+    except kc.DirectoryError as exc:
+        raise _refused_by(exc) from exc
+    ps.CompanyRegistry(settings.read_root).disable(tenant_id, [p["id"] for p in members], by=principal.user_id,
+                                                  reason=body.reason)
+    _on_chain(settings, principal, tenant_id, "admin.company.disable", "tenant", tenant_id, reason=body.reason,
+              after={"people_disabled": sorted(p["username"] for p in members)})
+    return company(tenant_id, principal, settings, DEFAULT_PRICE)
+
+
+@router.post("/admin/companies/{tenant_id}:enable", **answers(CompanyPage))
+def enable_company(tenant_id: str, body: CompanyChange, principal: Admin, settings: SettingsDep,
+                   directory: kc.DirectoryDep) -> dict[str, Any]:
+    root = _root(settings)
+    ensure_step_up(principal)
+    if tenant_id not in _companies(root):
+        raise HTTPException(status_code=404, detail=f"no company {tenant_id!r}")
+    registry = ps.CompanyRegistry(settings.read_root)
+    if not (registry.get(tenant_id) or {}).get("disabled"):
+        raise HTTPException(status_code=409, detail=f"the company {tenant_id!r} is not disabled")
+    people_ids = list((registry.get(tenant_id) or {})["disabled"].get("people") or [])
+    try:
+        for user_id in people_ids:
+            directory.set_enabled(user_id, True)
+    except kc.DirectoryError as exc:
+        raise _refused_by(exc) from exc
+    registry.enable(tenant_id)
+    _on_chain(settings, principal, tenant_id, "admin.company.enable", "tenant", tenant_id, reason=body.reason,
+              after={"people_enabled": len(people_ids)})
+    return company(tenant_id, principal, settings, DEFAULT_PRICE)

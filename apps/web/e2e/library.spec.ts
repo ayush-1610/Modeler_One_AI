@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { AUTH } from "./fixtures/inputs";
+import { AUTH, finishStart } from "./fixtures/inputs";
 
 test("the library lists each document with what cites it, and finds, filters and opens one", async ({ page, request }) => {
   const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
@@ -116,6 +116,23 @@ test("Add data with many files scrolls inside the dialog, not the page behind it
   expect(await page.evaluate(() => window.scrollY)).toBe(pageTop);                     // the page behind does not
   await expect(page.getByTestId("add-data-goes-study-31-PK Table.csv")).toBeInViewport();
   await expect(page.getByTestId("add-data-step")).toBeInViewport();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe("hidden");   // held
+
+  // closed, the page scrolls again (the owner, 2026-11-11: it "stops scrolling" at random; a CSS :has lock was not
+  // released by Safari): the lock is the dialog's own and goes with it, however often a dialog opens and closes
+  await page.getByTestId("add-data-close").click();
+  await expect(card).toHaveCount(0);
+  for (let n = 0; n < 3; n++) {
+    await page.getByTestId("nav-add-data").click();
+    await page.keyboard.press("Escape");
+    await expect(card).toHaveCount(0);
+  }
+  expect(await page.evaluate(() => document.documentElement.dataset.dialogs)).toBeUndefined();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe("hidden");
+  await page.setViewportSize({ width: 1280, height: 360 });
+  await page.mouse.move(640, 300);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });
 
 test("Add data reads documents for data by default, and a large delivery goes up in batches", async ({ page, request }) => {
@@ -204,6 +221,30 @@ test("a figure that is the only source of a study's profile is suggested, and op
     await expect(page.getByTestId("digitize-page")).toHaveValue("1");
     await expect(page.getByPlaceholder("study id (author-year-route-dose)")).toHaveValue("FIG-01");   // for its study
   });
+
+test("documents added before reading for data are listed on Inputs and read on request", async ({ page, request }) => {
+  // the owner, 2026-11-11: a delivery added as annexes before R2 was only stored; Inputs says so and reads them
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Backlogamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  const old = await request.post(`/api/v1/projects/${projectId}/documents`, { headers: AUTH, multipart: {
+    role: "annex", files: { name: "093-26 Summary Statistics.pdf", mimeType: "application/pdf",
+                            buffer: textPdf("Study 093-26: Cmax 40 ng/mL.") } } });
+  expect(old.ok(), await old.text()).toBeTruthy();
+  await finishStart(request, projectId);      // Inputs opens once Start is done
+  await page.goto(`/projects/${projectId}/inputs`);
+  await expect(page.getByTestId("reading-tray")).toBeVisible();                      // shown with nothing queued
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("no file queued for the agent yet");
+  await expect(page.getByTestId("reading-tray-agent")).toHaveText("agent off");
+  await expect(page.getByTestId("reading-tray-backlog")).toContainText("1 document in the project's library was added");
+  await expect(page.getByTestId("reading-tray-backlog")).toContainText("093-26 Summary Statistics.pdf");
+  await page.getByTestId("reading-tray").screenshot({ path: test.info().outputPath("reading-backlog.png") });
+  await page.getByTestId("read-library").click();
+  await expect(page.getByTestId("reading-tray-backlog")).toHaveCount(0);
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("0 of 1 read · 1 waiting");
+  await expect(page.getByTestId("reading-item-093-26 Summary Statistics.pdf")).toContainText("waiting");
+});
 
 /** A one-page PDF with one line of text, its cross-reference table at the right offsets. */
 function textPdf(line: string): Buffer {

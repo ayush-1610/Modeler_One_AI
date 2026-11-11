@@ -62,3 +62,14 @@ def test_the_signing_step_up_asks_for_the_password_and_the_totp_every_time():
     assert steps == ["conditional-level-of-authentication", "auth-password-form", "auth-otp-form"]
     level = _flow("modeler loa2 signing")["authenticationExecutions"][0]["authenticatorConfig"]
     assert configs[level] == {"loa-condition-level": "2", "loa-max-age": "0"}
+
+
+def test_the_consoles_service_account_has_no_sign_in_and_only_the_roles_it_needs():
+    """The admin console's people and companies (F) call Keycloak's admin API as `modeler-admin-api`: a confidential
+    client with only a service account (no browser, no password grant) and the least realm-management it needs."""
+    console = _client("modeler-admin-api")
+    assert not console["publicClient"] and console["serviceAccountsEnabled"]
+    assert not (console["standardFlowEnabled"] or console["implicitFlowEnabled"] or console["directAccessGrantsEnabled"])
+    assert "secret" not in console                                     # never in the repository: set in Keycloak
+    (account,) = [u for u in REALM["users"] if u.get("serviceAccountClientId") == "modeler-admin-api"]
+    assert sorted(account["clientRoles"]["realm-management"]) == ["manage-users", "query-users", "view-realm", "view-users"]

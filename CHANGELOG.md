@@ -284,6 +284,65 @@ Plan `docs/plans/2026-11-11-frontend-audit-2.md`, work item 4, under the owner's
   unreadable-campaign tests are kept. `e2e/dashboard.spec.ts` adds a seeded escalation: the dashboard counts it, opens no
   dialog by itself, and the control opens it. Ran escalation-popup, dashboard, feedback, campaign-monitor and model-plan.
 
+### Fixed — the page no longer stops scrolling at random (2026-11-11)
+The owner, 2026-11-11, testing in Safari: the page "stops scrolling in between, randomly".
+- **The page lock under a dialog is the dialog's own:** it was a CSS rule, `html:has(.dialog-backdrop) { overflow:
+  hidden }` (added 2026-11-10 with the "Add data" scroll fix), which Safari did not always re-check once a dialog
+  closed, leaving the page unable to scroll until something else redrew it. The kit's Dialog now sets
+  `data-dialogs` on the page while it is open (counted, for a dialog over a dialog) and removes it as it closes;
+  `kit.css` holds the page still on `html[data-dialogs]`.
+- **The reading tray's file list lets the page scroll on:** its `overscroll-behavior: contain` stopped the wheel at the
+  end of the list whenever the pointer was over it; removed (dialogs keep theirs: they are modal).
+- Test: `e2e/library.spec.ts` "Add data with many files scrolls inside the dialog": the page is held while the dialog
+  is open, and after a dialog has opened and closed four times the page carries no lock and scrolls. The test browser
+  is Chromium, which re-checked the old rule correctly: Safari's behaviour itself could not be reproduced here.
+
+### Added — the admin console's people and companies, kept in Keycloak (F, 2026-11-11)
+The owner, 2026-11-10: the console must create "the users, groups, tenants, companies". Built from the admin console
+plan's F, with its limits (§2): no password passes through the platform, nobody is deleted, nobody acts as another
+person.
+- **People** (`/admin/people`; `GET`/`POST /api/v1/admin/people`, `POST …/people/{id}:change`, `…:reset`).
+  - Every person of the realm, from Keycloak: company (`tenant_id`), roles, whether they can sign in, whether their
+    authenticator is set up, what their next sign-in will ask.
+  - **Add a person** to a company with roles. Keycloak asks them for their own password and authenticator at their
+    first sign-in. With a mail server in Keycloak it emails them the link; without one, the console links to the
+    person's *Credentials* page in Keycloak's own console, where the owner sets a temporary password.
+  - **Change a person:** give or take roles, move them to another company, disable or enable them.
+  - **Reset a lost authenticator** (removed; set up again at the next sign-in), or start a new password the same way
+    as a first one.
+  - `modeler-admin` is never given or taken from the console. The owner cannot disable or move themselves.
+- **Companies** (`POST /api/v1/admin/companies`, `…/{tenant_id}:disable`, `…:enable`): add a company (its id is the
+  tenant its people carry, and a name); disable one (every person who could sign in is disabled; its projects,
+  records and people are kept); enable it again with the same people. The owner's own company cannot be disabled.
+  Overview and company pages show the name and the disabled state.
+- **How:** Keycloak's admin API on the local back channel, as the service account of the new realm client
+  `modeler-admin-api`. It holds only `realm-management`'s `view-realm`, `view-users`, `query-users` and
+  `manage-users` (`deploy/keycloak/realm-modeler.json`, guarded by `test_keycloak_realm.py`). Its client secret is a
+  Keys entry of the new provider "Keycloak service account", sealed like the others, and *Test* checks it. The client
+  calls with the standard library (`modeler_api.keycloak_admin`): no dependency added.
+- **Audit:** every change needs a fresh step-up and a reason, and is an event on the company's own chain
+  (`admin.person.add`, `.change`, `.reset`; `admin.company.add`, `.disable`, `.enable`); a person moved between
+  companies on both. A look at the people is an `admin.view`.
+- **Setting it up on a running realm** (`deploy/keycloak/README.md`): create the client and its roles once in
+  Keycloak's console, then store its secret under Keys.
+- **Not yet:** groups or teams within a company (with the access management the owner left for later), and the email
+  link's own redirect back to the web app.
+### Fixed — documents added before reading for data are read on request; the reading tray is always shown (2026-11-11)
+The owner, 2026-11-11, after deploying R1–R6: "I can't see any difference in the tool." The Desvenlafaxine project's 23
+files had been added on 2026-11-10 with "Add data" as annexes, before R2: stored in the library only, never client
+files, never queued ("Nothing taken from it yet"; "The client's files 0"; the reading queue empty). The tray hid itself
+with an empty queue, so nothing of R1–R5 showed.
+- **The backlog is read on request:** `GET …/reading-queue` lists `unread_documents` (a person's annex, context, paper
+  or other document, a PDF, Word file or workbook, not withdrawn, not fetched by an agent, not a client file yet);
+  `POST /projects/{id}/documents:read-for-data` (`DocumentsRead`) makes each a client file too (its library role and
+  what it relates to kept), read by code and queued for the reading agent, as "Read for data" does for a new upload.
+- **The tray is always on Inputs:** it says whether the reading agent is on and with which model, "no file queued for
+  the agent yet" when nothing is, and offers "Read all N for data" for the backlog.
+- **Add data:** client-data rows say they are read for data too (documents have their "Read for data" tickbox).
+- OpenAPI and `api-types.ts` updated. Tests: `test_documents_added_before_reading_for_data_are_listed_and_read_on_
+  request` (T-47), `e2e/library.spec.ts` "documents added before reading for data are listed on Inputs and read on
+  request".
+
 ### Changed — review fixes on audit items 7–12: tables, the escalation pop-up, a skeleton (web only)
 - **Tables (item 11).** `useTableView` now separates rows that need attention (`keep`, counted in "N need attention")
   from rows the person has typed in (`pin`, shown but not counted). Both are protected from paging and the text filter

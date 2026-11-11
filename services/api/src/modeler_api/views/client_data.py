@@ -79,6 +79,12 @@ class TriageStart(View):
     status: str
 
 
+class DocumentsRead(View):
+    """The library's documents now read for data (queued for the reading agent), and the ones not read, with why."""
+    reading: list[str]
+    not_read: list[str]
+
+
 class ReadingItem(View):
     """One file in the project's reading queue (plan 2026-11-10, R3: the reading tray)."""
     id: str
@@ -121,6 +127,7 @@ class ReadingQueuePage(View):
     items: list[ReadingItem]
     mapped: dict[str, str]         # sid -> what the delivery map says of the file, in one line (plan 2026-11-10, R4)
     figures: list[FigureSuggestion]   # figures worth digitizing, while no table holds their values (R5)
+    unread_documents: list[str]    # the library's documents a person added that were never read for data
 
 
 class Product(View):

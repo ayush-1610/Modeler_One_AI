@@ -136,3 +136,11 @@ pilot, so the console is meant for a deployment with Keycloak (question 5).
 - **Switch every agent (branch `agents-switch-all`, 2026-11-11):** the owner may lose access to Claude on Bedrock, so
   the Models page puts all five agents on one provider and model in one step (back to the in-house model, or onto
   Claude again), each agent's change audited with the same reason; refused when the provider has no active key.
+- **F, people and companies (branch `admin-people`, 2026-11-11):** the realm's people from Keycloak's admin API as the
+  service account `modeler-admin-api` (least privilege: `realm-management` view-realm, view-users, query-users,
+  manage-users; its secret under Keys): add a person to a company with roles (they set their own password and
+  authenticator: Keycloak's email when it has a mail server, else a temporary password the owner sets in Keycloak's
+  own console, linked from the page), change roles, move, disable or enable, reset a lost authenticator; add a
+  company (named), disable it (its people) and enable it again. `modeler-admin` stays out of the console; the owner
+  cannot lock themselves out. Not yet: groups or teams within a company (deferred with the access management the
+  owner left for later, answer 4).

@@ -431,6 +431,52 @@ def queue_reading(store: ProjectStore, tenant_id: str, project_id: str, sid: str
     return "RUNNING" if kick(store, tenant_id, project_id, by=by) else "QUEUED"
 
 
+def unread_documents(ws: Workspace) -> list[dict[str, Any]]:
+    """The library's documents a person added that were never read for data: added as an annex, context, paper or other
+    document (before "Read for data" existed, or with it unticked), a PDF, Word file or workbook, not withdrawn, not
+    fetched by an agent, and not a client file yet. Each: its name, hash and what it relates to."""
+    from modeler_project.documents import document_record
+
+    library = DocumentLibrary(ws)
+    held = {sub["sha256"] for sub in submissions(ws)}
+    out = []
+    for version in library.documents():
+        record = document_record(version)
+        entry = library.entry(record.sha256) if library.has_record else None
+        if (record.role not in READ_ROLES or record.sha256 in held or not record.name.lower().endswith(READ_FOR_DATA)
+                or str(version.created_by).startswith("agent:")
+                or (entry is not None and (entry.withdrawn is not None or entry.retrieved is not None))):
+            continue
+        out.append({"name": record.name, "sha256": record.sha256, "role": record.role,
+                    "relates_to": entry.relates_to if entry is not None else None})
+    return out
+
+
+def read_documents_for_data(store: ProjectStore, tenant_id: str, project_id: str, *, by: str,
+                            names: list[str] | None = None) -> dict[str, Any]:
+    """Read for data the library's documents never read (`unread_documents`), or the ones named: each is also a client
+    file (its library role kept), read by code at once and queued for the reading agent, as a document added with
+    "Read for data" ticked. Returns the files queued and the ones not read, each with why."""
+    ws = Workspace(store, tenant_id, project_id)
+    library = DocumentLibrary(ws)
+    reading, not_read, sids = [], [], []
+    for doc in unread_documents(ws):
+        if names is not None and doc["name"] not in names:
+            continue
+        path = store.blob_path(tenant_id, project_id, doc["sha256"])
+        if path is None:
+            not_read.append(f"{doc['name']}: its bytes are not in the store")
+            continue
+        new_sids, read, refused = ingest_for_reading(ws, library, [(doc["name"], path.read_bytes())], by=by,
+                                                     relates_to=doc["relates_to"])
+        sids += new_sids
+        reading += read
+        not_read += refused
+    if sids:
+        read_later(store, tenant_id, project_id, sids, by=by)
+    return {"reading": reading, "not_read": not_read}
+
+
 def ingest_for_reading(ws: Workspace, library: DocumentLibrary, payloads: list[tuple[str, bytes]], *, by: str,
                        relates_to: RelatesTo | None = None) -> tuple[list[str], list[str], list[str]]:
     """Documents a person added to the library and asked to be read for data (plan 2026-11-10, R2; the owner's decision
