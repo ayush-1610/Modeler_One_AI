@@ -58,7 +58,7 @@ function Exclude({ row, onExclude, busy }: { row: ReviewRow; onExclude: (reason:
 }
 
 // sortable by its heads, 25 rows at a time (the 2026-11-11 audit, item 11); an input that waits on a person (a conflict,
-// a held value, a missing input) is never paged or filtered out
+// a held value, a missing input) is never paged or hidden by the text filter; a pressed chip narrows it too
 const confidenceOrder = ordinal(["high", "medium", "low"]);
 const REVIEW_KEYS = {
   input: (r: ReviewRow) => r.id, value: (r: ReviewRow) => numericKey(r.value), source: (r: ReviewRow) => where(r),
@@ -68,11 +68,13 @@ const REVIEW_KEYS = {
 
 export function ReviewTable({ projectId, review, run, busy }: { projectId: string; review: ReviewPage; run: Run; busy: boolean }) {
   const [filter, setFilter] = useState<Filter>("all");
-  // a row the person has worked in (an exclusion reason opened) stays shown, so its typed text is not lost
+  // a row the person has typed in (an exclusion reason) stays shown, so its text is not lost; it is not counted as
+  // needing attention, and focus alone (tabbing through) does not pin it. On the bubbling input event: an update from a
+  // capture-phase handler would put the controlled field back to its old value before the field's own onChange runs
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
   const view = useTableView({
     rows: review.rows, keys: REVIEW_KEYS, pageSize: 25, filter: (r) => matches(r, filter), filterKey: filter,
-    keep: (r) => r.state !== "kept" || touched.has(r.id),
+    keep: (r) => r.state !== "kept", pin: (r) => touched.has(r.id),
   });
   const rows = view.visible;
   const touch = (id: string) => { if (!touched.has(id)) setTouched(new Set([...touched, id])); };
@@ -109,7 +111,7 @@ export function ReviewTable({ projectId, review, run, busy }: { projectId: strin
                 const state = STATE_LABEL[r.state];
                 return (
                   <tr key={r.id} data-testid={`review-row-${r.id}`} className={r.state === "kept" ? "" : "waiting"}
-                      onFocusCapture={() => touch(r.id)}>
+                      onInput={() => touch(r.id)}>
                     <td>
                       <code>{r.id}</code>
                       {r.state !== "kept" && <div><span className={`chip ${state.chip}`}>{state.label}</span></div>}

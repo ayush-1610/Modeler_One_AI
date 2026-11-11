@@ -5,7 +5,7 @@
 // column (a function cannot cross from a server component to a client one). Client tables with stateful cells use the
 // hook (lib/tableView.ts) and the parts below directly. Rows that need action (`keep`) are never paged or filtered out.
 
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { useTableView, type SortKey, type TableView } from "@/lib/tableView";
 
@@ -39,14 +39,23 @@ export function TableFilter<T>({ view, placeholder, label, testId, children }: {
 }
 
 /** Under the table (outside it, so a row count of the table stays the rows): how many are shown, how many need
- *  attention and are always shown, and "Show N more" / "Show all". Focus stays on the footer when the buttons go. */
+ *  attention and are always shown, and "Show N more" / "Show all". Focus stays on a button while it is there; when the
+ *  last page is shown and the buttons go, it moves to the count line, which stays (it is rendered whenever there were
+ *  more rows to show). */
 export function TableMore<T>({ view, noun, testId }: { view: TableView<T>; noun: string; testId?: string }) {
   const here = useRef<HTMLParagraphElement>(null);
+  // once there were more rows than shown, the count line stays: the place focus goes when the buttons go
+  const [paged, setPaged] = useState(false);
   const filtered = view.matched !== view.total;
   const shown = view.visible.length;
-  if (!view.remaining && !filtered && !view.attention && !view.sort) return null;
+  if (!view.remaining && !filtered && !view.attention && !view.sort && !paged) return null;
   const step = view.pageSize ? Math.min(view.pageSize, view.remaining) : view.remaining;
-  const keepFocus = (fn: () => void) => () => { fn(); here.current?.focus(); };
+  // the last page: the button goes, so focus moves to the count line (after the render that removes the button)
+  const keepFocus = (fn: () => void, last: boolean) => () => {
+    setPaged(true);
+    fn();
+    if (last) requestAnimationFrame(() => here.current?.focus());
+  };
   return (
     <p className="table-more" ref={here} tabIndex={-1} data-testid={testId} aria-live="polite">
       <span>
@@ -57,10 +66,10 @@ export function TableMore<T>({ view, noun, testId }: { view: TableView<T>; noun:
       </span>
       {view.remaining > 0 && (
         <>
-          <button type="button" className="btn tiny" onClick={keepFocus(view.more)} data-testid={testId && `${testId}-next`}>
+          <button type="button" className="btn tiny" onClick={keepFocus(view.more, step >= view.remaining)} data-testid={testId && `${testId}-next`}>
             Show {step} more</button>
           {view.remaining > step && (
-            <button type="button" className="btn tiny" onClick={keepFocus(view.all)} data-testid={testId && `${testId}-all`}>
+            <button type="button" className="btn tiny" onClick={keepFocus(view.all, true)} data-testid={testId && `${testId}-all`}>
               Show all {view.matched}</button>
           )}
         </>
@@ -112,7 +121,8 @@ export function SortableTable({ columns, rows, testId, label, noun = "rows", pag
           </tbody>
         </table>
       </div>
-      {view.matched === 0 && view.visible.length === 0 && <p className="muted table-none">No {noun} match “{view.query}”.</p>}
+      {view.total === 0 ? <p className="muted table-none">No {noun} yet.</p>
+        : view.matched === 0 && view.visible.length === 0 && <p className="muted table-none">No {noun} match “{view.query}”.</p>}
       <TableMore view={view} noun={noun} testId={testId && `${testId}-more`} />
     </div>
   );

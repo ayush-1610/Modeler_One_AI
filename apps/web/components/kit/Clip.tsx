@@ -5,16 +5,16 @@
 const MAX = 140;
 
 /** What the text is about: the part before a value (`proposed expr.profile.ABCB1 = {…}` → `proposed expr.profile.ABCB1`). */
-function head(text: string): { lead: string; rest: number } {
+function head(text: string, max: number): { lead: string; rest: number } {
   const value = text.search(/\s=\s*[[{]/);
-  if (value > 0 && value <= MAX) return { lead: text.slice(0, value), rest: text.length - value };
-  return { lead: `${text.slice(0, MAX).trimEnd()}…`, rest: text.length - MAX };
+  if (value > 0 && value <= max) return { lead: text.slice(0, value), rest: text.length - value };
+  return { lead: `${text.slice(0, max).trimEnd()}…`, rest: text.length - max };
 }
 
 export function Clip({ text, max = MAX, testId }: { text: string | null | undefined; max?: number; testId?: string }) {
   if (!text) return <span className="muted">—</span>;
   if (text.length <= max) return <span data-testid={testId}>{text}</span>;
-  const { lead, rest } = head(text);
+  const { lead, rest } = head(text, max);
   return (
     <details className="clip" data-testid={testId}>
       <summary>

@@ -42,6 +42,7 @@ test("the studies table pages, sorts by its heads and filters, in the API's orde
   await page.getByTestId("studies-more-next").click();
   await expect.poll(() => studyIds(page)).toEqual(all.map((s) => `study-${s.study_id}`));
   await expect(page.getByTestId("studies-more-next")).toHaveCount(0);
+  await expect(more).toBeFocused();                                         // focus went to the count line, which stays
 
   // the Study head: ascending, then descending (from the keyboard), then back to the API's order
   const head = page.locator("table.studies-table th", { hasText: "Study" });

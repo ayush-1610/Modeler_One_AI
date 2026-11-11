@@ -54,7 +54,7 @@ function DatasetList({ datasets, projectId, run }: { datasets: Listed[]; project
   const view = useTableView({
     rows: datasets, keys: NO_KEYS, text: datasetText, pageSize: 10,
     filter: SHOW.find((x) => x.id === show)!.test, filterKey: show,
-    keep: (d) => Boolean(d.blinded) || standing(d)[1] === "overlay to check" || touched.has(d.id),
+    keep: (d) => Boolean(d.blinded) || standing(d)[1] === "overlay to check", pin: (d) => touched.has(d.id),
   });
   const touch = (id: string) => { if (!touched.has(id)) setTouched(new Set([...touched, id])); };
   return (
@@ -71,7 +71,7 @@ function DatasetList({ datasets, projectId, run }: { datasets: Listed[]; project
       )}
       <div className="paged-cards">
         {view.visible.map((d) => (
-          <div key={d.id} onFocusCapture={() => touch(d.id)}><DatasetCard d={d} projectId={projectId} run={run} /></div>
+          <div key={d.id} onInput={() => touch(d.id)}><DatasetCard d={d} projectId={projectId} run={run} /></div>
         ))}
       </div>
       {view.visible.length === 0 && <p className="muted table-none">No dataset matches this filter.</p>}

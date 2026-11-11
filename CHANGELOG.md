@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — review fixes on audit items 7–12: tables, the escalation pop-up, a skeleton (web only)
+- **Tables (item 11).** `useTableView` now separates rows that need attention (`keep`, counted in "N need attention")
+  from rows the person has typed in (`pin`, shown but not counted). Both are protected from paging and the text filter
+  only; a pressed chip ("From an agent", "Left out", "Used"…) now narrows them too, so "No input matches this filter"
+  can show again while inputs wait. A row is pinned when it is typed in (bubbling input events), no longer when it gets focus,
+  so tabbing through a table no longer unpages it or inflates the count (Review table, studies, datasets).
+  `TableMore` keeps focus on "Show N more" while it is there, moves it to the count line only when the last page is
+  shown (the line now stays, so focus is not lost to `<body>`), and the line gets a visible `:focus-visible` outline.
+  `SortableTable` says "No rounds yet." for an empty table instead of 'No rounds match “”.' `Clip` now cuts at the
+  `max` it is given (the CPF parameters' references at 90 read "+ -30 characters" before).
+- **Escalation pop-up (item 8).** The dialog opens by itself only when a page loads, or on the campaign's own page when
+  no other dialog is open and no pointer button is down; an escalation that arrives later elsewhere shows the corner
+  "A decision is waiting · Open" control, so nothing opens over a drag, a digitized point or another dialog. The
+  escalation shown is held until it is decided or put off (a newer one joins "N more after this one"), so a typed
+  rationale is never replaced; on a project page the first dialog waits for that project's campaigns to set the order.
+  After "Decide later" or Escape, focus goes to the corner control.
+- **Skeleton (item 9).** The project run page's skeleton says "Step 4 of 4", as the page does.
+- Impact: web behaviour only; no API, ruleset or engine change. Tests: `e2e/table-sort.spec.ts` now also checks that
+  focus lands on the count line after the last "Show N more"; `e2e/escalation-popup.spec.ts` that focus is on the
+  corner control after Escape ("Decide later").
+
 ### Changed — static inline styles moved into utility classes (audit item 10, web only)
 - **What:** 334 static `style={{…}}` literals in 50 files under `apps/web/app` and `apps/web/components` (plus the
   conditional fail colour in `components/campaign/Feedback.tsx`) are now classes from a new sheet,

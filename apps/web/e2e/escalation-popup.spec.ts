@@ -62,6 +62,7 @@ test("an escalation opens as a dialog on any page, and \"Decide later\" leaves a
   await expect(popup).toHaveCount(0);
   const waiting = page.getByTestId("escalation-waiting");
   await expect(waiting).toContainText("waiting · Open");                    // a way back, without a reload
+  await expect(waiting).toBeFocused();                                      // and focus is on it, not lost to the page
   await page.reload();                                                      // it is only closed for this visit
   await expect(popup).toBeVisible();
 

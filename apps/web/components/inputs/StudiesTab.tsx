@@ -44,17 +44,18 @@ const studyText = (s: StudyRow) => [s.study_id, s.purpose, s.origin, fact(s, "fo
   .filter(Boolean).join(" ").replace(/_/g, " ");
 
 /** The studies table: sortable by its heads, filtered by text or by where a study stands, 20 rows at a time. A study
- *  that needs the person (blinded, its regimen missing) or whose row is being edited is never paged or filtered out. */
+ *  that needs the person (blinded, its regimen missing) or whose row is being typed in is never paged or hidden by the text filter (a pressed chip narrows it too). */
 function StudiesTable({ studies, projectId, run, onIndividuals }: {
   studies: StudyRow[]; projectId: string; run: Run; onIndividuals: () => void;
 }) {
   const [show, setShow] = useState<Show>("all");
-  // a row the person has worked in (a regimen typed, a reason opened) stays shown, so its typed text is not lost
+  // a row the person has typed in (a regimen, a reason) stays shown, so its text is not lost; it is not counted as
+  // needing attention, and focus alone (tabbing through) does not pin it
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
   const view = useTableView({
     rows: studies, keys: STUDY_KEYS, text: studyText, pageSize: 20,
     filter: SHOW.find((x) => x.id === show)!.test, filterKey: show,
-    keep: (s) => s.blinded || s.regimen_missing || touched.has(s.study_id),
+    keep: (s) => s.blinded || s.regimen_missing, pin: (s) => touched.has(s.study_id),
   });
   const touch = (id: string) => { if (!touched.has(id)) setTouched(new Set([...touched, id])); };
   return (
@@ -79,7 +80,7 @@ function StudiesTable({ studies, projectId, run, onIndividuals }: {
           <tbody className="paged-rows">
             {view.visible.map((s) => (
               <tr key={s.study_id} data-testid={`study-${s.study_id}`} id={`study-${s.study_id}`} className={s.excluded ? "left-out" : ""}
-                  onFocusCapture={() => touch(s.study_id)}>
+                  onInput={() => touch(s.study_id)}>
                 <td><strong>{s.study_id}</strong>
                   <div className="muted fs-12">{(s.purpose ?? "").replace(/_/g, " ")} · {(s.origin ?? "").toLowerCase().replace("_", " ")}</div>
                   {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed">blinded</span>}</td>
