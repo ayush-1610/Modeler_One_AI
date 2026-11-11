@@ -24,3 +24,6 @@ class MembersPage(View):
     members: list[MemberView]
     people: list[PersonView]
     managed: bool
+    owner: str | None             # its owner, the only one who changes it (`modeler_project.members`)
+    owner_name: str | None
+    you_change_it: bool           # false: shared with the person to read

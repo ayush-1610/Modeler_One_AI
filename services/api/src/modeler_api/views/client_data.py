@@ -84,7 +84,7 @@ class ReadingItem(View):
     id: str
     sid: str
     file: str
-    task: Literal["arrival", "read"]
+    task: Literal["arrival", "read", "map"]
     sheets: list[str]
     state: Literal["queued", "reading", "done", "failed"]
     added_by: str
@@ -97,12 +97,30 @@ class ReadingItem(View):
     found: dict[str, int]
 
 
+class FigureSuggestion(View):
+    """A figure worth digitizing: no table holds its values (plan 2026-11-10, R5)."""
+    kind: Literal["concentration_time", "dissolution"]
+    page: int
+    quote: str
+    study_id: str
+    product: str
+    medium: str
+    ph: list[float]
+    n: int                         # the suggestion's place on its file's reading (with the sid, it names it)
+    sid: str
+    file: str
+    doc_sha256: str
+    digitizable: bool              # a PDF's concentration-time figure: the digitizer opens its page and makes a profile
+
+
 class ReadingQueuePage(View):
     """The reading tray: each file the reading agent is to read, is reading or has read, and whether agents are on."""
     agents: AgentsStatus
     running: bool                  # the reading job runs
     counts: dict[str, int]         # queued, reading, done, failed
     items: list[ReadingItem]
+    mapped: dict[str, str]         # sid -> what the delivery map says of the file, in one line (plan 2026-11-10, R4)
+    figures: list[FigureSuggestion]   # figures worth digitizing, while no table holds their values (R5)
 
 
 class Product(View):

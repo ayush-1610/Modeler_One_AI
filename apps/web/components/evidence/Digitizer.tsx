@@ -19,21 +19,24 @@ const EMPTY_AXIS: Axis = { p1: null, v1: "", p2: null, v2: "", log: false };
  *  Nothing is detected automatically: which marker is a point, and of which series, is the person's call. A figure
  *  inside a PDF is found from the figure list (an image placed on a page) or cropped by hand (a drawn figure), and
  *  zoomed; the points are picked in that view, whose frame is kept with the dataset (R3d). */
-export function Digitizer({ projectId, documents, onSaved }: {
+export function Digitizer({ projectId, documents, onSaved, initial }: {
   projectId: string;
   documents: DocumentView[];
   onSaved: (datasetId: string) => void;
+  /** Open on this document and page, for this study (a figure the reading tray suggested; plan 2026-11-10, R5). */
+  initial?: { sha: string; page: number; study?: string };
 }) {
   const figures = documents.filter((d) => d.kind === "pdf" || d.kind === "image");
-  const [sha, setSha] = useState(figures[0]?.sha256 ?? "");
-  const [page, setPage] = useState(1);
+  const start = initial && figures.some((d) => d.sha256 === initial.sha) ? initial : null;
+  const [sha, setSha] = useState(start?.sha ?? figures[0]?.sha256 ?? "");
+  const [page, setPage] = useState(start?.page ?? 1);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [mode, setMode] = useState<Mode>("x1");
   const [x, setX] = useState<Axis>(EMPTY_AXIS);
   const [y, setY] = useState<Axis>(EMPTY_AXIS);
   const [series, setSeries] = useState("mean");
   const [points, setPoints] = useState<Record<string, [number, number][]>>({ mean: [] });
-  const [study, setStudy] = useState<Study>({ study_id: "", reference: "", n: "", route: "oral", dose_mg: "", infusion_time_min: "",
+  const [study, setStudy] = useState<Study>({ study_id: start?.study ?? "", reference: "", n: "", route: "oral", dose_mg: "", infusion_time_min: "",
                                               formulation: "ir_tablet", food_state: "fasted", statistic: "mean_sd" });
   const [units, setUnits] = useState({ time: "h", conc: "ng/ml", locator: "Figure " });
   const [error, setError] = useState<string | null>(null);
@@ -152,11 +155,11 @@ export function Digitizer({ projectId, documents, onSaved }: {
   return (
     <div className="digitizer" data-testid="digitizer">
       <div className="row">
-        <select value={sha} onChange={(e) => { setSha(e.target.value); setPage(1); }}>
+        <select value={sha} onChange={(e) => { setSha(e.target.value); setPage(1); }} aria-label="document" data-testid="digitize-document">
           {figures.map((d) => <option key={d.sha256} value={d.sha256}>{d.name}</option>)}
         </select>
         {doc?.kind === "pdf" && (
-          <label className="row" style={{ gap: 4 }}>page <input type="number" min={1} max={doc.n_pages} value={page}
+          <label className="row" style={{ gap: 4 }}>page <input type="number" min={1} max={doc.n_pages} value={page} data-testid="digitize-page"
                  onChange={(e) => { setPage(Number(e.target.value)); setCrop(null); }} style={{ width: 64 }} /></label>
         )}
         <label className="row" style={{ gap: 4 }}>zoom

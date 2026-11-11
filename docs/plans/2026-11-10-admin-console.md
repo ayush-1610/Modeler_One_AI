@@ -51,8 +51,7 @@ through their owner modules, as the other routers do).
 | H | Support view | Any project opened read-only as its people see it ("view as"), to see what they see. |
 
 A and B are built first (one PR); then C and D (the agents read their model and keys from the console), then the
-Claude-on-Bedrock provider the console can choose, then E to H. Answer 4's ownership rule is its own PR once question 6
-is answered.
+Claude-on-Bedrock provider the console can choose, then E to H. Answer 4's ownership rule is its own PR (built, §4).
 
 ### Not built, and why (from the checklist the owner pasted)
 
@@ -117,6 +116,14 @@ pilot, so the console is meant for a deployment with Keycloak (question 5).
   has no server-side fallback) and an overloaded model retried once on it; every turn's cache writes and reads
   recorded, and the usage report prices them as they were. Not yet: the agents' text and page limits, set for the
   in-house model's context, widened for Claude; the A1 and delivery evaluations run on Opus 5.5 against Sonnet 5.5.
+- **Going live on Keycloak (branch `keycloak-go-live`):** the realm imported with the web's Tailscale address among
+  `modeler-web`'s redirect URIs; the console's "Give a person projects" (a person's projects, or every project of the
+  company, to a person who has signed in once), with a step-up and an audit event per membership.
+- **Answers 4 and 6, the ownership rule (branch `ownership-rule`, on `keycloak-go-live`):** the creator is the owner,
+  kept in `members.json` and recorded on the audit chain; every write to a project is its owner's alone (`NOT_OWNER`);
+  a reviewer it is shared with signs its MAP, its records and its campaigns' escalations; the owner stays a member; the
+  console's "Give a person projects" can make the person the owner. Not yet: the pages marked read-only for the people
+  a project is shared with (their edit buttons answer with the refusal).
 - **E, limits (branch `limit-warnings`):** a monthly limit on the agents' estimated spend (USD) and tokens (in and
   out), on a company, a project or a person, kept in the platform store (`_platform/limits.json`, with every change).
   This calendar month's use (UTC) is measured against each, at the page's Claude prices (Opus 5.5 unless another is

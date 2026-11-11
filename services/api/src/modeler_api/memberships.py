@@ -41,8 +41,9 @@ def admit(principal: Principal, settings: Settings) -> Principal:
 
 
 def record_creator(settings: Settings, principal: Principal, project_id: str) -> None:
-    """A new project's creator is its first member."""
+    """A new project's creator is its first member, and its owner."""
     if settings.read_root:
         memberships = memberships_for(settings, principal.tenant_id)
         memberships.remember(principal.user_id, principal.printed_name)
         memberships.add(project_id, principal.user_id, by=principal.user_id, reason="created the project")
+        memberships.set_owner(project_id, principal.user_id, by=principal.user_id, reason="created the project")

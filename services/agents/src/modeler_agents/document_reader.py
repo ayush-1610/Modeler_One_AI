@@ -43,7 +43,6 @@ from modeler_project.dataset_register import propose_dataset
 from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, new_dataset_id
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import SourceRef
-from modeler_project.evidence_register import request_access
 from modeler_project.workspace import Workspace
 from pbpk_domain.dissolution import profiles_from_rows
 
@@ -67,7 +66,7 @@ Propose with:
 - propose_dissolution: a dissolution TABLE of one product under one set of conditions: product and product_quote (a line naming it), conditions [{field, value, page, quote}] for role (TEST, RLD, REFERENCE), strength_mg, batch, apparatus, rpm, medium, ph, volume_ml as the file states them, header_quote stating the time unit and %, and rows {time, mean, sd, quote}.
 - propose_composition: a product's composition as the file reports it (shown to the reviewer, not used by the model): product and product_quote, and components [{name, amount, unit, function, quote}], each quote writing the component and its amount.
 - propose_link: when the file says two names are one study (a protocol number and a study code), one product (a code and a trade name) or one batch (a batch and a lot number): kind study, product or batch, with the quote that says so.
-- request_digitization: data shown only in a FIGURE; never read numbers off a figure.
+- suggest_digitization: a FIGURE that is the only source of a study's concentration-time profile or of a product's dissolution profile (no table in this file or, by the delivery map, in another file holds its values): kind concentration_time with the study_id, or dissolution with the product (and the medium and each pH, when the caption states them), the page, and the quote: the figure's caption or title copied from that page. A person decides whether to digitize it. Never read numbers off a figure, and do not suggest any other figure.
 
 Rules: a quote is at least 12 characters, so quote a table row whole. Never compute, convert or guess a number; copy units as written. If a fact is not stated, leave it out and say so in your summary. A proposal the program refuses comes back with the reason: fix it or leave it. Call several tools in one turn when you can. Finish with a short summary: what you proposed, what the file does not state, what is only in figures."""
 
@@ -87,6 +86,7 @@ class DocumentContext:
     datasets: list[str] = field(default_factory=list)
     refused: list[str] = field(default_factory=list)
     digitization: list[str] = field(default_factory=list)
+    figures: list[dict[str, Any]] = field(default_factory=list)   # figures suggested for digitizing (plan 2026-11-10, R5)
     compositions: list[dict[str, Any]] = field(default_factory=list)
 
     def pages(self) -> list[str]:
@@ -418,16 +418,53 @@ def propose_composition(ctx: DocumentContext, *, product: str, product_quote: st
     return f"ACCEPTED {what}: {len(lines)} components, shown on the product's card as reported"
 
 
+FIGURE_KINDS = ("concentration_time", "dissolution")
+_FIGURE = re.compile(r"\bfig(?:ure)?\.?\s*(?:S|A)?\d|\bplots?\b|\bgraphs?\b|\bcharts?\b|\bcurves?\b|\bprofiles?\b|"
+                     r"time[- ]course|concentration[- ]time", re.IGNORECASE)
+_TABLE_TITLE = re.compile(r"^\s*(?:table|tab\.)\s*[A-Z]?\d", re.IGNORECASE)
+_PH_IN = re.compile(r"\bpH\s*[:=]?\s*(\d{1,2}(?:[.,]\d+)?)", re.IGNORECASE)
+
+
+def suggest_digitization(ctx: DocumentContext, *, kind: str, page: int, quote: str, study_id: str = "",
+                         product: str = "", medium: str = "", ph: Any = None) -> str:
+    """A figure worth digitizing (plan 2026-11-10, R5; the owner's decision 3): only a study's concentration-time profile
+    or a product's dissolution profile, its caption quoted from its page, the study or product written in this file;
+    for a dissolution figure, the medium and each pH it shows when the caption states them. Nothing is filed: the
+    suggestion is shown to a person only while no table holds the same values (`modeler_project.figure_suggestions`)."""
+    what = f"figure on p. {page}"
+    if kind not in FIGURE_KINDS:
+        return ctx.refuse(what, "only a study's concentration-time profile or a dissolution profile is suggested")
+    if why := check_quote(ctx.page(page), quote):
+        return ctx.refuse(what, why)
+    if _TABLE_TITLE.search(quote) or not _FIGURE.search(quote):
+        return ctx.refuse(what, "the quote must be the figure's caption or title (Figure 2, plot, graph, profile …), "
+                                "not a table's")
+    if kind == "concentration_time":
+        if not study_id.strip() or not _named_in_file(ctx, study_id):
+            return ctx.refuse(what, "name the study as this file writes it")
+        target: dict[str, Any] = {"study_id": study_id.strip()}
+    else:
+        if not product.strip() or not any(names_in(p, product) for p in ctx.pages()):
+            return ctx.refuse(what, "name the product as this file writes it")
+        stated = {round(float(v.replace(",", ".")), 2) for v in _PH_IN.findall(quote)}
+        wanted = [round(float(v), 2) for v in (_parse(ph) if isinstance(ph, (str, list)) else [ph] if ph is not None else [])]
+        if any(v not in stated for v in wanted):
+            return ctx.refuse(what, "each pH must be written in the caption quoted (pH 1.2, pH 4.5)")
+        if medium.strip() and not text_in(medium, quote):
+            return ctx.refuse(what, "the medium must be written in the caption quoted")
+        target = {"product": product.strip(), "medium": medium.strip(), "ph": wanted or sorted(stated)}
+    item = {"kind": kind, "page": page, "quote": quote[:400], **target}
+    if item in ctx.figures:
+        return f"ACCEPTED (already suggested) {what}"
+    ctx.figures.append(item)
+    return (f"ACCEPTED {what} suggested for digitizing; it is shown to a person only while no table holds these "
+            "values")
+
+
 def build_tools(ctx: DocumentContext) -> list[Tool]:
     s, i = {"type": "string"}, {"type": "integer"}
     num = {"type": "number"}
 
-    def request_digitization(page: int, figure: str, what: str) -> str:
-        request_id, _ = request_access(ctx.ws, title=f"Digitize {figure} (p. {page}) of {ctx.file}", authors="", doi=None,
-                                       journal=None, year=None, needed_for=f"figure digitization: {what} [doc {ctx.sha[:12]}]",
-                                       by=ctx.actor)
-        ctx.digitization.append(request_id)
-        return f"RECORDED digitization task {request_id} for a person"
 
     fact = {"type": "object", "properties": {"fact": {"type": "string", "enum": list(FACT_FIELDS)}, "value": {},
                                              "unit": s, "page": i, "quote": s}, "required": ["fact", "value", "page", "quote"]}
@@ -476,13 +513,18 @@ def build_tools(ctx: DocumentContext) -> list[Tool]:
                      "type": "object", "properties": {"name": s, "amount": num, "unit": s, "function": s, "quote": s},
                      "required": ["name", "amount", "unit", "quote"]}}},
               "required": ["product", "product_quote", "page", "components"]}, lambda **kw: propose_composition(ctx, **kw)),
-        Tool("request_digitization", "Hand data shown only in a figure to a person for digitization.",
-             {"type": "object", "properties": {"page": i, "figure": s, "what": s}, "required": ["page", "figure", "what"]},
-             request_digitization),
+        Tool("suggest_digitization", "Suggest a figure that is the only source of a study's concentration-time profile or "
+             "a product's dissolution profile, for a person to digitize; its caption quoted.",
+             {"type": "object", "properties": {"kind": {"type": "string", "enum": list(FIGURE_KINDS)}, "page": i, "quote": s,
+                                               "study_id": s, "product": s, "medium": s,
+                                               "ph": {"type": "array", "items": num}},
+              "required": ["kind", "page", "quote"]},
+             lambda **kw: suggest_digitization(ctx, **kw)),
     ]
 
 
-def brief_for(ctx: DocumentContext, *, inventory: list[dict[str, Any]], drug: str, known_studies: list[str]) -> str:
+def brief_for(ctx: DocumentContext, *, inventory: list[dict[str, Any]], drug: str, known_studies: list[str],
+              context: str = "") -> str:
     """The agent's task: the file, its tag, code's inventory and the study names the client's other files use."""
     tag = f"tagged “{ctx.tag}”" + (f" for study {ctx.tag_study}" if ctx.tag_study else "")
     lines = [f"Drug: {drug or 'not named'}. File: {ctx.file}, {len(ctx.pages())} pages, {tag}."]
@@ -494,22 +536,26 @@ def brief_for(ctx: DocumentContext, *, inventory: list[dict[str, Any]], drug: st
     if known_studies:
         lines.append(f"Study names in the client's other files: {', '.join(known_studies)}. If this file gives one of "
                      "them another name, propose_link with the quote.")
+    if context:   # what the delivery map says of this file and the others (plan 2026-11-10, R4)
+        lines.append(context)
     return "\n".join(lines)
 
 
 def read_document(model: ChatModel, ctx: DocumentContext, *, inventory: list[dict[str, Any]], drug: str = "",
                   known_studies: list[str] = (), max_turns: int = 30,
-                  log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> LoopOutcome:
+                  log_step: Callable[[dict[str, Any]], None] = lambda s: None, context: str = "") -> LoopOutcome:
     """Read one client document; what code accepted is on `ctx` (facts, dissolution rows, links, datasets proposed),
     and what it refused on `ctx.refused`."""
     return run_tool_loop(model, system=SYSTEM_PROMPT,
-                         user=brief_for(ctx, inventory=inventory, drug=drug, known_studies=list(known_studies)),
+                         user=brief_for(ctx, inventory=inventory, drug=drug, known_studies=list(known_studies),
+                                        context=context),
                          tools=build_tools(ctx), max_turns=max_turns, log_step=log_step)
 
 
 def read_and_record(model: ChatModel, ws: Workspace, library: DocumentLibrary, sid: str, *, actor: str, drug: str = "",
                     run_id: str | None = None, max_turns: int = 30,
-                    log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> tuple[DocumentContext, LoopOutcome]:
+                    log_step: Callable[[dict[str, Any]], None] = lambda s: None,
+                    context: str = "") -> tuple[DocumentContext, LoopOutcome]:
     """Read one client file (its submission `sid`) and record on it what code accepted and refused
     (`client_data.record_document_reading`): the API's reading job and the delivery evaluation both read this way."""
     from modeler_intake.document_reading import inventory
@@ -526,8 +572,8 @@ def read_and_record(model: ChatModel, ws: Workspace, library: DocumentLibrary, s
     ctx = DocumentContext(ws=ws, library=library, sha=sha, file=content["file"], actor=actor,
                           tag=tag.kind if tag else "other", tag_study=tag.study if tag else "")
     outcome = read_document(model, ctx, inventory=listed, drug=drug, known_studies=known, max_turns=max_turns,
-                            log_step=log_step)
+                            log_step=log_step, context=context)
     record_document_reading(ws, sid, facts=ctx.facts, dissolution=ctx.dissolution, links=ctx.links, datasets=ctx.datasets,
                             refused=ctx.refused, digitization=ctx.digitization, summary=outcome.final_text, run_id=run_id,
-                            by=actor, compositions=ctx.compositions)
+                            by=actor, compositions=ctx.compositions, figures=ctx.figures)
     return ctx, outcome

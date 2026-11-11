@@ -35,6 +35,9 @@ MAX_ROWS_PER_READ = 60
 SHOWN_COLUMNS = 30
 QUOTED = ("value_unit", "time_unit", "lloq", "dose", "n", "strength_mg")   # each stands on a quote from the sheet
 UNSTATABLE = ("value_unit", "time_unit")                    # … or, for a unit only, is said to be unstated
+# what a sheet is about: changed from code's first filling, each stands on a cell of the sheet or on the file's name (the
+# delivery map and the other files are context only: plan 2026-11-10, R4 review)
+ON_SHEET = ("study_id", "product", "role", "batch", "medium", "ph", "food_state", "route", "formulation")
 
 SYSTEM_PROMPT = """You read one sheet of a client's PBPK data workbook and say how to read it, by correcting a form that code filled in first. A program applies your form exactly as written and checks it; a scientist checks the result before anything is saved, so describe the sheet as it is.
 
@@ -107,6 +110,10 @@ def _supports(form: SheetForm, name: str, quote: str, value: str) -> bool:
     if name in ("value_unit", "time_unit"):
         unit = _unit_of(form.kind, name, value)
         return unit is not None and any(_unit_of(form.kind, name, t) == unit for t in _UNIT_TOKEN.findall(quote))
+    if name in ("strength_mg", "dose"):   # the number next to its unit, not any number of the cell (R5 review)
+        unit = "mg" if name == "strength_mg" else str(form.constants.get("dose_unit") or "mg")
+        with_unit = re.findall(rf"(\d+(?:[.,]\d+)?)\s*{re.escape(unit)}(?![a-z/])", quote, re.IGNORECASE)
+        return any(_same_number(n, value) for n in with_unit)
     return any(_same_number(n, value) for n in _NUMBER.findall(quote))
 
 
@@ -126,6 +133,9 @@ def check_reading(workbook: WorkbookGrid, form: SheetForm, unstated: list[str]) 
     should stand on a quote and does not."""
     problems = []
     for e in form.evidence:
+        if (e.field in QUOTED or e.field in ON_SHEET) and form.sheet and e.cell.partition("!")[0] != form.sheet:
+            problems.append(f"evidence {e.cell}: cite a cell of this sheet ({form.sheet})")
+            continue
         text = _cell_text(workbook, e.cell)
         if text is None:
             problems.append(f"evidence {e.cell}: no such cell (write it as Sheet!A1)")
@@ -173,6 +183,53 @@ def _summary(review) -> str:
     return f"{len(series)} series:\n" + "\n".join(lines) + more
 
 
+def _states(name: str, value: str, text: str) -> bool:
+    """Whether a text (a cell's quote, the sheet's cells, or the file's name; separators as spaces) states the value."""
+    from modeler_intake.document_reading import names_in, supports_choice, text_in
+
+    spaced = re.sub(r"[_\-]+", " ", text)
+    if name in ("food_state", "role", "route", "formulation"):
+        return supports_choice(value, spaced) or supports_choice(value.upper(), spaced)
+    if name == "ph":
+        if not re.fullmatch(r"\d{1,2}(?:\.\d+)?", value):
+            return False
+        stated = re.findall(r"\bpH\s*[:=]?\s*(\d{1,2}(?:\.\d+)?)", spaced, re.IGNORECASE)
+        return any(abs(float(m) - float(value)) < 1e-9 for m in stated)
+    return text_in(value, spaced) or names_in(spaced, value)
+
+
+SHEET_ROWS_SEARCHED = 60
+
+
+def _sheet_cells(ctx: ReadingContext) -> list[str]:
+    """The text of each cell of the sheet's first rows, and the sheet's own name: each is checked on its own, so a value
+    is never pieced together from several cells (the R5 review)."""
+    grid = ctx.workbook.sheets[ctx.sheet]
+    return [ctx.sheet, *(text for r in range(1, min(grid.max_row, SHEET_ROWS_SEARCHED) + 1)
+                         for c in range(1, grid.max_column + 1) if (text := as_text(grid.cell(r, c).value)))]
+
+
+def _unquoted_changes(ctx: ReadingContext, reading: SheetForm) -> list[str]:
+    """A constant the reading changes from code's first filling must be written on this sheet (in a cited cell, in one
+    cell of its first rows, or in its name) or in the file's name; nothing comes from another file or the delivery
+    map."""
+    problems = []
+    cells: list[str] | None = None
+    for name in ON_SHEET:
+        new = str(reading.constants.get(name, "")).strip()
+        if not new or new == str(ctx.start.constants.get(name, "")).strip():
+            continue
+        if any(e.field == name and _states(name, new, e.quote) for e in reading.evidence) or \
+                _states(name, new, ctx.workbook.file_name):
+            continue
+        cells = _sheet_cells(ctx) if cells is None else cells
+        if any(_states(name, new, cell) for cell in cells):
+            continue
+        problems.append(f"{name} {new}: not written on this sheet nor in the file's name; cite the cell that states it "
+                        f"or leave it for the person (another file or the delivery map is context, not data)")
+    return problems
+
+
 def propose_reading(ctx: ReadingContext, *, form: dict[str, Any], unstated: list[str] | None = None,
                     notes: list[str] | None = None) -> str:
     unstated = [u for u in unstated or [] if u in UNSTATABLE]
@@ -182,7 +239,7 @@ def propose_reading(ctx: ReadingContext, *, form: dict[str, Any], unstated: list
         problems = [f"{'.'.join(str(x) for x in e['loc'])}: {e['msg']}" for e in exc.errors()[:8]]
         ctx.rejected.append("; ".join(problems))
         return "REJECTED: the form is not valid:\n- " + "\n- ".join(problems)
-    problems = check_reading(ctx.workbook, reading, unstated)
+    problems = check_reading(ctx.workbook, reading, unstated) + _unquoted_changes(ctx, reading)
     review = None
     if not problems:
         reading = _canonical_evidence(reading)
@@ -216,19 +273,21 @@ def read_rows(ctx: ReadingContext, *, first_row: int, last_row: int) -> str:
 # --- the run ---------------------------------------------------------------------------------------------------------
 
 
-def _user(ctx: ReadingContext, drug: str) -> str:
+def _user(ctx: ReadingContext, drug: str, context: str = "") -> str:
     grid = ctx.workbook.sheets[ctx.sheet]
     start = json.dumps(ctx.start.model_dump(mode="json"), ensure_ascii=False)
     return (f"File {ctx.workbook.file_name}, sheet {ctx.sheet} ({grid.max_row} rows, {grid.max_column} columns). "
             f"The drug: {drug or 'not given'}.\n\n## The sheet, rows 1-{min(grid.max_row, SHOWN_ROWS)}\n"
             f"{grid.preview(max_rows=SHOWN_ROWS, max_columns=SHOWN_COLUMNS)}\n\n## Code's first filling of the form\n{start}\n\n"
-            "## What code found or did not find\n" + "\n".join(f"- {n}" for n in ctx.start_notes or ["(nothing to add)"]))
+            "## What code found or did not find\n" + "\n".join(f"- {n}" for n in ctx.start_notes or ["(nothing to add)"])
+            + (f"\n\n## {context}" if context else ""))
 
 
 def read_sheet(model: ChatModel, *, workbook: WorkbookGrid, sheet: str, drug: str = "", actor: str,
                category: str = "", products: list[dict[str, str]] | None = None, max_turns: int = 8,
-               log_step: Callable[[dict[str, Any]], None] = lambda s: None) -> Reading:
-    """Propose the reading of one sheet, starting from code's first filling; only a reading code accepts is returned."""
+               log_step: Callable[[dict[str, Any]], None] = lambda s: None, context: str = "") -> Reading:
+    """Propose the reading of one sheet, starting from code's first filling; only a reading code accepts is returned.
+    `context`: what the delivery map says of this file and the others (plan 2026-11-10, R4)."""
     start, start_notes = suggest(workbook.sheets[sheet], category=category, filename=workbook.file_name, drug=drug,
                                  products=products or [])
     ctx = ReadingContext(workbook=workbook, sheet=sheet, start=start, start_notes=start_notes, actor=actor)
@@ -247,6 +306,6 @@ def read_sheet(model: ChatModel, *, workbook: WorkbookGrid, sheet: str, drug: st
                  "first_row": {"type": "integer"}, "last_row": {"type": "integer"}}},
              handler=lambda **kw: read_rows(ctx, **kw)),
     ]
-    outcome = run_tool_loop(model, system=SYSTEM_PROMPT, user=_user(ctx, drug), tools=tools, max_turns=max_turns,
+    outcome = run_tool_loop(model, system=SYSTEM_PROMPT, user=_user(ctx, drug, context), tools=tools, max_turns=max_turns,
                             log_step=log_step)
     return Reading(ctx.form, ctx.notes, ctx.rejected, outcome)

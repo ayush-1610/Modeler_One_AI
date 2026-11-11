@@ -70,3 +70,12 @@ def _structured_sources_stay_offline(monkeypatch):
 
     offline = ("pubchem.ncbi.nlm.nih.gov", "api.fda.gov", "www.ebi.ac.uk")
     monkeypatch.setattr(agent_jobs, "structured_clients", lambda: structured_answers.clients(unreachable=offline))
+
+
+@pytest.fixture(autouse=True)
+def _readings_start_at_once(monkeypatch):
+    """The reading job waits a few seconds for the rest of a delivery sent in batches (plan 2026-11-10, R4 review);
+    in tests every upload is one request, so it starts at once."""
+    from modeler_api import intake_jobs
+
+    monkeypatch.setattr(intake_jobs, "SETTLE_S", 0.0)

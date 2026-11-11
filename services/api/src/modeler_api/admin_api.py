@@ -146,14 +146,15 @@ class GiveProjects(BaseModel):
 
     to: str = Field(min_length=1)
     from_: str = Field("", alias="from")
+    owner: bool = False        # and make them each project's owner, the only one who changes it
     reason: str = Field(min_length=1)
 
 
 @router.post("/admin/companies/{tenant_id}:give-projects", **answers(CompanyPage))
 def give_projects(tenant_id: str, body: GiveProjects, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
-    """Make a person a member of another person's projects, or of all the company's: how the projects made under the
-    pilot's DEV sign-in (its "dev-user") reach the people who sign in through Keycloak. Each membership is an audit event
-    on the company's chain, by the administrator, with the reason."""
+    """Make a person a member of another person's projects, or of all the company's, and with `owner` their owner: how
+    the projects made under the pilot's DEV sign-in (its "dev-user") reach the people who sign in through Keycloak. Each
+    membership and change of owner is an audit event on the company's chain, by the administrator, with the reason."""
     root = _root(settings)
     if tenant_id not in _companies(root):
         raise HTTPException(status_code=404, detail=f"no company {tenant_id!r}")
@@ -166,9 +167,12 @@ def give_projects(tenant_id: str, body: GiveProjects, principal: Admin, settings
     if not ids:
         raise HTTPException(status_code=409, detail="there are no projects to give")
     whose = f"the projects of {body.from_}" if body.from_ else "every project of the company"
+    why = f"admin console: {whose}: {body.reason.strip()}"
     try:
         for project_id in ids:
-            memberships.add(project_id, body.to, by=principal.user_id, reason=f"admin console: {whose}: {body.reason.strip()}")
+            memberships.add(project_id, body.to, by=principal.user_id, reason=why)
+            if body.owner:
+                memberships.set_owner(project_id, body.to, by=principal.user_id, reason=why)
     except MembershipError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return company(tenant_id, principal, settings, DEFAULT_PRICE)

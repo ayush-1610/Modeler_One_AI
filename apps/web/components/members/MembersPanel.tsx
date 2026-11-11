@@ -50,17 +50,25 @@ export function MembersPanel({ projectId }: { projectId: string }) {
             through Keycloak.
           </p>
         )}
+        {data.managed && !data.you_change_it && (
+          <p className="banner warn" style={{ marginTop: 0 }} data-testid="members-read-only">
+            Shared with you to read. Only the owner, {data.owner_name}, changes this project
+            {" "}(a reviewer can still sign it).
+          </p>
+        )}
         <table>
           <thead><tr><th>Member</th><th>Added by</th><th>Since</th><th /></tr></thead>
           <tbody>
             {data.members.map((m) => (
               <tr key={m.subject} data-testid={`member-${m.subject}`}>
-                <td>{m.name}</td>
+                <td>{m.name}{m.subject === data.owner && <> <span className="chip neutral" data-testid="member-owner">owner</span></>}</td>
                 <td>{m.added_by}</td>
                 <td>{m.added_at.slice(0, 10)}</td>
                 <td className="num">
-                  <button className="btn" disabled={busy || data.members.length < 2} onClick={() => remove(m.subject, m.name)}
-                          title={data.members.length < 2 ? "A project keeps at least one member" : undefined}>Remove</button>
+                  <button className="btn" disabled={busy || data.members.length < 2 || !data.you_change_it || m.subject === data.owner}
+                          onClick={() => remove(m.subject, m.name)}
+                          title={m.subject === data.owner ? "The owner stays a member" : data.members.length < 2
+                            ? "A project keeps at least one member" : undefined}>Remove</button>
                 </td>
               </tr>
             ))}
@@ -74,7 +82,7 @@ export function MembersPanel({ projectId }: { projectId: string }) {
           </select>
           <input aria-label="Reason" placeholder="Reason (required to remove)" value={reason} style={{ flex: 1 }}
                  onChange={(e) => setReason(e.target.value)} />
-          <button className="btn" disabled={busy || !adding} onClick={add}>{busy ? "Saving…" : "Add member"}</button>
+          <button className="btn" disabled={busy || !adding || !data.you_change_it} onClick={add}>{busy ? "Saving…" : "Add member"}</button>
         </div>
         <span className={outcome?.ok ? "muted" : ""} data-testid="members-outcome">
           {outcome && (outcome.ok ? outcome.message : <span className="chip high">{outcome.message}</span>)}

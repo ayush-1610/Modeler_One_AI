@@ -8506,6 +8506,83 @@
         "title": "FieldChange",
         "type": "object"
       },
+      "FigureSuggestion": {
+        "additionalProperties": false,
+        "description": "A figure worth digitizing: no table holds its values (plan 2026-11-10, R5).",
+        "properties": {
+          "digitizable": {
+            "title": "Digitizable",
+            "type": "boolean"
+          },
+          "doc_sha256": {
+            "title": "Doc Sha256",
+            "type": "string"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "concentration_time",
+              "dissolution"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "medium": {
+            "title": "Medium",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "ph": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Ph",
+            "type": "array"
+          },
+          "product": {
+            "title": "Product",
+            "type": "string"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "sid": {
+            "title": "Sid",
+            "type": "string"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "page",
+          "quote",
+          "study_id",
+          "product",
+          "medium",
+          "ph",
+          "n",
+          "sid",
+          "file",
+          "doc_sha256",
+          "digitizable"
+        ],
+        "title": "FigureSuggestion",
+        "type": "object"
+      },
       "FigureView": {
         "additionalProperties": false,
         "description": "An image placed on a PDF page (`modeler_intake.documents.PdfFigure`): its box as fractions of the page as shown.",
@@ -8957,6 +9034,11 @@
             "default": "",
             "title": "From",
             "type": "string"
+          },
+          "owner": {
+            "default": false,
+            "title": "Owner",
+            "type": "boolean"
           },
           "reason": {
             "minLength": 1,
@@ -12746,18 +12828,47 @@
             "title": "Members",
             "type": "array"
           },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
           "people": {
             "items": {
               "$ref": "#/components/schemas/PersonView"
             },
             "title": "People",
             "type": "array"
+          },
+          "you_change_it": {
+            "title": "You Change It",
+            "type": "boolean"
           }
         },
         "required": [
           "members",
           "people",
-          "managed"
+          "managed",
+          "owner",
+          "owner_name",
+          "you_change_it"
         ],
         "title": "MembersPage",
         "type": "object"
@@ -15743,7 +15854,8 @@
           "task": {
             "enum": [
               "arrival",
-              "read"
+              "read",
+              "map"
             ],
             "title": "Task",
             "type": "string"
@@ -15782,12 +15894,26 @@
             "title": "Counts",
             "type": "object"
           },
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/FigureSuggestion"
+            },
+            "title": "Figures",
+            "type": "array"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/ReadingItem"
             },
             "title": "Items",
             "type": "array"
+          },
+          "mapped": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Mapped",
+            "type": "object"
           },
           "running": {
             "title": "Running",
@@ -15798,7 +15924,9 @@
           "agents",
           "running",
           "counts",
-          "items"
+          "items",
+          "mapped",
+          "figures"
         ],
         "title": "ReadingQueuePage",
         "type": "object"
@@ -22447,7 +22575,7 @@
     },
     "/api/v1/admin/companies/{tenant_id}:give-projects": {
       "post": {
-        "description": "Make a person a member of another person's projects, or of all the company's: how the projects made under the\npilot's DEV sign-in (its \"dev-user\") reach the people who sign in through Keycloak. Each membership is an audit event\non the company's chain, by the administrator, with the reason.",
+        "description": "Make a person a member of another person's projects, or of all the company's, and with `owner` their owner: how\nthe projects made under the pilot's DEV sign-in (its \"dev-user\") reach the people who sign in through Keycloak. Each\nmembership and change of owner is an audit event on the company's chain, by the administrator, with the reason.",
         "operationId": "give_projects_api_v1_admin_companies__tenant_id__give_projects_post",
         "parameters": [
           {

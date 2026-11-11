@@ -66,9 +66,9 @@ export interface paths {
         put?: never;
         /**
          * Give Projects
-         * @description Make a person a member of another person's projects, or of all the company's: how the projects made under the
-         *     pilot's DEV sign-in (its "dev-user") reach the people who sign in through Keycloak. Each membership is an audit event
-         *     on the company's chain, by the administrator, with the reason.
+         * @description Make a person a member of another person's projects, or of all the company's, and with `owner` their owner: how
+         *     the projects made under the pilot's DEV sign-in (its "dev-user") reach the people who sign in through Keycloak. Each
+         *     membership and change of owner is an audit event on the company's chain, by the administrator, with the reason.
          */
         post: operations["give_projects_api_v1_admin_companies__tenant_id__give_projects_post"];
         delete?: never;
@@ -5328,6 +5328,39 @@ export interface components {
             value?: unknown;
         };
         /**
+         * FigureSuggestion
+         * @description A figure worth digitizing: no table holds its values (plan 2026-11-10, R5).
+         */
+        FigureSuggestion: {
+            /** Digitizable */
+            digitizable: boolean;
+            /** Doc Sha256 */
+            doc_sha256: string;
+            /** File */
+            file: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "concentration_time" | "dissolution";
+            /** Medium */
+            medium: string;
+            /** N */
+            n: number;
+            /** Page */
+            page: number;
+            /** Ph */
+            ph: number[];
+            /** Product */
+            product: string;
+            /** Quote */
+            quote: string;
+            /** Sid */
+            sid: string;
+            /** Study Id */
+            study_id: string;
+        };
+        /**
          * FigureView
          * @description An image placed on a PDF page (`modeler_intake.documents.PdfFigure`): its box as fractions of the page as shown.
          */
@@ -5538,6 +5571,11 @@ export interface components {
              * @default
              */
             from?: string;
+            /**
+             * Owner
+             * @default false
+             */
+            owner?: boolean;
             /** Reason */
             reason: string;
             /** To */
@@ -6937,8 +6975,14 @@ export interface components {
             managed: boolean;
             /** Members */
             members: components["schemas"]["MemberView"][];
+            /** Owner */
+            owner: string | null;
+            /** Owner Name */
+            owner_name: string | null;
             /** People */
             people: components["schemas"]["PersonView"][];
+            /** You Change It */
+            you_change_it: boolean;
         };
         /** Meta */
         Meta: {
@@ -8072,7 +8116,7 @@ export interface components {
              * Task
              * @enum {string}
              */
-            task: "arrival" | "read";
+            task: "arrival" | "read" | "map";
         };
         /**
          * ReadingQueuePage
@@ -8084,8 +8128,14 @@ export interface components {
             counts: {
                 [key: string]: number;
             };
+            /** Figures */
+            figures: components["schemas"]["FigureSuggestion"][];
             /** Items */
             items: components["schemas"]["ReadingItem"][];
+            /** Mapped */
+            mapped: {
+                [key: string]: string;
+            };
             /** Running */
             running: boolean;
         };

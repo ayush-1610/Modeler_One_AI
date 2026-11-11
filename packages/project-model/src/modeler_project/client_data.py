@@ -44,6 +44,7 @@ from pbpk_domain.issues import Issue
 
 REGISTER = "register"
 REVIEW = "review"           # modeler_project.client_review: selections and confirmations on Inputs
+DELIVERY = "delivery"       # the delivery map (plan 2026-11-10, R4): what each file of the delivery is, quoted
 SPREADSHEETS = (".xlsx", ".xlsm", ".xls", ".csv")
 READABLE_DOCUMENTS = ("pdf", "docx")   # the kinds the reading agent reads for data (plan 2026-11-03 §3.4, I4)
 _STATISTIC = {"arithmetic_mean": "arithmetic_mean", "geometric_mean": "geometric_mean", "median": "median"}
@@ -63,7 +64,7 @@ def submission_id(sha256: str) -> str:
 
 def submissions(ws: Workspace) -> list[dict[str, Any]]:
     """Every client file's record (not the P3 register, nor the record of what a person confirmed on Inputs)."""
-    return [v.content | {"id": v.id} for v in ws.list(ArtifactKind.CLIENT_SUBMISSION) if v.id not in (REGISTER, REVIEW)]
+    return [v.content | {"id": v.id} for v in ws.list(ArtifactKind.CLIENT_SUBMISSION) if v.id not in (REGISTER, REVIEW, DELIVERY)]
 
 
 def review_record(ws: Workspace) -> dict[str, Any]:
@@ -449,7 +450,7 @@ def record_drafts(ws: Workspace, sid: str, drafts: dict[str, dict[str, Any]], *,
 def record_document_reading(ws: Workspace, sid: str, *, facts: list[dict[str, Any]], dissolution: list[dict[str, Any]],
                             links: list[dict[str, Any]], datasets: list[str], refused: list[str], digitization: list[str],
                             summary: str, run_id: str | None, by: str,
-                            compositions: list[dict[str, Any]] = ()) -> dict[str, Any]:
+                            compositions: list[dict[str, Any]] = (), figures: list[dict[str, Any]] = ()) -> dict[str, Any]:
     """What the reading agent read from one client PDF or Word file, every item quoted and checked by code (plan
     2026-11-03 §3.4, I4): study facts, dissolution rows, links between two names of one study, product or batch, a
     product's composition as reported, the datasets it proposed, and what code refused. A later reading of the same file replaces the earlier: its facts, rows and links go, and the
@@ -471,8 +472,9 @@ def record_document_reading(ws: Workspace, sid: str, *, facts: list[dict[str, An
                                reason=f"replaced by a later reading of {content['file']}")
         read = {"run_id": run_id, "by": by, "datasets": datasets, "facts": len(facts), "dissolution_rows": len(dissolution),
                 "links": len(links), "compositions": len(compositions), "refused": refused[:50], "digitization": digitization,
-                "summary": summary[:2000]}
+                "figures": len(figures), "summary": summary[:2000]}
         content.update(study_facts=facts, dissolution=dissolution, study_links=links, compositions=list(compositions),
+                       figure_suggestions=list(figures),
                        datasets=[*[d for d in content.get("datasets", []) if d not in earlier], *datasets],
                        document_reads=[*content.get("document_reads", []), read])
         ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,
@@ -493,9 +495,79 @@ def document_facts(ws: Workspace) -> list[dict[str, Any]]:
 
 
 def document_links(ws: Workspace, kind: str = "study") -> list[dict[str, Any]]:
-    """Every pair of names a client document says are one study (or product, or batch), quoted, with its file."""
-    return [{**link, "sid": sub["id"], "file": sub["file"], "doc_sha256": sub["sha256"]}
-            for sub in submissions(ws) for link in sub.get("study_links", []) if link.get("kind", "study") == kind]
+    """Every pair of names a client file says are one study (or product, or batch), quoted, with its file: the links a
+    document's reading proposed, and those the delivery pass found across the files (plan 2026-11-10, R4)."""
+    files = {sub["id"]: sub for sub in submissions(ws)}
+    read = [{**link, "sid": sub["id"], "file": sub["file"], "doc_sha256": sub["sha256"]}
+            for sub in files.values() for link in sub.get("study_links", []) if link.get("kind", "study") == kind]
+    from modeler_intake.document_reading import name_key
+
+    said = {frozenset(name_key(n) for n in link["names"]) for link in read}
+    mapped = [{**link, "doc_sha256": files[link["sid"]]["sha256"], "file": files[link["sid"]]["file"]}
+              for link in delivery_map(ws)["links"] if link.get("kind") == kind and link.get("sid") in files
+              and frozenset(name_key(n) for n in link["names"]) not in said]    # a document said it already
+    return read + mapped
+
+
+def delivery_map(ws: Workspace) -> dict[str, Any]:
+    """The delivery map (plan 2026-11-10, R4): per file (and per sheet of a workbook) what it is, each value quoted from
+    the file and checked by code; the links between names across files; the files the delivery pass has looked at."""
+    version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, DELIVERY)
+    content = dict(version.content) if version else {}
+    return {"files": content.get("files", {}), "links": content.get("links", []), "looked_at": content.get("looked_at", []),
+            "tries": content.get("tries", {}), "runs": content.get("runs", [])}
+
+
+def forget_tries(ws: Workspace, sids: list[str]) -> None:
+    """A person added a file again, or asked for it to be read again: its unfinished delivery passes are forgotten, so
+    it is mapped again (a file the pass finished looking at stays looked at)."""
+    current = delivery_map(ws)
+    if not any(sid in current["tries"] for sid in sids):
+        return
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, DELIVERY):
+        current = delivery_map(ws)
+        version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, DELIVERY)
+        content = dict(version.content) if version else {}
+        content["tries"] = {k: v for k, v in current["tries"].items() if k not in sids}
+        ws.commit(ArtifactKind.CLIENT_SUBMISSION, DELIVERY, content, actor="code",
+                  reason=f"delivery map: {len(sids)} file(s) to be mapped again")
+
+
+def record_delivery_map(ws: Workspace, *, files: dict[str, dict[str, Any]], links: list[dict[str, Any]],
+                        looked_at: list[str], refused: list[str], summary: str, run_id: str | None, by: str,
+                        tried: list[str] = (), status: str = "COMPLETED") -> None:
+    """Add what one delivery pass found to the map: a file's (or a sheet's) values replace the earlier ones field by
+    field; a link already on the map is not added twice; every file the pass finished looking at is marked, found or
+    not (`looked_at`); every file it tried is counted (`tried`), so a pass that failed is tried again, a few times."""
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, DELIVERY):
+        current = delivery_map(ws)
+        merged = {sid: {**entry, "facts": dict(entry.get("facts", {})),
+                        "sheets": {k: {**v, "facts": dict(v.get("facts", {}))} for k, v in entry.get("sheets", {}).items()}}
+                  for sid, entry in current["files"].items()}
+        for sid, entry in files.items():
+            into = merged.setdefault(sid, {"file": entry.get("file", ""), "facts": {}, "sheets": {}})
+            into["file"] = entry.get("file") or into.get("file", "")
+            into["facts"].update(entry.get("facts", {}))
+            for sheet, part in entry.get("sheets", {}).items():
+                into["sheets"].setdefault(sheet, {"facts": {}})["facts"].update(part.get("facts", {}))
+        seen = {(link["kind"], tuple(sorted(link["names"]))) for link in current["links"]}
+        new_links = []
+        for link in links:
+            key = (link["kind"], tuple(sorted(link["names"])))
+            if key not in seen:
+                seen.add(key)
+                new_links.append(link)
+        tries = dict(current["tries"])
+        for sid in tried:
+            tries[sid] = tries.get(sid, 0) + 1
+        runs = [*current["runs"], {"run_id": run_id, "by": by, "status": status, "tried": list(tried), "looked_at": looked_at,
+                                   "facts": sum(len(e.get("facts", {})) + sum(len(p.get("facts", {})) for p in e.get("sheets", {}).values())
+                                                for e in files.values()),
+                                   "links": len(new_links), "refused": refused[:50], "summary": summary[:2000]}]
+        content = {"files": merged, "links": [*current["links"], *new_links],
+                   "looked_at": sorted(set(current["looked_at"]) | set(looked_at)), "tries": tries, "runs": runs[-50:]}
+        ws.commit(ArtifactKind.CLIENT_SUBMISSION, DELIVERY, content, actor=by,
+                  reason=f"delivery map: {len(looked_at)} file(s) looked at, {len(new_links)} link(s)")
 
 
 def document_compositions(ws: Workspace) -> list[dict[str, Any]]:

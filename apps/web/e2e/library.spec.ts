@@ -1,5 +1,8 @@
 // The project document library (docs/plans/2026-10-28-project-document-library.md, PR 1): reached from the sidebar of an
 // open project, every document with who added it and what the project took from it; searched, filtered and opened.
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+
 import { expect, test } from "@playwright/test";
 
 import { AUTH } from "./fixtures/inputs";
@@ -171,6 +174,36 @@ test("the reading tray on Inputs lists each file for the agent and says when the
   await expect(page.getByTestId("reading-item-093-26 Synopsis.pdf")).toContainText("on arrival");
   await tray.screenshot({ path: test.info().outputPath("reading-tray.png") });
 });
+
+test("a figure that is the only source of a study's profile is suggested, and opens the digitizer on its page",
+  async ({ page, request }) => {
+    // plan 2026-11-10, R5 (the owner's decision 3): suggested only, shown only while no table holds its values
+    const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+      drug_name: "Plotamide", extract: "false",
+      files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+    const projectId = (await started.json()).data.project_id as string;
+    const caption = "Figure 2. Mean plasma concentrations of Study FIG-01 (ng/mL)";
+    const up = await request.post(`/api/v1/projects/${projectId}/client-data`, { headers: AUTH, multipart: {
+      files: { name: "FIG-01 Mean plot.pdf", mimeType: "application/pdf", buffer: textPdf(caption) } } });
+    expect(up.ok(), await up.text()).toBeTruthy();
+    const sid = (await up.json()).data.read[0].id as string;
+    execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "figure_suggestion.py"),
+                        join(process.env.E2E_DATA_DIR!, "read-root"), projectId, sid, "1", "FIG-01", caption],
+                 { cwd: join(__dirname, "..", "..", "..") });
+
+    await page.goto(`/projects/${projectId}/inputs`);
+    const figure = page.getByTestId("figure-FIG-01 Mean plot.pdf-1");
+    await expect(figure).toContainText("concentration-time profile of study FIG-01");
+    await expect(figure).toContainText(caption);
+    await page.getByTestId("figure-suggestions").screenshot({ path: test.info().outputPath("figure-suggestion.png") });
+    await page.getByTestId("digitize-FIG-01 Mean plot.pdf-1").click();
+    await page.waitForURL(/digitize=/);
+    await expect(page.getByTestId("digitizer")).toBeVisible();
+    await expect(page.getByTestId("digitize-document")).toHaveValue(/^[0-9a-f]{64}$/);
+    await expect(page.getByTestId("digitize-document").locator("option:checked")).toHaveText("FIG-01 Mean plot.pdf");
+    await expect(page.getByTestId("digitize-page")).toHaveValue("1");
+    await expect(page.getByPlaceholder("study id (author-year-route-dose)")).toHaveValue("FIG-01");   // for its study
+  });
 
 /** A one-page PDF with one line of text, its cross-reference table at the right offsets. */
 function textPdf(line: string): Buffer {
