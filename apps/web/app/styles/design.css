@@ -132,9 +132,29 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
 .stepper .step.current.done .step-n { box-shadow: 0 0 0 4px color-mix(in srgb, var(--pass) 16%, transparent); }
 .stepper .step-locked { border: 0; opacity: 0.55; }
 .step-waiting { text-align: center; margin: 10px auto 0; }
+/* On a phone the steps are one row about 44 px tall (the 2026-11-11 audit 2, item 8): the 2×2 grid under the top bar
+ * covered the top 193 px of an 844 px screen and in-page jumps landed under it. Each step is its numbered dot; the
+ * current step also says its name and state (with no current step, as on History, each says its name). The names of
+ * the others stay in the links for screen readers and in their titles. Only the row is held in view: the line that says
+ * what the step waits on scrolls away with the page (the wrap is display:contents, so the row is sticky in the page,
+ * not in the wrap). The row never changes height, so nothing moves under the pointer. */
 @media (max-width: 760px) {
-  .stepper ol { grid-template-columns: repeat(2, minmax(0, 1fr)); border-radius: 22px; }
+  .content .stepper-wrap { display: contents; }
+  .content .stepper-wrap > .stepper, .content .stepper-wrap > .skeleton { position: sticky; top: 72px; z-index: 19;
+    margin: -30px auto 0; max-width: 880px; }
+  .content > main > .stepper-wrap:first-child > .stepper, .content > main > .stepper-wrap:first-child > .skeleton { margin-top: 0; }
+  .stepper-wrap .skeleton-row.pill { height: 44px; }
+  .stepper ol { display: flex; gap: 2px; height: 44px; padding: 4px 6px; border-radius: 999px; align-items: center; }
+  .stepper .step { flex: 0 0 auto; min-width: 0; }
+  .stepper .step.current, .stepper:not(:has(.current)) .step { flex: 1 1 0; }
+  .stepper .step a, .stepper .step-locked { height: 36px; padding: 0 8px; gap: 6px; }
   .stepper .step a::after, .stepper .step-locked::after { display: none; }
+  .stepper .step-n { flex: none; }
+  .stepper .step-text { display: flex; align-items: baseline; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .stepper .step-label { overflow: hidden; text-overflow: ellipsis; }
+  .stepper .step:not(.current) .step-state { display: none; }
+  .stepper:has(.current) .step:not(.current) .step-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 }
 
 /* ---------- panels ---------- */
@@ -253,7 +273,8 @@ code { background: color-mix(in srgb, var(--sim) 8%, transparent); }
   padding: 8px 12px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); }
 .page-state-detail { margin-top: 32px; }
 /* a wide table scrolls inside its panel, never the page */
-.card:has(> table), .card:has(> .table-scroll) { overflow-x: auto; }
+/* a panel that scrolls a table is the containing block of what is positioned in it, as .table-scroll is (audit 2, item 8) */
+.card:has(> table), .card:has(> .table-scroll) { position: relative; overflow-x: auto; }
 /* a summary row of figures (the CPF's counts): the design's large numerals */
 .kpi { gap: 32px; }
 .kpi .k .v { font-size: 34px; font-weight: 700; letter-spacing: -0.04em; line-height: 1.1; }
@@ -397,10 +418,12 @@ td.num, th.num { white-space: nowrap; }
   .nav-foot { margin-top: 4px; }
   .content, .app:has(> .sidebar.pinned) .content { padding-left: 0; }
   .content .stepper-wrap { top: 72px; }
+  /* an in-page jump lands under the top bar (72 px) and the step bar in its four columns (about 54 px) */
+  html { scroll-padding-top: calc(72px + 54px + 12px); }
 
   /* nothing wider than the screen: wide tables scroll inside their panel, forms and tools wrap */
   .card, .dash-panel, .input-block, .start-block { padding: 18px; border-radius: 20px; }
-  .card:has(table), .table-scroll { overflow-x: auto; }
+  .card:has(table), .table-scroll { position: relative; overflow-x: auto; }
   .card .spread, .card .row, .library-tools, .dash-tools { flex-wrap: wrap; }
   .card .spread > input, .library-tools > * { flex: 1 1 140px; min-width: 0; }
   .inputs-layout, .inputs-area, .rail-nav, .shell-main { min-width: 0; max-width: 100%; }
@@ -414,6 +437,8 @@ td.num, th.num { white-space: nowrap; }
   .hero-band h1 { font-size: clamp(32px, 10vw, 44px); }
   .hero-actions .btn { padding: 11px 18px; font-size: 14px; }
 }
+/* on a phone the step bar is one 44 px row (above), so a jump lands under 72 + 44 px */
+@media (max-width: 760px) { html { scroll-padding-top: calc(72px + 44px + 12px); } }
 /* Inputs: the to-do beside one folded panel of checks and sources (the 2026-11-11 audit, item 4) */
 .rail-side { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 @media (max-width: 900px) { .rail-side { grid-template-columns: minmax(0, 1fr); } }

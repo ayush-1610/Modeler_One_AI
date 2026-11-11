@@ -239,7 +239,7 @@ export function LibraryTable({ projectId }: { projectId: string }) {
               <tr><SortHeader view={view} col="name" label="Document" /><SortHeader view={view} col="added" label="Added" />
                 <SortHeader view={view} col="role" label="Role and tag" /><th>Relates to</th><th>Format</th>
                 <SortHeader view={view} col="versions" label="Versions" numeric />
-                <th>Data extracted / project contribution</th><th><span className="sr-only">Actions</span></th></tr>
+                <th>Data extracted / project contribution</th></tr>
             </thead>
             <tbody className="paged-rows">
               {shown.map((r) => (
@@ -252,6 +252,14 @@ export function LibraryTable({ projectId }: { projectId: string }) {
                         <span className="chip medium">withdrawn</span> {r.withdrawn.at.slice(0, 10)} by {r.withdrawn.by}: {r.withdrawn.reason}
                       </div>
                     )}
+                    {/* under the name, not in a last column: on a phone that column was off-screen (audit 2, item 8) */}
+                    <div className="library-action">
+                      <button type="button" className="btn tiny" data-testid={`library-${r.withdrawn ? "restore" : "withdraw"}-${r.name}`}
+                              aria-label={`${r.withdrawn ? "Restore" : "Withdraw"} ${r.name}`}
+                              onClick={() => setChange({ row: r, action: r.withdrawn ? "restore" : "withdraw" })}>
+                        {r.withdrawn ? "Restore" : "Withdraw"}
+                      </button>
+                    </div>
                   </td>
                   <td>{r.source === "person" ? r.added_by : r.source === "agent" ? `agent (${r.added_by.slice(6)})` : "system"}
                     <div className="muted fs-12">{r.added_at.slice(0, 10)}</div>
@@ -261,12 +269,6 @@ export function LibraryTable({ projectId }: { projectId: string }) {
                   <td>{r.format} · {r.n_pages} p.</td>
                   <td className="num">{r.versions}</td>
                   <td><Uses projectId={projectId} row={r} /></td>
-                  <td>
-                    <button type="button" className="btn tiny" data-testid={`library-${r.withdrawn ? "restore" : "withdraw"}-${r.name}`}
-                            onClick={() => setChange({ row: r, action: r.withdrawn ? "restore" : "withdraw" })}>
-                      {r.withdrawn ? "Restore" : "Withdraw"}
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>

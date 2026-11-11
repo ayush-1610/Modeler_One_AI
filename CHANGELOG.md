@@ -15,6 +15,30 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — Phone layout: no sideways page, a 44 px step bar, wide tables that show their key column and their action (web)
+Frontend audit 2, item 8 (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** `.table-scroll` and the panels that
+scroll a table (`.card:has(> table)`, `.card:has(table)` at ≤900px) are now `position: relative`, so absolutely
+positioned content inside them (the sr-only column-header text) is contained. The Library was 603 px wide at 390 px.
+At ≤760px the step bar is one row 44 px tall: numbered dots, with the current step's name and state. Other steps' names
+stay in the DOM for screen readers. The line saying what the step waits on is no longer held in view; the bar's wrap is
+`display: contents`, so only the row is sticky. The step bar no longer covers the top 193 px of an 844 px screen.
+`scroll-padding-top` is 128 px at ≤760px and 138 px at ≤900px (96 px before), so in-page jumps land below the bars.
+`.table-scroll` has a CSS-only edge shadow where more columns are hidden (`background-attachment: local`/`scroll`, no
+motion). At ≤760px its first column is sticky, 120–140 px wide, and its text wraps rather than being cut to an ellipsis.
+The Library's Withdraw/Restore button is under the document's name, at every width, and the Actions column is gone.
+The button keeps its test id and is now named "Withdraw <file>". History shows the artifact kind as a small muted
+prefix the id can break after, so the column is as wide as the short id. The full `kind/id` text is unchanged. On the
+campaign influence map, the parameter path breaks only after '.' and '|' (`breakable()` from the CPF page, now in the
+kit). The sticky 140 px name column overrides the 220 px minimum on a phone, so heat cells are on screen beside it.
+**Why:** this is the owner's phone-layout item. Sideways scrolling, a bar covering a quarter of the screen, and
+off-screen actions with no cue made the step pages hard to use on a phone. **Impact:** layout only. No value, API or
+signature flow changed. **Tests:** new `e2e/phone-layout.spec.ts` covers three things. First, Library `scrollWidth` is
+exactly 390, and Withdraw and the name column stay on screen after scrolling sideways. Second, on Start and History the
+step bar is ≤48 px tall and held at ≤120 px from the top, and `scroll-padding-top` ≥ its bottom. Third, other steps'
+labels are clipped but still in the DOM. `campaign-monitor.spec.ts` now also reloads the campaign at 390. It checks
+that the name column is ≤141 px, that a heat cell is in view, and that the page is ≤390 wide. The Populations
+390-width guard already exists (item 2).
+
 ### Fixed — Forms: one base control style, visible required reasons, validation that never drops typed data (web)
 - **What:** (audit 2, item 7) a base rule in `design.css`, at `:where()` specificity, gives every bare text field, select
   and textarea `font: inherit`, 14 px, 7 × 10 px padding, the control border and radius tokens and hover / focus / invalid

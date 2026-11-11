@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ApiProblem, Card, Completeness, ProvenanceChip } from "@/components/ui";
 import { MEASURED_SOURCES } from "@/lib/types";
 import { getCompoundCpf } from "@/lib/reads";
-import { Hero } from "@/components/kit";
+import { breakable, Hero } from "@/components/kit";
 import { Clip } from "@/components/kit/Clip";
 import { SortableTable } from "@/components/kit/SortableTable";
 import { numericKey } from "@/lib/tableSort";
@@ -31,11 +31,6 @@ function shown(value: number | string | null): Shown {
   const text = String(value);
   const lead = /^\s*[[{]/.test(text) ? summary(text) : null;
   return { cell: lead ? <Clip text={text} lead={lead} testId="cpf-structured" /> : text, className: "cpf-text" };
-}
-
-/** An id breaks only after its '.' and '|' separators, never inside a word. */
-function breakable(id: string): ReactNode {
-  return id.split(/(?<=[.|])/).flatMap((part, i) => (i ? [<wbr key={i} />, part] : [part]));
 }
 
 export default async function CompoundPage({ params }: { params: Promise<{ projectId: string; compound: string }> }) {

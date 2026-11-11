@@ -5,6 +5,12 @@
 
 import type { ReactNode, Ref } from "react";
 
+/** A PK-Sim path or parameter id that breaks only after its '.' and '|' separators, never inside a word (the CPF page,
+ *  the campaign's influence map on a phone). */
+export function breakable(id: string): ReactNode {
+  return id.split(/(?<=[.|])/).flatMap((part, i) => (i ? [<wbr key={i} />, part] : [part]));
+}
+
 /** Each area's hue for the head's wash and its curve (the "Modeler One App" design, plan 2026-11-06-app-design-merge). */
 const HUES = { projects: 211, new: 160, start: 211, inputs: 190, review: 265, run: 150, inbox: 28, library: 280, history: 220, admin: 340 } as const;
 export type HeroTone = keyof typeof HUES;

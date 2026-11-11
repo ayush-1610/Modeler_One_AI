@@ -69,6 +69,21 @@ test("a campaign on the published Dapagliflozin model's real data runs and is fo
   await expect(page.getByTestId("influence-map")).toBeVisible();
   await expect(page.getByTestId("influence-map")).toContainText("elim.hepatic.UGT1A9.clspec");
   await page.screenshot({ path: test.info().outputPath("monitor.png"), fullPage: true });
+  // on a phone the parameter names are a sticky 140 px column, so heat cells are on screen beside them (audit 2, item 8:
+  // the 220 px+ name column filled the box and every cell was off to the right)
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();                                       // laid out for the phone from the start, as a phone opens it
+  await expect(page.getByTestId("influence-map")).toBeVisible();
+  const heat = await page.getByTestId("influence-map").evaluate((t) => {
+    const name = t.querySelector("tbody td:first-child")!.getBoundingClientRect();
+    const cell = t.querySelector("tbody td.heat-cell")!.getBoundingClientRect();
+    return { nameWidth: name.width, cellLeft: cell.left, sw: document.documentElement.scrollWidth };
+  });
+  expect(heat.nameWidth).toBeLessThanOrEqual(141);
+  expect(heat.cellLeft).toBeLessThan(390 - 44);                                       // at least one cell in view
+  expect(heat.sw).toBeLessThanOrEqual(390);
+  await page.getByTestId("influence-map").screenshot({ path: test.info().outputPath("influence-map-390.png") });
+  await page.setViewportSize({ width: 1280, height: 720 });
   // what produced the numbers is on the page: a stub run is flagged, a PK-Sim run is not
   if (process.env.E2E_ENGINE_COMMAND) await expect(page.getByTestId("engine-warning")).toHaveCount(0);
   else await expect(page.getByTestId("engine-warning")).toContainText("Not a PBPK result");

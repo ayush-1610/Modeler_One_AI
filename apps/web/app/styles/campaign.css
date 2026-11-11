@@ -21,6 +21,8 @@ table.heat th.rot span { writing-mode: vertical-rl; transform: rotate(180deg); d
                          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, ui-monospace, monospace);
                          font-size: 11px; text-transform: none; letter-spacing: 0; }
 table.heat td:first-child { min-width: 220px; }
+/* on a phone the name column is the sticky 120–140 px one of .table-scroll (kit.css, which overrides the 220 px above),
+   so the heat cells are on screen beside it; the parameter path wraps after its '.' and '|' (<wbr>) */
 table.heat td.heat-cell { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
 table.heat td.heat-cell.out { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--line-soft) 4px 5px); }
 .cycles { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
