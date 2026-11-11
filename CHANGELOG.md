@@ -15,6 +15,36 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the admin console's people and companies, kept in Keycloak (F, 2026-11-11)
+The owner, 2026-11-10: the console must create "the users, groups, tenants, companies". Built from the admin console
+plan's F, with its limits (§2): no password passes through the platform, nobody is deleted, nobody acts as another
+person.
+- **People** (`/admin/people`; `GET`/`POST /api/v1/admin/people`, `POST …/people/{id}:change`, `…:reset`).
+  - Every person of the realm, from Keycloak: company (`tenant_id`), roles, whether they can sign in, whether their
+    authenticator is set up, what their next sign-in will ask.
+  - **Add a person** to a company with roles. Keycloak asks them for their own password and authenticator at their
+    first sign-in. With a mail server in Keycloak it emails them the link; without one, the console links to the
+    person's *Credentials* page in Keycloak's own console, where the owner sets a temporary password.
+  - **Change a person:** give or take roles, move them to another company, disable or enable them.
+  - **Reset a lost authenticator** (removed; set up again at the next sign-in), or start a new password the same way
+    as a first one.
+  - `modeler-admin` is never given or taken from the console. The owner cannot disable or move themselves.
+- **Companies** (`POST /api/v1/admin/companies`, `…/{tenant_id}:disable`, `…:enable`): add a company (its id is the
+  tenant its people carry, and a name); disable one (every person who could sign in is disabled; its projects,
+  records and people are kept); enable it again with the same people. The owner's own company cannot be disabled.
+  Overview and company pages show the name and the disabled state.
+- **How:** Keycloak's admin API on the local back channel, as the service account of the new realm client
+  `modeler-admin-api`. It holds only `realm-management`'s `view-realm`, `view-users`, `query-users` and
+  `manage-users` (`deploy/keycloak/realm-modeler.json`, guarded by `test_keycloak_realm.py`). Its client secret is a
+  Keys entry of the new provider "Keycloak service account", sealed like the others, and *Test* checks it. The client
+  calls with the standard library (`modeler_api.keycloak_admin`): no dependency added.
+- **Audit:** every change needs a fresh step-up and a reason, and is an event on the company's own chain
+  (`admin.person.add`, `.change`, `.reset`; `admin.company.add`, `.disable`, `.enable`); a person moved between
+  companies on both. A look at the people is an `admin.view`.
+- **Setting it up on a running realm** (`deploy/keycloak/README.md`): create the client and its roles once in
+  Keycloak's console, then store its secret under Keys.
+- **Not yet:** groups or teams within a company (with the access management the owner left for later), and the email
+  link's own redirect back to the web app.
 ### Fixed — documents added before reading for data are read on request; the reading tray is always shown (2026-11-11)
 The owner, 2026-11-11, after deploying R1–R6: "I can't see any difference in the tool." The Desvenlafaxine project's 23
 files had been added on 2026-11-10 with "Add data" as annexes, before R2: stored in the library only, never client

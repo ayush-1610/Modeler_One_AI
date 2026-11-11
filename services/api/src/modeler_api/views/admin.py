@@ -29,6 +29,8 @@ class Usage(View):
 
 class CompanyRow(View):
     tenant_id: str
+    name: str
+    disabled: bool
     people: int
     projects: int
     archived: int
@@ -92,9 +94,12 @@ class ProjectRow(View):
 
 
 class CompanyPage(View):
-    """One company: its people (each who has signed in) and its projects, archived ones included."""
+    """One company: its people (each who has signed in) and its projects, archived ones included; its name, and why it is
+    disabled when it is."""
 
     tenant_id: str
+    name: str
+    disabled_reason: str | None
     people: list[PersonRow]
     projects: list[ProjectRow]
     usage: Usage
@@ -265,3 +270,36 @@ class LimitsPage(View):
     warnings: list[LimitRow]
     history: list[LimitChange]
     targets: list[LimitTarget]
+
+
+class PersonView(View):
+    """A person of the realm as Keycloak keeps them: their company (`tenant_id`), roles, whether they can sign in and
+    have set up their authenticator, and what Keycloak will ask of them at their next sign-in."""
+
+    id: str
+    username: str
+    name: str
+    email: str
+    tenant_id: str
+    roles: list[str]
+    enabled: bool
+    authenticator: bool
+    required_actions: list[str]
+    created_at: str | None
+    console_link: str
+
+
+class PeoplePage(View):
+    """The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.
+    `smtp`: Keycloak can email a person their set-password link; without it the owner sets a first password in
+    Keycloak's own console (`notice_link`). Passwords never pass through the platform."""
+
+    ready: bool
+    problem: str | None
+    smtp: bool
+    service_client: str
+    roles: list[str]
+    companies: list[str]
+    people: list[PersonView]
+    notice: str | None
+    notice_link: str | None

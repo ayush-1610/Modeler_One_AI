@@ -11,7 +11,7 @@ test("a person who is not the platform's owner gets no console link and finds no
   await expect(page.getByTestId("signed-in").or(page.getByTestId("dev-sign-in"))).toBeVisible();
   await expect(page.getByTestId("nav-admin")).toHaveCount(0);
 
-  for (const address of ["/admin", "/admin/usage", "/admin/companies/dev-tenant", "/admin/limits", "/admin/models", "/admin/keys"]) {
+  for (const address of ["/admin", "/admin/usage", "/admin/companies/dev-tenant", "/admin/limits", "/admin/people", "/admin/models", "/admin/keys"]) {
     await page.goto(address);
     // The page's content, not response.status(): the root loading boundary streams, so a 404 may arrive as HTTP 200.
     await expect(page.getByTestId("page-not-found")).toContainText("There is no page here");
