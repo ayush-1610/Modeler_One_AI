@@ -55,7 +55,7 @@ function EstimateForm({ row, onSave, onClose }: {
   };
   return (
     <div className="estimate-form" data-testid={`estimate-form-${row.id}`}>
-      <div className="row" style={{ gap: 8 }}>
+      <div className="row gap-8">
         {["S1", "S2", "S3"].map((st) => (
           <label key={st} className="estimate-stage">
             <input type="checkbox" checked={stages.includes(st)} aria-label={`estimate ${row.id} in ${st}`}
@@ -73,9 +73,9 @@ function EstimateForm({ row, onSave, onClose }: {
             Use the proposed bounds</button>
         )}
       </div>
-      <div className="row" style={{ gap: 8, marginTop: 6 }}>
+      <div className="row gap-8 mt-6">
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why estimate it (required)"
-               aria-label={`why estimate ${row.id}`} style={{ flex: 1, minWidth: 220 }} />
+               aria-label={`why estimate ${row.id}`} className="flex-1 minw-220" />
         <button type="button" className="btn tiny primary" data-testid={`estimate-save-${row.id}`}
                 disabled={!reason.trim() || !stages.length || lower.trim() === "" || upper.trim() === ""}
                 onClick={async () => {
@@ -129,7 +129,7 @@ function GroupForm({ estimated, onSave, onClose }: {
         Each member is simulated at the factor times its start value, so their split is kept and the data estimate only
         the factor (1 is the start values). Use it for parallel pathways the data cannot tell apart.
       </p>
-      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+      <div className="row gap-8 flex-wrap">
         {estimated.map((r) => (
           <label key={r.id} className="estimate-stage">
             <input type="checkbox" checked={members.includes(r.id)} aria-label={`fit ${r.id} in the group`}
@@ -139,7 +139,7 @@ function GroupForm({ estimated, onSave, onClose }: {
           </label>
         ))}
       </div>
-      <div className="row" style={{ gap: 8, marginTop: 6 }}>
+      <div className="row gap-8 mt-6">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="group name, e.g. hepatic"
                aria-label="group name" data-testid="group-name" />
         <select value={scale} onChange={(e) => setScale(e.target.value as "linear" | "log")} aria-label="scale of the factor">
@@ -148,13 +148,13 @@ function GroupForm({ estimated, onSave, onClose }: {
         <input value={lower} onChange={(e) => setLower(e.target.value)} aria-label="lower bound of the factor" placeholder="lower" />
         <input value={upper} onChange={(e) => setUpper(e.target.value)} aria-label="upper bound of the factor" placeholder="upper" />
       </div>
-      <div className="row" style={{ gap: 8, marginTop: 6 }}>
-        <input value={splitSource} onChange={(e) => setSplitSource(e.target.value)} style={{ flex: 1, minWidth: 220 }}
+      <div className="row gap-8 mt-6">
+        <input value={splitSource} onChange={(e) => setSplitSource(e.target.value)} className="flex-1 minw-220"
                placeholder="where the split comes from, e.g. in vitro fm, HLM (Author 2020) (required)"
                aria-label="where the split comes from" data-testid="group-split-source" />
       </div>
-      <div className="row" style={{ gap: 8, marginTop: 6 }}>
-        <input value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 220 }}
+      <div className="row gap-8 mt-6">
+        <input value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1 minw-220"
                placeholder="why fit them as one (required)" aria-label="why fit them as one" data-testid="group-reason" />
         <button type="button" className="btn tiny primary" disabled={!ready} data-testid="group-save"
                 onClick={async () => {

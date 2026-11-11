@@ -105,9 +105,9 @@ function StoredPage({ projectId, source }: { projectId: string; source: PeekSour
       <div className="peek-bar">
         <span className="peek-file">{doc?.name ?? source.title ?? "the stored document"}</span>
         {doc && doc.n_pages > 1 && (
-          <span className="row" style={{ gap: 6 }}>
+          <span className="row gap-6">
             <button type="button" className="btn small" aria-label="Previous page" disabled={pageNo <= 1} onClick={() => setPageNo(pageNo - 1)}>‹</button>
-            <span className="muted" style={{ fontVariantNumeric: "tabular-nums" }}>{table ? "part" : "p."} {pageNo} / {doc.n_pages}</span>
+            <span className="muted tnum">{table ? "part" : "p."} {pageNo} / {doc.n_pages}</span>
             <button type="button" className="btn small" aria-label="Next page" disabled={pageNo >= doc.n_pages} onClick={() => setPageNo(pageNo + 1)}>›</button>
           </span>
         )}

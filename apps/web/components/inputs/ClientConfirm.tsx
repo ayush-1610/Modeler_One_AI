@@ -138,7 +138,7 @@ function GroupCard({ projectId, group, run, folded, onToggle }: {
             : <span className="chip medium">To confirm · {count}</span>}
           {folded && group.open > 0 && <span className="chip high">{plural(group.open, "open item")}</span>}
         </div>
-        <div className="row" style={{ gap: 6 }}>
+        <div className="row gap-6">
           {onToggle && (
             <button type="button" className="btn small" aria-expanded={!folded} data-testid={`toggle-${group.id}`} onClick={onToggle}>
               {folded ? "Open" : "Fold"}

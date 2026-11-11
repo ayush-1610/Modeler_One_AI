@@ -90,18 +90,18 @@ export function DraftItem({ projectId, item, run }: { projectId: string; item: I
         </fieldset>
       )}
       {onSheet.length > 0 && (
-        <p className="muted" style={{ margin: 0, fontSize: 13 }}>Code could not tell {onSheet.map((n) => draft.labels[n] ?? n).join(" and ")}:
+        <p className="muted m-0 fs-13">Code could not tell {onSheet.map((n) => draft.labels[n] ?? n).join(" and ")}:
           open this sheet under the client&apos;s files (“Read this sheet”) to set them.</p>
       )}
       {asked.length > 0 && (
-        <div className="row" style={{ gap: 8 }}>
+        <div className="row gap-8">
           <button type="button" className="btn primary" disabled={!ready} data-testid={`finish-${draft.sheet}`}
                   onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:finish", { project_id: projectId },
                                                      { file: draft.sid, sheet: draft.sheet, answers: values }),
                                           `${draft.sheet}: read. Its data are on the card, to confirm.`)}>
             Read these data
           </button>
-          <span className="muted" style={{ fontSize: 12 }}>Nothing loads until the {draft.kind === "dissolution" ? "product" : "study"} is confirmed.</span>
+          <span className="muted fs-12">Nothing loads until the {draft.kind === "dissolution" ? "product" : "study"} is confirmed.</span>
         </div>
       )}
     </div>

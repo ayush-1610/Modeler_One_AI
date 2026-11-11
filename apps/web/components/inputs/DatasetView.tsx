@@ -114,7 +114,7 @@ function ProfileChart({ data, label }: { data: Data; label: string }) {
         })}
       </svg>
       <figcaption className="profile-legend">
-        {many ? <span><i className="swatch" style={{ background: "var(--series-neutral)" }} />{series.length} subjects, each a line</span>
+        {many ? <span><i className="swatch bg-series-neutral" />{series.length} subjects, each a line</span>
           : series.map((s, i) => (
             <span key={s.name || i}><i className="swatch" style={{ background: color(i) }} />{s.name || s.statistic.replace("_", " ")}
               {s.error_kind !== "none" && s.error ? ` ± ${s.error_kind}` : ""}{s.n ? ` (n ${s.n})` : ""}</span>
@@ -243,8 +243,8 @@ export function ReleaseView({ p }: { p: Profile }) {
           {ticks(0, tMax).map((t) => <text key={t} className="tick" x={x(t)} y={H - PAD.b + 16} textAnchor="middle">{sig(t)}</text>)}
           <text className="axis-label" x={(W + PAD.l) / 2} y={H - 4} textAnchor="middle">time (min)</text>
           <text className="axis-label" transform={`translate(12 ${(H - PAD.b) / 2}) rotate(-90)`} textAnchor="middle">% dissolved</text>
-          {curve && <g className="series" style={{ color: "var(--series-2)" }}><polyline points={curve} /></g>}
-          <g className="series" style={{ color: "var(--series-1)" }}>
+          {curve && <g className="series text-series-2"><polyline points={curve} /></g>}
+          <g className="series text-series-1">
             {p.times_min.map((t, i) => {
               const sd = p.cv[i] !== null && p.cv[i] !== undefined ? (p.cv[i] as number) * p.mean[i] / 100 : 0;
               return (
@@ -259,16 +259,16 @@ export function ReleaseView({ p }: { p: Profile }) {
           </g>
         </svg>
         <figcaption className="profile-legend">
-          <span><i className="swatch" style={{ background: "var(--series-1)" }} />mean of {p.n} vessels ± SD (from the CV)</span>
-          {fit && <span><i className="swatch" style={{ background: "var(--series-2)" }} />PK-Sim Weibull fit</span>}
+          <span><i className="swatch bg-series-1" />mean of {p.n} vessels ± SD (from the CV)</span>
+          {fit && <span><i className="swatch bg-series-2" />PK-Sim Weibull fit</span>}
         </figcaption>
       </figure>
       {conditions.length > 0 && (
-        <p className="muted" style={{ margin: 0, fontSize: 12 }} data-testid="release-conditions">
+        <p className="muted m-0 fs-12" data-testid="release-conditions">
           {conditions.map(([k, v]) => `${k.replace(/_/g, " ")} ${String(v)}`).join(" · ")}</p>
       )}
       {fit && (
-        <p style={{ margin: 0, fontSize: 13 }} data-testid="release-fit">Weibull fit: t50 {sig(fit.t50_min)} min
+        <p className="m-0 fs-13" data-testid="release-fit">Weibull fit: t50 {sig(fit.t50_min)} min
           {fit.se_t50 !== null ? ` ± ${sig(fit.se_t50, 2)}` : ""} · shape {sig(fit.shape)}{fit.se_shape !== null ? ` ± ${sig(fit.se_shape, 2)}` : ""}
           {" "}· RMSE {sig(fit.rmse_percent)} % · {fit.n_points} points{fit.engine_confirmed ? "" : " · equation not yet compared with PK-Sim's own curve"}</p>
       )}

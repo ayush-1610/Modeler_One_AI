@@ -100,16 +100,16 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
         </div>
         <span className="muted">{d.purpose.replace(/_/g, " ")}</span>
       </div>
-      <p className="muted" style={{ margin: "4px 0", fontSize: 13 }}>
+      <p className="muted m-4-0 fs-13">
         {String(s.route).replace("_", " ")} · {String(s.dose_mg)} mg · {String(s.formulation ?? "")} · {String(s.food_state ?? "fasted")} · n {String(s.n)}
         {" · "}{d.source.title || "source"}{d.source.locator ? ` · ${d.source.locator}` : ""}{d.source.page ? ` p.${d.source.page}` : ""}
       </p>
       {d.blinded && (
-        <div className="banner warn" data-testid={`blinded-${d.id}`} style={{ margin: "6px 0" }}>
+        <div className="banner warn m-6-0" data-testid={`blinded-${d.id}`}>
           External study: its values are blinded until the MAP is signed (ICH M15). The metadata above is
           what the split uses. To check this dataset now, give the reason; the access is recorded in the audit trail.
-          <div className="row" style={{ marginTop: 6 }}>
-            <input style={{ flex: 1, minWidth: 180 }} placeholder="why it must be seen now (required)" value={revealReason}
+          <div className="row mt-6">
+            <input className="flex-1 minw-180" placeholder="why it must be seen now (required)" value={revealReason}
                    onChange={(e) => setRevealReason(e.target.value)} aria-label={`why ${String(s.study_id)} must be seen now`} />
             <button className="btn" disabled={!revealReason.trim()} onClick={async () => {
               const env = await send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
@@ -127,14 +127,14 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
       ))}
       {!d.blinded && d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${r.parameter} ${r.value} ${r.unit}`).join(" · ")}</div>}
       {d.digitization && (
-        <p className="muted" style={{ margin: "4px 0", fontSize: 12 }}>
+        <p className="muted m-4-0 fs-12">
           digitized from p.{d.digitization.page}{d.digitization.crop ? ", cropped to the figure" : ""}; resolution ±{(d.digitization.resolution.x / 2).toPrecision(2)} {d.time_unit},
           ±{(d.digitization.resolution.y / 2).toPrecision(2)} {d.unit}; overlay {d.digitization.overlay_approved_by ? `checked by ${d.digitization.overlay_approved_by}` : "not checked yet"}
         </p>
       )}
       {d.flags.length > 0 && <ul className="flags">{d.flags.map((f) => <li key={f}>{f}</li>)}</ul>}
-      {out && d.decision_reason && <p className="muted" style={{ margin: 0, fontSize: 12 }}>left out by {d.decided_by}: {d.decision_reason}</p>}
-      <div className="row" style={{ marginTop: 6 }}>
+      {out && d.decision_reason && <p className="muted m-0 fs-12">left out by {d.decided_by}: {d.decision_reason}</p>}
+      <div className="row mt-6">
         {d.digitization && !d.digitization.overlay_approved_by && !out && (
           <button className="btn primary" data-testid={`overlay-${d.id}`}
                   onClick={async () => setProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
@@ -143,7 +143,7 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
             The overlay matches the figure
           </button>
         )}
-        <input style={{ flex: 1, minWidth: 180 }} placeholder={out ? "why use it again" : "why leave it out"} value={reason}
+        <input className="flex-1 minw-180" placeholder={out ? "why use it again" : "why leave it out"} value={reason}
                onChange={(e) => setReason(e.target.value)} aria-label={`reason for dataset ${String(s.study_id)}`} />
         <button className="btn" disabled={!reason.trim()} data-testid={`dataset-exclude-${d.id}`}
                 onClick={async () => setProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:decide",
@@ -199,7 +199,7 @@ export function ObservedDatasets({ projectId, run }: { projectId: string; run: R
             : <p className="muted">Loading the documents…</p>}
         </div>
       )}
-      {view.datasets.length === 0 ? <p className="muted" style={{ margin: 0 }}>No observed data yet.</p>
+      {view.datasets.length === 0 ? <p className="muted m-0">No observed data yet.</p>
         : <DatasetList datasets={view.datasets} projectId={projectId} run={run} />}
     </section>
   );
@@ -213,13 +213,13 @@ export function AccessRequests({ projectId, run }: { projectId: string; run: Run
   if (!requests.length) return null;
   return (
     <section className="card" data-testid="access-requests">
-      <h3 style={{ marginTop: 0 }}>Papers the literature agent could not read ({requests.length})</h3>
+      <h3 className="mt-0">Papers the literature agent could not read ({requests.length})</h3>
       <ul className="access-requests">
         {requests.map((r) => (
           <li key={r.id} data-testid={`access-${r.id}`}>
             <strong>{r.title}</strong>
             <span className="muted"> · {r.authors}{r.doi ? ` · doi ${r.doi}` : ""} · for {r.needed_for}</span>
-            <label className="btn" style={{ marginLeft: 8 }}>
+            <label className="btn ml-8">
               Store the paper
               <input type="file" hidden accept=".pdf,.docx,.md,.txt" onChange={(e) => {
                 const file = e.target.files?.[0];

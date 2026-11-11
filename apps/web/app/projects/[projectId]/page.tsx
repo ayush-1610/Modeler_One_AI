@@ -64,7 +64,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
 
       {runnable && (
         <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S7</span>}>
-          <p className="muted" style={{ marginTop: 0 }}>
+          <p className="muted mt-0">
             Generates the Model Analysis Plan from this project&apos;s CPF and {studies!.length} observed
             study(ies), records the Part 11 signature, then runs the stage loop on the OSP engine — building
             the model, simulating, scoring it against the acceptance tier, and either passing or stopping to
@@ -107,13 +107,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
             </table>
           ) : null}
           {studies && studies.length > 10 && (
-            <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }} data-testid="overview-studies-more">
+            <p className="muted m-8-0-0 fs-13" data-testid="overview-studies-more">
               10 of {studies.length} studies shown.{" "}
               <Link href={`/projects/${project.id}/inputs?tab=studies`}>All {studies.length} studies on Inputs →</Link>
             </p>
           )}
           {studies && studies.length > 0 ? null : (
-            <p className="muted" style={{ margin: 0 }}>
+            <p className="muted m-0">
               No observed data yet. Use <strong>Add data</strong> to upload a clinical profile — a campaign
               needs at least one study to fit and validate against.
             </p>
@@ -139,7 +139,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
             </tbody>
           </table>
         ) : (
-          <p className="muted" style={{ margin: 0 }}>
+          <p className="muted m-0">
             No campaigns yet — run one above and this table will fill in as it progresses.
           </p>
         )}

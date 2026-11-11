@@ -54,7 +54,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <dt>Agents</dt>
               <dd>{agents?.enabled ? `${agents.provider} · ${agents.model}` : (agents?.problem ?? "agents are off")}</dd>
             </dl>
-            <p className="muted" style={{ marginTop: 10 }}>
+            <p className="muted mt-10">
               Costs are estimates: each run&apos;s recorded tokens priced at the chosen Claude model&apos;s list prices
               with its conversations cached. The tokens are those of the model that ran the agents.
             </p>

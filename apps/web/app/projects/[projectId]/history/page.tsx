@@ -111,28 +111,28 @@ export default async function HistoryPage({
             </tbody>
           </table>
           {matching.length > listed.length && (
-            <p className="muted" style={{ margin: "12px 0 0" }} data-testid="artifacts-more">
+            <p className="muted m-12-0-0" data-testid="artifacts-more">
               {listed.length} of {matching.length}. <a href={here({ artifacts: "all" })}>Show all {matching.length}</a>
             </p>
           )}
           </>
         ) : (
-          <p className="muted" style={{ margin: 0 }}>Nothing recorded yet. Start with the technical proposal (P0).</p>
+          <p className="muted m-0">Nothing recorded yet. Start with the technical proposal (P0).</p>
         )}
       </Card>
 
       {history?.data && (
         <Card title={`${kind}/${id}: every version`}>
           {history.data.map((row) => (
-            <div key={row.version} style={{ marginBottom: 16 }}>
+            <div key={row.version} className="mb-16">
               <div className="row">
                 <strong>v{row.version}</strong>
                 <StatusChip status={row.status} />
                 <span className="muted">{new Date(row.created_at).toLocaleString()} · {row.created_by}</span>
-                <span style={{ flex: 1, minWidth: 0 }}><Clip text={row.reason} /></span>
+                <span className="flex-1 minw-0"><Clip text={row.reason} /></span>
               </div>
               {row.approvals.map((a) => (
-                <p key={a.at} className="muted" style={{ margin: "4px 0" }}>
+                <p key={a.at} className="muted m-4-0">
                   {a.meaning} by {a.printed_name || a.by} · {new Date(a.at).toLocaleString()}
                   {a.signature_id ? " · signed (Part 11)" : ""}
                 </p>
@@ -170,14 +170,14 @@ export default async function HistoryPage({
             </tbody>
           </table>
           {events.length > shownEvents.length && (
-            <p className="muted" style={{ margin: "12px 0 0" }} data-testid="audit-more">
+            <p className="muted m-12-0-0" data-testid="audit-more">
               The {shownEvents.length} most recent of {events.length}.{" "}
               <a href={here({ audit: "all" })}>Show all {events.length}</a>
             </p>
           )}
           </>
         ) : (
-          <p className="muted" style={{ margin: 0 }}>No events yet.</p>
+          <p className="muted m-0">No events yet.</p>
         )}
       </Card>
     </main>

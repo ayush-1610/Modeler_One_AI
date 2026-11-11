@@ -9,7 +9,7 @@ import { Hero, type HeroTone } from "@/components/kit";
 /** Skeleton rows of the given widths (percent); `tall` is a card-sized block. */
 export function Skeleton({ rows = [72, 88, 64], tall = false }: { rows?: number[]; tall?: boolean }) {
   return (
-    <div className="skeleton" aria-hidden style={{ marginTop: 32 }}>
+    <div className="skeleton mt-32" aria-hidden>
       {tall && <div className="skeleton-row tall" />}
       {rows.map((w, i) => <div key={i} className="skeleton-row" style={{ width: `${w}%` }} />)}
     </div>
@@ -40,13 +40,13 @@ export function PageSkeleton({ tone, eyebrow, title = "Loading…", stepper = fa
             lede={<span className="page-loading" role="status" data-testid="page-loading">Reading the page from the API.</span>} />
       {stepper && <StepperSkeleton />}
       {body === "cards" && (
-        <div className="skeleton skeleton-cols" aria-hidden style={{ marginTop: 32 }}>
+        <div className="skeleton skeleton-cols mt-32" aria-hidden>
           <div className="skeleton-row card" /><div className="skeleton-row card" />
         </div>
       )}
       {body === "canvas" && (
-        <div className="skeleton" aria-hidden style={{ marginTop: 32 }}>
-          <div className="skeleton-row card" style={{ height: 420 }} />
+        <div className="skeleton mt-32" aria-hidden>
+          <div className="skeleton-row card h-420" />
         </div>
       )}
       <Skeleton rows={[72, 88, 64]} tall={body === "rows"} />

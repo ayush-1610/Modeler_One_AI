@@ -160,9 +160,9 @@ function VbePanel({ projectId, app, all, apply }: { projectId: string; app: Pinn
       {app.problems.length > 0 && (
         <ul className="limitations vbe-problems" data-testid="vbe-problems">{app.problems.map((p) => <li key={p}>{p}</li>)}</ul>
       )}
-      <div className="row" style={{ gap: 8, marginTop: 8 }}>
+      <div className="row gap-8 mt-8">
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why this design (required)"
-               aria-label="why this VBE design" style={{ flex: 1, minWidth: 220 }} data-testid="vbe-reason" />
+               aria-label="why this VBE design" className="flex-1 minw-220" data-testid="vbe-reason" />
         <button type="button" className="btn tiny primary" disabled={!reason.trim()} onClick={save} data-testid="vbe-save">Save</button>
       </div>
       {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
@@ -173,7 +173,7 @@ function VbePanel({ projectId, app, all, apply }: { projectId: string; app: Pinn
 function AddApplication({ projectId, template, all, apply }: { projectId: string; template: string; all: Pinned[]; apply: Apply }) {
   const [reason, setReason] = useState("");
   return (
-    <div className="row" style={{ gap: 8 }}>
+    <div className="row gap-8">
       <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why add it (required)" aria-label={`why add ${template}`} />
       <button type="button" className="btn tiny" disabled={!reason.trim()} data-testid={`add-${template}`}
               onClick={() => apply(() => planApi.structure(projectId, "applications", [...asPayload(all, template, null), { template, inputs: {} }],

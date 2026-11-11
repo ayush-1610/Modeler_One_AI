@@ -38,7 +38,7 @@ export function GiveProjects({ tenantId, people }: { tenantId: string; people: P
 
   return (
     <Card title="Give a person projects">
-      <p className="muted" style={{ marginTop: 0 }}>
+      <p className="muted mt-0">
         Makes a person a member of another person&apos;s projects, or of every project of this company: for example the
         projects made under the pilot&apos;s development sign-in (&ldquo;Dev User&rdquo;), for the people who now sign in
         through Keycloak. They must have signed in once. Without &ldquo;owner&rdquo;, the projects are shared with them to
@@ -67,8 +67,8 @@ export function GiveProjects({ tenantId, people }: { tenantId: string; people: P
                          data-testid="give-reason" /></label>
         <button type="submit" className="btn primary" disabled={busy || !to || !reason.trim()} data-testid="give-submit">Give</button>
       </form>
-      {problem && <div className="banner err" style={{ marginTop: 10 }}>{problem}</div>}
-      {done && <div className="banner ok" style={{ marginTop: 10 }} data-testid="give-done">{done}</div>}
+      {problem && <div className="banner err mt-10">{problem}</div>}
+      {done && <div className="banner ok mt-10" data-testid="give-done">{done}</div>}
     </Card>
   );
 }

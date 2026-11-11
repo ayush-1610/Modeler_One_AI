@@ -15,6 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — static inline styles moved into utility classes (audit item 10, web only)
+- **What:** 334 static `style={{…}}` literals in 50 files under `apps/web/app` and `apps/web/components` (plus the
+  conditional fail colour in `components/campaign/Feedback.tsx`) are now classes from a new sheet,
+  `apps/web/app/styles/utilities.css`, imported last in `app/layout.tsx` (after `targets.css`). `style={{` went from
+  351 to 17; the 17 left are data-driven (meter and band widths, budget %, skeleton widths, DAG layout x/y/w/h, per-series
+  colours from `color(i)`, the dashboard bars' `flexGrow`, the stagger delay, the digitizer zoom width, the `--hue`
+  property), plus the conditional heat colour in `components/campaign/History.tsx`. The digitizer's crosshair cursor
+  moved to `.cursor-crosshair`; only its zoom width stays inline.
+- **Why:** inline styles sat outside the design system: they could not be themed, overridden or reused, and the same
+  dozen values were retyped hundreds of times. The utilities are named for their property and exact value (`fs-12`,
+  `gap-6`, `mt-10`, `m-4-0-0`, `w-90`, `minw-220`, `tnum`, `text-fail` …), so the move is mechanical and reviewable.
+- **Impact:** no visual change intended. Each utility carries the inline style's exact value and is `!important`, which
+  keeps the precedence the inline style had over more specific page rules (`.card .row`, `.field input`,
+  `.start-block .row > select`). Folding the values into a smaller scale (12.5px type, gap 14, the 60–100px input
+  widths) is left for a separate pass because it moves pixels. The names avoid the existing `.note` and `.small`
+  modifiers; the only existing class with a shared name, `td.nowrap` in `review.css`, has the same meaning. No motion is
+  added. No science, API contract, locked file or `UNVERIFIED` mark is touched.
+- **Tests:** no spec asserts inline styles (none use `toHaveCSS`, `[style]` or `getAttribute("style")`); no spec was
+  changed. The whole Playwright suite was re-run, since nearly every screen is touched.
+
 ### Changed — faster page loads with short, fade-only loading animations (audit item 9, web only)
 - **What:** (1) The page transition is now a 180 ms CSS fade of the entering `<main>` (`.content > main` in
   `app/styles/design.css`); `components/kit/Motion.tsx` no longer blanks the painted page to opacity 0 and fades it back

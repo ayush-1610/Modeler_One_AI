@@ -81,11 +81,11 @@ function StudiesTable({ studies, projectId, run, onIndividuals }: {
               <tr key={s.study_id} data-testid={`study-${s.study_id}`} id={`study-${s.study_id}`} className={s.excluded ? "left-out" : ""}
                   onFocusCapture={() => touch(s.study_id)}>
                 <td><strong>{s.study_id}</strong>
-                  <div className="muted" style={{ fontSize: 12 }}>{(s.purpose ?? "").replace(/_/g, " ")} · {(s.origin ?? "").toLowerCase().replace("_", " ")}</div>
+                  <div className="muted fs-12">{(s.purpose ?? "").replace(/_/g, " ")} · {(s.origin ?? "").toLowerCase().replace("_", " ")}</div>
                   {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed">blinded</span>}</td>
                 <td>{String(fact(s, "route") ?? "").replace("_", " ")} · {fact(s, "dose_mg")} {s.facts.dose_per_kg ? "mg/kg" : "mg"} ·{" "}
                   {fact(s, "food_state")} · {fact(s, "formulation_name") ?? fact(s, "formulation")} · n {fact(s, "n")}
-                  {!s.evaluable && !s.excluded && <div className="muted" style={{ fontSize: 12 }}>no mean profile: not judged</div>}</td>
+                  {!s.evaluable && !s.excluded && <div className="muted fs-12">no mean profile: not judged</div>}</td>
                 <td>{s.role ? <span className="chip neutral" title={s.role_source === "proposed"
                   ? "proposed by the MS-01 split; changed on Review & sign, with a reason" : "the plan's placement"}>
                   {s.role} · {ROLE[s.role] ?? s.role.toLowerCase()}</span> : <span className="muted">—</span>}</td>
@@ -93,7 +93,7 @@ function StudiesTable({ studies, projectId, run, onIndividuals }: {
                   {{ entered: "entered", published: "published individual", default: "healthy adult default", missing: "not stated" }[s.demographics]}
                 </button></td>
                 <td><Regimen s={s} projectId={projectId} run={run} /></td>
-                <td>{s.excluded && <div className="muted" style={{ fontSize: 12 }}>left out: {s.excluded}</div>}
+                <td>{s.excluded && <div className="muted fs-12">left out: {s.excluded}</div>}
                   <LeaveOut s={s} projectId={projectId} run={run} /></td>
               </tr>
             ))}
@@ -112,9 +112,9 @@ function Regimen({ s, projectId, run }: { s: StudyRow; projectId: string; run: R
   if (fact(s, "design") !== "MD") return <span className="muted">single dose</span>;
   if (!s.regimen_missing) return <span>{fact(s, "n_doses")} doses every {fact(s, "dosing_interval_h")} h</span>;
   return (
-    <div className="row" style={{ gap: 4 }}>
-      <input placeholder="doses" value={doses} onChange={(x) => setDoses(x.target.value)} style={{ width: 70 }} aria-label={`doses for ${s.study_id}`} />
-      <input placeholder="every (h)" value={every} onChange={(x) => setEvery(x.target.value)} style={{ width: 80 }} aria-label={`interval for ${s.study_id}`} />
+    <div className="row gap-4">
+      <input placeholder="doses" value={doses} onChange={(x) => setDoses(x.target.value)} className="w-70" aria-label={`doses for ${s.study_id}`} />
+      <input placeholder="every (h)" value={every} onChange={(x) => setEvery(x.target.value)} className="w-80" aria-label={`interval for ${s.study_id}`} />
       <button className="btn primary" disabled={!s.dataset_id || !(Number(doses) > 0 && Number(every) > 0)}
               onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:study",
                                                  { project_id: projectId, dataset_id: s.dataset_id ?? "" },
@@ -137,9 +137,9 @@ function LeaveOut({ s, projectId, run }: { s: StudyRow; projectId: string; run: 
     );
   }
   return (
-    <div className="row" style={{ gap: 4 }}>
+    <div className="row gap-4">
       <input autoFocus placeholder={s.excluded ? "why include it again" : "why leave it out"} value={reason}
-             onChange={(x) => setReason(x.target.value)} style={{ width: 160 }} aria-label={`reason for ${s.study_id}`}
+             onChange={(x) => setReason(x.target.value)} className="w-160" aria-label={`reason for ${s.study_id}`}
              onKeyDown={(x) => { if (x.key === "Escape") setOpen(false); }} />
       <button className="btn" disabled={!reason.trim()}
               onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
@@ -173,13 +173,13 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
   );
   return (
     <div className="typed-table" data-testid="typed-table">
-      <div className="row" style={{ gap: 6 }}>
-        <input placeholder="study id" value={f.study_id} onChange={set("study_id")} style={{ width: 140 }} aria-label="study id" />
+      <div className="row gap-6">
+        <input placeholder="study id" value={f.study_id} onChange={set("study_id")} className="w-140" aria-label="study id" />
         {pick("route", options.route)}
-        <input placeholder="dose (mg)" value={f.dose_mg} onChange={set("dose_mg")} style={{ width: 90 }} aria-label="dose" />
+        <input placeholder="dose (mg)" value={f.dose_mg} onChange={set("dose_mg")} className="w-90" aria-label="dose" />
         {pick("formulation", options.formulation)}
         {pick("food_state", options.food_state)}
-        <input placeholder="n" value={f.n} onChange={set("n")} style={{ width: 60 }} aria-label="subjects" />
+        <input placeholder="n" value={f.n} onChange={set("n")} className="w-60" aria-label="subjects" />
         {pick("purpose", options.purpose)}
         <select value={f.origin} onChange={set("origin")} aria-label="where the data come from" data-testid="typed-origin">
           <option value="LITERATURE">a published table or text</option>
@@ -188,7 +188,7 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
         </select>
       </div>
       {system && (
-        <div className="row" style={{ gap: 6, marginTop: 4 }}>
+        <div className="row gap-6 mt-4">
           <select value={f.analyte} onChange={set("analyte")} aria-label="analyte measured" data-testid="typed-analyte">
             <option value="">analyte measured…</option>
             {system.analytes.map((a) => (
@@ -203,15 +203,15 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
           </select>
         </div>
       )}
-      <div className="row" style={{ gap: 6, marginTop: 4 }}>
-        <input placeholder="times, e.g. 0.5 1 2 4 8" value={f.times} onChange={set("times")} style={{ flex: 1, minWidth: 180 }} aria-label="times" />
-        <input placeholder="unit" value={f.time_unit} onChange={set("time_unit")} style={{ width: 60 }} aria-label="time unit" />
-        <input placeholder="mean concentrations" value={f.values} onChange={set("values")} style={{ flex: 1, minWidth: 180 }} aria-label="values" />
-        <input placeholder="unit" value={f.unit} onChange={set("unit")} style={{ width: 80 }} aria-label="concentration unit" />
+      <div className="row gap-6 mt-4">
+        <input placeholder="times, e.g. 0.5 1 2 4 8" value={f.times} onChange={set("times")} className="flex-1 minw-180" aria-label="times" />
+        <input placeholder="unit" value={f.time_unit} onChange={set("time_unit")} className="w-60" aria-label="time unit" />
+        <input placeholder="mean concentrations" value={f.values} onChange={set("values")} className="flex-1 minw-180" aria-label="values" />
+        <input placeholder="unit" value={f.unit} onChange={set("unit")} className="w-80" aria-label="concentration unit" />
       </div>
-      <div className="row" style={{ gap: 6, marginTop: 4 }}>
-        <input placeholder="source title" value={f.title} onChange={set("title")} style={{ flex: 1, minWidth: 180 }} aria-label="source title" />
-        <input placeholder="DOI or URL" value={f.link} onChange={set("link")} style={{ width: 200 }} aria-label="source link" />
+      <div className="row gap-6 mt-4">
+        <input placeholder="source title" value={f.title} onChange={set("title")} className="flex-1 minw-180" aria-label="source title" />
+        <input placeholder="DOI or URL" value={f.link} onChange={set("link")} className="w-200" aria-label="source link" />
         <button className="btn primary" disabled={!ok}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/datasets", { project_id: projectId }, {
                   study: { study_id: f.study_id.trim(), route: f.route, dose_mg: Number(f.dose_mg), formulation: f.formulation,
@@ -262,7 +262,7 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
         <StudiesTable studies={studies} projectId={projectId} run={run} onIndividuals={onIndividuals} />
       )}
       <FilesHere tab="studies" projectId={projectId} client={client} act={act} onRetag={onRetag} onSaved={async (m) => onSaved(m)}>
-        <p className="muted" style={{ fontSize: 13, margin: "0 0 8px" }}>
+        <p className="muted fs-13 m-0-0-8">
           The reading agent proposes how to read each data sheet, and code checks every proposal: each quote is in its cell and the
           reading applies without a problem. Open a sheet, check what it reads against the sheet, correct anything wrong and save.
           {client && !client.agents.enabled && " Agents are off: the form is filled in first by code."}
@@ -270,7 +270,7 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
       </FilesHere>
       {unpromised.length > 0 && (
         <section className="client-files">
-          <h4 style={{ margin: "12px 0 4px" }}>Delivered, not in the data checklist</h4>
+          <h4 className="m-12-0-4">Delivered, not in the data checklist</h4>
           <ul className="flags" data-testid="unpromised">{unpromised.map((u) => <li key={u}>{u}</li>)}</ul>
         </section>
       )}

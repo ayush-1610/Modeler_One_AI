@@ -159,10 +159,10 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
           {figures.map((d) => <option key={d.sha256} value={d.sha256}>{d.name}</option>)}
         </select>
         {doc?.kind === "pdf" && (
-          <label className="row" style={{ gap: 4 }}>page <input type="number" min={1} max={doc.n_pages} value={page} data-testid="digitize-page"
-                 onChange={(e) => { setPage(Number(e.target.value)); setCrop(null); }} style={{ width: 64 }} /></label>
+          <label className="row gap-4">page <input type="number" min={1} max={doc.n_pages} value={page} data-testid="digitize-page"
+                 onChange={(e) => { setPage(Number(e.target.value)); setCrop(null); }} className="w-64" /></label>
         )}
-        <label className="row" style={{ gap: 4 }}>zoom
+        <label className="row gap-4">zoom
           <select value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="zoom" data-testid="digitize-zoom">
             {ZOOMS.map((z) => <option key={z} value={z}>{z}×</option>)}
           </select>
@@ -174,8 +174,8 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
           : mode === "points" ? `click the points of “${series}”` : `click the ${mode.toUpperCase()} reference`}</span>
       </div>
       {(placed.data?.figures ?? []).length > 0 && (
-        <div className="row figure-list" style={{ gap: 4, marginTop: 6 }} data-testid="figure-list">
-          <span className="muted" style={{ fontSize: 13 }}>Figures in this PDF:</span>
+        <div className="row figure-list gap-4 mt-6" data-testid="figure-list">
+          <span className="muted fs-13">Figures in this PDF:</span>
           {placed.data!.figures.map((f) => (
             <button key={`${f.page}-${f.name}`} type="button" className="btn" data-testid={`figure-${f.page}-${f.name}`}
                     onClick={() => { setPage(f.page); setCrop(f.box as Box); }}>
@@ -184,9 +184,9 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
           ))}
         </div>
       )}
-      <div className="row" style={{ alignItems: "flex-start", marginTop: 8 }}>
+      <div className="row items-start mt-8">
         <div className="figure" data-testid="digitize-figure">
-          <div className="figure-inner" onClick={click} style={{ cursor: "crosshair", width: `${zoom * 100}%` }}>
+          <div className="figure-inner cursor-crosshair" onClick={click} style={{ width: `${zoom * 100}%` }}>
           <canvas ref={canvas} />
           {size && (
             <svg viewBox={`0 0 ${size.w} ${size.h}`} className="overlay" aria-hidden>
@@ -201,20 +201,20 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
           )}
           </div>
         </div>
-        <div style={{ minWidth: 260 }}>
+        <div className="minw-260">
           <fieldset>
             <legend>Axes</legend>
             {(["x", "y"] as const).map((a) => {
               const axis = a === "x" ? x : y;
               const setAxis = a === "x" ? setX : setY;
               return (
-                <div key={a} style={{ marginBottom: 6 }}>
-                  <div className="row" style={{ gap: 4 }}>
+                <div key={a} className="mb-6">
+                  <div className="row gap-4">
                     <button className="btn" onClick={() => setMode(`${a}1` as Mode)}>{a.toUpperCase()}1</button>
-                    <input placeholder="value" value={axis.v1} onChange={(e) => setAxis({ ...axis, v1: e.target.value })} style={{ width: 70 }} />
+                    <input placeholder="value" value={axis.v1} onChange={(e) => setAxis({ ...axis, v1: e.target.value })} className="w-70" />
                     <button className="btn" onClick={() => setMode(`${a}2` as Mode)}>{a.toUpperCase()}2</button>
-                    <input placeholder="value" value={axis.v2} onChange={(e) => setAxis({ ...axis, v2: e.target.value })} style={{ width: 70 }} />
-                    <label style={{ fontSize: 12 }}><input type="checkbox" checked={axis.log} onChange={(e) => setAxis({ ...axis, log: e.target.checked })} /> log</label>
+                    <input placeholder="value" value={axis.v2} onChange={(e) => setAxis({ ...axis, v2: e.target.value })} className="w-70" />
+                    <label className="fs-12"><input type="checkbox" checked={axis.log} onChange={(e) => setAxis({ ...axis, log: e.target.checked })} /> log</label>
                   </div>
                 </div>
               );
@@ -222,8 +222,8 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
           </fieldset>
           <fieldset>
             <legend>Series and points ({total})</legend>
-            <div className="row" style={{ gap: 4 }}>
-              <input value={series} onChange={(e) => { setSeries(e.target.value); setPoints({ ...points, [e.target.value]: points[e.target.value] ?? [] }); }} style={{ width: 120 }} />
+            <div className="row gap-4">
+              <input value={series} onChange={(e) => { setSeries(e.target.value); setPoints({ ...points, [e.target.value]: points[e.target.value] ?? [] }); }} className="w-120" />
               <button className="btn" onClick={() => setMode("points")}>Pick points</button>
               <button className="btn" onClick={() => setPoints({ ...points, [series]: (points[series] ?? []).slice(0, -1) })}>Undo</button>
             </div>
@@ -232,26 +232,26 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
             <legend>Study</legend>
             <input placeholder="study id (author-year-route-dose)" value={study.study_id} onChange={set("study_id")} />
             <input placeholder="reference" value={study.reference} onChange={set("reference")} />
-            <div className="row" style={{ gap: 4 }}>
-              <input placeholder="n" value={study.n} onChange={set("n")} style={{ width: 50 }} />
-              <input placeholder="dose mg" value={study.dose_mg} onChange={set("dose_mg")} style={{ width: 70 }} />
+            <div className="row gap-4">
+              <input placeholder="n" value={study.n} onChange={set("n")} className="w-50" />
+              <input placeholder="dose mg" value={study.dose_mg} onChange={set("dose_mg")} className="w-70" />
               <select value={study.route} onChange={set("route")}>
                 {["oral", "iv_infusion", "iv_bolus"].map((r) => <option key={r}>{r}</option>)}
               </select>
             </div>
-            <div className="row" style={{ gap: 4 }}>
+            <div className="row gap-4">
               <select value={study.formulation} onChange={set("formulation")}>
                 {["solution", "suspension", "ir_tablet", "ir_capsule", "mr", "other"].map((f) => <option key={f}>{f}</option>)}
               </select>
               <select value={study.food_state} onChange={set("food_state")}>
                 <option>fasted</option><option>fed</option>
               </select>
-              {study.route === "iv_infusion" && <input placeholder="infusion min" value={study.infusion_time_min} onChange={set("infusion_time_min")} style={{ width: 90 }} />}
+              {study.route === "iv_infusion" && <input placeholder="infusion min" value={study.infusion_time_min} onChange={set("infusion_time_min")} className="w-90" />}
             </div>
-            <div className="row" style={{ gap: 4 }}>
-              <input placeholder="time unit" value={units.time} onChange={(e) => setUnits({ ...units, time: e.target.value })} style={{ width: 70 }} />
-              <input placeholder="conc. unit" value={units.conc} onChange={(e) => setUnits({ ...units, conc: e.target.value })} style={{ width: 90 }} />
-              <input placeholder="Figure 2" value={units.locator} onChange={(e) => setUnits({ ...units, locator: e.target.value })} style={{ width: 90 }} />
+            <div className="row gap-4">
+              <input placeholder="time unit" value={units.time} onChange={(e) => setUnits({ ...units, time: e.target.value })} className="w-70" />
+              <input placeholder="conc. unit" value={units.conc} onChange={(e) => setUnits({ ...units, conc: e.target.value })} className="w-90" />
+              <input placeholder="Figure 2" value={units.locator} onChange={(e) => setUnits({ ...units, locator: e.target.value })} className="w-90" />
             </div>
           </fieldset>
           {error && <div className="banner err">{error}</div>}

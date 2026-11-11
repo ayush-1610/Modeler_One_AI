@@ -37,7 +37,7 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
             <div className="l">S0 readiness</div>
           </div>
         </div>
-        <div style={{ marginTop: 12 }}><Completeness value={cpf.completeness} /></div>
+        <div className="mt-12"><Completeness value={cpf.completeness} /></div>
       </Card>
 
       <Card title="Parameters">

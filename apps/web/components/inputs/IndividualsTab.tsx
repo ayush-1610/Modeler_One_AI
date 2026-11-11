@@ -38,10 +38,10 @@ function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: st
         <span className={`chip ${tone}`}>{label}</span>
       </div>
       {s.demographics === "published" ? (
-        <p className="muted" style={{ margin: "4px 0 0", fontSize: 13 }}>Simulated with the individual its published simulation names.</p>
+        <p className="muted m-4-0-0 fs-13">Simulated with the individual its published simulation names.</p>
       ) : (
         <>
-          <div className="row" style={{ gap: 6, marginTop: 6 }}>
+          <div className="row gap-6 mt-6">
             <select value={d.population} onChange={set("population")} aria-label={`population for ${s.study_id}`}>
               <option value="">population database…</option>
               {options.population.map((p) => <option key={p} value={p}>{p.replace(/_/g, " ")}</option>)}
@@ -50,13 +50,13 @@ function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: st
               <option value="">sex…</option>
               {options.sex.map((v) => <option key={v} value={v}>{v.toLowerCase()}</option>)}
             </select>
-            <input placeholder="mean age (y)" value={d.age} onChange={set("age")} style={{ width: 100 }} aria-label={`age for ${s.study_id}`} />
-            <input placeholder="age from" value={d.min} onChange={set("min")} style={{ width: 80 }} aria-label={`age from for ${s.study_id}`} />
-            <input placeholder="to" value={d.max} onChange={set("max")} style={{ width: 60 }} aria-label={`age to for ${s.study_id}`} />
-            <input placeholder="weight (kg)" value={d.weight} onChange={set("weight")} style={{ width: 95 }} aria-label={`weight for ${s.study_id}`} />
-            <input placeholder="height (cm)" value={d.height} onChange={set("height")} style={{ width: 95 }} aria-label={`height for ${s.study_id}`} />
+            <input placeholder="mean age (y)" value={d.age} onChange={set("age")} className="w-100" aria-label={`age for ${s.study_id}`} />
+            <input placeholder="age from" value={d.min} onChange={set("min")} className="w-80" aria-label={`age from for ${s.study_id}`} />
+            <input placeholder="to" value={d.max} onChange={set("max")} className="w-60" aria-label={`age to for ${s.study_id}`} />
+            <input placeholder="weight (kg)" value={d.weight} onChange={set("weight")} className="w-95" aria-label={`weight for ${s.study_id}`} />
+            <input placeholder="height (cm)" value={d.height} onChange={set("height")} className="w-95" aria-label={`height for ${s.study_id}`} />
           </div>
-          <div className="row" style={{ gap: 6, marginTop: 6 }}>
+          <div className="row gap-6 mt-6">
             <button className="btn primary" disabled={!s.dataset_id || !complete}
                     onClick={() => void run(() => send("post", path, params, { changes: { demographics: {
                       population: d.population, sex: d.sex, age_years: Number(d.age), age_min: num(d.min), age_max: num(d.max),

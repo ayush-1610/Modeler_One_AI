@@ -60,14 +60,14 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
       <Hero tone="run" eyebrow="Campaign" title={c.compound} lede={c.question}
             actions={<>{c.status && <span data-testid="campaign-status"><StatusChip status={c.status} /></span>}
               <RiskChip rating={c.modelRisk} /></>} />
-      <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+      <p className="muted fs-12 mt-6">
         Campaign <code>{c.id}</code> · acceptance within {foldLimit}-fold at {c.modelRisk} model risk
         {c.internalTargetPe != null && (
           <span data-testid="internal-target"> and, for the internal studies, |prediction error| ≤ {c.internalTargetPe} % (the signed MAP)</span>
         )}
       </p>
       {c.engine && c.engine.kind !== "pksim" && (
-        <div className="banner err" data-testid="engine-warning" style={{ marginBottom: 14 }}>
+        <div className="banner err mb-14" data-testid="engine-warning">
           {c.engine.kind === "software-fixture"
             ? <>Not a PBPK result: this campaign ran on a software test fixture (<code>{c.engine.command}</code>). Its
                 curves are synthetic; it checks the software path only. Run on PK-Sim for model evidence.</>
@@ -76,10 +76,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
         </div>
       )}
       {c.engine?.kind === "pksim" && (
-        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Engine: PK-Sim (<code>{c.engine.command}</code>)</p>
+        <p className="muted fs-12 mt-0">Engine: PK-Sim (<code>{c.engine.command}</code>)</p>
       )}
       {testOnly.length > 0 && (
-        <div className="banner err" data-testid="real-data-warning" style={{ marginBottom: 14 }}>
+        <div className="banner err mb-14" data-testid="real-data-warning">
           <strong>TEST ONLY: no real observed data.</strong> {testOnly.map(([stage, d]) => `${stage}: ${d.label}`).join(" · ")}.
           {" "}A verdict judged on synthetic, illustrative or unrecorded data is not evidence; the S4/S5 evaluation cannot be
           signed in a project that is not exploratory.
@@ -93,7 +93,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
             <div key={s.stage} className={`stage ${s.status.toLowerCase()}`} data-testid={`campaign-stage-${s.stage}`}>
               <div className="st-name">{s.stage}</div>
               <div className="st-sub">{s.label}</div>
-              <div style={{ marginTop: 6 }}><StatusChip status={s.status === "PENDING" ? "PROPOSED" : s.status} /></div>
+              <div className="mt-6"><StatusChip status={s.status === "PENDING" ? "PROPOSED" : s.status} /></div>
             </div>
           ))}
         </div>
@@ -106,10 +106,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
             )}
           </ul>
         )}
-        <div style={{ marginTop: 18 }}>
-          <div className="spread" style={{ marginBottom: 4 }}>
+        <div className="mt-18">
+          <div className="spread mb-4">
             <span className="muted">Time budget</span>
-            <span className="muted" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <span className="muted tnum">
               {mmss(c.elapsedSeconds)} / {mmss(c.budgetSeconds)} ({budgetPct}%)
             </span>
           </div>
@@ -159,7 +159,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
           {(c.feedback?.length ?? 0) > 0 && <FeedbackTimeline decisions={c.feedback!} />}
           {c.feedbackPending && (
             <>
-              <div className="banner warn" data-testid="feedback-pending" style={{ margin: "8px 0" }}>
+              <div className="banner warn m-8-0" data-testid="feedback-pending">
                 External validation failed: a signed decision is needed — record a limitation, learn from the failing
                 study, bring new evidence, or stop. <OpenDecisionButton campaignId={c.id} />
               </div>
@@ -199,7 +199,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
             </table>
           )}
           {Object.entries(prediction.intervals ?? {}).length > 0 && (
-            <table style={{ marginTop: 14 }}>
+            <table className="mt-14">
               <thead><tr><th>Study</th><th>Quantity</th><th className="num">5th percentile</th><th className="num">Median</th><th className="num">95th percentile</th><th className="num">Runs</th></tr></thead>
               <tbody>
                 {Object.entries(prediction.intervals ?? {}).flatMap(([study, pk]) =>
@@ -224,13 +224,13 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
               action={pkg.reproduction?.passes
                 ? <span className="chip low">reproduced · {pkg.reproduction.compared} tables</span>
                 : <span className="chip high">not reproduced</span>}>
-          <p className="muted" style={{ marginTop: 0 }}>
+          <p className="muted mt-0">
             {pkg.exportable
               ? "Every bundled simulation was re-run on a fresh engine and matched its recorded results, so the package is released."
               : "The re-run did not reproduce every recorded result, so the package is withheld; the report explains which table differed."}
           </p>
           {pkg.data_bundle_sha256 && (
-            <p className="muted" style={{ fontSize: 12 }}>Data bundle <code>sha256 {pkg.data_bundle_sha256.slice(0, 16)}…</code>
+            <p className="muted fs-12">Data bundle <code>sha256 {pkg.data_bundle_sha256.slice(0, 16)}…</code>
               {pkg.files ? ` · ${pkg.files} files` : ""}</p>
           )}
           <PackageDownloads campaignId={c.id} artifacts={artifacts} />

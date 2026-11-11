@@ -30,8 +30,8 @@ function DropDialog({ pending, onConfirm, onCancel }: { pending: Pending; onConf
   return (
     <div className="dialog-backdrop" role="dialog" aria-modal="true" aria-label="Confirm the move" data-testid="drop-dialog">
       <div className="dialog">
-        <h3 style={{ marginTop: 0 }}>{pending.studyId}: {ROLE_LABEL[pending.from]} → {ROLE_LABEL[pending.to]}</h3>
-        <p className="muted" style={{ marginTop: 0 }}>Dropped on {pending.where}. The validator&apos;s answer for this move:</p>
+        <h3 className="mt-0">{pending.studyId}: {ROLE_LABEL[pending.from]} → {ROLE_LABEL[pending.to]}</h3>
+        <p className="muted mt-0">Dropped on {pending.where}. The validator&apos;s answer for this move:</p>
         {pending.problem && <div className="banner err">{pending.problem}</div>}
         {pending.deviation && (
           <div className="banner warn" data-testid="move-deviation">The MAP is signed: this move is a MAP deviation. It is
@@ -44,10 +44,10 @@ function DropDialog({ pending, onConfirm, onCancel }: { pending: Pending; onConf
         {pending.preview && mine.filter((v) => v.severity === "warning" && !v.acknowledged).length > 0 && (
           <ul className="flags warn">{mine.filter((v) => v.severity === "warning" && !v.acknowledged).map((v) => <li key={v.id}>{v.message}</li>)}</ul>
         )}
-        <label className="muted" style={{ fontSize: 13 }}>Why (at least one sentence; it goes into the MAP)</label>
-        <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} style={{ width: "100%" }} data-testid="move-reason" />
+        <label className="muted fs-13">Why (at least one sentence; it goes into the MAP)</label>
+        <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className="w-full" data-testid="move-reason" />
         {error && <div className="banner err">{error}</div>}
-        <div className="row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
+        <div className="row justify-end mt-8">
           <button className="btn" onClick={onCancel}>Cancel</button>
           <button className="btn primary" disabled={reason.trim().length < 8} data-testid="move-confirm"
                   onClick={async () => setError(await onConfirm(reason))}>
@@ -62,7 +62,7 @@ function DropDialog({ pending, onConfirm, onCancel }: { pending: Pending; onConf
 function DiffView({ rows, onDecide }: { rows: DiffRow[]; onDecide: (id: string, accept: boolean, reason: string) => Promise<string | null> }) {
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  if (!rows.length) return <p className="muted" style={{ margin: 0 }} data-testid="diff-empty">The plan is the MS-01 default: no departure.</p>;
+  if (!rows.length) return <p className="muted m-0" data-testid="diff-empty">The plan is the MS-01 default: no departure.</p>;
   return (
     <>
       <table data-testid="diff">
@@ -73,11 +73,11 @@ function DiffView({ rows, onDecide }: { rows: DiffRow[]; onDecide: (id: string, 
               <td><span className="chip neutral">{d.kind}</span> <code>{d.target}</code></td>
               <td className="diff-from">{String(d.from)}</td>
               <td className="diff-to">{String(d.to)}</td>
-              <td style={{ fontSize: 13 }}>{d.by}{d.status === "PENDING" ? " (proposed)" : ""}<div className="muted">{d.reason}</div></td>
+              <td className="fs-13">{d.by}{d.status === "PENDING" ? " (proposed)" : ""}<div className="muted">{d.reason}</div></td>
               <td>
                 {d.status === "PENDING" && d.proposal ? (
-                  <div className="row" style={{ gap: 4 }}>
-                    <input placeholder="why" value={reasons[d.proposal] ?? ""} style={{ width: 120 }}
+                  <div className="row gap-4">
+                    <input placeholder="why" value={reasons[d.proposal] ?? ""} className="w-120"
                            onChange={(e) => setReasons({ ...reasons, [d.proposal as string]: e.target.value })} />
                     <button className="btn tiny" disabled={!reasons[d.proposal]?.trim()}
                             onClick={async () => setError(await onDecide(d.proposal as string, true, reasons[d.proposal as string]))}>Accept</button>
@@ -108,8 +108,8 @@ function ValidatorPanel({ view, onAcknowledge }: { view: PlanView; onAcknowledge
             <li key={v.id} className={v.severity} data-testid={`violation-${v.id}`}>
               <span className={`chip ${v.severity === "error" ? "high" : "medium"}`}>{v.severity}</span> {v.message}
               {v.severity === "warning" && (
-                <span className="row" style={{ gap: 4, marginTop: 4 }}>
-                  <input placeholder="accept it because…" value={reasons[v.id] ?? ""} style={{ flex: 1 }}
+                <span className="row gap-4 mt-4">
+                  <input placeholder="accept it because…" value={reasons[v.id] ?? ""} className="flex-1"
                          onChange={(e) => setReasons({ ...reasons, [v.id]: e.target.value })} />
                   <button className="btn tiny" disabled={!reasons[v.id]?.trim()}
                           onClick={async () => setError(await onAcknowledge(v.id, reasons[v.id]))}>Acknowledge</button>
@@ -119,7 +119,7 @@ function ValidatorPanel({ view, onAcknowledge }: { view: PlanView; onAcknowledge
           ))}
         </ul>
       )}
-      {done.length > 0 && <p className="muted" style={{ fontSize: 12 }}>Acknowledged (they become MAP limitations): {done.map((v) => v.message).join(" · ")}</p>}
+      {done.length > 0 && <p className="muted fs-12">Acknowledged (they become MAP limitations): {done.map((v) => v.message).join(" · ")}</p>}
       {error && <div className="banner err">{error}</div>}
     </div>
   );
@@ -133,16 +133,16 @@ function BlindingPanel({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | null>(null);
   if (!state) return null;
   return (
-    <div data-testid="blinding" style={{ fontSize: 12 }}>
+    <div data-testid="blinding" className="fs-12">
       <h3>Blinding</h3>
-      <p className="muted" style={{ margin: "0 0 4px" }}>
+      <p className="muted m-0-0-4">
         {state.map_signed ? "Lifted: the MAP is signed." : state.on
           ? `On — ${state.blinded.length} external stud${state.blinded.length === 1 ? "y's" : "ies'"} values withheld until the MAP is signed.`
           : "Off — external values are visible."} <span className="muted">({state.source}{state.reason ? `: ${state.reason}` : ""})</span>
       </p>
       {!state.map_signed && (
-        <div className="row" style={{ gap: 4 }}>
-          <input placeholder="reason (MIDD lead)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 100 }} />
+        <div className="row gap-4">
+          <input placeholder="reason (MIDD lead)" value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1 minw-100" />
           <button className="btn tiny" disabled={!reason.trim()} data-testid="blinding-toggle" onClick={async () => {
             const { problem } = await run(() => planApi.setBlinding(projectId, !state.on, reason));
             if (!problem) setReason("");
@@ -150,7 +150,7 @@ function BlindingPanel({ projectId }: { projectId: string }) {
           }}>{state.on ? "Turn off" : "Turn on"}</button>
         </div>
       )}
-      {error && <div className="banner err" style={{ marginTop: 4 }}>{error}</div>}
+      {error && <div className="banner err mt-4">{error}</div>}
     </div>
   );
 }
@@ -220,18 +220,18 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
         {stale && (
           <div className="banner warn" data-testid="plan-stale">
             The inputs changed since this plan ({view.artifact.stale_reasons.join("; ")}).
-            <button className="btn tiny" style={{ marginLeft: 8 }} onClick={() => apply(() => planApi.rebase(projectId), "Plan brought up to date; your choices kept.")}>
+            <button className="btn tiny ml-8" onClick={() => apply(() => planApi.rebase(projectId), "Plan brought up to date; your choices kept.")}>
               Bring it up to date</button>
           </div>
         )}
-        <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>
+        <p className="muted m-0-0-8 fs-13">
           {view.plan.structure.objective} · {view.plan.structure.context_of_use}
         </p>
         <div className="row">
           <button className="btn" disabled={!view.agents.enabled || view.running || signed}
                   onClick={async () => setMessage(await apply(() => planApi.draft(projectId)) ?? "A5 is drafting the rationale; proposals appear in the diff.")}>
             Draft with A5</button>
-          <input placeholder="signature note" value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
+          <input placeholder="signature note" value={note} onChange={(e) => setNote(e.target.value)} className="flex-1 minw-140" />
           <button className="btn primary" disabled={!canSign} data-testid="approve-and-sign"
                   title={canSign ? "generate the MAP from this plan and sign it (MIDD lead)"
                     : signed ? "the MAP is signed; a change now is a deviation to sign" : "resolve or acknowledge every violation first"}
@@ -254,24 +254,24 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
           )}
         </div>
         {!canSign && !signed && view.blocking > 0 && (
-          <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+          <p className="muted fs-12 m-6-0-0">
             <a href="#review-validator">The live validator</a> lists what is still open.</p>
         )}
-        {signed && <p className="muted" style={{ fontSize: 13 }} data-testid="map-signed">MAP v{view.map?.map_version ?? view.map?.version} signed{signature ? `: ${signature.manifestation}` : ""} · {view.map?.map_sha256.slice(0, 12)}{view.map?.supersedes ? " · supersedes the earlier version" : ""}</p>}
+        {signed && <p className="muted fs-13" data-testid="map-signed">MAP v{view.map?.map_version ?? view.map?.version} signed{signature ? `: ${signature.manifestation}` : ""} · {view.map?.map_sha256.slice(0, 12)}{view.map?.supersedes ? " · supersedes the earlier version" : ""}</p>}
         {signed && pendingDeviations.length > 0 && (
-          <div className="banner warn" data-testid="deviations-pending" style={{ marginTop: 8 }}>
+          <div className="banner warn mt-8" data-testid="deviations-pending">
             <strong>MAP deviations pending signature (ICH M15).</strong> They apply to campaigns once the MIDD
             lead signs them into a new MAP version; until then the signed MAP stands.
-            <ul className="plain" style={{ marginTop: 6 }}>
+            <ul className="plain mt-6">
               {pendingDeviations.map((d, i) => <li key={i}><code>{d.target}</code> {d.change} — {d.reason}</li>)}
             </ul>
           </div>
         )}
         {signed && !pendingDeviations.length && (
-          <p className="muted" style={{ fontSize: 12, margin: "4px 0 0" }}>A change now is a MAP deviation: it is recorded and
+          <p className="muted fs-12 m-4-0-0">A change now is a MAP deviation: it is recorded and
             waits for the MIDD lead&apos;s signature.</p>
         )}
-        {message && <div className="banner ok" style={{ marginTop: 8 }}>{message}</div>}
+        {message && <div className="banner ok mt-8">{message}</div>}
       </Card>
       <nav className="review-nav" aria-label="Review sections">
         <a href="#review-studies">Studies and roles</a><a href="#review-inputs">The inputs</a>
@@ -285,18 +285,18 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
           <aside className="overall-data" data-testid="overall-data" aria-label="Overall Data"
                  onDragOver={(e) => { if (e.dataTransfer.types.includes(STUDY_MIME)) e.preventDefault(); }}>
             <h2>Overall Data</h2>
-            <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>CPF v1 and the study catalog. Drag a dataset onto a D3 node, an arrow or the training layer.</p>
+            <p className="muted fs-12 mt-0">CPF v1 and the study catalog. Drag a dataset onto a D3 node, an arrow or the training layer.</p>
             <h3>Datasets ({studies.length})</h3>
             {studies.map((s) => (
               <div key={s.study_id} className="overall-study">
                 <StudyChip s={s} view={view} />
-                <div className="muted" style={{ fontSize: 11 }}>{s.route.replace("_", " ")} · {s.dose_mg} mg · {s.food_state} · {s.design} · n {s.n} → {s.role}</div>
+                <div className="muted fs-11">{s.route.replace("_", " ")} · {s.dose_mg} mg · {s.food_state} · {s.design} · n {s.n} → {s.role}</div>
               </div>
             ))}
             <BlindingPanel projectId={projectId} />
             <h3>Dissolution</h3>
-            {view.d2.dissolution.length ? view.d2.dissolution.map((d) => <div key={d.id} className="muted" style={{ fontSize: 12 }}>◆ {d.label}</div>)
-              : <p className="muted" style={{ fontSize: 12 }}>none</p>}
+            {view.d2.dissolution.length ? view.d2.dissolution.map((d) => <div key={d.id} className="muted fs-12">◆ {d.label}</div>)
+              : <p className="muted fs-12">none</p>}
             <h3>CPF v1 ({view.overall_data.parameters.length})</h3>
             <ul className="param-list">
               {view.overall_data.parameters.map((p) => (
@@ -361,7 +361,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
         <Card title="Changes from the MS-01 default">
           <DiffView rows={view.diff} onDecide={(id, accept, reason) => apply(() => planApi.decide(projectId, id, accept, reason))} />
           {view.plan.default_rationale.length > 0 && (
-            <details style={{ marginTop: 8 }}><summary className="muted">MS-01 split rationale and limitations</summary>
+            <details className="mt-8"><summary className="muted">MS-01 split rationale and limitations</summary>
               <ul className="flags">{[...view.plan.default_rationale, ...view.plan.default_limitations].map((r) => <li key={r}>{r}</li>)}</ul>
             </details>
           )}

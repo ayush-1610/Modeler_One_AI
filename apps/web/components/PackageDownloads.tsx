@@ -39,7 +39,7 @@ export function PackageDownloads({ campaignId, artifacts }: { campaignId: string
 
   return (
     <div>
-      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+      <div className="row gap-8 flex-wrap">
         {artifacts.map((a) => (
           <button key={a} className={`btn${a === "package.zip" ? " primary" : ""}`} disabled={busy !== null}
                   onClick={() => download(a)}>
@@ -47,7 +47,7 @@ export function PackageDownloads({ campaignId, artifacts }: { campaignId: string
           </button>
         ))}
       </div>
-      {error && <p className="banner warn" style={{ marginTop: 10 }} role="alert">{error}</p>}
+      {error && <p className="banner warn mt-10" role="alert">{error}</p>}
     </div>
   );
 }

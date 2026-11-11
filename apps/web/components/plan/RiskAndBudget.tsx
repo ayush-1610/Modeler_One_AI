@@ -26,8 +26,8 @@ export function RiskAndBudget({ projectId, view, apply }: {
   const budgetChanged = Number.isFinite(budgetSeconds) && budgetSeconds !== structure.campaign_budget_seconds;
 
   return (
-    <div className="row" data-testid="risk-and-budget" style={{ flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-      <label className="muted" htmlFor="plan-risk" style={{ fontSize: 13 }}>Model risk (ICH M15)</label>
+    <div className="row flex-wrap gap-8 mb-8" data-testid="risk-and-budget">
+      <label className="muted fs-13" htmlFor="plan-risk">Model risk (ICH M15)</label>
       <select id="plan-risk" value={risk} onChange={(e) => setRisk(e.target.value as Risk | "")}
               className={structure.model_risk ? "" : "needs"}>
         <option value="">not set</option>
@@ -38,15 +38,15 @@ export function RiskAndBudget({ projectId, view, apply }: {
       {riskChanged && (
         <>
           <input aria-label="Why this risk" placeholder="why: model influence and decision consequence" value={why}
-                 onChange={(e) => setWhy(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+                 onChange={(e) => setWhy(e.target.value)} className="flex-1 minw-200" />
           <button className="btn" disabled={!why.trim()}
                   onClick={async () => setProblem(await apply(() => planApi.structure(projectId, "model_risk", risk, why.trim()),
                                                               `Model risk set to ${risk}.`))}>Set risk</button>
         </>
       )}
-      <label className="muted" htmlFor="plan-budget" style={{ fontSize: 13, marginLeft: 12 }}>Time budget (hours)</label>
+      <label className="muted fs-13 ml-12" htmlFor="plan-budget">Time budget (hours)</label>
       <input id="plan-budget" type="number" min={0.25} max={48} step={0.25} value={hours}
-             onChange={(e) => setHours(e.target.value)} style={{ width: 80 }} />
+             onChange={(e) => setHours(e.target.value)} className="w-80" />
       {budgetChanged && (
         <button className="btn"
                 onClick={async () => setProblem(await apply(

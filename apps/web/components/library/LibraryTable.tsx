@@ -71,7 +71,7 @@ function RelatesTo({ projectId, row }: { projectId: string; row: Row }) {
   return (
     <>
       <Link href={STEP_ROUTES[r.step as StepId](projectId)}>{STEP_LABEL[r.step] ?? r.step}</Link>
-      {r.task && <div className="muted" style={{ fontSize: 12 }}>{r.task}</div>}
+      {r.task && <div className="muted fs-12">{r.task}</div>}
     </>
   );
 }
@@ -95,7 +95,7 @@ function TagCell({ projectId, row }: { projectId: string; row: Row }) {
               data-testid={`library-tag-select-${row.name}`} onChange={(e) => retag(e.target.value as TagKind)}>
         {TAG_KINDS.map((kind) => <option key={kind} value={kind}>{TAG_LABELS[kind]}</option>)}
       </select>
-      {row.tag?.study && <div className="muted" style={{ fontSize: 12 }}>{row.tag.study}</div>}
+      {row.tag?.study && <div className="muted fs-12">{row.tag.study}</div>}
       {row.needs_ocr && <div><span className="chip medium">needs OCR</span></div>}
       {proposal && (
         <div className="library-tag-proposal">
@@ -254,7 +254,7 @@ export function LibraryTable({ projectId }: { projectId: string }) {
                     )}
                   </td>
                   <td>{r.source === "person" ? r.added_by : r.source === "agent" ? `agent (${r.added_by.slice(6)})` : "system"}
-                    <div className="muted" style={{ fontSize: 12 }}>{r.added_at.slice(0, 10)}</div>
+                    <div className="muted fs-12">{r.added_at.slice(0, 10)}</div>
                     <Retrieved row={r} /></td>
                   <td>{ROLE[r.role] ?? r.role}<TagCell projectId={projectId} row={r} /></td>
                   <td><RelatesTo projectId={projectId} row={r} /></td>

@@ -139,7 +139,7 @@ export function Dashboard({ projects, attention, runningCampaigns, tableProjects
                 ))}
               </ul>
             )}
-            {attention.length > listed.length && <p className="muted" style={{ margin: "8px 0 0" }}>and {attention.length - listed.length} more</p>}
+            {attention.length > listed.length && <p className="muted m-8-0-0">and {attention.length - listed.length} more</p>}
           </section>
 
           <section className="dash-panel" aria-labelledby="risk-title" data-testid="dash-risk">

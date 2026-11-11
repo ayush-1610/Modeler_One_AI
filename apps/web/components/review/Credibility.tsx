@@ -54,11 +54,11 @@ function AcceptanceCriteria({ projectId, review, apply }: { projectId: string; r
               ? ", the default (no one set one; UNVERIFIED)" : ", from the brief"}.</>
           : "none: the tier's limits apply."}
         {a.loosest_target_pe !== null && <span className="muted"> A target may be stricter than the tier, at most {a.loosest_target_pe} % here.</span>}
-        <div className="row" style={{ gap: 6, marginTop: 6 }}>
+        <div className="row gap-6 mt-6">
           <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="% (empty: none)" aria-label="internal target, %"
-                 data-testid="target-input" style={{ width: 110 }} />
+                 data-testid="target-input" className="w-110" />
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why (required)" aria-label="why this target"
-                 data-testid="target-reason" style={{ flex: 1, minWidth: 180 }} />
+                 data-testid="target-reason" className="flex-1 minw-180" />
           <button type="button" className="btn tiny" disabled={!reason.trim()} data-testid="target-save"
                   onClick={async () => {
                     const value = target.trim() === "" ? null : Number(target);
@@ -69,7 +69,7 @@ function AcceptanceCriteria({ projectId, review, apply }: { projectId: string; r
                   }}>Set</button>
         </div>
         {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
-        <p className="muted credibility-lede" style={{ marginTop: 6 }} data-testid="target-applied">The MAP records it, and every
+        <p className="muted credibility-lede mt-6" data-testid="target-applied">The MAP records it, and every
           round judges the internal groups&apos; AUC and Cmax (S1–S4) by it on top of the tier&apos;s limit; external
           validation (S5) is judged by the tier alone (MS-01).</p>
       </div>

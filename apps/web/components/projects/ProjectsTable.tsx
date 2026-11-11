@@ -53,7 +53,7 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
   return (
     <>
       {archived.length > 0 && (
-        <div className="row" style={{ justifyContent: "flex-end", marginBottom: 8 }}>
+        <div className="row justify-end mb-8">
           <button type="button" className="btn" data-testid="projects-show-archived" onClick={() => setShowArchived(!showArchived)}>
             {showArchived ? "Hide archived" : `Show archived (${archived.length})`}
           </button>
@@ -76,7 +76,7 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
               <td>
                 <Link href={`/projects/${p.id}`}>{p.name}</Link>
                 {p.archived && (
-                  <div className="muted" style={{ fontSize: 12 }} data-testid={`project-archived-${p.id}`}>
+                  <div className="muted fs-12" data-testid={`project-archived-${p.id}`}>
                     archived by {p.archived.by} on {p.archived.at.slice(0, 10)}: {p.archived.reason}
                   </div>
                 )}
@@ -101,8 +101,8 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
               ? "The project is hidden from this list. Nothing it holds is changed or erased: its plan, campaigns and record stay, and it can be restored."
               : "The project is shown in this list again."}
           </p>
-          <label htmlFor="project-archive-reason" className="muted" style={{ fontSize: 13 }}>Why (kept in the audit trail)</label>
-          <textarea id="project-archive-reason" rows={2} value={reason} style={{ width: "100%" }} data-testid="project-archive-reason"
+          <label htmlFor="project-archive-reason" className="muted fs-13">Why (kept in the audit trail)</label>
+          <textarea id="project-archive-reason" rows={2} value={reason} className="w-full" data-testid="project-archive-reason"
                     onChange={(e) => setReason(e.target.value)}
                     placeholder={pending.action === "archive" ? "e.g. a test project, not client work" : "e.g. archived by mistake"} />
           {problem && <InlineIssue severity="error">{problem}</InlineIssue>}

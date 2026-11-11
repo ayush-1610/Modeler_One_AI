@@ -58,8 +58,8 @@ function AddKey({ page, onDone }: { page: Page; onDone: (p: Page) => void }) {
           Add the key
         </button>
       </form>
-      {problem && <div className="banner err" style={{ marginTop: 10 }} data-testid="key-problem">{problem}</div>}
-      <p className="muted" style={{ marginBottom: 0 }}>A new key is not used until it is made active. Test it first.</p>
+      {problem && <div className="banner err mt-10" data-testid="key-problem">{problem}</div>}
+      <p className="muted mb-0">A new key is not used until it is made active. Test it first.</p>
     </Card>
   );
 }

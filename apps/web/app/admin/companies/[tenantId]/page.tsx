@@ -44,7 +44,7 @@ export default async function CompanyPage({ params, searchParams }: {
                 </tbody>
               </table>
             </div>
-            <p className="muted" style={{ marginTop: 10 }}>
+            <p className="muted mt-10">
               A person&apos;s runs are those their actions started, recorded from 10 November 2026.
             </p>
           </Card>

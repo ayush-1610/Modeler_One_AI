@@ -20,6 +20,8 @@ import "./styles/admin.css";
 import "./styles/design.css";
 // target sizes (WCAG 2.2 2.5.8): after the look, so its hit areas and sizes hold
 import "./styles/targets.css";
+// the utilities that replaced the static inline styles (item 10); last, so each holds as the inline style did
+import "./styles/utilities.css";
 import { EscalationPopup } from "@/components/campaign/EscalationPopup";
 import { Motion } from "@/components/kit/Motion";
 import { Nav } from "@/components/Nav";
