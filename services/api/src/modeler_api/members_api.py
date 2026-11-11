@@ -33,14 +33,18 @@ class MemberRemove(BaseModel):
     reason: str = Field(min_length=1)
 
 
-def _page(settings: SettingsDep, tenant_id: str, project_id: str, *, managed: bool) -> dict[str, Any]:
+def _page(settings: SettingsDep, tenant_id: str, project_id: str, *, managed: bool, you: str) -> dict[str, Any]:
     memberships = memberships_for(settings, tenant_id)
     members = memberships.members(project_id)
     current = {m.subject for m in members}
+    owner = memberships.owner(project_id)
     return envelope({
         "members": [{"subject": m.subject, "name": m.name, "added_by": m.added_by, "added_at": m.added_at} for m in members],
         "people": [{"subject": p.subject, "name": p.name} for p in memberships.people() if p.subject not in current],
         "managed": managed,
+        "owner": owner, "owner_name": next((m.name for m in members if m.subject == owner), owner),
+        # the one who changes the project (`ownership`); with no owner on record, its members do, as before
+        "you_change_it": not managed or owner is None or owner == you,
     })
 
 
@@ -53,7 +57,7 @@ def _ready(settings: SettingsDep) -> None:
 def list_members(project_id: str, principal: Reader, settings: SettingsDep) -> dict[str, Any]:
     require_project(project_id, principal)
     _ready(settings)
-    return _page(settings, principal.tenant_id, project_id, managed="*" not in principal.projects)
+    return _page(settings, principal.tenant_id, project_id, managed="*" not in principal.projects, you=principal.user_id)
 
 
 @router.post("/projects/{project_id}/members", **answers(MembersPage))
@@ -65,7 +69,7 @@ def add_member(project_id: str, body: MemberAdd, principal: Writer, settings: Se
                                                            reason=body.reason.strip() or "added by a member")
     except MembershipError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return _page(settings, principal.tenant_id, project_id, managed="*" not in principal.projects)
+    return _page(settings, principal.tenant_id, project_id, managed="*" not in principal.projects, you=principal.user_id)
 
 
 @router.post("/projects/{project_id}/members:remove", **answers(MembersPage))
@@ -77,4 +81,4 @@ def remove_member(project_id: str, body: MemberRemove, principal: Writer, settin
                                                               reason=body.reason)
     except MembershipError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return _page(settings, principal.tenant_id, project_id, managed="*" not in principal.projects)
+    return _page(settings, principal.tenant_id, project_id, managed="*" not in principal.projects, you=principal.user_id)

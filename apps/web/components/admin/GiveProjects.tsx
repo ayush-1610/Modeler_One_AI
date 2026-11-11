@@ -17,6 +17,7 @@ export function GiveProjects({ tenantId, people }: { tenantId: string; people: P
   const [to, setTo] = useState("");
   const [from, setFrom] = useState("");
   const [reason, setReason] = useState("");
+  const [owner, setOwner] = useState(true);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -26,11 +27,12 @@ export function GiveProjects({ tenantId, people }: { tenantId: string; people: P
     setProblem(null);
     setDone(null);
     const env = await send("post", "/api/v1/admin/companies/{tenant_id}:give-projects", { tenant_id: tenantId },
-                           { to, from, reason: reason.trim() });
+                           { to, from, owner, reason: reason.trim() });
     setBusy(false);
     if (env.errors?.length || !env.data) { setProblem(env.errors?.[0]?.message ?? "no answer"); return; }
     setReason("");
-    setDone(`${people.find((p) => p.subject === to)?.name ?? to} now has ${from ? "those" : "every"} project${from ? "s" : ""}.`);
+    const who = people.find((p) => p.subject === to)?.name ?? to;
+    setDone(`${who} now has ${from ? "those projects" : "every project"}${owner ? ", as their owner" : ", to read"}.`);
     router.refresh();
   }
 
@@ -39,7 +41,8 @@ export function GiveProjects({ tenantId, people }: { tenantId: string; people: P
       <p className="muted" style={{ marginTop: 0 }}>
         Makes a person a member of another person&apos;s projects, or of every project of this company: for example the
         projects made under the pilot&apos;s development sign-in (&ldquo;Dev User&rdquo;), for the people who now sign in
-        through Keycloak. They must have signed in once.
+        through Keycloak. They must have signed in once. Without &ldquo;owner&rdquo;, the projects are shared with them to
+        read (a reviewer among them can still sign).
       </p>
       <form className="admin-filter" onSubmit={(e) => { e.preventDefault(); void give(); }} data-testid="give-projects">
         <label>To
@@ -55,6 +58,10 @@ export function GiveProjects({ tenantId, people }: { tenantId: string; people: P
               <option key={p.subject} value={p.subject}>{p.name}&apos;s ({p.projects.length})</option>
             ))}
           </select>
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={owner} onChange={(e) => setOwner(e.target.checked)} data-testid="give-owner" />
+          and make them the owner (the only one who changes each project)
         </label>
         <label>Why<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="kept with each membership"
                          data-testid="give-reason" /></label>

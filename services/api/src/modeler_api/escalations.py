@@ -29,6 +29,7 @@ from modeler_api.compliance.signatures import (
 )
 from modeler_api.config import SettingsDep
 from modeler_api.execution import RunnerDep
+from modeler_api.ownership import ensure_owner
 from modeler_api.part11 import record_signature
 from modeler_api.responses import answers_without_envelope
 from modeler_api.views.escalations import DecisionOptions, DeviationRecorded, EscalationDecided, EscalationResolved
@@ -247,6 +248,7 @@ def resolve_escalation_decision(
     project_id = campaign.get("project")
     if project_id:
         require_project(project_id, principal)
+        ensure_owner(project_id, principal, settings, signing=True)   # its owner, or a reviewer it is shared with
 
     # A decision already taken (by another worker, or a second click) is refused before a signature is taken for it.
     reads = FileReadStore(settings.read_root)

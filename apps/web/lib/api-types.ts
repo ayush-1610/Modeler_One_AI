@@ -66,9 +66,9 @@ export interface paths {
         put?: never;
         /**
          * Give Projects
-         * @description Make a person a member of another person's projects, or of all the company's: how the projects made under the
-         *     pilot's DEV sign-in (its "dev-user") reach the people who sign in through Keycloak. Each membership is an audit event
-         *     on the company's chain, by the administrator, with the reason.
+         * @description Make a person a member of another person's projects, or of all the company's, and with `owner` their owner: how
+         *     the projects made under the pilot's DEV sign-in (its "dev-user") reach the people who sign in through Keycloak. Each
+         *     membership and change of owner is an audit event on the company's chain, by the administrator, with the reason.
          */
         post: operations["give_projects_api_v1_admin_companies__tenant_id__give_projects_post"];
         delete?: never;
@@ -5543,6 +5543,11 @@ export interface components {
              * @default
              */
             from?: string;
+            /**
+             * Owner
+             * @default false
+             */
+            owner?: boolean;
             /** Reason */
             reason: string;
             /** To */
@@ -6818,8 +6823,14 @@ export interface components {
             managed: boolean;
             /** Members */
             members: components["schemas"]["MemberView"][];
+            /** Owner */
+            owner: string | null;
+            /** Owner Name */
+            owner_name: string | null;
             /** People */
             people: components["schemas"]["PersonView"][];
+            /** You Change It */
+            you_change_it: boolean;
         };
         /** Meta */
         Meta: {

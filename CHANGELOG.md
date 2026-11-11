@@ -15,6 +15,36 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — only a project's owner changes it; the people it is shared with read it, a reviewer among them signs (2026-11-10)
+The owner, 2026-11-10 (admin console plan, answers 4 and 6): "the one who creates project will be owner who only can
+edit and do anything in project"; the people it is shared with in the same company "can only see/read only"; a
+reviewer it is shared with still signs (an approval by a second person, which ICH M15 and Part 11 review expect).
+- **The owner** is kept in the company's `members.json` (`owners`), recorded when a project is created
+  (`project.owner.set` on the company's audit chain, with the member it adds).
+  - A project made before owners were kept takes as owner the member who added themselves (its creator).
+  - A project with no creator on record keeps the earlier rule (its members edit) until the administrator gives it
+    an owner.
+- **Every write to a project** (each router whose paths carry `{project_id}`; `ownership.owner_guard`) is refused for
+  anyone but its owner: HTTP 403 `NOT_OWNER`, "only the project's owner, <name>, changes it; it is shared with you to
+  read". Reads are unchanged.
+  - Signing the MAP and signing a record (`plan:sign`, `signatures`) stay open to a `modeler-reviewer` it is shared
+    with.
+  - So does a signed escalation or feedback decision on one of its campaigns (`escalation:resolve`, `feedback:decide`).
+  - The pilot's DEV sign-in (`*`, every project) is unchanged.
+- **The owner stays a member:** removing them is refused ("the administrator can give the project another owner
+  first").
+- **Admin console, "Give a person projects"** gains "and make them the owner" (on by default): each project given
+  changes owner, an audited `project.owner.set` with before, after and reason. This is how the projects made under the
+  DEV sign-in (owned by `dev-user`) pass to the person who now signs in through Keycloak.
+- **The project's Members panel** names the owner. For anyone else it says the project is shared with them to read,
+  and its Add and Remove are off.
+- **Impact:** on a server under Keycloak, a member who is not the owner, and is not a reviewer signing, can no longer
+  change a project they were added to. Their edit buttons stay on screen until the read-only marking across the pages
+  follows, and they answer with the message above.
+- **Known gap:** the Temporal deployment's `escalation:decide` and `deviations` routes take a password-based signer,
+  not the signed-in person, so the owner rule does not reach them. The single-node deployment the server runs uses
+  `escalation:resolve`.
+
 ### Added — going live on Keycloak under the server's Tailscale name; the DEV sign-in's projects given in the console (2026-11-10)
 The owner, 2026-11-10: the admin console must open on the server, which means Keycloak sign-in (option A, no change
 to the DEV sign-in).
