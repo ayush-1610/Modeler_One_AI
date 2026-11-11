@@ -138,6 +138,18 @@ changes. Every person who uses the app must then be on the tailnet.
    printf 'export MODELER_KEYCLOAK_HOST=%s\nexport MODELER_KEYCLOAK_CERT=%s\nexport MODELER_KEYCLOAK_KEY=%s\n' \
      "$NAME" ~/modeler-keycloak/tls/tailscale.crt ~/modeler-keycloak/tls/tailscale.key >> ~/.modeler-secrets.env
    ```
+   - **`NAME` is empty:** the server is signed out of Tailscale (`$TS status` says `NeedsLogin`; a machine's login
+     expires). Run `$TS up --hostname=adt-server`, open the link it prints on a computer signed in to the same
+     tailnet, then turn off key expiry for the machine (Tailscale admin console → *Machines* → ⋯ → *Disable key
+     expiry*).
+   - **`cert` answers `no TailscaleVarRoot`:** tailscaled was started with `--state` (before `setup_tailscale.sh`
+     used `--statedir`) and has no folder for certificates. Restart it with `--statedir` (the login is kept) and run
+     `bash deploy/server/setup_tailscale.sh` once to update its `@reboot` entry:
+     ```bash
+     setsid bash -c 'pkill -x tailscaled; sleep 2; nohup ~/tailscale/tailscaled --tun=userspace-networking --statedir=$HOME/.tailscale-state --socket=$HOME/.tailscale-state/tailscaled.sock >> ~/modeler-logs/tailscaled.log 2>&1 &'
+     ```
+   - **Write the three lines only after `cert` succeeds**: lines naming a certificate that is not there stop
+     Keycloak from starting (`MODELER_KEYCLOAK_CERT / _KEY are not readable`).
 3. **Keycloak**, on PostgreSQL from the start (`MODELER_KEYCLOAK_DB=postgres`, from step 1):
    ```bash
    bash deploy/server/keycloak.sh install   # imports the realm with https://$NAME:3000/* as a sign-in return address
@@ -160,6 +172,10 @@ changes. Every person who uses the app must then be on the tailnet.
    bash deploy/server/install_autostart.sh  # once: nightly backups and their restore check
    ```
 6. **Sign in** at `https://$NAME:3000`: use the temporary password, then choose your own.
+   - The computer must be on the tailnet, with the Tailscale app's *Use Tailscale DNS settings* on. A browser that
+     answers "can't find the server" is not resolving the name: check with `dscacheutil -q host -a name $NAME` on a
+     Mac (it should answer the server's `100.x` address). Safari's iCloud Private Relay can bypass Tailscale's DNS;
+     another browser, or turning Private Relay off, settles it.
 7. **Your projects:** the projects made under the DEV sign-in belong to its `dev-user`.
    - In *Admin console → Companies → dev → Give a person projects*, choose yourself, "every project of this company",
      and a reason.
