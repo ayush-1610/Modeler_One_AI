@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — proposal: redesign of the client-data intake (2026-11-12)
+The owner, 2026-11-12: stop adding to the reading path and explore, in depth, the best way to get a cluttered client
+delivery into the tool, fast, correct and valid for PBPK. Four agents explored it (the pipeline today, the target
+models and PBPK validity, parsing and extraction research, pharma and PBPK data standards); the claims it rests on
+were checked in the code. Plan `docs/plans/2026-11-12-client-data-intake-redesign.md`, **PROPOSAL** for the owner's
+decisions (its §8).
+- **Found:** only individual PK, summary PK and dissolution sheets are read (`sheet_intake.py:28`); for PDF and Word
+  the LLM copies every number and the check accepts any number in the quote (`citations.py:33`); the delivery map
+  has no dose, n or route, the facts drafts wait for (`delivery_map.py:15`); BLQ points, SE and CV% are dropped before
+  the campaign (`inputs.py:318-321`), every SD is sent as arithmetic (`run_pi.R:55`), and a profile's analyte does not
+  reach the campaign. No value-level accuracy on a real delivery has been measured.
+- **Proposed:** parse each file once; the LLM proposes a typed mapping per table and code reads every value; one
+  delivery ledger with partial, cross-file facts; PBPK checks in code; review by exception; a data specification sent
+  with the client's data request. First builds: D0 (a value-level gold set, baseline scored) and D1 (the landing
+  fixes, with the owner's approval for the locked `run_pi.R`).
+- Impact: none yet (no code changed).
+
 ### Fixed — the page no longer stops scrolling at random (2026-11-11)
 The owner, 2026-11-11, testing in Safari: the page "stops scrolling in between, randomly".
 - **The page lock under a dialog is the dialog's own:** it was a CSS rule, `html:has(.dialog-backdrop) { overflow:
@@ -6370,3 +6387,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-07 (same cloud session) | per commit trailer | The whole web app restyled to the Claude Design "Modeler One App" look (plan §5) |
 | 2026-11-07 (same cloud session) | per commit trailer | The design's motion system and feedback from the owner's theme spec (option D) |
 | 2026-11-10 (cloud session, branch `claude/quirky-mccarthy-ln0y7g`) | per commit trailer | Small UX fixes track: "Add data" dialog scrolls inside itself with many files; large uploads through the web proxy; the plan `2026-11-10-add-data-agent-reads-everything.md` and its builds R1 (reading queue), R2 (documents read for data, batched uploads) and R3 (reading tray), each with an adversarial review and its fixes |
+| 2026-11-12 (cloud session, branch `claude/hopeful-carson-kvrvxc`) | per commit trailer | Exploration of the client-data intake with four agents; the redesign proposal `2026-11-12-client-data-intake-redesign.md` (for the owner's decisions) |
