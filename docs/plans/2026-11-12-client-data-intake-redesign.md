@@ -1,10 +1,12 @@
 # Client data in, read right: redesign of the intake (proposal, 2026-11-12)
 
-Status: **PROPOSAL, revision 2, for the owner's decisions (§10).** No code changed.
+Status: **APPROVED by the owner 2026-11-12, with conditions (§10); revision 3; being built.**
 - Revision 1 (2026-11-12): four agents explored the problem; the options were compared (§3–§5).
 - Revision 2 (2026-11-12): the owner's own design, worked out in a separate conversation ("The Universal PBPK Curation
   Pipeline", 39 pages), was reviewed against the code, the engine catalog and the evidence (§6). The two designs are
   merged into one for Modeler One (§7–§8).
+- Revision 3 (2026-11-12): the owner's decisions on the eight questions (§10). The gates are locked (§7.1); the builds
+  run in parallel against shared contracts (`2026-11-12-intake-contracts.md`), §8.
 
 If approved, this replaces the reading half of `2026-11-10-add-data-agent-reads-everything.md` (R4's delivery map as
 context only; the document reader copying values). It keeps what works there: the R1 reading queue, the R3 tray, the
@@ -159,7 +161,7 @@ and duplicates, the client specification).
 | **Outputs to Neo4j, SQL, Simcyp and GastroPlus** | One engine, one system of record (CPF). A graph database adds infrastructure for joins a relational ledger already does | CPF and `ObservedDataset` to PK-Sim (unchanged); the ledger relational (PostgreSQL path) or in the artifact store; an intake record in the M15 package; an OSP-importer export if wanted |
 | **Fine-tuning prompts from reviewers' corrections** | Silent model change breaks validation (GAMP 5, Part 11) | A correction becomes an approved mapping and a gold-set case; a prompt or model change goes through change control with its evaluation score |
 | **z-factor, IVIVC deconvolution** as compute modules | z-factor is not a PK-Sim construct (never invent PK-Sim names); PK-Sim takes Weibull, a table or particle dissolution, and we already fit Weibull in PK-Sim's parameterization | Later, with its own plan, if an application needs IVIVC |
-| **Every format** (PPTX, HTML, XML, SAS XPT, email, ZIP, images) at once | Breadth costs effort; worth it only for what clients send | Prioritized from real deliveries (§10 q5); anything unsupported says so, never silent |
+| **Every format** (PPTX, HTML, XML, SAS XPT, email, ZIP, images) at once | Breadth costs effort; worth it only for what clients send | Prioritized from real deliveries (§10, decision 5: a 30-day inventory); anything unsupported says so, never silent |
 | **Composition sums to 100 ± 0.5%** | Compositions are often in mg per unit | Sums to the stated unit weight or to 100%; the tolerance is SME-governed |
 | **Three reviewer surfaces** | A small team; one review surface is enough | Review on the study and product cards; the engineer's view in the admin console |
 
@@ -181,20 +183,30 @@ see only what the readers deliver.
 
 ## 7. The merged design for Modeler One
 
-### 7.1 The goal, measurable
-For every delivery, on every route (Start, Add data, an Inputs tab):
-- **G1 Every file accounted for:** read, partly read (the regions not read listed), or unsupported (and why).
-- **G2 No silent loss:** every located table, paragraph group and figure is mapped or excluded with a reason; every
-  numeric cell of a mapped table is used or excluded by a stated rule; text outside every region is listed by page.
+### 7.1 The goal, measurable: the gates (locked 2026-11-12)
+The owner approved the design against their own reading of six gates, on condition that the gate texts be locked.
+This is the locked set: the owner's six, in the owner's numbering, plus the two things only revision 2 had (every file
+accounted for, now inside G2; the time target, G7). For every delivery, on every route (Start, Add data, an Inputs tab):
+- **G1 Scored against an answer key.** A value-level answer key for a real delivery exists, written by people who did
+  not build the pipeline (§10, decision 8), and the pipeline is scored against it value by value: by field, by study,
+  by sub-domain. The accuracy target is set after the baseline.
+- **G2 No silent loss.** Every file is read, partly read (the regions not read listed) or unsupported (and why).
+  Every located table, paragraph group and figure is mapped or excluded with a reason; every numeric cell of a mapped
+  table is used or excluded by a stated rule; text outside every region is listed by page.
   **Silent loss = 0 is a release condition.**
-- **G3 Every value traced:** each value the model uses resolves to its anchor (file hash, parser version, cell / page +
-  box / text span / figure) or to a signed person's entry; a derived value to its inputs and the compute version.
-- **G4 Every required input has a status:** each item of the project's requirement templates is found (anchored),
-  conflicting, or missing → asked of the client, taken from literature, or signed "not needed".
-- **G5 Accuracy measured, not claimed:** on the gold set, the share of values proposed correctly before review is
-  scored cell by cell (target set after D0's baseline); confirmed values match their source by construction (code
-  read them, a person settled every exception, a spot check sampled the rest).
-- **G6 Time:** a delivery read, mapped and checked within the target (§7.10), the person's review excluded.
+- **G3 Every released fact resolves to an immutable anchor** (file hash, parser version, cell / page + box / text
+  span / figure) or to a signed person's entry; a derived value to its inputs and the compute version; a cross-file
+  fact to its three anchors (§7.6).
+- **G4 Requirement coverage per study, never globally.** Each study is checked against the requirement templates that
+  *its own* routing activates: the project's application, plus the study's population, modality, route and context
+  tags. A study whose routing no authored template covers is a **schema gap: it blocks release** and is never counted
+  as done against another checklist. Each item is found (anchored), conflicting, or missing → asked of the client,
+  taken from literature, or signed "not needed".
+- **G5 Validity rules pass, or every failure carries a recorded scientist's override** (who, when, why).
+- **G6 Signed confirmation per study**, with the spot check done (§7.8) and the audit trail.
+- **G7 Time.** From the files' arrival to a reviewable exception list for a typical study: 15 minutes with a GPU and a
+  warm mapping cache; 45–60 minutes without a GPU. It does not cover a first-seen layout, a cold cache, or heavy
+  scanned or figure content. Each stage's time is recorded per delivery, so the gate is measured.
 
 This replaces "any data, exactly perfect" with what can be proven to a reviewer or a regulator.
 
@@ -211,12 +223,12 @@ This replaces "any data, exactly perfect" with what can be proven to a reviewer 
 ### 7.3 The stages, mapped to what exists
 | # | Stage | Builds on (exists) | New |
 |---|-------|--------------------|-----|
-| 1 | **Intake and parse once** → source model with anchors | vault (sha), `grid`, `documents` | pdfplumber words + Docling tables for PDF; Word tables as grids, images kept; CSV dialect and encoding; ZIP unpacked; anchors with parser version; content outside every region listed; unsupported formats said so. OCR and images: GPU decision (§10 q4) |
+| 1 | **Intake and parse once** → source model with anchors | vault (sha), `grid`, `documents` | pdfplumber words and tables for PDF (Docling behind the same interface, §10.2); Word tables as grids, images kept; CSV dialect and encoding; ZIP unpacked; anchors with parser version; content outside every region listed; unsupported formats said so. OCR and images: with the GPU (§10, decision 4) |
 | 2 | **Identify**: document role, table kind, study / product / batch identity | `triage`, `delivery_pass`, delivery map | Several tables per sheet or page, tables across pages; table kinds beyond PK and dissolution; rules first, a short LLM call for the rest |
 | 3 | **Map and extract**: table mapper, prose extractor, figures | `recipe`, `apply`, `sheet_reader`, `pdf_figures`, digitizer | Mapping spec v2 (§7.4); cache with sign-off; prose under a strict check (§7.5); figures suggest-only (owner, 2026-11-10) |
 | 4 | **Ledger**: facts, entities, links, conflicts, relations | CLIENT_SUBMISSION artifacts, `client_review`, audit chains | The ledger (§7.6): partial facts, append and supersede, derived and relation facts |
 | 5 | **Compute** | `nca`, `units`, `parameter_units`, `dissolution` (Weibull, f2) | One unit library instead of four; SE/CV% → SD with n; salt → free base; dose per kg; each a derived fact |
-| 6 | **Checks and coverage audit** | `validate`, `check_profile`, evidence checks, data plan, P3 gate, requirement templates | Coverage (G1, G2), requirement status (G4), PK-Sim import constraints, PBPK checks (§7.7) |
+| 6 | **Checks and coverage audit** | `validate`, `check_profile`, evidence checks, data plan, P3 gate, requirement templates | Coverage (G2), requirement status per study (G4), PK-Sim import constraints, PBPK checks with overrides (G5) (§7.7) |
 | 7 | **Review by exception** | study and product cards, source viewer, signatures, admin console | Cell / box highlight, exceptions first, spot check, coverage panel, pipeline-health page (§7.8) |
 | 8 | **Land** | CPF, `ObservedDataset`, `pksim.py`, M15 package | D1's landing fixes (§3.3); the intake record (facts with anchors) in the M15 package |
 
@@ -249,6 +261,13 @@ relation facts for DDI ratios and test-vs-reference; partial facts welcome, and 
 computed from the requirement templates. No LLM confidence: the **evidence level** is computed (person-confirmed >
 approved mapping > new mapping > prose > digitized).
 
+**Cross-file facts (the owner's decision 3):** a fact stated in one file may fill a study read from another only when
+(1) the link is explicit and anchored: a study id, protocol number or literal cross-reference, itself a link fact with
+its own anchor (the same drug name or similar dates never qualify); (2) the match is unique (several candidates → the
+conflict queue, nothing filled); (3) the fact is stored as `cross_file_linked` with three anchors: the stating file's,
+the receiving study's and the link's; (4) a reviewer confirms it on first use per study, and later facts through the
+same link inherit that confirmation; (5) every later view, the model's inputs included, shows that it was joined.
+
 Entities, borrowing the SDTM PC/EX/DM row grain and PP parameter codes, OSP importer metadata, NONMEM-style doses:
 
 | Entity | Key fields | Lands in (today's model) |
@@ -266,10 +285,13 @@ Entities, borrowing the SDTM PC/EX/DM row grain and PP parameter codes, OSP impo
 | InVitroMeasurement | CPF id, value, unit, typed conditions (pH, temperature, system, fu,inc), measured/predicted | `EvidenceItem` |
 
 ### 7.7 Checks and the coverage audit (all code; thresholds that judge acceptance are SME-governed, `UNVERIFIED`)
-- **Coverage:** G1 per file, G2 per region and per cell (silent loss counted and shown), content outside every region
-  listed by page, anchor integrity after any re-parse.
-- **Requirements (G4):** every item of the project's templates with its status; a missing item drafts a line in the
-  client request (exists, build J) or a literature task (A2).
+- **Coverage (G2):** per file, per region and per cell (silent loss counted and shown), content outside every region
+  listed by page, anchor integrity after any re-parse (G3).
+- **Requirements (G4):** per study, every item of the templates its routing activates, with its status; a routing no
+  template covers is a schema gap that blocks release; a missing item drafts a line in the client request (exists,
+  build J) or a literature task (A2).
+- **Overrides (G5):** a failed check is cleared only by a scientist's recorded override (who, when, why); the
+  scorecard shows it from then on.
 - **What PK-Sim's import accepts** (from the OSP docs and OSPSuite-R v12.4.0): one LLOQ per observed dataset; error as
   arithmetic or geometric SD only (SE and CV% converted with n, or refused); unique times per dataset; the molecular
   weight consistent with the compound; units known to the harvested dimensions.
@@ -292,9 +314,13 @@ Entities, borrowing the SDTM PC/EX/DM row grain and PP parameter codes, OSP impo
   box highlighted. Failed checks and missing inputs first, by severity; conflicts side by side with both anchors.
 - **A new mapping is shown as a mapping** (header → field, unit, BLQ token) for one-click accept or edit; once
   accepted it is cached (§7.4).
-- **Spot check against rubber-stamping:** before a study is confirmed, a few values drawn at random are shown with
-  their source for the person to tick (the clinical data-management practice of sampled verification). The number
-  drawn is the owner's choice (§10 q6).
+- **Spot check against rubber-stamping (the owner's decision 6):** before a study is confirmed, **100 values, drawn
+  by strata**, are shown with their source for the person to tick; a study with fewer than 100 numeric values is
+  checked in full. Strata: every table type present, every unit class (mass, concentration, time, percentage, ratio),
+  every BLQ marker form, every digitized fact, every cross-file fact, every derived fact with its inputs.
+  **Never sampled, always verified:** the values that decide the model for the study's routing (the template items
+  marked so), and any value with a scientist's override. The draw is seeded from the ledger's state, so an auditor can
+  reproduce it. The numbers (100; which items are always verified) sit in a ruleset file marked `UNVERIFIED`.
 - Confirmation is signed (step-up, exists), per study or product; corrections supersede.
 - **Coverage panel** per delivery: files, regions, silent loss, requirement status.
 - **Pipeline health** in the admin console: mapping-cache hit rate, parser failures, unsupported files, regions
@@ -314,13 +340,22 @@ change. Where each stands:
 | Special populations (pediatric, hepatic, renal, pregnancy, elderly) | `app_special_populations.yaml` | populations include `Pregnant`, `Preterm`; ontogeny present | population tag and demographics per study (age, gestational week, Child-Pugh, eGFR); physiology from the engine, never from client files |
 | First in human | `app_fih.yaml` | species Rat, Mouse, Dog, Beagle, Minipig, Monkey, Rabbit | species per observation |
 | Metabolites (stage SM) | MS-01 v1.3 | yes | analyte carried to the campaign (L-d) |
-| Biologics (mAb, proteins) | none | PK-Sim has a large-molecule model, but the harvested catalog has no FcRn entries | harvest, template and builder first: its own plan |
-| Dermal, ocular, inhalation, ADC, oligonucleotides, gene therapy | none | no hits in the harvested catalog | outside the tool's modeling scope today; kept in the library, flagged |
+| Biologics (mAb, proteins): **roadmap 1** | draft checklist (inert) | PK-Sim has a large-molecule model, but the harvested catalog has no FcRn entries | harvest, then template and builder; a named scientist first |
+| Dermal / transdermal: **roadmap 2** | draft checklist (inert) | no hits in the harvested catalog: PK-Sim has no built-in skin model | an engine decision first (a MoBi model or another engine), then as above |
+| Ocular: **roadmap 3** | draft checklist (inert) | no hits in the harvested catalog: PK-Sim has no built-in eye model | as dermal |
+| Inhalation, ADC, oligonucleotides, gene therapy | none | no hits in the harvested catalog | outside the tool's modeling scope; kept in the library, flagged |
+
+**The owner's decision 2 (2026-11-12):** biologics, then dermal, then ocular are on the roadmap; each needs a named
+scientist before its build starts. What this plan builds for them now: a **draft checklist** each (the client data to
+ask for and how to check it), in the requirement-template format, marked `DRAFT` / `UNVERIFIED`, every PK-Sim location
+`TO_HARVEST`, kept where the application registry does not load it, so no project can select it and no gate reads it.
+What it does not build: calculators for FcRn recycling, skin flux or ocular scaling. Those would be model results
+computed outside PK-Sim, which the ground rules exclude; they wait for the engine work above.
 
 ### 7.10 Speed
 Parse once; map tables in parallel (A2 already runs 4 at once); LLM output is a small spec, not rows; a known layout
-costs no LLM call. Proposed target for the owner to set: a 20-file delivery read, mapped and checked within 15 minutes
-on the server, the person's review excluded.
+costs no LLM call. The target is G7 (§7.1): arrival to a reviewable exception list for a typical study in 15 minutes
+with a GPU and a warm mapping cache, 45–60 minutes without a GPU; each stage's time is recorded per delivery.
 
 ### 7.11 Front door, both ways
 Send each client, with the data request, the template (`client_template.py`, read with no AI) and a short data
@@ -329,21 +364,25 @@ matrix, one tab per study, dissolution conditions per profile (from the PBBM rep
 it is read exactly; one that does not goes through the pipeline. On the way back, every missing requirement drafts a
 line of the next client request.
 
-## 8. Builds (each its own PR to `main`; smallest and most certain first)
-| Build | Scope | Goal | Locked files |
-|-------|-------|------|--------------|
-| D0 | **Measure first.** A gold set from the owner's real delivery (the R6 answer key, extended to every value, kept on the server), scored cell by cell, with coverage and silent loss; today's pipeline scored as the baseline | G5 | none |
-| D1 | **Landing fixes:** BLQ kept as censored; SE/CV% converted to SD with n; analyte and matrix carried to the campaign; n per timepoint; urine datasets; error sent as arithmetic or geometric SD | stops L-a … L-f | `run_pi.R` (L-c), likely `split.py`: owner's approval, own PR |
-| D2 | **Source model:** parse once with anchors and parser version; PDF words + tables; Word grids and images; CSV dialects; ZIP; several tables per sheet, tables across pages; content outside regions listed; unsupported formats said so; document role and table kind | G1, R-a … R-f | none |
-| D3 | **Mapper:** spec v2, cache with sign-off, prose extractor under the strict check; replaces the document reader's copying and the one-table limit | U-a, U-b, U-e, U-f | none |
-| D4 | **Ledger and compute:** facts with anchors, append and supersede, partial facts, links, conflicts, relation facts; one unit library; derived facts | G3, U-c, L-g, L-h | maybe `cpf/models.py` (dose basis): owner's approval |
-| D5 | **Checks and coverage audit:** G2 silent loss, G4 requirement status against the templates and the data plan, PK-Sim import constraints, PBPK checks; missing items into the client request | G2, G4 | none (thresholds stay in SME-governed rulesets) |
-| D6 | **Review by exception:** source highlight, exceptions first, mapping accept, spot check, signed confirmation, coverage panel; pipeline health in the admin console | U-d | none |
-| D7 | **Front door:** the data specification and the template with the data request | §7.11 | none |
-| by decision | OCR and images (GPU); the hybrid plot digitizer; more formats (XPT, PPTX, email) from real deliveries; DDI relation landing; new applications (biologics …) each with its own plan | — | templates and rulesets: SME |
+## 8. Builds (revision 3: built in parallel against shared contracts)
+The owner's instruction (2026-11-12): do all at once, no approval gate between builds except the locked-file PR. The
+builds share code-level contracts (`docs/plans/2026-11-12-intake-contracts.md`: the models, the stores, who owns which
+file), are built side by side, then merged, wired and reviewed. D6 follows the merge because a review screen needs
+the others' real output; that is an engineering order, not an approval gate.
 
-D0 and D1 do not depend on the rest and go first: D0 says whether each later build helped; D1 stops losing data
-already read correctly. D2 → D3 → D4 → D5 is the backbone; D6 needs D5's exception list.
+| Build | Scope | Gate | Where it goes |
+|-------|-------|------|---------------|
+| D0 | **The scoring harness only.** Answer-key format at value level, the scorer (by field, study, sub-domain; coverage and silent loss), the comparison of two analysts' keys, the baseline runbook for the server. The key itself is written by the scientist's analysts (§10, decision 8), never by this pipeline's builders | G1 | main line |
+| D1a | **Landing fixes outside locked files:** the BLQ rule named and recorded (today's silent omission becomes an explicit, selectable rule, `UNVERIFIED`); SE and CV% converted to SD with n, as derived values; analyte and matrix carried to the campaign; n per timepoint; urine datasets | L-a, L-b, L-d, L-e, L-f | main line |
+| D1b | **Locked file:** `run_pi.R` takes the error type (arithmetic or geometric SD) instead of naming every SD arithmetic | L-c | **its own PR**, merged only with the owner's approval (§10, decision 7) |
+| D2 | **Source model:** parse once with anchors and parser version; PDF words and tables; Word grids and images; CSV dialects; ZIP unpacked and inventoried; several tables per sheet, tables across pages; content outside regions listed; unsupported formats said so; document role and table kind by rule; the **format inventory** tool (§10, decision 5) | G2, R-a … R-f | main line |
+| D3 | **Mapper:** mapping spec v2, the cache with sign-off, rules first and the LLM for the rest (it never sees a numeric cell), the prose extractor under the strict check | U-a, U-b, U-e, U-f | main line |
+| D4 | **Ledger and compute:** facts with anchors, append and supersede, partial facts, links, conflicts, relation facts, cross-file facts under the owner's five conditions; derived facts | G3, U-c, L-g, L-h | main line |
+| D5 | **Checks and coverage audit:** silent loss, requirement status per study with the schema gap, PK-Sim import constraints, PBPK checks with overrides; missing items into the client request | G2, G4, G5 | main line (thresholds in an `UNVERIFIED` ruleset file) |
+| D6 | **Review by exception:** source highlight, exceptions first, mapping accept, the spot check, signed confirmation, coverage panel; pipeline health in the admin console | G6, U-d | main line, after the merge |
+| SD | **Sub-domain draft checklists** (biologics, dermal, ocular), inert (§7.9) | — | main line, outside the locked requirement templates |
+| D7 | **Front door:** the data specification and the template with the data request | §7.11 | next |
+| by evidence | OCR and images (GPU approved, §10 decision 4: adapters once the hardware and the format inventory are in); the hybrid plot digitizer; adapters for PPTX, email, SAS XPT, HTML/XML after the 30-day inventory; DDI relation landing | — | each its own build |
 
 ## 9. What stays
 The vault and CLIENT_SUBMISSION artifacts; `modeler_intake.grid`; recipe + apply + validate + records; the cleaning
@@ -352,21 +391,47 @@ registers; `client_review` (group confirm, conflicts, aliases); the requirement 
 gate; signatures and audit chains; `run_tool_loop`, AgentRun and the usage report; the PDF figures and the calibrated
 digitizer; the template's no-AI path; the eval harnesses as scaffolding.
 
-## 10. Decisions for the owner
-1. **Direction and goal:** the merged design (§7), with G1–G6 as the definition of done, "silent loss = 0" as a release
-   condition, and the accuracy target set after D0's baseline?
-2. **Scope by application:** intake follows the project's application and its requirement templates (§7.9); documents
-   do not choose the domain; biologics, dermal, ocular and the others wait for engine and template work, each with
-   its own plan. Which of those, if any, are on the roadmap?
-3. **Cross-file facts:** may a fact quoted in one file (a synopsis's dose) fill the study of another file (its PK
-   table) when a quoted link joins them? Today every value must be quoted from its own file.
-4. **Hardware:** does the server have, or can it get, a GPU (16–24 GB)? It decides OCR for scans, images of tables and
-   a vision model for plots; without one, scans stay manual and Docling runs on CPU.
-5. **Formats:** besides xlsx, xls, csv, docx and pdf, which do clients actually send (ZIP, SAS XPT, PPTX, email,
-   images)? Breadth follows real deliveries.
-6. **Spot check:** sampled verification at confirmation (§7.8): adopt, and how many values per study?
-7. **D1** touches locked files (`run_pi.R`; possibly `split.py`, `cpf/models.py`): approve a dedicated PR? And D0:
-   who writes the value-level answer key, kept on the server only? Keep the 15-minute target (§7.10)?
+## 10. The owner's decisions (2026-11-12)
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | The merged design, gates as definition of done | **Approved**, on two conditions that are not waived: G4 is judged per study routing, never globally; a schema gap blocks release. Both are in the locked gates (§7.1) |
+| 2 | Biologics, dermal, ocular | **On the roadmap**, in that order; each needs a named scientist before its build starts (§7.9) |
+| 3 | Cross-file facts | **Yes**, under five conditions: explicit anchored link, unique match, `cross_file_linked` with three anchors, a reviewer's confirmation on first use per study, visible downstream (§7.6) |
+| 4 | GPU | **Yes, to be provisioned**: one 24 GB-class card as the minimum; it is what the 15-minute target assumes. Without it the target is 45–60 minutes (G7) |
+| 5 | Formats | **Plan for** ZIP, PPTX, email with attachments, images, SAS XPT / SAS7BDAT, HTML / XML. **Run a 30-day format inventory on real intake before the adapters' scope is frozen**: files by extension, scanned against native PDFs, documents with figures (D2 builds the tool) |
+| 6 | Spot check | **Adopted**: 100 values per study drawn by strata, all values when a study has fewer; the model-deciding values and every overridden value always verified (§7.8) |
+| 7 | D1 on the locked `run_pi.R` | **Its own PR**: a named reviewer who owns `run_pi.R` and one engineer who did not write the change; a before/after record attached; a rollback plan; **the owner's approval before merge** |
+| 8 | The D0 answer key; the time target | **The scientist owns the key; a trained analyst fills it; a second analyst verifies it independently, disagreements to the scientist; the engineer builds the harness; whoever built the pipeline does not write the key.** The 15-minute target stays, as defined in G7 |
+
+The owner's instruction with these: **do all at once**, D0 to D6 and the sub-domain checklists in parallel, with no
+approval gate between builds beyond the locked-file PR of decision 7.
+
+### 10.1 Three mismatches between the decisions and the plan, and how each was settled
+The decisions were written without revision 2's text at hand. Where they and the plan differ, this is what was done:
+1. **The gates.** The decisions' G1–G6 are not revision 2's G1–G6 (they have no "every file accounted for" and no
+   time gate; revision 2 had no explicit override or sign-off gate). The locked set (§7.1) keeps the owner's six, in
+   the owner's numbering, and adds the other two. The approval was conditional on this lock.
+2. **What D1 is.** Decision 7 describes D1 as a fix to which files are read, with "no output change beyond files that
+   were being dropped". D1 is the landing: files are read, and then BLQ points, SE and CV% errors and the analyte are
+   lost before the fit (§3.3). Fixing that changes what the fit receives, by intent. So D1 is built to change as little
+   as it can: the BLQ rule becomes explicit with today's behaviour as its default until the SME chooses another; the
+   conversions are recorded as derived values; the one locked change (`run_pi.R`, the error type) is alone in its PR.
+   The "before/after record" of decision 7 is, for this D1, what the campaign's profile holds before and after for a
+   fixture (points, errors, analyte), not a list of files. The owner decides on the PR.
+3. **Sub-domains.** Decision 2 says no sub-domain build starts without a named scientist; the closing instruction says
+   to author all sub-domain schemas now. Settled as §7.9: draft checklists only, inert, `UNVERIFIED`, no scientist
+   named yet; no calculators outside PK-Sim.
+
+### 10.2 Deviations from revision 2, recorded
+- **One unit library instead of four** (§7.3 stage 5) waits: one of the four tables is the locked `parameter_units.py`.
+  New code calls the existing unit functions and adds no fifth table.
+- **Docling** is not added in this build: its model weights could not be fetched in the build session, so it could not
+  be tested. The built-in PDF path is pdfplumber (text-layer words, tables); the parser sits behind an interface so
+  Docling can be added and scored on the server (D0) before it is trusted.
+- **OCR and images**: the interface is built and a scanned page is reported as needing OCR; the engine itself comes
+  with the GPU (decision 4).
+- The builds go on the session's one branch, one commit per build, because this session may push there only; the
+  locked-file change goes on its own branch and PR, as decision 7 requires.
 
 ## 11. Risks
 - No public benchmark on PK listings: D0's gold set is the only proof, and it is small at first.
