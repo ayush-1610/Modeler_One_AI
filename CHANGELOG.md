@@ -30,6 +30,15 @@ decisions (its §8).
   delivery ledger with partial, cross-file facts; PBPK checks in code; review by exception; a data specification sent
   with the client's data request. First builds: D0 (a value-level gold set, baseline scored) and D1 (the landing
   fixes, with the owner's approval for the locked `run_pi.R`).
+- **Revision 2, the owner's own design reviewed** ("The Universal PBPK Curation Pipeline", worked out in a separate
+  conversation): the core agrees (parse once, the LLM never copies a number, anchors, checks in code, review by
+  exception). Taken from it: a silent-loss count as a release condition, append-and-supersede facts, derived facts
+  with their inputs, anchor integrity, a mapping cache with sign-off, relation facts, a pipeline-health view.
+  Changed: a measurable goal (G1–G6) instead of "zero loss, exactly perfect"; the project's application and its
+  existing requirement templates choose what is required, not a per-document classifier; population physiology comes
+  from the engine, never from client files; modeling rules stay in the SME-governed rulesets; domains outside PK-Sim's
+  harvested catalog (dermal, ocular, FcRn …) are flagged as outside scope; no LLM confidence scores; one system of
+  record (no Neo4j or other engines' outputs). Added: a spot check at confirmation. Builds D0–D7.
 - Impact: none yet (no code changed).
 
 ### Fixed — the page no longer stops scrolling at random (2026-11-11)
