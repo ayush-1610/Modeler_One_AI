@@ -15,6 +15,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs / Infra — the intake rebuild: the owner's decisions, the contracts draft, the PDF library (2026-11-12)
+- **Plan revision 3** (`docs/plans/2026-11-12-client-data-intake-redesign.md`): the owner approved the merged design
+  with conditions and answered the eight questions (its §10). The gates are locked (§7.1): the owner's six, plus file
+  accounting inside G2 and the time gate G7. Three mismatches between the decisions and revision 2 are settled in
+  §10.1 (the gate texts; what D1 is; sub-domain checklists as inert drafts). The builds run in parallel against shared
+  contracts (§8).
+- **Contracts, draft under review** (`docs/plans/2026-11-12-intake-contracts.md`): the code-level contract for the
+  parallel builds (models, stores, stage interfaces, one brief and one set of owned files per build), written from
+  seven subsystem maps of the code. It is being reviewed from three sides (boundaries and governance; science and data
+  fidelity; whether the builds fit together); the revised text follows in its own commit.
+- **Found while mapping** (read from the PI package's source at the engine image's pinned commit, not run): the SD
+  sent to PK-Sim does not enter the fit today. The package's default residual weighting is "none" and `run_pi.R` sets
+  nothing, so findings L-b and L-c of the plan are record and labelling errors with no numerical effect on any fit.
+  Turning the weighting on is an SME decision and is left open.
+- **`pdfplumber` added to `modeler-intake`** (MIT; it brings `pdfminer.six`, MIT, and `pypdfium2`, BSD-3-Clause /
+  Apache-2.0): text-layer words with their positions, and tables, for the new PDF path. Nothing imports it yet.
+- Impact: none on behaviour (no code path changed).
+
 ### Docs — proposal: redesign of the client-data intake (2026-11-12)
 The owner, 2026-11-12: stop adding to the reading path and explore, in depth, the best way to get a cluttered client
 delivery into the tool, fast, correct and valid for PBPK. Four agents explored it (the pipeline today, the target
