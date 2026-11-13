@@ -482,6 +482,38 @@ def test_subjects_unassigned_values_and_the_current_confirmation(ws):
     assert (view.value(dissolved).status, view.value(strength).confirmation) == ("proposed", "cf-5")
 
 
+def test_an_assignment_names_a_study_a_product_or_both(ws):
+    # §13 integrator decision: a product- or batch-level value of no subject can be given its product and batch
+    with pytest.raises(ValidationError):
+        Assignment(id="as-1", targets=("f-1",), why="w", by="u", at=AT)                   # no subject
+    with pytest.raises(ValidationError):
+        Assignment(id="as-1", targets=("f-1",), arm="a-1", product="pr-1", why="w", by="u", at=AT)   # an arm, no study
+    with pytest.raises(ValidationError):
+        Assignment(id="as-1", targets=("f-1",), study="st-1", batch="bt-1", why="w", by="u", at=AT)  # a batch, no product
+    book = _Book(ws)
+    book.entity("st-1", "230-23", A)
+    loose, dissolved, both = (book.fact(field, 1.0, study=None, cell=cell)
+                              for field, cell in (("dose", "C1"), ("percent_dissolved", "C2"), ("dose", "C3")))
+    assert {v.id for v in LedgerView(ws).values(unassigned=True)} == {loose, dissolved, both}
+    book.review("assignment", Assignment(id="as-1", targets=(dissolved,), product="pr-1", batch="bt-1", why="the CoA",
+                                         by="u", at=AT))
+    book.review("assignment", Assignment(id="as-2", targets=(both,), study="st-1", arm="ar-1", product="pr-1",
+                                         why="the cover", by="u", at=AT))
+    view = LedgerView(ws)
+    product_only, assigned_both = view.value(dissolved), view.value(both)
+    assert (product_only.entity.study, product_only.entity.arm, product_only.entity.product,
+            product_only.entity.batch) == (None, None, "pr-1", "bt-1")
+    assert (assigned_both.entity.study, assigned_both.entity.arm, assigned_both.entity.product,
+            assigned_both.entity.batch) == ("st-1", "ar-1", "pr-1", None)
+    assert {v.id for v in view.values(unassigned=True)} == {loose}
+    assert {v.id for v in view.values(product="pr-1")} == {dissolved, both}
+    assert {v.id for v in view.values(study="st-1")} == {both}
+    # the latest assignment of a value replaces the earlier one whole: a study with no arm and no product
+    book.review("assignment", Assignment(id="as-3", targets=(both,), study="st-1", why="no arm", by="u", at=AT))
+    assert LedgerView(ws).value(both).entity.model_dump(include={"study", "arm", "product"}) == {
+        "study": "st-1", "arm": None, "product": None}
+
+
 def test_the_snapshot_is_one_state_and_refresh_reads_again(ws, monkeypatch):
     book = _Book(ws)
     book.entity("st-1", "230-23", A)

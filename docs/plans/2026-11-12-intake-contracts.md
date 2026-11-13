@@ -778,7 +778,8 @@ class RequirementDisposition(B): id: str; subject: str; req_id: str; disposition
 class Choice(B):           id: str; conflict_id: str; keep: str; why: str = Field(min_length=1); by: str; at: str         # ch-n
 class LinkConfirmation(B): id: str; link_fact: str | None; study: str; file_sha256: str; confirmed: bool               # lk-n
                            why: str = ""; by: str; at: str     # per (study, file); an ambiguous link: `study` is the one chosen
-class Assignment(B):       id: str; targets: tuple[str, ...]; study: str; arm: str | None = None                       # as-n
+class Assignment(B):       id: str; targets: tuple[str, ...]; study: str | None = None; arm: str | None = None        # as-n
+                           product: str | None = None; batch: str | None = None   # at least one of study or product (§13)
                            why: str = Field(min_length=1); by: str; at: str    # values with no study (fact, extract or value ids)
 class RegionDecision(B):   id: str; file_sha256: str; parser_version: str; regions: tuple[str, ...]
                            scope: Literal["regions", "unread_prose", "figures", "outside"] = "regions"
@@ -1495,7 +1496,8 @@ def override(ws, *, subject: str, check_id: str, why: str, by: str) -> Override
 def dispose(ws, *, subject: str, req_id: str, disposition: str, why: str, by: str) -> RequirementDisposition
 def choose(ws, *, conflict_id: str, keep: str, why: str, by: str) -> Choice
 def confirm_link(ws, *, link_fact: str | None, study: str, file_sha256: str, confirmed: bool, why: str, by: str) -> LinkConfirmation
-def assign(ws, *, targets: Sequence[str], study: str, arm: str | None, why: str, by: str) -> Assignment
+def assign(ws, *, targets: Sequence[str], study: str | None = None, arm: str | None = None, product: str | None = None,
+           batch: str | None = None, why: str, by: str) -> Assignment          # at least one of study or product (§13)
     # audit intake.assign; recomputes and stores the coverage of the files concerned
 def exclude_regions(ws, *, file_sha256: str, regions: Sequence[str], scope: str, why: str, by: str) -> RegionDecision
     # audit intake.region; recomputes file_coverage from the stored outcomes, ALL RegionDecisions and the source
@@ -2647,6 +2649,12 @@ difference is listed here so a builder who reads only this document is not misle
   - Today a product- or batch-level value with no study, product or batch can be assigned only a study.
   - The change is backward compatible (`study` or `product`, at least one) and is made to `intake_records` and
     `ledger_view` by the integrator when W lands.
+  - **Done (2026-11-13), as the code governs:** `Assignment` has optional `study`, `arm`, `product` and `batch`; at
+    least one of study or product; an arm needs its study and a batch its product. `Assignment.entity_update()` gives
+    the parts the fold sets: study and arm when it names a study (an arm left out clears it, as before), product and
+    batch when it names a product. A value's latest assignment replaces its earlier one whole. Only an assignment that
+    names a study settles a cross-file join (`CrossFile.link_fact` is the assignment, and a refused link no longer
+    excludes the value); a product-only assignment leaves the study join as it was.
 
 **Stores (§5).**
 - Only a fragment with no newline is a torn tail. A whole line that is not a log line is corruption: `verify` reports

@@ -15,6 +15,12 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — a person can assign a value of no subject to a product and batch, not only a study (integrator, 2026-11-13)
+- **What:** `intake_records.Assignment` gains optional `product` and `batch`; `study` becomes optional. At least one of study or product is required, an arm needs its study and a batch its product. `Assignment.entity_update()` names what the fold sets: study and arm when a study is named (an arm left out clears it, as before), product and batch when a product is named. `LedgerView` applies it; a value's latest assignment replaces its earlier one whole.
+- **Cross-file:** only an assignment that names a study settles a cross-file join (it is the join's `link_fact`, and a refused link no longer excludes that value). A product-only assignment leaves a study join as it was.
+- **Why:** a product- or batch-level value read with no study, product or batch (a CoA line, a dissolution table with no product named) could be assigned only a study, so it could never leave the "study not stated" list for its real subject (contracts §13, integrator decision before D6).
+- **Impact:** backward compatible: every existing assignment line (study, optional arm) reads and folds as before. No stored file changes. The contract's §4.6 model and §6.6 `assign` signature are updated. Test: `test_intake_store.py::test_an_assignment_names_a_study_a_product_or_both`.
+
 ### Changed — the client-data landing carries BLQ, SE and CV%, the analyte, the matrix and n per time to the campaign (D1a, 2026-11-13)
 - **What:** a new module, `modeler_project.profile_landing`, decides what a dataset's campaign profile and catalog row say beyond the values. It reads the `landing` section of `intake_rules.yaml` (0.1, **UNVERIFIED**) and uses `pbpk_domain.spread`.
   - **BLQ (L-a):** today's rule is now named. Points below the LLOQ are left out of the fit and of NCA, and the LLOQ is kept.

@@ -20,7 +20,8 @@ The rules the fold applies (and the ledger's writes keep):
   its extract id, and not the value among the record's `excluded`, while the value still belongs to that subject
   (after assignments and merges). A subject's current confirmation is its latest one that no other confirmation names
   in `supersedes`. Otherwise `proposed`. In that order of precedence.
-- an `Assignment` gives its targets (fact, extract or value ids) their study and arm, later ones over earlier ones;
+- an `Assignment` gives its targets (fact, extract or value ids) their study and arm, their product and batch, or
+  both (each pair only when it names it), later ones over earlier ones;
   entity ids are followed through merges.
 - `cross_file` is set for every value whose file differs from its study's home file (the file of the study entity's
   source anchor); the link is the assignment that put it there, else an active `link.*` fact of that file on that
@@ -294,10 +295,11 @@ class LedgerView:
             for target in assignment.targets:
                 for value_id in extract_values.get(target, [target]):
                     assigned[value_id] = assignment
+        to_study = {value_id for value_id, assignment in assigned.items() if assignment.study is not None}
         for raw in raws:
             entity = raw.entity
             if raw.id in assigned:
-                entity = entity.model_copy(update={"study": assigned[raw.id].study, "arm": assigned[raw.id].arm})
+                entity = entity.model_copy(update=assigned[raw.id].entity_update())
             raw.entity = entity.model_copy(update={part: _follow(merged, getattr(entity, part))
                                                    for part in _ENTITY_PARTS if getattr(entity, part) is not None})
 
@@ -333,7 +335,7 @@ class LedgerView:
             study_home = home(study)
             if study_home is None or study_home == file:
                 continue
-            link = (assigned[raw.id].id if raw.id in assigned
+            link = (assigned[raw.id].id if raw.id in to_study
                     else link_facts.get((study, file)) or merge_links.get((study, file)) or "")
             cross[raw.id] = CrossFile(stating_fact=raw.id, link_fact=link, receiving_study=study)
 
@@ -366,7 +368,7 @@ class LedgerView:
             by = superseded_by.get(raw.id) or (superseded_by.get(raw.extract) if raw.extract else None)
             change = last_change(raw)
             refusal = None
-            if raw.id in cross and raw.id not in assigned:
+            if raw.id in cross and raw.id not in to_study:
                 link = links.get((raw.entity.study or "", raw.state["file_sha256"] or ""))
                 refusal = link if link is not None and not link.confirmed else None
             if by is not None:

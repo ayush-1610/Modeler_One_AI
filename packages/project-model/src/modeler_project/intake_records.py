@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from modeler_intake.mapping_spec import MappingSpec
 from modeler_intake.source_model import AnchorProblem, ContainerRef, DocState, OutsideItem, Region
@@ -290,13 +290,38 @@ class LinkConfirmation(_B):                  # lk-n; per (study, file); an ambig
 
 
 class Assignment(_B):                        # as-n; values with no study (fact, extract or value ids)
+    """A person gives values their subject: a study (and its arm), a product (and its batch), or both. A study
+    assignment sets the study and the arm, as before (an arm left out clears it); a product assignment sets the product
+    and the batch. At least one of study or product; an arm needs its study, a batch its product (§13)."""
+
     id: str
     targets: tuple[str, ...]
-    study: str
+    study: str | None = None
     arm: str | None = None
+    product: str | None = None
+    batch: str | None = None
     why: str = Field(min_length=1)
     by: str
     at: str
+
+    @model_validator(mode="after")
+    def _names_a_subject(self) -> Assignment:
+        if self.study is None and self.product is None:
+            raise ValueError("an assignment names a study or a product")
+        if self.arm is not None and self.study is None:
+            raise ValueError("an arm is assigned with its study")
+        if self.batch is not None and self.product is None:
+            raise ValueError("a batch is assigned with its product")
+        return self
+
+    def entity_update(self) -> dict[str, str | None]:
+        """The entity parts this assignment sets: study and arm, product and batch, each pair only when named."""
+        update: dict[str, str | None] = {}
+        if self.study is not None:
+            update.update(study=self.study, arm=self.arm)
+        if self.product is not None:
+            update.update(product=self.product, batch=self.batch)
+        return update
 
 
 class RegionDecision(_B):                    # rd-n
