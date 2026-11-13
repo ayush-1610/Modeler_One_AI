@@ -15,6 +15,39 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the engine labels a geometric SD as geometric (D1b; locked `run_pi.R`; science; pending approval and server evidence, 2026-11-13)
+Plan `docs/plans/2026-11-12-client-data-intake-redesign.md` (L-c); contract `docs/plans/2026-11-12-intake-contracts.md`
+§8.3. **A locked-file change** (owner's decision 7): its own PR from `origin/main`, merged only with the owner's
+approval, a named reviewer who owns `run_pi.R` and one engineer who did not write it. Not merged until the server
+evidence below exists.
+- **Before:** `run_pi.R`'s `build_dataset` labelled every observed SD `ArithmeticStdDev`, in the value's unit. A
+  geometric SD (a dimensionless factor) reached PK-Sim labelled as an arithmetic SD in, say, µg/l.
+- **What changed (science, labelling only):** `build_dataset` reads the observed block's optional `error_type`.
+  - Absent: `yErrorType` `ArithmeticStdDev` and `yErrorUnit` the value's unit, the same two calls in the same order as
+    before. The spec names the type only when it is not arithmetic (`pbpk_domain.fit_spec.pi_observed`, D1a).
+  - `GeometricStdDev`: the dataset's `yErrorType` is geometric and no error unit is set (ospsuite makes a geometric
+    error column dimensionless).
+  - Any other name stops the start: `unknown error_type: <name>`. The two names are `pbpk_domain.spread.ERROR_TYPES`,
+    harvested from the golden fixtures' `AuxiliaryType`. `GeometricStdDev` as an R `yErrorType` was read in the
+    ospsuite 12.4.4 source (`DataErrorType`), not run: this change has not yet run on PK-Sim.
+- **Impact:** no fit changes, by reading the package source. The PI package's (2.2.0) default residual weighting is
+  "none", so neither the SD nor its type enters the objective. `run_pi.R` still sets no `objectiveFunctionOptions` and
+  no weighting (an SME decision, contracts §11.4). A spec without `error_type` (every spec today, and every
+  arithmetic SD after D1a) builds the same dataset as before. Until D1a sends the key, the new branch is not reached.
+- **Locked-file hash:** `run_pi.R`'s SHA-256 refreshed in `docs/architecture/locked-files.json` (one line, nothing
+  else). No golden file, Dockerfile or Python file is touched.
+- **Evidence still to produce on the server**, with the image rebuilt from `services/engine-worker/Dockerfile`:
+  1. the engine-image gate (`engine-image.yml`) green. Its golden fits send no SD, so it shows the script loads and
+     fits as before, not the new branch;
+  2. a before/after record for one fixture with an arithmetic SD: the `pi_spec` bytes, the dataset's `yErrorType` and
+     unit, the objective and the estimates identical before and after;
+  3. the same fixture with `error_type: "GeometricStdDev"`: `yErrorType` reads back `GeometricStdDev`, no error unit
+     is set, and the objective equals the arithmetic-labelled run.
+- **Rollback:** revert this commit (the script and its hash). The Python side keeps sending the key, which the old
+  script ignores: it labels every SD arithmetic, as before, with no numerical effect.
+- **Tests:** none can run the script here (no R, no PK-Sim in the build container); the edit was checked by reading.
+  `tests/architecture` (the lock test with the new hash) and the fit-spec and fitting tests stay green.
+
 ### Fixed — the page no longer stops scrolling at random (2026-11-11)
 The owner, 2026-11-11, testing in Safari: the page "stops scrolling in between, randomly".
 - **The page lock under a dialog is the dialog's own:** it was a CSS rule, `html:has(.dialog-backdrop) { overflow:
