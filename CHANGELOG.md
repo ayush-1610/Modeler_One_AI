@@ -15,6 +15,42 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the intake rebuild's mapper (D3): mapping spec v2 executed by code; rules and the cache before the LLM; strict prose facts (2026-11-13)
+- **What:** the mapper of `docs/plans/2026-11-12-intake-contracts.md` §6.2 (build D3; plan U-a, U-b, U-e, U-f).
+  - `modeler_intake.mapping`:
+    - `execute`: runs a mapping spec v2 over one table region, the same for a sheet range, a PDF table and a Word table. Every number, a constant's included, is read by code under the region's decimal convention, which code decides. Every non-empty cell is put to a use or counted `unaccounted`.
+    - `validate`: checks a spec on the region before it runs. It re-reads every constant and unit from the region's own cells and context lines. It checks a typed statistic or spread kind against the header and label words. It refuses header rows that swallow data rows, two spreads or two n for one value, and a model pattern that could backtrack without end.
+    - `rules`: today's `sheet_form.suggest` and the client-data template as v2 specs. A title cell becomes a cite; nothing `suggest` assumes without a cell is carried over.
+    - `fingerprint`: the layout fingerprint and the header band. A value written with its spread, mark or unit ("12.3 (4.5)", "12.3*") is body, not header.
+    - `redact`: what the table mapper is shown, with every body digit as `#`.
+    - `prose_check`: the strict check on prose facts.
+  - `modeler_project.mapping_cache`: versions, a person's approval or rejection, and one audit event per decision. A rejected spec proposed again comes back as its rejected version, never as a new proposal.
+  - `modeler_agents`:
+    - `table_mapper`: proposes a spec and code checks it, answering ACCEPTED or REJECTED with redacted findings.
+    - `prose_extractor`: keeps only facts the check accepts, with code's numbers and spans.
+    - `evals.scripted.Scripted`: one scripted model for the tests. `log_step` keeps the last turn's answers.
+- **Science:** this is a science change in how values are read; no ruleset, acceptance criterion or SME file changed.
+  - A number is read by code and never typed by the model. Today's `apply.parse_numeric` reads "1.5" as 15 under decimal commas. Here an ambiguous number ("1,234", "12.5", or a caption's "1.000 mg" in a comma region) is a finding, never guessed.
+  - A range or a list ("10-30 mg", "10, 20 or 30 mg") states no one value. A count or a pH is never read from a number of another unit ("50 mg").
+  - BLQ, "<x", ">x" (above the range) and no-sample cells are told apart.
+  - A unit is the one written at its cite, never renamed. A cell's own unit wins ("15 min" under a table in h; "45 %"), with a warning when they differ. An LLOQ column carries its own unit to every row, censored or not.
+  - A value takes one spread, one n and one interval. A second is a finding and is counted unaccounted, never written over the first. An SD, N or CI row qualifies the statistic row of its own time and labels.
+  - A prose fact needs its label and exactly one number of its unit class in one clause. The whole clause is counted, not only the quoted part. A "mean (SD)" sentence is no fact, and there is no times-100 reading.
+  - Names, study and arm labels must match whole: "230-24" is not in "230-23 and 231-24", "Cohort 1" is not in "Cohort 10", "Exampleamide" is not in "Exampleamide-M1". Today's `value_stated_in_quote` accepts any number of the quote, or 100 times it.
+- **Why:** today only individual PK, summary PK and dissolution sheets are read (U-a). The LLM copies every PDF and Word number, and a loose quote check passes swapped values (U-b). Five extractors overlap and the fingerprint reuse is computed but never looked up (U-e). Every table costs LLM turns (U-f).
+- **Impact:** none on today's behaviour. No route, job or existing module imports the new code; W wires the pipeline after the merge. No locked file is touched.
+  - Tests: 282 new (T-47; the cache's also T-05/F-404; the agents' also T-21). 37 of them pin the fixes from the independent review.
+  - Every truth table of the shared synthetic files reads back exactly its truth with no unaccounted number. The 11 legacy evaluation sheets read the same through the rules as through today's recipe.
+- **Known gap:**
+  - A PDF prose span needs the caller's word boxes (`check_prose_fact(..., pdf_box=...)`), because a `ProseParagraph` carries none.
+  - A caption line past the third cannot be cited.
+  - The rules map only what today's form maps; a summary table's SD and N rows stay unaccounted (counted, never dropped).
+  - `MappingCache.propose` may return a rejected version: W must check `status()` and never execute it.
+  - A header row of times or doses written with a unit ("0.5 h", "10 mg") ends the header band, as a header of bare times does. The mapper then sees that row redacted, as body.
+  - Two spread row rules that both match rows are refused even when they qualify different groups; one must be excluded.
+  - Model patterns are refused beyond 3 open repeats and matched on at most 400 characters.
+  - No live model has run the two agents: only the scripted one has.
+
 ### Fixed — "non-fasted" and "not fasting" are no longer read as fasted (integrator, 2026-11-13) — science change
 - **What:** the `fasted` cue in `modeler_intake.document_reading` no longer matches a negated fast: "non-fasted" (any hyphen), "non fasting", "not fasted", "no fasting". Such a text now reads as neither choice (`read_choice` gives None), so D5's routing lists it as an unread routing tag naming the text and a person decides. "fasted", "Fasting", "after an overnight fast" and "empty stomach" still read as fasted.
 - **Why:** the cue `\bfast(?:ed|ing)?\b` matched inside "non-fasted" because the hyphen is a word boundary, so a fed study was read with confidence as fasted. That routes the study to the wrong requirement set and lets a model's quote "non-fasted" support a proposed `food_state: fasted`. Found by both D5 reviewers (spec-D5-10, science-D5-5); the file is shared code, so the integrator fixes it.
