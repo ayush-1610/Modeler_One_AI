@@ -2735,6 +2735,10 @@ difference is listed here so a builder who reads only this document is not misle
   - `found_rounded` accepts both half-even and half away from zero, because a spreadsheet shows a tie the second way.
   - Subject, vessel, period, occasion and sequence compare as codes (`code_key`), not by `name_key`.
   - `key_compare` also reports `attributes_differ` and `studies_differs`.
+- **D2:** `SheetCellValue.merged_from` holds the origin's A1 (its comment), while `GridCell.merged_from` holds the
+  origin's locator (§13); D2 follows both.
+- **D3:** `MappingCache.propose` may return a rejected version (callers check `status()` and never execute it);
+  `check_prose_fact` takes a keyword-only `pdf_box` callable for a PDF paragraph (W builds it from the page's words).
 - **D5:** `RegionDecision` scopes are kind-checked: `unread_prose` applies to prose only, `figures` to figures only,
   and only `regions` excludes a table.
 - **D1a:** not judging urine or feces is decided in code from the field vocabulary. It is proposed for

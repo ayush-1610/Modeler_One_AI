@@ -225,11 +225,10 @@ reviewed).
   under the owner's five conditions); D5 (coverage and silent loss, per-study routing and requirements, validity
   checks, scorecards: G2, G4, G5); D0 (the value key, the value scorer and the two-key comparison: G1); D1a (the
   landing carries BLQ, SE and CV%, analyte, matrix and n per time to the campaign; API `Series.n_at`); the integrator's
-  `Assignment` product target and the "non-fasted" reading fix. Each was built, reviewed from two lenses (the brief and
-  correctness; science, data fidelity and guardrails) and fixed before its squash merge. Full suite: only the 15
-  baseline failures.
-- **Being finished:** D2 (the source model: parse once, locate, resolve, format inventory) and D3 (the table mapper,
-  prose extractor, mapping cache with sign-off, strict prose check).
+  `Assignment` product target and the "non-fasted" reading fix; D3 (the table mapper, prose extractor, mapping cache
+  with sign-off, strict prose check); D2 (the source model: parse once, locate, resolve, format inventory). Each was
+  built, reviewed from two lenses (the brief and correctness; science, data fidelity and guardrails) and fixed before
+  its squash merge. Full suite after D2: 2888 passed, only the 15 baseline failures.
 - **Next:** W (the switch `intake_pipeline` legacy / both, the arrival hook, the run queue with stage times, the
   `intake` job); D6 in three parts (PM review, landing and health; the `/delivery` API; the web Delivery section and
   admin pipeline page); then an adversarial review of the whole change.
