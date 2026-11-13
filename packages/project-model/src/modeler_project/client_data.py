@@ -135,16 +135,22 @@ def _study_record(row: Row, *, filename: str, n_timepoints: int, statistic: str)
     return record
 
 
-def _series_from_summary(rows: list[Row], issues: list[Issue]) -> tuple[list[Series], str, str]:
+def _series_from_summary(rows: list[Row], issues: list[Issue]) -> tuple[list[Series], str, str, list[int]]:
+    """(series, time unit, unit, rows read per series). A row whose value cell is empty or refused (`MISSING_VALUE`,
+    `UNPARSEABLE_VALUE`) is no point at all: it is left out of the series and named (`NO_VALUE`), so that a None value
+    is only ever a point below the LLOQ (`Series.values`). Whether the series has a spread, its kind and its n are read
+    over every row, as before, so the profile the campaign judges is what it was; the rows read per series (the
+    sampling times, a row left out included) give the study's `n_timepoints`, as before."""
     by_stat: dict[str, list[Row]] = defaultdict(list)
     for r in rows:
         by_stat[r.values["statistic"]].append(r)
     units = {(r.values.get("time_unit"), r.values.get("unit")) for r in rows}
     if len(units) > 1:
         issues.append(Issue("MIXED_UNITS", rows[0].locator, f"one arm reported in several units {sorted(map(str, units))}"))
-        return [], "", ""
+        return [], "", "", []
     time_unit, unit = units.pop()
-    out = []
+    out: list[Series] = []
+    sampled: list[int] = []
     for stat, group in by_stat.items():
         group = sorted(group, key=lambda r: r.values["time"])
         times = [r.values["time"] for r in group]
@@ -155,23 +161,59 @@ def _series_from_summary(rows: list[Row], issues: list[Issue]) -> tuple[list[Ser
         kinds = {r.values.get("variability_kind") for r in group if r.values.get("variability") is not None}
         has_error = all(x is not None for x in variability) and len(kinds) == 1
         n = next((int(r.values["n"]) for r in group if r.values.get("n") is not None), None)
-        out.append(Series(name=stat.replace("_", " "), statistic=_STATISTIC[stat], times=tuple(times),
-                          values=tuple(r.values.get("value") for r in group),
-                          error=tuple(variability) if has_error else None,  # type: ignore[arg-type]
-                          error_kind=_ERROR_KIND[kinds.pop()] if has_error else "none", n=n))
-    return out, time_unit, unit
+        sampled.append(len(group))
+        kept: list[Row] = []
+        for r in group:
+            if r.values.get("value") is not None or "value" in r.below_lloq:
+                kept.append(r)
+            else:
+                issues.append(Issue("NO_VALUE", r.locator, f"{stat} at {r.values['time']} {time_unit}: no value and no BLQ "
+                                                           "mark; the row is left out (missing is not below the LLOQ)"))
+        if not kept:
+            continue
+        n_each = [int(r.values["n"]) if r.values.get("n") is not None else None for r in kept]
+        out.append(Series(name=stat.replace("_", " "), statistic=_STATISTIC[stat], times=tuple(r.values["time"] for r in kept),
+                          values=tuple(r.values.get("value") for r in kept),
+                          error=tuple(r.values["variability"] for r in kept) if has_error else None,
+                          error_kind=_ERROR_KIND[kinds.pop()] if has_error else "none", n=n, n_at=_n_at(n_each)))
+    return out, time_unit, unit, sampled
 
 
-def _series_from_individuals(rows: list[Row], issues: list[Issue]) -> tuple[list[Series], str, str]:
+def _n_at(n_each: list[int | None]) -> tuple[int | None, ...] | None:
+    """n per time point, kept only when the stated n differ (one n stays in `Series.n`, the first stated; a point with
+    no n stated is not another n: a table that states n once has that one n)."""
+    return tuple(n_each) if len({n for n in n_each if n is not None}) > 1 else None
+
+
+def _individual_value(r: Row, issues: list[Issue]) -> tuple[bool, float | None]:
+    """(a point, its value): below the LLOQ (a BLQ cell, or `blq_flag` yes on an empty cell) is a point with no value;
+    a row with no concentration and no BLQ mark is no point at all, and is named."""
+    if "concentration" in r.below_lloq:
+        return True, None
+    if r.values.get("concentration") is not None:
+        return True, r.values["concentration"]
+    if r.values.get("blq_flag") == "yes":
+        return True, None
+    issues.append(Issue("NO_VALUE", r.locator, f"subject {r.values.get('subject_id')}: no concentration and no BLQ mark; "
+                                               "the row is left out (missing is not below the LLOQ)"))
+    return False, None
+
+
+def _series_from_individuals(rows: list[Row], issues: list[Issue]) -> tuple[list[Series], str, str, list[int]]:
+    """(series, time unit, unit, rows read per subject). Which times a subject has (actual or nominal) and whether a
+    time appears twice are read over every row, as before; then a row with no concentration and no BLQ mark is left out
+    of the series and named (`_individual_value`). The rows read per subject give the study's `n_timepoints`, as
+    before."""
     units = {(r.values.get("time_unit"), r.values.get("unit")) for r in rows}
     if len(units) > 1:
         issues.append(Issue("MIXED_UNITS", rows[0].locator, f"one arm reported in several units {sorted(map(str, units))}"))
-        return [], "", ""
+        return [], "", "", []
     time_unit, unit = units.pop()
     by_subject: dict[str, list[Row]] = defaultdict(list)
     for r in rows:
         by_subject[str(r.values["subject_id"])].append(r)
-    out = []
+    out: list[Series] = []
+    sampled: list[int] = []
     for subject, group in sorted(by_subject.items()):
         # actual sampling times when every row has one, else the nominal times
         use_actual = all(r.values.get("actual_time") is not None for r in group)
@@ -181,9 +223,16 @@ def _series_from_individuals(rows: list[Row], issues: list[Issue]) -> tuple[list
         if len(set(times)) != len(times):
             issues.append(Issue("DUPLICATE_TIME", group[0].locator, f"subject {subject}: a time appears twice"))
             continue
-        out.append(Series(name=subject, statistic="individual", times=tuple(times),
-                          values=tuple(None if "concentration" in r.below_lloq else r.values.get("concentration") for r in group)))
-    return out, time_unit, unit
+        sampled.append(len(group))
+        points: list[tuple[float, float | None]] = []
+        for r in group:
+            is_point, value = _individual_value(r, issues)
+            if is_point:
+                points.append((r.values[key], value))
+        if points:
+            out.append(Series(name=subject, statistic="individual", times=tuple(t for t, _v in points),
+                              values=tuple(v for _t, v in points)))
+    return out, time_unit, unit, sampled
 
 
 def _datasets_from_template(read: ClientWorkbook, *, library: DocumentLibrary, sha: str, filename: str,
@@ -208,16 +257,18 @@ def _datasets_from_template(read: ClientWorkbook, *, library: DocumentLibrary, s
             issues.append(Issue("INCOMPLETE_STUDY", study.locator, f"study {_arm_id(*arm)}: n, route and dose are required"))
             continue
         series: list[Series] = []
-        time_unit = unit = ""
+        sampled: list[int] = []           # the rows each subject's / statistic's series was read from (a row left out
+        time_unit = unit = ""             # for no value included): the study's n_timepoints, as before
         if pk["PK_Individual"].get(arm):
-            series, time_unit, unit = _series_from_individuals(pk["PK_Individual"][arm], issues)
+            series, time_unit, unit, sampled = _series_from_individuals(pk["PK_Individual"][arm], issues)
+        individual = bool(sampled)
         if pk["PK_Summary"].get(arm):
-            summary, t_unit, c_unit = _series_from_summary(pk["PK_Summary"][arm], issues)
-            if series and summary and (t_unit, c_unit) != (time_unit, unit):
+            summary, t_unit, c_unit, summary_sampled = _series_from_summary(pk["PK_Summary"][arm], issues)
+            if sampled and summary_sampled and (t_unit, c_unit) != (time_unit, unit):
                 issues.append(Issue("MIXED_UNITS", pk["PK_Summary"][arm][0].locator,
                                     f"study {_arm_id(*arm)}: summary and individual rows in different units"))
-            elif summary:
-                series, time_unit, unit = series + summary, t_unit, c_unit
+            elif summary_sampled:
+                series, sampled, time_unit, unit = series + summary, sampled + summary_sampled, t_unit, c_unit
         reported = tuple(ReportedPK(parameter=r.values["parameter"], value=r.values["value"], unit=r.values["unit"],
                                     statistic=r.values.get("statistic", "arithmetic_mean"),
                                     variability=(f"{r.values['variability']} {r.values.get('variability_kind', '')}".strip()
@@ -225,9 +276,8 @@ def _datasets_from_template(read: ClientWorkbook, *, library: DocumentLibrary, s
                          for r in pk["PK_Parameters"].get(arm, []) if "value" in r.values and "parameter" in r.values)
         if not series and not reported:
             continue
-        individual = any(s.statistic == "individual" for s in series)
         has_sd = any(s.error_kind != "none" for s in series)
-        record = _study_record(study, filename=filename, n_timepoints=max((len(s.times) for s in series), default=1),
+        record = _study_record(study, filename=filename, n_timepoints=max(sampled, default=1),
                                statistic="individual" if individual else "mean_sd" if has_sd else "mean")
         lloq = study.values.get("lloq")
         if lloq is not None:
@@ -601,7 +651,7 @@ def datasets_from_observations(observations: list[Any], *, study: dict[str, Any]
                                  values=tuple(None if o.below_lloq else o.value for o in group),
                                  error=tuple(sds) if all(x is not None for x in sds) else None,  # type: ignore[arg-type]
                                  error_kind="SD" if all(x is not None for x in sds) else "none",
-                                 n=next((o.n for o in group if o.n is not None), None)))
+                                 n=next((o.n for o in group if o.n is not None), None), n_at=_n_at([o.n for o in group])))
         first = records[0]
         # what the study is for is the dataset's, not the study record's (MS-01 §3.3 classes read the record)
         record = {**{k: v for k, v in study.items() if k != "purpose"}, "study_id": study_id,

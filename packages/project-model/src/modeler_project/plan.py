@@ -35,6 +35,7 @@ from modeler_project.brief import (
 )
 from modeler_project.estimation import fit_findings, ms01_default
 from modeler_project.estimation import rule as bounds_rule
+from modeler_project.profile_landing import landing_limitations
 from modeler_project.workspace import Workspace
 from pbpk_domain.acceptance import loosest_internal_target
 from pbpk_domain.campaign.map import (
@@ -459,7 +460,8 @@ def build_default(cpf: CPF, rows: list[dict[str, Any]], structure: Structure) ->
                                  default_role=role))
         placements[s.study_id] = Placement(role=role)
     return ModelPlan(compound=cpf.compound, studies=tuple(studies), placements=placements, structure=structure,
-                     default_rationale=split.rationale, default_limitations=(*split.limitations, *default_individuals(rows)),
+                     default_rationale=split.rationale,
+                     default_limitations=(*split.limitations, *default_individuals(rows), *landing_limitations(rows)),
                      fit_candidates=_candidates(cpf), budgets={p.stage: p.budget_seconds for p in map_doc.stage_plan})
 
 

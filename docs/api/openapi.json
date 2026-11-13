@@ -18740,6 +18740,27 @@
             ],
             "title": "N"
           },
+          "n_at": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N At"
+          },
           "name": {
             "default": "mean",
             "title": "Name",

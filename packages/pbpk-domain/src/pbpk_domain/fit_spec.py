@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance, Scale, Uncertainty
 from pbpk_domain.pksim_paths import pksim_parameter_path
+from pbpk_domain.spread import ARITHMETIC_SD, ERROR_TYPES
 
 if TYPE_CHECKING:
     from pbpk_domain.system import ModelSystem
@@ -80,11 +81,18 @@ class FitSimulation:
 def pi_observed(
     name: str, times: list[float], values: list[float], *, time_unit: str, unit: str, mol_weight: float,
     dimension: str = "Concentration (mass)", sd: list[float] | None = None, lloq: float | None = None,
+    error_type: str | None = None,
 ) -> dict[str, Any]:
     """The observed block run_pi.R's build_dataset expects for one output mapping.
 
     ``dimension`` is the OSP quantity dimension of the values — "Concentration (mass)" (default) or
-    "Concentration (molar)" when the series is in molar units (e.g. µmol/l, matching the simulated plasma)."""
+    "Concentration (molar)" when the series is in molar units (e.g. µmol/l, matching the simulated plasma).
+
+    ``error_type`` is the PK-Sim error type of ``sd`` (`spread.ERROR_TYPES`, harvested). It is written only when there
+    is an SD and the type is not arithmetic, so every block without it stays byte for byte what it was (the spec is
+    hashed); run_pi.R reads an absent type as arithmetic. Another name raises ValueError."""
+    if error_type is not None and error_type not in ERROR_TYPES:
+        raise ValueError(f"error_type {error_type!r} is not one of the PK-Sim error types {ERROR_TYPES}")
     observed: dict[str, Any] = {
         "name": name, "time": list(times), "time_unit": time_unit,
         "values": list(values), "unit": unit, "dimension": dimension, "mol_weight": mol_weight,
@@ -92,6 +100,8 @@ def pi_observed(
     observed["sd"] = list(sd) if sd else []
     if lloq is not None:
         observed["lloq"] = lloq
+    if observed["sd"] and error_type is not None and error_type != ARITHMETIC_SD:
+        observed["error_type"] = error_type
     return observed
 
 

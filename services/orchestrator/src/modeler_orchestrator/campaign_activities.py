@@ -370,9 +370,11 @@ def _build_fit_request(ctx: RoundContext, cpf, map_doc, *, snapshot_stem: str, o
         simulations.append(FitSimulation(
             study_id=scenario.study_id, pkml=exported_pkml_name(scenario.study_id),
             output_path=scenario.analyte_output or output_path,
+            # the SD's PK-Sim error type as the profile names it (profile_landing took it from pbpk_domain.spread);
+            # absent for an arithmetic SD, so today's spec bytes do not change
             observed=pi_observed(scenario.study_id, profile["times"], profile["values"], time_unit=profile["time_unit"],
                                  unit=profile["unit"], mol_weight=study_weight, dimension=dimension,
-                                 sd=profile.get("sd"), lloq=profile.get("lloq")),
+                                 sd=profile.get("sd"), lloq=profile.get("lloq"), error_type=profile.get("sd_type")),
             protocol=protocol_name(scenario.study_id), formulation=formulation,
         ))
     if not simulations:

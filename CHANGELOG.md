@@ -15,6 +15,76 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the client-data landing carries BLQ, SE and CV%, the analyte, the matrix and n per time to the campaign (D1a, 2026-11-13)
+- **What:** a new module, `modeler_project.profile_landing`, decides what a dataset's campaign profile and catalog row say beyond the values. It reads the `landing` section of `intake_rules.yaml` (0.1, **UNVERIFIED**) and uses `pbpk_domain.spread`.
+  - **BLQ (L-a):** today's rule is now named. Points below the LLOQ are left out of the fit and of NCA, and the LLOQ is kept.
+    - The profile records the rule and the count (`blq: {rule: omit, omitted: k}`). The row records the rule name only (`blq_rule`), so a blinded row shows no count.
+    - Only a BLQ mark in the source counts. A template `PK_Summary` row whose value cell is empty or refused (`MISSING_VALUE`, `UNPARSEABLE_VALUE`) is now left out of the series and named (`NO_VALUE`), as an individual row is.
+  - **SE and CV% (L-b):** an arithmetic mean's SE with a known n becomes SD = SE × √n, using that point's n or the series' n. A CV% becomes SD = CV% × mean / 100. Both conversions are named in `sd_from` (`spread-1`).
+    - A conversion happens only when the spread kind and n were read by code from cells (`CELL`), entered by a person (`MANUAL`), or the dataset was accepted by a person.
+    - A reading model's proposed SE or CV% stays as reported until a person accepts the dataset. Its n is checked against no quote.
+  - **Geometric SD:** a geometric mean's SD is sent as reported, with `sd_type: GeometricStdDev` and a warning that reading the legacy template's "SD" as a geometric factor is an assumption (contracts §11.5).
+    - A value below 1 adds a warning that it cannot be a factor. What is sent does not change; the SME decides.
+    - `normalize_profile` no longer scales it as if it were a concentration.
+  - **Spreads kept verbatim:** any other spread is kept as reported, with its unit (`spread`), and named in `warnings`. Such a profile has no SD. This covers:
+    - SE with no n;
+    - a geometric mean's SE or CV%;
+    - any spread of a median;
+    - a spread missing at a kept point. As before, an SD is given only when every kept point has one, and the PI spec never holds a None.
+  - **Analyte and matrix (L-d):** `study_catalog` gains `parent_names`, which `assemble` fills from the brief's drug name and synonyms.
+    - Among datasets of one study id, the parent's wins, then plasma.
+    - A profile of any other analyte is listed, not evaluable and without a profile, with a note.
+    - The matrix is read by the field vocabulary's cues, plasma first, so "human plasma", "Plasma (K2EDTA)" and "blood plasma" are plasma.
+    - A blood or serum profile is judged as before, with a note. A urine or feces profile is not judged.
+    - Words the vocabulary does not name (CSF, a blank) are judged as before, with a note and a MAP line for a person to confirm.
+    - Rows gain `measured_analyte`, `measured_matrix`, `blq_rule` and `joined_from` only when they apply. None of them is a `StudyRecord` field, so the MS-01 split is unchanged.
+  - **n per time (L-e):** a new optional field `Series.n_at` is set only when the stated n differ.
+    - A point with no n stated is not another n: a table that states n once has that one n.
+    - `n` stays the first stated n. The profile carries `n_at` aligned with the kept points.
+    - A `None` `n_at` is left out of the stored content and of API answers.
+  - **Template individuals:** a row with no concentration and no BLQ mark is no longer read as below the LLOQ. It is left out and named (`NO_VALUE`). `blq_flag: yes` on an empty cell is BLQ.
+    - Actual or nominal times, and a duplicated time, are still decided over every row read.
+  - **n_timepoints:** a study's `n_timepoints` still counts the rows read, a row left out for no value included. MS-01's information score and the split do not move.
+  - **Cross-file flags:** `check_dataset` keeps the Delivery landing's `cross_file:` flags.
+  - **PI spec:** `pi_observed` writes `error_type` only for a non-arithmetic SD, and `_build_fit_request` passes the profile's `sd_type`.
+  - **MAP:** `build_default`'s limitations name:
+    - the BLQ rule (no count);
+    - each conversion;
+    - each geometric label;
+    - each verbatim spread;
+    - each non-parent analyte;
+    - each non-plasma matrix;
+    - each cross-file join.
+
+    Every line a rule decides says `intake rules 0.1, UNVERIFIED`.
+  - **Warnings:** `dataset_warnings` no longer advises rejecting a metabolite or serum dataset that shares its study id with the parent's plasma one. True duplicates keep today's advice.
+- **Science:** this is a change to model building and evaluation inputs.
+  - BLQ points were already left out. The rule is now named, recorded and stated in the MAP, and a missing value is no longer counted as one.
+  - An SE or CV% now gives the fit an SD, once read from cells, entered or accepted.
+  - A geometric SD is now labelled `GeometricStdDev` in the PI spec and sent unscaled. A median's spread no longer reaches the fit as an SD.
+  - A metabolite profile, and a urine or feces profile, are no longer judged as the parent's plasma.
+  - Not judging urine or feces is decided in code from the field vocabulary and the rules' blood and serum list. It is proposed for `intake_rules.yaml`.
+  - The thresholds and lists come from `intake_rules.yaml` 0.1, which is **UNVERIFIED** until the SME signs.
+  - PI 2.2.0's default residual weighting is "none", so the SD and its type do not enter the objective. This was read from the package source and not run.
+  - `run_pi.R` labels the type only after D1b, which is its own locked PR. Until then the old script ignores the key, as it does today.
+- **Why:** the landing silently dropped BLQ counts, SE and CV%, the analyte and n per time on the way to the campaign (plan 2026-11-12 L-a, L-b, L-d, L-e; contracts §8.2).
+- **Impact:**
+  - **Unchanged:** keys are added only when they apply. For a parent plasma profile with an arithmetic SD or no spread, no BLQ point and one n, the profile, the catalog row, the plan and the PI spec are byte for byte what they were. The same holds for a plasma matrix written as free text and a matrix the vocabulary does not name.
+    - A stored dataset keeps its content and sha256, and an identical re-save is not a new version.
+    - Pinned tests prove this: the PI spec sha256, literals printed at 045ffc3, and a frozen copy of the old catalog code.
+  - **Template ingest with an empty or refused PK value:** the series is shorter and a `NO_VALUE` issue is added. The flag "values below LLOQ but no LLOQ stated" is no longer raised for a missing value. The PI spec and `n_timepoints` are unchanged.
+  - **Existing projects, at their next `inputs:assemble`:**
+    - A profile with a BLQ point gets `profile.blq`, `blq_rule` and a MAP line. The catalog gets a new version, and a signed plan goes stale and must be re-signed.
+    - A dataset whose analyte is not among the brief's names (§11.21), or measured in urine or feces, becomes not evaluable.
+    - A metabolite study the split places in S5 raises plan warnings to acknowledge before signing.
+    - An SE or CV% that was read from cells, entered or accepted gains an SD.
+    - Before deploying, list each server dataset's analyte, matrix and BLQ points against its brief.
+- **API:** `Series.n_at` (optional) is added to the API contract. `docs/api/openapi.json` and `apps/web/lib/api-types.ts` are regenerated in this commit. It is absent when n does not vary, so no existing answer changes.
+- **Tests:**
+  - `test_profile_landing.py` (T-49, T-45, T-47): BLQ marks only, the e2e CL-01, missing summary values, today's times and `n_timepoints`, free-text plasma, urine and unnamed matrices, the model-given n, a spread missing at a point, stored content round-trip, the duplicate advice.
+  - `test_error_type.py` (T-13).
+  - `test_fit_error_type.py` (T-13).
+
 ### Added — the value-level scoring harness for client deliveries, D0 (G1) (2026-11-13)
 - **What:** a harness that scores a delivery value by value against a key written by the scientist's analysts
   (plan 2026-11-12 G1, decision 8; contracts §8.1 and §13). D0 writes no real key.

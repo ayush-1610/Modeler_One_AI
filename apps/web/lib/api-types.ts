@@ -9226,6 +9226,8 @@ export interface components {
             error_kind?: "SD" | "SE" | "CV%" | "none";
             /** N */
             n?: number | null;
+            /** N At */
+            n_at?: (number | null)[] | null;
             /**
              * Name
              * @default mean

@@ -26,10 +26,22 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from modeler_intake.document_reading import name_key
 from modeler_project.artifacts import ArtifactKind, ArtifactVersion
 from modeler_project.brief import ProjectBrief
 from modeler_project.datasets import ObservedDataset
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceType, numeric_target, review_flags
+from modeler_project.profile_landing import (
+    PLASMA,
+    blq,
+    is_parent,
+    joined_from,
+    judged_as_plasma,
+    judged_sd,
+    matrix_key,
+    matrix_note,
+    spread_confirmed,
+)
 from modeler_project.sources import held, included, rule, select
 from modeler_project.workspace import Workspace
 from pbpk_domain import parameters
@@ -312,17 +324,25 @@ def assemble_cpf(ws: Workspace, compound: str, picked: InputChoices) -> tuple[CP
 
 
 def _profile(dataset: ObservedDataset) -> dict[str, Any] | None:
-    """The profile the campaign judges: the first mean / median series (values below LLOQ left out, LLOQ kept)."""
+    """The profile the campaign judges: the first mean / median series (values below LLOQ left out by the named BLQ
+    rule, LLOQ kept). Its spread, the BLQ count and n per time as `profile_landing` judges them, each key only when it
+    applies (contracts §8.2): an arithmetic SD or no spread, no BLQ and one n give exactly the profile of before."""
     series = next((s for s in dataset.series if s.statistic != "individual"), None)
     if series is None:
         return None
-    pairs = [(t, v, (series.error[i] if series.error is not None else None))
-             for i, (t, v) in enumerate(zip(series.times, series.values, strict=True)) if v is not None]
-    if not pairs:
+    kept = [i for i, v in enumerate(series.values) if v is not None]
+    if not kept:
         return None
-    sd = [e for _t, _v, e in pairs] if series.error_kind == "SD" and all(e is not None for _t, _v, e in pairs) else None
-    return {"times": [t for t, _v, _e in pairs], "values": [v for _t, v, _e in pairs], "time_unit": dataset.time_unit,
-            "unit": dataset.unit, "sd": sd, "lloq": dataset.study.get("lloq")}
+    judged = judged_sd(series, kept, unit=dataset.unit, convert=spread_confirmed(dataset))
+    profile: dict[str, Any] = {"times": [series.times[i] for i in kept], "values": [series.values[i] for i in kept],
+                               "time_unit": dataset.time_unit, "unit": dataset.unit, "sd": judged.pop("sd"),
+                               "lloq": dataset.study.get("lloq")}
+    if (omitted := blq(series)) is not None:
+        profile["blq"] = omitted
+    profile.update(judged)
+    if series.n_at is not None:
+        profile["n_at"] = [series.n_at[i] for i in kept]
+    return profile
 
 
 def usable_dataset(dataset: ObservedDataset) -> bool:
@@ -338,15 +358,35 @@ def usable_dataset(dataset: ObservedDataset) -> bool:
     return True
 
 
-def study_catalog(ws: Workspace, picked: InputChoices) -> tuple[list[dict[str, Any]], list[str], list[ArtifactVersion]]:
+def _not_used(sid: str, left: ObservedDataset, kept: ObservedDataset, parent_names: tuple[str, ...]) -> str:
+    """The note for a dataset of a study id that another dataset of the same id wins: what was left out."""
+    if is_parent(kept.analyte, parent_names) and not is_parent(left.analyte, parent_names):
+        return f"{sid}: the {left.analyte} profile is not used: the parent's is"
+    if matrix_key(kept.matrix) == PLASMA and matrix_key(left.matrix) != PLASMA:
+        return f"{sid}: the {left.matrix} profile is not used: the plasma one is"
+    return f"{sid}: also in {kept.id}; {left.id} is not used (two datasets for one study)"
+
+
+def study_catalog(ws: Workspace, picked: InputChoices, *,
+                  parent_names: tuple[str, ...] = ()) -> tuple[list[dict[str, Any]], list[str], list[ArtifactVersion]]:
     """One row per study from the datasets not excluded, in the study-upload shape the campaign path reads: (rows,
-    notes, versions). Two datasets for one study id: a person's accepted one first, then the client's, then the
-    earlier; the other is named and not used."""
+    notes, versions). Two datasets for one study id: the parent's first (`parent_names`: the brief's names for the drug,
+    `profile_landing.is_parent`), then the plasma one, then a person's accepted one, then the client's, then the earlier;
+    the other is named and not used.
+
+    A row says, only when it applies (none is a `StudyRecord` field, so the MS-01 split never sees them): what it
+    measures when that is not the modelled compound (`measured_analyte`: not evaluable, no profile) or not plasma
+    (`measured_matrix`: blood or serum judged against the plasma output with a note; urine or feces not judged; words
+    the field vocabulary does not name judged as before, with a note, `profile_landing.matrix_judgement`), the
+    BLQ rule its profile applied (`blq_rule`; the count stays in the profile, which a blinded row does not show) and the
+    files it was joined from (`joined_from`, the Delivery landing's `cross_file:` flags)."""
     rows, notes, used = [], [], []
     versions = sorted(ws.list(ArtifactKind.DATASET), key=lambda v: v.created_at)
     usable = [(v, d) for v in versions if usable_dataset(d := ObservedDataset.from_content(v.content))]
+    by_id = {d.id: d for _v, d in usable}
     winner: dict[str, str] = {}
-    for _v, d in sorted(usable, key=lambda vd: (vd[1].state is not EvidenceState.ACCEPTED, vd[1].provider != "CLIENT",
+    for _v, d in sorted(usable, key=lambda vd: (not is_parent(vd[1].analyte, parent_names), matrix_key(vd[1].matrix) != PLASMA,
+                                                  vd[1].state is not EvidenceState.ACCEPTED, vd[1].provider != "CLIENT",
                                                   vd[0].created_at)):
         winner.setdefault(str(d.study["study_id"]), d.id)
     for version, dataset in usable:
@@ -357,14 +397,23 @@ def study_catalog(ws: Workspace, picked: InputChoices) -> tuple[list[dict[str, A
                 notes.append(f"{sid}: left out ({picked.excluded_studies[sid]})")
             continue
         if winner[sid] != dataset.id:
-            notes.append(f"{sid}: also in {winner[sid]}; {dataset.id} is not used (two datasets for one study)")
+            notes.append(_not_used(sid, dataset, by_id[winner[sid]], parent_names))
             continue
-        profile = _profile(dataset)
+        parent, plasma = is_parent(dataset.analyte, parent_names), matrix_key(dataset.matrix) == PLASMA
+        profile = _profile(dataset) if parent and judged_as_plasma(dataset.matrix) else None
         row: dict[str, Any] = {**study, "origin": dataset.origin.value, "dataset_id": dataset.id,
                                "purpose": dataset.purpose, "evaluable": profile is not None,
                                "demographics_choice": dataset.demographics_choice}
         if profile is not None:
             row["profile"] = profile
+            if not plasma:
+                notes.append(matrix_note(sid, dataset.matrix, judged=True))
+        elif not parent:
+            what = "a profile" if dataset.kind == "profile" else "PK parameters"
+            notes.append(f"{sid}: {what} of {dataset.analyte}, not of the modelled compound: not evaluable without a model "
+                         "system")
+        elif not judged_as_plasma(dataset.matrix):
+            notes.append(matrix_note(sid, dataset.matrix, judged=False))
         elif dataset.kind == "pk_parameters":
             notes.append(f"{sid}: PK parameters only — it can judge a prediction once the evaluation reads reported NCA; "
                          "it trains no fit")
@@ -373,6 +422,14 @@ def study_catalog(ws: Workspace, picked: InputChoices) -> tuple[list[dict[str, A
                          "evaluation lane's; not judged by the current campaign")
         if study.get("formulation") in SOLID and sid in picked.formulation:
             row["formulation_name"] = picked.formulation[sid]
+        if not parent:
+            row["measured_analyte"] = dataset.analyte
+        if not plasma:
+            row["measured_matrix"] = dataset.matrix
+        if profile is not None and "blq" in profile:
+            row["blq_rule"] = profile["blq"]["rule"]
+        if joined := joined_from(dataset.flags):
+            row["joined_from"] = joined
         rows.append(row)
         used.append(version)
     return rows, notes, used
@@ -478,6 +535,12 @@ def readiness(cpf: CPF, rows: list[dict[str, Any]], assembly: dict[str, Any], br
 # --- the whole step --------------------------------------------------------------------------------------------
 
 
+def drug_names(brief: ProjectBrief) -> tuple[str, ...]:
+    """The brief's names for the modelled compound: its drug name and `drug.synonyms` (`profile_landing.is_parent`)."""
+    synonyms = brief.value("drug.synonyms") or ()
+    return (brief.drug_name, *((synonyms,) if isinstance(synonyms, str) else tuple(str(s) for s in synonyms)))
+
+
 def assemble(ws: Workspace, *, by: str) -> dict[str, Any]:
     """Regenerate CPF v1, the study catalog and the readiness report (each a new version only when it changed)."""
     brief_version = ws.latest(ArtifactKind.BRIEF, "main")
@@ -488,7 +551,7 @@ def assemble(ws: Workspace, *, by: str) -> dict[str, Any]:
     picked_version = ws.latest(ArtifactKind.CPF, CHOICES)
     picked = choices(ws)
     cpf, report, evidence_used = assemble_cpf(ws, brief.drug_name, picked)
-    rows, notes, datasets_used = study_catalog(ws, picked)
+    rows, notes, datasets_used = study_catalog(ws, picked, parent_names=drug_names(brief))
     extra = [v.ref for v in (matrix_version, picked_version) if v is not None]
     cpf_version = ws.commit(ArtifactKind.CPF, MAIN, {"cpf": cpf.model_dump(mode="json", exclude={"created_at"}), "assembly": report},
                             derived_from=[brief_version.ref, *extra, *[v.ref for v in evidence_used]], actor=by,
@@ -642,15 +705,28 @@ def propose_identity_mw(ws: Workspace, *, by: str) -> EvidenceItem:
     return propose(ws, item, actor=by, value_in_quote=True)
 
 
-def dataset_warnings(observed: list[ObservedDataset]) -> list[str]:
+def dataset_warnings(observed: list[ObservedDataset], *, names: tuple[str, ...] = ()) -> list[str]:
     """What is wrong with the datasets' study records before they are judged on (seen on a real project: two arms
-    under one study id, an IV study recorded as oral, oral studies with no food state)."""
+    under one study id, an IV study recorded as oral, oral studies with no food state). Datasets of one study id that
+    measure different analytes or matrices are not called duplicates: the study catalog judges the parent's plasma
+    profile and names the others (`study_catalog`), and rejecting one would lose its data. `names`: the brief's names
+    for the drug (`drug_names`), so that the parent named two ways is one analyte."""
     out = []
-    by_study: dict[str, list[str]] = defaultdict(list)
+    by_study: dict[str, list[ObservedDataset]] = defaultdict(list)
     for d in observed:
-        by_study[str(d.study.get("study_id"))].append(d.id)
-    out += [f"{sid}: {len(ids)} datasets share this study id ({', '.join(ids)}); give each arm its own id, or reject the "
-            "duplicates" for sid, ids in by_study.items() if len(ids) > 1]
+        by_study[str(d.study.get("study_id"))].append(d)
+    for sid, group in by_study.items():
+        if len(group) < 2:
+            continue
+        ids = ", ".join(d.id for d in group)
+        measured = {("" if is_parent(d.analyte, names) else name_key(d.analyte), matrix_key(d.matrix)) for d in group}
+        if len(measured) > 1:
+            out.append(f"{sid}: {len(group)} datasets share this study id ({ids}) and measure different analytes or "
+                       "matrices: the study catalog judges the parent's (then the plasma) profile and names the others; "
+                       "if they are separate arms, give each arm its own id")
+        else:
+            out.append(f"{sid}: {len(group)} datasets share this study id ({ids}); give each arm its own id, or reject the "
+                       "duplicates")
     out += [f"{d.study.get('study_id')}: oral study without a food state (fasted or fed)" for d in observed
             if d.study.get("route") == "oral" and not d.study.get("food_state")]
     return out
@@ -707,7 +783,9 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
         out.append(entry)
     observed = [d for d in datasets(ws) if d.state is not EvidenceState.REJECTED]
     checks = {c["check"]: c for c in ready.content["checks"]}
-    warnings = dataset_warnings(observed)
+    brief_version = ws.latest(ArtifactKind.BRIEF, MAIN)
+    names = drug_names(ProjectBrief.from_content(brief_version.content)) if brief_version is not None else ()
+    warnings = dataset_warnings(observed, names=names)
     if not checks.get("observed data to judge on", {"ok": True})["ok"] or warnings:
         out.append({"kind": "datasets", "target": "observed data", "warnings": warnings,
                     "message": "no dataset with a mean profile to judge on" if not checks.get(

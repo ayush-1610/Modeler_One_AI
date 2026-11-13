@@ -148,6 +148,8 @@ def _points(checked: MappingReview, form: SheetForm) -> dict[str, Any] | None:
     by_series: dict[str, list[Any]] = defaultdict(list)
     for o in checked.concentrations:
         by_series[o.series].append(o)
+    from modeler_project.client_data import _n_at
+
     series = []
     for name, group in sorted(by_series.items()):
         group = sorted(group, key=lambda o: o.time)
@@ -157,6 +159,8 @@ def _points(checked: MappingReview, form: SheetForm) -> dict[str, Any] | None:
                        "error": sds if all(x is not None for x in sds) else None,
                        "error_kind": "SD" if all(x is not None for x in sds) else "none",
                        "n": next((o.n for o in group if o.n is not None), None)})
+        if (n_at := _n_at([o.n for o in group])) is not None:   # n per time, as the dataset holds it (only when n varies)
+            series[-1]["n_at"] = list(n_at)
     first = checked.concentrations[0]
     return {"kind": "profile", "time_unit": first.time_unit, "unit": first.unit, "study": {"lloq": form.lloq},
             "series": series, "reported": []}
