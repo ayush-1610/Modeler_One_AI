@@ -211,7 +211,36 @@ T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) 
 Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
-## 4. Where things stand (2026-11-10)
+## 4. Where things stand (2026-11-13)
+
+### 4.0b 2026-11-13: the client-data intake rebuild (read this first)
+Plan `docs/plans/2026-11-12-client-data-intake-redesign.md` (revision 3, the owner's Decision Memo: "do all at once");
+build contracts `docs/plans/2026-11-12-intake-contracts.md` (§13 records where the merged code governs over the text).
+Rule: **the LLM proposes the mapping, code reads the values**; every value keeps an immutable anchor to its cell, page
+box or span; hash-chained JSONL records under the project's `intake/`; rules in `intake_rules.yaml` 0.1 (UNVERIFIED).
+Integration line: `claude/hopeful-carson-kvrvxc` (to be merged into `main` once W and D6 land and the whole change is
+reviewed).
+- **Merged on the integration line:** the shared contract code (§7); SD (biologics, dermal and ocular draft
+  checklists, inert); D4 (the ledger: anchored values, entities, conflicts, derived, relation and cross-file facts
+  under the owner's five conditions); D5 (coverage and silent loss, per-study routing and requirements, validity
+  checks, scorecards: G2, G4, G5); D0 (the value key, the value scorer and the two-key comparison: G1); D1a (the
+  landing carries BLQ, SE and CV%, analyte, matrix and n per time to the campaign; API `Series.n_at`); the integrator's
+  `Assignment` product target and the "non-fasted" reading fix. Each was built, reviewed from two lenses (the brief and
+  correctness; science, data fidelity and guardrails) and fixed before its squash merge. Full suite: only the 15
+  baseline failures.
+- **Being finished:** D2 (the source model: parse once, locate, resolve, format inventory) and D3 (the table mapper,
+  prose extractor, mapping cache with sign-off, strict prose check).
+- **Next:** W (the switch `intake_pipeline` legacy / both, the arrival hook, the run queue with stage times, the
+  `intake` job); D6 in three parts (PM review, landing and health; the `/delivery` API; the web Delivery section and
+  admin pipeline page); then an adversarial review of the whole change.
+- **Locked-file PR (decision 7):** D1b, `run_pi.R` passes the SD type to PI (draft
+  [ayush-1610/Modeler_One_AI#173](https://github.com/ayush-1610/Modeler_One_AI/pull/173)); needs a named reviewer,
+  server evidence and the owner's approval before merge. Until then PI ignores the new `error_type` key.
+- **Browser tests run in the cloud container** (Chromium at `/opt/pw-browsers/chromium`,
+  `PLAYWRIGHT_CHROMIUM_EXECUTABLE`), contrary to the contract's first text.
+- **Open for the SME / owner:** urine/feces "not judged" into `intake_rules.yaml`; contract open questions 11.35
+  (closed parameter registry) and 11.36 (the template's free-text conditions column); every rule in
+  `intake_rules.yaml` stays UNVERIFIED until signed.
 
 ### 4.0a 2026-11-10: the reading agent reads every file a client delivers (read this first)
 Plan `docs/plans/2026-11-10-add-data-agent-reads-everything.md` (approved by the owner 2026-11-10, decisions in §5).
