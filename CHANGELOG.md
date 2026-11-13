@@ -15,6 +15,72 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the intake rebuild's source model: parse once, locate, resolve, format inventory (D2, 2026-11-13)
+- **What:** `modeler_intake.source` (contracts §6.1). It parses every client file once into a `SourceDocument`.
+  - **Workbooks** (openpyxl, xlrd):
+    - Each cell keeps its stored value and its exact text (12.4037 shown as 12.40 stays "12.4037"), its number format ("0.0%" kept), merge origins and hidden sheets.
+    - A date, time or duration is typed `date` with ISO 8601 text ("P1DT2H"), so it can never be read as a number of hours.
+    - A formula with no cached value is flagged `FORMULA_NO_VALUE` and makes the file `partly_read`, naming the cells.
+    - A cell holding an error is the text "#DIV/0!" in both formats, flagged `CELL_ERROR`.
+  - **Delimited files:**
+    - Encoding: BOM, then UTF-8, then cp1252 (with a warning). The one sheet is named after the file stem.
+    - Delimiter: the one with the most consistent column count. A tie goes to the split that leaves fewest non-numeric cells holding another delimiter, so a `;` file with decimal commas is never cut at its commas.
+    - A tie that remains is never read with `,` and is flagged `DELIMITER_AMBIGUOUS`.
+  - **Word:**
+    - The body in order, numbered as python-docx numbers it. Tables are grids, a merged cell held once with its spans.
+    - Pictures, charts and diagrams are figures.
+    - Page headers and footers that hold text are named with their text (`DOCX_FURNITURE`). Comments and footnotes make the file `partly_read`.
+  - **PDF** (pdfplumber):
+    - Words with boxes (`extract_words()` defaults, numbered from 1 per page), ruled tables with cell boxes, and images.
+    - A `needs_ocr` flag per page. This includes a scan under a typed running header: few characters outside the margins and an image covering a quarter of the page.
+    - An optional second table engine or OCR engine can be passed in. One that fails becomes a warning, not a crash.
+  - **Text, Markdown and JSON**: one paragraph per line.
+  - **ZIP**: members listed, one nested level, within limits.
+  - **Images and other formats**: unsupported, with the reason.
+- **Locating, by rule (no LLM):**
+  - Several tables per sheet, and blocks side by side. A title merged across them stays the caption of each and does not join them.
+  - A Mean/SD/N group joined across one blank row, with a note.
+  - Captions:
+    - In a PDF, a paragraph of its own, or one starting "Table"/"Figure", possibly wrapped over 3 lines.
+    - In Word, Caption-styled, "Table…", or a short title.
+    - A prose sentence directly above a table stays prose.
+  - Up to 3 context lines above and below a table (the LLOQ footnote; an arm and dose line).
+  - A PDF table continued over pages is kept as one region with parts. Each part keeps its caption, the repeated header rows are dropped once (a data row never is), and a "(continued)" note is tolerated.
+  - Page furniture: page numbers, lines repeated in the margins (their other numbers kept), and repeated body lines with no number. A repeated LLOQ footnote is its table's context.
+  - Prose regions. Unruled tables become `table_like_text`, including when every row is its own paragraph.
+  - Region ids exactly as §4.2 and §13 define them.
+  - Document role and table kind (via triage), each with the cell that decided it.
+- **Reading back:**
+  - `region_grid` and `paragraphs`.
+  - `as_workbook_grid`: the legacy grid from the same parse.
+  - `resolve`: a span inside a caption or context line resolves to its table.
+  - `check_anchors`: finds values again after a parser-version change; a PDF place is matched by text and box overlap.
+  - `source_view`: the review's view, with time, unit, label, spread, n and LLOQ cells highlighted.
+- **CLI:** `python -m modeler_project.format_inventory --root R [--tenant T] [--since DATE] [--json] [--out F]` counts what clients send by format. Figures and scans are counted as `parse_document` decides them. It writes nothing under the root.
+- **Why:** plan G2 (no silent loss) and gaps R-a to R-f. Today:
+  - PDFs are read as text only.
+  - A second table on a sheet is dropped.
+  - There is no OCR state.
+  - CSV is comma/UTF-8 only.
+  - A workbook is parsed 3-5 times.
+
+  Every later intake stage (D3 mapping, D4 ledger, D5 coverage, W, D6 review) reads values from this model and anchors them to it.
+- **G2 (no silent loss):**
+  - A file is `read`, `partly_read` (what was not read is named), `unsupported` or `unreadable` with a reason. Bad content is never an exception; a padded template README id no longer raises.
+  - Word text that python-docx does not number is named, never dropped: content controls around whole paragraphs, tables inside cells, text boxes, footnotes, comments, and header and footer text.
+  - Runs that python-docx leaves out of a paragraph (tracked insertions, inline content controls, SEQ fields) are read.
+  - No number is hidden as furniture or as a dropped "repeated" row.
+- **Impact:** none on today's behaviour.
+  - Nothing in a live path imports the new package until W wires it.
+  - No existing module, locked file, API or dependency changed.
+  - Tests: 151 new (T-47), against the shared synthetic truth, which they show is located exactly.
+- **Science:**
+  - None. No ruleset, acceptance criterion or PK-Sim name is touched.
+  - The reading parameters (`NEEDS_OCR_MAX_CHARS`, `TABLE_LIKE_NUMERIC_SHARE`, `SCAN_AREA`, context rows, the PDF gaps) are D2's own, versioned by `SOURCE_VERSION` "1.0".
+  - Two rules go beyond §6.1's wording, for the integrator to record in §13:
+    - A repeated body line that holds a number is not furniture.
+    - A scan under a typed running header needs OCR.
+
 ### Added — the intake rebuild's mapper (D3): mapping spec v2 executed by code; rules and the cache before the LLM; strict prose facts (2026-11-13)
 - **What:** the mapper of `docs/plans/2026-11-12-intake-contracts.md` §6.2 (build D3; plan U-a, U-b, U-e, U-f).
   - `modeler_intake.mapping`:
