@@ -2721,3 +2721,28 @@ difference is listed here so a builder who reads only this document is not misle
 **New open questions (for the owner or SME, added to §11's list).**
 - 11.35: should the parameter registry be closed, so that an invented id under a family (`phys.bogus`) is refused?
 - 11.36: does the template's free-text `conditions` column need a field, or does `ignore` with a reason stay?
+
+**Integration notes (2026-11-13), as merged.**
+- **Browser tests run in this container.** Chromium is installed at `/opt/pw-browsers/chromium`, and
+  `apps/web/playwright.config.ts` reads `PLAYWRIGHT_CHROMIUM_EXECUTABLE`. `client-data.spec.ts` and
+  `inputs-data-cards.spec.ts` passed on the integration line after D1a. So §8.9's and §8.10's "cannot run here" no
+  longer holds: W and D6 run the specs they touch here, with
+  `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium npx playwright test e2e/<spec>.ts --trace off`. The whole
+  suite with the default `both` still runs once before the first deployment with `both`.
+- **D0 additions beyond §8.1 (the code governs):**
+  - The Key sheet's optional `occasion`, `sequence`, `statistic`, `spread`, `spread_kind` and `n` columns are checked
+    beside the join, not in it.
+  - `found_rounded` accepts both half-even and half away from zero, because a spreadsheet shows a tie the second way.
+  - Subject, vessel, period, occasion and sequence compare as codes (`code_key`), not by `name_key`.
+  - `key_compare` also reports `attributes_differ` and `studies_differs`.
+- **D5:** `RegionDecision` scopes are kind-checked: `unread_prose` applies to prose only, `figures` to figures only,
+  and only `regions` excludes a table.
+- **D1a:** not judging urine or feces is decided in code from the field vocabulary. It is proposed for
+  `intake_rules.yaml` (open, SME).
+- **Shared code fixed by the integrator:** a negated fast ("non-fasted", "not fasting") no longer reads as fasted
+  (`document_reading._CUES`). The `Assignment` product target is described above.
+- **D6 is built in three parts:**
+  1. D6-PM: `intake_review`, `intake_landing`, `intake_health`, and the `datasets`, `client_data` and `sheet_intake`
+     edits. It is built in parallel with W.
+  2. D6-API: the routes, views, `dataset_points`, admin and client_api. It is built on W and D6-PM merged.
+  3. D6-web: the components, admin page and e2e. It is built on D6-API merged, with the API types regenerated.
