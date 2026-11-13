@@ -1,0 +1,171 @@
+# DRAFT CHECKLIST, INERT: dermal and transdermal products (topical semisolids and liquids, transdermal systems). What
+# to ask the client for, and how to check what arrives. Roadmap item 2 of the owner's decision 2 (2026-11-12): plan
+# docs/plans/2026-11-12-client-data-intake-redesign.md §7.9; contract docs/plans/2026-11-12-intake-contracts.md §8.8.
+#
+# Why it is inert (no project can select it, no gate reads it):
+#   - it lives in pbpk_domain/requirement_drafts/, not in pbpk_domain/requirements/: the live loader
+#     (modeler_project.requirements.load_templates) lists only that folder, one level deep;
+#   - applies_to is empty, so a loader that found it would still select it for no project;
+#   - no APP code is added or named for it (the brief has no application code for dermal delivery).
+#
+# Status DRAFT / UNVERIFIED: every item below is unverified, and each item's note opens with that mark and the
+# scientist it awaits. Named scientist: none yet (named_scientist: null). By decision 2 the dermal build starts only
+# when the owner names the scientist in scientist_role (a PBPK scientist experienced in dermal absorption modelling),
+# who reviews and signs off every item; and before that, the engine decision (a MoBi model or another engine, plan
+# §7.9). Only then can this become a template, through a locked-file change with the owner's approval and a version
+# bump.
+#
+# What it does not hold, by the ground rules (CLAUDE.md):
+#   - no PK-Sim name, path or unit: every item is pksim_status TO_HARVEST, with no pksim key and no unit key (a unit
+#     in a template is the stored, engine-side unit, which is not harvested; the client's own unit is kept with each
+#     value as reported);
+#   - no CPF id: every target starts with "draft.", so no parameter-registry id and no existing dataset class is
+#     claimed;
+#   - no calculator (skin flux, partition or diffusion predicted from structure), no default value, no acceptance
+#     threshold: a model result computed outside PK-Sim is excluded, and the numbers are the named scientist's to set
+#     (default_provider names who provides an item, never a value).
+#
+# What the harvested engine shows (services/engine-worker/golden/: catalog.json, harvested 2026-09-15 from ospsuite
+# 12.4.4, and the reference fixtures beside it): no entry names dermal, transdermal or topical delivery; the only
+# administrations in the reference models are intravenous (infusion and bolus), oral and user-defined. Skin appears in
+# the reference fixtures only as an organ of the body (its compartments in the organism every simulation has, and an
+# organ of the expression profiles), never as a site of administration.
+#
+# Who provides each item: default_provider is CLIENT on every item the client is asked for, so a promoted draft lists
+# it in the client request; it is LIBRARY on the system item, which comes from the engine or its population
+# databases, never from client files (plan §6.4; the live precedent REQ-sp.ontogeny). A person's override can change
+# either, as for live items. No data_category is given (each item is "other", sent as a file): the client-data
+# workbook has no sheet for these data, and which category each takes is the named scientist's call.
+#
+# The compound's own physicochemistry (molecular weight, lipophilicity, pKa, solubility in water) is asked by the core
+# template for every project; this draft lists only what dermal delivery adds.
+#
+# Conditions: every CONDITIONAL item states its condition in condition_text. The two reference studies are
+# recommended when available, written `when: {}` as the core template's intravenous item is. The other conditions
+# are left to the named scientist, and without a `when` derive counts the item as applying: no `when` key reads the
+# product type (a transdermal system), a prodrug or where the drug acts. (The brief does have a dermal route, but
+# every item here is about dermal delivery, so a route condition would select nothing.)
+#
+# needed_for names an MS-01 stage only where the stage plan has one for the data: S0 (inputs), S1 (IV disposition,
+# for an intravenous reference study) and S2 (oral absorption, for an oral reference study). The stage plan has no
+# stage for absorption through the skin.
+id: req-draft-dermal
+version: "0.1-draft"
+status: "DRAFT / UNVERIFIED"
+applies_to: []
+engine_support: "no hit in the harvested catalog: PK-Sim has no built-in model; an engine decision comes first"
+named_scientist: null
+scientist_role: "a PBPK scientist experienced in dermal absorption modelling"
+items:
+  # --- product and application ------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-derm.product, label: Dosage form and its quantitative composition, kind: formulation,
+     target: draft.derm.product, group: Product, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, needed_for: [S0],
+     conditions: ["dosage form (solution, gel, cream, ointment, foam, transdermal system)", every excipient with its amount,
+                  penetration enhancers, drug concentration, whether the drug is dissolved or suspended in the vehicle,
+                  pH of the vehicle, batch],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). The vehicle decides how readily the
+       drug leaves it for the skin. Check: the composition is the client's own, for the batch studied, never a
+       typical one."}
+  - {id: REQ-DRAFT-derm.vehicle_solubility, label: Solubility of the drug in the vehicle, kind: parameter,
+     target: draft.derm.vehicle_solubility, group: Product, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, needed_for: [S0],
+     conditions: [the vehicle or its main solvents, temperature, method, "the product's degree of saturation, as the
+                  client states it", unit as reported],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). A measured value only: no solubility
+       is estimated here."}
+  - {id: REQ-DRAFT-derm.transdermal_system, label: "Transdermal system: drug load, active area, release and adhesion",
+     kind: formulation, target: draft.derm.transdermal_system, group: Product, criticality: CONDITIONAL,
+     pksim_status: TO_HARVEST, default_provider: CLIENT, condition_text: "a transdermal system",
+     conditions: [drug load, active surface area, "design (drug in adhesive, matrix or reservoir)", in vitro release
+                  profile, residual drug in used systems, adhesion results, wear time, effect of heat],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). Check: the delivered amount is the
+       client's measured residual-drug result, not computed here; a system that lifted or fell off is reported with
+       its study."}
+  - {id: REQ-DRAFT-derm.application, label: "Application conditions of every study: amount per area, area, site, duration",
+     kind: dataset, target: draft.derm.application_conditions, group: Product, criticality: REQUIRED,
+     pksim_status: TO_HARVEST, default_provider: CLIENT,
+     conditions: [amount applied per skin area, total area treated, anatomical site, occluded or not,
+                  "duration until wash-off or removal", frequency, amount recovered from the skin surface],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). Check: every local and every
+       systemic dataset carries its own application conditions; the dose of a study is the amount applied unless the
+       delivered amount was measured, and the dataset says which."}
+  # --- in vitro permeation and release ----------------------------------------------------------------------------
+  - {id: REQ-DRAFT-derm.ivpt, label: In vitro permeation test (IVPT) on human skin, kind: dataset, target: draft.derm.ivpt,
+     group: In vitro, criticality: REQUIRED, pksim_status: TO_HARVEST, default_provider: CLIENT,
+     conditions: ["skin source (excised human skin, donors, anatomical site)", "skin preparation and thickness
+                  (dermatomed, heat-separated epidermis)", barrier integrity test and its result, diffusion cell,
+                  receptor fluid, temperature, "dose (finite or infinite) and amount per area", sampling times,
+                  cumulative amount permeated per time for each donor and replicate, "mass balance (surface wash,
+                  stratum corneum, epidermis, dermis, receptor)"],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). Ask for every donor's and every
+       replicate's time course, not only a mean flux. Check: the numbers of donors and replicates are stated; the mass
+       balance is stated; a skin sample that failed the integrity test is reported, never silently dropped."}
+  - {id: REQ-DRAFT-derm.ivrt, label: In vitro release test (IVRT), kind: dataset, target: draft.derm.ivrt, group: In vitro,
+     criticality: OPTIONAL, pksim_status: TO_HARVEST, default_provider: CLIENT,
+     conditions: [membrane, receptor medium, temperature, dose, sampling times, release rate per batch],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). Characterizes the product, not the
+       skin: never a substitute for permeation data."}
+  - {id: REQ-DRAFT-derm.skin_partition_diffusion, label: "Measured skin partition or diffusion data, if any",
+     kind: parameter, target: draft.derm.skin_partition_diffusion, group: In vitro, criticality: OPTIONAL,
+     pksim_status: TO_HARVEST, default_provider: CLIENT,
+     conditions: ["skin layer (stratum corneum, viable epidermis, dermis)", "method (tape stripping, equilibrium
+                  partitioning)", vehicle, species, unit as reported],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). Measured values only: none is
+       predicted from structure here (no calculator outside the engine)."}
+  - {id: REQ-DRAFT-derm.skin_metabolism, label: Metabolism in the skin, kind: parameter, target: draft.derm.skin_metabolism,
+     group: In vitro, criticality: CONDITIONAL, pksim_status: TO_HARVEST, default_provider: CLIENT,
+     condition_text: "a prodrug, or an ester or other group known to be cleaved in the skin",
+     conditions: ["system (skin homogenate, S9 fraction, explants)", enzymes involved, metabolites formed, species],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2)."}
+  # --- observed data ----------------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-derm.local_pk, label: "Local skin concentrations in vivo (tape stripping, dermal microdialysis or
+       open-flow microperfusion, biopsy)", kind: dataset, target: draft.derm.local_skin_pk, group: Observed data,
+     criticality: CONDITIONAL, pksim_status: TO_HARVEST, default_provider: CLIENT,
+     condition_text: "the site of action is in the skin (a topical product)",
+     conditions: [method, skin layer or depth, application conditions, sampling times, how probe recovery was corrected,
+                  unit as reported],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). Plasma concentrations do not show
+       the exposure at a site of action in the skin. Check: a microdialysis dataset states its recovery correction;
+       tape-strip amounts are per strip or per layer, as stated."}
+  - {id: REQ-DRAFT-derm.systemic_pk, label: Systemic (plasma) PK after dermal application, kind: dataset,
+     target: draft.derm.systemic_pk, group: Observed data, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: [application conditions of each arm, matrix, sampling during application and after removal, LLOQ],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). Concentrations are often near the
+       LLOQ. Check: each study states how it reported values below the LLOQ, and the application area and site are
+       those of the label or the deviation is stated."}
+  - {id: REQ-DRAFT-derm.disposition_reference, label: Intravenous study of the same drug, kind: dataset,
+     target: draft.derm.disposition_reference, group: Observed data, criticality: CONDITIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, when: {},
+     condition_text: "recommended when available: disposition from intravenous data separates absorption through the
+       skin from elimination",
+     needed_for: [S1],
+     conditions: [dose, infusion duration, matrix, LLOQ],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2)."}
+  - {id: REQ-DRAFT-derm.oral_reference, label: "Oral study of the same drug (a solution or an immediate-release form)",
+     kind: dataset, target: draft.derm.oral_reference, group: Observed data, criticality: CONDITIONAL,
+     pksim_status: TO_HARVEST, default_provider: CLIENT, when: {},
+     condition_text: "recommended when available, above all when there is no intravenous study",
+     needed_for: [S2],
+     conditions: [dose, "dosage form (solution or immediate-release)", fasted or fed, matrix, LLOQ],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). An oral study serves the
+       oral-absorption stage, not the intravenous one: without intravenous data, clearance and bioavailability are
+       confounded (MS-01 §6.1), so it constrains disposition only together with oral absorption. Whether and how it is
+       used for a dermal model is the named scientist's decision."}
+  - {id: REQ-DRAFT-derm.skin_condition, label: Skin condition and application site of each studied population,
+     kind: dataset, target: draft.derm.skin_condition, group: Population, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: ["healthy or diseased skin (the disease and its severity)", application site, age group,
+                  "skin type, where recorded"],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). Diseased or damaged skin changes the
+       barrier. Check: a study in diseased skin is not pooled with healthy-skin data without the scientist's
+       decision."}
+  # --- system -----------------------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-derm.skin_physiology, label: "Skin physiology (layer thicknesses, blood flow) of the virtual
+       population", kind: system, target: draft.derm.skin_physiology, group: System, criticality: REQUIRED,
+     pksim_status: TO_HARVEST, default_provider: LIBRARY,
+     conditions: [species, population, anatomical site],
+     note: "UNVERIFIED: awaiting the named dermal absorption scientist (decision 2). System parameters come from the
+       engine or its population databases, never from client files (plan §6.4). The harvested catalog has no dermal
+       model: which engine or MoBi model holds them is the engine decision."}

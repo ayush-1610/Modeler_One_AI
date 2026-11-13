@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — three inert draft checklists: biologics, dermal, ocular (SD, 2026-11-13)
+- **What:** `pbpk_domain/requirement_drafts/` holds `biologics.yaml` (17 items), `dermal.yaml` (14) and `ocular.yaml` (12). Each one lists the client data to ask for and how to check it, written as items in the live requirement-item schema. Each file has:
+  - `id: req-draft-<name>`, `version: "0.1-draft"`, `status: "DRAFT / UNVERIFIED"`, `applies_to: []`, `named_scientist: null`;
+  - a `scientist_role` naming the scientist the owner's decision 2 requires (large-molecule PBPK, dermal absorption modelling, ocular pharmacokinetics);
+  - an `engine_support` sentence that states honestly what PK-Sim can do here. For biologics: PK-Sim has a large-molecule model, but the harvested catalog has no FcRn entry, so nothing can be placed today. For dermal and ocular: no hit in the harvested catalog, so an engine decision comes first;
+  - item ids `REQ-DRAFT-*`, every item `pksim_status: TO_HARVEST`, with no `pksim` key and no unit;
+  - every target under `draft.`, so no CPF id and no existing dataset class is claimed;
+  - every item's note opening with "UNVERIFIED: awaiting the named <role> scientist (decision 2).";
+  - `default_provider` on every item: CLIENT for what the client is asked for, LIBRARY for the three system items (plan §6.4, as `REQ-sp.ontogeny`);
+  - each CONDITIONAL condition in `condition_text`, with a `when` only where the brief's keys express it exactly. That is the route for subcutaneous or intramuscular biologics PK, and `when: {}` for reference studies "when available";
+  - a comment block that says why the file is inert, what the harvested golden files show and which conditions are left to the scientist. For biologics, it also says that the catalog's specific-binding process and "other protein" expression type were seen only in small-molecule reference models.
+  - New test `packages/project-model/tests/test_requirement_drafts.py` (T-42, 34 cases). It covers the format; inertness (outside `load_templates`, `derive` and the locked files); no PK-Sim name, path or unit (harvested names from `catalog.json` included); no number other than a reference and no threshold words; and a probe showing that the live `derive` would take every item as written.
+- **Science:** these are new SME-type contents:
+  - biologics: what to ask about an antibody's FcRn and target binding, its ADA status and its assay form;
+  - dermal: IVPT, application conditions, local skin data, and separate IV (S1) and oral (S2) reference studies;
+  - ocular: tissue PK, melanin binding, and which eye was dosed and which sampled;
+  - who provides each item.
+
+  All of it is **UNVERIFIED** and awaits the scientist the owner names under decision 2. There are no calculators (FcRn recycling, skin flux, ocular scaling), no default values and no acceptance thresholds.
+- **Why:** the owner's decision 2 (2026-11-12; plan §7.9, contract §8.8) puts biologics, then dermal, then ocular on the roadmap, and no build starts without a named scientist. The drafts record what the client will be asked for, so that work can start from them.
+- **Impact:** none on behaviour. The drafts are a sibling package of the locked `pbpk_domain/requirements/`, so they sit outside `load_templates` (which reads only that folder, one level deep) and outside every locked pattern. `applies_to` is empty, and no APP code is added or named. The data plan, client request, reconciliation, gates, API and OpenAPI snapshot are unchanged, and `load_templates()` still returns the six templates. Tests: 34 new (T-42). The architecture tests, the lock and parameter-vocabulary tests included, are green.
+
 ### Added — the intake rebuild's shared contract code: anchors, source model, fields, mapping spec, ledger, stores (2026-11-13)
 - **What:** the types and stores that the parallel intake builds import, written exactly from §4, §5 and §10 of
   `docs/plans/2026-11-12-intake-contracts.md`. It was reviewed from two sides (31 findings: 29 fixed, 2 rejected
