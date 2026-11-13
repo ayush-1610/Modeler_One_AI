@@ -24,7 +24,8 @@ were checked against the code and resolved in this file; §12 lists each finding
 5. **Every value has an anchor** (§4.1) or is a person's entry bound by a signature, or names its inputs (derived).
 6. **Append and supersede.** Every new record is a line of an append-only, hash-chained file beside the artifacts.
 7. **Model inputs are written only by their owner modules** (`dataset_register`, `dissolution_register` through
-   `client_data.record_mapping`, `evidence_register`), and only by a signed confirmation.
+   `client_data.record_mapping` and `client_data.record_delivery_rows`, `evidence_register`), and only by a signed
+   confirmation.
 8. **Units are never renamed.** A value's unit class is its **field's** (`fields.FIELDS`), never guessed from the unit
    text (the tables read `µm` and `mm` as molar concentrations). The unit is checked against the existing table of
    that class: concentration `validate.CONCENTRATION_UNITS`, time `validate.TIME_UNITS`, percentage
@@ -120,7 +121,7 @@ Owner: **C** contract code (§7), then the build. `PD` = `packages/pbpk-domain/s
 
 | Layer | Path | Owner | Holds |
 |---|---|---|---|
-| L0 | `PD/spread.py` | C | SE and CV% to SD, versioned (pure) |
+| L0 | `PD/spread.py` | C | SE and CV% to SD, versioned (pure); the two PK-Sim error-type names, typed once |
 | L0 | `PD/units.py`, `PD/fit_spec.py` (edits) | D1a | geometric SD left unscaled; `pi_observed(error_type=)` |
 | L0 | `PD/requirement_drafts/{__init__.py,biologics.yaml,dermal.yaml,ocular.yaml}` | SD | inert draft checklists |
 | L2 | `DI/anchors.py` | C | anchor models and grammar; id patterns; `canonical`, `sha256_of` (one canonical form for L2 tests and L3 stores) |
@@ -391,8 +392,9 @@ LEGACY_FACT_NAMES: Mapping[str, str]               # weight_mean_kg -> weight_me
 serum, urine, feces/faeces; `salt_or_base` salt, free base or base; `population` healthy (volunteers), patient(s);
 `special_population` pediatric/paediatric, hepatic, renal, pregnan(t|cy), elderly; `crossover` cross-over → yes,
 parallel → no; `release` immediate → IR, delayed → DR, extended/prolonged → ER; `analyte_role` parent, metabolite,
-enantiomer, sum/total; `cumulative` cumulative → yes, per interval → no; `child_pugh` "Child-Pugh A" ... . A
-`client_template` choice column (`intended_use`, `dose_unit`, `role` ...) is read by whole-text equality.
+enantiomer, sum/total; `cumulative` cumulative → yes, per interval → no; `child_pugh` "Child-Pugh A" or "class A"
+(B, C alike). A `client_template` choice column (`intended_use`, `dose_unit`, `role` ...) is read by whole-text
+equality.
 
 ### 4.4 Mapping spec v2 and extraction (`DI/mapping_spec.py`)
 
@@ -517,6 +519,7 @@ class ProseFact(B):
     study_label: str | None = None; arm_label: str | None = None
     locator: str                        # the span of the value itself inside the paragraph
     study_locator: str | None = None; arm_locator: str | None = None        # the spans where the labels are written
+ProseCheck = Callable[[str, Any, str, int, str | None, str | None], ProseFact]   # field, value, quote, paragraph, study, arm
 ```
 
 **Redaction, exactly** (`mapping.redact.redact_cell`): each maximal run of digits (`\d+`, after NFKC) becomes `#`,
@@ -528,7 +531,8 @@ cell of the header band that is a bare number (`is_numeric_text`: times across t
 verbatim ("50 mg" in a title is read by code through a `Cite`, never copied by the model); a context line holds only
 text that belongs to no table region.
 
-Example (subjects down, times across, summary rows under them, a title line above the region), as the cache stores it:
+Example (subjects down, times across, summary rows under them, a title cell directly above the region, which is its
+caption, and an LLOQ footnote below it), as the cache stores it:
 
 ```json
 {"schema": "mapping/2", "kind": "pk_individual", "layout": "wide_times", "header_rows": 2, "first_data_row": 3,
@@ -540,9 +544,9 @@ Example (subjects down, times across, summary rows under them, a title line abov
                {"column": 1, "pattern": "sd", "role": "spread", "spread_kind": "SD"}, {"column": 1, "pattern": "n", "role": "n"},
                {"column": 1, "pattern": "cv ?%", "role": "exclude", "reason": "CV% restates the SD and the mean"}],
  "lloq": {"near": "below", "line": 1},
- "constants": [{"field": "study_id", "cite": {"near": "above", "line": 1}, "pattern": "Study (\\S+),"},
-               {"field": "dose", "cite": {"near": "above", "line": 1}},
-               {"field": "food_state", "cite": {"near": "above", "line": 1}}]}
+ "constants": [{"field": "study_id", "cite": {"near": "caption", "line": 1}, "pattern": "Study (\\S+),"},
+               {"field": "dose", "cite": {"near": "caption", "line": 1}},
+               {"field": "food_state", "cite": {"near": "caption", "line": 1}}]}
 ```
 
 ### 4.5 The ledger (`PM/ledger_models.py` pure models; `PM/ledger_view.py` the read side)
@@ -702,7 +706,8 @@ class CoverageSummary(B):
     state: DocState; reason: str = ""
     regions: int; regions_mapped: int; regions_excluded: int; regions_unread: int
     numeric_cells: int; cells_used: int; cells_excluded: int; cells_silent: int      # cells with a number, of mapped tables
-    silent_loss: int                     # cells_silent + the numeric cells of unread table and table_like_text regions
+    silent_loss: int                     # cells_silent + the cells with a number of unread table and table_like_text regions
+    # here and below, a "numeric cell" is a cell with a number (has_number, §4.2), not only a bare number
     outside_items: int
     outside_numeric: int = 0             # outside items with a number, not furniture, not cited by a constant, not accepted
     values_unassigned: int = 0           # active values of this file with no study, not assigned or excluded
@@ -1042,7 +1047,7 @@ def resolve(doc: SourceDocument, anchor: str) -> Resolved                 # Anch
 def check_anchors(doc: SourceDocument, items: Iterable[tuple[str, str, str]]) -> list[AnchorProblem]
     # (id, anchor text, verbatim) of values read under ANOTHER parser version: each must be found again in `doc`, with
     # the same text: a sheet or Word cell by its locator; a PDF cell or span by text and box overlap >= 0.5
-def source_view(doc: SourceDocument, anchor: str, *, also: Mapping[str, str] = {}) -> SourceView   # AnchorError
+def source_view(doc: SourceDocument, anchor: str, *, also: Mapping[str, str] | None = None) -> SourceView   # AnchorError
     # `also`: role -> anchor text of the value's time, unit, label, spread, n and LLOQ cells (ValueState.locators),
     # highlighted with their role in the same view
 # DI/source/inventory.py
@@ -1140,9 +1145,9 @@ def check_prose_fact(field: str, value: Any, quote: str, paragraph: ProseParagra
 ```
 
 `map_by_rule` reuses today's rules without touching them: it turns the region into a `SheetGrid` whose first rows are
-the region's context lines above (so `suggest` sees the title cells it reads dose, study id, n and matrix from,
+the region's context lines above and its caption (so `suggest` sees the title cells it reads dose, study id, n and matrix from,
 `sheet_form.py:471-545`) and then the region, calls `sheet_form.suggest` (category from `region.table_kind`), and
-converts with `from_sheet_form` (a title cell becomes a `near: "above"` cite). Because it sees one table at a time, the
+converts with `from_sheet_form` (a title cell becomes a `near` cite: `caption` or `above`). Because it sees one table at a time, the
 one-table-per-sheet limit of `suggest` no longer loses a second table. Values `suggest` assumes without a cell (unit
 `ng/ml`, time unit `h`, matrix `plasma`, route `oral`, a study id made from the file name) are **not** carried into the
 spec: a spec states only what a `Cite` supports; what is missing becomes a requirement gap or a person's entry. Today's
@@ -1215,7 +1220,7 @@ def map_table(model: ChatModel, *, table: RedactedTable, check: Callable[[Mappin
     # redacted); not_data(reason). The function receives the redacted table only; `check` is a closure over the grid
     # that stays in L2/L3.
 # AG/prose_extractor.py (L4)
-ProseCheck = Callable[[str, Any, str, int, str | None, str | None], ProseFact]   # field, value, quote, paragraph, study, arm
+# ProseCheck: mapping_spec's (L2), so W's LlmPorts (L3) and this module (L4) name one type
 class ProseReading(B): facts: tuple[ProseFact, ...]; rejected: tuple[str, ...]; status: str; usage: dict[str, int]; prompt_sha256: str
 def extract_prose(model: ChatModel, *, paragraphs: Sequence[ProseParagraph], fields: Sequence[str],
                   check: ProseCheck, max_turns: int = 8,
@@ -1912,34 +1917,47 @@ never sees a number of the body; prose facts under the strict check.
 Owns: `DI/mapping/*`, `PM/mapping_cache.py`, `AG/table_mapper.py`, `AG/prose_extractor.py`, `AG/evals/scripted.py`;
 tests `packages/data-intake/tests/test_mapping_*.py`, `packages/data-intake/tests/test_prose_check.py`,
 `packages/project-model/tests/test_mapping_cache.py`, `services/agents/tests/{test_table_mapper,test_prose_extractor}.py`.
-Shared files: none (`agent_jobs.py` is W's). Implements §6.2. Grids in tests come from `RegionGrid.from_rows` on the
-truth tables of `modeler_intake.synthetic` (D2's parser is not in your worktree).
+Shared files: none (`agent_jobs.py` is W's). Implements §6.2. Grids in tests come from `synthetic.truth_grid` (every
+format's true locators and context lines) or `RegionGrid.from_rows` (D2's parser is not in your worktree).
 
 Tests (`pytest.mark.req("T-47")`; the agents' files `pytest.mark.req("T-47", "T-21")`):
-- `test_mapping_execute.py`: each layout; every truth value of the synthetic tables comes out with its truth locator;
-  BLQ, `<0.5` (with its LLOQ), `NS`; Mean, SD and N rows become a mean series with spread and n per time; a second
-  spread column with `of`; per-column units; decimal commas including the ambiguous `1.5`; a `%` number format;
-  `cell_use` covers every non-empty cell and an unmapped numeric cell is `unaccounted`; a non-numeric SD cell is a
-  finding, not an exception.
-- `test_mapping_validate.py`: one test per finding code of §6.2.
+- `test_mapping_execute.py`: **every `TruthTable.spec` executed on its `truth_grid` gives exactly the truth, with no
+  unaccounted cell holding a number**; each layout; every truth value comes out with its truth locator; BLQ, `<0.5`
+  (with its LLOQ), `>1000` (`uloq`), `NS`; Mean, SD and N rows become a mean series with spread and n per time; a
+  "mean (SD)" table through `cell_form`; "12.3*" read with its marker; a second spread column with `of`; an interval
+  pair (CI or min-max) with its level; per-column units and LLOQs; two dissolution media as conditions; time and
+  actual time; a statistic column and a spread-kind column (the template's); decimal commas decided by code, including
+  the ambiguous `1.234` settled by its column and `12.5` in a comma region; U+2212; a `%` number format; `cell_use`
+  covers every non-empty cell with its locator and number flag, and an unmapped cell with a number is `unaccounted`; a
+  merged copy is never a value; a non-numeric SD cell is a finding, not an exception.
+- `test_mapping_validate.py`: one test per finding code of §6.2; **two sheets with the same layout and different
+  titles give two studies and two doses** (a cached spec re-reads each title); a constant whose code reading differs
+  from `Constant.text` fails; a typed unit not written at its cite fails `UNIT_NOT_STATED`; a choice constant reads
+  every choice column of the template's Studies row (`plasma`, `healthy`, `salt` ...); `other` needs the word.
 - `test_mapping_rules.py`: for each of the 11 `reading_eval.CASES`, `from_sheet_form(suggest(...))` executed on the
-  sheet's region gives the same (series, time, value, BLQ) set as `apply_recipe` on today's recipe; no unstated
-  default (unit, matrix, route, study id from the file name) is in the spec; `template_spec` reads a filled template
-  sheet exactly.
+  sheet's region gives the same (series, time, value, BLQ) set as `apply_recipe` on today's recipe; a title cell read
+  by `suggest` becomes a `near` cite; no unstated default (unit, matrix, route, study id from the file name) is
+  in the spec; `template_spec` reads every sheet of a filled template exactly (nominal and actual time, `blq_flag`,
+  `statistic` and `variability_kind` columns, the Dissolution conditions, the Urine_Feces intervals).
 - `test_mapping_fingerprint.py`: equal under another sheet name, another offset, other subject numbers and other
   sampling times; different with one more column or another header word.
-- `test_mapping_redact.py`: no digit of any body cell of any synthetic table is in the redacted payload; the header
-  and caption are verbatim; `distinct_texts` shows `BLQ` and `NS`.
+- `test_mapping_redact.py`: no digit of any body cell of any synthetic table is in the redacted payload, asserted on
+  the band `header_band` chooses (the text-heavy product table included) and on a `REJECTED` answer whose finding
+  quotes a body cell; header words and context lines are verbatim; `distinct_texts` shows `BLQ` and `NS`; `#.#,#`
+  keeps the separators.
 - `test_prose_check.py`: the label and exactly one number in the clause; "mean 12.4 (SD 3.1)" refused for a mean
-  when the clause holds two numbers of the class; the times-100 reading refused; the unit parsed by code; a name by
-  `text_in`; a choice by `supports_choice`; the locator spans the number.
-- `test_mapping_cache.py` (also `"T-05"`): propose, approve, reject, versions; `lookup` prefers the approved version;
-  the chain verifies and an edited line is found; one audit event per decision carrying the spec's hash.
+  when the clause holds two numbers of the class; a dose in mg, g and µg recognised (mass class); the times-100
+  reading refused; the unit parsed by code and the number stored is code's; a name by `names_in` ("230-24" refused
+  over "230-23 and 231-24"); a choice by `read_choice`; a study label not written in the paragraph or its heading
+  refused, one written there returned with its span; the locator spans the number.
+- `test_mapping_cache.py` (also `"T-05"`, `"F-404"`): propose, approve, reject, versions; a stored spec has no
+  `Constant.text`; `lookup` prefers the approved version; the same spec twice appends nothing (two threads); the chain
+  verifies and an edited line is found; one audit event per decision carrying the spec's hash.
 - `test_table_mapper.py`: a scripted model's valid spec is accepted; an invalid one is answered `REJECTED` with the
-  findings and a corrected one accepted; a spec that types a number is refused; the user message holds no digit of the
-  body; `INCOMPLETE` gives no spec.
-- `test_prose_extractor.py`: only facts the check accepts are returned; a refused fact's reason is in the answers; a
-  table's text is never in the input.
+  redacted findings and a corrected one accepted; a spec that types a number is refused; the user message holds no
+  digit of the body; `INCOMPLETE` gives no spec.
+- `test_prose_extractor.py`: only facts the check accepts are returned, with code's numbers; a refused fact's reason is
+  in the answers; the study and arm reach the check; a table's text is never in the input.
 
 Acceptance: `uv run pytest packages/data-intake/tests packages/project-model/tests/test_mapping_cache.py services/agents/tests/test_table_mapper.py services/agents/tests/test_prose_extractor.py -q`
 (with the vault test deselected).
@@ -1955,25 +1973,36 @@ relation and cross-file facts.
 
 Owns: `PM/{ledger,ledger_entities,ledger_compute,ledger_links}.py`; tests
 `packages/project-model/tests/test_ledger*.py`. Shared files: none. Implements §6.3 on `IntakeStore`, `LedgerView`
-and the models of §4.5. Inputs in tests are `ExtractResult`s built by hand from the synthetic truth.
+(`ledger_view.py`) and the models of §4.5. Inputs in tests are `ExtractResult`s built by hand from the synthetic truth
+(`truth_grid` gives every locator).
 
-Tests (`pytestmark = pytest.mark.req("T-47", "T-05")`):
+Tests (`pytestmark = pytest.mark.req("T-47", "T-05", "F-404")`):
 - `test_ledger.py`: a recorded extraction gives one extract whose every value has its own locator and a stable id
-  (`tx-...#i`); recording it again adds nothing; a new mapping version supersedes the earlier extract; a fact with no
-  study is kept; `enter` with `supersedes` leaves the old fact readable and marks it superseded; `exclude` needs a
-  reason; the chains verify; no audit event per fact (`intake.entry` only for a person's entry).
+  (`tx-...#i`); recording it again adds nothing, and so do the same bytes under a later delivery and the same values
+  after an entity merge; a new mapping version supersedes the earlier extract; a re-parse whose anchors all hold
+  writes nothing, one that moves a value supersedes, one whose region is gone supersedes it with the reason; a
+  text-valued row and a relation row become facts; every stated LLOQ is one `lloq` fact per (study, analyte, matrix)
+  with its unit and anchor; a value with no study is kept; `enter` with `supersedes` naming a value id leaves the old
+  value readable, marks it superseded and keeps the point in its series (time, statistic, conditions inherited);
+  `exclude` needs a reason; the chains verify; no audit event per fact (`intake.entry` only for a person's entry).
 - `test_ledger_entities.py`: the same name written three ways is one entity; an alias a person confirmed in today's
-  review record is reused; two similar but different names stay two; an arm resolves inside its study; `merge` keeps
-  both ids resolvable.
-- `test_ledger_conflicts.py`: both values kept and listed; a unit conflict is not converted; solubility at two pH is
-  not a conflict; after a `Choice` the others are excluded.
+  review record is reused; two similar but different names stay two; an arm resolves inside its study; matrix,
+  sequence and occasion are labels; `merge` keeps both ids resolvable; two threads resolving the same label create
+  one entity (`append_if`).
+- `test_ledger_conflicts.py`: both values kept and listed; a unit conflict is not converted; solubility at two pH, a
+  profile in two media, plasma beside urine of one arm and Day 1 beside Day 14 are not conflicts; a derived fact does
+  not conflict with its input; after a `Choice` the others are excluded.
 - `test_ledger_derived.py`: SD from SE with n per time, then with the series' n; none without n; from CV%; nothing
-  for a geometric mean; each derived fact names its inputs and `compute`; `derive` twice adds nothing; superseding an
-  input supersedes the derived fact.
-- `test_ledger_cross_file.py`: one test per condition (no anchored link → nothing; two candidates → a pending link,
-  nothing filled; the filled fact carries its three anchors; unconfirmed until a `LinkConfirmation`, then inherited by
-  a later fill through the same link; `cross_file` on the value's view).
-- `test_ledger_relations.py`: a DDI ratio with its 90 % CI links two arms.
+  for a geometric mean; the SD is a spread fact (value None) on its input's entity, field, time and statistic, equal
+  to `spread.sd_from_se`; a dose in g becomes a dose in mg; each derived fact names its inputs and `compute`; `derive`
+  twice adds nothing; superseding an input supersedes the derived fact.
+- `test_ledger_cross_file.py`: one test per condition (an upload tag or the same drug name joins nothing; the same
+  study label in a workbook and a synopsis PDF gives a `link.study_id` fact at the PDF's label and the PDF's values on
+  the workbook's study, each with `cross_file` and its three anchors; two candidates → an ambiguous pending link,
+  nothing joined; an explicit `link.protocol` merges; unconfirmed until a `LinkConfirmation` of (study, file), then
+  inherited by every later value through the same link; a refused link excludes them).
+- `test_ledger_relations.py`: a DDI ratio row with its 90 % CI (interval low, high, level) and the other arm becomes a
+  relation fact linking two arms.
 
 Acceptance: `uv run pytest packages/project-model/tests/test_ledger.py packages/project-model/tests/test_ledger_entities.py packages/project-model/tests/test_ledger_conflicts.py packages/project-model/tests/test_ledger_derived.py packages/project-model/tests/test_ledger_cross_file.py packages/project-model/tests/test_ledger_relations.py packages/project-model/tests/test_intake_store.py -q`.
 
@@ -1988,13 +2017,18 @@ finding as a typed result a scientist can override.
 Owns: `PM/{coverage,study_routing,study_requirements,intake_checks,scorecard}.py`; tests
 `packages/project-model/tests/{test_coverage,test_study_routing,test_study_requirements,test_intake_checks,test_scorecard}.py`.
 Shared files: none (`intake_rules.yaml` is C's: ask the integrator for a change). Implements §6.4 against
-`LedgerReader` (tests use `LedgerView` over lines written through `IntakeStore`, and a small fake for `conflicts`).
+`LedgerReader` (tests use `LedgerView` over the truth written by `intake_fixtures.write_truth`, and a small fake for
+`conflicts`). Coverage needs no grid: `outcome_from` turns an `ExtractResult` into the stored outcome, and
+`file_coverage` counts from outcomes and `Region.numeric_cells`.
 
 Tests (`pytestmark = pytest.mark.req("T-47", "T-42")`):
-- `test_coverage.py`: a fully mapped table has silent loss 0; one unaccounted numeric cell counts 1 and is named; an
-  unread table counts all its numeric cells; a `not_data` mapping and a `RegionDecision` exclude with their reason; a
-  figure is excluded by the rule; unread prose is listed, not counted; outside items and unresolved anchors are in the
-  summary; an unsupported file is a coverage row with its reason.
+- `test_coverage.py`: a fully mapped table has silent loss 0; one unaccounted cell with a number ("12.3 (4.5)" left
+  unsplit) counts 1 and is named by its locator; 250 unaccounted cells count 250 and name 200; an unread table counts
+  all its cells with a number; a `not_data` mapping and a `RegionDecision` exclude with their reason; a figure is
+  excluded by the rule; unread prose is listed, not counted; an outside item with a number counts in
+  `outside_numeric` unless it is furniture, cited by a constant or accepted by a `RegionDecision` of scope `outside`;
+  `values_unassigned` is carried; unresolved anchors are in the summary; an unsupported file is a coverage row with
+  its reason.
 - `test_study_routing.py`: an adult oral fasted study in a VBE project activates the core and the VBE template; a
   pediatric study in the same project also activates the special-populations template; a fed study the food-effect
   one, and a fasted study of a food-effect project is **not** treated as fed; route `other`, a genotype study and a
@@ -2003,10 +2037,13 @@ Tests (`pytestmark = pytest.mark.req("T-47", "T-42")`):
   id; project-scope items are not a study's; every `req_id` of `item_scope` and `item_fields` exists in the loaded
   templates (the rules file cannot drift from the locked YAMLs); `request_lines` gives one line per missing item.
 - `test_intake_checks.py`: one test per code of `CHECKS`; `set(CHECKS)` equals the codes of `checks.severity`; blood
-  or serum fails `MATRIX_NOT_PLASMA`; a unit outside the tables fails `UNIT_NOT_IN_TABLES` and the value is unchanged;
-  a check id is stable across two runs and changes when its values change.
-- `test_scorecard.py`: blockers for silent loss, a gap, a failed check, an open conflict, an unconfirmed link; an
-  override clears its check and stays listed; a gap is not cleared by an override.
+  or serum fails `MATRIX_NOT_PLASMA`; a concentration unit outside the tables fails `UNIT_NOT_IN_TABLES` and the value
+  is unchanged; a dose in mg, g, µg or mg/kg passes; an rpm, a particle size in µm and an AUC unit give
+  `UNIT_NOT_CHECKED` (info), never a fail; a check id is stable across two runs and changes when its values change;
+  every threshold read comes from the rules file (a test edits a loaded copy and sees the result move).
+- `test_scorecard.py`: blockers for silent loss, outside numbers, unassigned values, a gap, a failed check, an open
+  conflict, an unconfirmed link; an override clears its check and stays listed; a gap is not cleared by an override;
+  a product and the compound get scorecards like a study.
 
 Acceptance: the five test files; `packages/project-model/tests/test_requirements.py` still green.
 
@@ -2058,9 +2095,11 @@ Edits (W's alone at this stage):
   inside the function (copy `sheet_reading`).
 - `API/client_api.py` (`upload_client_files`), `API/brief_api.py` (`_read_client_file`), `API/intake_jobs.py`
   (`ingest_for_reading`): open one delivery per request and call `intake_pipeline_jobs.receive(..., ingest=ingest)`
-  in place of `ingest(...)`; `intake_jobs.read_later` ends with `intake_pipeline_jobs.kick`; the upload's refused
-  branch kicks too. Answers, status codes and messages unchanged. In `both`, `ingest_for_reading` hands a `.zip` to
-  `receive` (which expands it) instead of answering "not read for data".
+  in place of `ingest(...)`, extending their lists with its entries (and, on `MemberRefusals`, the accepted entries
+  to `read` and the refused members to `refused`, caught before the generic `ValueError`);
+  `intake_jobs.read_later` ends with `intake_pipeline_jobs.kick`; the upload's refused branch kicks too. Answers,
+  status codes and messages unchanged for every file that is not a ZIP. In `both`, `ingest_for_reading` hands a `.zip`
+  to `receive` (which expands it) instead of answering "not read for data"; the upload answer for a ZIP is §6.5's.
 - `services/api/tests/conftest.py`: the autouse fixture of §2.
 
 Implements §6.5. `ports` wraps each LLM call in an `agent_jobs.AgentRun` (`agent="A4-table-mapper"` or `"A4-prose"`,
@@ -2069,23 +2108,33 @@ Implements §6.5. `ports` wraps each LLM call in an `agent_jobs.AgentRun` (`agen
 run id). A cache or rule mapping makes no agent run.
 
 Tests:
-- `test_intake_files.py` (`T-47`, `T-05`): bytes stored before the line; a repeat; a container; the chain.
-- `test_intake_pipeline.py` (`T-47`): with no model, each synthetic file's ledger values equal its truth, value by
-  value, each resolving through its anchor (`value_score.score` gives 100 %); every stage has a time; a parser that raises
-  fails that run at `parse` and the next file still runs; an unsupported file ends `done` with its state and reason;
-  a second run of the same file adds nothing; a bumped parser version re-parses, checks the anchors and reports the
-  counts; the mapping order (cache, rule, then unread with the reason); a second file with the same layout under
-  another sheet name is mapped by the cache; `sweep` queues stored files once.
+- `test_intake_files.py` (`T-47`, `T-05`, `F-404`): bytes stored before the line; a repeat; a container; the chain.
+- `test_intake_pipeline.py` (`T-47`):
+  - **warm cache** (G7's case): every `TruthTable.spec` of `delivery()` preloaded through `MappingCache.propose` and
+    `approve`; with no model, each synthetic file's ledger values equal its truth, value by value, each resolving
+    through its anchor (`value_score.score` gives 100 %), and silent loss is 0;
+  - **empty cache**, no model: the rules map what they map (asserted as numbers: regions mapped by rule, values found),
+    the rest is `unread` with the reason and counted in silent loss, never dropped;
+  - every stage has a time; a parser that raises fails that run at `parse` and the next file still runs; an
+    unsupported file ends `done` with its state and reason; a second run of the same file, and the same bytes arriving
+    in a later delivery, add nothing (and the repeat queues no run); a bumped parser version re-parses, checks the
+    anchors and reports the counts; the mapping order (cache, rule, then unread with the reason); a second sheet with
+    the same layout and another title is mapped by the cache with its own study and dose; `enqueue` from two threads
+    queues once; `sweep` queues stored files once.
 - `test_intake_pipeline_api.py` (`T-47`, `T-20`), with `api_settings(read_root=..., intake_pipeline="both")`: the
   upload answer equals the `legacy` answer for the same files (a workbook, a PDF, the template, a broken file: same
-  422 and detail); the broken and the unsupported file are in `files.jsonl` with the reason and their bytes are in the
-  store; the `intake` job runs with agents off; with a scripted model (`modeler_agents.evals.scripted.Scripted`) a
-  first-seen table is mapped by a run named `A4-table-mapper` counted under A4, and its prompt holds no body digit;
-  in `legacy` nothing is written under `intake/`; one `intake.run` audit event per run with the line's hash.
+  422 and detail); **after the `intake` job has drained, the legacy page routes (client-data page, client-review page,
+  reading queue, inputs) answer the same in `both` and `legacy`**; a ZIP gives one entry per accepted member and a 422
+  naming a refused member; the broken and the unsupported file are in `files.jsonl` with the reason and their bytes
+  are in the store; the `intake` job runs with agents off; with a scripted model
+  (`modeler_agents.evals.scripted.Scripted`) a first-seen table is mapped by a run named `A4-table-mapper` counted
+  under A4, and its prompt holds no body digit; in `legacy` nothing is written under `intake/`; one `intake.run` audit
+  event per run with the line's hash (also `F-404`).
 
-Acceptance: `make test` with only the 15 baseline failures; `uv run ruff check .`; `tests/architecture` green; the
-existing e2e specs green with the default `both` (`npm --prefix apps/web run e2e`, where a browser is installed; else
-the integrator runs them before D6 starts).
+Acceptance: `make test` with only the 15 baseline failures; `uv run ruff check .`; `tests/architecture` green. The e2e
+specs cannot run here (no browser in the container: `~/.cache/ms-playwright` is absent), so W's CHANGELOG text says
+that they have not run and must run green with the default `both` on the Mac or the server before the first
+deployment with `both`.
 
 Must not: change `kick` or `drain` of the legacy `reading` job, the reading queue, `QueueTask`, or a legacy answer;
 call `modeler_agents` outside `agent_jobs`; parse in the upload request; add a route (D6).
@@ -2103,77 +2152,110 @@ Owns (new): `PM/{intake_review,intake_landing,intake_health}.py`; `API/delivery_
 
 Edits: `API/client_api.py` (one line: `delivery_routes.mount(router)`; the three guards of §2); `API/admin_api.py`
 and `API/views/admin.py` (one route, one model); `PM/datasets.py` (`Series.error: tuple[float | None, ...] | None`,
-so a BLQ row without a spread no longer drops the series' spread), `PM/client_data.py` and `PM/sheet_intake.py` (the
-three all-or-nothing drops), `API/views/client_data.py` (`SeriesPoints.error` nullable entries; `DatasetPoints` gains
-`blq_rule: str | None`, `blq_omitted: int`), `PM/dataset_points.py` (fills them), `WEB/components/inputs/
-DatasetView.tsx` (shows them; null-safe errors), `WEB/components/inputs/InputsWorkspace.tsx` (one slot beside
-`ReadingTray`), `WEB/app/layout.tsx` (the stylesheet, before `design.css`), `WEB/lib/admin.ts`,
-`WEB/components/admin/AdminParts.tsx`, `WEB/e2e/admin-console.spec.ts` (the address), the upload accept lists.
+so a BLQ row without a spread no longer drops the series' spread), `PM/client_data.py` (`record_delivery_rows`, §6.6;
+and, with `PM/sheet_intake.py`, the three all-or-nothing drops), `API/views/client_data.py` (`SeriesPoints.error`
+nullable entries; `DatasetPoints` gains `blq_rule: str | None`, `blq_omitted: int | None`), `PM/dataset_points.py`
+(fills them; `blq_omitted` None for a blinded dataset, as its values are), `WEB/components/inputs/DatasetView.tsx`
+(shows them; null-safe errors), `WEB/components/inputs/InputsWorkspace.tsx` (one slot beside `ReadingTray`),
+`WEB/app/layout.tsx` (the stylesheet, before `design.css`), `WEB/lib/admin.ts`, `WEB/components/admin/AdminParts.tsx`,
+`WEB/e2e/admin-console.spec.ts` (the address), the upload accept lists.
 
 `delivery_routes.py` defines module-level handlers and `def mount(router: APIRouter) -> None`, and never calls
 `APIRouter(...)`: the routes then belong to `client_api.router`, so the locked response ratchet
-(`test_response_models.py`) covers them with no locked change, and no router imports a router. Every handler:
-`workspace_for`, a response model in `views/delivery.py` (a `View`, every key declared, `Number = int | float`),
-`envelope(...)`. Prefix `/api/v1/projects/{project_id}`.
+(`test_response_models.py`) covers them with no locked change, and no router imports a router. It imports no
+`modeler_api` module that defines an `APIRouter` (`client_api` above all: that would also be a circular import),
+which the import rule cannot see for a module that defines none (`_defines_router`), so `test_delivery_api.py`
+asserts it (§11.26 names the workaround). Every handler: `workspace_for`, a response model in `views/delivery.py` (a
+`View`, every key declared, `Number = int | float`), `envelope(...)`. **No new model reuses the name of an existing
+OpenAPI schema** (the snapshot has `Disposition` ...: FastAPI would rename both with module prefixes; answering with
+the existing model itself, as `/delivery:run` does with `TriageStart`, is not a new name), and D6's OpenAPI diff
+shows additions only, apart from the `Series`, `SeriesPoints` and `DatasetPoints` changes listed
+above. Every id or anchor from a request passes `anchors.check_id` / `parse_anchor` before use, and
+`?anchor=` resolves only for a file with a `FileRecord` in this project (§5: no path is built from input). Prefix
+`/api/v1/projects/{project_id}`; `{type}` is `study`, `product` or `compound`.
 
 | Route | Role | Answer (`views/delivery.py`) |
 |---|---|---|
-| GET `/delivery` (runs `sweep` and `kick` in `both`) | Reader | `DeliveryPage`: `enabled`, `running`, `agents`, deliveries with their files (state, reason, coverage summary, run state, stage times), totals (files by state, regions, silent loss), studies and products (label, counts, blockers, confirmation, `loaded_elsewhere`, `confirm_on`), mappings waiting, request lines |
-| GET `/delivery/studies/{study}`, `/delivery/products/{product}` | Reader | `DeliverySubject`: the scorecard with exceptions first (gaps, failed checks, conflicts, links, missing items, new mappings), values grouped by table, spot-check state, confirmation with its signature manifestation |
-| GET `/delivery/source?value=<id>` or `?anchor=<text>` | Reader | `DeliverySource`: a `SourceView` (§4.2) plus `file`, `sha256`, `value_id` |
+| GET `/delivery` (runs `sweep` and `kick` in `both`) | Reader | `DeliveryPage`: `enabled`, `running`, `agents`, deliveries with their files (state, reason, coverage summary from the coverage file, run state, stage times), totals (files by state, regions, silent loss, outside numbers, unassigned values), subjects (studies, products, the compound: label, counts, confirmation, `loaded_elsewhere`, `confirm_on`; no blockers: the subject route computes them), the "study not stated" values, mappings waiting, request lines |
+| GET `/delivery/subjects/{type}/{subject}` | Reader | `DeliverySubject`: the scorecard with exceptions first (gaps, failed checks, conflicts, links, missing items, new mappings), its blockers, values grouped by table, what the landing would hold back, spot-check state, confirmation with its signature manifestation |
+| GET `/delivery/source?value=<id>` or `?anchor=<text>` | Reader | `DeliverySource`: a `SourceView` (§4.2: the value's cell and its time, unit and label cells highlighted) plus `file`, `sha256`, `value_id` |
 | GET `/delivery/mappings/{mapping_id}` | Reader | `DeliveryMapping`: header → role, field, unit, tokens, rules; the redacted sample; versions and decisions |
 | POST `/delivery/mappings/{mapping_id}:approve`, `:reject`, `:edit` | Writer | `DeliveryMapping` (`:edit` stores a person's version and queues the file's run again) |
-| POST `/delivery/studies/{study}:override`, `:dispose`, `:choose`, `:link`, `:enter`; POST `/delivery/regions:exclude` | Writer | `DeliverySubject` (regions: `DeliveryPage`) |
-| POST `/delivery/studies/{study}/spot-check:draw` | Writer | `DeliverySpotCheck`: the draw; each value with its source reference |
-| POST `/delivery/studies/{study}/spot-check` (all ticks, once) | Writer | `DeliverySpotCheck` |
-| POST `/delivery/studies/{study}:confirm`, `/delivery/products/{product}:confirm` | Writer, step-up | `DeliverySubject` with `signature {signature_id, manifestation}` |
+| POST `/delivery/subjects/{type}/{subject}:override`, `:dispose`, `:choose`, `:link`, `:enter` | Writer | `DeliverySubject` |
+| POST `/delivery/values:assign`, `/delivery/regions:exclude` (scope `regions`, `unread_prose`, `figures`, `outside`) | Writer | `DeliveryPage` |
+| POST `/delivery/subjects/{type}/{subject}/spot-check:draw` | Writer | `DeliverySpotCheck`: the draw; each value with the tuple it is ticked for (value, unit, time, labels, statistic) and its source reference |
+| POST `/delivery/subjects/{type}/{subject}/spot-check` (all ticks, once) | Writer | `DeliverySpotCheck` |
+| POST `/delivery/subjects/{type}/{subject}:confirm` | Writer, step-up | `DeliverySubject` with `signature {signature_id, manifestation}` |
 | POST `/delivery:run` (`{files?}`), 202 | Writer | `TriageStart` (existing) |
 | GET `/api/v1/admin/pipeline` (`admin_api`, guard `Admin`, an `admin.view` event) | Admin | `PipelineHealth`: per company and in all: files by state, mapping source shares (cache, rule, LLM, unread), parser failures, unsupported by extension, outside items, unresolved anchors, pages needing OCR, stage time median and p90 |
 
 Blinding (D-15): `blinded_subjects` = studies whose `intended_use` is one of `blinding.EXTERNAL_PURPOSES` while
 `blinding.setting` is on and no MAP is signed, plus the studies of landed datasets in `blinding.blinded_studies`. For
-such a study every route above withholds `value`, `verbatim`, spreads and LLOQ (`None`, `blinded: true`), as
-`blinding.redact_dataset` does, and `/delivery/source` blanks every numeric cell of a region that holds a value of a
-blinded study. Its spot check cannot be drawn and its confirmation is refused with `BLINDED` (§11.1).
+such a study every route above withholds `value`, `verbatim`, spreads, intervals, LLOQ and BLQ counts (`None`,
+`blinded: true`), as `blinding.redact_dataset` does, and `/delivery/source` blanks every cell with a number of a
+region that holds a value of a blinded study. Its spot check cannot be drawn and its confirmation is refused with `BLINDED`
+(§11.1).
 
-Web: `components/delivery/` holds `DeliverySection` (the coverage panel: files, regions, silent loss, requirement
-status; polls while running), `SubjectCard` (exceptions first; `useTableView`'s `keep` rows), `ValueSource` (a grid
-with the anchored cell highlighted; for a PDF the page drawn with pdfjs and the box over it, as `Digitizer.tsx`
-does, scaled by `page_size`; prose with the span marked), `MappingReview`, `SpotCheck` (ticks in local state, one
-submit), `ConfirmDialog` (`Dialog size="narrow"`, says what is signed; step-up is handled by `withSession`). Reads
-with `useResource`, writes with `useMutation` and `send`; types from `Schema<"...">`; a `data-testid` on every
-element a spec uses (`delivery-file-${id}`, `delivery-subject-${id}`, `delivery-value-${id}`, `spot-tick-${id}`,
-`delivery-confirm-${id}`); no inline static style; colours from tokens. The legacy cards and their test ids are not
-touched.
+Web: `components/delivery/` holds `DeliverySection` (the coverage panel: files, regions, silent loss, outside numbers,
+unassigned values, requirement status; polls while running), `SubjectCard` (exceptions first; `useTableView`'s `keep`
+rows), `ValueSource` (a grid with the anchored cell and its time, unit and label cells highlighted by role; for a PDF
+the page drawn with pdfjs and the box over it, as `Digitizer.tsx` does, scaled by `page_size`; prose with the span
+marked), `MappingReview`, `Unassigned` (the "study not stated" values and the assign action), `SpotCheck` (ticks in
+local state, one submit; each row shows the tuple), `ConfirmDialog` (`Dialog size="narrow"`, says what is signed:
+the counts, what the landing holds back, and "rules UNVERIFIED v0.1" from the record's `rules`; step-up is handled by
+`withSession`). Reads with `useResource`, writes with `useMutation` and `send`; types from `Schema<"...">`; a
+`data-testid` on every element a spec uses (`delivery-file-${id}`, `delivery-subject-${id}`, `delivery-value-${id}`,
+`spot-tick-${id}`, `delivery-confirm-${id}`); no inline static style; colours from tokens. The legacy cards and their
+test ids are not touched.
 
-Tests:
-- `test_intake_review.py` (`T-47`, `T-05`): the draw is the same for the same ledger state and differs after a
-  change; strata and `always` as specified; a study with fewer values than `size` is checked whole; ticks are
-  accepted once; a failed tick blocks; a correction makes the draw stale and the next draw carries the unchanged
-  ticks; every blocker; `bound_record` changes when a value, a mapping version, an override, a disposition, the spot
-  check, the coverage or a requirement status changes; one audit event per decision with the line's hash.
+Tests (markers per §10: signature tests `F-403` and `T-06`; audit-event and chain tests `F-404` and `T-05`;
+blinding tests `F-402`; all `T-47`):
+- `test_intake_review.py` (`T-47`, `T-05`, `F-404`): the draw is the same for the same ledger state, stores the four
+  heads and the rules sha256, and differs after a change; strata and `always` as specified (digitized, derived with
+  its inputs, cross-file scalar and link facts always; BLQ values are candidates); a study with fewer values than
+  `size` is checked whole; ticks are accepted once (two threads, one record); a failed tick blocks; a correction makes
+  the draw stale and the next draw carries the unchanged ticks; recording the confirmation does not make its own draw
+  stale; every blocker (unassigned values and outside numbers included); `bound_record` changes when a value, a mapping
+  version, an override, a disposition, an assignment, the spot check, the coverage, a requirement status or the rules
+  file changes, and does not change when another study's fact is added; `exclude_regions` and `assign` store the
+  recomputed coverage; one audit event per decision with the line's hash.
 - `test_intake_landing.py` (`T-47`, `T-45`, `T-48`): a confirmed study becomes accepted client datasets whose values
   equal the truth; the sheets count as read for `sheet_intake` and their legacy drafts are gone; a proposed legacy
-  dataset of the same study is rejected with the reason; an accepted one refuses the confirmation; a second `land` of
-  the same confirmation writes nothing; dissolution records become profiles through the register; a cross-file fact
-  is flagged on the dataset; `plan_landing` names a missing `StudyRecord` field instead of raising later.
-- `test_delivery_api.py` (`T-47`, `T-05`, `T-50`), `api_settings(read_root=str(tmp_path), intake_pipeline="both")`:
-  each route's happy path and refusals; the confirm route answers 403 `STEP_UP_REQUIRED` without step-up, and with it
-  writes `signature.create`, `intake.confirm` and `intake.land`; nothing is signed when a blocker exists; a blinded
-  study's values and source cells are withheld on every route; the legacy `client-review:confirm` refuses what
-  Delivery confirmed; in `legacy` the page answers `enabled: false`; no legacy route's answer changes.
-- `test_intake_health.py`, `test_admin_pipeline.py` (`T-05`): the counters from run lines of two companies; the route
-  needs `Admin` and leaves an `admin.view` event.
-- `e2e/delivery.spec.ts`: upload the synthetic workbook and PDF, see the coverage panel with silent loss 0, open a
-  value's source with its cell highlighted, accept a mapping, tick the spot check, confirm, and see the study loaded
-  on Inputs once.
+  dataset of the same source is rejected with the reason **even when its study id was made from the file name**, and
+  another study's table on the same sheet is not; an accepted one refuses the confirmation; a second `land` of the same
+  confirmation writes nothing; dissolution rows (vessels, and a summary with mean, SD and n = 12) become profiles
+  through the register with their SD and n; two runs differing only in temperature are held back; a time unit `hr`
+  lands as `h` and `day(s)` as `day`; a dose of 0.5 g lands as 500 mg; a concentration unit the engine tables lack,
+  a profile with two occasions and a profile with two LLOQs and no entry are held back while the rest lands; a
+  geometric mean with a plain "SD" lands no error and the note says why; a compound value flagged
+  `outside_physical_range` lands `PROPOSED` and is in `Landed.pending`; a cross-file value is flagged on the dataset
+  and the flag survives `check_dataset`; `plan_landing` names a missing `StudyRecord` field instead of raising later.
+- `test_delivery_api.py` (`T-47`; `F-403`, `T-06`; `F-404`, `T-05`; `F-402`),
+  `api_settings(read_root=str(tmp_path), intake_pipeline="both")`: each route's happy path and refusals, for a
+  study, a product and the compound; the confirm route answers 403 `STEP_UP_REQUIRED` without step-up, and with it
+  writes `signature.create`, `intake.confirm` and `intake.land`; nothing is signed when a blocker exists; an
+  interrupted landing completes on a second `:confirm` with no new signature; a blinded study's values, BLQ counts and
+  source cells are withheld on every route; `..`, `/` and another project's id in `?value=` and `?anchor=` are
+  refused; the legacy `client-review:confirm` refuses what Delivery confirmed; in `legacy` the page answers `enabled:
+  false`; no legacy route's answer changes; `delivery_routes` imports no `modeler_api` module that defines an
+  `APIRouter`; every `/delivery` route and `/admin/pipeline` has a pydantic response model that is not
+  `Envelope[dict]`.
+- `test_intake_health.py`, `test_admin_pipeline.py` (`F-404`, `T-05`): the counters from run lines of two companies;
+  the route needs `Admin` and leaves an `admin.view` event.
+- `e2e/delivery.spec.ts`: the fixture (`e2e/fixtures/delivery.py`) preloads every `TruthTable.spec` of the workbook
+  and the PDF, approved except one; the spec uploads the synthetic workbook and PDF, sees the coverage panel with
+  silent loss 0, opens a value's source with its cell highlighted, accepts the one waiting mapping, ticks the spot
+  check, confirms, and sees the study loaded on Inputs once.
 
 Acceptance: `make test`, `make lint`, `UPDATE_SNAPSHOTS=1 uv run pytest tests/architecture/test_openapi_contract.py`
 then `npm --prefix apps/web run api-types` (in the worktree; the integrator regenerates both at the merge, §9),
-`npm --prefix apps/web run typecheck`, `npm --prefix apps/web run build`, `npm --prefix apps/web run e2e`.
+`npm --prefix apps/web run typecheck`, `npm --prefix apps/web run build`. `npm --prefix apps/web run e2e` cannot run
+in this container (no browser): D6's CHANGELOG text says the e2e suite, `delivery.spec.ts` included, has not run and
+must run green on the Mac or the server before the first deployment with `both`.
 
-Must not: add an `APIRouter`; send one request per tick; sign before every refusal has been checked; write a dataset,
-evidence item or submission except through its owner; change a legacy card or test id; show a blinded value.
+Must not: add an `APIRouter`; import a router module; send one request per tick; sign before every refusal has been
+checked; write a dataset, evidence item or submission except through its owner; change a legacy card or test id;
+show a blinded value; reuse an existing schema name.
 
 ## 9. The shared-file protocol
 
@@ -2181,10 +2263,17 @@ evidence item or submission except through its owner; change a legacy card or te
   `apps/web/lib/api-types.ts`, every `pyproject.toml`, `uv.lock`, `PM/intake_rules.yaml`, and this file.
 - Each builder returns, as text: its CHANGELOG entry (what changed, why, impact; science changes named as such), the
   files it created and edited, the tests it added, its acceptance output, and anything it had to assume.
-- Merge order: C, then D0, D2, D3, D4, D5, SD and D1a in any order (they share no file). After D1a the integrator
-  refreshes the OpenAPI snapshot (`UPDATE_SNAPSHOTS=1 uv run pytest tests/architecture/test_openapi_contract.py`) and
-  the web types (`npm --prefix apps/web run api-types`) for `Series.n_at`, in the commit that carries D1a's CHANGELOG
-  entry. Then W, then D6, one at a time on the integration line. D6 changes the API contract: it regenerates the
+- **One squashed commit per build.** The integrator squashes each build's branch into one commit on the integration
+  line (no builder commit is merged as it is). That commit holds the build's CHANGELOG entry, the continuation
+  table when a stage changes status, and, for D1a and D6, the regenerated `docs/api/openapi.json` and
+  `apps/web/lib/api-types.ts`. `make test` (with only the 15 baseline failures) and `tests/architecture` are green on
+  every commit of the integration line: a builder branch may be red on the OpenAPI test (D1a, §8.2), the integration
+  line never is (CLAUDE.md: a behaviour change and its CHANGELOG entry, an API change and its snapshot, in the same
+  commit).
+- Merge order: C, then D0, D2, D3, D4, D5, SD and D1a in any order (they share no file). D1a's squashed commit carries
+  the OpenAPI snapshot (`UPDATE_SNAPSHOTS=1 uv run pytest tests/architecture/test_openapi_contract.py`) and the web
+  types (`npm --prefix apps/web run api-types`) refreshed for `Series.n_at`. Then W, then D6, one at a time on the
+  integration line. D6 changes the API contract: it regenerates the
   snapshot and the web types in its worktree to build against, and the integrator regenerates them again at the merge
   (they are generated files: never merged by hand). The integrator updates §4.1 of the continuation document when a
   stage changes status and adds the session row to the CHANGELOG table.
@@ -2202,31 +2291,49 @@ evidence item or submission except through its owner; change a legacy card or te
 DRUG = "Exampleamide"
 @dataclass(frozen=True)
 class TruthTable: id: str; kind: TableKind; where: str; rows: tuple[tuple[str, ...], ...]; header_rows: int
+                  spec: MappingSpec                                                # the approved v2 spec that reads it exactly
                   merges: tuple[str, ...] = (); pages: tuple[int, ...] = ()        # rows: cell texts as written, "" empty
+                  caption: tuple[str, ...] = (); above: tuple[str, ...] = (); below: tuple[str, ...] = ()   # its context lines
 @dataclass(frozen=True)
 class TruthValue: table: str; field: str; study: str; arm: str; analyte: str; matrix: str; subject: str
                   time: str; time_unit: str; value: str; unit: str; locator: str  # value as written (BLQ, <0.5, NS included)
+                  conditions: tuple[tuple[str, str], ...] = (); occasion: str = ""
 @dataclass(frozen=True)
 class SyntheticFile: name: str; data: bytes; format: FileFormat; tables: tuple[TruthTable, ...]; values: tuple[TruthValue, ...]
                      outside: tuple[str, ...] = (); prose: tuple[str, ...] = (); notes: str = ""
-def messy_workbook() -> SyntheticFile    # sheet 1: a title cell, an individual table with a merged two-row header, BLQ, <0.5 and NS,
-                                         # Mean / SD / N rows, then a gap and a second (summary, SE) table; sheet 2: two dissolution
-                                         # blocks side by side; a footnote; a hidden sheet
-def pdf_report() -> SyntheticFile        # page 1: a synopsis in sentences (dose, n, route, fasted); page 2-3: one ruled table continued
-                                         # with its header repeated; page 3: a second ruled table and a footnote; page 4: an unruled table
+def truth_grid(file: SyntheticFile, table_id: str) -> RegionGrid   # the table as a grid with every cell's TRUE locator (sheet,
+                                                                   # PDF or Word) and its context lines: D3, D4 and D5 test on it
+def messy_workbook() -> SyntheticFile
+    # sheet "Fasting": a title line ("Study 230-23, 50 mg, fasted"), an individual table with a merged two-row header, BLQ,
+    # <0.5, >1000 and NS, a "12.3*" cell, Mean / SD / N rows set off by one empty row, an LLOQ footnote below; then two
+    # empty rows, a caption and a second (summary, SE, n per time) table; a computed mean stored as 12.4037 under 0.00.
+    # Sheet "Fed": the same layout under another title ("Study 231-24, 100 mg, fed"). Sheet "Dissolution": two blocks
+    # side by side, the same batch in two media (pH 1.2 and pH 6.8), one with vessels, one as mean, SD and n = 12.
+    # Sheet "Summary": a "mean (SD)" table. Sheet "Urine": the 230-23 arm's urine excretion by interval (plasma and urine
+    # of one study). Sheet "Product": a text-heavy product and batch table (strengths, lots, particle sizes). A note with
+    # a number that belongs to no region and no region's context (an outside number); a hidden sheet.
+def pdf_report() -> SyntheticFile
+    # page 1: a synopsis in sentences ("Study 230-23 ... 50 mg ... 24 subjects ... orally ... fasted": the same study
+    # label as the workbook, so the cross-file link is exercised); pages 2-3: "Table 5" continued, its title repeated
+    # "(continued)" and its header repeated; page 3: a footnote; pages 4-5: "Table 6, Cohort 1 (10 mg)" and "Table 7,
+    # Cohort 2 (30 mg)" with the same header, one per page; page 6: an unruled table; a page number on every page
 def scanned_pdf() -> SyntheticFile       # one text page, one page that is only an image
-def word_report() -> SyntheticFile       # design sentences, a table with a merged header, an image
+def word_report() -> SyntheticFile       # design sentences under a heading, a table with a merged header, an image
 def delimited(sep: str = ";", decimal_comma: bool = True, encoding: str = "cp1252") -> SyntheticFile
 def zipped(*files: SyntheticFile, name: str = "delivery.zip") -> SyntheticFile
-def template_workbook() -> SyntheticFile # a filled client-data template (client_template.build_template)
+def template_workbook() -> SyntheticFile # a filled client-data template (client_template.build_template), every sheet
 def delivery() -> tuple[SyntheticFile, ...]   # the set W, D0 and D6 run end to end
 ```
 
-  The PDF is written by hand (text and ruling lines as content-stream operators, Helvetica, latin-1), as
-  `delivery_eval.synthetic_pdf` does; C's contract test proves pdfplumber finds its tables and words.
-- **Unit tests per build** against the truth (`RegionGrid.from_rows` for D3; hand-built `ExtractResult`s for D4;
-  `LedgerView` over written lines for D0 and D5). **End to end** in W: every truth value of `delivery()` is in the
-  ledger with an anchor that resolves to its text, scored by D0 at 100 %, with agents off.
+  `synthetic.py` is L2: it writes its PDF itself (text and ruling lines as content-stream operators, Helvetica,
+  latin-1, the technique of `modeler_project.delivery_eval.synthetic_pdf`, which it must not import) and imports
+  nothing of `modeler_project`; C's contract test proves pdfplumber finds its tables and words. Every number of the
+  synthetic files is made up (`Exampleamide`).
+- **Unit tests per build** against the truth (`truth_grid` or `RegionGrid.from_rows` for D3; hand-built
+  `ExtractResult`s for D4; `intake_fixtures.write_truth` and `LedgerView` for D0, D5 and D6). **End to end** in W:
+  with the truth specs preloaded (warm cache), every truth value of `delivery()` is in the ledger with an anchor that
+  resolves to its text, scored by D0 at 100 %, silent loss 0, agents off; with an empty cache, what the rules reach is
+  measured and the rest counted.
 - **LLM**: always `modeler_agents.evals.scripted.Scripted`; tests assert on the tool answers (`ACCEPTED`,
   `REJECTED: ...`), because `run_tool_loop` never raises a handler error. A redaction test in D3 and again in W reads
   the messages the scripted model received. No live model in the suite; D0 scores a live model on the server.
@@ -2239,9 +2346,12 @@ def delivery() -> tuple[SyntheticFile, ...]   # the set W, D0 and D6 run end to 
   tests only).
 - **Chains and audit**: every store test tampers with a line and expects `verify` to find it; every decision test
   counts audit events (one per decision, none per fact).
-- Markers: `T-47` on all intake tests; `T-21` on agent and scorer tests; `T-05` where a chain, an audit event or a
-  signature is asserted; `T-42` for requirements; `T-13`, `T-45`, `T-49` in D1a. No new requirement id (the list is
-  locked).
+- Markers, by the requirement that owns the behaviour (`docs/validation/requirements.yaml`, from which CI builds the
+  validation pack): `T-47` on all intake tests; `T-21` on agent and scorer tests; `T-42` for requirements; `T-13`,
+  `T-45`, `T-49` in D1a; a hash chain or an audit event asserted: `F-404` (audit trail integrity) with `T-05`
+  (durable records); a signature asserted: `F-403` (signature binding) and `T-06` (step-up); a blinded study's values
+  withheld: `F-402`. `T-50` (the MAP signature) is not used. No new requirement id: the list is locked; T-47's
+  `functional_spec` describes today's intake only, and extending it is a locked change for the owner (§11.25).
 
 ## 11. Risks and open questions for the lead
 
@@ -2264,28 +2374,37 @@ Where a decision of the lead does not fit the code as stated, the nearest workab
    weighting on stays an SME decision. Until D1b merges, the main line sends `error_type` for a geometric SD and the
    old script labels it arithmetic, as it does today, with no numerical effect. *Recommended:* accept; do not hold the
    main line for D1b.
-5. **A spread reported with a geometric mean is ambiguous.** D1a labels an `SD` beside a geometric mean
-   `GeometricStdDev` (what `pksim.py` already does) and converts nothing. Whether it is a geometric SD factor, a
-   geometric CV or an arithmetic SD is the SME's call, as are other BLQ rules and the CV-to-GSD formula.
-   *Recommended:* keep the warning on the profile and in the MAP limitation until the SME answers.
+5. **A spread reported with a geometric mean is ambiguous.** The Delivery landing sends a spread with a geometric
+   mean only when the source said geometric SD (`geoSD`, `landing.spreads_landed`); a plain "SD", SE or CV% beside a
+   geometric mean lands no error and stays in the ledger (§6.6). The legacy template cannot say which (its
+   `VARIABILITY` is SD, CV%, SE), so for a legacy dataset D1a still labels an `SD` beside a geometric mean
+   `GeometricStdDev` (what `pksim.py` already does), converts nothing, and says in the warning that the label is an
+   assumption. Whether such an SD is a geometric factor, a geometric CV or an arithmetic SD is the SME's call, as are
+   other BLQ rules and the CV-to-GSD formula. *Recommended:* keep the warning on the profile and in the MAP limitation
+   until the SME answers.
 6. **D1a's contract change.** `Series.n_at` is in the OpenAPI snapshot, so D1a's branch fails that one test until the
    integrator refreshes it (§9): the only exception to "builders touch no shared file". `n_at` is set only when n
    varies, so stored datasets and existing answers do not change. BLQ "shown wherever the dataset is shown" needs a
-   view change: D1a puts the rule and count on the profile, the row and the MAP limitation; the study card shows them
-   in D6. *Recommended:* accept.
+   view change: D1a puts the rule and the count on the profile (the row carries the rule's name only, so a blinded row
+   shows no count) and in the MAP limitation; the dataset view and the study card show them in D6, withheld for a
+   blinded dataset. *Recommended:* accept.
 7. **A BLQ row without a spread drops its series' spread** (`client_data.py:156`, `:602`; `sheet_intake.py:158`),
    because `Series.error` cannot hold a missing entry. Nearly every summary table has a BLQ pre-dose row.
    *Recommended:* D6 widens `Series.error` to nullable entries with the view and the card (listed in §8.10), because
    the landing needs it; it is an API contract change, so it is not in D1a.
-8. **Urine and excreta (decision O).** The ledger keeps `excretion.*` facts; nothing lands; D5 raises
-   `EXCRETION_NOT_LANDED` and the requirement item `REQ-obs.urine` stays a project-scope gap. Interval against
-   cumulative and the dose basis are SME decisions. Salt-to-base and per-kg derivations are likewise not built.
+8. **Urine and excreta (decision O).** The ledger keeps `excretion.*` facts with their interval and `cumulative`
+   conditions; nothing lands; D5 raises `EXCRETION_NOT_LANDED` and the requirement item `REQ-obs.urine` stays a
+   project-scope gap. Interval against cumulative and the dose basis are SME decisions. `excretion.amount` is in mg or
+   µmol: no existing table holds a molar amount, so its unit is unchecked (§11.23). Salt-to-base and per-kg
+   derivations are likewise not built.
 9. **D0's key columns.** `time_unit` and the optional `Studies` and `Not data` sheets are added to the lead's list
    (a time needs its unit; the by-tag score and the coverage comparison need the other two). The stores adapter has
    no arm, so it joins on study plus arm folded into the id. *Recommended:* accept.
 10. **Silent loss is judged per delivery, not per study.** An unmapped table belongs to no study, so a study's
-    confirmation refuses while any file of its deliveries has silent loss. A person can exclude regions with one
-    reasoned decision per file. *Recommended:* accept; it is the literal reading of G2.
+    confirmation refuses while any file of its deliveries has silent loss, an outside item with a number nobody
+    accepted, or a value with no study nobody assigned. A person clears each with one reasoned decision per file (a
+    `RegionDecision`, of scope `outside` for outside items) or an `Assignment`. *Recommended:* accept; it is the
+    literal reading of G2.
 11. **Unruled PDF tables** are located as `table_like_text` and stay unread (silent loss) until a second table engine
     is registered or a person excludes them. Multi-table sheets with stacked headers will be mis-bounded sometimes:
     the mapping's `validate_spec` and the coverage count are the net. *Recommended:* accept and measure in D0.
@@ -2294,9 +2413,11 @@ Where a decision of the lead does not fit the code as stated, the nearest workab
 13. **Unsupported files (decision F).** They are stored and recorded before today's `ingest` refuses them; the upload
     still answers 422 (legacy unchanged), and the file is listed in Delivery with its reason. A file the new parser
     reads but today's `ingest` refuses (a `;`-separated or cp1252 CSV) has no client-file record: its datasets land,
-    its dissolution records cannot (`record_mapping` needs the record) and wait. A ZIP is expanded in `both`, so its
-    members also reach today's readers: the one place `both` changes a legacy answer (a ZIP is refused today).
-    *Recommended:* accept; widen today's CSV reading in a later build if the inventory shows such files.
+    its dissolution rows cannot (`record_delivery_rows` and `record_mapping` need the record) and wait. A ZIP is
+    expanded in `both`, so its members also reach today's readers: the one place `both` changes a legacy answer (a ZIP
+    is refused today; in `both` the answer lists one entry per accepted member, `<zip>/<member>`, and a 422 names a
+    refused member, §6.5). *Recommended:* accept; widen today's CSV reading in a later build if the inventory shows
+    such files.
 14. **The signature.** Meaning `Reviewed`, role `Writer`, record type `intake-confirmation`. The owner may prefer
     `Approved` or the reviewer role; changing it is one line. The landing is not atomic (several artifact commits):
     it is planned and checked before signing and is idempotent after (§6.6).
@@ -2321,6 +2442,131 @@ Where a decision of the lead does not fit the code as stated, the nearest workab
     why. No test project has one (probe). *Recommended:* before deploying, list every dataset's analyte against its
     brief on the server and add the synonyms that are the parent; the note tells the person what to do otherwise.
 22. **What blocks a confirmation beyond decision E's list.** E's list is kept as written. An unapproved mapping, a
-    required per-study item with no disposition, an open conflict and a missing landing field are *checks* at severity
-    `fail` in the rules file, so they block as "a failed check"; the first and the last can be overridden with a
-    reason, the other two are settled by a disposition or a choice. *Recommended:* the SME confirms the severities.
+    required per-study item with no disposition, an open conflict, a missing landing field, an unstated statistic,
+    spread kind or (multiple-dose) time reference, a negative or above-range value and an LLOQ in another unit are
+    *checks* at severity `fail` in the rules file, so they block as "a failed check"; all but the item and the conflict
+    can be overridden with a reason, those two are settled by a disposition or a choice. Outside numbers and
+    unassigned values block like silent loss (§11.10). *Recommended:* the SME confirms the severities.
+23. **Units: the nearest workable form of decision I.** "Checked against the tables that exist" holds per field
+    class: concentration, time and percentage against `validate`'s tables, mass against the dose units today's fact
+    check already accepts (`document_reading._MG_PER` and `mg/kg`, imported by `fields`, not retyped). No table
+    exists for ratios, PK-parameter units (`ng*h/mL`, `L/h`), product and dissolution attributes (rpm, mL, °C, µm),
+    body weight and height, or molar amounts: those units are kept verbatim and reported `UNIT_NOT_CHECKED` (info),
+    never failed, until the single unit library of plan §10.2 exists. The class comes from the field, never from the
+    unit text (the tables read `µm` as µmol/l). Decision I holds in the ledger (nothing refused, nothing renamed);
+    the landing writes only what the model's code accepts (§6.6: a time unit as min, h or day; a dose in mg; a
+    concentration unit `pbpk_domain.units` knows) and holds the rest back, listed, while the rest of the study lands.
+    *Recommended:* accept; the owner decides when the unit library is built.
+24. **The rules file is not locked.** `intake_rules.yaml` judges data for G4 to G6 but no locked pattern covers
+    `modeler_project/*.yaml` (nor `m15_draft.yaml`). Meanwhile a confirmation binds the file's version, status and
+    sha256, and C's test pins the sha256 to the version, so an unversioned edit fails the suite and shows on every
+    record. *Request to the owner:* add `packages/project-model/src/modeler_project/intake_rules.yaml` to
+    `locked-files.json` in a locked PR once D6 is merged.
+25. **T-47's specification describes today's intake only.** The trace markers use T-47 for the new pipeline and the
+    Part 11 ids for signatures, audit and blinding (§10), but `docs/validation/requirements.yaml` (locked) does not yet
+    describe the ledger, the coverage audit or the signed confirmation. *Request to the owner:* a later locked PR
+    extends T-47's `functional_spec`, or adds an id, for them.
+26. **The Delivery routes are mounted, not routed.** `delivery_routes.mount(router)` puts the routes on
+    `client_api.router`, so the locked response ratchet covers them with no locked change; the price is that the
+    import rule does not see `delivery_routes` as a router (`_defines_router`), so D6's test asserts it imports no
+    router module, and `GET /api/v1/admin/pipeline` (in `admin_api`, which `[response] routers` does not list) is
+    checked by D6's own test. *Alternative for the owner:* its own `APIRouter` and one line in `boundaries.toml`
+    `[response] routers` (a locked change). *Recommended:* accept the mount for this build.
+27. **Time: nominal, actual, occasions, time zero.** The spec reads nominal and actual time, the occasion (a day or
+    visit) and a stated time reference (first dose, last dose, the occasion's dose); the landing uses the actual times
+    when every point has one, else the nominal (as today), and names which. Not built: tying time zero to a dose event
+    of a regimen, and landing a study with several occasions (held back, `OCCASIONS_NOT_LANDED`), because a
+    multiple-dose study's regimen (`StudyRecord.dose_phases`) is entered by a person and the MS-01 split reads it. An
+    MD study with no stated time reference fails `TIME_REFERENCE_UNSTATED`. *Recommended:* accept; the SME says how
+    occasions should be judged before they land.
+28. **Dissolution and product data at the landing (plan L-h).** Dissolution lands as template-shaped rows with the
+    vessels or the mean, SD and n (`record_delivery_rows`); `ProfileKey` has no temperature or surfactant, so two runs
+    that differ only there are held back (`DISSOLUTION_RUNS_NOT_KEYED`). What of L-h lands: nothing yet for meal kcal
+    and fat (kept as study facts, not in `StudyRecord`), temperature, surfactant and the dose basis (salt or base);
+    the ledger keeps them all, anchored. Product attributes other than dissolution (strength, particle size, lots)
+    likewise stay in the ledger. *Recommended:* accept; widen `ProfileKey` and the product landing in a later build.
+29. **The spot check's reading of decision 6.** The plan's strata name "every digitized fact, every cross-file fact,
+    every derived fact with its inputs". As specified, digitized and derived values, cross-file scalar facts and link
+    facts are always verified; cross-file *table* values are a stratum, sampled like the rest, because a whole
+    workbook joined to a synopsis's study would otherwise put thousands of values outside the sample of 100.
+    *Request to the owner:* confirm this reading (one line of the rules file changes it).
+30. **Decision R and workbook cells.** "Exact on the written decimal" cannot hold for a workbook number cell: the
+    analyst writes what Excel shows (12.40) while the cell holds 12.4037. Nearest workable form: a workbook cell's
+    text is its stored value (§4.2), and a value from a workbook cell that matches the key only after rounding to the
+    key's written decimals is `found_rounded`, counted apart; PDF, Word and text cells stay exact. *Recommended:*
+    accept; the scientist sees both numbers.
+31. **Population covariates and regimens.** A special-population study records its defining covariate (`child_pugh`,
+    `egfr`, `gestational_week`, ages); the rules file proposes, for the SME, which one each population needs
+    (`POPULATION_COVARIATE_MISSING`, warn). One dose per arm cannot hold a loading and a maintenance dose: two dose
+    facts on one arm conflict, and a multi-phase regimen is entered by a person. *Recommended:* accept.
+32. **The compound as a subject.** Compound-level facts (a CPF id) belong to no study or product, so the project's
+    compound has its own card and signed confirmation (§6.6); decision E names a study's confirmation, and the same
+    record and signature serve the product and the compound. A compound value that `evidence.assess` holds lands
+    `PROPOSED` for a person, as `source_selection.yaml` requires. *Recommended:* accept.
+33. **Relations and intervals have no landing shape.** DDI ratios and test-against-reference ratios are relation facts
+    with their interval and the other arm; a CI or min-max pair of a summary table is kept as an interval. Neither
+    lands (a `Series` has no interval); the dataset's note names them. *Recommended:* accept; the DDI relation landing
+    is a later build (plan §8, "by evidence").
+34. **A non-parent profile in the plan view.** D1a's row for a metabolite carries no profile, so `plan.build_default`
+    shows it as kind `pk_parameters`; the row's note says it is a profile of that analyte. Changing the plan view's
+    kind is a plan change that MS-01's validator reads, so it is left for a later build. *Recommended:* accept.
+
+## 12. Review resolutions (revision 2, 2026-11-13)
+
+Three reviews checked revision 1 against the code: governance (GOV), science and data fidelity (SCI), parallel
+buildability (BUI). Each finding was checked in the code before it was accepted. "Fixed" means the contract now says
+it; where a finding offered a choice, the choice is named.
+
+| Id | Action | Where, and how |
+|---|---|---|
+| GOV-1, SCI-14, BUI-6 | fixed (nearest workable form of decision I) | §1.8, §4.3: the unit class is the field's; mass = `document_reading._MG_PER` + `mg/kg` imported by `fields` (no new table, no edit of `document_reading`); `known_unit`, `units_in`; `UNIT_NOT_IN_TABLES` only for classes with a table, `UNIT_NOT_CHECKED` (info) otherwise; `excretion.amount` unchecked; §11.23. BUI-6's `same_quantity` (conversion) is not added: conflicts compare canonical spellings and different units are a `unit` conflict, nothing converted (§6.3), which the reviewers' own rule "never converted silently" asks |
+| GOV-2, BUI-10 | fixed | `canonical`, `sha256_of` in `DI/anchors.py` (L2), imported by `intake_store`; alias dumping stated (§4.1); `synthetic.py` writes its own PDF (§10) |
+| GOV-3 | fixed | §6.6: `plan_landing` runs `evidence.assess`; a held item lands `PROPOSED`, is in the bound record (`held`) and on the card before signing; compound facts get their own subject (`compound`), §11.32 |
+| GOV-4 | fixed | §4.7: the record binds `{version, status, sha256}`; C's test pins the sha256 to the version; `mw_relative_tolerance`, `dose_multiple_relative_tolerance`, `ledger.time_resolution_min`, `landing.spreads_landed`, `landing.geometric_sd_sent_as`; `ConfirmDialog` shows the rules status (§8.10); lock request §11.24 |
+| GOV-5 | fixed, placed in C | the two names in `PD/spread.py` (C, L0), not `fit_spec.py`, because C's rules loader needs them before D1a merges; C's test checks the golden fixtures; D1a imports them; D1b stops on any other name (§4.8, §8.2, §8.3) |
+| GOV-6 | fixed | §10 markers, §7, §8.5, §8.6, §8.9, §8.10: `F-403`+`T-06`, `F-404`+`T-05`, `F-402`; `T-50` dropped; §11.25 |
+| GOV-7 | fixed | `RequirementDisposition` (kind `disposition` unchanged); §8.10: no view reuses a schema name, additions-only OpenAPI diff |
+| GOV-8 | fixed | §8.10 (no router import; two assertions), §11.26 |
+| GOV-9 | fixed | §9: one squashed commit per build with its CHANGELOG entry and, for D1a and D6, the snapshot and web types; green on every commit |
+| GOV-10 | fixed | §4.1 character sets, `ID_PATTERNS`, `check_id`; §5 no path from input; §8.10 `?anchor=` only for this project's files; C's test |
+| GOV-11 | fixed | §8.1: the default report holds no value, label or file name; `--with-values` for the server; a test |
+| SCI-1, BUI-1 | fixed | §4.4 role `condition`, `ColumnMap.condition`, `ExtractedRow.conditions`; §4.5 `TableExtract.conditions`, `condition_ix`; matrix, sequence and occasion as labels on `EntityRef` (BUI-1's form, so the landing, D0 and the overlap read one place; SCI-1 put matrix in the conditions); text-valued rows become facts; `intake_fixtures.write_truth` (C); synthetic two media and plasma beside urine (§10) |
+| SCI-2, BUI-3, SCI-13 | fixed | §4.4: `Cite` is relative only (a cell, or a context line `near`/`line`), no absolute locator; `Constant.text` dropped from the cache, code re-reads every use (`pattern`); `RegionGrid` and `RedactedTable` carry the context lines; `map_by_rule` sees the lines above; tests with two sheets of one layout |
+| SCI-3 | fixed | §4.2 `has_number` beside `is_numeric_text`; one count sentence in §6.2 and §6.4; `ColumnMap.cell_form`; synthetic "mean (SD)" table and "12.3*" |
+| SCI-4 | fixed | §4.4 roles `time_actual`, `time_unit`, `occasion`, `blq_flag`, `statistic`, `spread_kind`; `MappingSpec.time_reference`; landing rule as today; `TIME_REFERENCE_UNSTATED`; §11.27 |
+| SCI-5 | fixed | §4.5 `Fact` gains time, spread, n, interval, LLOQ unit; §6.3 `enter` inherits a superseded value's place; text rows as facts; the derived SD is a spread fact, the landing writes the original and D1a computes with the same function (§4.8) |
+| SCI-6 | fixed | `ColumnMap.lloq`, `lloq_unit`, `lloq_locator` kept; `lloq` facts per (study, analyte, matrix); `LLOQ_UNIT_DIFFERS`; `REQ-obs.bioanalytical` `per: [analyte, matrix]`; several LLOQs held back until a person's entry |
+| SCI-7 | fixed | §6.3: resolution inside the file first; a match in another file writes an anchored `link.study_id` fact; `cross_file` computed by the fold; confirmation per (study, file); ambiguous → `PendingLink`; refused → excluded |
+| SCI-8 | fixed | §8.2: `check_dataset` keeps `cross_file:` flags; the row's `joined_from`; `landing_limitations` names it |
+| SCI-9 | fixed | §6.2 `header_band` (bare numbers redacted, the band ends at the first row with two, a text table sends its first row only); findings redacted (`redact_findings`); context lines only outside table regions; the invariant tested on the chosen band |
+| SCI-10 | fixed | §6.2 `decimal_convention` by code (the legacy rule), `MappingSpec.decimal_comma` removed, separators kept in redaction, `parse_cell`'s readings stated, U+2212 |
+| SCI-11 | fixed | §4.4, §6.2: code reads text and names (`pattern`, `names_in`), units from the cited text (`UNIT_NOT_STATED`), prose labels checked with spans, the stored number is code's |
+| SCI-12 | fixed | §4.3 `choice_cues`, `read_choice` (whole-text equality, then cues; `other` needs the word); C's test reads the template's Studies row |
+| SCI-15 | fixed | §6.6 "What the landing writes": time unit, dose in mg, unknown concentration units held back; §11.23 |
+| SCI-16 | fixed | `statistic` None by default in spec, row and extract; `SPREAD_KIND_MISSING`; `STATISTIC_MISSING` at fail |
+| SCI-17 | fixed | `interval` with kind and level, roles `interval_low`, `interval_high`, `other_arm`; relation rows as facts; §11.33 |
+| SCI-18 | fixed | `Assignment`, `CoverageSummary.values_unassigned`, blocker `UNASSIGNED_VALUES`, the "study not stated" list and `/delivery/values:assign` |
+| SCI-19 | fixed | §6.1 one empty row joined (noted); `outside_numeric`, blocker `OUTSIDE_NUMBERS`, `RegionDecision` scope `outside`, page furniture |
+| SCI-20 | fixed, refined | §6.1: join only with the same caption again, a different caption starts a region. The suggested normalisation (removing numbers) would have joined "Table 6, Cohort 1 (10 mg)" and "Table 7, Cohort 2 (30 mg)"; numbers are kept, only "continued" is removed |
+| SCI-21, BUI-4 | fixed | §6.3 identity of an extract; delivery out of the content; repeat arrivals, re-parses and merges write nothing new; `ExtractRef.supersedes` a tuple; PDF region ids from box and first row; `RegionDecision.parser_version` |
+| SCI-22 | fixed | §6.6 and §4.7: digitized, derived, cross-file scalar and link facts always verified, cross-file table values a stratum (§11.29 asks the owner); a tick covers the tuple and the view highlights each cell; censored values are candidates |
+| SCI-23, BUI-13 | fixed | §8.10 routes per `{type}` (study, product, compound); `item_fields` for `REQ-form.release` and `REQ-vbe.rld_dissolution` |
+| SCI-24 | fixed | `landing.spreads_landed` and §6.6's table; D1a's brief and §11.5 on legacy data |
+| SCI-25 | fixed | §6.6: template-shaped rows through `client_data.record_delivery_rows` (D6), mean, SD and n kept; runs differing in temperature or surfactant held back; §11.28 |
+| SCI-26 | fixed | §2: overlap by source (file and sheet or page, plus the study key or an equal point) in `legacy_overlap`, `land` and `covered_by_confirmation` |
+| SCI-27 | fixed | §8.2: plasma wins after the parent; the note names the matrix left out; pinned |
+| SCI-28, BUI-9 | fixed (nearest workable form of decision R) | §4.2 a number cell's text is its stored value; §8.1 `found_rounded` for workbook cells; `Extracted.verbatim`; the runbook scores what lands; §11.30 |
+| SCI-29 | fixed | §4.3 `child_pugh`, `egfr`, `gestational_week`; `sequence` on `EntityRef`; `routing.population_covariates`; §11.31 |
+| SCI-30 | fixed | §8.2: the count stays in the profile, the row has the rule's name; `spread` carries its unit and is never scaled; a median row; the note; §11.34 for the plan view's kind |
+| SCI-31 | fixed | `NEGATIVE_VALUE`, `ZERO_AFTER_QUANTIFIABLE`, `ABOVE_RANGE` (`ParsedCell.uloq`); `SpotCheckDraw.heads` |
+| BUI-2 | fixed | `CellUse.numeric`, `CellUse.locator`; `GridCell.merged_from` and the merged-copy rule; D5 counts from outcomes and `Region.numeric_cells` (§6.4) |
+| BUI-5 | fixed | §5 `ChainedLog.append_if`, named in each brief that checks then appends; two-thread tests (C, D3, D4, W, D6) |
+| BUI-7 | fixed | `TruthTable.spec`; W's warm-cache and empty-cache tests; D6's e2e fixture preloads the specs; D3's acceptance executes every spec |
+| BUI-8 | fixed | `LedgerView` a per-request snapshot; extracts bound by id and hash; `ExtractRef.products`; compact `RegionOutcome`; `GET /delivery` computes no blockers |
+| BUI-11 | fixed, adjusted | `LedgerReader` and `LedgerView` move to `PM/ledger_view.py`; `ChainHead` stays in `ledger_models.py` (moving it into `intake_store` would make `ledger_models` import the store again for the `LedgerReader` Protocol) |
+| BUI-12 | fixed | §4.5 the digest has no status; §6.6 an interrupted landing completes before the blockers; the record binds the subject digest, not the global head |
+| BUI-14 | fixed | §6.2 `ProseCheck` with study and arm; `check_prose_fact` returns the label spans (`names_in`, not `text_in`, per SCI-11) |
+| BUI-15 | fixed | D0's acceptance line; W's coexistence test covers the legacy page routes; W's and D6's CHANGELOG texts say the e2e suite has not run here (§2, §8.9, §8.10) |
+| BUI-16 | fixed | `synthetic.truth_grid`; §4.1 identity: the PDF box is never compared by `resolve` or tests |
+| BUI-17 | fixed | §6.5 `receive` returns a list; `MemberRefusals`; the ZIP upload answer |
+| BUI-18 | fixed | §4.6, §6.4, §6.6: the coverage file is the current truth, recomputed by `exclude_regions` and `assign`; the run line is "at run end"; D0 reports both |
