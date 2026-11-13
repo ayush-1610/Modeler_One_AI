@@ -15,6 +15,60 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — client-data intake, D5: the coverage audit, per-study requirements and the validity checks (plan G2, G4, G5; contracts §6.4, §8.7) — science change
+
+- **What changed.** Five new modules in `modeler_project`:
+  - **`coverage`**
+    - `outcome_from` turns the mapper's `ExtractResult` into the compact `RegionOutcome` the pipeline stores. Its count of cells with a number is never below `Region.numeric_cells`. A cell set aside with no rule named is unaccounted.
+    - `file_coverage` counts silent loss: the unaccounted cells of mapped tables, plus every cell with a number in an unread table or `table_like_text` region.
+    - A mapped table is counted against its region's own count, so an extraction result that leaves cells out cannot hide them.
+    - A region is excluded by the rules file's `coverage.excluded_by_rule` (figures), by a `not_data` mapping or by a person's `RegionDecision`, always with the reason.
+    - A decision of scope `unread_prose` or `figures` applies only to prose or figures: only scope `regions` excludes a table.
+    - Prose is listed and not counted.
+    - An outside item with a number counts unless it is page furniture, is cited by a mapped region's constant, or is accepted by a decision of scope `outside`.
+    - `values_unassigned` counts a file's values that belong to no study, product or batch and are not a compound field (`ledger_view.is_unassigned`).
+  - **`study_routing`**
+    - A study's tags come from its own facts and from the brief.
+    - A choice the text does not clearly state stays as written ("unread") and is never coerced to "other". An unread routing tag (a route "intravenous", a food state "postprandial") is a schema gap naming the text, and a `when` that reads it is undetermined.
+    - A bool tag states presence or absence.
+    - It activates `routing.core`, the templates its project's applications select, and every `routing.by_tag` template its tags match.
+    - Schema gaps: route other, a genotype study, a large molecule, a study with no route, an unread routing tag, or a template the rules name that is not loaded.
+    - A requirement's `when` is judged with the study's own route and food state. A fasted study of a food-effect project is not treated as fed.
+    - A study's matrix comes only from its `matrix` facts (§4.5).
+  - **`study_requirements`**
+    - Each item in `routing.item_scope` is judged per study and per product by `routing.item_fields`: found, conflicting or missing, or the person's disposition (ask the client, literature, not needed).
+    - An LLOQ written on a study's BLQ cells ("<0.5") states its LLOQ, as the checks read it.
+    - A per-product id keeps its `@slug`.
+    - `request_lines` gives one client-request line per missing item.
+  - **`intake_checks`**
+    - The 43 codes of `checks.severity`. Each failure is a typed `CheckResult` with a stable `ck-` id and the rule it applied.
+    - `DUPLICATE_TIME` reads `ledger.time_resolution_min` as the ledger's conflicts do: at most that far apart, from the first time of a cluster.
+    - `NCA_MISMATCH` compares a reported Cmax or AUC with the one mean profile it reports (statistic, product, batch, period, occasion). Otherwise it says the report is not compared.
+    - `DISSOLUTION_RUNS_NOT_KEYED` compares the conditions the profile key leaves out by value.
+    - A check about something missing (a dose, a landing field, a time reference, a dissolution method) is tied to the data it judged. New data gives it a new id, so an earlier override does not carry over.
+    - Messages state the finding, its labels and its rule key, never a value, an LLOQ, a count of BLQ or other values, or an NCA result. The numbers stay behind the value ids, so a blinded study's withholding covers its checks.
+  - **`scorecard`**
+    - One scorecard per study, product and the compound.
+    - D5's blockers: silent loss, outside numbers, unassigned values, a schema gap, a failed check, an unconfirmed link.
+    - A missing required item blocks even when the checks were run without the requirements: the scorecard adds its `REQUIRED_ITEM_UNDISPOSED` itself. `scorecard` takes an optional `rules`.
+    - An override clears its check and leaves it listed. It never clears a schema gap, an open conflict or a missing required item; a disposition or a choice settles those.
+- **Why.** The owner's gates:
+  - G2: "no silent loss" becomes a number per file.
+  - G4: requirements are judged per study routing; a schema gap blocks release (the owner's decision 1).
+  - G5: every validity failure is typed and can be overridden with who, when and why.
+- **Impact.**
+  - No behaviour change today: nothing calls the new modules until W wires them (the `checks` and `coverage` stages) and D6 builds the cards on them.
+  - Every threshold and severity is read from `intake_rules.yaml` (UNVERIFIED, version 0.1), or from an existing threshold (`datasets.NCA_TOLERANCE`, `pbpk_domain.dissolution` `profile.max_percent`). The rules file and the locked templates are read, never edited.
+  - No unit is renamed or refused: a unit outside its table is reported (`UNIT_NOT_IN_TABLES`), and a unit of a class with no table is info (`UNIT_NOT_CHECKED`).
+  - No PK-Sim run, no model call, and every test value is made up (Exampleamide).
+  - Note for D6's end-to-end test: no study in the synthetic `delivery()` states a route, so each is a schema gap until a person enters a route. The workbook's outside number blocks its studies until a person accepts it.
+- **Open, for the integrator, the SME and the owner (not decided in D5).**
+  - The rules file has no list of statements of absence ("none", "n/a", "not genotyped") for `present` tests, and no species synonyms. So a co-medication "none" activates the DDI template, a genotype "not genotyped" is a schema gap, and species "Humans" activates FIH. A test records this.
+  - `fields.read_choice` reads "non-fasted" as fasted (C's fasted cue). A fix there flows into D5's handling of unread values with no D5 change.
+  - Should an unread scanned page, or an unreadable file, be silent loss, a blocker, or only listed (G2 says listed)?
+  - `REQ-fe.meal` has no `when` (a locked template).
+  - `DUPLICATE_TIME` mirrors D4's comparator: a shared helper would keep the two in step.
+
 ### Added — the intake ledger (D4): every value with its anchor; entities, conflicts, derived, relation and cross-file facts (2026-11-13)
 - **What:** `modeler_project.ledger` (`Ledger`, the write side of `LedgerView`), plus `ledger_entities`, `ledger_compute` and `ledger_links`. They implement contracts §6.3 on `IntakeStore` and the §4.5 models.
   - **`record_extraction`:**
