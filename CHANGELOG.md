@@ -15,6 +15,60 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the intake ledger (D4): every value with its anchor; entities, conflicts, derived, relation and cross-file facts (2026-11-13)
+- **What:** `modeler_project.ledger` (`Ledger`, the write side of `LedgerView`), plus `ledger_entities`, `ledger_compute` and `ledger_links`. They implement contracts §6.3 on `IntakeStore` and the §4.5 models.
+  - **`record_extraction`:**
+    - a mapped table's numeric rows become one content-addressed `TableExtract`: each value has its own locator and the stable id `tx-…#i`, and points at its own row's label and condition cells (§13, laid out as `write_truth` does);
+    - its constants, text-valued rows and relation rows become scalar facts. A relation row that states text keeps the text;
+    - every stated LLOQ becomes one `lloq` fact per (study, analyte, matrix). Its unit is the one its own text states; a token takes its column's unit, with the unit cell anchored. An LLOQ written as text is kept as written;
+    - its labels become entities.
+  - **`record_prose`:**
+    - a fact with no study label takes the file's study only when the file names exactly one;
+    - a label must come with its own span, and a number must be written in its quote, otherwise ValueError (a wiring bug), so a join is never anchored at a number.
+  - **`enter`:** a person's entry or correction, audited `intake.entry`. The correction inherits the corrected value's series. Two people correcting one value at once give one correction.
+  - **Other writes:** `exclude` (with a reason); `derive`; `link_files`; `apply_choice` (D6's `choose` calls it after writing the choice line); `retire_regions` (W calls it after a re-parse; reason "region gone after re-parse"); `retire_orphans`.
+  - **Read side:** `conflicts()` and `pending_links()`.
+  - **Writes are idempotent.** Every check-then-append runs under `append_if`, and the snapshot is refreshed after each write.
+    - An extract's identity is (file, region, mapping id), as §6.3 says. A table read again adds nothing: any delivery or run, after an entity merge, after a re-parse whose anchors hold, or under a new mapping version that reads every value the same.
+    - A new mapping version that reads a value differently, or a moved value, supersedes the earlier reading. A reading the new version no longer makes is set aside ("not read again"), and is set proposed again if it is read again.
+    - A table's fact stands at its slot with the study, arm, product and batch it is about, so one cell read for two arms is two readings.
+    - A person's exclusion is never undone.
+- **Science:**
+  - **Entity resolution** is by code, never by similarity: inside the file first, then a person-confirmed alias, then, for a study only, another file's study.
+    - Labels are compared by `label_key`: `name_key` with runs of digits kept apart, so "EXA-1-2" is not "EXA-12" and "230-23" is not "23023".
+    - An arm is resolved inside its study, and a batch inside its product. A study merge also merges its arms of the same name, and a product merge its batches.
+  - **Cross-file facts follow the owner's five conditions** (plan §7.6):
+    1. A study crosses files only through an anchored `link.study_id` fact, or through explicit `link.protocol` / `link.cross_reference` facts about the file's own study. A link fact on a study that another file's label, or a merge, already joined merges nothing more. An upload tag or a drug name never joins anything.
+    2. Two or more candidates give an ambiguous pending link, and nothing is joined. This holds for one label, and for all the explicit links of one study taken together.
+    3. Every joined value carries its three anchors.
+    4. The values wait for a `LinkConfirmation` per (study, file), which later values through the same link inherit. A refusal excludes them. Nothing is derived from a waiting value (nor from its n), and a derived fact whose input is refused, or waits again after a code merge, is set aside at once.
+    5. The flag is on every view. A derived fact carries none of its own (the fold's), so it exists only while its inputs are settled.
+  - **Derived facts** (`compute-1`, through `pbpk_domain.spread`):
+    - the SD of an arithmetic mean from its SE, with the n of that time point, else the series' n; none without an n;
+    - the SD from a CV%;
+    - nothing for a geometric mean or a median;
+    - a dose written in g or µg becomes a dose in mg.
+    Each derived fact names its inputs. None conflicts with its input, and none outlives an input that is gone.
+  - **Conflicts** are kept and listed, never resolved by code. A unit conflict is never converted.
+    - Not conflicts: values that differ only in their conditions or a label, a study's two names after a link, an alias or a merge, and `lloq` facts (two arms may state two LLOQs; D5 compares LLOQs per profile).
+    - A study's analyte named in two files is compared by its name. A time too large to convert to minutes is compared as written.
+- **Why:** gate G3 and findings U-c, L-g and L-h of the intake plan (2026-11-12). D5's checks, W's pipeline and D6's review read the ledger. The 2026-11-13 review's 13 findings are fixed, including two blockers: an explicit link that merged two studies of other files, and derived facts that bypassed the reviewer's link confirmation.
+- **Impact:**
+  - **Behaviour:** none yet. Nothing in a live path calls it until W wires it, and no route, job, locked file or shared model changes.
+  - **Tests:** 71 new tests (T-47, T-05, F-404), all on `ExtractResult`s built by hand from the synthetic truth. Each value of the ledger's writes is checked against `intake_fixtures.write_truth` for `delivery()` and the template.
+  - **For the integrator:**
+    - D6 calls `apply_choice` after a choice line, and `derive()` after a `LinkConfirmation` or an `Assignment`.
+    - W calls `retire_regions` after a re-parse, and `derive()` and `link_files()` in its compute stage.
+  - **Contract defects reported:**
+    - the fold should carry `cross_file`, and a refusal, from `derived_from` to a derived fact;
+    - `name_key` should keep digit-run boundaries;
+    - the evidence level of an extract kept across mapping versions follows the version that read it;
+    - `write_truth` resolves an analyte per file.
+  - **Known gaps:**
+    - The facts (constants) of a region gone after a re-parse are not retired, only its extract.
+    - An entity label with no locator gives an unanchored entity on each recording.
+    - Prose facts that a later agent run no longer states are not set aside.
+
 ### Added — three inert draft checklists: biologics, dermal, ocular (SD, 2026-11-13)
 - **What:** `pbpk_domain/requirement_drafts/` holds `biologics.yaml` (17 items), `dermal.yaml` (14) and `ocular.yaml` (12). Each one lists the client data to ask for and how to check it, written as items in the live requirement-item schema. Each file has:
   - `id: req-draft-<name>`, `version: "0.1-draft"`, `status: "DRAFT / UNVERIFIED"`, `applies_to: []`, `named_scientist: null`;
