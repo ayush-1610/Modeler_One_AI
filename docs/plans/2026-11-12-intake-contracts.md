@@ -2570,3 +2570,146 @@ it; where a finding offered a choice, the choice is named.
 | BUI-16 | fixed | `synthetic.truth_grid`; §4.1 identity: the PDF box is never compared by `resolve` or tests |
 | BUI-17 | fixed | §6.5 `receive` returns a list; `MemberRefusals`; the ZIP upload answer |
 | BUI-18 | fixed | §4.6, §6.4, §6.6: the coverage file is the current truth, recomputed by `exclude_regions` and `assign`; the run line is "at run end"; D0 reports both |
+
+## 13. The contract code as built (2026-11-13): where the code governs
+
+The contract code (§7) was written, reviewed from two sides (exactness against this text; robustness, data and
+guardrails) and fixed: 31 findings, 29 fixed, 2 rejected with a verified reason. Where the committed code differs from
+§4, §5 or §10, **the code governs**: import it, read its docstrings, and do not code from the text below it. Each
+difference is listed here so a builder who reads only this document is not misled.
+
+**Anchors (§4.1).**
+- `ID_PATTERNS` keys: `sha256`, `extract`, `value`, `region`, `mapping`, `file`, `line` (a store's line id),
+  `conflict` (`^cx-[0-9a-f]{10}$`) and `check` (`^ck-[0-9a-f]{12}$`). D6 checks `:choose` and `:override` ids with the
+  last two. `check_id` raises `KeyError` for an unknown kind (a bug, not bad input).
+- New public names: `RANGE` (the grammar's `range` rule) and `source_model.number_text` (§4.2's text of a stored
+  number).
+- Locator text is accepted only in its canonical spelling (`parse_locator(t)` formats back to `t`).
+  - Character offsets are `0|[1-9][0-9]*`; every other number is `[1-9][0-9]*`.
+  - A span with start > end is refused.
+  - A PDF figure needs both a page and a box.
+- `canonical()` refuses non-finite numbers (`ValueError`) and dumps nested pydantic models by alias.
+
+**Source model (§4.2).**
+- `NUMERIC_TEXT` is now
+  `^[<>≤≥]?\s*[-+]?(\d{1,3}([.,]\d{3})+([.,]\d+)?|\d+([.,]\d+)?|[.,]\d+)([eE][-+]?\d+)?\s*%?$`.
+  - A date (`15.01.2024`) and a version (`1.2.3`) are no longer bare numbers.
+  - Every example in §4.2 behaves as before.
+  - `is_numeric_text` strips outer whitespace first.
+- A stored number is a `GridCell` whose `value` is an int or float. A str value typed `number` is a bare number written
+  as text (PDF, Word, delimited). §6.2's "text cells" in `decimal_convention` means "cells with a str value".
+- `GridCell.merged_from` holds the origin's locator text (not a bare A1), the same for sheets, PDF and Word.
+- `RegionGrid.from_rows(rows, *, region_id="rg-0000000000", first_cell: str | None = None, ...)`:
+  - The default id passes `check_id`.
+  - Without `first_cell`, the table starts in column A below the caption and the lines above.
+  - A str cell is `text`; an int or float is `number`.
+- `RegionGrid` compares by value and is not hashable. `caption` holds one cell per caption line, so `Cite(near=caption,
+  line=k)` is the k-th line.
+- `SourceDocument`, `MappingSpec` and `TableExtract` accept their fields by name as well as by alias. `canonical()`
+  still writes `schema`.
+
+**Fields (§4.3).**
+- `known_unit` returns `None` for "not known". `""` is a real answer: the canonical spelling of a fraction of 1. Test
+  with `is None`.
+- `unit_class`, `known_unit` and `units_in` accept the role names `time` and `time_actual` (class `time`). D3 needs this
+  for `UNIT_NOT_STATED` on a time unit.
+- `field()` answers a CPF id when its base (before `@`) is an exact parameter-registry id or a member of a registry
+  family.
+  - `alt.foo` is refused.
+  - `phys.<anything>` and `bind.<anything>` are accepted, because the templates' own targets are known only as family
+    members.
+  - Refusing invented ids under a family needs a closed registry: an owner's decision, left open (11.35).
+- Each `FieldDef` has its own level. Arm-level fields include dose, route and food state. Relation fields are level
+  `observation`; link fields are level `study`.
+- A CoA's molecular weight lands on the compound card only as the registry id `phys.mw`. `molecular_weight` is an
+  analyte-level field, and with no study it is unassigned (resolves the clash between §4.3 and §6.6).
+
+**Ledger (§4.5) and records (§4.6).**
+- `TableExtract.entities` and `entity_locators` hold one entry per distinct (entity, label cells) pair, so each value
+  points at its own row's label cells.
+  - `conditions` and `condition_locators` hold one entry per distinct (conditions, cells) pair.
+  - A key-value table's label cell is written under the role `parameter`.
+  - **D4 writes extracts the same way.**
+- `ledger_view` exports more than §4.5 lists: `is_unassigned(entity, field)`, `is_compound_field(name)`,
+  `in_subject(entity, field, subject_type, subject)` and `is_spread_fact(...)`.
+- `LedgerReader.values(...)` and `digest(...)` take `compound: bool = False`, which selects the compound subject: no
+  study, product or batch, and a compound-level field.
+- `values(unassigned=True)` and `CoverageSummary.values_unassigned` mean "no study, product or batch, and not a
+  compound field". The list's name stays "study not stated". `values()` includes derived spread facts; use
+  `is_spread_fact` to leave them out (D0 does).
+- **Confirmation binding:**
+  - Only a subject's current confirmation binds: its latest one that no other confirmation names in `supersedes`.
+  - It binds a listed value only while that value still belongs to the subject after assignments and merges.
+  - The record's `excluded` applies to facts as well as extract values.
+- `LedgerView.refresh()` drops the per-request snapshot (D4's write side calls it). A fold reads each log once.
+- The ledger and record models refuse non-finite numbers (`allow_inf_nan=False`).
+- **Integrator decision:** `Assignment` gains an optional `product` target before D6 is built.
+  - Today a product- or batch-level value with no study, product or batch can be assigned only a study.
+  - The change is backward compatible (`study` or `product`, at least one) and is made to `intake_records` and
+    `ledger_view` by the integrator when W lands.
+
+**Stores (§5).**
+- Only a fragment with no newline is a torn tail. A whole line that is not a log line is corruption: `verify` reports
+  `hash`, `entries` raises, and `append` refuses.
+- A batch (`append_many`, or one `append_if`) is not atomic, so writers stay idempotent.
+- The stored line is the canonical body, so what is stored is exactly what is hashed.
+- `ChainedLog(path=None)` reads as empty and refuses to append.
+
+**Synthetic files and the truth (§10, §7).**
+- `TruthValue` gains defaulted fields after `occasion`: `statistic`, `spread`, `spread_kind`, `n`, `product`, `batch`,
+  `vessel`, `period`, `time_actual`, and `locators` (role → locator; label roles include `parameter`).
+- `pdf_report(*, unruled_table: bool = True)`. `delivery()` uses `unruled_table=False`, because an unruled table cannot
+  be mapped and would be silent loss in W's and D6's tests. D2 keeps the unruled page in its own tests.
+- `delivery()` is the messy workbook, the ruled PDF, the Word report and the delimited file.
+  - The scanned PDF is left out (it needs OCR).
+  - The template is left out (it is confirmed on its legacy card).
+  - The template's README sheet is a `not_data` truth table plus outside items.
+- The truth gives a value for every constant that names an entity (`study_id`, `treatment`, `analyte`, `product`,
+  `batch`): a scalar fact at its caption line or cited cell, as §4.4 and §6.3 say D4 writes them. The same naming
+  value therefore repeats, once per table that names it.
+- Prose truth values have `table == ""`. With agents off, W and D6 compare only the table values.
+- New public names: `DRUG`, `METABOLITE`, `PARSERS`, `README_SPEC`, `TRUTH_PARSER_VERSION` (`"1.0+truth"`), each
+  table's spec constant, and in `intake_fixtures` `truth_key(file, value)` (`"<file name>|<table>|<field>|<locator>"`,
+  the keys of `write_truth`'s answer), `PARSER_VERSION` and `TRUTH_MODEL`.
+- `write_truth` also writes:
+  - the delivery and file lines of `files.jsonl` (with `repeat=True` for the same bytes delivered again);
+  - the blobs;
+  - a `link.study_id` fact when a study label was first named in another file.
+  It resolves analytes, products and batches inside their own file first. A mapping's fingerprint there is
+  `sha256_of(spec)`, not D3's layout fingerprint.
+- **D2 reproduces these truth conventions** (the contract test checks the PDF ones against pdfplumber):
+  - A delimited file's sheet is named after the file stem.
+  - PDF words follow `extract_words()` defaults, numbered from 1 on each page.
+  - Word paragraphs and tables follow `Document.paragraphs` and `Document.tables`; Word merges are written
+    `r1c2:r1c3`.
+  - A sheet's context lines are the non-empty rows among the 3 rows above the caption and the 3 below the table,
+    within the table's columns.
+  - A PDF region id hashes `p:<page>/box:<x0>,<top>,<x1>,<bottom>/<the first row's non-empty texts joined by single
+    spaces>|<sha>`, with the box rounded to whole points.
+- The template's `Physchem_InVitro` `conditions`, `method` and `report_reference` columns are free text with no field
+  to hold them. Their spec maps them `ignore` with a reason. Whether a field is wanted is open (11.36).
+
+**D0's join key (§8.1): integrator decision.**
+- On the brief's key, the truth has 20 colliding keys in `delivery()` and 5 in the template. The causes:
+  - dissolution vessels;
+  - urine intervals, which differ only in their conditions;
+  - two products on one sheet;
+  - naming facts repeated per table;
+  - a dose stated both in a caption and in prose.
+- Decision:
+  - The `Key` sheet gains five optional text columns after `subject`: `product`, `batch`, `vessel`, `period` and
+    `conditions` (`name=value` pairs joined by `;`, names from `CONDITION_FIELDS`, in any order).
+  - `Extracted` gains the same five, defaulted to `""`.
+  - The join is on (study, arm, analyte, matrix, subject, product, batch, vessel, period, conditions, field, time in
+    minutes), still **never on the anchor**.
+  - Inside one join group, key rows and extracted values pair as multisets:
+    1. exact values first, so each repeat of the same value counts once;
+    2. then `found_rounded`;
+    3. then the rest in key-row order, as `wrong_value` or `wrong_unit`;
+    4. what is left over is `missing` or `unexpected`.
+  - `key_from_truth` fills the five columns from the truth.
+  - `key_compare` treats them as part of the key.
+
+**New open questions (for the owner or SME, added to §11's list).**
+- 11.35: should the parameter registry be closed, so that an invented id under a family (`phys.bogus`) is refused?
+- 11.36: does the template's free-text `conditions` column need a field, or does `ignore` with a reason stay?

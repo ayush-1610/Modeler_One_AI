@@ -1,0 +1,76 @@
+# Every threshold and list the client-data intake judges data with (plan 2026-11-12, contracts §4.7).
+# PROVISIONAL: UNVERIFIED until the SME signs. Read by modeler_project.intake_rules; a change here is a science
+# change (CHANGELOG entry, version bump, the owner's approval).
+version: "0.1"
+status: UNVERIFIED
+landing:
+  blq_rule: omit                  # the only rule: points below the LLOQ are left out of the fit and of NCA, the LLOQ kept
+  blq_rules: [omit]               # no other rule is offered until the SME chooses
+  parent_words: ["", parent]      # with the drug's name and its synonyms in the brief
+  matrix_as_plasma_with_warning: [blood, serum]
+  sd_from: {arithmetic_mean: [SE, "CV%"]}     # nothing is converted for a geometric mean
+  # Which (statistic, spread kind as the ledger has it) lands as which Series.error_kind; any other pair lands no error,
+  # stays in the ledger, is named in the dataset's note and raises GEOMETRIC_SPREAD_VERBATIM or SPREAD_NOT_CONVERTED
+  spreads_landed:
+    arithmetic_mean: {SD: SD, SE: SE, "CV%": "CV%"}
+    geometric_mean: {geoSD: SD}   # a source that SAYS geometric SD; a plain "SD" beside a geometric mean is ambiguous (§11.5)
+  geometric_sd_sent_as: GeometricStdDev       # the error type such a series is sent with (spread.ERROR_TYPES, §8.2)
+coverage:
+  excluded_by_rule:
+    figure: "figures are listed; a person digitizes one on request (the owner, 2026-11-10)"
+ledger:
+  time_resolution_min: 1          # two times this close (after conversion to minutes) are one time: conflicts, DUPLICATE_TIME
+routing:
+  core: req-core-small-molecule
+  by_tag:
+    - {tag: special_population, present: true, template: req-app-special-populations}
+    - {tag: species, not_in: [Human], template: req-app-fih}
+    - {tag: co_medication, present: true, template: req-app-ddi}
+    - {tag: food_state, in: [fed], template: req-app-food-effect}
+  gaps:
+    - {tag: modality, in: [large_molecule, other], reason: "no requirement template for this modality"}
+    - {tag: route, in: [other], reason: "no requirement template for this route"}
+    - {tag: genotype, present: true, reason: "no requirement template for a genotype study (APP-05)"}
+  item_scope:
+    study: [REQ-sys.demographics, REQ-obs.bioanalytical, REQ-fe.meal]
+    product: [REQ-form.release, REQ-vbe.rld_dissolution]
+  # found: `all` fields (and one of `any`) have active values; `per`: repeated for every such entity part of the
+  # subject's concentration values; `conditions`: every such value carries them. Proposals for the SME.
+  item_fields:
+    REQ-sys.demographics: {all: [population], any: [age_mean, age_min, weight_mean_kg, percent_female]}
+    REQ-obs.bioanalytical: {all: [lloq], per: [analyte, matrix]}
+    REQ-fe.meal: {any: [meal_type, meal_kcal]}
+    REQ-form.release: {all: [percent_dissolved], conditions: [apparatus, medium]}
+    REQ-vbe.rld_dissolution: {all: [percent_dissolved], conditions: [apparatus, medium, ph]}
+  population_covariates:          # a proposal for the SME: a study so tagged needs one of these (POPULATION_COVARIATE_MISSING)
+    pediatric: [age_mean, age_min]
+    hepatic_impairment: [child_pugh]
+    renal_impairment: [egfr]
+    pregnancy: [gestational_week]
+    elderly: [age_mean, age_min]
+checks:
+  composition_sum_tolerance_percent: 0.5    # the owner's design named 0.5 %; SME-governed (plan §6.4)
+  mw_relative_tolerance: 0.01     # a proposal: a written MW's rounding stays inside it, a salt form's MW does not (MW_INCONSISTENT)
+  dose_multiple_relative_tolerance: 0.01    # a proposal: dose / strength within this of a whole number (DOSE_NOT_MULTIPLE_OF_STRENGTH)
+  severity:                       # every code of intake_checks.CHECKS; fail needs an override, a disposition or a fix
+    fail: [ONE_LLOQ_PER_PROFILE, BLQ_WITHOUT_LLOQ, LLOQ_UNIT_DIFFERS, DUPLICATE_TIME, UNIT_MISSING, UNIT_NOT_IN_TABLES,
+           MATRIX_NOT_PLASMA, ANALYTE_MISSING, MATRIX_MISSING, DOSE_MISSING, INFUSION_TIME_MISSING, LANDING_FIELD_MISSING,
+           STATISTIC_MISSING, SPREAD_KIND_MISSING, TIME_REFERENCE_UNSTATED, NEGATIVE_VALUE, ABOVE_RANGE,
+           DISSOLUTION_METHOD_INCOMPLETE, DISSOLUTION_OUT_OF_RANGE, CONFLICT_OPEN, REQUIRED_ITEM_UNDISPOSED,
+           MAPPING_NOT_APPROVED, MW_INCONSISTENT]
+    warn: [SPREAD_NOT_CONVERTED, GEOMETRIC_SPREAD_VERBATIM, N_MISSING, NCA_MISMATCH, DOSE_BASIS_UNSTATED,
+           DOSE_NOT_MULTIPLE_OF_STRENGTH, CROSSOVER_PERIOD_MISSING, DISSOLUTION_LOT_NOT_CLINICAL, DISSOLUTION_RUNS_NOT_KEYED,
+           COMPOSITION_SUM, TIMES_NOT_INCREASING, EXCRETION_NOT_LANDED, OCCASIONS_NOT_LANDED, ZERO_AFTER_QUANTIFIABLE,
+           POPULATION_COVARIATE_MISSING, MARKED_VALUE]
+    info: [ANALYTE_NOT_PARENT, BLQ_PRESENT, DUPLICATE_TABLE_AND_PLOT, UNIT_NOT_CHECKED]
+spot_check:
+  size: 100                       # the owner's decision 6
+  min_per_stratum: 2              # a proposal, so that every stratum is seen: for the SME
+  strata: [table_kind, unit_class, blq_form, cross_file]   # unit class: the field's (fields.unit_class)
+  unit_classes: [mass, concentration, time, percentage, ratio]
+  # never sampled, always verified. The templates mark no item as deciding the model, so this list is a proposal for
+  # the SME: the numeric study facts the study record takes
+  always_verify_fields: [dose, n, lloq, strength_mg, infusion_time_min, dosing_interval_h, n_doses]
+  always_verify_methods: [digitized, derived]   # every value read from a figure; every derived value, with its inputs
+  always_verify_cross_file: [scalar, link]      # a cross-file scalar fact and each link fact; cross-file TABLE values are
+                                                # the stratum cross_file (§11.29: the owner confirms this reading)

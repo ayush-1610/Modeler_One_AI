@@ -15,6 +15,33 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the intake rebuild's shared contract code: anchors, source model, fields, mapping spec, ledger, stores (2026-11-13)
+- **What:** the types and stores that the parallel intake builds import, written exactly from §4, §5 and §10 of
+  `docs/plans/2026-11-12-intake-contracts.md`. It was reviewed from two sides (31 findings: 29 fixed, 2 rejected
+  with a verified reason). The new contract §13 lists every place where the code governs over the text.
+  - `modeler_intake`:
+    - `anchors` (immutable locators with one canonical spelling, ids, `canonical`/`sha256_of`);
+    - `source_model` (cells, regions, grids, the numeric-text rule);
+    - `fields` (the field vocabulary, unit classes, choice cues);
+    - `mapping_spec` (mapping spec v2, models only);
+    - `synthetic` (the shared synthetic files: a messy workbook, a text-layer PDF with a table continued over two
+      pages, a scanned page, a Word report, a delimited file, the template; each with its truth).
+  - `pbpk_domain.spread`: the SE/CV% → SD formulas; `ERROR_TYPES` is harvested from the golden fixtures, not
+    invented.
+  - `modeler_project`:
+    - `intake_store` (hash-chained JSON-lines logs under the project's `intake/` folder, with a lock, a torn-tail
+      repair, `append_if`);
+    - `ledger_models`, `intake_records` and `ledger_view` (the fold: supersede, exclude, assignments, merges,
+      cross-file links, confirmations);
+    - `intake_fixtures.write_truth` (the synthetic truth written into a ledger, for tests);
+    - `intake_rules.yaml` with its loader.
+- **Science:** `intake_rules.yaml` (version 0.1, sha256 pinned in its test) holds proposed severities and routing
+  checks. It is marked **UNVERIFIED** and awaits SME review. Nothing reads it in a live path yet.
+- **Why:** eight builds run in parallel without talking to each other, so they need one committed set of types (plan
+  §8, contract §7).
+- **Impact:** none on behaviour. No existing module imports the new code, no route or job uses it, and no locked file
+  is touched. Tests: 87 new (T-47; the store tests also T-05/F-404); architecture tests green.
+
 ### Docs / Infra — the intake rebuild: the owner's decisions, the contracts draft, the PDF library (2026-11-12)
 - **Plan revision 3** (`docs/plans/2026-11-12-client-data-intake-redesign.md`): the owner approved the merged design
   with conditions and answered the eight questions (its §10). The gates are locked (§7.1): the owner's six, plus file
