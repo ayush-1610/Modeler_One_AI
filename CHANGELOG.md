@@ -15,6 +15,66 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the engine labels a geometric SD as geometric (D1b; locked `run_pi.R`; science; pending approval and server evidence, 2026-11-13)
+Plan `docs/plans/2026-11-12-client-data-intake-redesign.md` (L-c); contract `docs/plans/2026-11-12-intake-contracts.md`
+§8.3. **A locked-file change** (owner's decision 7): its own PR from `origin/main`, merged only with the owner's
+approval, a named reviewer who owns `run_pi.R` and one engineer who did not write it. Not merged until the server
+evidence below exists.
+- **Before:** `run_pi.R`'s `build_dataset` labelled every observed SD `ArithmeticStdDev`, in the value's unit. A
+  geometric SD (a dimensionless factor) reached PK-Sim labelled as an arithmetic SD in, say, µg/l.
+- **What changed (science, labelling only):** `build_dataset` reads the observed block's optional `error_type`.
+  - Absent: `yErrorType` `ArithmeticStdDev` and `yErrorUnit` the value's unit, the same two calls in the same order as
+    before. The spec names the type only when it is not arithmetic (`pbpk_domain.fit_spec.pi_observed`, D1a).
+  - `GeometricStdDev`: the dataset's `yErrorType` is geometric and no error unit is set (ospsuite makes a geometric
+    error column dimensionless).
+  - Any other name stops the start: `unknown error_type: <name>`. The two names are `pbpk_domain.spread.ERROR_TYPES`,
+    harvested from the golden fixtures' `AuxiliaryType`. `GeometricStdDev` as an R `yErrorType` was read in the
+    ospsuite 12.4.4 source (`DataErrorType`), not run: this change has not yet run on PK-Sim.
+  - The new comments name `pbpk_domain.spread.ERROR_TYPES` (the intake contract code) and `pi_observed`'s
+    `error_type` (D1a). Neither is on `origin/main` at f096f58, this branch's base: both come with the intake
+    integration line. Contracts §11.4 recommends holding neither for the other, so if this PR merges first, `main`'s
+    comments name code it gets only when that line merges. The behaviour does not depend on them, and the snippet is
+    mandated byte for byte, so the comments stay.
+- **Impact:** no fit changes, by reading the package source. The PI package's (2.2.0) default residual weighting is
+  "none", so neither the SD nor its type enters the objective. `run_pi.R` still sets no `objectiveFunctionOptions` and
+  no weighting (an SME decision, contracts §11.4). A spec without `error_type` (every spec today, and every
+  arithmetic SD after D1a) builds the same dataset as before. Until D1a sends the key, the new branch is not reached.
+- **Locked-file hash:** `run_pi.R`'s SHA-256 refreshed in `docs/architecture/locked-files.json` (one line, nothing
+  else). No golden file, Dockerfile or Python file is touched.
+- **Evidence still to produce on the server**, with the image rebuilt from `services/engine-worker/Dockerfile`:
+  1. the engine-image gate (`engine-image.yml`) green. Its golden fits send no SD (`sd = list()` in
+     `golden/pi_smoke.R` and `golden/pi_relative_group.R`), so it shows the script loads and fits as before, not the
+     new branch;
+  2. a before/after record for one fixture with an arithmetic SD, on the old image and then the new: the `pi_spec`
+     bytes, the dataset's `yErrorType` and unit, the objective and the estimates identical before and after;
+  3. the same fixture with `error_type: "GeometricStdDev"`: `yErrorType` reads back `GeometricStdDev`, no error unit
+     is set, and the objective equals the arithmetic-labelled run.
+- **How items 2 and 3 are read:** the objective and the estimates are in each start's `pi_result.json`; the
+  dataset's error type and unit are not. They come from this harness, run in the same image on the same
+  `pi_spec.json`, its output attached to the PR next to each `pi_result.json` (sourcing the script defines its
+  functions without starting a fit, because of its `sys.nframe()` guard):
+  `Rscript -e 'source("/engine/run_pi.R"); spec <- fromJSON("pi_spec.json", simplifyVector = FALSE);
+  ds <- build_dataset(spec$output_mappings[[1]]$observed); str(list(type = ds$yErrorType, unit = ds$yErrorUnit,
+  sd = ds$yErrorValues)); print(unique(dataSetToDataFrame(ds)$yErrorUnit))'`.
+- **Open for the reviewer and the owner (not in this change):**
+  - `run_pi.R`'s "Spec fields" header (the `observed` block) does not list `error_type`: §8.3 limits this change to
+    `build_dataset`. Proposed, only with the owner's and the reviewer's say-so, in this PR: one header line,
+    `error_type (optional): "GeometricStdDev"; absent = ArithmeticStdDev (read only with sd[])`, and the hash
+    refreshed again, so the manifest diff stays one line.
+  - `pi_result.json` does not report the error type each dataset was built with. Once D1a sends the key, a geometric
+    SD run on an image older than this change is labelled arithmetic with no trace in the result (no numerical
+    effect: the weighting is "none"). Echoing the applied type, as the engine echoes the log scale it applied (which
+    `fitting_activities.assess_round` uses to detect an older engine), would close that gap. It is outside
+    `build_dataset`: a follow-up locked change, for the owner to decide.
+- **Rollback:** a new commit, not a plain `git revert` of this change, which would also delete this entry:
+  `git revert --no-commit` this change's commits, `git checkout HEAD -- CHANGELOG.md` to keep this entry, check the
+  hash with `uv run pytest tests/architecture/test_locked_files.py`, and add the revert's own entry (what was reverted
+  and why). It is itself a locked-file change (its own PR, the owner's approval). The Python side needs no change: it
+  keeps sending the key, which the old script ignores; it labels every SD arithmetic, as before, with no numerical
+  effect.
+- **Tests:** none can run the script here (no R, no PK-Sim in the build container); the edit was checked by reading.
+  `tests/architecture` (the lock test with the new hash) and the fit-spec and fitting tests stay green.
+
 ### Fixed — the page no longer stops scrolling at random (2026-11-11)
 The owner, 2026-11-11, testing in Safari: the page "stops scrolling in between, randomly".
 - **The page lock under a dialog is the dialog's own:** it was a CSS rule, `html:has(.dialog-backdrop) { overflow:
