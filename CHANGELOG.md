@@ -15,6 +15,79 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the value-level scoring harness for client deliveries, D0 (G1) (2026-11-13)
+- **What:** a harness that scores a delivery value by value against a key written by the scientist's analysts
+  (plan 2026-11-12 G1, decision 8; contracts §8.1 and §13). D0 writes no real key.
+  - `modeler_project.value_key`: the value key, a workbook (`value-key/2`: Header, Key, optional Studies and Not data).
+    - The Key sheet has §13's five optional label columns: product, batch, vessel, period and conditions.
+    - It also has optional columns checked beside the join: occasion, sequence, statistic, spread, spread_kind and n.
+    - Every cell is text. A typed number, date or bool is refused with its cell named, so 001, 0123, 12.40 and 1:30
+      are never re-typed. The key's shape is checked on load.
+    - `where` reads a sheet's name or pages: "12", "p. 12", "2-3", "2, 5".
+    - A conditions value may hold ";".
+    - Also: the template, `write_key`, and `key_from_truth` (tests only).
+  - `modeler_project.value_score`:
+    - `from_ledger`: the ledger's active values, derived spread facts left out, with uloq, the LLOQ's unit, statistic,
+      spread, n, occasion and sequence.
+    - `from_stores`: the baseline of today's pipeline.
+    - `score`:
+      - The join is §13's and never uses the anchor. The stores' study+arm id is folded for `--source stores` only.
+      - Inside a join group, rows and values pair as multisets. A value of the row's own file is taken first, across
+        the whole group.
+      - Verdicts: found, found_rounded, wrong_value, wrong_unit, missing, unexpected.
+      - Diagnostics that change no verdict: attributes that differ, missing rows read under other labels, and key
+        places where nothing was read.
+    - `timings`, `coverage_totals` and `render`.
+    - The read-only command `python -m modeler_project.value_score`. It refuses to score if an intake log's hash chain
+      is broken, unless `--accept-broken-chain` is given; the break is then printed at the top of the report.
+  - `modeler_project.key_compare`: compares two analysts' keys. Each disagreement is listed with both row numbers,
+    including attributes and the Studies sheet (names, routing tags).
+  - `docs/evaluations/value-key-runbook.md`.
+- **Science (evaluation rules):**
+  - Values compare exactly on the written decimal (12.40 equals 12.4).
+  - A number with one separator before three digits (1,234 or 1.234) is never guessed. It is settled by the other
+    numbers of its table, as contracts §6.2 settles one from its column; otherwise the key row is listed as unusable.
+    Space-grouped numbers (1 234,5) are read.
+  - Decision R's nearest workable form (§11.30): a workbook number cell that equals the key only once rounded to the
+    key's decimals is `found_rounded`, counted apart.
+    - A tie rounds half-even or half away from zero; the second is how a spreadsheet shows it (12.25 under 0.0 is
+      12.3). The contract text says half-even.
+    - PDF, Word and delimited-text values stay exact. A value with no anchor is judged by its file name.
+  - Tolerances are relative and off by default. The tolerance for digitized values is separate.
+  - Expected forms:
+    - A BLQ form expects a censored value, and "<x" also expects its LLOQ (in the LLOQ's unit).
+    - ">x" expects the uloq x.
+    - A missing token with nothing read is found ("absent"), counted apart.
+    - Units compare through the field's unit table; nothing is converted.
+  - Codes (subject, vessel, period, occasion, sequence) keep their punctuation: 1-01 and 10-1 are two subjects.
+    Names compare by name_key.
+  - The statistic, spread, spread kind, n, occasion and sequence a key row states are checked on the paired value and
+    counted apart.
+  - `link.*` facts are never unexpected. An `lloq` fact at a "<0.5" cell is never unexpected when it holds that cell's
+    LLOQ.
+  - There is no pass threshold in code: G1 sets the target after the baseline. No ruleset, acceptance criterion or
+    MS-01 content changes.
+- **Why:** G1 asks for the pipeline to be scored value by value (by field, study and sub-domain) against a key written
+  by people who did not build it. Today's v1 YAML key scores no number.
+- **Impact:**
+  - New modules, a command and a runbook only. Nothing in a live path imports them. `delivery_report.py` and its v1
+    YAML key are unchanged. No locked file is touched.
+  - The default report and the `--json` without `--with-values` are what leaves the server. They hold counts, field
+    names, verdicts, methods and masked anchors:
+    - a study by its first key row;
+    - a routing tag by its vocabulary word or its Studies row;
+    - a sheet's name inside an anchor by its number in the report, never a hash;
+    - a value's id only when it is a ledger id, any other by its number in the report;
+    - coverage without file names or free-text reasons.
+
+    They hold no value, label, file name or analyst. Tests assert this on the ledger and stores sources, in Markdown
+    and JSON. `--with-values` is for the server only.
+  - Today's stores keep labels another way than the key's convention: a dose with no analyte, a PK parameter with its
+    dataset's analyte. Under §13's exact join the baseline shows these as missing plus unexpected. The report counts
+    them apart (34 of the template's 63 missing rows). Read the baseline's omissions with that count beside them.
+- **Tests:** 100 (T-47, T-21). The synthetic truth scores 100 % with every stated statistic, spread and n checked
+  (delivery 237/237, template 69/69).
+
 ### Added — client-data intake, D5: the coverage audit, per-study requirements and the validity checks (plan G2, G4, G5; contracts §6.4, §8.7) — science change
 
 - **What changed.** Five new modules in `modeler_project`:
