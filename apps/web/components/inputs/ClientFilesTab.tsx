@@ -4,8 +4,10 @@
 // areas. The head adds files; under it the AI reading line, then the one table of files: one row and one status per file
 // (what it is, where its data land, how far it was read, what it still needs from you, counted from the one list of work).
 // A row opens on everything about that file: the delivery's reading of it (its tables and texts, loose numbers, stage
-// times, "Read again"), its AI reading, and its sheets with their reading form. Then the delivery itself (its layouts to
-// check, the values to link, its studies and products). No other list of files is kept on Inputs (plan §2, rule 4).
+// times, "Read again"), its AI reading, and its sheets with their reading form. Then the delivery itself (its studies and
+// products). What a file still needs from you (its layouts to check, its values to link, its numbers not read) opens To
+// do's batch tables, where it is settled with the other files' (plan §2.1, slice 4: one home per decision); the file's
+// own view here keeps its tables one by one. No other list of files is kept on Inputs (plan §2, rule 4).
 
 import Link from "next/link";
 import { Fragment, useRef, useState } from "react";
@@ -162,7 +164,8 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
           </tbody>
         </table>
       </div>
-      {mapping && <MappingReview projectId={projectId} mappingId={mapping} onClose={() => setMapping(null)} />}
+      {mapping && <MappingReview projectId={projectId} mappingId={mapping} onClose={() => setMapping(null)}
+                                 returnFocus={() => document.querySelector<HTMLElement>('[data-testid="files-table"] tr.open .files-name')} />}
     </>
   );
 }

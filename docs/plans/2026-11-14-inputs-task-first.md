@@ -196,3 +196,44 @@ before the next starts.
     `GET /delivery/source`; the layout vocabulary without a mapping; a pH-solubility table entry; and `POST /evidence`
     checking a word value against its vocabulary (it keeps "albumin" for `bind.partner` and shows it "in the model",
     which the model builder then refuses: the page now offers only PK-Sim's names).
+
+- Within this plan, slice 4 as built (batch work, focus and speed; frontend only, 2026-11-14):
+  - **Homes.** A table layout, a file's values to link and its numbers not read are settled in To do's batch tables:
+    their work items open To do's row (`where` is To do; they still count in Client files, so no count changed). The
+    Delivery section's own "Table layouts to check" and "Values not linked" lists are gone (one home per decision,
+    §2.1); Client files keeps the per-file view (each table's "Not data…", "Restore…", "Read this table…", the layout
+    chip, the per-note forms) and says that the rest is in To do. Its list of studies and products stays for slice 3.
+  - **One destination in the bulk bar** is "All to one place" (study and arm, or product and batch, and the analyte, for
+    every picked file); by default each picked file goes where its row says (its suggestion, its alias answer or its
+    editor), so two files of one study can be given two arms in one batch. Either way one `values:assign` per
+    destination; a study, arm, product, batch or analyte named new by an earlier call of the batch is then used by its id.
+  - **Suggestions** fill only existing studies and products (named whole in the file's tables' titles, the lines read
+    with them, or its name) and arms (an arm of the study the title names; else the words that set the file's name
+    apart from the other files of the same study; else the sheet form's name past the study's), never a new study,
+    except that "No" to "Same study as 230-23?" fills a new study under the sheet form's own name. A blinded file's
+    titles are withheld by the API, so only its name is read.
+  - **The collision guard** compares the subject and period labels of individual values going to one study in one arm
+    (no arm counts as one) with one analyte; it also checks what the study already holds in that arm when its card is in
+    the page's cache (it is not read for the check), and refuses before anything is sent, offering an arm each.
+  - **Numbers not read:** per-cell "not data" (API 3) waits for the owner; tables with numbers no column picks up offer
+    "Check its layout" (marking a whole read table as not data stays in the file's own view). What is marked in To do is
+    listed under the table with "Restore…" for the visit, since a file's row leaves the list once nothing is left.
+  - **Missing compound values:** a missing row of /inputs carries no unit, so the unit is typed as the source states
+    it, as in the row's own form (pre-filled only where the API gives one); the web supplies no unit. The names are the
+    rows' ids in words (`lib/words.ts`). A pKa and an elimination value are then settled under "Settle disagreements".
+  - **Not-data layouts approved together:** offered whenever one or more layouts read a table as not data; each
+    approval's note is the person's note followed by "approved with N other layouts that read a table as not data"
+    (nothing added when there is only one, as on both seed projects). "Kept, not used by the model" is said only of
+    excretion layouts (the intake check EXCRETION_NOT_LANDED says so); product attributes and occasions are not tagged.
+  - **Reason:** the kit's `ReasonForm` is `Why` (components/delivery/shared.tsx), so every decision form on Inputs has
+    the chips and "use last" (kept per project and kind of decision in the tab's session storage; the kind is the
+    button's word unless a form names it). The button stays enabled except where a form's own fields disable it (the
+    layout form); pressed with the reason missing it says "Give the reason: it is kept on the audit trail."
+  - **Cache writes:** the cards of subjects whose own row a decision changed are read again; the others are marked stale
+    and read when next shown, so a card open in Client files keeps its delivery-wide blockers (loose numbers) as they
+    were until it is shown again (slice 3's gate line reads them from the page). The step bar is redrawn only after the
+    compound values are entered (it follows the readiness), not after a delivery decision.
+  - **A delivery whose files name no study yet:** its clean-up stays under "Blocks nothing" as slice 2 counts it; the
+    reason now says so ("Its files name no study or product yet …") instead of "confirmed with the sheet form".
+  - Not in this slice: the review bar (‹ Previous · Next › over the cards, with slice 3's cards), paging of a file's
+    values (the first six, then all), per-cell "not data" (API 3).

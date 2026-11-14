@@ -36,10 +36,16 @@ async function project(request: APIRequestContext) {
   return projectId;
 }
 
-/** The unassigned values of one file, by the key their link form's test ids carry (the table's extract id). */
+/** "Blocks nothing" unfolded, where it is: a delivery whose files name no study yet holds up no signature, so its values
+ *  to link are listed there until one of them is linked. */
+async function unfold(page: Page) {
+  const fold = page.getByTestId("todo-group-tidy");
+  if (await fold.count() && !(await fold.evaluate((el) => (el as HTMLDetailsElement).open))) await fold.locator("summary").click();
+}
+
+/** A file's row in To do's link table, by the delivery's id of the file (plan 2026-11-14 slice 4: one row per file). */
 function keyOf(page: Delivery, file: string) {
-  const value = page.unassigned.find((v) => v.file === file)!;
-  return value.id.split("#")[0].replace(/[^A-Za-z0-9-]/g, "-");
+  return page.deliveries.flatMap((d) => d.files).find((f) => f.name === file)!.file_id;
 }
 
 test("loose values are linked with new arms and an analyte, a table set aside is restored, an unread table gets its first layout",
@@ -58,58 +64,65 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   const section = page.getByTestId("delivery-section");
   await expect(section.getByTestId("delivery-total-files")).toHaveText("2", { timeout: 120_000 });
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
-  await expect(section.getByTestId("delivery-unassigned")).toBeVisible();
   let delivery = await read();
   const files = delivery.deliveries.flatMap((d) => d.files);
   const odd = files.find((f) => f.name === "odd-profile.csv")!;
   const table = odd.regions[0];
   expect([table.state, table.mapping_id]).toEqual(["unread", null]);
 
-  // --- the loose profile, linked to a new study with a new arm and a new analyte, with the reason ---
+  // --- the loose profile, linked from its row of To do's link table (slice 4) to a new study with a new arm and a new
+  // analyte, with the reason ---
+  await page.getByTestId("tab-todo").click();
+  const links = page.getByTestId("link-table");
+  await unfold(page);
   const loose = keyOf(delivery, "loose-profile.csv");
-  const group = section.getByTestId(`delivery-unassigned-${loose}`);
-  await expect(group.getByTestId(`assign-study-${loose}`)).toHaveAccessibleName(/^Study for the \d+ values of loose-profile\.csv$/);
-  await group.getByTestId(`assign-study-${loose}`).selectOption(NEW);
-  await group.getByTestId(`assign-new-study-${loose}`).fill("ABC-9");
-  await group.getByTestId(`assign-arm-${loose}`).selectOption(NEW);
-  await group.getByTestId(`assign-new-arm-${loose}`).fill("Reference");
-  await group.getByTestId(`assign-analyte-${loose}`).selectOption(NEW);
-  await group.getByTestId(`assign-new-analyte-${loose}`).fill("M1");
-  await group.getByTestId(`assign-${loose}-why`).fill("the protocol: study ABC-9, reference arm, metabolite M1");
+  await links.getByTestId(`link-open-${loose}`).click();
+  const group = links.getByTestId(`link-editor-${loose}`);
+  await expect(group.getByTestId(`link-study-${loose}`)).toHaveAccessibleName(/^Study for the \d+ values of loose-profile\.csv$/);
+  await group.getByTestId(`link-study-${loose}`).selectOption(NEW);
+  await group.getByTestId(`link-new-study-${loose}`).fill("ABC-9");
+  await group.getByTestId(`link-arm-${loose}`).selectOption(NEW);
+  await group.getByTestId(`link-new-arm-${loose}`).fill("Reference");
+  await group.getByTestId(`link-analyte-${loose}`).selectOption(NEW);
+  await group.getByTestId(`link-new-analyte-${loose}`).fill("M1");
+  await group.getByTestId(`link-edit-${loose}-why`).fill("the protocol: study ABC-9, reference arm, metabolite M1");
   await shot(page, "1-link");
-  await group.getByTestId(`assign-${loose}-submit`).click();
-  await expect(section.getByTestId("delivery-unassigned")).toHaveCount(0);
+  await group.getByTestId(`link-edit-${loose}-submit`).click();
+  await expect(links).toHaveCount(0);
   delivery = await read();
   const study = delivery.subjects.find((s) => s.label === "ABC-9")!;
   expect(study.arms.map((a) => a.label)).toEqual(["Reference"]);
   const m1 = delivery.analytes.find((a) => a.label === "M1")!;
   expect(m1).toBeTruthy();
+  await page.getByTestId("tab-files").click();
   await expect(section.getByTestId(`delivery-subject-${study.subject}`)).toContainText("ABC-9");
 
-  // --- the unread table, marked as not data, then restored with the reason: the page is not read again for it ---
-  await section.getByTestId(`delivery-file-toggle-${odd.file_id}`).click();
-  await section.getByTestId(`delivery-region-aside-${table.region_id}`).click();
-  await section.getByTestId("delivery-region-aside-why").fill("a scratch table, not data");
-  await section.getByTestId("delivery-region-aside-submit").click();
-  await expect(section.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
-  await expect(section.getByTestId(`delivery-region-decision-${table.region_id}`))
+  // --- the unread table, marked as not data in its file's own view, then restored with the reason: the page is not read
+  // again for it ---
+  await page.getByTestId("file-toggle-odd-profile.csv").click();
+  await page.getByTestId(`delivery-file-toggle-${odd.file_id}`).click();
+  await page.getByTestId(`delivery-region-aside-${table.region_id}`).click();
+  await page.getByTestId("delivery-region-aside-why").fill("a scratch table, not data");
+  await page.getByTestId("delivery-region-aside-submit").click();
+  await expect(page.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
+  await expect(page.getByTestId(`delivery-region-decision-${table.region_id}`))
     .toContainText(/Marked as not data by .+, \d{4}-\d\d-\d\d \d\d:\d\d: a scratch table, not data/);
-  const restore = section.getByTestId(`delivery-region-restore-${table.region_id}`);
+  const restore = page.getByTestId(`delivery-region-restore-${table.region_id}`);
   await expect(restore).toHaveAccessibleName("Restore the table odd-profile of odd-profile.csv");
   await restore.click();
   let pageReads = 0;
   const counting = (r: { method(): string; url(): string }) => { if (r.method() === "GET" && /\/delivery(\?|$)/.test(r.url())) pageReads += 1; };
   page.on("request", counting);
-  await section.getByTestId("delivery-region-restore-why").fill("it is the client's profile after all");
-  await section.getByTestId("delivery-region-restore-submit").click();
-  await expect(section.getByTestId(`delivery-region-decision-${table.region_id}`)).toHaveCount(0);
-  await expect(section.getByTestId(`delivery-region-aside-${table.region_id}`)).toBeVisible();     // not read, as before
+  await page.getByTestId("delivery-region-restore-why").fill("it is the client's profile after all");
+  await page.getByTestId("delivery-region-restore-submit").click();
+  await expect(page.getByTestId(`delivery-region-decision-${table.region_id}`)).toHaveCount(0);
+  await expect(page.getByTestId(`delivery-region-aside-${table.region_id}`)).toBeVisible();     // not read, as before
   page.off("request", counting);
   expect(pageReads).toBe(0);                                  // the answer was written into the page
   await shot(page, "2-restored");
 
   // --- "Read this table…": its first layout in the form; a bad choice is shown beside its column ---
-  const readIt = section.getByTestId(`delivery-region-read-${table.region_id}`);
+  const readIt = page.getByTestId(`delivery-region-read-${table.region_id}`);
   await expect(readIt).toHaveAccessibleName("Read the table odd-profile of odd-profile.csv");
   await readIt.click();
   const dialog = page.getByTestId("read-table-dialog");
@@ -179,26 +192,29 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   await expect(mapping.getByTestId("mapping-status")).toHaveText("waits for approval");
   await mapping.getByTestId("mapping-close").click();
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
-  await expect(section.getByTestId(`delivery-region-mapping-${table.region_id}`)).toContainText("waits for approval");
-  await expect(section.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
-  await expect(section.getByTestId("delivery-unassigned")).toBeVisible();
+  await expect(page.getByTestId(`delivery-region-mapping-${table.region_id}`)).toContainText("waits for approval");
+  await expect(page.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
 
-  // --- its values: a new study by a name that exists is refused in the server's words; then that study, a new arm and
-  // the analyte named before ---
+  // --- its values, in To do's link table: a new study by a name that exists is refused in the server's words, on the
+  // file's row; then that study, a new arm and the analyte named before ---
+  await page.getByTestId("tab-todo").click();
+  await unfold(page);
+  await expect(links).toBeVisible();
   delivery = await read();
   const later = keyOf(delivery, "odd-profile.csv");
-  const next = section.getByTestId(`delivery-unassigned-${later}`);
-  await next.getByTestId(`assign-study-${later}`).selectOption(NEW);
-  await next.getByTestId(`assign-new-study-${later}`).fill("abc-9");
-  await next.getByTestId(`assign-${later}-why`).fill("the same study, its test arm");
-  await next.getByTestId(`assign-${later}-submit`).click();
-  await expect(next.getByTestId(`assign-problem-${later}`)).toContainText("ABC-9");
-  await next.getByTestId(`assign-study-${later}`).selectOption(study.subject);
-  await next.getByTestId(`assign-arm-${later}`).selectOption(NEW);
-  await next.getByTestId(`assign-new-arm-${later}`).fill("Test");
-  await next.getByTestId(`assign-analyte-${later}`).selectOption(m1.id);
-  await next.getByTestId(`assign-${later}-submit`).click();
-  await expect(section.getByTestId("delivery-unassigned")).toHaveCount(0);
+  await links.getByTestId(`link-open-${later}`).click();
+  const next = links.getByTestId(`link-editor-${later}`);
+  await next.getByTestId(`link-study-${later}`).selectOption(NEW);
+  await next.getByTestId(`link-new-study-${later}`).fill("abc-9");
+  await next.getByTestId(`link-edit-${later}-why`).fill("the same study, its test arm");
+  await next.getByTestId(`link-edit-${later}-submit`).click();
+  await expect(links.getByTestId(`link-row-problem-${later}`)).toContainText("ABC-9");
+  await next.getByTestId(`link-study-${later}`).selectOption(study.subject);
+  await next.getByTestId(`link-arm-${later}`).selectOption(NEW);
+  await next.getByTestId(`link-new-arm-${later}`).fill("Test");
+  await next.getByTestId(`link-analyte-${later}`).selectOption(m1.id);
+  await next.getByTestId(`link-edit-${later}-submit`).click();
+  await expect(links).toHaveCount(0);
   delivery = await read();
   expect(delivery.subjects.find((s) => s.subject === study.subject)!.arms.map((a) => a.label)).toEqual(["Reference", "Test"]);
 });

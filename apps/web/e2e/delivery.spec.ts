@@ -69,7 +69,12 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await page.getByTestId(`file-toggle-${pdf.name}`).click();
   await expect(page.getByTestId(`delivery-regions-${pdf.file_id}`)).toHaveCount(0);
   await expect(section.getByTestId("delivery-files")).toHaveCount(0);                        // no second list of the files
-  await expect(section.getByTestId(`delivery-mapping-${waiting}`)).toContainText("To decide");   // it holds up the study's signature
+  // the layout that waits is checked in To do's queue (plan 2026-11-14 slice 4), where it holds up the study's signature
+  await expect(section.getByTestId("delivery-in-todo")).toContainText("1 table layout to check");
+  await page.getByTestId("tab-todo").click();
+  await expect(page.getByTestId("todo-group-layouts").getByTestId(`delivery-mapping-${waiting}`)).toBeVisible();
+  await expect(page.getByTestId("todo-group-layouts")).toContainText("To decide");
+  await page.getByTestId("tab-files").click();
   await shot(page, "1-coverage");
 
   // --- a value's source: its cell highlighted, with its time ---
@@ -119,14 +124,21 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await mapping.getByTestId("mapping-close").click();
   // its file is read again with the approved layout; nothing waits, and nothing was lost
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
-  await expect(section.getByTestId("delivery-mappings")).toHaveCount(0);
+  await expect(section.getByTestId("delivery-in-todo")).not.toContainText("table layout");
   await expect(section.getByTestId("delivery-total-silent-loss")).toHaveText("0");
   await expect(card.locator('[data-code="MAPPING_NOT_APPROVED"]')).toHaveCount(0);
 
   // --- the study's blockers, each settled with its decision and the reason ---
   // the stray note with a number: not data
-  await card.getByTestId("delivery-outside-accept-0-why").fill("a working note, not data");
-  await card.getByTestId("delivery-outside-accept-0-submit").click();
+  // the stray note with a number: marked as not data with its file's other loose numbers, in To do (slice 4)
+  const workbook = files.find((f) => f.name.endsWith(".xlsx"))!;
+  await page.getByTestId("tab-todo").click();
+  await page.getByTestId(`notread-mark-open-${workbook.file_id}`).click();
+  await page.getByTestId(`notread-mark-${workbook.file_id}-why`).fill("a working note, not data");
+  await page.getByTestId(`notread-mark-${workbook.file_id}-submit`).click();
+  await expect(page.getByTestId(`notread-${workbook.file_id}`)).toHaveCount(0);
+  await page.getByTestId("tab-files").click();
+  await section.getByTestId(`delivery-subject-open-${study.subject}`).click();
   await expect(card.getByTestId("delivery-blocker-OUTSIDE_NUMBERS")).toHaveCount(0);
   await expect(section.getByTestId("delivery-total-outside")).toHaveText("0");
   // the route no file states

@@ -14,7 +14,7 @@ const FOCUSABLE = [
   "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-export function Dialog({ title, onClose, size, above, dismiss, testId, children }: {
+export function Dialog({ title, onClose, size, above, dismiss, testId, returnFocus, children }: {
   title: ReactNode;
   /** What Escape does. Leave it out for a dialog that must be answered with its buttons. */
   onClose?: () => void;
@@ -25,17 +25,25 @@ export function Dialog({ title, onClose, size, above, dismiss, testId, children 
   /** Open over another dialog (the signing step-up opens over an escalation's decision). */
   above?: boolean;
   testId?: string;
+  /** Where the focus goes when the dialog closes and the element that opened it is gone (a row a decision in the dialog
+   *  settled, plan 2026-11-14 slice 4): the list's heading, say. Read when the dialog closes. */
+  returnFocus?: () => HTMLElement | null;
   children: ReactNode;
 }) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
+  const fallback = useRef(returnFocus);
+  fallback.current = returnFocus;
 
   useEffect(() => {
     const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     panel.current?.focus();   // the panel itself: the title is read first, and no button is one key press from firing
-    return () => { if (before?.isConnected) before.focus(); };
+    return () => {
+      if (before?.isConnected) before.focus();
+      else fallback.current?.()?.focus();
+    };
   }, []);
 
   // the page behind is held still while any dialog is open, counted so nested dialogs release it only when the last
