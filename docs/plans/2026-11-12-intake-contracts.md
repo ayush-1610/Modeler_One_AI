@@ -2808,3 +2808,23 @@ difference is listed here so a builder who reads only this document is not misle
   decision made before a re-parse that renames a PDF region stops applying (the region shows as unread again,
   visibly). The seam review's interface lens (rules implemented twice, type agreement between builds) has not run; it
   is part of the final review of the whole change.
+
+**W as merged (2026-11-14), as the code governs.**
+- **PM (`intake_files`, `intake_pipeline`):** `open_delivery`, `record_arrival`, `record_stored`, `note_legacy`, `files`,
+  `deliveries`, `file_record`; `runs`, `enqueue`, `take`, `recover`, `pending`, `unfinished`, `sweep`, `run_file`, and
+  the ports `LlmPorts`, `MapRequest`, `MapAnswer`. `LlmFailure` (W's own) is what a port raises: its tables or prose
+  stay `unread` with the error, the deterministic stages still run, and the run ends `done`.
+- **API (`intake_pipeline_jobs`):** `enabled`, `open_delivery`, `receive`, `sweep`, `kick`, `drain`, `ports`,
+  `MemberRefusals`. `kick` also starts for a run left `running` by a job that stopped.
+- **Prose needs a model.** With agents off the tables' truth is read whole (100 %), and the prose values stay unread
+  and counted. §8.9's "every truth value with no model" holds for tables only.
+- **No re-run path yet.** `enqueue` refuses bytes whose run is done under the current parser version, and `sweep` takes
+  only files with no run. D6-API adds it for `/delivery:run` and for a mapping approved, rejected or edited:
+  `intake_pipeline.enqueue(..., again=True)` queues a run for a file whose latest run is done. That is the one edit
+  D6-API makes in W's file.
+- **A rejected mapping's earlier values stay active** in the ledger while the coverage shows the table unread, until the
+  file runs again. D6 queues that run on reject and shows the table as waiting until it is done.
+- **Today's readers, unchanged and noted:** `client_data.ingest` refuses a delimited file that is not UTF-8 (the
+  pipeline reads it); `library.add` refuses `.zip`, so a ZIP reaches the pipeline only through Add data.
+- **Browser tests in a worktree** need a real `apps/web/node_modules` (Turbopack does not build through a symlink).
+- W has not had its independent two-lens review; it is part of the final review.
