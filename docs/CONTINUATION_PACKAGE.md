@@ -236,11 +236,17 @@ reviewed).
   for prose, the template's own README text. Full suite after them: 2974 passed, only the 15 baseline failures.
   **Not yet done:** the independent review of the ledger and mapper fixes, and the interface-lens seam review; both
   are part of the final review.
-- **In progress:** W (the switch `intake_pipeline` legacy / both, the arrival hook, the run queue with stage times,
-  the `intake` job): source built on `build/w`, tests and browser specs being finished. D6-PM (review decisions, spot
-  check, signed confirmation, landing, pipeline health): built on `build/d6pm`, under adversarial review.
-- **Next:** merge D6-PM and W; D6-API (the `/delivery` routes and admin pipeline route); D6-web (the Delivery section,
-  the admin pipeline page, `delivery.spec.ts`); then the final adversarial review of the whole change.
+- **Merged since (2026-11-14):** W (the switch `intake_pipeline` legacy / both, the arrival record, the run queue with
+  stage times, the `intake` job; its 44 tests and seven browser specs pass with the default `both`; it has NOT had its
+  independent review) and D6-PM (review decisions, spot check, signed confirmation, landing, pipeline health; an
+  independent reviewer found 5 blockers, 9 majors and 11 minors, all fixed with a failing test first; the main landing
+  path matches the truth 132 of 132). API contract after D6-PM: `Series.error` and `SeriesPoints.error` items may be
+  null. Full suite: 3080 passed, only the 15 baseline failures.
+- **In progress:** D6-API on `build/d6api` (worktree `/home/user/wt/w`): the `/delivery` routes, the admin pipeline
+  route, `DatasetPoints.blq_rule` / `blq_omitted`, and the re-run path `intake_pipeline.enqueue(..., again=True)`.
+- **Next:** D6-web (the Delivery section, the admin pipeline page, `delivery.spec.ts`; needs a real
+  `apps/web/node_modules` in its worktree); then the final adversarial review of the whole change (W, the ledger and
+  mapper seam fixes and the interface lens included); then the merge into `main`.
 - **Working mode:** the session's usage limit stopped wide agent fan-outs three times mid-work. Since 2026-11-14 one
   or two agents run at a time, each committing often; branches under `/home/user/wt/` hold unmerged work only while
   the cloud container lives, so merged work is pushed at once.
