@@ -9217,7 +9217,7 @@ export interface components {
         /** Series */
         Series: {
             /** Error */
-            error?: number[] | null;
+            error?: (number | null)[] | null;
             /**
              * Error Kind
              * @default none
@@ -9257,7 +9257,7 @@ export interface components {
          */
         SeriesPoints: {
             /** Error */
-            error: (number)[] | null;
+            error: (number | null)[] | null;
             /** Error Kind */
             error_kind: string;
             /** N */

@@ -53,6 +53,22 @@ def _latest(ws: Workspace, dataset_id: str) -> ObservedDataset:
     return ObservedDataset.from_content(version.content)
 
 
+def revise_dataset(ws: Workspace, dataset: ObservedDataset, *, by: str, reason: str,
+                   mol_weight: float | None = None) -> ObservedDataset:
+    """Write an existing dataset's content again, as a new version (never a second id for the same profile): a later
+    Delivery confirmation whose plan gives the dataset other content than it holds (`intake_landing.land`: the study's
+    label after a merge, a spread the intake rules no longer land). The content is checked as a proposal is; who
+    proposed it and its state and decision stay as they are (the caller decides it again), and a reason is required."""
+    if not reason.strip():
+        raise DatasetError("a revision needs a reason")
+    current = _latest(ws, dataset.id)
+    revised = check_dataset(dataset, mol_weight=mol_weight).model_copy(update={
+        "state": current.state, "proposed_by": current.proposed_by, "proposed_at": current.proposed_at,
+        "decided_by": current.decided_by, "decision_reason": current.decision_reason})
+    ws.commit(ArtifactKind.DATASET, dataset.id, revised.to_content(), actor=by, reason=f"revised: {reason}")
+    return revised
+
+
 def decide_dataset(ws: Workspace, dataset_id: str, *, state: EvidenceState, reason: str, by: str) -> ObservedDataset:
     if not reason.strip():
         raise DatasetError("a decision needs a reason")

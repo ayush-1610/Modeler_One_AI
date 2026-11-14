@@ -42,7 +42,10 @@ class Series(BaseModel):
     statistic: Literal["individual", "arithmetic_mean", "geometric_mean", "median"] = "arithmetic_mean"
     times: tuple[float, ...]
     values: tuple[float | None, ...]          # None = below LLOQ
-    error: tuple[float, ...] | None = None
+    # the spread of each point, aligned with `times`; None at a point that states none (a BLQ row with no SD), so one
+    # missing spread no longer drops the series' others (contracts §11.7). The readers judge only the kept points
+    # (`profile_landing.judged_sd`: no SD reaches the fit unless every kept point has one)
+    error: tuple[float | None, ...] | None = None
     error_kind: Literal["SD", "SE", "CV%", "none"] = "none"
     n: int | None = None
     # n per time point, aligned with `times`, set only when the stated n differ (None: one n, in `n`, the first stated).

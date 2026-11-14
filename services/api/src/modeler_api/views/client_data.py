@@ -240,7 +240,7 @@ class SeriesPoints(View):
     statistic: str
     times: list[Number]
     values: list[Number | None]                # None: below the LLOQ, or withheld (blinded, D-15)
-    error: list[Number] | None
+    error: list[Number | None] | None       # a point that states no spread (a BLQ row) holds None
     error_kind: str
     n: int | None
     stats: dict[str, Number | None] | None     # pbpk_domain.nca: c_max, t_max, auc_last, t_last, t_half, auc_inf, points, blq

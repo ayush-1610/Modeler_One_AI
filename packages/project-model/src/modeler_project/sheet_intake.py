@@ -154,10 +154,11 @@ def _points(checked: MappingReview, form: SheetForm) -> dict[str, Any] | None:
     for name, group in sorted(by_series.items()):
         group = sorted(group, key=lambda o: o.time)
         sds = [o.sd for o in group]
+        # every point has its SD, but a point below the LLOQ may have none: None in its place (contracts §11.7)
+        spread = any(x is not None for x in sds) and all(o.sd is not None or o.below_lloq for o in group)
         series.append({"name": name, "statistic": group[0].statistic, "times": [o.time for o in group],
                        "values": [None if o.below_lloq else o.value for o in group],
-                       "error": sds if all(x is not None for x in sds) else None,
-                       "error_kind": "SD" if all(x is not None for x in sds) else "none",
+                       "error": sds if spread else None, "error_kind": "SD" if spread else "none",
                        "n": next((o.n for o in group if o.n is not None), None)})
         if (n_at := _n_at([o.n for o in group])) is not None:   # n per time, as the dataset holds it (only when n varies)
             series[-1]["n_at"] = list(n_at)

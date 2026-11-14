@@ -15,6 +15,49 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — client-data intake, D6-PM: review by exception, the spot check, the signed confirmation and the landing (plan G6; contracts §6.6, §8.10; 2026-11-14) — science change
+- **What changed.** Three new modules in `modeler_project`, and edits to `datasets`, `client_data`, `sheet_intake` and `dataset_register`:
+  - **`intake_review`**
+    - The page's lists: studies, products and the compound with counts and confirmation state; the "study not stated" values.
+    - A subject's scorecard, and a person's decisions: override, disposition, choice, link, assignment, region. Each is one line of `review.jsonl` and one audit event with the line's hash.
+    - `assign` and `exclude_regions` recompute and store the coverage of the files concerned.
+    - The spot check: a deterministic draw from the ledger's state. Size, strata and always-verified classes come from `intake_rules.yaml`.
+      - Ticks are accepted once.
+      - A draw is stale after a change of the subject's values, or after an override that names a value it does not hold.
+      - A failed tick stays failed in every later draw until the value is corrected, superseded or excluded.
+    - `blockers` gives every refusal of a confirmation. A file of the subject's deliveries that is still being read, whose run failed, or that has no run or no coverage file is silent loss (G2). A value that another study's accepted dataset still holds blocks.
+    - `bound_record` is the canonical record a signature binds. `prepare_confirmation` checks every refusal before anything is signed.
+    - `record_confirmation` refuses on its own what the workspace and the ledger show, a subject with no active value, and an intake log whose hash chain does not verify.
+    - Blinding (D-15): a blinded study's values, verbatims, spreads, intervals and LLOQs are withheld, as are the cells of its source that hold a number or a value's mark (BLQ) and the digits of its title. Its spot check cannot be drawn and its confirmation is refused.
+  - **`intake_landing`**
+    - A signed confirmation becomes accepted client datasets, dissolution rows and evidence, each written by its owner. What the model's code does not accept is held back and listed while the rest lands.
+    - The study record is read from every active value. A field whose name carries its unit (`infusion_time_min`, `dosing_interval_h`, `strength_mg`, `percent_dissolved`) lands only in that unit; nothing is converted at the landing.
+    - A dissolution condition that must be a number and is not holds its run back.
+    - A person's LLOQ entry wins for the profile it names.
+    - A value written as text is left out and named. One subject's PK parameter keeps its subject. A study's facts with no place in the study record are listed.
+    - Nothing is loaded twice:
+      - overlap with the legacy card is decided by source;
+      - an earlier confirmation's datasets are set aside through merges and the `supersedes` chain;
+      - a legacy dissolution reading is replaced only where every profile it holds is landed.
+    - A later plan that gives an existing dataset id other content is written as a new version by the register.
+    - `land` is idempotent, completes an interrupted landing, and refuses a plan that is not the confirmation's.
+  - **`intake_health`**: pipeline health counters per company and in all, from the run lines only.
+  - **`datasets`**: `Series.error` may hold None at a point that states no spread.
+  - **`client_data`, `sheet_intake`**: a BLQ row without a spread no longer drops its series' spread. A template spread with no `variability_kind` is named (`SPREAD_KIND_MISSING`). `record_delivery_rows` validates before it writes and always rebuilds the register.
+  - **`dataset_register`**: `revise_dataset` (a dataset's content written again as a new version, by its owner).
+- **Why.** Gate G6: a person reviews exceptions, verifies a stratified sample plus every model-deciding and overridden value (the owner's decision 6), and signs one record that binds exactly what was reviewed. Nothing reaches the model inputs without that signature, nothing is silently lost (G2), and nothing is loaded twice.
+- **Reviewed before the merge.** An independent reviewer traced 132 of 132 series points of the synthetic delivery from the ledger to the landed datasets (value, BLQ, spread and kind, n, statistic, subject, arm, analyte, matrix) and found the main path sound. It also found 5 blockers, 9 majors and 11 minors at the edges; each was reproduced by a failing test and fixed. The blockers: a unit beside a unit-named field ignored ("2 h" landed as 2 min); a text dissolution condition crashing the landing after the signature; values in two accepted datasets after a merge or a re-assignment; an unread file not blocking; an override after the draw left unverified.
+- **Impact.**
+  - No route calls these modules until D6-API is merged.
+  - The landing rules are science: which spreads land, which units land, how an LLOQ is chosen, what is held back. Every threshold and list is read from `intake_rules.yaml` (UNVERIFIED, version 0.1); the rules file is not edited.
+  - **API contract:** `Series.error` and `SeriesPoints.error` items may be null (a point that states no spread). `docs/api/openapi.json` and `apps/web/lib/api-types.ts` are regenerated in this commit; the dataset view already reads a missing entry as none.
+  - Legacy reading: a series keeps its spread when only a BLQ row states none; nothing else changes for existing datasets.
+  - No PK-Sim run, no model call; every test value is made up (Exampleamide).
+- **Known gaps.**
+  - A landed subject left with no active value keeps its accepted datasets until a person rejects them on their card.
+  - Study facts typed on a Delivery dataset's Inputs card (other than demographics) are overwritten by the next landing whose plan differs; enter them in the ledger.
+  - Two concurrent landings can each append the same Delivery recipe to a file; the landed line, datasets and events stay single.
+
 ### Added — the intake pipeline runs beside today's readers (build W, 2026-11-14) — science change
 - **What:**
   - **The switch.** `Settings.intake_pipeline` (`MODELER_INTAKE_PIPELINE`): `both` (the default) or `legacy` (today's readers only; nothing is written under `intake/`; the rollback).
