@@ -224,7 +224,9 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
   const forTab = (t: Tab) => todo.filter((i) => (i.tab ?? "compound") === t);
   // a group to confirm is settled on its own card, above the panel: listed in To do, not twice in the panel
   const panelTodo = (t: Tab) => forTab(t).filter((i) => i.kind !== "confirm");
-  const rows = (t: Tab) => (view.compound as Row[]).filter((r) => r.tab === t);
+  // a row to fill ("empty": a model input the data plan owns with no value yet) is shown by slice 5 of the task-first
+  // plan; until then each tab lists what it listed
+  const rows = (t: Tab) => (view.compound as Row[]).filter((r) => r.tab === t && r.state !== "empty");
   const options = view.study_options as Options;
   const studies = view.studies;
   const used = studies.filter((s) => !s.excluded);

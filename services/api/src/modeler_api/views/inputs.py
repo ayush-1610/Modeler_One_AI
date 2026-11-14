@@ -40,11 +40,12 @@ class AlternativeView(EvidenceView):
 
 
 class CompoundRow(View):
-    """One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, or missing."""
+    """One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, missing (S0 needs it), or
+    empty (a model input the data plan owns with no value yet: a row to fill, not counted as missing)."""
 
     id: str
     tab: InputsTab
-    state: Literal["kept", "conflict", "held", "missing"]
+    state: Literal["kept", "conflict", "held", "missing", "empty"]
     req_id: str | None                            # the data-checklist item a value typed into the row is filed under
     value: Number | str | None
     unit: str | None
@@ -96,7 +97,10 @@ class InputsPage(View):
     todo: list[dict[str, Any]]             # what stands between the inputs and readiness, by kind and tab (inputs.todo)
     compound: list[CompoundRow]            # every model input on its tab
     studies: list[InputStudyRow]
-    study_options: dict[str, list[str]]    # route, formulation, food state, purpose, sex, PK-Sim population (harvested)
+    # route, formulation, food state, purpose, sex, PK-Sim population (harvested); for the client data's values, matrix
+    # (the intake vocabulary's words) and analyte (the brief's parent drug, a label: the Delivery page's `analytes`
+    # give an existing analyte's id)
+    study_options: dict[str, list[str]]
     selection_rule: str                    # the source-selection rule that picked the values (D-32), with its status
     published_models: list[PublishedModel]  # the published OSP models of the drug, a source like any other
 

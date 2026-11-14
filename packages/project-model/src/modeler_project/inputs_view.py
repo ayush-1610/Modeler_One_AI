@@ -6,7 +6,9 @@ A compound row's state is what the person sees on it:
 - kept: the CPF carries one source's value, with the sources that agree and the alternatives beneath it;
 - conflict: values more than 2-fold apart, out of the CPF until a person keeps one;
 - held: only flagged values, which enter once a person checks them;
-- missing: no value yet, for an input S0 needs.
+- missing: no value yet, for an input S0 needs;
+- empty: no value yet for a model input the data plan owns that nothing waits on (asked for with `empty=True`): a row
+  to fill, not a gap, so S0, readiness and the to-do list are what they were.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from typing import Any
 from modeler_project.artifacts import ArtifactKind
 from modeler_project.inputs import (
     MAIN,
+    MODEL_IDS,
     catalog_rows,
     choices,
     cpf_assembly,
@@ -45,9 +48,11 @@ def _row(cpf_id: str, state: str, matrix: RequirementMatrix | None, **fields: An
             "alternatives": [], "message": None, **fields}
 
 
-def compound_rows(ws: Workspace, todo: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def compound_rows(ws: Workspace, todo: list[dict[str, Any]], *, empty: bool = False) -> list[dict[str, Any]]:
     """Every model input on its tab: the CPF's values with their sources, then what waits on a person (from the
-    assembly's issues and the to-do list's missing inputs), in id order."""
+    assembly's issues and the to-do list's missing inputs), in id order. `empty` (the Inputs page): also a row for
+    every exact id of the parameter registry that PK-Sim takes (placement "model") and an item of this project's data
+    plan owns, with no value yet; a family's members and an id no item owns are left out, never made up."""
     from modeler_project.evidence_register import items
 
     evidence = {e.id: e for e in items(ws)}
@@ -84,6 +89,11 @@ def compound_rows(ws: Workspace, todo: list[dict[str, Any]]) -> list[dict[str, A
     for entry in todo:
         if entry["kind"] == "missing" and entry["target"] not in rows:
             rows[entry["target"]] = _row(entry["target"], "missing", matrix, message=entry["message"], sources=entry["items"])
+    if empty:
+        present = {k.partition("@")[0] for k in rows}       # an alternative (`<id>@<name>`) fills its id's row
+        for cpf_id in sorted(MODEL_IDS - present):
+            if _requirement_of(matrix, cpf_id) is not None:
+                rows[cpf_id] = _row(cpf_id, "empty", matrix)
     return [rows[k] for k in sorted(rows)]
 
 

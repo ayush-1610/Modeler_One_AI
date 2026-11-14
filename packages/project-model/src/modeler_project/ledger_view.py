@@ -19,13 +19,15 @@ a person gives it its product.
 The rules the fold applies (and the ledger's writes keep):
 - status is never stored on a fact. `superseded`: a later item that is not excluded names it in `supersedes` (a fact
   names a fact or a value id; an extract names extracts, and a superseded extract supersedes all its values).
-  `excluded`: the last `StatusChange` of the value (or of its extract, whichever is later) says so, or its cross-file
-  link was refused (reason: the refusal). `confirmed`: the CURRENT confirmation of a subject binds it: its fact id, or
+  `excluded`: the last `StatusChange` of the value (or of its extract, whichever is later; but an extract's line that
+  a person's restore wrote, `restored_by`, leaves a value's own last line standing) says so, or its cross-file link
+  was refused (reason: the refusal). `confirmed`: the CURRENT confirmation of a subject binds it: its fact id, or
   its extract id, and not the value among the record's `excluded`, while the value still belongs to that subject
   (after assignments and merges). A subject's current confirmation is its latest one that no other confirmation names
   in `supersedes`. Otherwise `proposed`. In that order of precedence.
 - an `Assignment` gives its targets (fact, extract or value ids) their study and arm, their product and batch, or
-  both (each pair only when it names it), later ones over earlier ones;
+  both (each pair only when it names it), and their analyte when it names one; the latest one over earlier ones,
+  whole (an analyte an earlier assignment stated is not kept by a later one that names none);
   entity ids are followed through merges.
 - `cross_file` is set for every value whose file differs from its study's home file (the file of the study entity's
   source anchor); the link is the assignment that put it there, else an active `link.*` fact of that file on that
@@ -338,6 +340,8 @@ class LedgerView:
         def last_change(raw: _Raw) -> StatusChange | None:
             own = changes.get(raw.id)
             of_extract = changes.get(raw.extract) if raw.extract else None
+            if own is not None and of_extract is not None and of_extract[1].restored_by is not None:
+                return own[1]               # an extract a person restored: a value's own last line stands
             picked = max((c for c in (own, of_extract) if c is not None), key=lambda c: c[0], default=None)
             return picked[1] if picked else None
 

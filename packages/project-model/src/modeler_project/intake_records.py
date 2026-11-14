@@ -151,6 +151,9 @@ class RegionOutcome(_B):
     unaccounted_count: int = 0                # and the true count
     cited: tuple[str, ...] = ()               # context-line locators its constants read
     decimal: Literal["point", "comma"] | None = None
+    # a person's "not data" decision applied over it (`coverage.file_coverage`): the outcome it set aside, given back
+    # when the decision is restored (None: none was recorded, or the decision was applied before this was kept)
+    replaced: RegionOutcome | None = None
 
 
 class RegionCoverage(_B):
@@ -292,7 +295,9 @@ class LinkConfirmation(_B):                  # lk-n; per (study, file); an ambig
 class Assignment(_B):                        # as-n; values with no study (fact, extract or value ids)
     """A person gives values their subject: a study (and its arm), a product (and its batch), or both. A study
     assignment sets the study and the arm, as before (an arm left out clears it); a product assignment sets the product
-    and the batch. At least one of study or product; an arm needs its study, a batch its product (§13)."""
+    and the batch. At least one of study or product; an arm needs its study, a batch its product (§13). `analyte`, when
+    given, states the values' analyte too (left out, the values have the analyte the file gave: the latest assignment
+    replaces an earlier one whole, an analyte it stated included)."""
 
     id: str
     targets: tuple[str, ...]
@@ -300,6 +305,7 @@ class Assignment(_B):                        # as-n; values with no study (fact,
     arm: str | None = None
     product: str | None = None
     batch: str | None = None
+    analyte: str | None = None
     why: str = Field(min_length=1)
     by: str
     at: str
@@ -315,16 +321,23 @@ class Assignment(_B):                        # as-n; values with no study (fact,
         return self
 
     def entity_update(self) -> dict[str, str | None]:
-        """The entity parts this assignment sets: study and arm, product and batch, each pair only when named."""
+        """The entity parts this assignment sets: study and arm, product and batch, each pair only when named; the
+        analyte when named."""
         update: dict[str, str | None] = {}
         if self.study is not None:
             update.update(study=self.study, arm=self.arm)
         if self.product is not None:
             update.update(product=self.product, batch=self.batch)
+        if self.analyte is not None:
+            update["analyte"] = self.analyte
         return update
 
 
 class RegionDecision(_B):                    # rd-n
+    """A person's decision that regions of a file are not data, or (`outside`) that outside items are not. With
+    `restores`, the decision is undone instead: for what this line lists, the decisions named (rd-n) no longer apply,
+    and what they set aside counts again (a person's "Restore…", with its own reason; the earlier lines stay)."""
+
     id: str
     file_sha256: str
     parser_version: str
@@ -333,6 +346,7 @@ class RegionDecision(_B):                    # rd-n
     why: str = Field(min_length=1)                                                # items' locators accepted as not data
     by: str
     at: str
+    restores: tuple[str, ...] = ()           # the decisions undone; empty: an exclusion (written without the key)
 
 
 class SpotCheckDraw(_B):                     # sd-n

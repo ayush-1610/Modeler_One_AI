@@ -8,9 +8,9 @@ confidence exists anywhere.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, model_serializer
 
 from modeler_intake.fields import IntervalKind, SpreadKind, Statistic, TableKind
 
@@ -225,6 +225,17 @@ class StatusChange(_B):
     reason: str
     by: str
     at: str
+    # a person's "Restore…" (`Ledger.restore`): the review line (rd-n) that undid the "not data" decision. An extract
+    # brought back so leaves each of its values' own status lines standing (the fold, `ledger_view`). Written only on
+    # such a line: every other status line is written as before, without the key
+    restored_by: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _written(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        body = handler(self)
+        if self.restored_by is None:
+            body.pop("restored_by", None)
+        return body
 
 
 class ValueState(_B):

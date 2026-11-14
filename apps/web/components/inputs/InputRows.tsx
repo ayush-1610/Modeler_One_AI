@@ -15,9 +15,10 @@ type Alternative = Schema<"AlternativeView">;
 const ev = (x: Schema<"EvidenceView">) => x as unknown as Ev;
 
 // what waits on a person first, then the values in the model
-const FIRST: Row["state"][] = ["conflict", "held", "missing", "kept"];
+const FIRST: Row["state"][] = ["conflict", "held", "missing", "kept", "empty"];
 const STATE: Record<Row["state"], [string, string]> = {
   kept: ["low", "in the model"], conflict: ["high", "keep one"], held: ["medium", "check it"], missing: ["high", "missing"],
+  empty: ["low", "no value yet"],
 };
 // the sources a person may cite for a value typed into a row (modeler_project.evidence.SourceType)
 const SOURCE_TYPES = [["PUBLICATION", "publication"], ["CLIENT_REPORT", "client report"], ["REGULATORY_REVIEW", "regulatory review"],

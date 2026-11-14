@@ -35,7 +35,7 @@ import re
 from collections import Counter
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, get_args
 
 from fastapi import APIRouter, HTTPException, Path
 from pydantic import BaseModel, Field, ValidationError
@@ -57,10 +57,11 @@ from modeler_api.views.delivery import (
     SubjectKind,
 )
 from modeler_intake.anchors import AnchorError, check_id, parse_anchor, parse_locator, sha256_of
+from modeler_intake.fields import CONDITION_FIELDS, FIELDS, LABEL_FIELDS, SpreadKind, Statistic, TableKind
 from modeler_intake.mapping.fingerprint import layout_fingerprint
 from modeler_intake.mapping.redact import redact
 from modeler_intake.mapping.validate import validate_spec
-from modeler_intake.mapping_spec import MappingSpec
+from modeler_intake.mapping_spec import CellForm, Cite, Layout, MappingSpec, Role, RowRule
 from modeler_intake.source import region_grid
 from modeler_intake.source_model import RegionGrid, SourceDocument
 from modeler_project import ArtifactKind, Workspace, intake_files, intake_landing, intake_pipeline
@@ -71,6 +72,7 @@ from modeler_project.client_data import ClientDataError
 # which outside items a coverage summary counts: no public function says it per item (reported to the integrator)
 from modeler_project.coverage import _counts as outside_item_counts
 from modeler_project.coverage import _Places as places_of
+from modeler_project.coverage import person_acceptance
 from modeler_project.datasets import DatasetError
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceState
@@ -91,7 +93,7 @@ from modeler_project.intake_store import IntakeStore
 from modeler_project.ledger import Ledger
 from modeler_project.ledger_models import EntityRef, ValueState
 from modeler_project.ledger_view import in_subject, is_compound_field
-from modeler_project.mapping_cache import MappingCache
+from modeler_project.mapping_cache import MappingCache, mapping_id_of
 from modeler_project.requirements import RequirementMatrix
 from modeler_project.study_requirements import product_requirements, request_lines, requirement_status
 from modeler_project.study_routing import subject_values
@@ -366,6 +368,31 @@ def _rules() -> dict[str, str]:
     return {"version": RULES_VERSION, "status": RULES_STATUS, "sha256": RULES_SHA256}
 
 
+def _words(annotation: Any) -> list[str]:
+    """The words of a Literal (inside an Optional too), in their order."""
+    out: list[str] = []
+    for arg in get_args(annotation):
+        if isinstance(arg, str):
+            out.append(arg)
+        elif arg is not type(None):
+            out += _words(arg)
+    return out
+
+
+# The words a mapping spec (`mapping/2`) is written with, read from `modeler_intake.mapping_spec` and
+# `modeler_intake.fields`, so a form that edits a layout offers these and never makes one up. A CPF id of the parameter
+# registry is a field too (a physico-chemical table): `fields` lists the ledger's own vocabulary only.
+_VOCABULARY = {
+    "kinds": _words(TableKind), "layouts": _words(Layout), "roles": _words(Role),
+    "row_roles": _words(RowRule.model_fields["role"].annotation), "cell_forms": _words(CellForm),
+    "statistics": _words(Statistic), "spread_kinds": _words(SpreadKind),
+    "time_references": _words(MappingSpec.model_fields["time_reference"].annotation),
+    "cite_near": _words(Cite.model_fields["near"].annotation),
+    "fields": [{"name": f.name, "value": f.value, "level": f.level, "unit_class": f.unit_class, "choices": list(f.choices)}
+               for f in FIELDS.values()],
+    "conditions": list(CONDITION_FIELDS), "labels": list(LABEL_FIELDS)}
+
+
 def _blocker(blocker: Any) -> dict[str, Any]:
     return {"code": blocker.code, "detail": blocker.detail, "ids": list(blocker.ids)}
 
@@ -420,10 +447,10 @@ def _regions(scope: _Scope, coverage: FileCoverage, blinded: bool) -> list[dict[
 
 def _outside(coverage: FileCoverage, decisions: Sequence[RegionDecision], blinded: bool) -> list[dict[str, Any]]:
     """The items with a number outside every region (page furniture left out), each with whether the summary counts
-    it (`coverage.file_coverage`'s own rule: not cited by a mapped table, not accepted by a person)."""
+    it (`coverage.file_coverage`'s own rule: not cited by a mapped table, not accepted by a person, or restored)."""
     cited = places_of(c for r in coverage.regions if r.outcome.state == "mapped" for c in r.outcome.cited)
-    accepted = places_of(where for d in decisions if d.file_sha256 == coverage.file.sha256 and d.scope == "outside"
-                         for where in d.regions)
+    mine = [d for d in decisions if d.file_sha256 == coverage.file.sha256]
+    accepted = {item.where for item in coverage.outside if person_acceptance(mine, item.where) is not None}
     return [{"where": item.where, "text": None if blinded else item.text, "region": item.region,
              "counted": outside_item_counts(item, cited, accepted)}
             for item in coverage.outside if item.numeric and not item.furniture]
@@ -506,7 +533,7 @@ def _empty_page(enabled: bool) -> dict[str, Any]:
             "totals": {"files": 0, "files_by_state": {}, "regions": 0, "regions_mapped": 0, "regions_excluded": 0,
                        "regions_unread": 0, "silent_loss": 0, "outside_numeric": 0, "values_unassigned": 0,
                        "anchors_unresolved": 0, "needs_ocr_pages": 0, "values": 0},
-            "subjects": [], "unassigned": [], "mappings": [], "request": [], "rules": _rules()}
+            "subjects": [], "unassigned": [], "analytes": [], "mappings": [], "request": [], "rules": _rules()}
 
 
 def _request_lines(scope: _Scope) -> list[dict[str, Any]]:
@@ -568,6 +595,7 @@ def _page(scope: _Scope) -> dict[str, Any]:
     running = jobs.running(ws.store, ws.tenant_id, ws.project_id, "intake") or intake_pipeline.unfinished(ws)
     return {"enabled": True, "running": running, "agents": agent_jobs.agents_status("A4"), "deliveries": deliveries,
             "totals": totals, "subjects": subjects, "unassigned": scope.rows(review.unassigned(ws, reader=reader)),
+            "analytes": [{"id": e.id, "label": e.label} for e in reader.entities("analyte")],
             "mappings": _waiting_mappings(scope), "request": _request_lines(scope), "rules": _rules()}
 
 
@@ -665,7 +693,8 @@ def _confirmation(scope: _Scope, subject_type: str, subject: str, blinded: bool)
         "id": found.id, "at": found.at, "by": found.by, "printed_name": found.printed_name,
         "signature_id": found.signature_id, "manifestation": found.manifestation, "record_sha256": found.record_sha256,
         "supersedes": found.supersedes,
-        "current": record.get("subject_digest") == intake_landing.subject_digest(scope.reader, subject_type, subject),
+        "current": review.confirmation_current(scope.ws, found, reader=scope.reader, subject_type=subject_type,
+                                               subject=subject),
         "rules": {k: str(rules.get(k, "")) for k in ("version", "status", "sha256")} if rules else None,
         "coverage": {str(k): int(v) for k, v in coverage.items() if isinstance(v, int) and not isinstance(v, bool)},
         "held": None if blinded else [str(text) for text in record.get("held", ())],
@@ -929,16 +958,23 @@ def enter_value(project_id: str, subject_type: SubjectType, subject: str, body: 
 
 class DeliveryAssignment(BaseModel):
     """Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a
-    new label (`new_study`): one of them, and so a product (`product`, `new_product`). `arm` and `batch` are the
-    ledger's ids: left out, the assignment clears the arm (the batch) the values had."""
+    new label (`new_study`): one of them, and so a product (`product`, `new_product`), an arm of the study (`arm`,
+    `new_arm`), a batch of the product (`batch`, `new_batch`) and an analyte (`analyte`, `new_analyte`). Ids are the
+    ledger's (an analyte's: the page's `analytes`). An assignment replaces the earlier one whole: left out, it clears
+    the arm (the batch) the values had, and the values have the analyte the file gave, not one an earlier assignment
+    stated. A re-link that keeps a stated arm or analyte names it again."""
 
     targets: list[str] = Field(min_length=1)          # value ids, or an extract's id (every value of that table)
     study: str | None = None
     arm: str | None = None
     product: str | None = None
     batch: str | None = None
+    analyte: str | None = None
     new_study: str | None = Field(default=None, max_length=80)      # a label as the person writes it
     new_product: str | None = Field(default=None, max_length=80)
+    new_arm: str | None = Field(default=None, max_length=80)
+    new_batch: str | None = Field(default=None, max_length=80)
+    new_analyte: str | None = Field(default=None, max_length=80)
     why: str = Field(min_length=1)
 
 
@@ -950,17 +986,21 @@ class DeliveryExclusion(BaseModel):
 
 
 def assign_values(project_id: str, body: DeliveryAssignment, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """Give "study not stated" values their subject: a study (and its arm), a product (and its batch), or both. A
-    study or a product no file's label gave an entity is named here (`new_study`, `new_product`): it is created, never
-    as a duplicate of one that exists (409, naming it), and the values are assigned to it."""
+    """Give "study not stated" values their subject: a study (and its arm), a product (and its batch), or both, and
+    their analyte when stated. A study, a product, an arm, a batch or an analyte no file's label gave an entity is
+    named here (`new_study`, `new_product`, `new_arm`, `new_batch`, `new_analyte`): it is created, never as a duplicate
+    of one that exists (409, naming it; an arm inside its study, a batch inside its product), and the values are
+    assigned to it."""
     scope = _scope(project_id, principal, store)
     with _refusals():
         targets = [_target_id(target) for target in body.targets]
-        for entity_id in (body.study, body.arm, body.product, body.batch):
+        for entity_id in (body.study, body.arm, body.product, body.batch, body.analyte):
             if entity_id is not None:
                 check_id("line", entity_id)
         review.assign(scope.ws, targets=targets, study=body.study, arm=body.arm, product=body.product, batch=body.batch,
-                      new_study=body.new_study, new_product=body.new_product, why=body.why, by=principal.user_id)
+                      new_study=body.new_study, new_product=body.new_product, new_arm=body.new_arm,
+                      new_batch=body.new_batch, analyte=body.analyte, new_analyte=body.new_analyte, why=body.why,
+                      by=principal.user_id)
         scope.refresh()
         return envelope(_page(scope))
 
@@ -968,7 +1008,8 @@ def assign_values(project_id: str, body: DeliveryAssignment, principal: Writer, 
 def exclude_regions(project_id: str, body: DeliveryExclusion, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from
     it is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their
-    locators). The file's coverage is recomputed."""
+    locators). The file's coverage is recomputed. 409 `CONFLICT`, naming the decision, for one a person's decision sets
+    aside already (restore it to decide again); nothing is written then."""
     scope = _scope(project_id, principal, store)
     with _refusals():
         check_id("sha256", body.file_sha256)
@@ -979,6 +1020,40 @@ def exclude_regions(project_id: str, body: DeliveryExclusion, principal: Writer,
                 check_id("region", text)
         review.exclude_regions(scope.ws, file_sha256=body.file_sha256, regions=body.regions, scope=body.scope, why=body.why,
                                by=principal.user_id)
+        scope.refresh()
+        return envelope(_page(scope))
+
+
+class DeliveryRestore(BaseModel):
+    """Regions (or outside items) a person marked as not data, given back: the same ids and scope as the exclusion."""
+
+    file_sha256: str
+    regions: list[str] = Field(min_length=1)          # region ids; with scope `outside`, the items' locators
+    scope: Literal["regions", "unread_prose", "figures", "outside"] = "regions"
+    why: str = Field(min_length=1)
+
+
+def restore_regions(project_id: str, body: DeliveryRestore, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Undo a person's "not data" decision, with the reason: an appended line that names the decisions it undoes,
+    every one in force on what it lists (the earlier lines stay, audited `intake.region.restore`). What they set aside counts again: the values read from those
+    regions are proposed again and the file's coverage is recomputed. 409 `CONFLICT` when one listed is not marked as
+    not data by a person (nothing to restore); nothing is written then. A region excluded before its outcome was kept
+    is read again (its file is queued)."""
+    scope = _scope(project_id, principal, store)
+    with _refusals():
+        check_id("sha256", body.file_sha256)
+        for text in body.regions:
+            if body.scope == "outside":
+                parse_locator(text)
+            else:
+                check_id("region", text)
+        _record, lost = review.restore_regions(scope.ws, file_sha256=body.file_sha256, regions=body.regions,
+                                               scope=body.scope, why=body.why, by=principal.user_id)
+        if lost:
+            record = _run_records(scope).get(body.file_sha256)
+            if record is not None:
+                intake_pipeline.enqueue(scope.ws, [record], by=principal.user_id, again=True)
+                _kick(scope, principal, store)
         scope.refresh()
         return envelope(_page(scope))
 
@@ -1261,7 +1336,7 @@ def _mapping_view(scope: _Scope, mapping_id: str, version: int | None = None, *,
                       "decisions": [{"status": d.status, "why": d.why, "by": d.by, "at": d.at}
                                     for d in scope.mapping_decisions(mapping_id, v.version)]} for v in versions],
         "used_in": uses, "waiting": any(scope.reading(use["file_sha256"]) for use in uses) or any(
-            scope.reading(sha) for sha in queued), "queued": list(queued)}
+            scope.reading(sha) for sha in queued), "queued": list(queued), "vocabulary": _VOCABULARY}
 
 
 def get_mapping(project_id: str, mapping_id: str, principal: Reader, store: StoreDep,
@@ -1335,6 +1410,24 @@ def reject_mapping(project_id: str, mapping_id: str, body: DeliveryMappingReject
         return _mapping_decided(scope, mapping_id, body.version, principal, store, head=head)
 
 
+def _checked_spec(scope: _Scope, raw: dict[str, Any], doc: SourceDocument, grid: RegionGrid) -> MappingSpec:
+    """A person's spec, checked by code on the table it is written for: 422 `INVALID` when it is not a `mapping/2`
+    spec, 422 `MAPPING_INVALID` with the validator's findings (masked for a file with a blinded study's values) when
+    it does not read the table."""
+    try:
+        spec = MappingSpec.model_validate(raw)
+    except ValidationError as exc:
+        raise _refused(422, "INVALID", "not a mapping spec: " + "; ".join(
+            f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()[:5])) from exc
+    blinded = doc.file_sha256 in scope.blinded_files()
+    errors = [f for f in validate_spec(spec, grid) if f.severity == "error"]
+    if errors:
+        raise _refused(422, "MAPPING_INVALID", f"the spec does not read this table: {len(errors)} errors", findings=[
+            {"code": f.code, "location": f.location, "message": _mask(f.message) if blinded else f.message,
+             "severity": f.severity} for f in errors])
+    return spec
+
+
 def edit_mapping(project_id: str, mapping_id: str, body: DeliveryMappingEdit, principal: Writer,
                  store: StoreDep) -> dict[str, Any]:
     """Store a person's version of the mapping (checked by code on its table: a spec with an error is refused, 422
@@ -1359,17 +1452,7 @@ def edit_mapping(project_id: str, mapping_id: str, body: DeliveryMappingEdit, pr
             if table is None:
                 raise _refused(409, "CONFLICT", "no table of this layout is in the source cache: run its file again")
         doc, region, grid = table
-        try:
-            spec = MappingSpec.model_validate(body.spec)
-        except ValidationError as exc:
-            raise _refused(422, "INVALID", "not a mapping spec: " + "; ".join(
-                f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()[:5])) from exc
-        blinded = doc.file_sha256 in scope.blinded_files()
-        errors = [f for f in validate_spec(spec, grid) if f.severity == "error"]
-        if errors:
-            raise _refused(422, "MAPPING_INVALID", f"the spec does not read this table: {len(errors)} errors", findings=[
-                {"code": f.code, "location": f.location, "message": _mask(f.message) if blinded else f.message,
-                 "severity": f.severity} for f in errors])
+        spec = _checked_spec(scope, body.spec, doc, grid)
         cache = MappingCache(scope.ws)
         head = scope.store.mappings.head().seq
         entry = cache.propose(latest.fingerprint, spec, origin="person", origin_detail=principal.user_id,
@@ -1386,6 +1469,59 @@ def edit_mapping(project_id: str, mapping_id: str, body: DeliveryMappingEdit, pr
         return _mapping_decided(scope, mapping_id, entry.version, principal, store, head=head)
 
 
+class DeliveryMappingProposal(BaseModel):
+    """A person's layout for a table named by its file and region: a `mapping/2` spec, checked by code on that table."""
+
+    file_sha256: str
+    region_id: str
+    spec: dict[str, Any]
+    why: str = Field(min_length=1)
+
+
+def propose_mapping(project_id: str, body: DeliveryMappingProposal, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """A person's layout for one table, which needs no mapping to exist yet: the first layout of a table no version
+    reads (unread, or its reading rejected), or a new version of its layout's mapping. The spec is checked by code on
+    that table (422 `MAPPING_INVALID` with the findings), stored as a person's version of the mapping of the table's
+    layout fingerprint (audited `intake.mapping.propose`), and the files that hold a table of that layout are read
+    again. It waits for approval like any version. 409: the table's source model is not cached, the region is no
+    table, or the spec is a version a person rejected."""
+    scope = _scope(project_id, principal, store)
+    with _refusals():
+        sha = check_id("sha256", body.file_sha256)
+        region_id = check_id("region", body.region_id)
+        if intake_files.file_record(scope.ws, sha) is None:
+            raise _refused(404, "UNKNOWN", "no file with that sha256 arrived in this project")
+        doc = scope.source_document(sha)
+        if doc is None:
+            raise _refused(409, "CONFLICT", "the file's source model is not cached: run the file again")
+        region = next((r for r in doc.regions if r.id == region_id), None)
+        if region is None:
+            raise _refused(404, "UNKNOWN", f"no region {region_id} in that file")
+        if region.kind != "table":
+            raise _refused(409, "CONFLICT", f"region {region_id} is a {region.kind}: a layout reads a table")
+        grid = region_grid(doc, region.id)
+        spec = _checked_spec(scope, body.spec, doc, grid)
+        fingerprint = layout_fingerprint(grid)
+        cache = MappingCache(scope.ws)
+        mapping_id = mapping_id_of(fingerprint)
+        latest = cache.get(mapping_id)
+        head = scope.store.mappings.head().seq
+        entry = cache.propose(fingerprint, spec, origin="person", origin_detail=principal.user_id,
+                              first_seen=(sha, region.id), by=principal.user_id)
+        if latest is None or entry.version > latest.version:      # a new version (the same spec is that version)
+            line = next(e for e in scope.store.mappings.entries("entry")
+                        if e.body.get("mapping_id") == mapping_id and e.body.get("version") == entry.version)
+            scope.store.audit(actor=principal.user_id, action="intake.mapping.propose",
+                              resource_id=f"{mapping_id}/{entry.version}",
+                              after={"mapping_id": mapping_id, "version": entry.version, "file_sha256": sha,
+                                     "region_id": region.id, "spec_sha256": sha256_of(entry.spec), "row_hash": line.hash},
+                              reason=body.why)
+        elif cache.status(mapping_id, entry.version) == "rejected":
+            raise _refused(409, "CONFLICT", f"this spec is version {entry.version} of {mapping_id}, which a person "
+                                            "rejected: a rejected version is never read with (approve it to use it)")
+        return _mapping_decided(scope, mapping_id, entry.version, principal, store, head=head)
+
+
 # --- the routes ---------------------------------------------------------------------------------------------------------------
 
 
@@ -1398,6 +1534,8 @@ def mount(router: APIRouter) -> None:
     router.get(PREFIX + "/source", **answers(DeliverySource))(get_source)
     router.post(PREFIX + "/values:assign", **answers(DeliveryPage))(assign_values)
     router.post(PREFIX + "/regions:exclude", **answers(DeliveryPage))(exclude_regions)
+    router.post(PREFIX + "/regions:restore", **answers(DeliveryPage))(restore_regions)
+    router.post(PREFIX + "/mappings:propose", **answers(DeliveryMapping))(propose_mapping)
     router.get(mapping, **answers(DeliveryMapping))(get_mapping)
     router.post(mapping + ":approve", **answers(DeliveryMapping))(approve_mapping)
     router.post(mapping + ":reject", **answers(DeliveryMapping))(reject_mapping)
