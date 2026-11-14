@@ -229,9 +229,21 @@ reviewed).
   with sign-off, strict prose check); D2 (the source model: parse once, locate, resolve, format inventory). Each was
   built, reviewed from two lenses (the brief and correctness; science, data fidelity and guardrails) and fixed before
   its squash merge. Full suite after D2: 2888 passed, only the 15 baseline failures.
-- **Next:** W (the switch `intake_pipeline` legacy / both, the arrival hook, the run queue with stage times, the
-  `intake` job); D6 in three parts (PM review, landing and health; the `/delivery` API; the web Delivery section and
-  admin pipeline page); then an adversarial review of the whole change.
+- **Seam review (2026-11-13 → 14):** the merged builds were run together on the synthetic deliveries. With approved
+  mappings every value reaches the ledger with its exact place and D0 scores 100 %; a second run writes nothing. Ten
+  findings (one blocker: a value naming a batch and no product belonged to no subject and to no list) were each
+  reproduced and fixed at their source: the ledger and its read side, the mapping rules and cache, the anchor re-check
+  for prose, the template's own README text. Full suite after them: 2974 passed, only the 15 baseline failures.
+  **Not yet done:** the independent review of the ledger and mapper fixes, and the interface-lens seam review; both
+  are part of the final review.
+- **In progress:** W (the switch `intake_pipeline` legacy / both, the arrival hook, the run queue with stage times,
+  the `intake` job): source built on `build/w`, tests and browser specs being finished. D6-PM (review decisions, spot
+  check, signed confirmation, landing, pipeline health): built on `build/d6pm`, under adversarial review.
+- **Next:** merge D6-PM and W; D6-API (the `/delivery` routes and admin pipeline route); D6-web (the Delivery section,
+  the admin pipeline page, `delivery.spec.ts`); then the final adversarial review of the whole change.
+- **Working mode:** the session's usage limit stopped wide agent fan-outs three times mid-work. Since 2026-11-14 one
+  or two agents run at a time, each committing often; branches under `/home/user/wt/` hold unmerged work only while
+  the cloud container lives, so merged work is pushed at once.
 - **Locked-file PR (decision 7):** D1b, `run_pi.R` passes the SD type to PI (draft
   [ayush-1610/Modeler_One_AI#173](https://github.com/ayush-1610/Modeler_One_AI/pull/173)); needs a named reviewer,
   server evidence and the owner's approval before merge. Until then PI ignores the new `error_type` key.
