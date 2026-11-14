@@ -64,7 +64,7 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await page.getByTestId(`file-toggle-${pdf.name}`).click();
   await expect(page.getByTestId(`delivery-file-state-${pdf.file_id}`)).toHaveText("partly read");   // the row's one status
   await page.getByTestId(`delivery-file-toggle-${pdf.file_id}`).click();
-  await expect(page.getByTestId(`delivery-regions-${pdf.file_id}`)).toContainText("no model is configured");   // its prose: not read, and why
+  await expect(page.getByTestId(`delivery-regions-${pdf.file_id}`)).toContainText("not read: no text reader is set up");   // its prose: not read, and why in plain words
   await expect(page.getByTestId(`delivery-stages-${pdf.file_id}`)).toContainText("finding the tables and texts");
   await page.getByTestId(`file-toggle-${pdf.name}`).click();
   await expect(page.getByTestId(`delivery-regions-${pdf.file_id}`)).toHaveCount(0);

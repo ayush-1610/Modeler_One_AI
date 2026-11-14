@@ -173,3 +173,26 @@ before the next starts.
     `o.where`), "Not data…" and "set aside" there, and the whole of `Unassigned` ("Study not stated · to assign", "Assign",
     "regions" in its lede). The rest of `FileItem`'s words are changed here, on lines that branch does not touch.
 
+- Within this plan, the fill round as built (slice 5 a, b and d with API 1, 2, 4 and 6, frontend only; after its review,
+  2026-11-14):
+  - Arms, batches and analytes are stated in the per-file link form ("Values not linked to a study or product"), not
+    yet in slice 4's Link table; a link is changed only by linking again through the API (no "link elsewhere" on a
+    card until slice 3 rewrites it).
+  - Who made a "not data" decision and when is read from the project's audit trail (`GET /audit`, its last 2,000
+    events, only while such a decision is on screen), not from the page.
+  - A note outside the tables that no longer counts is a person's "not data" decision, with "Restore…", when it sits
+    beside no table or beside one no layout reads; beside a table that is read, the page cannot tell a person's
+    decision from the table's layout reading the note, so it says only "beside a table that is read" and offers no
+    "Restore…" there.
+  - "Read this table…" shows no cells: the form numbers the columns from the sheet range, and asks how many for a PDF
+    or Word table. The layout words come only with a mapping, so in a project where no table has a layout yet the
+    layout is written as text.
+  - Compound rows to fill are offered only in a form their value can take: a value with its unit as the source states
+    it; the binding partner chosen from PK-Sim's names as the API's compound spec gives them; a neutral compound as a
+    statement (`phys.pka.neutral` set to 1, as the CPF records it for a published model). The solubility-vs-pH table,
+    the calculation methods and the alternative rules are not offered here (named once inside the fold).
+  - API follow-ups: a decision `{id, by, at, why}` on `DeliveryRegion`; who marked a note as not data and why on
+    `DeliveryOutside`; the table's header cells (masked when blinded) on `DeliveryRegion`, or its region on
+    `GET /delivery/source`; the layout vocabulary without a mapping; a pH-solubility table entry; and `POST /evidence`
+    checking a word value against its vocabulary (it keeps "albumin" for `bind.partner` and shows it "in the model",
+    which the model builder then refuses: the page now offers only PK-Sim's names).

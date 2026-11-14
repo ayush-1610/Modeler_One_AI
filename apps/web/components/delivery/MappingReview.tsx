@@ -3,8 +3,9 @@
 // A mapping, reviewed (contracts 2026-11-12 §8.10): how a table's layout is read (each header to its role, field and
 // unit; the tokens that mean "below the LLOQ" or "missing"; the rules and constants), the table as the mapper was shown
 // it (no digit of its body), the versions with the decisions made on them, and the three decisions: approve, reject
-// with the reason, or store a corrected version. A corrected version is checked by code on its table: what code finds
-// wrong is listed, and nothing is stored. Each decision reads the files of that layout again.
+// with the reason, or store a corrected version. A correction is made in the layout form (`LayoutEditor`, built from
+// the mapping's own `vocabulary`; the layout as text for experts) and checked by code on its table: what code finds
+// wrong is shown beside the column it names, and nothing is stored. Each decision reads the files of that layout again.
 
 import { useState } from "react";
 
@@ -12,10 +13,21 @@ import { Dialog } from "@/components/kit/Dialog";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 
+import { LayoutEditor, columnsSent } from "./LayoutEditor";
+import { whereIs } from "@/lib/words";
 import { ChipFor, MAPPING_STATE, Problem, WITHHELD, Why, fieldText, plural, useDecide, when } from "./shared";
 
 type Mapping = Schema<"DeliveryMapping">;
 type Finding = Schema<"DeliveryMappingFinding">;
+
+/** Each column's header text in the table the mapping is shown on (its header rows joined), by column number. */
+function headersOf(sample: Mapping["sample"]): Record<number, string> {
+  const out: Record<number, string> = {};
+  for (const row of sample?.header ?? []) {
+    row.forEach((text, i) => { if (text.trim()) out[i + 1] = out[i + 1] && out[i + 1] !== text ? `${out[i + 1]} / ${text}` : text; });
+  }
+  return out;
+}
 
 const ROUTE = "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}" as const;
 const APPROVE = `${ROUTE}:approve` as const, REJECT = `${ROUTE}:reject` as const, EDIT = `${ROUTE}:edit` as const;
@@ -44,7 +56,7 @@ function Findings({ findings, testId }: { findings: Finding[]; testId: string })
 function Sample({ sample }: { sample: NonNullable<Mapping["sample"]> }) {
   return (
     <section data-testid="mapping-sample">
-      <h3>The table, as the mapper is shown it <span className="muted">{sample.file} · {sample.where}</span></h3>
+      <h3>The table, as the mapper is shown it <span className="muted">{whereIs(sample.where).place} of {sample.file}</span></h3>
       {sample.blinded ? <p className="delivery-withheld">{WITHHELD}: the table holds a blinded study&apos;s values, so its body is not shown.</p> : (
         <>
           {sample.context.map((c) => <p key={`${c.near}-${c.line}`} className="delivery-source-line muted">{c.text}</p>)}
@@ -68,8 +80,8 @@ export function MappingReview({ projectId, mappingId, onClose }: { projectId: st
   const read = useResource(ROUTE, params, { poll: (d) => d.waiting });
   const { decide, busy, problem } = useDecide();
   const [mode, setMode] = useState<"none" | "reject" | "edit">("none");
-  const [spec, setSpec] = useState("");
   const [refused, setRefused] = useState<Finding[]>([]);
+  const [sent, setSent] = useState<number[]>([]);
   const [said, setSaid] = useState<string | null>(null);
   const m = read.data;
 
@@ -85,16 +97,12 @@ export function MappingReview({ projectId, mappingId, onClose }: { projectId: st
     if (data) { setMode("none"); setSaid(`Version ${data.version} is rejected: its table is read again without it.`); }
   }
 
-  async function edit(why: string) {
-    let parsed: Record<string, unknown>;
-    try { parsed = JSON.parse(spec) as Record<string, unknown>; } catch (e) {
-      setRefused([{ code: "NOT_JSON", location: "", message: `The text is not JSON: ${(e as Error).message}`, severity: "error" }]);
-      return;
-    }
-    // the refusal's findings come beside its message: what code found wrong on the table, one line each
+  async function edit(spec: Record<string, unknown>, why: string) {
+    setSent(columnsSent(spec));
+    // the refusal's findings come beside its message: what code found wrong on the table, each beside its column
     let found: Finding[] = [];
     const { data } = await decide(async () => {
-      const env = await send("post", EDIT, params, { spec: parsed, why });
+      const env = await send("post", EDIT, params, { spec, why });
       found = (env.errors[0]?.detail?.findings as Finding[] | undefined) ?? [];
       return env;
     });
@@ -191,20 +199,19 @@ export function MappingReview({ projectId, mappingId, onClose }: { projectId: st
               ))}
             </ul>
             {m.used_in.length > 0 && (
-              <p className="muted fs-12 m-4-0-0">In use: {m.used_in.map((u) => `${u.file} ${u.where} (version ${u.version}, ${u.state})`).join("; ")}</p>
+              <p className="muted fs-12 m-4-0-0">In use: {m.used_in.map((u) => `${whereIs(u.where).place} of ${u.file} (version ${u.version}, ${u.state})`).join("; ")}</p>
             )}
           </section>
 
           <Problem text={problem} testId="mapping-problem" />
-          <Findings findings={refused} testId="mapping-refused" />
 
           {mode === "edit" && (
             <section>
-              <h3>A corrected version (the mapping as JSON)</h3>
-              <textarea className="delivery-spec" aria-label="The mapping as JSON" value={spec} spellCheck={false}
-                        onChange={(e) => setSpec(e.target.value)} data-testid="mapping-spec" rows={14} />
-              <Why action="Store this version" label="Why the mapping is corrected" busy={busy} onSubmit={edit}
-                   onCancel={() => { setMode("none"); setRefused([]); }} testId="mapping-edit" />
+              <h3>A corrected version of the layout</h3>
+              <LayoutEditor vocabulary={m.vocabulary} spec={m.spec} columns={m.sample?.n_cols ?? 0} headers={headersOf(m.sample)}
+                            start={m.sample ? whereIs(m.sample.where).start : null} findings={refused} sent={sent} busy={busy}
+                            action="Store this version" whyLabel="Why the layout is corrected" onSubmit={edit}
+                            onCancel={() => { setMode("none"); setRefused([]); }} testId="mapping-layout" whyTestId="mapping-edit" />
             </section>
           )}
           {mode === "reject" && (
@@ -222,7 +229,7 @@ export function MappingReview({ projectId, mappingId, onClose }: { projectId: st
                   <button type="button" className="btn small" disabled={busy} onClick={() => setMode("reject")} data-testid="mapping-reject-open">Reject…</button>
                 )}
                 <button type="button" className="btn small" disabled={busy} data-testid="mapping-edit-open"
-                        onClick={() => { setSpec(JSON.stringify(m.spec, null, 2)); setMode("edit"); }}>Correct it…</button>
+                        onClick={() => { setRefused([]); setMode("edit"); }}>Correct the layout…</button>
               </div>
             </div>
           )}

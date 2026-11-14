@@ -49,6 +49,7 @@
 .delivery-file-detail { display: grid; gap: 6px; margin-top: 4px; min-width: 0; }
 .delivery-regions td, .delivery-regions th { font-size: 13px; padding: 7px 8px; }
 .delivery-regions code { overflow-wrap: anywhere; }
+.delivery-regions .link-btn + .link-btn { margin-left: 10px; }
 .delivery-stages { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 12.5px; }
 .delivery-stages .failed { color: var(--fail-ink); }
 .delivery-chip-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit;
@@ -87,6 +88,7 @@
   font: inherit; font-size: 13.5px; padding: 6px 10px; border: 1px solid var(--control-border); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--ink); min-width: 0; }
 .delivery-why > input[type="text"] { flex: 1 1 240px; }
+.delivery-why .btn[aria-disabled="true"] { opacity: 0.45; cursor: progress; }
 .delivery-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-dim); }
 .delivery-pick .delivery-unit { width: 9em; }
 .delivery-facts { margin: 8px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: 13.5px; }
@@ -157,6 +159,26 @@
 .delivery-findings { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13.5px; }
 .delivery-spec { width: 100%; font-family: var(--font-mono), monospace; font-size: 12.5px; padding: 8px 10px;
   border: 1px solid var(--control-border); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); resize: vertical; }
+
+/* ---- a table's layout as a form (LayoutEditor: a correction, or "Read this table…") ---- */
+.layout-editor { display: grid; gap: 10px; min-width: 0; }
+.layout-editor fieldset { margin: 0; padding: 8px 12px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  display: grid; gap: 8px; min-width: 0; }
+.layout-editor legend { padding: 0 4px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.layout-line { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; min-width: 0; }
+.layout-editor fieldset > * { min-width: 0; }   /* a grid item may shrink below its widest select */
+.layout-editor .delivery-pick { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+/* a long choice ("long: one row per value") shrinks with the dialog instead of running past it at phone width */
+.layout-editor select, .layout-editor input { max-width: 100%; min-width: 0; }
+.layout-place { display: inline-flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; min-width: 0; max-width: 100%; }
+.layout-editor .layout-num { width: 4.5em; }
+.layout-editor .layout-wide { width: min(28em, 100%); }
+.layout-cols { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.layout-col { padding: 6px 10px; border-radius: var(--radius-sm); background: var(--raised); display: grid; gap: 6px; min-width: 0; }
+.layout-col.wrong { background: color-mix(in srgb, var(--fail) 6%, var(--surface)); box-shadow: inset 3px 0 0 var(--fail); }
+.layout-col-name { font-size: 13px; overflow-wrap: anywhere; }
+.layout-said { font-size: 13px; }
+.layout-said li.error { color: var(--fail-ink); }
 .delivery-unassigned-table { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); min-width: 0; }
 
 /* ---- the administrator's pipeline health (app/admin/pipeline) ---- */

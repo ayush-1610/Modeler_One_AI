@@ -4,9 +4,11 @@
 // is read with are written, and the small form every decision that needs a reason is made with. A blinded study's
 // value is never written: the API withholds it (D-15), and the page says so in its place.
 
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type ReactNode } from "react";
 
 import type { Envelope, Schema } from "@/lib/api";
+import { whereIs } from "@/lib/words";
 import { useMutation, type Outcome } from "@/lib/hooks";
 
 export type Page = Schema<"DeliveryPage">;
@@ -48,6 +50,22 @@ export const MAPPING_STATE: Record<string, { label: string; tone: string }> = {
   approved: { label: "approved", tone: "low" }, proposed: { label: "waits for approval", tone: "medium" },
   rejected: { label: "rejected", tone: "high" },
 };
+
+// --- where a thing is in its file, in words -------------------------------------------------------------------------
+
+/** A table by its short name and its file, for a button's label: "the table Sheet1 of 230-23 Fasting Reference.xlsx";
+ *  a name that already says what it is ("table 1", "page 3, figure 2", "paragraphs 4 to 6") is not said twice. */
+export function tableName(where: string, file: string, kind = "table"): string {
+  const name = whereIs(where).name;
+  const word = kind === "prose" ? "text" : kind === "figure" ? "figure" : "table";
+  return /^(table|figure|paragraphs?|lines?|page) /.test(name) ? `${name} of ${file}` : `the ${word} ${name} of ${file}`;
+}
+
+/** A person's "not data" decision as a region's reason gives it ("rd-3: why"): its id and why; null for a rule's. */
+export function personDecision(reason: string): { id: string; why: string } | null {
+  const m = /^(rd-\d+): ([\s\S]*)$/.exec(reason);
+  return m ? { id: m[1], why: m[2] } : null;
+}
 
 /** What blocks a confirmation, in words (`DeliveryBlocker.code`); the API's own detail follows it. */
 export const BLOCKER_LABEL: Record<string, string> = {
@@ -115,21 +133,56 @@ export function typed(text: string): string | number {
 
 // --- decisions ------------------------------------------------------------------------------------------------------------
 
-/** A change made on the section: `decide(() => send(...))` answers its outcome and keeps the API's refusal to show. */
+const DELIVERY = "/api/v1/projects/{project_id}/delivery" as const;
+const CARD = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}" as const;
+
+/** The section's resources (the page, the cards, the mappings) read again. */
+const readAgain = (client: QueryClient) => client.invalidateQueries({
+  predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith(DELIVERY),
+});
+
+/** A decision's outcome, with the code of the API's refusal (`CONFLICT`: the server moved on). */
+export type Decided<T> = Outcome<T> & { code: string | null };
+
+/** A change made on the section: `decide(() => send(...))` answers its outcome and keeps the API's refusal to show.
+ *  A refusal that says the server moved on (409 `CONFLICT`: another reviewer decided first, a name exists already) is
+ *  shown in the server's words and the section is read again, so the item shows what holds now (plan 2026-11-14
+ *  §2.2.6). `{ refresh: false }`: the caller writes the answer into the page itself (`useWritePage`). */
 export function useDecide() {
   const mutation = useMutation();
+  const client = useQueryClient();
   const [problem, setProblem] = useState<string | null>(null);
-  const decide = useCallback(async <T,>(call: () => Promise<Envelope<T>>): Promise<Outcome<T>> => {
-    const out = await mutation.run(call);
+  const decide = useCallback(async <T,>(call: () => Promise<Envelope<T>>, options?: { refresh?: boolean }): Promise<Decided<T>> => {
+    let code: string | null = null;
+    const out = await mutation.run(async () => {
+      const env = await call();
+      code = (env.errors?.[0]?.detail?.code as string | undefined) ?? null;
+      return env;
+    }, options);
     setProblem(out.problem);
-    return out;
-  }, [mutation]);
+    if (code === "CONFLICT") void readAgain(client);
+    return { ...out, code };
+  }, [mutation, client]);
   return { decide, busy: mutation.busy, problem, clear: () => setProblem(null) };
 }
 
+/** Write a decision's answer (the page, which `values:assign`, `regions:exclude` and `regions:restore` return) into
+ *  the page's cache instead of reading everything again (plan 2026-11-14 §2.1): only the cards open on the page are
+ *  read again, since what they show follows the decision. */
+export function useWritePage(projectId: string) {
+  const client = useQueryClient();
+  return useCallback((page: Page) => {
+    client.setQueryData([DELIVERY, { project_id: projectId }, {}], page);
+    void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === CARD });
+  }, [client, projectId]);
+}
+
 /** A decision with its reason: what the API asks `why` for. The reason is kept on the audit trail. */
-export function Why({ action, label, busy, onSubmit, onCancel, testId, optional = false, placeholder, children, disabled = false }: {
+export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, testId, optional = false, placeholder, children, disabled = false,
+                     autoFocus = false }: {
   action: string;
+  /** the button's name with its context, where the same button is repeated ("Link the 4 values of 230-23.xlsx") */
+  actionLabel?: string;
   /** what the reason is for, read aloud with the field */
   label: string;
   busy: boolean;
@@ -142,6 +195,8 @@ export function Why({ action, label, busy, onSubmit, onCancel, testId, optional 
   /** more fields of the decision, before its reason */
   children?: ReactNode;
   disabled?: boolean;
+  /** the reason field takes the focus when the form opens (a form opened by a button that then goes away) */
+  autoFocus?: boolean;
 }) {
   const [why, setWhy] = useState("");
   const ready = (optional || Boolean(why.trim())) && !disabled;
@@ -149,10 +204,13 @@ export function Why({ action, label, busy, onSubmit, onCancel, testId, optional 
     <form className="delivery-why" data-testid={testId}
           onSubmit={(e) => { e.preventDefault(); if (ready && !busy) void onSubmit(why.trim()); }}>
       {children}
-      <input type="text" aria-label={label} value={why} onChange={(e) => setWhy(e.target.value)}
+      <input type="text" aria-label={label} value={why} onChange={(e) => setWhy(e.target.value)} autoFocus={autoFocus}
              placeholder={placeholder ?? (optional ? "a note (optional)" : "why (kept on the audit trail)")}
              data-testid={testId && `${testId}-why`} />
-      <button type="submit" className="btn small primary" disabled={busy || !ready} data-testid={testId && `${testId}-submit`}>{action}</button>
+      {/* while the decision is sent the button stays focusable (aria-disabled, the submit ignored): a disabled button
+          would drop the focus to the page, out of a dialog */}
+      <button type="submit" className="btn small primary" disabled={!ready} aria-disabled={busy || undefined} aria-label={actionLabel}
+              data-testid={testId && `${testId}-submit`}>{action}</button>
       {onCancel && <button type="button" className="btn small" onClick={onCancel}>Cancel</button>}
     </form>
   );

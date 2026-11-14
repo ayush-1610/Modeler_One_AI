@@ -78,6 +78,11 @@ export const PARAM_LABEL: Record<string, string> = {
   "perm.intestinal": "Intestinal permeability", "elim.renal.gfr_fraction": "GFR fraction (renal filtration)",
   "elim.biliary.cl": "Biliary clearance", "dist.bp_ratio": "Blood-to-plasma ratio",
   "elim.fe_urine": "Fraction excreted unchanged in urine (fe)", "elim.fm.<enzyme>": "Fraction metabolized by an enzyme (fm)",
+  // the other model inputs of the parameter registry (pbpk_domain/parameters/registry.yaml), in plain words
+  "bind.partner": "Plasma protein binding partner", "phys.solubility.table": "Solubility vs pH table",
+  "phys.solubility.ref_ph": "pH of the reference solubility", "phys.pka.neutral": "Neutral compound (no pKa)",
+  "elim.ehc_fraction": "Enterohepatic recycling (EHC continuous fraction)", "perm.cellular": "Cellular permeability",
+  "dist.partition_method": "Partition coefficient method", "dist.permeability_method": "Cellular permeability method",
 };
 export const paramLabel = (id: string) => PARAM_LABEL[id] ?? id;
 
@@ -118,14 +123,44 @@ export const tableKindText = (kind: string | null | undefined) => (kind ? TABLE_
 export const layoutOrigin = (origin: string) =>
   origin === "rule" ? "suggested by the template rules" : origin === "llm" ? "suggested automatically" : "entered by a person";
 
-/** Where in a file, as a person reads it: "Sheet1 · A4:M12", "page 3" (never the raw locator s:'Sheet1'!A4:M12). */
-export function placeText(where: string): string {
-  const sheet = /^s:'((?:[^']|'')+)'!(.+)$/.exec(where);
-  if (sheet) return `${sheet[1].replace(/''/g, "'")} · ${sheet[2]}`;
-  const page = /^p:(\d+)/.exec(where);
-  if (page) return `page ${page[1]}`;
-  return where.replace(/^[a-z]:/, "");
+/** A spreadsheet column's letters as its number (A 1, Z 26, AA 27). */
+const columnNumber = (letters: string) => [...letters].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0);
+
+export type FilePlace = { name: string; place: string; columns: number | null; rows: number | null; start: number | null };
+
+/** Where a table, a paragraph or a note is in its file (a region's `where`, an outside item's locator, the intake
+ *  grammar's ranges and locators), in plain words: its short name ("Sheet1", "page 3, table 1"), the place in full
+ *  ("sheet Sheet1, cells A4 to M12") and, for a sheet range, its size and the sheet column it starts at (A: 1). A text
+ *  outside the grammar is given as it is. */
+export function whereIs(where: string): FilePlace {
+  const sheet = /^s:'((?:[^']|'')+)'!([A-Z]{1,3})([0-9]+)(?::([A-Z]{1,3})([0-9]+))?$/.exec(where);
+  if (sheet) {
+    const [, quoted, c0, r0, c1, r1] = sheet;
+    const name = quoted.replace(/''/g, "'");
+    if (!c1) return { name, place: `sheet ${name}, cell ${c0}${r0}`, columns: null, rows: null, start: columnNumber(c0) };
+    return { name, place: `sheet ${name}, cells ${c0}${r0} to ${c1}${r1}`, columns: columnNumber(c1) - columnNumber(c0) + 1,
+             rows: Number(r1) - Number(r0) + 1, start: columnNumber(c0) };
+  }
+  const words: [RegExp, (m: RegExpExecArray) => string][] = [
+    [/^p:(\d+)\/t:(\d+)/, (m) => `page ${m[1]}, table ${m[2]}`],
+    [/^p:(\d+)\/f:(\d+)/, (m) => `page ${m[1]}, figure ${m[2]}`],
+    [/^p:(\d+)\/w:/, (m) => `page ${m[1]}`],
+    [/^d:t:(\d+)/, (m) => `table ${m[1]}`],
+    [/^d:f:(\d+)/, (m) => `figure ${m[1]}`],
+    [/^d:p:(\d+)-(\d+)$/, (m) => `paragraphs ${m[1]} to ${m[2]}`],
+    [/^d:p:(\d+)\//, (m) => `paragraph ${m[1]}`],
+    [/^x:l:(\d+)-(\d+)$/, (m) => `lines ${m[1]} to ${m[2]}`],
+    [/^x:l:(\d+)\//, (m) => `line ${m[1]}`],
+  ];
+  for (const [rule, say] of words) {
+    const m = rule.exec(where);
+    if (m) return { name: say(m), place: say(m), columns: null, rows: null, start: null };
+  }
+  return { name: where, place: where, columns: null, rows: null, start: null };
 }
+
+/** Where in a file, as a person reads it ("sheet Sheet1, cells A4 to M12", "page 3, table 1"), never the raw locator. */
+export const placeText = (where: string) => whereIs(where).place;
 
 /** A fact a study record needs (the intake's field, as a gap's `tag` or a check's "needs <field>" names it), in words:
  *  the sheet form's own labels for the same facts and the landing's "(what the study is for)". */

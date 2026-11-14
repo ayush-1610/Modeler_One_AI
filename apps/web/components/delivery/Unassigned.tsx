@@ -1,20 +1,26 @@
 "use client";
 
 // The "study not stated" values (contracts 2026-11-12 §8.10): what code read from a table whose study or product no
-// label states. A person assigns each table's values to a study or a product that exists, or names a new one (the name
-// as they write it: the ledger never makes a second one of the same name); the table's own arm or batch is kept unless
-// the person chooses another. Until they are assigned, or their table is set aside as not data, they block every
-// confirmation of the delivery.
+// label states. A person links each table's values to a study or a product that exists, or names a new one (the name
+// as they write it: the ledger never makes a second one of the same name), and with it the arm of the study or the
+// batch of the product and the values' analyte, each an existing one or a new one the person names (plan 2026-11-14
+// §2.2.2: the Test and the Reference file of one study land as two arms). A link replaces the earlier one whole, so the
+// form starts from the arm and analyte the values have and sends them again unless the person chooses others. A name
+// that exists already is refused in the server's words, and the section is read again. Until the values are linked,
+// or their table is set aside as not data, they block every confirmation of the delivery.
 
 import { useState } from "react";
 
-import { send } from "@/lib/api";
+import { send, type Schema } from "@/lib/api";
 
-import { Problem, TUPLE_HEADS, TupleCells, Why, fieldText, plural, useDecide, type Page, type SubjectRow, type Value } from "./shared";
+import {
+  Problem, TUPLE_HEADS, TupleCells, Why, fieldText, plural, useDecide, type Page, type SubjectRow, type Value,
+} from "./shared";
 import { ValueSource } from "./ValueSource";
 
 const NEW = "__new__";      // the select's "a new one" choice (never an entity's id)
 const SHOWN = 6;            // values of a table listed before "show all"
+type Entity = Schema<"DeliveryEntity">;
 
 type Group = { id: string; file: string | null; kind: string | null; values: Value[] };
 
@@ -30,22 +36,54 @@ function groups(values: Value[]): Group[] {
   return [...out.values()];
 }
 
-/** The one entity of a role every value of the table shares (its own arm, its own batch), with its label. */
-function own(values: Value[], role: "arm" | "batch"): { id: string; label: string } | null {
+/** The one entity of a role every value of the table shares (its own arm, batch or analyte), with its label. */
+function own(values: Value[], role: "arm" | "batch" | "analyte"): Entity | null {
   const ids = new Set(values.map((v) => v.entity[role] ?? ""));
   const [id] = [...ids];
   return ids.size === 1 && id ? { id, label: values[0].labels[role] ?? id } : null;
 }
 
-function Assign({ projectId, group, subjects }: { projectId: string; group: Group; subjects: SubjectRow[] }) {
+/** A select of existing entities and "A new …", with the new one's name beside it when chosen. */
+function Choose({ label, value, onChange, named, onNamed, options, none, newWord, testId, context }: {
+  label: string; value: string; onChange: (v: string) => void; named: string; onNamed: (v: string) => void;
+  options: Entity[];
+  /** the empty choice's words; left out, there is none */
+  none?: string; newWord: string; testId: string;
+  /** what the choice is for, read with the select: "for the 76 values of 230-23.xlsx" */
+  context: string;
+}) {
+  return (
+    <>
+      <label className="delivery-pick">{label}
+        <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={`${label} ${context}`} data-testid={testId}>
+          {none !== undefined && <option value="">{none}</option>}
+          {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          <option value={NEW}>{newWord}</option>
+        </select>
+      </label>
+      {value === NEW && (
+        <input type="text" aria-label={`The new ${label.toLowerCase()}'s name ${context}`} maxLength={80} value={named}
+               placeholder={`the ${label.toLowerCase()}'s name, as the client writes it`} onChange={(e) => onNamed(e.target.value)}
+               data-testid={`${testId.replace(/^assign-/, "assign-new-")}`} />
+      )}
+    </>
+  );
+}
+
+/** The link form of one table's values: a study (and its arm) or a product (and its batch), and the analyte. */
+function Assign({ projectId, group, subjects, analytes }: { projectId: string; group: Group; subjects: SubjectRow[]; analytes: Entity[] }) {
   const { decide, busy, problem } = useDecide();
+  const tableArm = own(group.values, "arm"), tableBatch = own(group.values, "batch"), tableAnalyte = own(group.values, "analyte");
   const [study, setStudy] = useState("");
   const [newStudy, setNewStudy] = useState("");
+  const [arm, setArm] = useState(tableArm?.id ?? "");
+  const [newArm, setNewArm] = useState("");
   const [product, setProduct] = useState("");
   const [newProduct, setNewProduct] = useState("");
-  const tableArm = own(group.values, "arm"), tableBatch = own(group.values, "batch");
-  const [arm, setArm] = useState(tableArm?.id ?? "");
   const [batch, setBatch] = useState(tableBatch?.id ?? "");
+  const [newBatch, setNewBatch] = useState("");
+  const [analyte, setAnalyte] = useState(tableAnalyte?.id ?? "");
+  const [newAnalyte, setNewAnalyte] = useState("");
   const [all, setAll] = useState(false);
   const [source, setSource] = useState<string | null>(null);
   const studies = subjects.filter((s) => s.subject_type === "study");
@@ -54,17 +92,24 @@ function Assign({ projectId, group, subjects }: { projectId: string; group: Grou
                 ...(studies.find((s) => s.subject === study)?.arms ?? []).filter((a) => a.id !== tableArm?.id)];
   const batches = [...(tableBatch ? [{ ...tableBatch, label: `${tableBatch.label} (the table's own)` }] : []),
                    ...(products.find((p) => p.subject === product)?.batches ?? []).filter((b) => b.id !== tableBatch?.id)];
-  // a study or a product is named, and a new one has its name
-  const ready = Boolean(study || product) && (study !== NEW || Boolean(newStudy.trim())) && (product !== NEW || Boolean(newProduct.trim()));
+  const analyteChoices = [...(tableAnalyte ? [{ ...tableAnalyte, label: `${tableAnalyte.label} (the file's own)` }] : []),
+                          ...analytes.filter((a) => a.id !== tableAnalyte?.id)];
+  const named = (choice: string, name: string) => choice !== NEW || Boolean(name.trim());
+  // a study or a product is named, and every new one has its name
+  const ready = Boolean(study || product) && named(study, newStudy) && named(product, newProduct)
+    && (!study || named(arm, newArm)) && (!product || named(batch, newBatch)) && named(analyte, newAnalyte);
   const key = group.id.replace(/[^A-Za-z0-9-]/g, "-");
+  const context = `for the ${plural(group.values.length, "value")} of ${group.file ?? "a person's entries"}`;
 
   async function assign(why: string) {
+    // a link replaces the earlier one whole: the arm (batch) and the analyte shown are sent again as they stand
     await decide(() => send("post", "/api/v1/projects/{project_id}/delivery/values:assign", { project_id: projectId }, {
       targets: group.values.map((v) => v.id), why,
       ...(study === NEW ? { new_study: newStudy.trim() } : study ? { study } : {}),
-      ...(study && arm ? { arm } : {}),
+      ...(study ? (arm === NEW ? { new_arm: newArm.trim() } : arm ? { arm } : {}) : {}),
       ...(product === NEW ? { new_product: newProduct.trim() } : product ? { product } : {}),
-      ...(product && batch ? { batch } : {}),
+      ...(product ? (batch === NEW ? { new_batch: newBatch.trim() } : batch ? { batch } : {}) : {}),
+      ...(analyte === NEW ? { new_analyte: newAnalyte.trim() } : analyte ? { analyte } : {}),
     }));
   }
 
@@ -94,45 +139,26 @@ function Assign({ projectId, group, subjects }: { projectId: string; group: Grou
         <button type="button" className="link-btn" onClick={() => setAll(!all)}>{all ? "Show fewer" : `Show all ${group.values.length}`}</button>
       )}
       {source && <ValueSource projectId={projectId} valueId={source} onClose={() => setSource(null)} />}
-      <Why action="Assign" label="Why these values belong there" busy={busy} onSubmit={assign} disabled={!ready} testId={`assign-${key}`}>
-        <label className="delivery-pick">Study
-          <select value={study} onChange={(e) => { setStudy(e.target.value); setArm(tableArm?.id ?? ""); }} data-testid={`assign-study-${key}`}>
-            <option value="">no study</option>
-            {studies.map((s) => <option key={s.subject} value={s.subject}>{s.label}</option>)}
-            <option value={NEW}>a new study…</option>
-          </select>
-        </label>
-        {study === NEW && (
-          <input type="text" aria-label="The new study's name" placeholder="the study's name, as the client writes it" maxLength={80}
-                 value={newStudy} onChange={(e) => setNewStudy(e.target.value)} data-testid={`assign-new-study-${key}`} />
+      <Why action="Link" actionLabel={`Link ${context.replace(/^for /, "")}`} label={`Why ${context.replace(/^for /, "")} belong there`}
+           busy={busy} onSubmit={assign} disabled={!ready}
+           testId={`assign-${key}`} placeholder="reason, e.g. the file name says 230-23 (kept on the audit trail)">
+        <Choose label="Study" value={study} named={newStudy} onNamed={setNewStudy} none="no study" newWord="A new study…" context={context}
+                onChange={(v) => { setStudy(v); setArm(tableArm?.id ?? ""); }} testId={`assign-study-${key}`}
+                options={studies.map((s) => ({ id: s.subject, label: s.label }))} />
+        {study && (
+          <Choose label="Arm" value={arm} onChange={setArm} named={newArm} onNamed={setNewArm} none="no arm" newWord="A new arm…"
+                  options={arms} context={context} testId={`assign-arm-${key}`} />
         )}
-        {study && arms.length > 0 && (
-          <label className="delivery-pick">Arm
-            <select value={arm} onChange={(e) => setArm(e.target.value)} data-testid={`assign-arm-${key}`}>
-              <option value="">no arm</option>
-              {arms.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
-            </select>
-          </label>
+        <Choose label="Product" value={product} named={newProduct} onNamed={setNewProduct} none="no product" newWord="A new product…"
+                context={context} onChange={(v) => { setProduct(v); setBatch(tableBatch?.id ?? ""); }} testId={`assign-product-${key}`}
+                options={products.map((p) => ({ id: p.subject, label: p.label }))} />
+        {product && (
+          <Choose label="Batch" value={batch} onChange={setBatch} named={newBatch} onNamed={setNewBatch} none="no batch" newWord="A new batch…"
+                  options={batches} context={context} testId={`assign-batch-${key}`} />
         )}
-        <label className="delivery-pick">Product
-          <select value={product} onChange={(e) => { setProduct(e.target.value); setBatch(tableBatch?.id ?? ""); }} data-testid={`assign-product-${key}`}>
-            <option value="">no product</option>
-            {products.map((p) => <option key={p.subject} value={p.subject}>{p.label}</option>)}
-            <option value={NEW}>a new product…</option>
-          </select>
-        </label>
-        {product === NEW && (
-          <input type="text" aria-label="The new product's name" placeholder="the product's name, as the client writes it" maxLength={80}
-                 value={newProduct} onChange={(e) => setNewProduct(e.target.value)} data-testid={`assign-new-product-${key}`} />
-        )}
-        {product && batches.length > 0 && (
-          <label className="delivery-pick">Batch
-            <select value={batch} onChange={(e) => setBatch(e.target.value)} data-testid={`assign-batch-${key}`}>
-              <option value="">no batch</option>
-              {batches.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-            </select>
-          </label>
-        )}
+        <Choose label="Analyte" value={analyte} onChange={setAnalyte} named={newAnalyte} onNamed={setNewAnalyte}
+                none={tableAnalyte ? undefined : "as the file says (none stated)"} newWord="A new analyte…" options={analyteChoices}
+                context={context} testId={`assign-analyte-${key}`} />
       </Why>
       <Problem text={problem} testId={`assign-problem-${key}`} />
     </li>
@@ -145,13 +171,14 @@ export function Unassigned({ projectId, page }: { projectId: string; page: Page 
   return (
     <section className="delivery-block" data-testid="delivery-unassigned">
       <div className="delivery-block-head">
-        <h3>Study not stated</h3>
-        <span className="chip medium">to assign</span>
+        <h3>Values not linked to a study or product</h3>
+        <span className="chip medium">to decide</span>
       </div>
-      <p className="muted m-0">No label in these tables says which study or product their values belong to. Assign each table,
-        or set it aside as not data in its file&apos;s regions above. Until then nothing of this delivery can be confirmed.</p>
+      <p className="muted m-0">These files don&apos;t say which study or product their values belong to. Link each table, with its arm
+        or batch and its analyte (an existing one or a new one you name), or mark it as not data in its file&apos;s tables above.
+        Until then nothing of this delivery can be confirmed.</p>
       <ul className="delivery-plain">
-        {groups(page.unassigned).map((g) => <Assign key={g.id} projectId={projectId} group={g} subjects={page.subjects} />)}
+        {groups(page.unassigned).map((g) => <Assign key={g.id} projectId={projectId} group={g} subjects={page.subjects} analytes={page.analytes} />)}
       </ul>
     </section>
   );

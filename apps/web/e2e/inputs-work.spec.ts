@@ -139,7 +139,7 @@ test("the words: a prefix is a prefix, the checks and the step bar in plain word
   expect(checkLabel("every planned simulation builds (software)")).toBe("All planned simulations build");
   expect(stepReason("S0 completeness (MS-01 §2.2)")).toBe("compound values missing");
   expect(stepReason("The inputs changed since they were last checked: check them again")).toMatch(/^The inputs changed/);
-  expect(placeText("s:'Sheet1'!A4:M12")).toBe("Sheet1 · A4:M12");
+  expect(placeText("s:'Sheet1'!A4:M12")).toBe("sheet Sheet1, cells A4 to M12");
   expect(placeText("p:3/w:34-42@56.00")).toBe("page 3");
 });
 
