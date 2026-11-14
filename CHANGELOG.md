@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the intake pipeline runs beside today's readers (build W, 2026-11-14) — science change
+- **What:**
+  - **The switch.** `Settings.intake_pipeline` (`MODELER_INTAKE_PIPELINE`): `both` (the default) or `legacy` (today's readers only; nothing is written under `intake/`; the rollback).
+  - **Arrival.** In `both`, every arriving file (Add data, project start, a library document read for data) is stored and recorded first (`intake_files`, `intake/files.jsonl`, one delivery per request), then read by today's reader exactly as before, then queued once (`intake/runs.jsonl`). A file today's reader refuses is still stored and recorded with the reason. A ZIP is read member by member: one answer per accepted member, a 422 naming each refused one.
+  - **The job.** A second background job, `intake`, with its own lease, reads each file with or without a model: parse, map, map_llm, execute, prose, ledger, compute, checks, coverage. Each stage is timed and guarded; one `intake.run` audit event per run carries the hash of the run's line. A run left running by a restart is recovered at the next arrival.
+  - **Science: which reading of a client table governs (contract §13).** An approved version of the layout's mapping that reads this table (among several: the fewest cells left unaccounted, then the most constants, then the newest); else the table's own rule spec, recomputed on every run (never a proposed rule version made for another table, never a rejected version); else a proposed spec no rule made; else the table mapper (`A4-table-mapper`, one agent run per table, four at a time, shown no digit of the body); else `unread` with the reason.
+  - **Science: nothing is dropped.** Every cell with a number of an unread table counts as silent loss. A table a person approved as not data is excluded with the reason, and what an earlier version of that mapping read from it is set aside. After a re-parse, each value is looked for at its place with the text the ledger stores; a table that is gone is retired and listed.
+  - **Science: a model that fails is not the file's failure.** Its tables or prose stay `unread` with the error, and the deterministic stages still run. Prose facts (`A4-prose`) are kept only as code's strict check reads them.
+- **Why:** plan G2 (no silent loss, as a number), G7 (time per stage) and decision F (a refused file is still recorded), with today's flow untouched so the change can be rolled back by one variable.
+- **Impact:**
+  - Today's answers are unchanged for every file that is not a ZIP: the upload answer, the same 422 and detail, and the client-data, client-review, reading-queue and inputs pages are proven equal in `both` and `legacy`.
+  - New for clients of the API: in `both`, a `.zip` on `POST /client-data` is expanded (before: "unsupported file type .zip"). The schema is unchanged and `docs/api/openapi.json` is not changed.
+  - No route and no page yet (D6). No stored record of today's flow changes. Nothing here ran PK-Sim; the synthetic numbers (Exampleamide) are software test data, not PBPK evidence.
+  - Browser: the seven client-data and inputs specs passed with the default `both` (9 tests), in the cloud container. The whole e2e suite with `both` must still run once before the first deployment with `both`.
+  - Tests: `test_intake_files.py` (9), `test_intake_pipeline.py` (22), `test_intake_pipeline_api.py` (13).
+- **Known gaps:**
+  - A file whose run is done is not read again when agents are turned on later, when a mapping is approved or rejected, or (for stored files) after a parser version change. Only the same bytes arriving again under a new parser version re-run it. D6's `/delivery:run` is the "read again".
+  - The delivery's prose values need a model: with agents off the tables' truth is read whole and the prose stays unread, counted.
+  - OCR and a second PDF table engine are not wired (`parse_document` runs with its defaults). The `checks` stage does not pass the compound's molecular weight; the cards recompute on read.
+  - W has not had its independent two-lens review yet; it is part of the final review of the whole change.
+
 ### Changed — the mapping rules never read a period as an arm (integrator, 2026-11-14) — science change
 - **What:** `mapping.rules.ARM_SHAPE` (the arm a caption names, added with the seam fixes) leaves out the word "period". "Study 230-26, Period 2" names no arm; "Period 2, Treatment T" reads the arm "Treatment T" (before: no arm, two names). The field registry's cue still finds the line.
 - **Why:** in a crossover each period holds every treatment, and a period has its own label (`EntityRef.period`). Reading "Period 1" as the arm would put two treatments' values on one arm named after the period.

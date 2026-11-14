@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from modeler_api import agent_jobs, jobs
+from modeler_api import agent_jobs, intake_pipeline_jobs, jobs
 from modeler_api.auth import Principal, require_project
 from modeler_api.compound_jobs import start_compound_job
 from modeler_api.config import SettingsDep
@@ -265,8 +265,11 @@ async def initiate_project(
     version = save_brief(ws, brief, actor=principal.user_id, reason="project started",
                          derived_from=[d.ref for d in documents])
     refresh_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
-    read_files = [_read_client_file(ws, library, brief, filename, data, by=principal.user_id, tag=given_tags.get(filename))
-                  for filename, data in client_payloads]
+    # one delivery for the client's files of this request (the intake pipeline, in `both`); a ZIP is one answer per member
+    delivery = intake_pipeline_jobs.open_delivery(ws, by=principal.user_id) if client_payloads else ""
+    read_files = [answer for filename, data in client_payloads
+                  for answer in _read_client_file(ws, library, brief, filename, data, by=principal.user_id,
+                                                  tag=given_tags.get(filename), delivery=delivery)]
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     if extract:   # the compound's values from the start, while the person and A1 work on Start (plan 2026-11-05 §3.3)
         start_compound_job(store, principal.tenant_id, project_id, by=principal.user_id)
@@ -278,16 +281,23 @@ async def initiate_project(
 
 
 def _read_client_file(ws: Workspace, library: DocumentLibrary, brief: ProjectBrief, filename: str, data: bytes, *,
-                      by: str, tag: tuple[TagKind, str] | None = None) -> dict[str, Any]:
-    """One client file given at project start, read into Inputs like an upload there (`client_data.ingest`)."""
+                      by: str, tag: tuple[TagKind, str] | None = None, delivery: str = "") -> list[dict[str, Any]]:
+    """One client file given at project start, read into Inputs like an upload there (`client_data.ingest`, through the
+    intake pipeline's hook): one answer, or with the pipeline on one per member of a ZIP (each refused member with its
+    reason)."""
     version = ws.latest(ArtifactKind.REQUIREMENTS, "main")
     matrix = RequirementMatrix.from_content(version.content) if version else None
+    problems: list[tuple[str, str]] = []
     try:
-        read = ingest(ws, library, data, filename, by=by, matrix=matrix, brief=brief, tag=tag)
+        answers = intake_pipeline_jobs.receive(ws, library, data, filename, by=by, delivery=delivery, ingest=ingest,
+                                               matrix=matrix, brief=brief, tag=tag)
+    except intake_pipeline_jobs.MemberRefusals as exc:
+        answers, problems = exc.accepted, exc.problems
     except (DocumentError, ValueError) as exc:
-        return {"file": filename, "id": None, "template": False, "problem": str(exc)}
-    return {"file": read["file"], "id": read["id"], "template": read["template"], "problem": None, "sha256": read["sha256"],
-            **file_tag_view(library, read["sha256"])}
+        return [{"file": filename, "id": None, "template": False, "problem": str(exc)}]
+    return [*({"file": read["file"], "id": read["id"], "template": read["template"], "problem": None,
+               "sha256": read["sha256"], **file_tag_view(library, read["sha256"])} for read in answers),
+            *({"file": path, "id": None, "template": False, "problem": reason} for path, reason in problems)]
 
 
 

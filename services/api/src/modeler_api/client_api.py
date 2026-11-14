@@ -15,7 +15,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field, ValidationError
 
-from modeler_api import agent_jobs, jobs
+from modeler_api import agent_jobs, intake_pipeline_jobs, jobs
 from modeler_api.deps import (
     Reader,
     StoreDep,
@@ -220,17 +220,25 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
     """Store each file; read a filled template at once; triage any other workbook. `step` and `task`: what the files
     relate to (the document library's "Add data" card). `tags`: what each file is, per file name (plan 2026-11-03 §3.1);
     each answer says the tag kept and any other tag code read from the file's content."""
+    # (the docstring above is the route's description in the API contract: kept as it is.) With the intake pipeline on
+    # (`both`), each file is also recorded in one delivery and queued for the pipeline, and a ZIP's members are read
+    # one by one: one `read` entry per member accepted, each refused member named in the 422 (contracts §6.5)
     relates_to = relates_to_form(step, task)
     given_tags = tags_form(tags)
     ws = workspace_for(project_id, principal, store)
     _, matrix = _matrix(ws)
     library, brief = DocumentLibrary(ws), _brief(ws)
+    delivery = intake_pipeline_jobs.open_delivery(ws, by=principal.user_id)
     read, refused = [], []
     for upload in files:   # a file refused does not stop the others (plan 2026-11-10, R1: no file is dropped)
         name = upload.filename or "client-file"
         try:
-            read.append(ingest(ws, library, await upload.read(), name, by=principal.user_id,
-                               matrix=matrix, brief=brief, relates_to=relates_to, tag=given_tags.get(name)))
+            read.extend(intake_pipeline_jobs.receive(ws, library, await upload.read(), name, by=principal.user_id,
+                                                     delivery=delivery, ingest=ingest, matrix=matrix, brief=brief,
+                                                     relates_to=relates_to, tag=given_tags.get(name)))
+        except intake_pipeline_jobs.MemberRefusals as exc:
+            read.extend(exc.accepted)
+            refused.extend(exc.refused)
         except (DocumentError, ValueError) as exc:
             refused.append(f"{name}: {exc}")
     if refused:
@@ -238,6 +246,8 @@ async def upload_client_files(project_id: str, principal: Writer, store: StoreDe
         if read:
             refresh_inputs(ws, by=principal.user_id)
             read_later(store, principal.tenant_id, project_id, [r["id"] for r in read if r.get("id")], by=principal.user_id)
+        # a refused file was recorded and queued for the intake pipeline too (it says why it read nothing)
+        intake_pipeline_jobs.kick(store, principal.tenant_id, project_id, by=principal.user_id)
         added = f" (added: {', '.join(str(r['file']) for r in read)})" if read else ""
         raise HTTPException(status_code=422, detail="; ".join(refused) + added)
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
