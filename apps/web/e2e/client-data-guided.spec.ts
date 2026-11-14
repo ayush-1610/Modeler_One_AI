@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
-import { finishStart } from "./fixtures/inputs";
+import { finishStart, openFile } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const AUTH = { Authorization: "Bearer dev" };
@@ -49,11 +49,15 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   // dissolution workbooks, named so, under Products and dissolution
   await expect(page.getByTestId("inputs-notice")).toContainText("Dissolution Test pH 6.8.xlsx is filed under Products and dissolution, by its name");
   await page.getByTestId("tab-files").click();
-  await expect(page.getByTestId("studies-client-files")).toContainText("(3)");
-  await expect(page.getByTestId("studies-client-files").getByTestId("client-file-Dissolution Test pH 6.8.xlsx")).toHaveCount(0);
+  const files = page.getByTestId("files-table");
+  for (const f of ["230-23 Fasting Reference.xlsx", "230-23 Fasting Test.xlsx", "Nichols2012 IV 50 mg 5 h infusion.xlsx"]) {
+    await expect(files.getByTestId(`open-file-${f}`)).toHaveText("Clinical studies");
+  }
+  await expect(files.getByTestId("open-file-Dissolution Test pH 6.8.xlsx")).toHaveText("Products and dissolution");
   await shot(page, "1-uploaded");
 
   // the BE reference arm: times across the top, Mean / SD rows left out, the LLOQ quoted from the footnote
+  await openFile(page, "230-23 Fasting Reference.xlsx");
   const reference = page.getByTestId("client-file-230-23 Fasting Reference.xlsx");
   await reference.getByRole("button", { name: "Read this sheet" }).click();
   const reader = page.getByTestId("reader-Sheet1");
@@ -78,7 +82,8 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await expect(page.getByText(/Sheet1: 1 dataset\(s\) for 230-23-REF saved/)).toBeVisible();
   await expect(reference.getByTestId("sheet-Sheet1")).toContainText("read ✓");
 
-  // the test arm: the same layout, taken over from the last sheet; its own study id
+  // the test arm: the same layout, taken over from the last sheet (of another file); its own study id
+  await openFile(page, "230-23 Fasting Test.xlsx");
   const testArm = page.getByTestId("client-file-230-23 Fasting Test.xlsx");
   await testArm.getByRole("button", { name: "Read this sheet" }).click();
   const reader2 = page.getByTestId("reader-Sheet1");
@@ -96,12 +101,14 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
 
   // dissolution, filed under Products and dissolution: the test product named as in the brief, its conditions quoted from
   // the title
-  await expect(page.getByTestId("formulations-client-files")).toContainText("(2)");
+  await expect(files.getByTestId("open-file-Dissolution RLD pH 6.8.xlsx")).toHaveText("Products and dissolution");
   // the test product's sheet was read by code on arrival (its product named as in the brief, its conditions quoted from
   // the title) and saved at once, to confirm on the product's card (build C2); the reference product, not in the brief,
   // is named in the sheet reader
+  await openFile(page, "Dissolution Test pH 6.8.xlsx");
   await expect(page.getByTestId("client-file-Dissolution Test pH 6.8.xlsx").getByTestId("sheet-pH 6.8")).toContainText("read ✓");
   for (const [file, role, product] of [["Dissolution RLD pH 6.8.xlsx", "RLD", "Reference product 50 mg"]]) {
+    await openFile(page, file);
     await page.getByTestId(`client-file-${file}`).getByRole("button", { name: "Read this sheet" }).click();
     const r = page.getByTestId("reader-pH 6.8");
     await expect(r.getByLabel("role", { exact: true })).toHaveValue(role);
@@ -126,6 +133,7 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await page.getByTestId("tab-files").click();
 
   // published IV means: SD and N columns, the route from the file name
+  await openFile(page, "Nichols2012 IV 50 mg 5 h infusion.xlsx");
   await page.getByTestId("client-file-Nichols2012 IV 50 mg 5 h infusion.xlsx").getByRole("button", { name: "Read this sheet" }).click();
   const iv = page.getByTestId("reader-Fig 1");
   await expect(iv.getByLabel("route", { exact: true })).toHaveValue("iv_infusion");

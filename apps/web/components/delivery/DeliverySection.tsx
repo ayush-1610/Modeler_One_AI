@@ -176,8 +176,8 @@ function Coverage({ page }: { page: Page }) {
 
 /** A file read while Inputs is open brings values onto the cards: every resource is read again when the reading ends.
  *  Used by the Inputs workspace, so it holds on every area, not only while the Client files area shows this section
- *  (plan 2026-11-14 slice 1). */
-export function useDeliveryRefresh(projectId: string) {
+ *  (plan 2026-11-14 slice 1). Answers the delivery as read (the status line counts its open work), null until read. */
+export function useDeliveryRefresh(projectId: string): Page | null {
   const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId }, { poll: (d) => d.running, interval: 3000 });
   const refresh = useRefresh();
   const was = useRef(false);
@@ -186,6 +186,7 @@ export function useDeliveryRefresh(projectId: string) {
     if (running) was.current = true;
     else if (was.current) { was.current = false; void refresh(); }
   }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
+  return read.data;
 }
 
 export function DeliverySection({ projectId }: { projectId: string }) {

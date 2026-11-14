@@ -1,6 +1,6 @@
 // A project with ready model inputs, built through the API the way a curator enters values by hand.
 // Software test data (made-up numbers): it exercises the pipeline, never a model.
-import { expect, type APIRequestContext } from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 export const AUTH = { Authorization: "Bearer dev" };
 
@@ -21,6 +21,13 @@ export const START_DONE: BriefChange[] = [
   { path: "scope.site_of_action", value: "systemic" }, { path: "scope.formulation_types", value: ["solution", "ir_tablet"] },
   { path: "scenarios[0].route", value: "oral" },
 ];
+
+/** In Client files, open a file's row on its sheets and their reading (plan 2026-11-14 slice 1), unless it is open. */
+export async function openFile(page: Page, name: string) {
+  const toggle = page.getByTestId(`file-toggle-${name}`);
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(page.getByTestId(`client-file-${name}`)).toBeVisible();
+}
 
 /** Start done through the API, as a person would on the Start screen, so Inputs opens (page review 1, decision 7). */
 export async function finishStart(request: APIRequestContext, projectId: string, extra: BriefChange[] = []) {

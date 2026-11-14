@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
-import { finishStart } from "./fixtures/inputs";
+import { finishStart, openFile } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const AUTH = { Authorization: "Bearer dev" };
@@ -36,8 +36,9 @@ test("a client sheet is read and saved on the Studies tab, next to the reading a
 
   await page.goto(`/projects/${projectId}/inputs`);
   await page.getByTestId("tab-files").click();                    // the client's files and their sheets
-  const sheets = page.getByTestId("studies-client-files");
-  await expect(sheets).toContainText("Agents are off");
+  await expect(page.getByTestId("files-reading-note")).toContainText("Agents are off");
+  await openFile(page, "Smith2015_Table2.xlsx");                 // its row opens on its sheets
+  const sheets = page.getByTestId("client-file-Smith2015_Table2.xlsx");
   await expect(sheets.getByTestId("read-agent-Smith2015_Table2.xlsx")).toBeDisabled();
   // code read the sheet on arrival (build C2); what it does not say is asked on the study's card, or here in the reader
   await expect(sheets.getByTestId("sheet-Mean PK")).toContainText("read by code");

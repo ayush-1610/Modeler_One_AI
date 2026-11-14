@@ -18,6 +18,12 @@ type Area = { id: string; label: string };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+/** A to-do item in words: what it is and what it concerns (a group to confirm by its title). */
+export function todoText(t: TodoItem, groupTitle: (id: string) => string | undefined): string {
+  return TITLE[t.kind] + (t.kind === "confirm" ? ` · ${groupTitle(t.target) ?? t.target}`
+    : t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : "");
+}
+
 export function TodoTab({ projectId, todo, areas, groupTitle, readiness, selectionRule, onOpen }: {
   projectId: string;
   /** the /inputs to-do, in the order it is settled */
@@ -45,8 +51,7 @@ export function TodoTab({ projectId, todo, areas, groupTitle, readiness, selecti
                 {items.map((t, i) => (
                   <li key={`${t.kind}-${t.target}-${i}`}>
                     <button type="button" className="link-btn" onClick={() => onOpen(t)} data-testid={`missing-${t.kind}-${t.target}`}>
-                      {TITLE[t.kind]}{t.kind === "confirm" ? ` · ${groupTitle(t.target) ?? t.target}`
-                        : t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : ""}
+                      {todoText(t, groupTitle)}
                     </button>
                   </li>
                 ))}
@@ -59,7 +64,8 @@ export function TodoTab({ projectId, todo, areas, groupTitle, readiness, selecti
         <section className="card todo-ready" data-testid="inputs-ready">
           <h2 className="mt-0">Inputs are ready</h2>
           <p className="m-0-0-8">Everything S0 needs is here, and every planned simulation builds.</p>
-          <Link className="btn primary" href={STEP_ROUTES.review(projectId)}>Go to Review &amp; sign</Link>
+          {/* the page's one primary is the status line's "Next" */}
+          <Link className="btn" href={STEP_ROUTES.review(projectId)}>Go to Review &amp; sign</Link>
         </section>
       ) : (
         <section className="card" data-testid="assembling"><p className="m-0">The inputs are being put together.</p></section>

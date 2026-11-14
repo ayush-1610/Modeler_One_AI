@@ -34,7 +34,7 @@ test("a delivery with four studies is reviewed one study at a time, each as data
 
   await page.goto(`/projects/${projectId}/inputs?tab=files`);
   // the client-data template, sent with no tag, is filed with the studies (it holds every kind of data)
-  await expect(page.getByTestId("studies-client-files").getByTestId("client-file-four-studies.xlsx")).toBeVisible();
+  await expect(page.getByTestId("files-table").getByTestId("open-file-four-studies.xlsx")).toHaveText("Clinical studies");
   await expect(page.getByTestId("files-unplaced")).toHaveCount(0);
   await page.getByTestId("tab-studies").click();
   const index = page.getByTestId("group-index");

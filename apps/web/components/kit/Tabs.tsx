@@ -3,9 +3,10 @@
 // The kit's tabs (redesign plan §7): a tablist with the keys a keyboard user expects (arrows, Home and End move and select;
 // only the selected tab is in the Tab order) and a panel each tab names. The caller keeps rendering only the selected
 // panel's content, so what is not shown is not in the page. The look is the shared `.tabs` rule; `className` adds a
-// page's own (the Inputs area bar, plan 2026-11-14 slice 1).
+// page's own (the Inputs area bar, plan 2026-11-14 slice 1). In a row that scrolls sideways (that bar on a phone) the
+// selected tab is kept in view however it was chosen: a tap, a key, a link (?tab=) or the page itself.
 
-import type { KeyboardEvent, ReactNode } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 
 export type TabItem<T extends string> = {
   id: T; label: string;
@@ -24,6 +25,16 @@ const panelId = (prefix: string, id: string) => `${prefix}-panel-${id}`;
 export function Tabs<T extends string>({ label, prefix, tabs, value, onChange, className }: {
   label: string; prefix: string; tabs: TabItem<T>[]; value: T; onChange: (id: T) => void; className?: string;
 }) {
+  const list = useRef<HTMLDivElement>(null);
+  // only the row scrolls, never the page: the selected tab is brought just inside the row's edge it lies beyond
+  useEffect(() => {
+    const row = list.current;
+    const tab = row?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!row || !tab || row.scrollWidth <= row.clientWidth) return;
+    const edge = row.getBoundingClientRect(), box = tab.getBoundingClientRect();
+    if (box.left < edge.left) row.scrollLeft -= edge.left - box.left + 8;
+    else if (box.right > edge.right) row.scrollLeft += box.right - edge.right + 8;
+  }, [value]);
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const at = tabs.findIndex((t) => t.id === value);
     const to = e.key === "ArrowRight" ? (at + 1) % tabs.length : e.key === "ArrowLeft" ? (at - 1 + tabs.length) % tabs.length
@@ -34,7 +45,7 @@ export function Tabs<T extends string>({ label, prefix, tabs, value, onChange, c
     document.getElementById(tabId(prefix, tabs[to].id))?.focus();
   };
   return (
-    <div className={className ? `tabs ${className}` : "tabs"} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+    <div ref={list} className={className ? `tabs ${className}` : "tabs"} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
       {tabs.map((t) => (
         <button key={t.id} type="button" role="tab" id={tabId(prefix, t.id)} aria-selected={value === t.id}
                 aria-controls={panelId(prefix, t.id)} tabIndex={value === t.id ? 0 : -1}

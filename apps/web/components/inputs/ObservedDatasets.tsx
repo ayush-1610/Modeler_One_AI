@@ -161,7 +161,11 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
 /** Every observed dataset, however it arrived (the client's sheets, the literature agent, a digitized figure, a typed
  *  table, the published model), with its values, its source and where it stands; a digitized figure is used once its
  *  overlay is checked. The digitizer and the observed-data agent are here too (redesign §3.2, the Studies tab). */
-export function ObservedDatasets({ projectId, run }: { projectId: string; run: Run }) {
+export function ObservedDatasets({ projectId, run, digitize }: {
+  projectId: string; run: Run;
+  /** set (a new time each choice) when the head's "Add data" asks for the digitizer */
+  digitize?: number;
+}) {
   const page = useResource("/api/v1/projects/{project_id}/evidence", { project_id: projectId },
     { select: (d) => narrow<View>(d), poll: (d) => d.running, interval: 4000 });
   const documents = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
@@ -171,6 +175,11 @@ export function ObservedDatasets({ projectId, run }: { projectId: string; run: R
   const initial = asked ? { sha: asked, page: Number(params?.get("page")) || 1, study: params?.get("study") ?? undefined } : undefined;
   const [digitizing, setDigitizing] = useState(Boolean(asked));
   useEffect(() => { if (asked) setDigitizing(true); }, [asked]);
+  useEffect(() => {
+    if (!digitize) return;
+    setDigitizing(true);
+    window.setTimeout(() => document.getElementById("observed-datasets")?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
+  }, [digitize]);
   const view = page.data;
   const docs: DocumentView[] = documents.data?.documents ?? [];
   if (page.problem) return <InlineIssue severity="error">{page.problem}</InlineIssue>;

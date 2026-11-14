@@ -15,6 +15,8 @@ import {
 } from "./types";
 
 export type Act = <T>(fn: () => Promise<Envelope<T>>) => Promise<string | null>;
+/** The last sheet form saved, offered to the next sheet read ("Same layout as the last sheet"), across files. */
+export type SheetMemory = { last: { form: SheetForm; study: Study } | null; remember: (s: { form: SheetForm; study: Study }) => void };
 /** Say what a file is (its tag), which moves it to the area of Inputs that holds that data (plan 2026-11-05 §3.1). */
 export type Retag = (file: ClientFile, kind: TagKind) => Promise<string | null>;
 
@@ -326,12 +328,15 @@ export function Dissolution({ projectId, d, act }: {
 
 
 /** The client's files: each sheet with what it holds and whether it is read, the agent's proposed readings, and the reader
- *  opened on one sheet. Shown on the area of Inputs each file's tag names (plan 2026-11-05 §3.1): `files`, the area's. */
-export function ClientFiles({ projectId, view, files, act, onRetag, onSaved }: {
+ *  opened on one sheet. On Inputs each file's card opens under its row in Client files (plan 2026-11-14 slice 1): `files`
+ *  is that one file, and `memory` carries the last sheet form from one file's card to the next. */
+export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, memory }: {
   projectId: string; view: View; files?: ClientFile[]; act: Act; onRetag?: Retag; onSaved: (message: string) => Promise<void>;
+  memory?: SheetMemory;
 }) {
   const [reading, setReading] = useState<{ file: string; sheet: string } | null>(null);
-  const [last, setLast] = useState<{ form: SheetForm; study: Study } | null>(null);
+  const [own, setOwn] = useState<{ form: SheetForm; study: Study } | null>(null);
+  const { last, remember: setLast } = memory ?? { last: own, remember: setOwn };
   return (
     <>
       {(files ?? view.files).map((f) => (

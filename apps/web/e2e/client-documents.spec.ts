@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
-import { finishStart } from "./fixtures/inputs";
+import { finishStart, openFile } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const AUTH = { Authorization: "Bearer dev" };
@@ -49,11 +49,13 @@ test("a Word synopsis is read for its study's facts, and its dose against the PK
   await page.getByTestId("tab-files").click();
   const files = page.getByTestId("files-table");
   await expect(files.getByTestId("inputs-file-EX-301_synopsis.docx")).toContainText("not placed: say what it is");
-  await expect(page.getByTestId("unplaced-client-files").getByTestId("document-EX-301_synopsis.docx")).toBeVisible();
+  await openFile(page, "EX-301_synopsis.docx");                                     // its row opens on the document
+  await expect(page.getByTestId("client-file-EX-301_synopsis.docx").getByTestId("document-EX-301_synopsis.docx")).toBeVisible();
   await files.getByLabel("what EX-301_synopsis.docx is").selectOption("clinical");
   await expect(page.getByTestId("inputs-notice")).toContainText("EX-301_synopsis.docx: clinical study, filed under Clinical studies");
   await expect(page.getByTestId("files-unplaced")).toHaveCount(0);
-  await expect(page.getByTestId("studies-client-files").getByTestId("document-EX-301_synopsis.docx")).toBeVisible();
+  await expect(files.getByTestId("open-file-EX-301_synopsis.docx")).toHaveText("Clinical studies");
+  await expect(page.getByTestId("document-EX-301_synopsis.docx")).toBeVisible();     // still open on its row
 
   // before the reading: code's inventory of the synopsis, and the agent's button (off: no LLM provider here)
   const doc = page.getByTestId("document-EX-301_synopsis.docx");
@@ -68,6 +70,7 @@ test("a Word synopsis is read for its study's facts, and its dose against the PK
                       ids["EX-301_synopsis.docx"]], { cwd: REPO });
   await page.reload();
   await page.getByTestId("tab-files").click();
+  await openFile(page, "EX-301_synopsis.docx");
   await expect(page.getByTestId("document-read-EX-301_synopsis.docx")).toContainText("6 study facts");
   await page.getByTestId("tab-studies").click();
 

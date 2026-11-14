@@ -115,3 +115,11 @@ before the next starts.
 - From `docs/plans/2026-11-03-inputs-and-client-data.md` §3.2 (left rail; "To confirm" at the top of the rail; a files
   drawer): a sticky horizontal area bar (the 2026-11-06 segmented-control decision), To do as the first area, Client
   files as the last. §3.2's principle that client data lands in its home area is kept by the cards.
+- Within this plan, slice 1 as built (after its review, 2026-11-14): the status line counts what slice 1 has, not the one
+  work model: Missing and To decide from the /inputs to-do (by kind), To confirm from the client review, and the
+  Delivery review's open work (table layouts to check, values with no study) said beside them, opening Client files.
+  "Next" takes the delivery's layouts, then its values with no study, while a study or product still confirms on the
+  delivery; otherwise the first to-do item; with nothing open, Review & sign. Slice 2 re-sources every count from
+  `lib/inputsWork.ts`. Rule 4 holds for the files table only: each row opens on the file's sheets (no second list of
+  cards), but until slice 2 (one file status) the Delivery review keeps its own "What arrived" list and the reading tray
+  its "Show each file" list, both inside Client files.

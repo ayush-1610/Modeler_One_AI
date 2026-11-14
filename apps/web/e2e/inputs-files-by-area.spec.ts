@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
-import { finishStart } from "./fixtures/inputs";
+import { finishStart, openFile } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const AUTH = { Authorization: "Bearer dev" };
@@ -42,34 +42,31 @@ test("files are added where their data belong, shown there, and moved by saying 
   await expect(page.getByTestId("inputs-notice")).toContainText("2 files stored.");
   await expect(page.getByTestId("tab-files")).toContainText("2");
   await page.getByTestId("tab-files").click();
-  const here = page.getByTestId("formulations-client-files");
-  await expect(here).toContainText("formulation and dissolution files (2)");
-  await expect(here.getByTestId("client-file-Dissolution Test pH 6.8.xlsx")).toBeVisible();
+  // one row per file, filed under the area of its data; its name opens its sheets under the row
+  const table = page.getByTestId("files-table");
+  const dissolution = table.getByTestId("open-file-Dissolution Test pH 6.8.xlsx");
+  await expect(dissolution).toHaveText("Products and dissolution");
+  await expect(page.getByTestId("client-file-Dissolution Test pH 6.8.xlsx")).toHaveCount(0);
+  await openFile(page, "Dissolution Test pH 6.8.xlsx");
 
   // the BE workbook's sheet holds plasma concentrations: its row says so, and "Use it" files it under Clinical studies
-  const table = page.getByTestId("files-table");
   const be = table.getByTestId("inputs-file-230-23 Fasting Reference.xlsx");
   await expect(be.getByLabel("what 230-23 Fasting Reference.xlsx is")).toHaveValue("formulation");
-  await expect(be).toContainText("Open on Products and dissolution");
+  await expect(be.getByTestId("open-file-230-23 Fasting Reference.xlsx")).toHaveText("Products and dissolution");
   const reading = be.getByTestId("tag-proposal-230-23 Fasting Reference.xlsx");
   await expect(reading).toContainText("Its content reads as clinical study");
   await shot(page, "1-products-files");
   await reading.getByRole("button", { name: "Use it" }).click();
   await expect(page.getByTestId("inputs-notice")).toContainText("230-23 Fasting Reference.xlsx: clinical study, filed under Clinical studies");
-  await expect(here).toContainText("formulation and dissolution files (1)");
-  await expect(page.getByTestId("studies-client-files").getByTestId("client-file-230-23 Fasting Reference.xlsx")).toBeVisible();
-  await expect(be).toContainText("Open on Clinical studies");
+  await expect(be.getByTestId("open-file-230-23 Fasting Reference.xlsx")).toHaveText("Clinical studies");
 
   // added for Clinical studies, a workbook named as dissolution is still filed under Products and dissolution, by its name
   await page.getByTestId("client-upload-studies").setInputFiles(join(dir, "Dissolution RLD pH 6.8.xlsx"));
   await expect(page.getByTestId("inputs-notice")).toContainText(
     "Dissolution RLD pH 6.8.xlsx is filed under Products and dissolution, by its name");
-  await expect(page.getByTestId("studies-client-files").getByTestId("client-file-Dissolution RLD pH 6.8.xlsx")).toHaveCount(0);
-  await expect(here).toContainText("formulation and dissolution files (2)");
-  await expect(here.getByTestId("client-file-Dissolution RLD pH 6.8.xlsx")).toBeVisible();
-
-  // one row per file: what it is, and the area its data land on
-  await expect(table.getByTestId("inputs-file-Dissolution RLD pH 6.8.xlsx")).toContainText("Open on Products and dissolution");
+  await expect(table.getByTestId("open-file-Dissolution RLD pH 6.8.xlsx")).toHaveText("Products and dissolution");
+  await expect(page.getByTestId("client-file-Dissolution Test pH 6.8.xlsx")).toBeVisible();      // an open row stays open
+  await openFile(page, "Dissolution RLD pH 6.8.xlsx");
   await shot(page, "2-files-view");
   await table.getByTestId("open-file-Dissolution RLD pH 6.8.xlsx").click();
   await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");

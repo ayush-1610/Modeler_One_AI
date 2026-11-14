@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { finishStart } from "./fixtures/inputs";
+import { finishStart, openFile } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 
@@ -33,6 +33,8 @@ test("client files are read cell by cell, sorted, and what the checklist did not
 
   await page.getByTestId("client-upload-studies").setInputFiles([join(dir, "client-template-filled.xlsx"), join(dir, "client-raw.xlsx")]);
   await page.getByTestId("tab-files").click();                    // each file and its sheets, in Client files
+  await openFile(page, "client-template-filled.xlsx");
+  await openFile(page, "client-raw.xlsx");
   const filled = page.getByTestId("client-file-client-template-filled.xlsx");
   await expect(filled).toContainText("client-data template");
   await expect(filled).toContainText("1 dataset");

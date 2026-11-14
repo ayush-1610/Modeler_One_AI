@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BriefList } from "@/components/brief/BriefList";
@@ -11,19 +12,19 @@ import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { useMutation, useRefresh, useResource } from "@/lib/hooks";
-import type { ArtifactView } from "@/lib/pipeline";
+import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 
 import { AddDataMenu } from "./AddDataMenu";
 import { ConfirmGroups } from "./ClientConfirm";
-import { ClientFilesTab } from "./ClientFilesTab";
+import { ClientFilesTab, type FilesShown } from "./ClientFilesTab";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
 import { ORDER, type Run, type TodoItem } from "./InputsTodo";
 import { AccessRequests } from "./ObservedDatasets";
 import { useReadingRefresh } from "./ReadingTray";
-import { type Options, StudiesTab } from "./StudiesTab";
-import { fileArea, whereShown } from "./TabFiles";
-import { type Readiness, TodoTab } from "./TodoTab";
+import { type Intent, type Options, StudiesTab } from "./StudiesTab";
+import { downloadTemplate, fileArea, whereShown } from "./TabFiles";
+import { type Readiness, TodoTab, todoText } from "./TodoTab";
 import { ValueReuse } from "./ValueReuse";
 
 // The areas, in a bar across the top that stays in view (plan 2026-11-14 slice 1; the 2026-11-06 segmented-control
@@ -37,6 +38,9 @@ const TABS: [Tab, string][] = [["todo", "To do"], ["compound", "Compound"], ["fo
                                ["settings", "Simulation settings"], ["files", "Client files"]];
 const AREAS = TABS.filter(([id]) => id !== "todo" && id !== "files") as [Area, string][];
 const SOLID = ["ir_tablet", "ir_capsule", "mr", "suspension"];
+// the to-do's kinds a person settles by choosing (the status word "To decide", plan 2026-11-14 §2 rule 5); a group to
+// confirm is "To confirm"; every other kind is something "Missing". Slice 2 counts from the one work model instead.
+const DECIDE = new Set(["conflict", "correct", "pka", "review", "formulation", "process", "unit"]);
 
 // GET /projects/{id}/inputs (InputsPage): the readiness, choices and the open items are typed here
 type View = Narrow<Schema<"InputsPage">, {
@@ -120,12 +124,24 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
   const [chosen, setTab] = useState<Tab | null>(TABS.some(([id]) => id === initialTab) ? initialTab! : null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [onlyToConfirm, setOnlyToConfirm] = useState(false);
+  const [intent, setIntent] = useState<Intent | null>(null);
+  // the client files opened on their sheets, and the last sheet form saved, held while another area is shown
+  const [filesOpen, setFilesOpen] = useState<ReadonlySet<string>>(new Set());
+  const [lastSheet, rememberSheet] = useState<FilesShown["memory"]["last"]>(null);
+  const shown: FilesShown = {
+    open: filesOpen, memory: { last: lastSheet, remember: rememberSheet },
+    toggle: (id) => setFilesOpen((was) => {
+      const next = new Set(was);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    }),
+  };
   const review = useResource("/api/v1/projects/{project_id}/client-review", { project_id: projectId });
   const literature = useResource("/api/v1/projects/{project_id}/literature-run", { project_id: projectId },
     { poll: (d) => d.running, interval: 5000 });
   const refresh = useRefresh();
   // a file read by code or by the agent brings values onto the cards, whichever area is open
-  useDeliveryRefresh(projectId);
+  const delivery = useDeliveryRefresh(projectId);
   useReadingRefresh(projectId);
   const assembled = useRef(false);
   const searching = useRef(false);
@@ -228,8 +244,29 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
   }
 
   function open(t: TodoItem) {
+    setOnlyToConfirm(false);
     setTab((t.tab ?? "compound") as Tab);
-    window.setTimeout(() => document.getElementById(`todo-${t.kind}-${t.target}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+    // a group to confirm is settled on its own card; every other item on its row in the area's list
+    const id = t.kind === "confirm" ? `group-${t.target}` : `todo-${t.kind}-${t.target}`;
+    window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: t.kind === "confirm" ? "start" : "center", behavior: "smooth" }), 50);
+  }
+  // a block of the Delivery review, in Client files (it is read once the area shows it)
+  function openFiles(block: string) {
+    setOnlyToConfirm(false);
+    setTab("files");
+    let tries = 0;
+    const find = () => {
+      const el = document.querySelector(`[data-testid="${block}"]`);
+      if (el) el.scrollIntoView({ block: "start", behavior: "smooth" });
+      else if (++tries < 20) window.setTimeout(find, 100);
+    };
+    window.setTimeout(find, 50);
+  }
+  // a tool the head's "Add data" opens on Clinical studies
+  function startStudies(what: Intent["what"]) {
+    setOnlyToConfirm(false);
+    setTab("studies");
+    setIntent({ what, at: Date.now() });
   }
 
   // "To confirm" filters the areas; pressed on To do or Client files, it opens the first area with something to confirm
@@ -240,6 +277,23 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
       setTab(AREAS.find(([id]) => groups.some((g) => g.tab === id && g.state === "to_confirm"))?.[0] ?? "studies");
     }
   }
+
+  // the status line (plan 2026-11-14 §2; slice 1): the to-do by status word, "To confirm", the delivery's open work, and
+  // the page's one primary button, "Next". The delivery's table layouts and values with no study come first while a
+  // study or product still confirms on the delivery (they hold its signature); otherwise the to-do's order holds.
+  const missing = todo.filter((t) => t.kind !== "confirm" && !DECIDE.has(t.kind)).length;
+  const decide = todo.filter((t) => DECIDE.has(t.kind)).length;
+  const layouts = delivery?.enabled ? delivery.mappings.length : 0;
+  const unlinked = delivery?.enabled ? delivery.totals.values_unassigned : 0;
+  const holds = Boolean(delivery?.enabled && delivery.subjects.some((s) => s.confirm_on === "delivery" && !s.confirmation?.current));
+  const ready = !todo.length && Boolean(view.readiness?.content?.ready);
+  const groupTitle = (id: string) => groups.find((g) => g.id === id)?.title;
+  const next: { text: string; go: () => void } | { text: string; href: string } | null =
+    holds && layouts ? { text: `Next: Check how ${plural(layouts, "table")} ${layouts === 1 ? "is" : "are"} read`, go: () => openFiles("delivery-mappings") }
+      : holds && unlinked ? { text: `Next: Link ${plural(unlinked, "value")} to a study or product`, go: () => openFiles("delivery-unassigned") }
+        : todo.length ? { text: `Next: ${todoText(todo[0], groupTitle)}`, go: () => open(todo[0]) }
+          : ready ? { text: "Next: Review & sign", href: STEP_ROUTES.review(projectId) } : null;
+  const showTodo = () => { setOnlyToConfirm(false); setTab("todo"); };
 
   const tabs = TABS.map(([id, label]) => (
     id === "todo" ? { id, label, count: todo.length, countLabel: "to do", testId: "tab-todo" }
@@ -252,7 +306,15 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
   return (
     <PageShell {...head}
       actions={(
-        <AddDataMenu projectId={projectId} run={run}>
+        <AddDataMenu projectId={projectId} run={run}
+                     onTemplate={() => void downloadTemplate(client.data?.template).then((p) => { if (p) setNotice({ ok: false, text: p }); })}
+                     onDigitize={() => startStudies("digitize")} onTypeTable={() => startStudies("type")}
+                     onFindObserved={client.data?.agents.enabled ? () => {
+                       setOnlyToConfirm(false);
+                       setTab("studies");
+                       void run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }, undefined, { agent: "A3" }),
+                                "The observed-data agent is searching; datasets appear under Every dataset as it records them.");
+                     } : undefined}>
           <button type="button" className="menu-item" data-testid="ask-literature" disabled={running} onClick={() => void askLiterature()}
                   title="PubChem, the FDA label and ChEMBL by code, then the literature agent (when agents are on)">
             {running ? "Searching the sources…" : "Search the sources and the literature"}
@@ -266,13 +328,37 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
         </AddDataMenu>
       )}
     >
+      <div className="inputs-status" data-testid="inputs-status">
+        <div className="status-counts">
+          {files.length > 0 && <span className="muted">{plural(files.length, "client file")}</span>}
+          {ready && <strong className="status-ready" data-testid="status-ready">Inputs are ready</strong>}
+          {missing > 0 && (
+            <button type="button" className="btn small status-count" data-testid="status-missing" onClick={showTodo}
+                    title="What the model still needs, listed in To do">Missing <span className="status-num">{missing}</span></button>
+          )}
+          {decide > 0 && (
+            <button type="button" className="btn small status-count" data-testid="status-decide" onClick={showTodo}
+                    title="Choices only a person can make, listed in To do">To decide <span className="status-num">{decide}</span></button>
+          )}
+          <button type="button" className={`btn small to-confirm-btn${toConfirm ? " waiting" : ""}`} aria-pressed={onlyToConfirm}
+                  data-testid="to-confirm" onClick={toggleToConfirm} title="Show only the client's data that waits for your confirmation">
+            <span>{onlyToConfirm ? "Showing what to confirm" : "To confirm"}</span>
+            <span className="chip" data-testid="to-confirm-count">{toConfirm}</span>
+          </button>
+          {(layouts > 0 || unlinked > 0) && (
+            <button type="button" className="link-btn" data-testid="status-delivery" onClick={() => openFiles("delivery-section")}>
+              Delivery review: {[layouts ? `${plural(layouts, "table layout")} to check` : "", unlinked ? `${plural(unlinked, "value")} with no study` : ""]
+                .filter(Boolean).join(" · ")}
+            </button>
+          )}
+          <span className="sr-only" aria-live="polite">{`${missing} missing, ${decide} to decide, ${toConfirm} to confirm`}</span>
+        </div>
+        {next && ("href" in next
+          ? <Link className="btn primary status-next" href={next.href} data-testid="inputs-next">{next.text}</Link>
+          : <button type="button" className="btn primary status-next" data-testid="inputs-next" onClick={next.go} title={next.text}>{next.text}</button>)}
+      </div>
       <div className="area-bar" data-testid="area-bar">
         <Tabs label="Input areas" prefix="inputs" value={tab} onChange={setTab} tabs={tabs} className="area-tabs" />
-        <button type="button" className={`btn to-confirm${toConfirm ? " waiting" : ""}`} aria-pressed={onlyToConfirm}
-                data-testid="to-confirm" onClick={toggleToConfirm}>
-          <span>{onlyToConfirm ? "Showing what to confirm" : "To confirm"}</span>
-          <span className="chip" data-testid="to-confirm-count">{toConfirm}</span>
-        </button>
       </div>
       {notice && <Banner tone={notice.ok ? "ok" : "err"} testId="inputs-notice">{notice.text}</Banner>}
       {running && literature.data && <LiteratureProgress r={literature.data} />}
@@ -280,7 +366,7 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
       {tab === "todo" && (
         <TabPanel prefix="inputs" id="todo">
           <TodoTab projectId={projectId} todo={todo} areas={AREAS.map(([id, label]) => ({ id, label }))}
-                   groupTitle={(id) => groups.find((g) => g.id === id)?.title} readiness={view.readiness?.content}
+                   groupTitle={groupTitle} readiness={view.readiness?.content}
                    selectionRule={view.selection_rule} onOpen={open} />
         </TabPanel>
       )}
@@ -373,13 +459,13 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
 
       {tab === "studies" && (
         <TabPanel prefix="inputs" id="studies">{confirmHere("studies")}{!onlyToConfirm && <StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
-                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} />}</TabPanel>
+                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} intent={intent} />}</TabPanel>
       )}
 
       {tab === "files" && (
         <TabPanel prefix="inputs" id="files">
           <ClientFilesTab projectId={projectId} client={client.data} run={run} act={clientAct} onRetag={retag} onSaved={clientSaved}
-                          onOpen={(area) => { setOnlyToConfirm(false); setTab(area); }} />
+                          onOpen={(area) => { setOnlyToConfirm(false); setTab(area); }} shown={shown} />
         </TabPanel>
       )}
     </PageShell>

@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
-import { finishStart } from "./fixtures/inputs";
+import { finishStart, openFile } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const AUTH = { Authorization: "Bearer dev" };
@@ -54,6 +54,7 @@ test("sheets are read on arrival: a complete one waits on its product, a BE arm 
   await expect(cleaning).toContainText("Below the table");
   await shot(page, "1-be-arm-to-finish");
   await page.getByTestId("tab-files").click();                    // the file's own sheet, in Client files
+  await openFile(page, "230-23 Fasting Reference.xlsx");
   await expect(page.getByTestId("client-file-230-23 Fasting Reference.xlsx").getByTestId("sheet-cleaning-Sheet1")).toHaveCount(1);
   await page.getByTestId("tab-studies").click();
   // what the project holds is pre-filled, with where it comes from (build L, the owner, 2026-11-08): the proposal's one
@@ -78,6 +79,7 @@ test("sheets are read on arrival: a complete one waits on its product, a BE arm 
   await page.getByTestId("tab-formulations").click();
   await expect(page.getByTestId("release-view").first()).toBeVisible();
   await page.getByTestId("tab-files").click();
+  await openFile(page, "Dissolution Test pH 6.8.xlsx");
   await expect(page.getByTestId("client-file-Dissolution Test pH 6.8.xlsx").getByTestId("sheet-pH 6.8")).toContainText("read ✓");
   await shot(page, "2-dissolution-on-its-product");
 });

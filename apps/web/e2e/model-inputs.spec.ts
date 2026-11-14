@@ -39,8 +39,11 @@ test("model inputs flow in from the evidence, are checked, and hand over to Revi
   expect(ds.ok(), await ds.text()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/inputs`);
-  // nothing still missing: the page opens on Compound; To do says the inputs are ready, nothing to accept
+  // nothing still missing: the page opens on Compound, its status line says the inputs are ready and "Next" leads to
+  // Review & sign; To do says so too, with the checks; nothing to accept
   await expect(page.getByTestId("tab-compound")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("status-ready")).toHaveText("Inputs are ready");
+  await expect(page.getByTestId("inputs-next")).toHaveText("Next: Review & sign");
   await page.getByTestId("tab-todo").click();
   await expect(page.getByTestId("inputs-ready")).toBeVisible();
   await expect(page.getByTestId("check-every planned simulation builds (software)")).toContainText("ok");
@@ -54,7 +57,6 @@ test("model inputs flow in from the evidence, are checked, and hand over to Revi
   await expect(page.getByTestId("study-doe-iv-250")).toContainText("S1");               // the role the MS-01 split proposes
   await expect(page.getByRole("button", { name: /Accept|Approve|Hand to/ })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("inputs.png"), fullPage: true });
-  await page.getByTestId("tab-todo").click();
-  await page.getByRole("link", { name: "Go to Review & sign" }).click();
+  await page.getByTestId("inputs-next").click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/plan`));
 });

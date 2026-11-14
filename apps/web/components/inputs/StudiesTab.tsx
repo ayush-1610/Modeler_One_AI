@@ -1,18 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { View as ClientView } from "@/components/client/types";
 import { EmptyState, InlineIssue } from "@/components/kit";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
-import { apiFile, send, type Schema } from "@/lib/api";
+import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import { numericKey, ordinal, useTableView } from "@/lib/tableView";
 
 import { type Run, TodoCard, type TodoItem } from "./InputsTodo";
 import { ObservedDatasets } from "./ObservedDatasets";
+import { downloadTemplate } from "./TabFiles";
 
 export type StudyRow = Schema<"InputStudyRow">;
+/** A tool the head's "Add data" opened on this area (plan 2026-11-14 slice 1); `at` makes each choice a new one. */
+export type Intent = { what: "type" | "digitize"; at: number };
 export type Options = Record<"route" | "formulation" | "food_state" | "purpose" | "sex" | "population", string[]>;
 
 const ROLE: Record<string, string> = {
@@ -234,24 +237,21 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
  *  & sign), whether it is blinded (D-15), its regimen and whether it is used; then the other ways to add observed data.
  *  The client's clinical and bioanalytical files, each data sheet with its reading (R3c), are in the Client files area
  *  (plan 2026-11-14 slice 1). */
-export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client }: {
+export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client, intent }: {
   studies: StudyRow[]; todo: TodoItem[]; projectId: string; run: Run; options: Options; onIndividuals: () => void;
   client: ClientView | undefined;
+  /** "Type a table in" or "Digitize a figure", chosen in the head's "Add data" */
+  intent?: Intent | null;
 }) {
   const unpromised = client?.reconciliation.unpromised ?? [];
   const [typing, setTyping] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  async function template() {
-    const { file, problem } = await apiFile("/api/v1/client-data/template.xlsx");
-    setProblem(file ? null : `The template could not be downloaded: ${problem}`);
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${client?.template ?? "ModelerOne_ClientData"}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
+  const template = async () => setProblem(await downloadTemplate(client?.template));
+  useEffect(() => {
+    if (intent?.what !== "type") return;
+    setTyping(true);
+    window.setTimeout(() => document.querySelector('[data-testid="typed-table"]')?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
+  }, [intent]);
   return (
     <>
       {todo.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}
@@ -281,7 +281,7 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
         {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
         {typing && <TypedTable projectId={projectId} run={run} options={options} />}
       </section>
-      <div id="observed-datasets"><ObservedDatasets projectId={projectId} run={run} /></div>
+      <div id="observed-datasets"><ObservedDatasets projectId={projectId} run={run} digitize={intent?.what === "digitize" ? intent.at : undefined} /></div>
     </>
   );
 }
