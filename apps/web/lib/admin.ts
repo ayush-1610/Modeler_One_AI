@@ -29,6 +29,9 @@ export const getAgents = () => serverGet("/api/v1/admin/agents", {});
 export const getKeys = () => serverGet("/api/v1/admin/keys", {});
 export const getLimits = (priced: PricedAs) => serverGet("/api/v1/admin/limits", {}, { priced_as: priced });
 export const getPeople = () => serverGet("/api/v1/admin/people", {});
+/** Where the intake pipeline is blind, per company and in all: counts only, no file name and no value. */
+export const getPipeline = (since?: string) => serverGet("/api/v1/admin/pipeline", {}, { since });
+export type PipelineCounts = Schema<"PipelineCounts">;
 
 export type LimitRow = Schema<"LimitRow">;
 

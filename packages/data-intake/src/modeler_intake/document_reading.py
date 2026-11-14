@@ -103,7 +103,8 @@ _CUES: dict[str, re.Pattern[str]] = {
     "oral": re.compile(r"\boral(?:ly)?\b|\bp\.?\s?o\.?\b|\btablets?\b|\bcapsules?\b|swallow", re.IGNORECASE),
     "iv_bolus": re.compile(r"\bbolus\b|intravenous(?:ly)? (?:injection|push)|\bi\.?v\.? (?:injection|push)", re.IGNORECASE),
     "iv_infusion": re.compile(r"infusion", re.IGNORECASE),
-    "fasted": re.compile(r"\bfast(?:ed|ing)?\b|empty stomach", re.IGNORECASE),
+    # a negated fast ("non-fasted", "not fasting", "no fasting") states no fast: it reads as neither choice, never as fasted
+    "fasted": re.compile(r"(?<!non[-\u2010\u2011\u2013 ])(?<!not )(?<!no )\bfast(?:ed|ing)?\b|empty stomach", re.IGNORECASE),
     "fed": re.compile(r"\bfed\b|\bmeal\b|breakfast|with food|high[- ]fat|after food", re.IGNORECASE),
     "ir_tablet": re.compile(r"\btablets?\b", re.IGNORECASE),
     "ir_capsule": re.compile(r"\bcapsules?\b", re.IGNORECASE),

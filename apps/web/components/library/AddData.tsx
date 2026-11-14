@@ -30,14 +30,16 @@ const ADDED_AS: Record<DocRole, string> = {
   annex: "an annex", paper: "a paper", context: "context", proposal: "part of the proposal", other: "a document",
 };
 
-/** Where a file goes by its name: client data with its tag, else a document (an annex). */
+/** Where a file goes by its name: client data with its tag, else a document (an annex). A ZIP of the client's files is
+ *  client data: the intake pipeline reads its members one by one. */
 function guessGoes(name: string): Goes {
   const tag = guessTag(name);
-  return tag === "proposal" ? (WORKBOOK.test(name) ? "client:other" : "doc:annex") : `client:${tag}`;
+  return tag === "proposal" ? (WORKBOOK.test(name) || ARCHIVE.test(name) ? "client:other" : "doc:annex") : `client:${tag}`;
 }
 export const RELATED_STEPS: [string, string][] = [["start", "Start"], ["inputs", "Inputs"], ["review", "Review & sign"], ["run", "Run"]];
 const WORKBOOK = /\.(xlsx|xlsm|xls|csv|tsv)$/i;
-const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.json,.csv,.tsv,.xlsx,.xlsm,.xls,.png,.jpg,.jpeg";
+const ARCHIVE = /\.zip$/i;
+const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.json,.csv,.tsv,.xlsx,.xlsm,.xls,.png,.jpg,.jpeg,.zip";
 /** What the reading agent reads for data (the API's READ_FOR_DATA). */
 const READABLE = /\.(pdf|docx|xlsx|xlsm|xls|csv|tsv)$/i;
 /** Each upload carries at most this many files and bytes: a large delivery goes up in several short requests. */
@@ -140,7 +142,8 @@ export function AddData({ projectId, step: initial, onClose }: { projectId: stri
   return (
     <Dialog title="Add data" onClose={onClose} testId="add-data">
       <p className="muted add-data-lede">
-        Files for any step of this project: Excel, CSV, Word, PDF, JSON, Markdown or text, as many as the delivery has.
+        Files for any step of this project: Excel, CSV, Word, PDF, JSON, Markdown or text, or a ZIP of them, as many as the
+        delivery has.
         Say what each is: client data with its tag (a hint for reading it, not a fact) or a document. The agent reads
         each PDF, Word and Excel file for its data, documents too unless you untick &ldquo;Read for data&rdquo;. Each is
         kept in the project&apos;s library with what it relates to; nothing is shared with another project.

@@ -7,7 +7,7 @@ import { PRICED_AS, percent, tokens, usd, when, type LimitRow, type PricedAs, ty
 /** The console's pages, and (on the pages with costs) the model the costs are priced at: a link per model, since the
  *  page is read on the server. */
 export function AdminTabs({ here, priced = "claude-opus-5-5", base, query = {} }: {
-  here: "overview" | "usage" | "company" | "limits" | "people" | "models" | "keys"; priced?: PricedAs; base?: string;
+  here: "overview" | "usage" | "company" | "limits" | "people" | "models" | "keys" | "pipeline"; priced?: PricedAs; base?: string;
   query?: Record<string, string | undefined>;
 }) {
   const href = (p: PricedAs) => {
@@ -24,6 +24,7 @@ export function AdminTabs({ here, priced = "claude-opus-5-5", base, query = {} }
         <Link href="/admin/people" className={here === "people" ? "active" : ""}>People</Link>
         <Link href="/admin/models" className={here === "models" ? "active" : ""}>Models</Link>
         <Link href="/admin/keys" className={here === "keys" ? "active" : ""}>Keys</Link>
+        <Link href="/admin/pipeline" className={here === "pipeline" ? "active" : ""}>Pipeline</Link>
       </nav>
       {base && (
         <div className="muted" data-testid="priced-as">

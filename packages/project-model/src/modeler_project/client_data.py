@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import PurePath
 from typing import Any
@@ -135,43 +136,93 @@ def _study_record(row: Row, *, filename: str, n_timepoints: int, statistic: str)
     return record
 
 
-def _series_from_summary(rows: list[Row], issues: list[Issue]) -> tuple[list[Series], str, str]:
+def _series_from_summary(rows: list[Row], issues: list[Issue]) -> tuple[list[Series], str, str, list[int]]:
+    """(series, time unit, unit, rows read per series). A row whose value cell is empty or refused (`MISSING_VALUE`,
+    `UNPARSEABLE_VALUE`) is no point at all: it is left out of the series and named (`NO_VALUE`), so that a None value
+    is only ever a point below the LLOQ (`Series.values`). Whether the series has a spread, its kind and its n are read
+    over every row, as before, with one change (contracts §11.7): a point below the LLOQ that states no spread no longer
+    drops the series' spread; it keeps its place in `Series.error` as None. Any other row with no spread (a value with
+    none, a row left out) still leaves the series without one, so the profile the campaign judges is otherwise what it
+    was. The rows read per series (the sampling times, a row left out included) give the study's `n_timepoints`."""
     by_stat: dict[str, list[Row]] = defaultdict(list)
     for r in rows:
         by_stat[r.values["statistic"]].append(r)
     units = {(r.values.get("time_unit"), r.values.get("unit")) for r in rows}
     if len(units) > 1:
         issues.append(Issue("MIXED_UNITS", rows[0].locator, f"one arm reported in several units {sorted(map(str, units))}"))
-        return [], "", ""
+        return [], "", "", []
     time_unit, unit = units.pop()
-    out = []
+    out: list[Series] = []
+    sampled: list[int] = []
     for stat, group in by_stat.items():
         group = sorted(group, key=lambda r: r.values["time"])
         times = [r.values["time"] for r in group]
         if len(set(times)) != len(times):
             issues.append(Issue("DUPLICATE_TIME", group[0].locator, f"{stat}: a time appears twice"))
             continue
-        variability = [r.values.get("variability") for r in group]
         kinds = {r.values.get("variability_kind") for r in group if r.values.get("variability") is not None}
-        has_error = all(x is not None for x in variability) and len(kinds) == 1
+        # every row states a spread of one kind, but a BLQ point may state none (§11.7)
+        has_error = len(kinds) == 1 and next(iter(kinds)) in _ERROR_KIND and all(
+            r.values.get("variability") is not None or "value" in r.below_lloq for r in group)
+        unnamed = [r for r in group if r.values.get("variability") is not None and r.values.get("variability_kind") is None]
+        if unnamed:                                        # a spread of no stated kind is never dropped without a word
+            issues.append(Issue("SPREAD_KIND_MISSING", unnamed[0].locator, f"{stat}: {len(unnamed)} rows state a "
+                                "variability and no variability_kind (SD, SE or CV%): the series is kept without its spread"))
         n = next((int(r.values["n"]) for r in group if r.values.get("n") is not None), None)
-        out.append(Series(name=stat.replace("_", " "), statistic=_STATISTIC[stat], times=tuple(times),
-                          values=tuple(r.values.get("value") for r in group),
-                          error=tuple(variability) if has_error else None,  # type: ignore[arg-type]
-                          error_kind=_ERROR_KIND[kinds.pop()] if has_error else "none", n=n))
-    return out, time_unit, unit
+        sampled.append(len(group))
+        kept: list[Row] = []
+        for r in group:
+            if r.values.get("value") is not None or "value" in r.below_lloq:
+                kept.append(r)
+            else:
+                issues.append(Issue("NO_VALUE", r.locator, f"{stat} at {r.values['time']} {time_unit}: no value and no BLQ "
+                                                           "mark; the row is left out (missing is not below the LLOQ)"))
+        if not kept:
+            continue
+        n_each = [int(r.values["n"]) if r.values.get("n") is not None else None for r in kept]
+        errors = tuple(r.values.get("variability") for r in kept)
+        has_error = has_error and any(e is not None for e in errors)
+        out.append(Series(name=stat.replace("_", " "), statistic=_STATISTIC[stat], times=tuple(r.values["time"] for r in kept),
+                          values=tuple(r.values.get("value") for r in kept), error=errors if has_error else None,
+                          error_kind=_ERROR_KIND[kinds.pop()] if has_error else "none", n=n, n_at=_n_at(n_each)))
+    return out, time_unit, unit, sampled
 
 
-def _series_from_individuals(rows: list[Row], issues: list[Issue]) -> tuple[list[Series], str, str]:
+def _n_at(n_each: list[int | None]) -> tuple[int | None, ...] | None:
+    """n per time point, kept only when the stated n differ (one n stays in `Series.n`, the first stated; a point with
+    no n stated is not another n: a table that states n once has that one n)."""
+    return tuple(n_each) if len({n for n in n_each if n is not None}) > 1 else None
+
+
+def _individual_value(r: Row, issues: list[Issue]) -> tuple[bool, float | None]:
+    """(a point, its value): below the LLOQ (a BLQ cell, or `blq_flag` yes on an empty cell) is a point with no value;
+    a row with no concentration and no BLQ mark is no point at all, and is named."""
+    if "concentration" in r.below_lloq:
+        return True, None
+    if r.values.get("concentration") is not None:
+        return True, r.values["concentration"]
+    if r.values.get("blq_flag") == "yes":
+        return True, None
+    issues.append(Issue("NO_VALUE", r.locator, f"subject {r.values.get('subject_id')}: no concentration and no BLQ mark; "
+                                               "the row is left out (missing is not below the LLOQ)"))
+    return False, None
+
+
+def _series_from_individuals(rows: list[Row], issues: list[Issue]) -> tuple[list[Series], str, str, list[int]]:
+    """(series, time unit, unit, rows read per subject). Which times a subject has (actual or nominal) and whether a
+    time appears twice are read over every row, as before; then a row with no concentration and no BLQ mark is left out
+    of the series and named (`_individual_value`). The rows read per subject give the study's `n_timepoints`, as
+    before."""
     units = {(r.values.get("time_unit"), r.values.get("unit")) for r in rows}
     if len(units) > 1:
         issues.append(Issue("MIXED_UNITS", rows[0].locator, f"one arm reported in several units {sorted(map(str, units))}"))
-        return [], "", ""
+        return [], "", "", []
     time_unit, unit = units.pop()
     by_subject: dict[str, list[Row]] = defaultdict(list)
     for r in rows:
         by_subject[str(r.values["subject_id"])].append(r)
-    out = []
+    out: list[Series] = []
+    sampled: list[int] = []
     for subject, group in sorted(by_subject.items()):
         # actual sampling times when every row has one, else the nominal times
         use_actual = all(r.values.get("actual_time") is not None for r in group)
@@ -181,9 +232,16 @@ def _series_from_individuals(rows: list[Row], issues: list[Issue]) -> tuple[list
         if len(set(times)) != len(times):
             issues.append(Issue("DUPLICATE_TIME", group[0].locator, f"subject {subject}: a time appears twice"))
             continue
-        out.append(Series(name=subject, statistic="individual", times=tuple(times),
-                          values=tuple(None if "concentration" in r.below_lloq else r.values.get("concentration") for r in group)))
-    return out, time_unit, unit
+        sampled.append(len(group))
+        points: list[tuple[float, float | None]] = []
+        for r in group:
+            is_point, value = _individual_value(r, issues)
+            if is_point:
+                points.append((r.values[key], value))
+        if points:
+            out.append(Series(name=subject, statistic="individual", times=tuple(t for t, _v in points),
+                              values=tuple(v for _t, v in points)))
+    return out, time_unit, unit, sampled
 
 
 def _datasets_from_template(read: ClientWorkbook, *, library: DocumentLibrary, sha: str, filename: str,
@@ -208,16 +266,18 @@ def _datasets_from_template(read: ClientWorkbook, *, library: DocumentLibrary, s
             issues.append(Issue("INCOMPLETE_STUDY", study.locator, f"study {_arm_id(*arm)}: n, route and dose are required"))
             continue
         series: list[Series] = []
-        time_unit = unit = ""
+        sampled: list[int] = []           # the rows each subject's / statistic's series was read from (a row left out
+        time_unit = unit = ""             # for no value included): the study's n_timepoints, as before
         if pk["PK_Individual"].get(arm):
-            series, time_unit, unit = _series_from_individuals(pk["PK_Individual"][arm], issues)
+            series, time_unit, unit, sampled = _series_from_individuals(pk["PK_Individual"][arm], issues)
+        individual = bool(sampled)
         if pk["PK_Summary"].get(arm):
-            summary, t_unit, c_unit = _series_from_summary(pk["PK_Summary"][arm], issues)
-            if series and summary and (t_unit, c_unit) != (time_unit, unit):
+            summary, t_unit, c_unit, summary_sampled = _series_from_summary(pk["PK_Summary"][arm], issues)
+            if sampled and summary_sampled and (t_unit, c_unit) != (time_unit, unit):
                 issues.append(Issue("MIXED_UNITS", pk["PK_Summary"][arm][0].locator,
                                     f"study {_arm_id(*arm)}: summary and individual rows in different units"))
-            elif summary:
-                series, time_unit, unit = series + summary, t_unit, c_unit
+            elif summary_sampled:
+                series, sampled, time_unit, unit = series + summary, sampled + summary_sampled, t_unit, c_unit
         reported = tuple(ReportedPK(parameter=r.values["parameter"], value=r.values["value"], unit=r.values["unit"],
                                     statistic=r.values.get("statistic", "arithmetic_mean"),
                                     variability=(f"{r.values['variability']} {r.values.get('variability_kind', '')}".strip()
@@ -225,9 +285,8 @@ def _datasets_from_template(read: ClientWorkbook, *, library: DocumentLibrary, s
                          for r in pk["PK_Parameters"].get(arm, []) if "value" in r.values and "parameter" in r.values)
         if not series and not reported:
             continue
-        individual = any(s.statistic == "individual" for s in series)
         has_sd = any(s.error_kind != "none" for s in series)
-        record = _study_record(study, filename=filename, n_timepoints=max((len(s.times) for s in series), default=1),
+        record = _study_record(study, filename=filename, n_timepoints=max(sampled, default=1),
                                statistic="individual" if individual else "mean_sd" if has_sd else "mean")
         lloq = study.values.get("lloq")
         if lloq is not None:
@@ -473,7 +532,9 @@ def record_document_reading(ws: Workspace, sid: str, *, facts: list[dict[str, An
         read = {"run_id": run_id, "by": by, "datasets": datasets, "facts": len(facts), "dissolution_rows": len(dissolution),
                 "links": len(links), "compositions": len(compositions), "refused": refused[:50], "digitization": digitization,
                 "figures": len(figures), "summary": summary[:2000]}
-        content.update(study_facts=facts, dissolution=dissolution, study_links=links, compositions=list(compositions),
+        # the rows a signed Delivery confirmation landed (tagged, `record_delivery_rows`) are not the reading's: kept
+        landed = [r for r in content.get("dissolution", []) if r.get("tag")]
+        content.update(study_facts=facts, dissolution=[*landed, *dissolution], study_links=links, compositions=list(compositions),
                        figure_suggestions=list(figures),
                        datasets=[*[d for d in content.get("datasets", []) if d not in earlier], *datasets],
                        document_reads=[*content.get("document_reads", []), read])
@@ -596,12 +657,13 @@ def datasets_from_observations(observations: list[Any], *, study: dict[str, Any]
         series = []
         for name, group in sorted(by_series.items()):
             group = sorted(group, key=lambda o: o.time)
-            sds = [o.sd for o in group]
+            sds = tuple(o.sd for o in group)
+            # every point has its SD, but a point below the LLOQ may have none: None in its place (§11.7)
+            spread = any(x is not None for x in sds) and all(o.sd is not None or o.below_lloq for o in group)
             series.append(Series(name=name, statistic=group[0].statistic, times=tuple(o.time for o in group),
                                  values=tuple(None if o.below_lloq else o.value for o in group),
-                                 error=tuple(sds) if all(x is not None for x in sds) else None,  # type: ignore[arg-type]
-                                 error_kind="SD" if all(x is not None for x in sds) else "none",
-                                 n=next((o.n for o in group if o.n is not None), None)))
+                                 error=sds if spread else None, error_kind="SD" if spread else "none",
+                                 n=next((o.n for o in group if o.n is not None), None), n_at=_n_at([o.n for o in group])))
         first = records[0]
         # what the study is for is the dataset's, not the study record's (MS-01 §3.3 classes read the record)
         record = {**{k: v for k, v in study.items() if k != "purpose"}, "study_id": study_id,
@@ -649,6 +711,67 @@ def record_mapping(ws: Workspace, sid: str, *, recipe: dict[str, Any], dataset_i
 
         rebuild(ws, by=by)
     return content | {"id": sid}
+
+
+DELIVERY_TAG = re.compile(r"delivery-[a-z]{1,3}-[1-9][0-9]*")     # "delivery-<confirmation id>" (contracts §6.6)
+# what `pbpk_domain.dissolution.profiles_from_rows` reads of a row as a number, and the time units it knows
+_ROW_NUMBERS = ("strength_mg", "rpm", "ph", "volume_ml", "time", "mean", "sd", *(f"vessel_{i}" for i in range(1, 13)))
+_ROW_TIME_UNITS = ("min", "h", "day")
+
+
+def _delivery_row_problem(values: dict[str, Any]) -> str:
+    """Why the dissolution register could not read a row's values ("" when it can): a number that is not one (a
+    profile key with a text rpm breaks every later rebuild), no time, a time unit it does not know."""
+    for name in _ROW_NUMBERS:
+        value = values.get(name)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int | float)):
+            return f"{name} is {value!r}, not a number"
+    count = values.get("n")
+    if count is not None and (isinstance(count, bool) or not isinstance(count, int)):
+        return f"n is {count!r}, not a whole number"
+    if values.get("time") is None:
+        return "the row has no time"
+    if values.get("time_unit") not in _ROW_TIME_UNITS:
+        return f"time_unit is {values.get('time_unit')!r}, not one of {', '.join(_ROW_TIME_UNITS)}"
+    return ""
+
+
+def record_delivery_rows(ws: Workspace, sid: str, rows: Sequence[dict[str, Any]], *, tag: str, by: str) -> int:
+    """Dissolution rows a signed Delivery confirmation lands (contracts §6.6, `intake_landing.land`): template-shaped
+    rows (`values`: product, role, strength_mg, batch, apparatus, rpm, medium, ph, volume_ml, time, time_unit,
+    vessel_1 … vessel_12 and/or mean, sd, n; `cells`: each value's locator) appended to the client file's
+    `dissolution`, the rows `dissolution_register.profiles_from_rows` reads, each carrying `tag` ("delivery-<cf id>").
+    They replace the file's earlier rows of the same tag (none: that tag's rows are removed), so landing a confirmation
+    again writes nothing new; then the register rebuilds. Client-file content has one owner: this module. The number
+    of rows written."""
+    if not DELIVERY_TAG.fullmatch(tag):
+        raise ClientDataError(f"not a Delivery confirmation's tag: {tag!r}")
+    added = []
+    for row in rows:                                       # every row is checked before anything is written
+        values, cells = row.get("values"), row.get("cells", {})
+        if not isinstance(values, dict) or not isinstance(cells, dict):
+            raise ClientDataError("a dissolution row is {values, cells}")
+        problem = _delivery_row_problem(values)
+        if problem:
+            raise ClientDataError(f"not a dissolution row the register reads: {problem}")
+        added.append({"values": dict(values), "cells": dict(cells), "tag": tag})
+    with ws.editing(ArtifactKind.CLIENT_SUBMISSION, sid):
+        version = ws.latest(ArtifactKind.CLIENT_SUBMISSION, sid)
+        if version is None:
+            raise ClientDataError(f"no client file {sid}")
+        content = dict(version.content)
+        before = list(content.get("dissolution", []))
+        after = [*(r for r in before if r.get("tag") != tag), *added]
+        if after != before:
+            content["dissolution"] = after
+            ws.commit(ArtifactKind.CLIENT_SUBMISSION, sid, content, actor=by,
+                      reason=f"{len(added)} dissolution rows confirmed on Delivery ({tag})")
+    # always: the rows may be stored already while an earlier rebuild failed (an interrupted landing completes here);
+    # the rebuild is idempotent (unchanged content keeps its version)
+    from modeler_project import dissolution_register
+
+    dissolution_register.rebuild(ws, by=by)
+    return len(added)
 
 
 # --- reconciliation (plan §10.1 step 6) ------------------------------------------------------------------------

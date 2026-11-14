@@ -14,6 +14,8 @@ from __future__ import annotations
 import unicodedata
 from typing import Any
 
+from pbpk_domain.spread import GEOMETRIC_SD
+
 CANONICAL_TIME_UNIT = "min"
 CANONICAL_CONCENTRATION_UNIT = "µmol/l"
 
@@ -70,13 +72,17 @@ def umol_per_l_per(unit: str, mol_weight: float | None) -> float:
 
 def normalize_profile(profile: dict[str, Any], mol_weight: float | None) -> dict[str, Any]:
     """The profile in minutes and µmol/l, with SD and LLOQ scaled alike; the reported units are kept under
-    ``source_time_unit`` / ``source_unit`` for the record."""
+    ``source_time_unit`` / ``source_unit`` for the record.
+
+    A geometric SD (``sd_type`` `spread.GEOMETRIC_SD`) is a dimensionless factor: it is left unscaled. A spread kept
+    verbatim (``spread``: SE without n, a median's or a geometric mean's other spread) carries its own unit and is never
+    touched (contracts §8.2)."""
     t_factor = minutes_per(profile.get("time_unit", CANONICAL_TIME_UNIT))
     c_factor = umol_per_l_per(profile.get("unit", CANONICAL_CONCENTRATION_UNIT), mol_weight)
     out = dict(profile)
     out["times"] = [float(t) * t_factor for t in profile["times"]]
     out["values"] = [float(v) * c_factor for v in profile["values"]]
-    if profile.get("sd"):
+    if profile.get("sd") and profile.get("sd_type") != GEOMETRIC_SD:
         out["sd"] = [float(v) * c_factor for v in profile["sd"]]
     if profile.get("lloq") is not None:
         out["lloq"] = float(profile["lloq"]) * c_factor

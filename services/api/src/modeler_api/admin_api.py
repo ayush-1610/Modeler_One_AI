@@ -46,10 +46,11 @@ from modeler_api.views.admin import (
     MeView,
     Overview,
     PeoplePage,
+    PipelineHealth,
     UsagePage,
 )
 from modeler_contracts.runtime import runtime_env
-from modeler_project import FileProjectStore
+from modeler_project import FileProjectStore, intake_health
 from modeler_project.members import MembershipError
 
 router = APIRouter(prefix="/api/v1", tags=["admin"])
@@ -204,6 +205,21 @@ def _grouped(runs: list[dict[str, Any]], key: Callable[[dict[str, Any]], str], l
 
 def _names(settings: Settings, tenants: Iterable[str]) -> dict[tuple[str, str], str]:
     return {(t, p.subject): p.name for t in tenants for p in memberships_for(settings, t).people()}
+
+
+@router.get("/admin/pipeline", **answers(PipelineHealth))
+def pipeline_health(principal: Admin, settings: SettingsDep, since: date | None = None) -> dict[str, Any]:
+    """Where the intake pipeline is blind, per company and in all (contracts 2026-11-12 §8.10): the files by state, the
+    share of tables mapped from the cache, by a rule, by the LLM and left unread, parser failures, unsupported files by
+    extension, outside items, unresolved anchors, pages needing OCR, and each stage's median and 90th-percentile time.
+    Counts from the pipeline's own run lines only: no file name, no value. `since`: the runs queued from that day."""
+    root = _root(settings)
+    start = datetime(since.year, since.month, since.day, tzinfo=UTC) if since else None
+    found = intake_health.summary(root, since=start)
+    registry = ps.CompanyRegistry(settings.read_root)
+    companies = [{**row, "name": (registry.get(row["tenant"]) or {}).get("name") or ""} for row in found["companies"]]
+    _saw(settings, principal, principal.tenant_id, "pipeline", since=since.isoformat() if since else None)
+    return envelope({**found, "companies": companies})
 
 
 @router.get("/admin/usage", **answers(UsagePage))

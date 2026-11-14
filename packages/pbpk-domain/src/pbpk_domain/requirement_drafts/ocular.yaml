@@ -1,0 +1,144 @@
+# DRAFT CHECKLIST, INERT: ocular products (topical eye drops and gels, intravitreal injections and implants, other
+# periocular routes). What to ask the client for, and how to check what arrives. Roadmap item 3 of the owner's decision
+# 2 (2026-11-12): plan docs/plans/2026-11-12-client-data-intake-redesign.md §7.9; contract
+# docs/plans/2026-11-12-intake-contracts.md §8.8.
+#
+# Why it is inert (no project can select it, no gate reads it):
+#   - it lives in pbpk_domain/requirement_drafts/, not in pbpk_domain/requirements/: the live loader
+#     (modeler_project.requirements.load_templates) lists only that folder, one level deep;
+#   - applies_to is empty, so a loader that found it would still select it for no project;
+#   - no APP code is added or named for it (the brief has no application code for ocular delivery).
+#
+# Status DRAFT / UNVERIFIED: every item below is unverified, and each item's note opens with that mark and the
+# scientist it awaits. Named scientist: none yet (named_scientist: null). By decision 2 the ocular build starts only
+# when the owner names the scientist in scientist_role (a PBPK scientist experienced in ocular pharmacokinetics), who
+# reviews and signs off every item; and before that, the engine decision (as for dermal: a MoBi model or another
+# engine, plan §7.9). Only then can this become a template, through a locked-file change with the owner's approval and
+# a version bump.
+#
+# What it does not hold, by the ground rules (CLAUDE.md):
+#   - no PK-Sim name, path or unit: every item is pksim_status TO_HARVEST, with no pksim key and no unit key (a unit
+#     in a template is the stored, engine-side unit, which is not harvested; the client's own unit is kept with each
+#     value as reported);
+#   - no CPF id: every target starts with "draft.", so no parameter-registry id and no existing dataset class is
+#     claimed;
+#   - no calculator (ocular scaling between species, corneal permeability or vitreous clearance predicted from
+#     structure), no default value, no acceptance threshold: a model result computed outside PK-Sim is excluded, and the
+#     numbers are the named scientist's to set (default_provider names who provides an item, never a value).
+#
+# What the harvested engine shows (services/engine-worker/golden/: catalog.json, harvested 2026-09-15 from ospsuite
+# 12.4.4, and the reference fixtures beside it): no entry names the eye or any of its tissues (ocular, vitreous,
+# retina, cornea); the only administrations in the reference models are intravenous (infusion and bolus), oral and
+# user-defined.
+#
+# Who provides each item: default_provider is CLIENT on every item the client is asked for, so a promoted draft lists
+# it in the client request; it is LIBRARY on the system item, which comes from the engine or its databases, never from
+# client files (plan §6.4; the live precedent REQ-sp.ontogeny). A person's override can change either, as for live
+# items. No data_category is given (each item is "other", sent as a file): the client-data workbook has no sheet for
+# these data, and which category each takes is the named scientist's call.
+#
+# The compound's own physicochemistry is asked by the core template for every project; a biologic given into the eye
+# is asked under the biologics draft as well.
+#
+# Conditions: every CONDITIONAL item states its condition in condition_text. The intravenous reference study is
+# recommended when available, written `when: {}` as the core template's intravenous item is. The other conditions are
+# left to the named scientist, and without a `when` derive counts the item as applying: the brief has no ocular route,
+# and no `when` key reads the product type (an implant or a depot) or the pigmentation of the eye.
+#
+# needed_for names an MS-01 stage only where the stage plan has one for the data: S0 (inputs) and S1 (IV disposition,
+# for an intravenous reference study). The stage plan has no stage for ocular absorption or ocular disposition.
+id: req-draft-ocular
+version: "0.1-draft"
+status: "DRAFT / UNVERIFIED"
+applies_to: []
+engine_support: "no hit in the harvested catalog: PK-Sim has no built-in model; an engine decision comes first"
+named_scientist: null
+scientist_role: "a PBPK scientist experienced in ocular pharmacokinetics"
+items:
+  # --- product and administration ---------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-oc.administration, label: "Route, dose, volume and regimen of every study", kind: dataset,
+     target: draft.oc.administration, group: Product, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: ["route (topical drops, intravitreal injection, implant, suprachoroidal, subconjunctival, other
+                  periocular)", dose per eye, instilled or injected volume, frequency and duration, one eye or both,
+                  "dosing technique (for example punctal occlusion)"],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). Check: every dataset says
+       which eye was dosed and which eye was sampled; the dose is per eye, as stated."}
+  - {id: REQ-DRAFT-oc.formulation, label: Formulation and its properties, kind: formulation, target: draft.oc.formulation,
+     group: Product, criticality: REQUIRED, pksim_status: TO_HARVEST, default_provider: CLIENT, needed_for: [S0],
+     conditions: ["dosage form (solution, suspension, emulsion, gel, ointment, implant)", drug concentration,
+                  viscosity-enhancing agent, preservative, pH, osmolality, particle size of a suspension, batch],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). Residence on the eye surface
+       and release from a depot depend on these. Check: measured values of the batch studied, never typical ones."}
+  - {id: REQ-DRAFT-oc.in_vitro_release, label: In vitro release of an implant or depot, kind: dataset,
+     target: draft.oc.in_vitro_release, group: Product, criticality: CONDITIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, condition_text: "an implant or a sustained-release depot",
+     conditions: [medium, temperature, agitation, sampling times, cumulative release per batch],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2)."}
+  # --- in vitro ---------------------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-oc.melanin_binding, label: Melanin binding, kind: parameter, target: draft.oc.melanin_binding,
+     group: In vitro, criticality: CONDITIONAL, pksim_status: TO_HARVEST, default_provider: CLIENT,
+     condition_text: "pigmented tissues (iris, choroid, retinal pigment epithelium) matter",
+     conditions: ["melanin source (synthetic, or isolated from pigmented tissue)", method, concentrations tested,
+                  affinity and capacity as reported],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). Check: data from albino and
+       pigmented animals are not pooled without the scientist's decision."}
+  - {id: REQ-DRAFT-oc.tissue_permeability, label: Ocular tissue permeability measured in vitro, kind: parameter,
+     target: draft.oc.tissue_permeability, group: In vitro, criticality: OPTIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: ["tissue (cornea, conjunctiva, sclera)", species, "method (diffusion cell, cell model)", direction,
+                  temperature, unit as reported],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). Measured values only: none is
+       predicted from structure here (no calculator outside the engine)."}
+  - {id: REQ-DRAFT-oc.ocular_binding, label: "Binding in ocular fluids and tissues, if measured", kind: parameter,
+     target: draft.oc.ocular_binding, group: In vitro, criticality: OPTIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: ["matrix (aqueous humour, vitreous humour, tissue homogenate)", species, method, drug concentration],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). A measured value only."}
+  # --- observed data ----------------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-oc.tissue_pk, label: Ocular tissue concentrations over time, kind: dataset, target: draft.oc.tissue_pk,
+     group: Observed data, criticality: REQUIRED, pksim_status: TO_HARVEST, default_provider: CLIENT,
+     conditions: ["species and strain (pigmented or albino)", "tissues sampled (tear film, cornea, conjunctiva, aqueous
+                  humour, iris-ciliary body, lens, vitreous humour, retina, choroid, sclera)", number of eyes per time
+                  point, individual eyes or pooled, dissection and cross-contamination control,
+                  "unit as reported (per tissue mass or per volume)"],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). Check: every concentration
+       names its tissue and its basis (per gram of tissue or per millilitre); a value from pooled eyes is marked
+       pooled, not individual."}
+  - {id: REQ-DRAFT-oc.human_ocular, label: "Human ocular samples (aqueous or vitreous humour taken at surgery)",
+     kind: dataset, target: draft.oc.human_ocular_samples, group: Observed data, criticality: OPTIONAL,
+     pksim_status: TO_HARVEST, default_provider: CLIENT,
+     conditions: [the procedure at which the sample was taken, time since the last dose for each patient, one or
+                  several samples per patient, disease of the eye, matrix, LLOQ],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). Often one sample per patient:
+       a sparse dataset, kept as individual points, never read as one profile."}
+  - {id: REQ-DRAFT-oc.systemic_pk, label: Systemic (plasma) PK after ocular dosing, kind: dataset,
+     target: draft.oc.systemic_pk, group: Observed data, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: [route, dose per eye and eyes dosed, matrix, sampling times, LLOQ],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). Concentrations are often near
+       the LLOQ. Check: each study states how it reported values below the LLOQ."}
+  - {id: REQ-DRAFT-oc.disposition_reference, label: Intravenous study of the same drug, kind: dataset,
+     target: draft.oc.disposition_reference, group: Observed data, criticality: CONDITIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, when: {},
+     condition_text: "recommended when available: systemic disposition from intravenous data separates what leaves the
+       eye from what is eliminated from the body",
+     needed_for: [S1],
+     conditions: [dose, matrix, LLOQ],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2)."}
+  - {id: REQ-DRAFT-oc.eye_condition, label: Eye condition of each studied population, kind: dataset,
+     target: draft.oc.eye_condition, group: Population, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: ["healthy or diseased eye (the disease, for example macular degeneration, glaucoma, inflammation)",
+                  "prior surgery (vitrectomy, lens replacement)", species],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). Vitrectomy and inflammation
+       change how the drug leaves the eye. Check: such data are not pooled with healthy eyes without the scientist's
+       decision."}
+  # --- system -----------------------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-oc.eye_physiology, label: "Ocular physiology (tissue volumes, aqueous humour turnover, blood flows) of
+       the species modelled", kind: system, target: draft.oc.eye_physiology, group: System, criticality: REQUIRED,
+     pksim_status: TO_HARVEST, default_provider: LIBRARY,
+     conditions: [species, population],
+     note: "UNVERIFIED: awaiting the named ocular pharmacokinetics scientist (decision 2). System parameters come from
+       the engine or its databases, never from client files (plan §6.4). The harvested catalog has no eye: which
+       engine or MoBi model holds them is the engine decision."}

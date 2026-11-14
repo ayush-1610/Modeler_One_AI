@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from modeler_api.views.common import AgentsStatus, View
+from modeler_api.views.common import AgentsStatus, Number, View
 
 
 class MeView(View):
@@ -303,3 +303,51 @@ class PeoplePage(View):
     people: list[PersonView]
     notice: str | None
     notice_link: str | None
+
+
+class PipelineStage(View):
+    """A stage's times over the files' latest runs: how many timings, their median and their 90th percentile (seconds)."""
+
+    n: int
+    median: Number
+    p90: Number
+
+
+class PipelineCounts(View):
+    """What the intake pipeline's own run lines add up to (`modeler_project.intake_health`): counts only, no file
+    name, no value, no project name."""
+
+    projects: int
+    files: int
+    runs: int
+    files_by_state: dict[str, int]              # read, partly_read, unsupported, unreadable, failed, waiting
+    mapping: dict[str, int]                     # tables mapped from the cache, by a rule, by the LLM, and left unread
+    mapping_shares: dict[str, Number]           # the same as shares of their sum (the cache hit rate is `cache`)
+    parser_failures: int
+    unsupported_by_extension: dict[str, int]
+    regions: int
+    regions_unread: int
+    silent_loss: int
+    outside_items: int
+    outside_numeric: int
+    anchors_checked: int
+    anchors_unresolved: int
+    needs_ocr_pages: int
+    values: int
+    llm_runs: int
+    stage_seconds: dict[str, PipelineStage]
+    damaged_logs: int
+
+
+class PipelineCompany(PipelineCounts):
+    tenant: str
+    name: str
+
+
+class PipelineHealth(View):
+    """Where the intake pipeline is blind, per company and in all (contracts 2026-11-12 §8.10; plan §7.8)."""
+
+    since: str | None
+    generated_at: str
+    companies: list[PipelineCompany]
+    all: PipelineCounts

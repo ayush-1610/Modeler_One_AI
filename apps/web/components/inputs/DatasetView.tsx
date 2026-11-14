@@ -36,7 +36,7 @@ function logTicks(lo: number, hi: number): number[] {
 }
 
 /** The profile: each series a line with its markers (mean ± its error as whiskers), points below the LLOQ as open
- *  markers on the axis. */
+ *  markers on the axis. A point that states no spread has no entry in `error` (null): it is drawn without a whisker. */
 function ProfileChart({ data, label }: { data: Data; label: string }) {
   const [log, setLog] = useState(false);
   const series = data.series;
@@ -117,7 +117,7 @@ function ProfileChart({ data, label }: { data: Data; label: string }) {
         {many ? <span><i className="swatch bg-series-neutral" />{series.length} subjects, each a line</span>
           : series.map((s, i) => (
             <span key={s.name || i}><i className="swatch" style={{ background: color(i) }} />{s.name || s.statistic.replace("_", " ")}
-              {s.error_kind !== "none" && s.error ? ` ± ${s.error_kind}` : ""}{s.n ? ` (n ${s.n})` : ""}</span>
+              {s.error_kind !== "none" && s.error?.some((e) => e !== null) ? ` ± ${s.error_kind}` : ""}{s.n ? ` (n ${s.n})` : ""}</span>
           ))}
         {series.some((s) => s.values.some((v) => v === null)) && <span><i className="swatch blq" />below the LLOQ</span>}
       </figcaption>
@@ -212,6 +212,16 @@ export function DatasetView({ data, label, unsaved = false }: {
           the times and the metadata are shown, not the concentrations.</p>
       ) : data.kind === "profile" ? <ProfileChart data={data} label={label} /> : null}
       {!data.blinded && <Stats data={data} />}
+      {/* the rule its points below the LLOQ are judged with, and how many it leaves out; a blinded dataset names the
+          rule and gives no count (the API sends none: its values are withheld) */}
+      {data.blq_rule && (
+        <p className="muted m-0 fs-12" data-testid="dataset-blq">
+          Points below the LLOQ are judged by the rule “{data.blq_rule}”
+          {data.blq_omitted === null || data.blq_omitted === undefined ? "."
+            : data.blq_omitted === 0 ? ": none of this dataset's points is left out by it."
+              : `: ${data.blq_omitted} of this dataset's points ${data.blq_omitted === 1 ? "is" : "are"} left out by it.`}
+        </p>
+      )}
       {data.series.length > 0 && <Points data={data} />}
     </div>
   );

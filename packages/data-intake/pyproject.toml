@@ -10,6 +10,7 @@ dependencies = [
   "pydantic>=2.11",
   "pbpk-domain",
   "xlrd>=2.0.1",
+  "pdfplumber>=0.11",
 ]
 
 [tool.uv.sources]

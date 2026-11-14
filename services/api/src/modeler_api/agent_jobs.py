@@ -5,8 +5,8 @@ helpers, the quote check and the recipe review, which leave the agents package i
 the agents package touches this file, not the HTTP layer. What is here:
 - the configured model (`chat_model`, `require_chat_model`, `agents_status`);
 - an agent run's record (`AgentRun`: started, each step logged, finished once) and the records a page lists;
-- one entry point per agent: A1 proposal intake, A2/A3 literature research, A4 sheet triage, sheet reading and
-  client documents, A5 planning.
+- one entry point per agent: A1 proposal intake, A2/A3 literature research, A4 sheet triage, sheet reading, client
+  documents, and the intake pipeline's table mapper and prose extractor, A5 planning.
 
 Each imports `modeler_agents` when called: the package brings the provider SDKs, which an API that runs with agents off
 never needs to load.
@@ -247,6 +247,23 @@ def delivery_pass(model, *, ws, library, sids: list[str], drug: str, actor: str,
     from modeler_agents.delivery_pass import map_and_record
 
     return map_and_record(model, ws, library, sids, actor=actor, drug=drug, run_id=run_id, log_step=log_step)
+
+
+def table_mapping(model, **kw):
+    """A4 mapping one redacted table of the intake pipeline (the table mapper, `intake_pipeline_jobs.ports`): the
+    mapping spec code's check accepted in a conversation the model ended (None: none), what code rejected, the status
+    and usage. The model is shown the redacted table only (no digit of its body); `check` stays with the grid."""
+    from modeler_agents.table_mapper import map_table
+
+    return map_table(model, **kw)
+
+
+def prose_extraction(model, **kw):
+    """A4 reading the prose of one file for the intake pipeline (`intake_pipeline_jobs.ports`): the facts code's strict
+    check accepted (code's numbers and spans, never the model's), what it refused, the status and usage."""
+    from modeler_agents.prose_extractor import extract_prose
+
+    return extract_prose(model, **kw)
 
 
 def planning(model, *, plan, cpf, rows, actor: str, exploratory: bool, drug: str, max_turns: int, log_step):

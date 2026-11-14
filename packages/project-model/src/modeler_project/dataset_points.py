@@ -6,12 +6,18 @@ T-18: Cmax, tmax, AUC to the last time by linear-up / log-down trapezoids, the t
 AUC to infinity), the same method the acceptance gate uses. They describe what the client sent, to check it; they
 decide nothing. Points below the LLOQ (no value) are left out of them and counted. A blinded dataset (D-15) comes
 here without its values, and gets no statistics.
+
+A profile also names the BLQ rule its points are judged with (`blq_rule`: `intake_rules.yaml` `landing.blq_rule`,
+PROVISIONAL and UNVERIFIED until the SME signs; today the only rule, "omit": the points below the LLOQ are left out of
+the fit and of NCA, the LLOQ kept) and how many of its points that rule leaves out (`blq_omitted`). A blinded dataset
+names the rule and gives no count (None), as its values are withheld: the rule's name says nothing of them.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from modeler_project.intake_rules import rules
 from pbpk_domain.nca import nca
 
 
@@ -43,6 +49,11 @@ def card_points(content: dict[str, Any]) -> dict[str, Any]:
                        "stats": None if blinded or not profile else _stats(times, values)})
     reported = [{"parameter": r.get("parameter"), "value": r.get("value"), "unit": r.get("unit"),
                  "statistic": r.get("statistic", "")} for r in content.get("reported") or []]
+    # the BLQ rule of a profile, and how many points it leaves out: no count for a blinded dataset (its values, and so
+    # which of its points are below the LLOQ, are withheld)
+    judged = profile and bool(series)
+    omitted = sum(1 for s in series for v in s["values"] if v is None)
     return {"kind": str(content.get("kind", "")), "time_unit": str(content.get("time_unit", "")),
             "unit": str(content.get("unit", "")), "lloq": study.get("lloq"), "blinded": blinded, "series": series,
-            "reported": reported}
+            "reported": reported, "blq_rule": rules().landing.blq_rule if judged else None,
+            "blq_omitted": omitted if judged and not blinded else None}

@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     # The key that seals the providers' keys the admin console stores (MODELER_MASTER_KEY: 32 random bytes in base64,
     # in the server's secrets file only; `platform_settings`). Without it the console stores no key.
     master_key: str = ""
+    # What runs when a client file arrives (contracts 2026-11-12 §2). "both": today's readers, and the new intake
+    # pipeline beside them with its own surface (Inputs -> Delivery); "legacy": today's readers only, and the new
+    # pipeline writes nothing (the rollback: set it, restart). MODELER_INTAKE_PIPELINE.
+    intake_pipeline: Literal["both", "legacy"] = "both"
 
 
 def verifier_kind(settings: Settings) -> Literal["dev", "oidc", "none"]:

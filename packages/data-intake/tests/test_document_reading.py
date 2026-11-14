@@ -12,8 +12,10 @@ from modeler_intake.document_reading import (
     check_quote,
     inventory,
     names_in,
+    supports_choice,
     text_in,
 )
+from modeler_intake.fields import read_choice
 
 PAGES = [
     "Clinical Study Report\nProtocol EXZ-101 (Study 101)\nSubjects received a single oral dose of 10 mg after an overnight fast.",
@@ -113,3 +115,19 @@ def test_a_composition_line_names_the_component_and_its_amount():
         check_component("Lactose monohydrate", 90, "mg", "Lactose monohydrate 89 mg (filler)")
     with pytest.raises(FactError, match="must write the component"):
         check_component("Mannitol", 89, "mg", "Lactose monohydrate 89 mg (filler)")
+
+
+@pytest.mark.req("T-47")
+@pytest.mark.parametrize("text", ["non-fasted", "Non-Fasted", "non\u2011fasted", "non fasting", "not fasted",
+                                  "subjects were not fasting", "no fasting was required"])
+def test_a_negated_fast_is_never_read_as_fasted(text):
+    assert not supports_choice("fasted", text)
+    assert read_choice("food_state", text) is None
+
+
+@pytest.mark.req("T-47")
+@pytest.mark.parametrize("text", ["fasted", "after an overnight fast", "Fasting", "on an empty stomach",
+                                  "fasted overnight (at least 10 h)"])
+def test_a_fast_is_still_read_as_fasted(text):
+    assert supports_choice("fasted", text)
+    assert read_choice("food_state", text) == "fasted"

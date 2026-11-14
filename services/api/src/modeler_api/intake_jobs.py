@@ -22,7 +22,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from modeler_api import agent_jobs, jobs
+from modeler_api import agent_jobs, intake_pipeline_jobs, jobs
 from modeler_intake.grid import read_workbook_bytes
 from modeler_project import ArtifactKind, ProjectStore, Workspace
 from modeler_project.brief import ProjectBrief
@@ -460,6 +460,7 @@ def read_documents_for_data(store: ProjectStore, tenant_id: str, project_id: str
     ws = Workspace(store, tenant_id, project_id)
     library = DocumentLibrary(ws)
     reading, not_read, sids = [], [], []
+    delivery = ""     # one delivery for the documents of this request (the intake pipeline, in `both`), opened once
     for doc in unread_documents(ws):
         if names is not None and doc["name"] not in names:
             continue
@@ -467,22 +468,27 @@ def read_documents_for_data(store: ProjectStore, tenant_id: str, project_id: str
         if path is None:
             not_read.append(f"{doc['name']}: its bytes are not in the store")
             continue
+        delivery = delivery or intake_pipeline_jobs.open_delivery(ws, by=by)
         new_sids, read, refused = ingest_for_reading(ws, library, [(doc["name"], path.read_bytes())], by=by,
-                                                     relates_to=doc["relates_to"])
+                                                     relates_to=doc["relates_to"], delivery=delivery)
         sids += new_sids
         reading += read
         not_read += refused
     if sids:
         read_later(store, tenant_id, project_id, sids, by=by)
+    else:     # a document today's reader refused was still recorded and queued for the intake pipeline
+        intake_pipeline_jobs.kick(store, tenant_id, project_id, by=by)
     return {"reading": reading, "not_read": not_read}
 
 
 def ingest_for_reading(ws: Workspace, library: DocumentLibrary, payloads: list[tuple[str, bytes]], *, by: str,
-                       relates_to: RelatesTo | None = None) -> tuple[list[str], list[str], list[str]]:
+                       relates_to: RelatesTo | None = None, delivery: str = "") -> tuple[list[str], list[str], list[str]]:
     """Documents a person added to the library and asked to be read for data (plan 2026-11-10, R2; the owner's decision
     1: on by default): each PDF, Word file or workbook is also a client file (`client_data.ingest`, its library role
     kept), read by code on arrival like any other. Returns (the sids, for the reading queue; the files read; the files
-    not read, each with why)."""
+    not read, each with why). With the intake pipeline on (`both`), each file read is also recorded in `delivery` (one
+    is opened for the request when none is given) and queued for the pipeline, and a ZIP is expanded and its members
+    read one by one (`intake_pipeline_jobs.receive`) instead of being answered "not read for data"."""
     version = ws.latest(ArtifactKind.REQUIREMENTS, "main")
     matrix = RequirementMatrix.from_content(version.content) if version else None
     brief_version = ws.latest(ArtifactKind.BRIEF, "main")
@@ -490,18 +496,26 @@ def ingest_for_reading(ws: Workspace, library: DocumentLibrary, payloads: list[t
     sids: list[str] = []
     names: list[str] = []
     not_read: list[str] = []
+    zips = intake_pipeline_jobs.enabled()
     for name, data in payloads:
-        if not name.lower().endswith(READ_FOR_DATA):
+        zipped = zips and name.lower().endswith(".zip")
+        if not name.lower().endswith(READ_FOR_DATA) and not zipped:
             not_read.append(f"{name}: not read for data (only PDF, Word and workbook files are)")
             continue
+        delivery = delivery or intake_pipeline_jobs.open_delivery(ws, by=by)
         try:
-            read = ingest(ws, library, data, name, by=by, matrix=matrix, brief=brief, relates_to=relates_to)
+            answers = intake_pipeline_jobs.receive(ws, library, data, name, by=by, delivery=delivery, ingest=ingest,
+                                                   matrix=matrix, brief=brief, relates_to=relates_to)
+        except intake_pipeline_jobs.MemberRefusals as exc:
+            answers = exc.accepted
+            not_read += [f"{path}: not read for data ({reason})" for path, reason in exc.problems]
         except (ClientDataError, ValueError) as exc:
             not_read.append(f"{name}: not read for data ({exc})")
             continue
-        if read.get("id"):
-            sids.append(str(read["id"]))
-            names.append(name)
+        for read in answers:
+            if read.get("id"):
+                sids.append(str(read["id"]))
+                names.append(str(read["file"]) if zipped else name)
     if sids:
         refresh_inputs(ws, by=by)   # the inputs follow every change (redesign §3.2)
     return sids, names, not_read
@@ -525,7 +539,14 @@ def read_later(store: ProjectStore, tenant_id: str, project_id: str, sids: list[
     queued, whether a reading runs or not (and whether or not it was uploaded before, so long as it is not read yet),
     and the reading job started if none runs. True when this started it. With agents off the files wait in the queue,
     and are read once agents are on (each file also keeps its buttons: "Read the data in this file", "Sort the
-    sheets", "Read this sheet")."""
+    sheets", "Read this sheet"). Then the intake pipeline's job is started when a run waits (in `both`, with or without
+    a model)."""
+    started = _queue_for_reading(store, tenant_id, project_id, sids, by=by)
+    intake_pipeline_jobs.kick(store, tenant_id, project_id, by=by)
+    return started
+
+
+def _queue_for_reading(store: ProjectStore, tenant_id: str, project_id: str, sids: list[str], *, by: str) -> bool:
     ws = Workspace(store, tenant_id, project_id)
     queue = ReadingQueue(ws)
     last = {i.sid: i for i in queue.items()} if queue.available else {}

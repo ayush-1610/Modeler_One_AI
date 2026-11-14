@@ -1,0 +1,200 @@
+# DRAFT CHECKLIST, INERT: biologics (monoclonal antibodies, Fc-fusion and other therapeutic proteins). What to ask
+# the client for, and how to check what arrives. Roadmap item 1 of the owner's decision 2 (2026-11-12): plan
+# docs/plans/2026-11-12-client-data-intake-redesign.md §7.9; contract docs/plans/2026-11-12-intake-contracts.md §8.8.
+#
+# Why it is inert (no project can select it, no gate reads it):
+#   - it lives in pbpk_domain/requirement_drafts/, not in pbpk_domain/requirements/: the live loader
+#     (modeler_project.requirements.load_templates) lists only that folder, one level deep;
+#   - applies_to is empty, so a loader that found it would still select it for no project;
+#   - no APP code is added or named for it: a project that picks the brief's existing APP-16 (large molecules) still
+#     gets only the live templates, with the large-molecule note that derive adds.
+#
+# Status DRAFT / UNVERIFIED: every item below is unverified, and each item's note opens with that mark and the
+# scientist it awaits. Named scientist: none yet (named_scientist: null). By decision 2 the biologics build starts only
+# when the owner names the scientist in scientist_role (a PBPK scientist experienced in large-molecule PBPK), who
+# reviews and signs off every item; only then can this become a template, through a locked-file change with the
+# owner's approval and a version bump.
+#
+# What it does not hold, by the ground rules (CLAUDE.md):
+#   - no PK-Sim name, path or unit: every item is pksim_status TO_HARVEST, with no pksim key and no unit key (a unit
+#     in a template is the stored, PK-Sim-side unit, which is not harvested; the client's own unit is kept with each
+#     value as reported);
+#   - no CPF id: every target starts with "draft.", so no parameter-registry id and no existing dataset class is
+#     claimed;
+#   - no calculator (FcRn recycling, target-mediated disposition, scaling between species), no default value, no
+#     acceptance threshold: a model result computed outside PK-Sim is excluded, and the numbers are the named
+#     scientist's to set (default_provider names who provides an item, never a value).
+#
+# What the harvested engine shows (services/engine-worker/golden/: catalog.json, harvested 2026-09-15 from ospsuite
+# 12.4.4, and the reference models beside it): every compound in them is a small molecule; no entry names FcRn; and
+# the only administrations are intravenous (infusion and bolus), oral and user-defined, none subcutaneous. The catalog
+# does hold a specific-binding process (a dissociation constant and an off-rate) and an "other protein" expression
+# type, both seen only in small-molecule reference models. The engine_support sentence holds in that sense: no protein
+# drug has been harvested, and PK-Sim's large-molecule model is known by name only. Whether it takes FcRn binding,
+# endosomal recycling and lymph flow, and whether the specific-binding process and the "other protein" expression
+# carry a protein drug's target binding and target expression, is to be harvested from the engine and decided by the
+# named scientist before an item here can be placed.
+#
+# Who provides each item: default_provider is CLIENT on every item the client is asked for, so a promoted draft lists
+# it in the client request; it is LIBRARY on the system item, which comes from the engine's population databases,
+# never from client files (plan §6.4; the live precedent REQ-sp.ontogeny). A person's override can change either, as
+# for live items. No data_category is given (each item is "other", sent as a file): the client-data workbook has no
+# sheet for these data, and which category each takes is the named scientist's call.
+#
+# Conditions: every CONDITIONAL item states its condition in condition_text. A `when` is given only where the brief's
+# keys express the condition exactly: bio.extravascular_pk reads the scenarios' route (subcutaneous or intramuscular).
+# The other conditions are left to the named scientist, and without a `when` derive counts the item as applying:
+#   - no key reads the modality or an Fc part (bio.fcrn_affinity), a modelling choice (bio.target_kinetics) or the
+#     absence of human data;
+#   - a key covers one half of an either-or condition for two items (nonlinear PK for bio.target_binding, the
+#     first-in-human application for bio.preclinical_pk), but a `when` needs all its keys to hold and cannot say "or",
+#     so it would rule the item out when only the other half holds.
+#
+# needed_for names an MS-01 stage only where the stage plan has one for the data: S0 (inputs), S1 (IV disposition)
+# and S5 (external validation). The stage plan has no stage for subcutaneous absorption.
+id: req-draft-biologics
+version: "0.1-draft"
+status: "DRAFT / UNVERIFIED"
+applies_to: []
+engine_support: "PK-Sim has a large-molecule model; the harvested catalog has no FcRn entry, so nothing here can be placed today"
+named_scientist: null
+scientist_role: "a PBPK scientist experienced in large-molecule (therapeutic protein) PBPK"
+items:
+  # --- identity and structure -------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-bio.format, label: "Molecule type and format (IgG subclass, Fc engineering, fragment, fusion protein)",
+     kind: parameter, target: draft.bio.molecule_format, group: Identity, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, needed_for: [S0],
+     conditions: [IgG subclass or protein class, Fc mutations that change FcRn or Fc-gamma receptor binding, valency,
+                  "conjugation (none, PEG, other)"],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Decides which disposition model
+       the scientist chooses. An antibody-drug conjugate is outside the tool's modelling scope (plan §7.9) and is
+       flagged, not modelled."}
+  - {id: REQ-DRAFT-bio.molecular_weight, label: Molecular weight of the whole molecule, kind: parameter,
+     target: draft.bio.molecular_weight, group: Identity, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, needed_for: [S0],
+     conditions: ["method (from the sequence, or by mass spectrometry)", with or without glycosylation, unit as reported],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). From the client's
+       characterization of the protein, never from a structure file (the core template's molecular weight is a small
+       molecule's)."}
+  - {id: REQ-DRAFT-bio.radius, label: "Hydrodynamic (Stokes) radius, if measured", kind: parameter,
+     target: draft.bio.hydrodynamic_radius, group: Identity, criticality: OPTIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: ["method (dynamic light scattering, size-exclusion chromatography)", buffer, unit as reported],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). A measured value only. Whether and
+       where the engine takes a radius is to be harvested; none is computed here."}
+  - {id: REQ-DRAFT-bio.charge, label: Isoelectric point and charge variants, kind: parameter, target: draft.bio.charge,
+     group: Identity, criticality: OPTIONAL, pksim_status: TO_HARVEST, default_provider: CLIENT,
+     conditions: ["method (capillary isoelectric focusing, ion exchange)", pI of the main species, share of each variant],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Context for differences in
+       distribution and clearance between molecules or batches; no model input is claimed."}
+  # --- binding ----------------------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-bio.fcrn_affinity, label: Binding to FcRn at endosomal (acidic) and at physiological pH, kind: parameter,
+     target: draft.bio.fcrn_affinity, group: Binding, criticality: CONDITIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, condition_text: "an Fc part (an IgG or an Fc-fusion protein)", needed_for: [S0, S1],
+     conditions: ["FcRn species (human, cynomolgus, mouse)", the pH of each measurement,
+                  "method (surface plasmon resonance, bio-layer interferometry) and which partner was immobilized",
+                  temperature, "KD with kon and koff", a reference antibody measured in the same assay],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Check: every KD names its pH,
+       species and assay; a value without its pH is not usable, and values from different assays are not compared
+       without the reference antibody. The harvested catalog has no FcRn entry: where an affinity enters the model is
+       to be harvested."}
+  - {id: REQ-DRAFT-bio.target_binding, label: "Target binding: identity, affinity and kinetics", kind: parameter,
+     target: draft.bio.target_binding, group: Binding, criticality: CONDITIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     condition_text: "target-mediated disposition suspected (clearance that changes with dose) or an abundant target",
+     needed_for: [S0],
+     conditions: ["target and its form (soluble or membrane-bound)", species of the target, "KD with kon and koff",
+                  method and temperature, cross-reactivity with each preclinical species used],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Check: the species of the target
+       matches the species of the PK data it is used with. The harvested catalog holds a specific-binding process (a
+       dissociation constant and an off-rate), seen only in small-molecule reference models: whether it carries a
+       protein drug's target binding in the large-molecule model is to be harvested, and decided by the named
+       scientist."}
+  - {id: REQ-DRAFT-bio.target_kinetics, label: "Target expression, turnover and internalization", kind: parameter,
+     target: draft.bio.target_kinetics, group: Binding, criticality: CONDITIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, condition_text: "target-mediated disposition modelled",
+     conditions: [baseline target level and the matrix or tissue it was measured in, "target synthesis and degradation
+                  (turnover)", internalization of the drug-target complex, differences in the disease population,
+                  method and source of each value],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). A target level in a disease
+       population is client or literature data with its source, never assumed. The harvested catalog's \"other
+       protein\" expression type is seen only in small-molecule reference models: whether it carries a target's
+       expression for a protein drug is to be harvested, and decided by the named scientist."}
+  # --- observed data ----------------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-bio.iv_pk, label: Intravenous single-dose serum or plasma PK at several dose levels, kind: dataset,
+     target: draft.bio.iv_single_dose, group: Observed data, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, needed_for: [S1],
+     conditions: ["dose levels and dose basis (per kg or flat)", infusion duration, "matrix (serum or plasma)",
+                  "what the assay measures (free, total or target-bound drug)", individual body weights,
+                  sampling that reaches the terminal phase],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Several dose levels show whether
+       disposition is linear or target-mediated. Check: every dataset names what its assay measures; a schedule that
+       stops before the terminal phase is flagged, not extrapolated."}
+  - {id: REQ-DRAFT-bio.extravascular_pk, label: Subcutaneous or intramuscular PK, kind: dataset,
+     target: draft.bio.extravascular_pk, group: Observed data, criticality: CONDITIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, when: {route: [subcutaneous, intramuscular]},
+     condition_text: "subcutaneous or intramuscular administration",
+     conditions: ["route and injection site", injection volume and concentration, dose, matrix, what the assay measures,
+                  sampling through the absorption and the terminal phase],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). An intravenous study with the same
+       assay is needed beside it to separate absorption from disposition. The reference models show no subcutaneous
+       administration: where absorption from the injection site enters the model is to be harvested."}
+  - {id: REQ-DRAFT-bio.multiple_dose, label: "Multiple-dose PK (accumulation, steady state)", kind: dataset,
+     target: draft.bio.multiple_dose, group: Observed data, criticality: OPTIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, needed_for: [S5],
+     conditions: [dosing regimen, trough samples with the time since the last dose, anti-drug antibody status at each
+                  sample],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2)."}
+  - {id: REQ-DRAFT-bio.tissue, label: "Tissue or target-site concentrations, if measured", kind: dataset,
+     target: draft.bio.tissue_concentrations, group: Observed data, criticality: OPTIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: ["tissue and how it was sampled (biopsy, fluid)", time since dose, what the assay measures,
+                  unit as reported (per tissue mass or per volume)],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Check: every value names its
+       tissue and its basis (per gram of tissue or per millilitre)."}
+  - {id: REQ-DRAFT-bio.preclinical_pk, label: Preclinical PK in a species where the target cross-reacts, kind: dataset,
+     target: draft.bio.preclinical_pk, group: Observed data, criticality: CONDITIONAL, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, condition_text: "human data missing, or a first-in-human prediction asked",
+     conditions: ["species and strain (human-FcRn transgenic mice included)", target cross-reactivity in that species,
+                  FcRn affinity in that species, dose levels, what the assay measures],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Translation between species is
+       the named scientist's model decision: no scaling rule or exponent is set here."}
+  # --- bioanalysis and immunogenicity -----------------------------------------------------------------------------
+  - {id: REQ-DRAFT-bio.ada, label: Anti-drug antibodies per subject and per sample, kind: dataset,
+     target: draft.bio.anti_drug_antibodies, group: Bioanalysis and immunogenicity, criticality: REQUIRED,
+     pksim_status: TO_HARVEST, default_provider: CLIENT, needed_for: [S1],
+     conditions: ["assay tier (screening, confirmatory, titer, neutralizing)", sampling times, status per subject and per
+                  sample, the client's own assessment of the effect on PK],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Check: every concentration of a
+       subject who became ADA-positive carries that status, so an affected profile is never fitted as if unaffected.
+       Whether such profiles are kept or set aside is the named scientist's rule, not this draft's."}
+  - {id: REQ-DRAFT-bio.bioanalytical, label: Bioanalytical method of every study, kind: dataset,
+     target: draft.bio.bioanalytical, group: Bioanalysis and immunogenicity, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT, needed_for: [S1],
+     conditions: ["platform (ligand-binding assay or LC-MS/MS)", "what is measured (free, total or target-bound drug)",
+                  capture and detection reagents, LLOQ and ULOQ, matrix, interference from soluble target or anti-drug
+                  antibodies],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Check: studies whose assays
+       measure different forms of the drug are not pooled without the scientist's decision."}
+  # --- product and population -------------------------------------------------------------------------------------
+  - {id: REQ-DRAFT-bio.product, label: "Product: concentration, excipients and presentation", kind: formulation,
+     target: draft.bio.product, group: Product, criticality: REQUIRED, pksim_status: TO_HARVEST, default_provider: CLIENT,
+     conditions: [protein concentration, "buffer and excipients (a co-formulated enzyme such as hyaluronidase included)",
+                  "presentation (vial, prefilled syringe, autoinjector)", "batch and its characterization (aggregates,
+                  charge variants, glycoforms)"],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Context for the dose actually
+       given and for comparing batches; no release model is claimed."}
+  - {id: REQ-DRAFT-bio.covariates, label: Covariates per subject that change antibody clearance, kind: dataset,
+     target: draft.bio.covariates, group: Population, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: CLIENT,
+     conditions: [body weight, "serum albumin, where recorded", "disease and its burden (tumour size, inflammation
+                  markers), where recorded", co-medication that changes immunogenicity],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). Collected per subject as the study
+       recorded them; a covariate the study did not record stays not stated, never filled in."}
+  - {id: REQ-DRAFT-bio.fcrn_system, label: FcRn expression and endogenous IgG of the virtual population, kind: system,
+     target: draft.bio.fcrn_system, group: System, criticality: REQUIRED, pksim_status: TO_HARVEST,
+     default_provider: LIBRARY,
+     conditions: [species, population],
+     note: "UNVERIFIED: awaiting the named large-molecule PBPK scientist (decision 2). System parameters come from the
+       engine's population databases, never from client files (plan §6.4). The harvested catalog has no FcRn entry: to
+       be harvested from PK-Sim's large-molecule model before any build."}

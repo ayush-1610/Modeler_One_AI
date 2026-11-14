@@ -42,9 +42,16 @@ class Series(BaseModel):
     statistic: Literal["individual", "arithmetic_mean", "geometric_mean", "median"] = "arithmetic_mean"
     times: tuple[float, ...]
     values: tuple[float | None, ...]          # None = below LLOQ
-    error: tuple[float, ...] | None = None
+    # the spread of each point, aligned with `times`; None at a point that states none (a BLQ row with no SD), so one
+    # missing spread no longer drops the series' others (contracts §11.7). The readers judge only the kept points
+    # (`profile_landing.judged_sd`: no SD reaches the fit unless every kept point has one)
+    error: tuple[float | None, ...] | None = None
     error_kind: Literal["SD", "SE", "CV%", "none"] = "none"
     n: int | None = None
+    # n per time point, aligned with `times`, set only when the stated n differ (None: one n, in `n`, the first stated).
+    # Left out of the dump when None, so a dataset whose n does not vary has the content (and the sha256) it had before
+    # the field existed: a stored dataset re-saved unchanged stays the same version (contracts §11.6)
+    n_at: tuple[int | None, ...] | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class ReportedPK(BaseModel):
@@ -178,7 +185,8 @@ def check_dataset(dataset: ObservedDataset, *, mol_weight: float | None = None) 
         raise DatasetError("a profile dataset needs at least one series")
     if dataset.kind == "pk_parameters" and not dataset.reported:
         raise DatasetError("a PK-parameter dataset needs at least one reported parameter")
-    flags: list[str] = []
+    # a cross-file join the Delivery landing wrote (contracts §6.3) is the dataset's, not a check's: it is kept
+    flags: list[str] = [f for f in dataset.flags if f.startswith("cross_file:")]
     for series in dataset.series:
         if len(series.times) != len(series.values):
             raise DatasetError(f"series {series.name}: {len(series.times)} times but {len(series.values)} values")
@@ -188,6 +196,8 @@ def check_dataset(dataset: ObservedDataset, *, mol_weight: float | None = None) 
             raise DatasetError(f"series {series.name}: negative concentration")
         if series.error is not None and len(series.error) != len(series.times):
             raise DatasetError(f"series {series.name}: error column length differs")
+        if series.n_at is not None and len(series.n_at) != len(series.times):
+            raise DatasetError(f"series {series.name}: {len(series.times)} times but {len(series.n_at)} n per time")
         if series.statistic != "individual" and series.n is None and record.n <= 1:
             flags.append(f"series {series.name}: mean values without N")
         if any(v is None for v in series.values) and record.lloq is None:

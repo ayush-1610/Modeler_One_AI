@@ -23,6 +23,16 @@ def _settings_from_this_tests_environment():
     _configured_verifier.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def _intake_pipeline_legacy_unless_asked(monkeypatch):
+    """The suite runs the legacy intake (contracts 2026-11-12 §2): several tests script the A4 model turn by turn, and a
+    second consumer of that model (the intake pipeline's table mapper) would take their turns, while a second background
+    job would append audit events between their assertions. A test of the pipeline asks for it:
+    `api_settings(..., intake_pipeline="both")` (init arguments win over the environment)."""
+    monkeypatch.setenv("MODELER_INTAKE_PIPELINE", "legacy")
+    reload_settings()
+
+
 @pytest.fixture
 def api_settings() -> Iterator[Callable[..., Settings]]:
     """`api_settings(read_root=..., execution_backend="local")`: the API runs with these settings for this test."""

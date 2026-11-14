@@ -20,7 +20,7 @@ const AREA_FILES: Record<DataTab, string> = {
   compound: "in vitro and physico-chemistry files", formulations: "formulation and dissolution files",
   studies: "clinical and bioanalytical files",
 };
-const ACCEPT = ".xlsx,.xlsm,.xls,.csv,.pdf,.docx,.md,.txt";
+const ACCEPT = ".xlsx,.xlsm,.xls,.csv,.pdf,.docx,.md,.txt,.zip";
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** The area a client file is shown in, by its tag; a file tagged "other" whose content code reads as another kind is
