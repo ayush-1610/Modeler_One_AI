@@ -242,11 +242,25 @@ reviewed).
   independent reviewer found 5 blockers, 9 majors and 11 minors, all fixed with a failing test first; the main landing
   path matches the truth 132 of 132). API contract after D6-PM: `Series.error` and `SeriesPoints.error` items may be
   null. Full suite: 3080 passed, only the 15 baseline failures.
-- **In progress:** D6-API on `build/d6api` (worktree `/home/user/wt/w`): the `/delivery` routes, the admin pipeline
-  route, `DatasetPoints.blq_rule` / `blq_omitted`, and the re-run path `intake_pipeline.enqueue(..., again=True)`.
-- **Next:** D6-web (the Delivery section, the admin pipeline page, `delivery.spec.ts`; needs a real
-  `apps/web/node_modules` in its worktree); then the final adversarial review of the whole change (W, the ledger and
-  mapper seam fixes and the interface lens included); then the merge into `main`.
+- **D6 complete on the integration line (2026-11-14):**
+  - D6-API: 18 `/delivery` routes and `GET /admin/pipeline`; the signed confirmation checks every refusal, then the
+    step-up, then signs, records and lands; blinding enforced in one shared scope; the re-run path
+    `intake_pipeline.enqueue(..., again=True)`; a person names a new study or product when assigning.
+  - D6-web: the Delivery section on Inputs (coverage, a subject's card with exceptions first, a value's source, mapping
+    review, unassigned values, spot check, signed confirmation), the admin pipeline page, the BLQ rule on a dataset.
+  - Browser tests in the cloud container: `delivery.spec.ts` (upload, review, approve a mapping, settle each blocker,
+    spot check in one request, sign, loaded once) and 11 Inputs, client-data and admin tests pass with the default
+    `both`. Full suite before the web merge: 3121 passed, only the 15 baseline failures.
+- **Next: the final adversarial review of the whole change, then the merge into `main`.** Not reviewed independently
+  yet: W, the ledger and mapper seam fixes, D6-API and its follow-up, D6-web; the interface-lens seam review has not
+  run. Open items for that review:
+  - a later file never joins a study a person named (a second study of the same label, no link offered);
+  - a person cannot state the analyte or matrix of a table whose header names none (it confirms but lands nothing);
+  - a batch assigned to a product keeps no parent for later files;
+  - a rejected mapping's values stay active until a person excludes the region or supplies a mapping;
+  - a region decision keyed by region id stops applying when a PDF re-parse renames the region;
+  - the `checks` stage lacks the compound's molecular weight; OCR and a second PDF table engine are not wired;
+  - the whole e2e suite with `both` has not run (12 tests have).
 - **Working mode:** the session's usage limit stopped wide agent fan-outs three times mid-work. Since 2026-11-14 one
   or two agents run at a time, each committing often; branches under `/home/user/wt/` hold unmerged work only while
   the cloud container lives, so merged work is pushed at once.
