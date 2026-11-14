@@ -52,8 +52,12 @@ build_dataset <- function(observed) {
   dataset$yDimension <- ospDimensions[[dim_name]]
   dataset$yUnit <- observed$unit
   if (!is.null(sd)) {
-    dataset$yErrorType <- "ArithmeticStdDev"
-    dataset$yErrorUnit <- observed$unit  # defaults to mg/l otherwise
+    # the spec names the type only when it is not arithmetic (pbpk_domain.fit_spec.pi_observed): absent = as before.
+    # The two names are pbpk_domain.spread.ERROR_TYPES (harvested from the golden fixtures); anything else stops.
+    error_type <- if (!is.null(observed$error_type)) observed$error_type else "ArithmeticStdDev"
+    if (!(error_type %in% c("ArithmeticStdDev", "GeometricStdDev"))) stop(paste("unknown error_type:", error_type))
+    dataset$yErrorType <- error_type
+    if (error_type == "ArithmeticStdDev") dataset$yErrorUnit <- observed$unit  # a geometric SD is dimensionless
   }
   if (!is.null(observed$lloq)) dataset$LLOQ <- as.numeric(observed$lloq)
   dataset$molWeight <- as.numeric(observed$mol_weight)
