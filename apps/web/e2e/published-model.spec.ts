@@ -19,8 +19,10 @@ test("the published Dapagliflozin model's values and studies are taken as a sour
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/inputs`);
+  await page.getByTestId("inputs-add-data").click();                       // the head's Add data menu
   await page.getByTestId("published-model-dapagliflozin-osp").click();
   await expect(page.getByTestId("inputs-notice")).toContainText("The published OSP Dapagliflozin model: 42 values and 40 datasets added");
+  await page.getByTestId("tab-compound").click();
   // the model's fitted UGT1A9 clearance is on the row, cited to the model: not a made-up value
   await expect(page.getByTestId("record-elim.hepatic.UGT1A9.clspec")).toBeVisible();
   await page.getByTestId("tab-studies").click();
@@ -31,6 +33,7 @@ test("the published Dapagliflozin model's values and studies are taken as a sour
   await page.screenshot({ path: test.info().outputPath("published-model.png"), fullPage: true });
 
   // taken twice, it adds nothing
+  await page.getByTestId("inputs-add-data").click();
   await page.getByTestId("published-model-dapagliflozin-osp").click();
   await expect(page.getByTestId("inputs-notice")).toContainText("0 values and 0 datasets added, 82 already here");
 });

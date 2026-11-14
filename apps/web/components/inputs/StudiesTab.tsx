@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 
-import type { Act, Retag } from "@/components/client/ClientFiles";
 import type { View as ClientView } from "@/components/client/types";
 import { EmptyState, InlineIssue } from "@/components/kit";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
@@ -12,7 +11,6 @@ import { numericKey, ordinal, useTableView } from "@/lib/tableView";
 
 import { type Run, TodoCard, type TodoItem } from "./InputsTodo";
 import { ObservedDatasets } from "./ObservedDatasets";
-import { FilesHere } from "./TabFiles";
 
 export type StudyRow = Schema<"InputStudyRow">;
 export type Options = Record<"route" | "formulation" | "food_state" | "purpose" | "sex" | "population", string[]>;
@@ -233,14 +231,13 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
 }
 
 /** The Studies tab (redesign §3.2): each study with its facts, the role the MS-01 split proposes (changed only on Review
- *  & sign), whether it is blinded (D-15), its regimen and whether it is used; then the client's clinical and
- *  bioanalytical files (plan 2026-11-05 §3.1), each data sheet read by the reading agent for the person to check and save
- *  (R3c), and the other ways to add observed data. */
-export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client, onRetag, onSaved }: {
+ *  & sign), whether it is blinded (D-15), its regimen and whether it is used; then the other ways to add observed data.
+ *  The client's clinical and bioanalytical files, each data sheet with its reading (R3c), are in the Client files area
+ *  (plan 2026-11-14 slice 1). */
+export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client }: {
   studies: StudyRow[]; todo: TodoItem[]; projectId: string; run: Run; options: Options; onIndividuals: () => void;
-  client: ClientView | undefined; onRetag: Retag; onSaved: (message: string) => void;
+  client: ClientView | undefined;
 }) {
-  const act: Act = (fn) => run(fn, "");
   const unpromised = client?.reconciliation.unpromised ?? [];
   const [typing, setTyping] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -262,13 +259,6 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
         figure or a table typed in.</EmptyState> : (
         <StudiesTable studies={studies} projectId={projectId} run={run} onIndividuals={onIndividuals} />
       )}
-      <FilesHere tab="studies" projectId={projectId} client={client} act={act} onRetag={onRetag} onSaved={async (m) => onSaved(m)}>
-        <p className="muted fs-13 m-0-0-8">
-          The reading agent proposes how to read each data sheet, and code checks every proposal: each quote is in its cell and the
-          reading applies without a problem. Open a sheet, check what it reads against the sheet, correct anything wrong and save.
-          {client && !client.agents.enabled && " Agents are off: the form is filled in first by code."}
-        </p>
-      </FilesHere>
       {unpromised.length > 0 && (
         <section className="client-files">
           <h4 className="m-12-0-4">Delivered, not in the data checklist</h4>
@@ -278,9 +268,9 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
       <section className="add-data" data-testid="add-data">
         <h3>Add observed data</h3>
         <ul>
-          <li>The client&apos;s files, with “Add files” at the top of this area (workbooks are sorted sheet by sheet; PDF and
-            Word reports are read for their data; a file named as dissolution or formulation goes to Products and dissolution),
-            or fill the{" "}
+          <li>The client&apos;s files, with Add data at the top of the page (workbooks are sorted sheet by sheet; PDF and Word
+            reports are read for their data; a file named as dissolution or formulation is filed under Products and
+            dissolution); each file and its sheets are under Client files. Or fill the{" "}
             <button type="button" className="link-btn" onClick={template} data-testid="download-template">client-data template</button>,
             which is read cell by cell with no AI.</li>
           <li>Digitize a published figure against calibrated axes, or let the observed-data agent search, under

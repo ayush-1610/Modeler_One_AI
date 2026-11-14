@@ -1,7 +1,8 @@
 // Redesign §3.2: the Inputs step is one workspace. Values flow in and agreeing sources are one value (D-32); a missing
 // value is typed into its row with its source; each study's individual is entered or the explicit healthy adult default
-// (D-29); a multiple-dose regimen is completed; a table is typed in by hand and a study left out with its reason; the side
-// list opens each open item on its tab. Software test data entered through the API and the page, never a model.
+// (D-29); a multiple-dose regimen is completed; a table is typed in by hand and a study left out with its reason; To do
+// (the page's first area while anything is missing, plan 2026-11-14 slice 1) opens each open item on its area. Software
+// test data entered through the API and the page, never a model.
 import { expect, type Page, test } from "@playwright/test";
 
 import { finishStart } from "./fixtures/inputs";
@@ -34,9 +35,12 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
     series: [{ times: [0.5, 1, 2, 4], values: [10, 20, 15, 5], n: 12 }] } });
   expect(md.status(), await md.text()).toBe(201);
 
+  // the page opens on To do while something is missing; the area bar holds the areas, the client's files the last
   await page.goto(`/projects/${projectId}/inputs`);
   const missing = page.getByTestId("still-missing");
   await expect(missing).toBeVisible();
+  await expect(page.getByTestId("tab-todo")).toHaveAttribute("aria-selected", "true");
+  await page.getByTestId("tab-compound").click();
   await expect(page.getByTestId("record-phys.logp")).toContainText("+1 agree");
   await shot(page, "1-compound");
 
@@ -48,10 +52,10 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await page.keyboard.press("Escape");
   await expect(peek).toHaveCount(0);
 
-  // the client's files, in a drawer rather than an area of their own
-  await page.getByTestId("inputs-files").click();
-  await expect(page.getByTestId("inputs-files-drawer")).toContainText("No client file yet");
-  await page.getByTestId("inputs-files-drawer").getByRole("button", { name: "Close" }).click();
+  // the client's files, in the last area
+  await page.getByTestId("tab-files").click();
+  await expect(page.getByTestId("files-none")).toContainText("No client file yet");
+  await page.getByTestId("tab-compound").click();
 
   // the tabs answer the keyboard: arrows move and select, only the selected tab is in the Tab order, the panel is named
   await expect(page.getByRole("tabpanel", { name: "Compound" })).toBeVisible();
@@ -62,6 +66,8 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await expect(page.getByTestId("tab-compound")).toHaveAttribute("tabindex", "-1");
   await expect(page.getByRole("tabpanel", { name: "Products and dissolution" })).toBeVisible();
   await page.keyboard.press("Home");
+  await expect(page.getByTestId("tab-todo")).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("ArrowRight");
   await expect(page.getByTestId("tab-compound")).toHaveAttribute("aria-selected", "true");
 
   // a value no source has given yet, typed into its row with its source
@@ -75,7 +81,8 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await expect(page.getByTestId("record-phys.mw")).toContainText("225.2");
   await expect(page.getByTestId("record-phys.mw")).toContainText("in the model");
 
-  // D-29: the study's individual, from the side list
+  // D-29: the study's individual, from To do
+  await page.getByTestId("tab-todo").click();
   await missing.getByTestId("missing-demographics-po-md").click();
   await expect(page.getByTestId("tab-individuals")).toHaveAttribute("aria-selected", "true");
   const individual = page.getByTestId("individual-po-md");
@@ -96,6 +103,7 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await shot(page, "2-individuals");
 
   // the multiple-dose regimen, then a table typed in and a study left out
+  await page.getByTestId("tab-todo").click();
   await missing.getByTestId("missing-regimen-po-md").click();
   await expect(page.getByTestId("tab-studies")).toHaveAttribute("aria-selected", "true");
   const study = page.getByTestId("study-po-md");

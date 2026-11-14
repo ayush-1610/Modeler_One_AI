@@ -32,6 +32,7 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   expect((await download).suggestedFilename()).toBe("ModelerOne_ClientData_v1.xlsx");
 
   await page.getByTestId("client-upload-studies").setInputFiles([join(dir, "client-template-filled.xlsx"), join(dir, "client-raw.xlsx")]);
+  await page.getByTestId("tab-files").click();                    // each file and its sheets, in Client files
   const filled = page.getByTestId("client-file-client-template-filled.xlsx");
   await expect(filled).toContainText("client-data template");
   await expect(filled).toContainText("1 dataset");
@@ -62,7 +63,7 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   await expect(page.getByText(/Problems|Error/)).toHaveCount(0);
 
   // a dissolution sheet in the client's own layout: the guided reader finds the time and vessel columns
-  await page.getByTestId("tab-studies").click();
+  await page.getByTestId("tab-files").click();
   await raw.getByTestId("sheet-Diss pH 6.8").getByRole("button", { name: "Read this sheet" }).click();
   const reader = page.getByTestId("reader-Diss pH 6.8");
   await expect(reader.getByLabel("pH", { exact: true })).toHaveValue("6.8");
@@ -76,6 +77,7 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   await reader.getByRole("button", { name: "Save these data" }).click();
 
   // the client's study arrived without the checklist promising it; the client dataset is among every dataset
+  await page.getByTestId("tab-studies").click();
   await expect(page.getByTestId("unpromised")).toContainText(/CL-01 .*delivered, not promised/);
   await expect(page.locator(".evidence", { hasText: "CL-01" })).toContainText("client");
   await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });

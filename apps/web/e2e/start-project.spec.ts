@@ -42,7 +42,8 @@ test("a project starts from its proposal and the client's file in one upload, wi
   await expect(page.getByTestId("inputs-blocked")).toHaveCount(0);
 
   // a value typed into its row on Inputs, with its source: converted and graded by code, and in the model with nothing
-  // to accept (D-27)
+  // to accept (D-27); the page opens on To do while something is missing, the row is on Compound
+  await page.getByTestId("tab-compound").click();
   await page.getByTestId("add-open-bind.fu").click();
   const fu = page.getByTestId("add-bind.fu");
   await fu.getByLabel("value for bind.fu").fill("9");

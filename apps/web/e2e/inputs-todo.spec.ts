@@ -43,6 +43,7 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   await expect(missing).toContainText("Still missing to run");
   await expect(missing.getByTestId("missing-conflict-bind.fu")).toBeVisible();
   await shot(page, "1-todo");
+  await page.getByTestId("tab-compound").click();                 // each item is settled in its area
 
   await expect(page.getByTestId("todo-conflict-phys.logp")).toHaveCount(0);
   // two fu values more than 2-fold apart: keep one, the other is rejected with the reason
@@ -73,6 +74,7 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
 
   // what is left: values nobody has proposed yet, and data to judge the model on (opened from the side list)
   await expect(page.getByTestId("todo-missing-phys.mw")).toBeVisible();
+  await page.getByTestId("tab-todo").click();
   await missing.getByTestId("missing-datasets-observed data").click();
   await expect(page.getByTestId("tab-studies")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("todo-datasets-observed data")).toBeVisible();

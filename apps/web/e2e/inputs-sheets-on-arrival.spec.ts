@@ -52,8 +52,10 @@ test("sheets are read on arrival: a complete one waits on its product, a BE arm 
   await cleaning.locator("summary").click();
   await expect(cleaning).toContainText("below the LLOQ (“BLQ”): kept as below the LLOQ, not as zero");
   await expect(cleaning).toContainText("Below the table");
-  await expect(page.getByTestId("client-file-230-23 Fasting Reference.xlsx").getByTestId("sheet-cleaning-Sheet1")).toHaveCount(1);
   await shot(page, "1-be-arm-to-finish");
+  await page.getByTestId("tab-files").click();                    // the file's own sheet, in Client files
+  await expect(page.getByTestId("client-file-230-23 Fasting Reference.xlsx").getByTestId("sheet-cleaning-Sheet1")).toHaveCount(1);
+  await page.getByTestId("tab-studies").click();
   // what the project holds is pre-filled, with where it comes from (build L, the owner, 2026-11-08): the proposal's one
   // dosage form on Start, and a bioequivalence arm's purpose as the VBE data plan states it; the person changes the rest
   await expect(draft.getByTestId("need-formulation")).toHaveValue("mr");
@@ -75,6 +77,7 @@ test("sheets are read on arrival: a complete one waits on its product, a BE arm 
   // the test product's dissolution: nothing to give (its product named as in the brief): saved on arrival, on its card
   await page.getByTestId("tab-formulations").click();
   await expect(page.getByTestId("release-view").first()).toBeVisible();
+  await page.getByTestId("tab-files").click();
   await expect(page.getByTestId("client-file-Dissolution Test pH 6.8.xlsx").getByTestId("sheet-pH 6.8")).toContainText("read ✓");
   await shot(page, "2-dissolution-on-its-product");
 });

@@ -77,9 +77,10 @@ export function magnet(root: HTMLElement): () => void {
 
 const EASE = "cubic-bezier(0.25, 1, 0.5, 1)";
 
-/** Scroll life: sections below the fold fade in, in sequence, as they scroll in; the head recedes (its art at 0.32x, its copy at 0.14x, fading by
- *  380 px and blurring up to 6 px); the 3 px bar at the top shows how far down the page is; the step bar compacts once
- *  the head is passed. New sections (a client read that finishes later) are picked up as they appear. */
+/** Scroll life: sections below the fold fade in, in sequence, as they scroll in (not inside `[data-no-reveal]`); the head
+ *  recedes (its art at 0.32x, its copy at 0.14x, fading by 380 px and blurring up to 6 px); the 3 px bar at the top shows
+ *  how far down the page is; a sticky step bar compacts once the head is passed. New sections (a client read that
+ *  finishes later) are picked up as they appear. */
 export function scrollFx(main: HTMLElement): () => void {  // `main`: the page area that holds each page's <main>
   const progress = document.getElementById("mo-prog");
   const reduce = reducedMotion();
@@ -109,7 +110,9 @@ export function scrollFx(main: HTMLElement): () => void {  // `main`: the page a
   const prepare = () => {
     if (reduce) return;
     main.querySelectorAll<HTMLElement>(SELECTOR).forEach((el) => {
-      if (seen.has(el) || el.closest("[data-magnet], .hero-band, .dialog, .stepper-wrap") || el.parentElement?.closest(SELECTOR)) return;
+      // a page that opts out (`data-no-reveal`, the Inputs workspace) shows every section at once
+      if (seen.has(el) || el.closest("[data-magnet], .hero-band, .dialog, .stepper-wrap, [data-no-reveal]")
+          || el.parentElement?.closest(SELECTOR)) return;
       seen.add(el);
       // what is already on screen stays put (a page that just opened is read and used at once); what is below rises as
       // the page is scrolled to it
@@ -153,7 +156,8 @@ export function scrollFx(main: HTMLElement): () => void {  // `main`: the page a
           copy.style.filter = y > 1 ? `blur(${Math.min(y / 70, 6).toFixed(2)}px)` : "";
         }
       }
-      const bar = main.querySelector<HTMLElement>(".stepper-wrap");
+      // a static step bar (Inputs) scrolls away with the page: it never compacts
+      const bar = main.querySelector<HTMLElement>(".stepper-wrap:not(.static)");
       if (bar) bar.classList.toggle("compact", hero ? y > hero.offsetHeight - 40 : y > 40);
     });
   };

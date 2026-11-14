@@ -2,52 +2,50 @@
 
 // The kit's tabs (redesign plan §7): a tablist with the keys a keyboard user expects (arrows, Home and End move and select;
 // only the selected tab is in the Tab order) and a panel each tab names. The caller keeps rendering only the selected
-// panel's content, so what is not shown is not in the page. The look is the shared `.tabs` rule.
+// panel's content, so what is not shown is not in the page. The look is the shared `.tabs` rule; `className` adds a
+// page's own (the Inputs area bar, plan 2026-11-14 slice 1).
 
 import type { KeyboardEvent, ReactNode } from "react";
 
 export type TabItem<T extends string> = {
   id: T; label: string;
-  /** A number beside the label, e.g. the open items on that tab; read aloud as "N open". */
+  /** A number beside the label, e.g. the open items on that tab; read aloud with `countLabel` ("N open"). */
   count?: number;
+  /** What the count counts, read aloud after it: "open" unless said ("to do", "files"). */
+  countLabel?: string;
+  /** A chip after the count (the Client files tab's "2 to place"). */
+  badge?: ReactNode;
   testId?: string;
 };
 
 const tabId = (prefix: string, id: string) => `${prefix}-tab-${id}`;
 const panelId = (prefix: string, id: string) => `${prefix}-panel-${id}`;
 
-export function Tabs<T extends string>({ label, prefix, tabs, value, onChange, vertical, children }: {
-  label: string; prefix: string; tabs: TabItem<T>[]; value: T; onChange: (id: T) => void;
-  /** A rail down the side (the Inputs domains, plan 2026-11-03 §3.2): Up and Down move too. */
-  vertical?: boolean;
-  /** Shown under the tabs in a rail (a counter, a button). */
-  children?: ReactNode;
+export function Tabs<T extends string>({ label, prefix, tabs, value, onChange, className }: {
+  label: string; prefix: string; tabs: TabItem<T>[]; value: T; onChange: (id: T) => void; className?: string;
 }) {
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const at = tabs.findIndex((t) => t.id === value);
-    const next = e.key === "ArrowRight" || (vertical && e.key === "ArrowDown");
-    const back = e.key === "ArrowLeft" || (vertical && e.key === "ArrowUp");
-    const to = next ? (at + 1) % tabs.length : back ? (at - 1 + tabs.length) % tabs.length
+    const to = e.key === "ArrowRight" ? (at + 1) % tabs.length : e.key === "ArrowLeft" ? (at - 1 + tabs.length) % tabs.length
       : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
     if (to < 0) return;
     e.preventDefault();
     onChange(tabs[to].id);
     document.getElementById(tabId(prefix, tabs[to].id))?.focus();
   };
-  const list = (
-    <div className={vertical ? "tabs rail" : "tabs"} role="tablist" aria-label={label} onKeyDown={onKeyDown}
-         aria-orientation={vertical ? "vertical" : undefined}>
+  return (
+    <div className={className ? `tabs ${className}` : "tabs"} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
       {tabs.map((t) => (
         <button key={t.id} type="button" role="tab" id={tabId(prefix, t.id)} aria-selected={value === t.id}
                 aria-controls={panelId(prefix, t.id)} tabIndex={value === t.id ? 0 : -1}
                 className={value === t.id ? "active" : ""} onClick={() => onChange(t.id)} data-testid={t.testId}>
           {t.label}
-          {!!t.count && <span className="tab-count">{t.count}<span className="sr-only"> open</span></span>}
+          {!!t.count && <span className="tab-count">{t.count}<span className="sr-only"> {t.countLabel ?? "open"}</span></span>}
+          {t.badge}
         </button>
       ))}
     </div>
   );
-  return vertical ? <nav className="rail-nav" aria-label={label}>{list}{children}</nav> : list;
 }
 
 /** The selected tab's content. */

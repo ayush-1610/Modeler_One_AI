@@ -37,13 +37,14 @@ export function Hero({ eyebrow, title, lede, actions, tone = "projects", size = 
 }
 
 /** A step's page: its head, the project's steps under it (the Stepper, passed in), and its content beside an optional
- *  side panel. */
-export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, children }: {
+ *  side panel. `noReveal`: the page's sections are shown at once, never faded in as they scroll into view (a page of
+ *  forms, where a faded section reads as disabled: plan 2026-11-14 slice 1). */
+export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, noReveal, children }: {
   eyebrow?: string; title: ReactNode; lede?: ReactNode; actions?: ReactNode; side?: ReactNode; steps?: ReactNode;
-  tone?: HeroTone; children: ReactNode;
+  tone?: HeroTone; noReveal?: boolean; children: ReactNode;
 }) {
   return (
-    <div className="shell">
+    <div className="shell" data-no-reveal={noReveal ? "" : undefined}>
       <Hero eyebrow={eyebrow} title={title} lede={lede} actions={actions} tone={tone} />
       {steps}
       <div className={side ? "shell-body with-side" : "shell-body"}>

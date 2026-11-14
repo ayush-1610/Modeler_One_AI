@@ -41,32 +41,35 @@ test("a Word synopsis is read for its study's facts, and its dose against the PK
     ids[name] = (await up.json()).data.read[0].id;
   }
 
-  // a file nobody tagged, whose name and first pages do not say what it is, waits in the files view until the person
-  // says; then it is shown in the area of its data (plan 2026-11-05 §3.1)
+  // a file nobody tagged, whose name and first pages do not say what it is, waits in Client files until the person
+  // says; then it is filed under the area of its data (plan 2026-11-05 §3.1, 2026-11-14 slice 1)
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
-  await expect(page.getByTestId("files-unplaced")).toHaveText("1 to place");
+  await expect(page.getByTestId("files-unplaced")).toHaveText("1 to place");          // on the Client files tab
   await expect(page.getByTestId("document-EX-301_synopsis.docx")).toHaveCount(0);
-  await page.getByTestId("inputs-files").click();
-  const drawer = page.getByTestId("inputs-files-drawer");
-  await expect(drawer.getByTestId("inputs-file-EX-301_synopsis.docx")).toContainText("not placed: say what it is");
-  await drawer.getByLabel("what EX-301_synopsis.docx is").selectOption("clinical");
-  await expect(page.getByTestId("inputs-notice")).toContainText("EX-301_synopsis.docx: clinical study, shown on Clinical studies");
-  await drawer.getByTestId("open-file-EX-301_synopsis.docx").click();
+  await page.getByTestId("tab-files").click();
+  const files = page.getByTestId("files-table");
+  await expect(files.getByTestId("inputs-file-EX-301_synopsis.docx")).toContainText("not placed: say what it is");
+  await expect(page.getByTestId("unplaced-client-files").getByTestId("document-EX-301_synopsis.docx")).toBeVisible();
+  await files.getByLabel("what EX-301_synopsis.docx is").selectOption("clinical");
+  await expect(page.getByTestId("inputs-notice")).toContainText("EX-301_synopsis.docx: clinical study, filed under Clinical studies");
   await expect(page.getByTestId("files-unplaced")).toHaveCount(0);
+  await expect(page.getByTestId("studies-client-files").getByTestId("document-EX-301_synopsis.docx")).toBeVisible();
 
   // before the reading: code's inventory of the synopsis, and the agent's button (off: no LLM provider here)
-  await page.getByTestId("tab-studies").click();
   const doc = page.getByTestId("document-EX-301_synopsis.docx");
   await expect(doc).toContainText("Code found project data on 1 page");
   await expect(doc.getByTestId("inventory-1-design")).toContainText("single oral dose of 10 mg");
   await expect(doc.getByTestId("read-doc-EX-301_synopsis.docx")).toBeDisabled();
+  await files.getByTestId("open-file-EX-301_synopsis.docx").click();                  // its data land on Clinical studies
+  await expect(page.getByTestId("tab-studies")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("group-study:EX-301")).not.toContainText("Conflict");
 
   execFileSync("uv", ["run", "python", fixture, "read", join(process.env.E2E_DATA_DIR!, "read-root"), projectId,
                       ids["EX-301_synopsis.docx"]], { cwd: REPO });
   await page.reload();
-  await page.getByTestId("tab-studies").click();
+  await page.getByTestId("tab-files").click();
   await expect(page.getByTestId("document-read-EX-301_synopsis.docx")).toContainText("6 study facts");
+  await page.getByTestId("tab-studies").click();
 
   // the synopsis says 10 mg, the PK sheet 5 mg: a conflict on the study's card, each value with its source
   const card = page.getByTestId("group-study:EX-301");

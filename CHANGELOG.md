@@ -27,6 +27,54 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Deviations recorded:** from intake contracts §8.10 (the Delivery review beside the reading tray) and from plan
   2026-11-03 §3.2 (left rail, files drawer); see the plan's §5.
 - **Impact:** none yet (no code changed).
+
+### Changed — the Inputs page frame: a compact head, one bar of areas that stays in view, To do and Client files (plan 2026-11-14, slice 1)
+- **What:**
+  - **Head.** "Step 2 of 4 · Inputs · Fill in what the model needs and confirm the client's data." One "Add data" menu
+    (new kit `Menu`, a popover) holds the client's files by area (`add-files-<area>`, the hidden `client-upload-<area>`
+    inputs), "Search the sources and the literature" (`ask-literature`) and "Take the published OSP model's values"
+    (`published-model-*`). The source-selection note left the head for To do.
+  - **Step bar.** Static on Inputs (`Stepper sticky={false}`); it no longer floats over the page. Elsewhere, once
+    compacted, only its pill takes the pointer, so the empty strip under it no longer swallows clicks.
+  - **Area bar** (`area-bar`, kit `Tabs`): To do · Compound · Products and dissolution · Clinical studies · Populations
+    and individuals · Simulation settings · Client files, sticky and opaque at the top; below 900 px one row that scrolls
+    sideways. `?tab=` also takes `todo` and `files`; with no `?tab` the page opens on To do while the /inputs to-do list
+    is not empty, else on Compound. "To confirm" (`to-confirm`, `to-confirm-count`) sits at the bar's end, with the same
+    filter; pressed on To do or Client files it opens the first area with something to confirm. Tab counts are neutral
+    numerals; Client files counts its files and carries the "n to place" chip (`files-unplaced`).
+  - **To do** (`tab-todo`): what the rail's side held, full width and no longer clipped in a 260 px box. "Still missing
+    to run" (`still-missing`, every `missing-<kind>-<target>` opening its area as before) grouped by area, the request
+    for the client (`request-download`), "Inputs are ready" (`inputs-ready`), and "Readiness and sources" (`readiness`,
+    `check-<name>`) with the source-selection rules (`selection-rule`). Slice 2 replaces it with the one list of work.
+  - **Client files** (`tab-files`): a head with "Add files" for an area (`client-upload-files`); the reading tray
+    (`reading-tray*`); one row per file (`files-table`, `inputs-file-<name>`: what it is with `file-tag-*` /
+    `tag-proposal-*`, the area it is filed under with `open-file-*`, what it gave); the Delivery review
+    (`delivery-section`, unchanged inside); then each area's files with their sheets and readings
+    (`<area>-client-files`, `client-file-*`, `sheet-*`, `reader-*`, `read-agent-*`) and the files not placed yet
+    (`unplaced-client-files`).
+    The files drawer (`inputs-files`, `inputs-files-drawer`) and the per-area file bars and lists (`files-bar-<area>`,
+    `FilesBar`, `FilesHere`) are gone. A retagged or uploaded file is "filed under <area>" (was "shown on").
+  - The end-of-reading refreshes of the Delivery review and the reading tray moved into the workspace
+    (`useDeliveryRefresh`, `useReadingRefresh`), so a reading that ends refreshes the cards whichever area is open.
+  - **CSS and kit.** `.brand` is scoped to the sidebar (a `.chip.brand` is a chip again, not a 350×40 px bar); one base
+    style for text fields, selects (own chevron) and text areas, with `--control-border` #8a8a8e (3:1); `--warn-ink`
+    #9a4500 and `--pass-ink` #17663a (AA on their chip tints; amber text no longer equals `--obs`); the `.inputs-area`
+    520 px band, the `.rail-*` rules and the vertical `Tabs` mode are removed; `PageShell noReveal` puts
+    `data-no-reveal` on Inputs, which `lib/motion.ts` skips, so no section fades in as if disabled. `InputRows` files the
+    bare `elim` under "Elimination, by process" (`/^(elim|metab|clear)(\.|$)/`).
+  - **Tests.** New `e2e/inputs-frame.spec.ts` (the bar at most 480 px from the top on every area at 1440×900 and sticky;
+    no Delivery review outside Client files; nothing faded; the Add data menu; one scrolling row and no sideways page
+    scroll at 390×844). Updated for the moved elements: delivery, library, inputs-files-by-area (rewritten),
+    inputs-workspace, inputs-todo, inputs-data-cards, inputs-sheets-on-arrival, client-documents, client-data,
+    client-data-guided, studies-client-sheets, compound-sources, model-inputs, value-reuse, published-model,
+    table-sort, source-peek and start-project.
+- **Why:** the 2026-11-14 audit: the input areas started about 6,100 px down under the Delivery review, the glass step
+  bar covered content and left a dead click strip, the "still missing" list was clipped, sparse tabs ended in a blank
+  band, `.chip.brand` rendered as a bar, native selects sat beside styled ones, amber text was the observed series'
+  colour, sections faded in as if disabled, and `elim` was filed under "Other".
+- **Impact:** frontend and CSS only; no API, rule or science change. The base control style, the darker control edge
+  and the darker amber and green chip text apply on every page. Not in this slice: the status line with its single
+  "Next" and counts from both pipelines (slice 2, from `lib/inputsWork.ts`), and the area in the URL as it changes.
 ### Changed — what the landing holds back is said without internal references (integrator, 2026-11-14)
 - **What:** five "held back" lines of `intake_landing` no longer end in a reference to the build contract ("contracts §11.8" and the like). Excretion and relation values now read "kept in the ledger; the model inputs have no place for it yet"; the several-occasions line keeps its check code and says "a profile holds one occasion".
 - **Why:** these lines are shown to the reviewer on the subject's card and in the confirm dialog, and are part of the record that is signed. A section number of an internal document tells the reviewer nothing. Seen in the browser test's screenshot of the dialog.

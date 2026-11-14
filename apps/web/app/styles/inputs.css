@@ -28,7 +28,10 @@
 .input-row .sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .source-line { border-top: 1px solid var(--line-soft); padding-top: 6px; }
 .add-value, .typed-table { border-top: 1px dashed var(--line); padding-top: 8px; }
-.tabs .tab-count { margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; background: var(--warn-ink); color: var(--surface); }
+/* a tab's count is a neutral numeral: amber is kept for what the person must decide (plan 2026-11-14 §2, rule 5) */
+.tabs .tab-count { margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.area-bar .tabs .chip { margin-left: 6px; }
 .missing-list, .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
 .individual { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); }
 .individual + .individual { margin-top: 8px; }
@@ -56,30 +59,33 @@
 .brief-list .note-item.adding { background: color-mix(in srgb, var(--sim) 5%, var(--surface)); padding: 8px; border-radius: var(--radius-sm); }
 .brief-list > .btn { margin-top: 6px; }
 
-/* the domains down the left (plan 2026-11-03 §3.2): a rail that stacks above the area on a phone */
-.inputs-layout { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
-.inputs-area { flex: 999 1 520px; min-width: 0; }
-.rail-nav { flex: 1 1 230px; max-width: 280px; display: grid; gap: 10px; align-content: start; }
-.rail-side { display: grid; gap: 10px; }
-.tabs.rail { flex-direction: column; gap: 2px; border-bottom: 0; margin: 0; padding: 6px; background: var(--surface);
-  border: 1px solid var(--line); border-radius: var(--radius); }
-.tabs.rail button { display: flex; justify-content: space-between; align-items: center; text-align: left; margin: 0;
-  border-bottom: 0; border-radius: var(--radius-sm); padding: 9px 10px; min-height: 40px; }
-.tabs.rail button.active { background: color-mix(in srgb, var(--sim) 12%, var(--surface)); color: var(--brand-ink); }
-.rail-files { display: flex; justify-content: space-between; align-items: center; }
-.files-drawer { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.files-drawer li { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
-@media (max-width: 900px) { .rail-nav { max-width: none; } }
+/* the areas in one bar across the top (plan 2026-11-14 slice 1): it stays in view, opaque over what scrolls under it,
+   with "To confirm" at its end; below 900 px it is one row that scrolls sideways (under the phone's top bar), never a
+   block of wrapped tabs. The area under it takes only its content's height: no dead band under a short area. */
+.area-bar { position: sticky; top: 0; z-index: 18; display: flex; align-items: center; gap: 10px; margin: 0 -12px;
+  padding: 10px 12px; background: var(--bg); border-bottom: 1px solid var(--hairline); }
+/* positioned, so a count's screen-reader text (absolute) stays inside the row that scrolls, not beyond the page's edge */
+.area-bar .tabs.area-tabs { position: relative; flex: 1 1 auto; min-width: 0; margin: 0; }
+.area-bar .tabs.area-tabs { gap: 2px; }
+.area-bar .tabs.area-tabs button { display: inline-flex; align-items: center; min-height: 36px; padding: 8px 12px; white-space: nowrap; }
+.area-bar .to-confirm { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 14px;
+  white-space: nowrap; }
+@media (max-width: 900px) {
+  .area-bar { top: 60px; margin: 0 -16px; padding: 8px 16px; }
+  .area-bar .tabs.area-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; width: auto; }
+  .area-bar .tabs.area-tabs button { flex: none; }
+  .area-bar .to-confirm { padding: 6px 10px; font-size: 13px; gap: 6px; }
+}
+html:has(.area-bar) { scroll-padding-top: 76px; }
+@media (max-width: 900px) { html:has(.area-bar) { scroll-padding-top: 136px; } }
 .input-block { display: grid; gap: 10px; margin-bottom: 18px; }
 .input-block-title { margin: 4px 0 0; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
 
-/* the client's data, confirmed inline (plan 2026-11-03 §3.3) */
-.rail-confirm { order: -1; display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
-.rail-confirm .chip { background: var(--raised); color: var(--ink-dim); }
-.rail-confirm.waiting { border-color: color-mix(in srgb, var(--warn) 60%, var(--line)); background: color-mix(in srgb, var(--warn) 12%, var(--surface));
-  color: var(--warn-ink); }
-.rail-confirm.waiting .chip { background: var(--warn-ink); color: var(--surface); }
-.rail-confirm[aria-pressed="true"] { outline: 2px solid var(--warn-ink); outline-offset: 1px; }
+/* the client's data, confirmed inline (plan 2026-11-03 §3.3); "To confirm" filters the areas to what waits for you */
+.to-confirm .chip { background: var(--surface); color: var(--ink); }
+.to-confirm.waiting { background: color-mix(in srgb, var(--warn) 14%, var(--surface)); color: var(--warn-ink); }
+.to-confirm.waiting .chip { background: var(--warn-ink); color: var(--surface); }
+.to-confirm[aria-pressed="true"] { outline: 2px solid var(--warn-ink); outline-offset: 1px; }
 .confirm-groups { display: grid; gap: 14px; margin-bottom: 20px; }
 .confirm-group { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 14px 16px; display: grid; gap: 10px; }
 .confirm-group.to-confirm { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
@@ -117,10 +123,21 @@
 .confirm-foot .btn { min-height: 44px; }
 .confirm-notes { margin: 0; padding: 8px 12px 8px 28px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--sim) 7%, var(--surface));
   font-size: 13px; display: grid; gap: 2px; }
-/* each data area's own "Add files" and how many client files it shows (plan 2026-11-05 §3.1) */
-.files-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; }
-.files-bar .btn { min-height: 36px; }
-.rail-files > span:first-child { text-align: left; }
+/* the Client files area (plan 2026-11-14 slice 1): its head, one row per file, then each area's files with their sheets */
+.files-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.files-head h2 { margin-right: auto; }
+.files-table td { vertical-align: top; }
+.files-table .file-tag { margin: 0; }
+.files-name { font-weight: 600; overflow-wrap: anywhere; color: var(--ink); text-decoration: none; }
+.files-name:hover { color: var(--brand-ink); text-decoration: underline; }
+.client-files h3 { margin: 4px 0 6px; font-size: 15px; color: var(--ink); }
+.file-card { scroll-margin-top: 80px; }
+/* on a phone a file's sheet table scrolls inside its card, never the page */
+@media (max-width: 900px) { .client-files .file-card > table { display: block; overflow-x: auto; } }
+/* To do (plan 2026-11-14 slice 1): what is still missing to run, by area, full width; then the checks, folded */
+.todo-area + .todo-area { margin-top: 12px; }
+.todo-area h3 { margin: 0 0 6px; font-size: 14px; color: var(--ink); }
+.todo-missing .client-request-download { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--hairline); }
 /* what the structured sources gave the compound at the project's start (plan 2026-11-05 §3.3) */
 .sources-read { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; }
 .sources-read h3 { margin: 0 0 6px; font-size: 14px; }

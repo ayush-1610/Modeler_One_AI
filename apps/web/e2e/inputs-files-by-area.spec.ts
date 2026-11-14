@@ -1,7 +1,8 @@
 // T-47: the client's files where their data belong (plan 2026-11-05 §3.1; the owner, 2026-11-05: "every data went into
-// the clinical study section"). Each data area has its own "Add files"; a file is shown in the area its tag names, a
-// name that says what it is wins over the area it was added on, and a file whose content reads otherwise says so on its
-// card, to use or keep. The workbooks are written by a Python helper (software test data, never a model).
+// the clinical study section"). Files are added for an area from the head's "Add data" (plan 2026-11-14 slice 1); each
+// is listed once, in Client files, filed under the area its tag names; a name that says what it is wins over the area it
+// was added for, and a file whose content reads otherwise says so on its row, to use or keep. The workbooks are written
+// by a Python helper (software test data, never a model).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -30,45 +31,50 @@ test("files are added where their data belong, shown there, and moved by saying 
   await finishStart(request, projectId);
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
 
-  // added on Products and dissolution: the dissolution workbook, and a BE workbook whose name says nothing
+  // added for Products and dissolution: the dissolution workbook, and a BE workbook whose name says nothing
   await page.goto(`/projects/${projectId}/inputs?tab=formulations`);
-  await expect(page.getByTestId("files-bar-formulations")).toContainText("No client file here yet");
+  await page.getByTestId("inputs-add-data").click();
+  await expect(page.getByTestId("add-files-formulations")).toBeVisible();          // the head's menu: one entry per area
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("add-files-formulations")).toBeHidden();
   await page.getByTestId("client-upload-formulations").setInputFiles(
     ["Dissolution Test pH 6.8.xlsx", "230-23 Fasting Reference.xlsx"].map((f) => join(dir, f)));
   await expect(page.getByTestId("inputs-notice")).toContainText("2 files stored.");
+  await expect(page.getByTestId("tab-files")).toContainText("2");
+  await page.getByTestId("tab-files").click();
   const here = page.getByTestId("formulations-client-files");
   await expect(here).toContainText("formulation and dissolution files (2)");
   await expect(here.getByTestId("client-file-Dissolution Test pH 6.8.xlsx")).toBeVisible();
 
-  // the BE workbook's sheet holds plasma concentrations: its card says so, and "Use it" moves it to Clinical studies
-  const be = here.getByTestId("client-file-230-23 Fasting Reference.xlsx");
+  // the BE workbook's sheet holds plasma concentrations: its row says so, and "Use it" files it under Clinical studies
+  const table = page.getByTestId("files-table");
+  const be = table.getByTestId("inputs-file-230-23 Fasting Reference.xlsx");
   await expect(be.getByLabel("what 230-23 Fasting Reference.xlsx is")).toHaveValue("formulation");
+  await expect(be).toContainText("Open on Products and dissolution");
   const reading = be.getByTestId("tag-proposal-230-23 Fasting Reference.xlsx");
   await expect(reading).toContainText("Its content reads as clinical study");
   await shot(page, "1-products-files");
   await reading.getByRole("button", { name: "Use it" }).click();
-  await expect(page.getByTestId("inputs-notice")).toContainText("230-23 Fasting Reference.xlsx: clinical study, shown on Clinical studies");
+  await expect(page.getByTestId("inputs-notice")).toContainText("230-23 Fasting Reference.xlsx: clinical study, filed under Clinical studies");
   await expect(here).toContainText("formulation and dissolution files (1)");
-  await page.getByTestId("tab-studies").click();
   await expect(page.getByTestId("studies-client-files").getByTestId("client-file-230-23 Fasting Reference.xlsx")).toBeVisible();
-  await expect(page.getByTestId("files-bar-studies")).toContainText("1 client file here");
+  await expect(be).toContainText("Open on Clinical studies");
 
-  // added on Clinical studies, a workbook named as dissolution still goes to Products and dissolution, by its name
+  // added for Clinical studies, a workbook named as dissolution is still filed under Products and dissolution, by its name
   await page.getByTestId("client-upload-studies").setInputFiles(join(dir, "Dissolution RLD pH 6.8.xlsx"));
   await expect(page.getByTestId("inputs-notice")).toContainText(
-    "Dissolution RLD pH 6.8.xlsx is shown on Products and dissolution, by its name");
-  await expect(page.getByTestId("client-file-Dissolution RLD pH 6.8.xlsx")).toHaveCount(0);
+    "Dissolution RLD pH 6.8.xlsx is filed under Products and dissolution, by its name");
+  await expect(page.getByTestId("studies-client-files").getByTestId("client-file-Dissolution RLD pH 6.8.xlsx")).toHaveCount(0);
+  await expect(here).toContainText("formulation and dissolution files (2)");
+  await expect(here.getByTestId("client-file-Dissolution RLD pH 6.8.xlsx")).toBeVisible();
 
-  // the files view: every file, what it is, and the area it opens in
-  await page.getByTestId("inputs-files").click();
-  const drawer = page.getByTestId("inputs-files-drawer");
-  await expect(drawer.getByTestId("inputs-file-Dissolution RLD pH 6.8.xlsx")).toContainText("Open on Products and dissolution");
+  // one row per file: what it is, and the area its data land on
+  await expect(table.getByTestId("inputs-file-Dissolution RLD pH 6.8.xlsx")).toContainText("Open on Products and dissolution");
   await shot(page, "2-files-view");
-  await drawer.getByTestId("open-file-Dissolution RLD pH 6.8.xlsx").click();
-  await expect(page.getByTestId("formulations-client-files")).toContainText("formulation and dissolution files (2)");
-  await expect(page.getByTestId("client-file-Dissolution RLD pH 6.8.xlsx")).toBeVisible();
+  await table.getByTestId("open-file-Dissolution RLD pH 6.8.xlsx").click();
+  await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
 
-  // the compound area has its own "Add files" too (in vitro and physico-chemistry reports)
-  await page.getByTestId("tab-compound").click();
-  await expect(page.getByTestId("files-bar-compound")).toContainText("add the in vitro and physico-chemistry files");
+  // the compound's files are added the same way (in vitro and physico-chemistry reports)
+  await page.getByTestId("inputs-add-data").click();
+  await expect(page.getByTestId("add-files-compound")).toContainText("In vitro and physico-chemistry files");
 });

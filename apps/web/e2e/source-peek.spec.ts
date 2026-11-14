@@ -23,7 +23,7 @@ test("a value read from a client sheet opens in the centre peek with its cell hi
     locator: "ppb!C3", title: "ppb.csv", quote: "[ppb row 3] A3=PPB | B3=Human | C3=0.09" } });
   expect(value.status(), await value.text()).toBe(201);
 
-  await page.goto(`/projects/${projectId}/inputs`);
+  await page.goto(`/projects/${projectId}/inputs?tab=compound`);
   await page.getByTestId("peek-bind.fu").click();
   const peek = page.getByTestId("source-peek");
   await expect(peek.getByRole("dialog", { name: /Source of/ })).toBeVisible();

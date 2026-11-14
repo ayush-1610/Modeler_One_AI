@@ -39,17 +39,22 @@ test("model inputs flow in from the evidence, are checked, and hand over to Revi
   expect(ds.ok(), await ds.text()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/inputs`);
-  await expect(page.getByTestId("inputs-ready")).toBeVisible();              // nothing still missing, nothing to accept
+  // nothing still missing: the page opens on Compound; To do says the inputs are ready, nothing to accept
+  await expect(page.getByTestId("tab-compound")).toHaveAttribute("aria-selected", "true");
+  await page.getByTestId("tab-todo").click();
+  await expect(page.getByTestId("inputs-ready")).toBeVisible();
+  await expect(page.getByTestId("check-every planned simulation builds (software)")).toContainText("ok");
+  await page.getByTestId("tab-compound").click();
   const logp = page.getByTestId("record-phys.logp");
   await expect(logp).toContainText("Log Units");
   await expect(logp).toContainText("regulatory review");
   await expect(page.getByTestId("record-elim.renal.gfr_fraction")).toContainText("GlomerularFiltration");
-  await expect(page.getByTestId("check-every planned simulation builds (software)")).toContainText("ok");
   await page.getByTestId("tab-studies").click();
   await expect(page.getByTestId("study-doe-iv-250")).toContainText("literature");
   await expect(page.getByTestId("study-doe-iv-250")).toContainText("S1");               // the role the MS-01 split proposes
   await expect(page.getByRole("button", { name: /Accept|Approve|Hand to/ })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("inputs.png"), fullPage: true });
+  await page.getByTestId("tab-todo").click();
   await page.getByRole("link", { name: "Go to Review & sign" }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/plan`));
 });

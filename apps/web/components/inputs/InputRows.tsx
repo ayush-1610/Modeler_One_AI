@@ -180,12 +180,13 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
   );
 }
 
-// The compound's building blocks (plan 2026-11-03 §3.2), by the CPF id's family; an id no family names is "Other".
+// The compound's building blocks (plan 2026-11-03 §3.2), by the CPF id's family; an id no family names is "Other". The
+// data plan's bare "elim" (an elimination pathway, not yet filed under one) is an elimination row too (2026-11-14 audit).
 const BLOCKS: [string, RegExp][] = [
   ["Identity and physico-chemistry", /^phys\./],
   ["Binding and partitioning", /^(bind|dist)\./],
   ["Permeability and absorption", /^(perm|abs|gi)\./],
-  ["Elimination, by process", /^(elim|metab|clear)\./],
+  ["Elimination, by process", /^(elim|metab|clear)(\.|$)/],
   ["Transporters and interactions", /^(trans|ddi|inhib|induct)\./],
 ];
 const blockOf = (id: string) => BLOCKS.find(([, rule]) => rule.test(id))?.[0] ?? "Other";

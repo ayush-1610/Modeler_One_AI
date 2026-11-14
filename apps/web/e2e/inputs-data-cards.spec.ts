@@ -32,10 +32,11 @@ test("a delivery with four studies is reviewed one study at a time, each as data
     files: { name: "four-studies.xlsx", mimeType: XLSX, buffer: readFileSync(join(dir, "four-studies.xlsx")) } } });
   expect(up.status(), await up.text()).toBe(201);
 
-  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
-  // the client-data template, sent with no tag, is shown with the studies (it holds every kind of data)
+  await page.goto(`/projects/${projectId}/inputs?tab=files`);
+  // the client-data template, sent with no tag, is filed with the studies (it holds every kind of data)
   await expect(page.getByTestId("studies-client-files").getByTestId("client-file-four-studies.xlsx")).toBeVisible();
   await expect(page.getByTestId("files-unplaced")).toHaveCount(0);
+  await page.getByTestId("tab-studies").click();
   const index = page.getByTestId("group-index");
   for (const s of ["CL-1", "CL-2", "CL-3", "CL-4"]) await expect(index.getByTestId(`index-study:${s}`)).toBeVisible();
   // the first to confirm is open, as data; the others are folded

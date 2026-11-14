@@ -39,10 +39,11 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   const fixture = JSON.parse(printed.trim().split("\n").pop()!) as { files: string[]; waiting: { mapping_id: string } };
   const waiting = fixture.waiting.mapping_id;
 
-  // --- the files arrive: uploaded on Inputs, read by code ---
+  // --- the files arrive: uploaded on Inputs (the head's Add data), read by code; the review is in Client files ---
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   await page.getByTestId("tab-studies").click();
   await page.getByTestId("client-upload-studies").setInputFiles(fixture.files.map((name) => join(dir, name)));
+  await page.getByTestId("tab-files").click();
   const section = page.getByTestId("delivery-section");
   await expect(section.getByTestId("delivery-total-files")).toHaveText("2", { timeout: 120_000 });
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
@@ -212,6 +213,7 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await shot(page, "8-confirmed");
 
   // --- on Inputs: the study is in the project once; its own card shows it loaded, with nothing to confirm there ---
+  await page.getByTestId("tab-studies").click();
   await expect(page.getByTestId("study-230-23")).toHaveCount(1);
   const legacy = page.getByTestId("group-study:230-23");
   await expect(legacy).toContainText("loaded");

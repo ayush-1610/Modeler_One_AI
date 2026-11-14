@@ -35,7 +35,7 @@ test("a client sheet is read and saved on the Studies tab, next to the reading a
   expect(upload.status(), await upload.text()).toBe(201);
 
   await page.goto(`/projects/${projectId}/inputs`);
-  await page.getByTestId("tab-studies").click();
+  await page.getByTestId("tab-files").click();                    // the client's files and their sheets
   const sheets = page.getByTestId("studies-client-files");
   await expect(sheets).toContainText("Agents are off");
   await expect(sheets.getByTestId("read-agent-Smith2015_Table2.xlsx")).toBeDisabled();
@@ -59,6 +59,7 @@ test("a client sheet is read and saved on the Studies tab, next to the reading a
   await expect(sheets.getByTestId("sheet-Mean PK")).toContainText("read ✓");
 
   // what the sheet gave waits on its study's card until a person confirms it (plan 2026-11-03 §3.3)
+  await page.getByTestId("tab-studies").click();
   const study = page.getByTestId("group-study:Smith2015");
   await expect(study).toContainText("To confirm");
   await expect(page.getByTestId("study-Smith2015")).toHaveCount(0);           // not in the project yet

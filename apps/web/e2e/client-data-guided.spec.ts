@@ -45,10 +45,12 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await page.getByTestId("client-upload-studies").setInputFiles(["230-23 Fasting Reference.xlsx", "230-23 Fasting Test.xlsx",
     "Dissolution Test pH 6.8.xlsx", "Dissolution RLD pH 6.8.xlsx", "Nichols2012 IV 50 mg 5 h infusion.xlsx"].map((f) => join(dir, f)));
   await expect(page.getByText("5 files stored.")).toBeVisible();
-  // each file in the area of its data (plan 2026-11-05 §3.1): the dissolution workbooks, named so, on Products and dissolution
-  await expect(page.getByTestId("inputs-notice")).toContainText("Dissolution Test pH 6.8.xlsx is shown on Products and dissolution, by its name");
+  // each file filed under the area of its data (plan 2026-11-05 §3.1), in Client files (2026-11-14 slice 1): the
+  // dissolution workbooks, named so, under Products and dissolution
+  await expect(page.getByTestId("inputs-notice")).toContainText("Dissolution Test pH 6.8.xlsx is filed under Products and dissolution, by its name");
+  await page.getByTestId("tab-files").click();
   await expect(page.getByTestId("studies-client-files")).toContainText("(3)");
-  await expect(page.getByTestId("client-file-Dissolution Test pH 6.8.xlsx")).toHaveCount(0);
+  await expect(page.getByTestId("studies-client-files").getByTestId("client-file-Dissolution Test pH 6.8.xlsx")).toHaveCount(0);
   await shot(page, "1-uploaded");
 
   // the BE reference arm: times across the top, Mean / SD rows left out, the LLOQ quoted from the footnote
@@ -92,8 +94,8 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await reader2.getByRole("button", { name: "Save these data" }).click();
   await expect(page.getByText(/230-23-TEST saved/)).toBeVisible();
 
-  // dissolution, on Products and dissolution: the test product named as in the brief, its conditions quoted from the title
-  await page.getByTestId("tab-formulations").click();
+  // dissolution, filed under Products and dissolution: the test product named as in the brief, its conditions quoted from
+  // the title
   await expect(page.getByTestId("formulations-client-files")).toContainText("(2)");
   // the test product's sheet was read by code on arrival (its product named as in the brief, its conditions quoted from
   // the title) and saved at once, to confirm on the product's card (build C2); the reference product, not in the brief,
@@ -112,6 +114,7 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
     await r.getByRole("button", { name: "Save these data" }).click();
     await expect(page.getByText(/pH 6.8: 96 dissolution values saved/)).toBeVisible();
   }
+  await page.getByTestId("tab-formulations").click();
   await expect(page.getByTestId("f2-row")).toBeVisible();
   // each product's dissolution as data on its card (build C): the profile, its spread and the Weibull fit
   await expect(page.getByTestId("release-view").first()).toBeVisible();
@@ -120,7 +123,7 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   // the proposal's products are shown where they are built (page review 1, decision 3), with who set them
   await expect(page.getByTestId("inputs-products-0")).toContainText("Desvenlafaxine succinate ER Tablets");
   await expect(page.getByTestId("inputs-products-0")).toContainText("set by");
-  await page.getByTestId("tab-studies").click();
+  await page.getByTestId("tab-files").click();
 
   // published IV means: SD and N columns, the route from the file name
   await page.getByTestId("client-file-Nichols2012 IV 50 mg 5 h infusion.xlsx").getByRole("button", { name: "Read this sheet" }).click();

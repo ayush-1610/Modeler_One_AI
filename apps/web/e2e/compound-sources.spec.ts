@@ -32,6 +32,8 @@ test("the compound's basic values are there from the start, each with its source
   await expect(read.getByTestId("source-ChEMBL")).toContainText("2 values");
   await expect(read).toContainText("without saying acid or base");          // what code left for the agent and the person
   // the molecular weight is an input now, no click (it was "Missing for S0 · Molecular weight")
+  await page.getByTestId("tab-todo").click();
+  await expect(page.getByTestId("still-missing")).toBeVisible();
   await expect(page.getByTestId("missing-missing-phys.mw")).toHaveCount(0);
   await expect(page.getByTestId("still-missing")).not.toContainText("Molecular weight");
   await shot(page, "1-compound-from-the-sources");

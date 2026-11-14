@@ -1,8 +1,8 @@
 "use client";
 
 // The reading tray (plan 2026-11-10, R3): every client file the reading agent is to read, is reading or has read, with
-// what was found and why one failed, on Inputs above the areas. A file that failed is read again from here. With agents
-// off the tray says so: the files wait, and each is read with the forms on its tab meanwhile.
+// what was found and why one failed, on Inputs in the Client files area (plan 2026-11-14 slice 1). A file that failed is
+// read again from here. With agents off the tray says so: the files wait, and each is read with its sheet's form meanwhile.
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -34,24 +34,30 @@ export function trayLine(counts: Record<string, number>): string {
     .filter(Boolean).join(" · ");
 }
 
-export function ReadingTray({ projectId }: { projectId: string }) {
-  const tray = useResource("/api/v1/projects/{project_id}/reading-queue", { project_id: projectId },
-    { poll: (d) => d.agents.enabled && (d.counts.queued > 0 || d.counts.reading > 0), interval: 4000 });
-  const mutation = useMutation();
-  const refresh = useRefresh();
-  const [open, setOpen] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-  const seen = useRef<string | null>(null);
-  const data = tray.data;
+const useQueue = (projectId: string) => useResource("/api/v1/projects/{project_id}/reading-queue", { project_id: projectId },
+  { poll: (d) => d.agents.enabled && (d.counts.queued > 0 || d.counts.reading > 0), interval: 4000 });
 
-  // each file read brings data onto the cards: the page is read again when a reading finishes while it is open (the
-  // newest finish time, which the queue's pruning cannot cap); not on the first answer
+/** Each file read brings data onto the cards: the page is read again when a reading finishes while it is open (the
+ *  newest finish time, which the queue's pruning cannot cap); not on the first answer. Used by the Inputs workspace, so
+ *  it holds on every area, not only while the Client files area shows the tray (plan 2026-11-14 slice 1). */
+export function useReadingRefresh(projectId: string) {
+  const data = useQueue(projectId).data;
+  const refresh = useRefresh();
+  const seen = useRef<string | null>(null);
   const newest = data ? data.items.reduce((m, i) => (i.finished_at && i.finished_at > m ? i.finished_at : m), "") : null;
   useEffect(() => {
     if (newest === null) return;
     if (seen.current !== null && newest !== seen.current) void refresh();
     seen.current = newest;
   }, [newest]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+export function ReadingTray({ projectId }: { projectId: string }) {
+  const tray = useQueue(projectId);
+  const mutation = useMutation();
+  const [open, setOpen] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const data = tray.data;
 
   if (!data) return null;
   const { counts, agents } = data;
@@ -97,7 +103,7 @@ export function ReadingTray({ projectId }: { projectId: string }) {
         <p className="reading-tray-off" data-testid="reading-tray-off" title={agents.problem ?? undefined}>
           The reading agent is off on this server: {plural(waiting, "file")}{" "}
           {waiting === 1 ? "waits" : "wait"} and {waiting === 1 ? "is" : "are"} read once it is on. Meanwhile, read each
-          sheet with its form in the area of its data, or ask your administrator to turn the agents on.
+          sheet with its form below, or ask your administrator to turn the agents on.
         </p>
       )}
       {backlog.length > 0 && (
@@ -180,9 +186,7 @@ export function ReadingTray({ projectId }: { projectId: string }) {
 
 /** The status line of "Add data" once files are added: how far the agent is, and where to see each file. */
 export function ReadingStatus({ projectId, onOpen }: { projectId: string; onOpen?: () => void }) {
-  const tray = useResource("/api/v1/projects/{project_id}/reading-queue", { project_id: projectId },
-    { poll: (d) => d.agents.enabled && (d.counts.queued > 0 || d.counts.reading > 0), interval: 4000 });
-  const data = tray.data;
+  const data = useQueue(projectId).data;
   if (!data || data.items.length === 0) return null;
   const waiting = data.counts.queued + data.counts.reading;
   return (
@@ -191,7 +195,7 @@ export function ReadingStatus({ projectId, onOpen }: { projectId: string; onOpen
         ? `The reading agent is off on this server: ${plural(waiting, "file")} ${waiting === 1 ? "waits" : "wait"} to be read.`
         : waiting > 0 ? `The agent is reading the client's files: ${trayLine(data.counts)}.`
           : `The agent has read the client's files: ${trayLine(data.counts)}.`}{" "}
-      <Link href={`/projects/${encodeURIComponent(projectId)}/inputs`} onClick={onOpen}>See each file on Inputs</Link>
+      <Link href={`/projects/${encodeURIComponent(projectId)}/inputs?tab=files`} onClick={onOpen}>See each file on Inputs</Link>
     </p>
   );
 }

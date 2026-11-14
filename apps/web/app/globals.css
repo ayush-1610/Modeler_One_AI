@@ -36,16 +36,18 @@
   --brand-ink: #0066cc;
 
   /* Text-grade twins of the series and verdict colours: the base colours above are for dots, fills and borders (they are
-   * 3.4-4.5:1 on a tint and fail AA as small text); these are >= 4.5:1 on the surface and on their own tints.
+   * 3.4-4.5:1 on a tint and fail AA as small text); these are >= 4.5:1 on the surface and on their own tints (a chip's
+   * 14-16 % wash). --warn-ink is its own colour, no longer the observed series' --obs (plan 2026-11-14 slice 1).
    * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. */
-  --pass-ink: #1e7b45;
-  --warn-ink: #b25000;
+  --pass-ink: #17663a;
+  --warn-ink: #9a4500;
   --fail-ink: #a5381f;
   --ink-quiet: #6e6e73;
-  /* the filled primary button (white on it 5.2:1; --sim stays the chart colour) and the edge of a form control (3:1) */
+  /* the filled primary button (white on it 5.2:1; --sim stays the chart colour) and the edge of a form control (3:1 on
+   * the surface and on the bench) */
   --primary: #0071e3;
   --on-primary: #ffffff;
-  --control-border: rgba(0, 0, 0, 0.1);
+  --control-border: #8a8a8e;
 
   /* risk ratings (ICH M15) and aliases */
   --low: var(--pass);
@@ -130,7 +132,8 @@ p { max-width: var(--measure); }
   padding: 18px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden;
   display: flex; flex-direction: column; transition: width 200ms var(--ease);
 }
-.brand { display: flex; gap: 9px; align-items: center; font-weight: 600; font-size: 15px; min-height: 32px;
+/* the sidebar's logo; scoped, so the `.chip.brand` tone stays a chip (plan 2026-11-14 slice 1) */
+.sidebar .brand { display: flex; gap: 9px; align-items: center; font-weight: 600; font-size: 15px; min-height: 32px;
          letter-spacing: -0.01em; margin: 0 2px 18px 4px; }
 /* the mark is a decaying curve — the shape the whole product is about */
 .brand-mark {
@@ -142,7 +145,7 @@ p { max-width: var(--measure); }
     var(--raised);
   border: 1px solid var(--line);
 }
-.brand .nav-text { flex: 1; min-width: 0; white-space: nowrap; }
+.sidebar .brand .nav-text { flex: 1; min-width: 0; white-space: nowrap; }
 .nav { display: grid; gap: 2px; }
 .nav a, .nav-action { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px;
   border-radius: var(--radius-sm); color: var(--ink-dim); font: inherit; font-weight: 500; text-decoration: none; text-align: left;

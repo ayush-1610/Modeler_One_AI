@@ -38,16 +38,18 @@ type StepperProps = {
   projectId: string; current?: StepId;
   /** Write out what the current step waits on (off where the page lists it itself, as Start does). */
   waiting?: boolean;
+  /** Kept in view as the page scrolls (off on Inputs, whose area bar is what stays in view: plan 2026-11-14 slice 1). */
+  sticky?: boolean;
 };
 
-async function StepperBody({ projectId, current, waiting = true }: StepperProps) {
+async function StepperBody({ projectId, current, waiting = true, sticky = true }: StepperProps) {
   const live = await getSteps(projectId);
   if (!live.data) return null; // the stepper is navigation; the page itself reports a read problem
   const here = live.data.find((s) => s.step === current);
   const start = live.data.find((s) => s.step === "start");
   const locked = start !== undefined && start.state !== "done";
   return (
-    <div className="stepper-wrap">
+    <div className={sticky ? "stepper-wrap" : "stepper-wrap static"}>
       <nav className="stepper" aria-label="Project steps" data-testid="stepper">
         <ol>
           {live.data.map((s, i) => (

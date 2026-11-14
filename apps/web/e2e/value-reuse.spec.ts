@@ -29,10 +29,12 @@ test("another project's literature value for the same drug is reused here with i
   await expect(offer).toContainText("1 value");
   await expect(offer).toContainText("phys.logp (Pharmacokinetics of reusamide)");
   await page.screenshot({ path: test.info().outputPath("value-reuse.png"), fullPage: true });
-  // what only the client can send downloads from Inputs, beside what is still missing (moved off Start, 2026-11-06)
+  // what only the client can send downloads from Inputs, under what is still missing in To do (moved off Start, 2026-11-06)
+  await page.getByTestId("tab-todo").click();
   const download = page.waitForEvent("download");
   await page.getByTestId("still-missing").getByTestId("request-download").click();
   expect((await download).suggestedFilename()).toMatch(/-data-request\.xlsx$/);
+  await page.getByTestId("tab-compound").click();
   await page.getByTestId(`reuse-use-${first}`).click();
   await expect(page.getByTestId("inputs-notice")).toContainText("1 value from");
   await expect(page.getByTestId("value-reuse")).toHaveCount(0);                  // nothing new left to reuse

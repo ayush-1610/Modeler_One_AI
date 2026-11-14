@@ -182,7 +182,8 @@ test("the reading tray on Inputs lists each file for the agent and says when the
   await page.getByTestId("add-data-submit").click();
   await expect(page.getByTestId("add-data-reading")).toContainText("The reading agent is off on this server: 2 files wait");
   await page.getByTestId("add-data-reading").getByRole("link", { name: "See each file on Inputs" }).click();
-  await page.waitForURL(/\/inputs/);
+  await page.waitForURL(/\/inputs\?tab=files/);                                   // the Client files area
+  await expect(page.getByTestId("tab-files")).toHaveAttribute("aria-selected", "true");
   const tray = page.getByTestId("reading-tray");
   await expect(page.getByTestId("reading-tray-counts")).toHaveText("0 of 2 read · 2 waiting");
   await expect(page.getByTestId("reading-tray-off")).toContainText("2 files wait and are read once it is on");
@@ -208,7 +209,7 @@ test("a figure that is the only source of a study's profile is suggested, and op
                         join(process.env.E2E_DATA_DIR!, "read-root"), projectId, sid, "1", "FIG-01", caption],
                  { cwd: join(__dirname, "..", "..", "..") });
 
-    await page.goto(`/projects/${projectId}/inputs`);
+    await page.goto(`/projects/${projectId}/inputs?tab=files`);
     const figure = page.getByTestId("figure-FIG-01 Mean plot.pdf-1");
     await expect(figure).toContainText("concentration-time profile of study FIG-01");
     await expect(figure).toContainText(caption);
@@ -234,6 +235,7 @@ test("documents added before reading for data are listed on Inputs and read on r
   expect(old.ok(), await old.text()).toBeTruthy();
   await finishStart(request, projectId);      // Inputs opens once Start is done
   await page.goto(`/projects/${projectId}/inputs`);
+  await page.getByTestId("tab-files").click();                                      // the tray is in Client files
   await expect(page.getByTestId("reading-tray")).toBeVisible();                      // shown with nothing queued
   await expect(page.getByTestId("reading-tray-counts")).toHaveText("no file queued for the agent yet");
   await expect(page.getByTestId("reading-tray-agent")).toHaveText("agent off");

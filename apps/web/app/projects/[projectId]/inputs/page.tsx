@@ -5,8 +5,9 @@ import { Hero } from "@/components/kit";
 import { Stepper } from "@/components/kit/Stepper";
 import { getSteps, STEP_ROUTES } from "@/lib/pipeline";
 
-/** Step 2 · Inputs (redesign §3.2), in place of P2–P4's per-item acceptance: one workspace, five tabs, what is still
- *  missing to run beside them. `?tab=studies` opens a tab (the project page's "Add data").
+/** Step 2 · Inputs (redesign §3.2), in place of P2–P4's per-item acceptance: one workspace, its areas in a bar that stays
+ *  in view (To do, the five data areas, Client files: plan 2026-11-14 slice 1). `?tab=studies` opens an area (the project
+ *  page's "Add data"); `todo` and `files` too. The step bar scrolls away with the page here.
  *
  *  Inputs comes after Start (page review 1, the owner's decision 7 of 2026-10-29). While Start waits on the person,
  *  Inputs is blocked: it says what Start still needs and links to it. Inputs that have begun stay open with a red
@@ -25,7 +26,7 @@ export default async function InputsPage({ params, searchParams }: {
     return (
       <main>
         <Hero tone="inputs" eyebrow="Step 2 of 4" title="Inputs" lede="The inputs are gathered once Start is finished." />
-        <Stepper projectId={projectId} current="inputs" />
+        <Stepper projectId={projectId} current="inputs" sticky={false} />
         <section className="card inputs-blocked" data-testid="inputs-blocked">
           <h2>Inputs come after Start</h2>
           <p>Start is not finished. The inputs are gathered once it is: {start.reasons.length}{" "}
@@ -41,7 +42,7 @@ export default async function InputsPage({ params, searchParams }: {
       <InputsWorkspace projectId={projectId} initialTab={tab as Tab | undefined}
                        steps={(
                          <>
-                           <Stepper projectId={projectId} current="inputs" />
+                           <Stepper projectId={projectId} current="inputs" sticky={false} />
                           {waiting && (
                             // inputs that have begun stay open; Start still says what it needs, in red
                             <div className="banner err" role="alert" data-testid="inputs-start-not-done">

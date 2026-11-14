@@ -30,7 +30,7 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
   transition: width 520ms var(--ease), box-shadow 520ms var(--ease); }
 .sidebar.open { width: 240px; box-shadow: 24px 0 70px -28px rgba(0, 0, 0, 0.28); }
 .sidebar.pinned.open { box-shadow: none; }
-.brand { position: relative; display: flex; align-items: center; gap: 10px; height: 40px; min-height: 0; margin: 0;
+.sidebar .brand { position: relative; display: flex; align-items: center; gap: 10px; height: 40px; min-height: 0; margin: 0;
   padding: 0 5px; white-space: nowrap; font-size: 17px; font-weight: 600; letter-spacing: -0.03em; }
 .brand-logo { flex: none; filter: drop-shadow(0 4px 14px color-mix(in srgb, var(--sim) 35%, transparent)); }
 .nav-text, .nav-heading-text { opacity: 0; transform: translateX(-8px);
@@ -100,6 +100,8 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
 
 /* ---------- the four steps: a floating pill under the head, kept in view ---------- */
 .content .stepper-wrap { position: sticky; top: 12px; z-index: 19; margin: -30px auto 0; padding: 0; max-width: 880px; }
+/* a step bar that scrolls away with its page (Inputs, whose area bar stays in view instead: plan 2026-11-14 slice 1) */
+.content .stepper-wrap.static { position: static; }
 .content > main > .stepper-wrap:first-child { margin-top: 0; }
 .stepper { display: block; }
 .stepper ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 6px 8px; border-radius: 999px;
@@ -169,8 +171,19 @@ h3 { font-size: 13px; color: var(--ink-dim); }
   background: var(--surface); color: var(--ink); border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
 
 /* ---------- forms, chips, tables, banners, dialogs ---------- */
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea) {
-  border-radius: 12px; }
+/* one base style for every text field, select and text area (plan 2026-11-14 slice 1): the page's font, 36 px tall, a 3:1
+   edge (--control-border), a white fill; a select draws its own chevron, so a native one never sits beside a styled one.
+   :where() keeps it at zero specificity, so a component's own rule still wins; the chevron's rule is stronger, so a
+   component that sets a background keeps it */
+:where(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="button"], [type="submit"],
+                 [type="reset"], [type="image"], [type="color"]), select, textarea) {
+  font: inherit; font-size: 14px; min-height: 36px; padding: 0 12px; border: 1px solid var(--control-border);
+  border-radius: 12px; background-color: var(--surface); color: var(--ink); }
+:where(textarea) { padding: 8px 12px; }
+select:not([multiple]):not([size]) { appearance: none; -webkit-appearance: none; padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%236e6e73' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center; background-size: 12px 12px; }
+:where(input, select, textarea):disabled { opacity: 0.55; cursor: not-allowed; }
 .dash-tools input[type="search"], .library-tools input[type="search"] { border-radius: 999px; border: 1px solid var(--line);
   background: var(--raised); padding: 10px 16px; font-size: 14px; }
 .dash-tools input[type="search"]:focus, .library-tools input[type="search"]:focus { border-color: var(--sim); background: var(--surface); outline: none; }
@@ -194,20 +207,7 @@ code { background: color-mix(in srgb, var(--sim) 8%, transparent); }
   .hero-inner { padding: 48px 16px 64px; }
 }
 
-/* ---------- Inputs: the areas as a segmented control above the values, the two shortcuts beside it ---------- */
-.inputs-layout { flex-direction: column; align-items: stretch; gap: 20px; }
-.rail-nav { flex: none; max-width: none; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.tabs.rail { flex-direction: row; flex-wrap: wrap; gap: 4px; padding: 4px; border: 0; border-radius: 14px; background: var(--fill); box-shadow: none; }
-.tabs.rail button { gap: 8px; padding: 8px 16px; border: 0; border-radius: 10px; background: transparent; color: var(--ink);
-  font-size: 13px; font-weight: 500; transition: all 350ms var(--spring); }
-.tabs.rail button:hover { background: color-mix(in srgb, var(--surface) 50%, transparent); }
-.tabs.rail button.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
-.rail-nav .rail-confirm, .rail-nav .rail-files { order: 0; min-height: 0; gap: 8px; }
-.rail-nav .rail-confirm { margin-left: auto; }
-/* the status panels (what is missing, readiness, where values come from) in a row under the areas */
-.rail-side { flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: start; }
-.rail-side .missing-list { max-height: 260px; overflow-y: auto; }
-/* the values: one white panel, a hairline between rows (the design's Inputs) */
+/* ---------- Inputs: the values in one white panel, a hairline between rows (the design's Inputs) ---------- */
 .input-block { gap: 0; margin: 0 0 20px; padding: 8px 28px; background: var(--surface); border: 1px solid var(--hairline);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
 .input-block-title { margin: 0; padding: 18px 0 10px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; text-transform: none; color: var(--ink); }
@@ -345,6 +345,10 @@ td.num, th.num { white-space: nowrap; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 .stepper-wrap.compact .step-waiting { visibility: hidden; }
+/* compacted, the bar's box still reaches down over the hidden "Waiting on you" line: only the pill takes the pointer, so
+   what scrolls under the empty strip can be clicked (the 2026-11-14 audit's dead click strip) */
+.content .stepper-wrap.compact { pointer-events: none; }
+.content .stepper-wrap.compact .stepper ol { pointer-events: auto; }
 
 /* ---------- long recorded text in one line (components/kit/Clip.tsx) ---------- */
 .clip summary { cursor: pointer; list-style: none; }
@@ -372,8 +376,8 @@ td.num, th.num { white-space: nowrap; }
   /* the sidebar is a bar along the top; the menu opens over the page and closes on any choice */
   .sidebar, .sidebar.open { position: sticky; top: 0; z-index: 40; width: 100%; height: auto; padding: 8px 12px; gap: 0;
     border-radius: 0 0 20px 20px; border-right: 0; border-bottom: 1px solid var(--hairline); box-shadow: none; overflow: visible; }
-  .brand { height: 44px; }
-  .brand .nav-text { opacity: 1; transform: none; }
+  .sidebar .brand { height: 44px; }
+  .sidebar .brand .nav-text { opacity: 1; transform: none; }
   .nav-menu { position: relative; display: grid; place-items: center; margin-left: auto; width: 44px; height: 44px; border: 0;
     border-radius: 12px; background: none; color: var(--ink); cursor: pointer; }
   .nav-menu:hover { background: var(--fill-btn); }
@@ -391,8 +395,7 @@ td.num, th.num { white-space: nowrap; }
   .card:has(table), .table-scroll { overflow-x: auto; }
   .card .spread, .card .row, .library-tools, .dash-tools { flex-wrap: wrap; }
   .card .spread > input, .library-tools > * { flex: 1 1 140px; min-width: 0; }
-  .inputs-layout, .inputs-area, .rail-nav, .shell-main { min-width: 0; max-width: 100%; }
-  .rail-nav .rail-confirm { margin-left: 0; }
+  .shell-main { min-width: 0; max-width: 100%; }
   .input-head { grid-template-columns: minmax(0, 1fr) auto 32px; }
   .input-head .input-name { grid-column: 1 / -1; }
   .input-head .input-value { grid-column: 1; }
@@ -402,9 +405,7 @@ td.num, th.num { white-space: nowrap; }
   .hero-band h1 { font-size: clamp(32px, 10vw, 44px); }
   .hero-actions .btn { padding: 11px 18px; font-size: 14px; }
 }
-/* Inputs: the to-do beside one folded panel of checks and sources (the 2026-11-11 audit, item 4) */
-.rail-side { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
-@media (max-width: 900px) { .rail-side { grid-template-columns: minmax(0, 1fr); } }
+/* Inputs, To do: one folded panel of checks and sources under the list (the 2026-11-11 audit, item 4) */
 .inputs-more summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; list-style: none; }
 .inputs-more summary::-webkit-details-marker { display: none; }
 .inputs-more summary::after { content: "Show"; font-size: 12.5px; font-weight: 600; color: var(--sim); }
@@ -418,6 +419,5 @@ td.num, th.num { white-space: nowrap; }
 .hero-band.compact .hero-actions { margin-top: 4px; }
 .hero-band.compact .hero-actions .btn { padding: 10px 20px; font-size: 14px; }
 @media (max-width: 900px) { .hero-band.compact .hero-inner { padding: 28px 16px 44px; } }
-.hero-note { display: block; margin-top: 6px; font-size: 12.5px; color: var(--ink-dim); }
 /* a grid item may shrink below its content (a wide table scrolls in its box instead of widening the page) */
 .shell-main > *, .tabpanel > *, .dash-projects > * { min-width: 0; }

@@ -22,6 +22,7 @@ test("the studies table pages, sorts by its heads and filters, in the API's orde
   expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
 
   await page.goto(`/projects/${projectId}/inputs`);
+  await page.getByTestId("inputs-add-data").click();
   await page.getByTestId("published-model-dapagliflozin-osp").click();
   await expect(page.getByTestId("inputs-notice")).toContainText("40 datasets added");
   await page.getByTestId("tab-studies").click();

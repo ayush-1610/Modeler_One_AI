@@ -5,7 +5,7 @@
 // the numbers outside every table, the values with no study stated) and how long each stage took; under it, what to
 // ask the client for, the mappings that wait for a person, the "study not stated" values, and each study, product and
 // the compound with its card. The section is not shown while the pipeline is off (`enabled` false); it reads again
-// every few seconds while a file is being read.
+// every few seconds while a file is being read. On Inputs it sits in the Client files area (plan 2026-11-14 slice 1).
 
 import { useEffect, useRef, useState } from "react";
 
@@ -174,23 +174,29 @@ function Coverage({ page }: { page: Page }) {
   );
 }
 
-export function DeliverySection({ projectId }: { projectId: string }) {
+/** A file read while Inputs is open brings values onto the cards: every resource is read again when the reading ends.
+ *  Used by the Inputs workspace, so it holds on every area, not only while the Client files area shows this section
+ *  (plan 2026-11-14 slice 1). */
+export function useDeliveryRefresh(projectId: string) {
   const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId }, { poll: (d) => d.running, interval: 3000 });
-  const { decide, busy, problem } = useDecide();
   const refresh = useRefresh();
-  const [folded, setFolded] = useState(false);
-  const [subject, setSubject] = useState<string | null>(null);
-  const [mapping, setMapping] = useState<string | null>(null);
-  const [asked, setAsked] = useState(false);
   const was = useRef(false);
-  const page = read.data;
-  const running = page?.running ?? false;
-
-  // a file read while the page is open brings values onto the cards: every resource is read again when the reading ends
+  const running = read.data?.running ?? false;
   useEffect(() => {
     if (running) was.current = true;
     else if (was.current) { was.current = false; void refresh(); }
   }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+export function DeliverySection({ projectId }: { projectId: string }) {
+  const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId }, { poll: (d) => d.running, interval: 3000 });
+  const { decide, busy, problem } = useDecide();
+  const [folded, setFolded] = useState(false);
+  const [subject, setSubject] = useState<string | null>(null);
+  const [mapping, setMapping] = useState<string | null>(null);
+  const [asked, setAsked] = useState(false);
+  const page = read.data;
+  const running = page?.running ?? false;
 
   if (!page) return read.problem ? <section className="delivery"><Problem text={`The delivery review could not be read: ${read.problem}`} /></section> : null;
   if (!page.enabled) return null;
