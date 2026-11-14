@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — client-data intake: a person names a new study or product when assigning "study not stated" values (contracts §6.6, §8.10; 2026-11-14) — science change
+- **What changed.**
+  - `Ledger.name_entity(type, label, by, why)`: one `entity` line for a study or a product a person names, written as the resolver writes one, with no source (a person's statement has no anchor). It is idempotent for the same person, label and type under the log's lock, and never duplicates an entity whose key exists (followed through merges and aliases). Audited `intake.entity` with the line's hash.
+  - `intake_review.assign` takes `new_study` and `new_product` (a label). Every refusal is checked before the entity is written; a name that exists is refused with CONFLICT, naming the one to assign to.
+  - An arm or a batch that no study or product owns is assigned with the one named. Left out, the assignment clears it, as before.
+  - `POST /delivery/values:assign` accepts `new_study` and `new_product`.
+  - `intake_review.blockers` and `bound_record` take the card already computed: a card request and a confirmation run the checks once.
+- **Why.** A table whose title the rules do not read as a study id ("Study ABC-1"), or a dissolution table that names only its batch, left its values "study not stated" with nothing to assign them to: they could only be excluded.
+- **Impact.**
+  - Such a study has no home file, so its values are its own: no cross-file flag, no link to confirm. It is reviewed, spot-checked, signed and landed like any other, and blinded like any other.
+  - **API contract:** the assign body (`DeliveryAssignment`) gains two optional keys; nothing else changes. `docs/api/openapi.json` and `apps/web/lib/api-types.ts` are regenerated in this commit.
+  - Tests added through the routes: an ambiguous link settled by one candidate; a product blinded through a blinded study's value; stale draws with carried and failed ticks; a mapping the table mapper made (scripted model). No PK-Sim, no live model.
+- **Known gaps (open for the final review).**
+  - A later file whose label reads the same as a study a person named gets a second study of that label, with no link offered (`ledger_entities.resolve` and `ledger_links` skip a study with no home file).
+  - A person cannot state the analyte or matrix of a table's values: a table whose header names no analyte confirms but lands nothing (`held` says why).
+  - A batch that had no product keeps no parent after it is assigned with one: a later file naming that batch inside that product gets a new batch entity.
+
 ### Added — client-data intake, D6-API: the Delivery section's routes, the signed confirmation over the API, pipeline health for the administrator (plan G6; contracts §8.10, §6.6, §2; 2026-11-14)
 - **What changed.**
   - **`modeler_api.delivery_routes`** (module-level handlers and `mount(router)` on `client_api`'s router; no router of its own) and **`views/delivery.py`**: 18 routes under `/api/v1/projects/{id}/delivery`.

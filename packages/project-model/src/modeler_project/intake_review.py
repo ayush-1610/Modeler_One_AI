@@ -3,7 +3,9 @@ confirmation. The landing is `intake_landing`.
 
 **Subjects.** A study, a product, and the project's compound (subject id "compound": the values of a compound-level
 field with no study, product or batch). Values of no subject are the "study not stated" list (`unassigned`) until a
-person assigns them (`assign`) or excludes the region they were read from (`exclude_regions`).
+person assigns them (`assign`) or excludes the region they were read from (`exclude_regions`). An assignment may name
+a NEW study or product (a table whose title the rules do not read as a study id): the ledger's write side creates it
+(`Ledger.name_entity`, audited `intake.entity`), never a duplicate of one that exists.
 
 **Decisions** are lines of `review.jsonl` (override, disposition, choice, link, assignment, region), each with who,
 when and why, and one audit event carrying the line's hash. None has a signature of its own: the confirmation binds
@@ -61,6 +63,7 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from modeler_intake.anchors import AnchorError, check_id, format_locator, parse_anchor, parse_locator, same_place, sha256_of
+from modeler_intake.document_reading import name_key
 from modeler_intake.fields import read_choice, unit_class
 from modeler_intake.source import region_grid, resolve
 from modeler_intake.source import source_view as document_view
@@ -98,8 +101,8 @@ from modeler_project.intake_rules import RULES_SHA256, RULES_STATUS, RULES_VERSI
 from modeler_project.intake_rules import rules as load_rules
 from modeler_project.intake_store import ChainEntry, IntakeStore
 from modeler_project.ledger import Ledger
-from modeler_project.ledger_entities import now
-from modeler_project.ledger_models import ExtractRef, ValueState
+from modeler_project.ledger_entities import label_key, now
+from modeler_project.ledger_models import EntityType, ExtractRef, ValueState
 from modeler_project.ledger_view import LedgerReader, LedgerView, in_subject, is_spread_fact, is_unassigned
 from modeler_project.requirements import RequirementMatrix
 from modeler_project.scorecard import scorecard
@@ -561,17 +564,56 @@ def _target_values(reader: LedgerReader, target: str) -> list[ValueState]:
     return [v for v in reader.values(active=False) if v.id.startswith(f"{target}#")]
 
 
+def _new_name(reader: LedgerReader, kind: EntityType, label: Any) -> str:
+    """A label a person gives a new study or product, checked before anything is written: ReviewError INVALID for a
+    label with no letter or digit (it has no key to be known by), with a control character or longer than 80
+    characters; CONFLICT, naming it, when a study or product of that key exists already (never a duplicate: the values
+    are assigned to that one)."""
+    label = label.strip() if isinstance(label, str) else ""
+    if not name_key(label) or not label_key(label) or len(label) > 80 or any(ord(ch) < 32 or ord(ch) == 127 for ch in label):
+        raise ReviewError("INVALID", f"a new {kind}'s name is at most 80 characters with a letter or a digit, on one "
+                                     f"line: {label!r}")
+    same = [e for e in reader.entities(kind) if label_key(e.label) == label_key(label)]
+    if same:
+        raise ReviewError("CONFLICT", f"a {kind} named {same[0].label!r} exists already ({same[0].id}): assign the "
+                                      "values to it")
+    return label
+
+
 def assign(ws: Workspace, *, targets: Sequence[str], study: str | None = None, arm: str | None = None,
-           product: str | None = None, batch: str | None = None, why: str, by: str) -> Assignment:
+           product: str | None = None, batch: str | None = None, why: str, by: str, new_study: str | None = None,
+           new_product: str | None = None) -> Assignment:
     """Give values their subject (§13): a study (and its arm), a product (and its batch), or both; at least one of
     study or product. `targets` are fact, extract or value ids. One `assignment` line, one `intake.assign` event; then
-    the derived facts follow (`Ledger.derive`) and the coverage of the files concerned is recomputed and stored."""
+    the derived facts follow (`Ledger.derive`) and the coverage of the files concerned is recomputed and stored.
+
+    `new_study`, `new_product`: a label, as the person writes it, of a study or a product no file's label gave an
+    entity (a table whose title the rules do not read as a study id, a dissolution table that names only its batch).
+    The ledger's write side creates it (`Ledger.name_entity`: no source, so it has no home file and its values are
+    not cross-file values; one `intake.entity` event) and the values are assigned to it. A study is named by `study`
+    or by `new_study`, never both, and so a product. Never a duplicate: a label whose key a study (a product) already
+    has is refused with CONFLICT, naming that one. Everything is checked before the entity is written.
+
+    An arm (a batch) is assigned with its study (its product). One that no study (no product) owns, read from a table
+    that names its arm or batch and nothing above it, is assigned with the one named here: left out, the assignment
+    clears it, as an `Assignment` does."""
     why = _why(why, "an assignment")
     if not targets:
         raise ReviewError("INVALID", "an assignment names the values it assigns")
-    if study is None and product is None:
+    for kind, known, named in (("study", study, new_study), ("product", product, new_product)):
+        if known is not None and named is not None:
+            raise ReviewError("INVALID", f"an assignment names an existing {kind} or a new one, not both")
+    if study is None and product is None and new_study is None and new_product is None:
         raise ReviewError("INVALID", "an assignment names a study or a product")
+    if arm is not None and study is None and new_study is None:
+        raise ReviewError("INVALID", "an arm is assigned with its study")
+    if batch is not None and product is None and new_product is None:
+        raise ReviewError("INVALID", "a batch is assigned with its product")
     ledger = Ledger(ws)
+    if new_study is not None:
+        new_study = _new_name(ledger, "study", new_study)
+    if new_product is not None:
+        new_product = _new_name(ledger, "product", new_product)
     files: set[str] = set()
     checked: list[str] = []
     for target in dict.fromkeys(targets):
@@ -585,7 +627,9 @@ def assign(ws: Workspace, *, targets: Sequence[str], study: str | None = None, a
         files |= {v.file_sha256 for v in found if v.file_sha256}
         checked.append(target)
 
-    def entity_of(entity_id: str | None, kind: str, parent: str | None) -> str | None:
+    def entity_of(entity_id: str | None, kind: str, parent: str | None, *, fresh: bool = False) -> str | None:
+        """The entity an id names. An arm or a batch must be one of the study's or product's named (`parent`), or one
+        nothing owns yet, which is assigned with the study or product named (`fresh`: the one being created)."""
         if entity_id is None:
             return None
         _id("line", entity_id, f"the {kind}")
@@ -594,15 +638,26 @@ def assign(ws: Workspace, *, targets: Sequence[str], study: str | None = None, a
             raise ReviewError("UNKNOWN", f"no {kind} {entity_id!r} in this project's ledger")
         if kind in ("arm", "batch"):
             owner = ledger.entity(entity.parent) if entity.parent else None
-            if parent is None or owner is None or owner.id != parent:
+            unowned = entity.parent is None and (parent is not None or fresh)
+            if not unowned and (fresh or parent is None or owner is None or owner.id != parent):
                 raise ReviewError("INVALID", f"{kind} {entity.label} is not one of that {'study' if kind == 'arm' else 'product'}'s")
         return entity.id
 
     study_id = entity_of(study, "study", None)
     product_id = entity_of(product, "product", None)
+    arm_id = entity_of(arm, "arm", study_id, fresh=new_study is not None)
+    batch_id = entity_of(batch, "batch", product_id, fresh=new_product is not None)
+    # every refusal is behind us: only now is a study or a product the person names written, by the ledger's write side
     try:
-        draft = Assignment(id="as-0", targets=tuple(checked), study=study_id, arm=entity_of(arm, "arm", study_id),
-                           product=product_id, batch=entity_of(batch, "batch", product_id), why=why, by=by, at=now())
+        if new_study is not None:
+            study_id = ledger.name_entity("study", new_study, by=by, why=why).id
+        if new_product is not None:
+            product_id = ledger.name_entity("product", new_product, by=by, why=why).id
+    except ValueError as exc:               # named by another person meanwhile: never a duplicate
+        raise ReviewError("CONFLICT", str(exc)) from exc
+    try:
+        draft = Assignment(id="as-0", targets=tuple(checked), study=study_id, arm=arm_id, product=product_id,
+                           batch=batch_id, why=why, by=by, at=now())
     except ValidationError as exc:
         raise ReviewError("INVALID", f"not an assignment: {exc.errors()[0]['msg']}") from exc
     store = IntakeStore(ws)
@@ -1030,7 +1085,8 @@ _SPOT_DETAIL = {"none": "the spot check has not been drawn", "drawn": "the spot 
 
 
 def blockers(ws: Workspace, subject_type: SubjectType, subject: str, *, reader: LedgerReader, brief: ProjectBrief | None,
-             matrix: RequirementMatrix | None, mol_weight: float | None, blinded: bool) -> tuple[Blocker, ...]:
+             matrix: RequirementMatrix | None, mol_weight: float | None, blinded: bool,
+             card: Scorecard | None = None) -> tuple[Blocker, ...]:
     """Every reason the subject's confirmation is refused: the scorecard's (silent loss, outside numbers, unassigned
     values, a schema gap, a failed check without an override, an unconfirmed cross-file link), then what
     `_own_refusals` gives from the workspace and the ledger alone: a file of its deliveries that is still being read
@@ -1038,10 +1094,20 @@ def blockers(ws: Workspace, subject_type: SubjectType, subject: str, *, reader: 
     check (`SPOT_CHECK`: not drawn, not ticked, failed or stale), a dataset already accepted on the legacy card, a
     subject whose files are all a filled client-data template, which is confirmed on its legacy card only, a value
     that another study's accepted dataset still holds (`LOADED_ON_CLIENT_REVIEW`), and a blinded study (`BLINDED`,
-    §11.1). Empty: the confirmation may be signed."""
-    found = _card(ws, subject_type, subject, reader=reader, brief=brief, matrix=matrix, mol_weight=mol_weight)
+    §11.1). Empty: the confirmation may be signed. `card`: the subject's scorecard when the caller has just computed
+    it from the same `reader` and the same brief, matrix and molecular weight (`card`), so a request that shows the
+    card and its blockers runs the checks once; else it is computed here."""
+    found = _own_card(reader, subject_type, subject, card) or _card(ws, subject_type, subject, reader=reader, brief=brief,
+                                                                     matrix=matrix, mol_weight=mol_weight)
     own = _own_refusals(ws, IntakeStore(ws), reader, subject_type, found.subject, blinded=blinded, links=False)
     return (*found.blockers, *own)
+
+
+def _own_card(reader: LedgerReader, subject_type: SubjectType, subject: str, card: Scorecard | None) -> Scorecard | None:
+    """A card a caller hands in, checked to be this subject's (ReviewError INVALID for another's); None when none is."""
+    if card is not None and (card.subject_type != subject_type or card.subject != _subject(reader, subject_type, subject)):
+        raise ReviewError("INVALID", "the card given is another subject's")
+    return card
 
 
 def _own_refusals(ws: Workspace, store: IntakeStore, reader: LedgerReader, subject_type: SubjectType, subject: str, *,
@@ -1122,16 +1188,19 @@ def _text(value: Any) -> Any:
 
 
 def bound_record(ws: Workspace, subject_type: SubjectType, subject: str, *, reader: LedgerReader,
-                 brief: ProjectBrief | None, matrix: RequirementMatrix | None,
-                 mol_weight: float | None) -> tuple[dict[str, Any], str]:
+                 brief: ProjectBrief | None, matrix: RequirementMatrix | None, mol_weight: float | None,
+                 card: Scorecard | None = None) -> tuple[dict[str, Any], str]:
     """The canonical record a confirmation binds (§6.6, `confirmation/1`) and its sha256 (`sha256_of`). Scalar facts
     are bound by id, value and unit; extract values by the extract's id and content hash, with the value ids left out
     (`excluded`: every value of a listed extract that is not an active value of this subject); the subject's digest
     pins the set, so a fact of another subject does not change the record. Each of the subject's review lines is
     bound by its id and line hash; the spot check by its record (or, when every value was carried, its draw); the
     coverage of its deliveries' files, its requirement statuses, its checks (cleared ones as "overridden", the rest by
-    severity), what the landing holds back, and the rules file's version, status and sha256."""
-    found = _card(ws, subject_type, subject, reader=reader, brief=brief, matrix=matrix, mol_weight=mol_weight)
+    severity), what the landing holds back, and the rules file's version, status and sha256. `card`: the subject's
+    scorecard when the caller has just computed it from the same reader, brief, matrix and molecular weight (as
+    `blockers` takes it); else it is computed here."""
+    found = _own_card(reader, subject_type, subject, card) or _card(ws, subject_type, subject, reader=reader, brief=brief,
+                                                                     matrix=matrix, mol_weight=mol_weight)
     subject = found.subject
     store = IntakeStore(ws)
     values = _values(reader, subject_type, subject, spread_facts=True)
@@ -1204,13 +1273,16 @@ def prepare_confirmation(ws: Workspace, library: Any, subject_type: SubjectType,
     `intake_landing.land`; a confirmation `landing_incomplete` finds skips all of this and lands."""
     _chains_verify(IntakeStore(ws))
     _nothing_to_confirm(reader, subject_type, _subject(reader, subject_type, subject))
+    # the card once: its blockers and the record it is bound in are of the same computation
+    card = _card(ws, subject_type, subject, reader=reader, brief=brief, matrix=matrix, mol_weight=mol_weight)
     found = blockers(ws, subject_type, subject, reader=reader, brief=brief, matrix=matrix, mol_weight=mol_weight,
-                     blinded=blinded)
+                     blinded=blinded, card=card)
     if found:
         raise ConfirmationRefused(found)
     plan = intake_landing.plan_landing(ws, library, subject_type, subject, reader=reader, matrix=matrix,
                                        mol_weight=mol_weight)
-    record, sha = bound_record(ws, subject_type, subject, reader=reader, brief=brief, matrix=matrix, mol_weight=mol_weight)
+    record, sha = bound_record(ws, subject_type, subject, reader=reader, brief=brief, matrix=matrix, mol_weight=mol_weight,
+                               card=card)
     return record, sha, plan
 
 

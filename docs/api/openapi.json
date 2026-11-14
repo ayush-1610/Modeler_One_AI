@@ -4382,6 +4382,7 @@
         "type": "object"
       },
       "DeliveryAssignment": {
+        "description": "Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a\nnew label (`new_study`): one of them, and so a product (`product`, `new_product`). `arm` and `batch` are the\nledger's ids: left out, the assignment clears the arm (the batch) the values had.",
         "properties": {
           "arm": {
             "anyOf": [
@@ -4404,6 +4405,30 @@
               }
             ],
             "title": "Batch"
+          },
+          "new_product": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Product"
+          },
+          "new_study": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Study"
           },
           "product": {
             "anyOf": [
@@ -33843,7 +33868,7 @@
     },
     "/api/v1/projects/{project_id}/delivery/values:assign": {
       "post": {
-        "description": "Give \"study not stated\" values their subject: a study (and its arm), a product (and its batch), or both.",
+        "description": "Give \"study not stated\" values their subject: a study (and its arm), a product (and its batch), or both. A\nstudy or a product no file's label gave an entity is named here (`new_study`, `new_product`): it is created, never\nas a duplicate of one that exists (409, naming it), and the values are assigned to it.",
         "operationId": "assign_values_api_v1_projects__project_id__delivery_values_assign_post",
         "parameters": [
           {

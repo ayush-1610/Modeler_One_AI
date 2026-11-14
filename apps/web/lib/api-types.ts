@@ -1634,7 +1634,9 @@ export interface paths {
         put?: never;
         /**
          * Assign Values
-         * @description Give "study not stated" values their subject: a study (and its arm), a product (and its batch), or both.
+         * @description Give "study not stated" values their subject: a study (and its arm), a product (and its batch), or both. A
+         *     study or a product no file's label gave an entity is named here (`new_study`, `new_product`): it is created, never
+         *     as a duplicate of one that exists (409, naming it), and the values are assigned to it.
          */
         post: operations["assign_values_api_v1_projects__project_id__delivery_values_assign_post"];
         delete?: never;
@@ -4519,12 +4521,21 @@ export interface components {
             /** Id */
             id: string;
         };
-        /** DeliveryAssignment */
+        /**
+         * DeliveryAssignment
+         * @description Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a
+         *     new label (`new_study`): one of them, and so a product (`product`, `new_product`). `arm` and `batch` are the
+         *     ledger's ids: left out, the assignment clears the arm (the batch) the values had.
+         */
         DeliveryAssignment: {
             /** Arm */
             arm?: string | null;
             /** Batch */
             batch?: string | null;
+            /** New Product */
+            new_product?: string | null;
+            /** New Study */
+            new_study?: string | null;
             /** Product */
             product?: string | null;
             /** Study */

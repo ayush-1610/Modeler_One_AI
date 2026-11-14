@@ -1480,3 +1480,239 @@ def test_a_failed_tick_is_never_cleared_by_drawing_again(ws):
     tick_all(ws, last)
     assert review.spot_check_state(ws, "study", study, reader=reader) == "complete"
     assert review.blockers(ws, "study", study, reader=reader, **CARD, blinded=False) == ()
+
+
+# --- a study or a product a person names when assigning ------------------------------------------------------------------
+
+
+def _untold_profile(book: Book, *, points: int = 4) -> dict[str, str]:
+    """A table that names no study (its title is not read as a study id): its analyte, its LLOQ, its concentrations,
+    and the dose its caption states. Every value is "study not stated"."""
+    analyte = book.entity("analyte", synthetic.DRUG)
+    profile = {"analyte": analyte, "matrix": "plasma"}
+    ids = {"analyte": analyte, "dose": book.fact("dose", 25.0, {}, unit="mg"),
+           "lloq": book.fact("lloq", 0.5, profile, unit="ng/mL")}
+    for i in range(points):
+        ids[f"c{i}"] = book.fact("concentration", 10.0 + i, {**profile, "subject": "001"}, unit="ng/mL", time=float(i + 1),
+                                 time_unit="h", statistic="individual")
+    return ids
+
+
+def _entity_lines(ws: Workspace) -> list[Any]:
+    return IntakeStore(ws).entities.entries("entity")
+
+
+def test_a_person_names_a_new_study_when_assigning_and_its_values_are_the_studys_own(ws):
+    book = Book(ws)
+    ids = _untold_profile(book)
+    file_study = book.entity("study", "EXA-401")                           # a study another table of the file names
+    covered(book, values_unassigned=6)
+    targets = [ids["dose"], ids["lloq"], *(ids[f"c{i}"] for i in range(4))]
+    assert [v.id for v in review.unassigned(ws, reader=Ledger(ws))] == targets
+    lines, entities = len(IntakeStore(ws).review.entries()), len(_entity_lines(ws))
+
+    # refused, and nothing is written: both an id and a new name; a name with no key; one too long or on two lines; a
+    # name a study already has, however it is spelt (never a duplicate: the answer names the one that exists)
+    def named(label: Any, **more: Any) -> Any:
+        return review.assign(ws, targets=targets, new_study=label, why="the title says ABC-1", by=BY, **more)
+
+    for refusal, code in ((lambda: named("ABC-1", study=file_study), "INVALID"), (lambda: named("  "), "INVALID"),
+                          (lambda: named("-- / --"), "INVALID"), (lambda: named("A" * 81), "INVALID"),
+                          (lambda: named("ABC-1\nDROP"), "INVALID"), (lambda: named(7), "INVALID"),
+                          (lambda: named("EXA-401"), "CONFLICT"), (lambda: named("exa 401"), "CONFLICT"),
+                          (lambda: named("ABC-1", arm="arm-999"), "UNKNOWN"),
+                          (lambda: review.assign(ws, targets=targets, new_study="ABC-1", why=" ", by=BY), "INVALID"),
+                          (lambda: review.assign(ws, targets=["f-999999"], new_study="ABC-1", why="x", by=BY), "UNKNOWN")):
+        with pytest.raises(review.ReviewError) as refused:
+            refusal()
+        assert refused.value.code == code, str(refused.value)
+    with pytest.raises(review.ReviewError, match=rf"a study named 'EXA-401' exists already \({file_study}\)"):
+        named("Exa401")
+    assert len(IntakeStore(ws).review.entries()) == lines and len(_entity_lines(ws)) == entities
+    assert events(ws, "intake.entity") == [] and events(ws, "intake.assign") == []
+
+    # named: the ledger's write side creates the study (a person's statement: no source), and the values are assigned
+    made = named(" ABC-1 ")
+    reader = Ledger(ws)
+    (study,) = [e for e in reader.entities("study") if e.label == "ABC-1"]
+    assert (made.study, made.arm, made.product, made.targets) == (study.id, None, None, tuple(targets))
+    assert (study.type, study.source, study.by, study.parent, study.key) == ("study", None, BY, None, name_key("ABC-1"))
+    assert study.id.startswith("st-") and study.id == f"st-{_entity_lines(ws)[-1].seq}"
+    (created,) = events(ws, "intake.entity")
+    assert created.after == {"entity": study.id, "type": "study", "label": "ABC-1", "row_hash": _entity_lines(ws)[-1].hash}
+    assert (created.actor, created.reason, created.resource_id) == (BY, "the title says ABC-1", f"p1/{study.id}")
+    (assigned,) = events(ws, "intake.assign")
+    assert assigned.after == {"id": made.id, "row_hash": line_hash(ws, made.id)}
+    assert IntakeStore(ws).entities.verify() == []
+    # its values are the study's own: a study a person named has no home file, so nothing is a cross-file value and
+    # no link waits for a confirmation. The assignment is the person's decision
+    values = reader.values(study=study.id)
+    assert [v.id for v in values] == targets and all(v.cross_file is None and v.status == "proposed" for v in values)
+    assert reader.pending_links(study=study.id) == [] and review.unassigned(ws, reader=reader) == []
+    assert _stored(ws, book.sha).summary.values_unassigned == 0                 # the stored coverage follows
+    # it is a subject like any other: its row, its card and checks, its spot check
+    row = next(r for r in review.subjects(ws, reader=reader) if r["subject"] == study.id)
+    assert (row["label"], row["values"], row["files"], row["confirm_on"]) == ("ABC-1", 6, [book.sha], "delivery")
+    card = review.card(ws, "study", study.id, reader=reader, **CARD, blinded=False)
+    assert card.label == "ABC-1" and card.values == 6 and card.links == () and card.checks
+    assert {b.code for b in card.blockers} <= {"SCHEMA_GAP", "CHECK_FAILED"}     # what any study with these facts has
+    drawn = draw(ws, study.id, reader=reader)
+    assert set(drawn.always) | set(drawn.sampled) == set(targets)
+    # the same name again, by anyone: refused, naming the study to assign to
+    for who in (BY, "u-other"):
+        with pytest.raises(review.ReviewError, match=rf"a study named 'ABC-1' exists already \({study.id}\)") as again:
+            review.assign(ws, targets=[ids["c0"]], new_study="abc 1", why="x", by=who)
+        assert again.value.code == "CONFLICT"
+    assert len(_entity_lines(ws)) == entities + 1 and len(events(ws, "intake.entity")) == 1
+
+
+def test_naming_an_entity_is_idempotent_for_the_same_person_under_two_threads_and_never_a_duplicate(ws):
+    book = Book(ws)
+    file_study = book.entity("study", "EXA-401")
+    made: list[Any] = []
+    threads = [threading.Thread(target=lambda: made.append(Ledger(ws).name_entity("study", "ABC-1", by=BY, why="the title")))
+               for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(made) == 8 and len({e.id for e in made}) == 1                # one entity, whoever wrote it first
+    assert [e.body["label"] for e in _entity_lines(ws)] == ["EXA-401", "ABC-1"]
+    (event,) = events(ws, "intake.entity")                                   # one line, one event with its hash
+    assert event.after["row_hash"] == _entity_lines(ws)[-1].hash and event.after["entity"] == made[0].id
+    ledger = Ledger(ws)
+    assert ledger.name_entity("study", "abc-1", by=BY, why="again").id == made[0].id     # the same key: the same study
+    assert len(_entity_lines(ws)) == 2 and len(events(ws, "intake.entity")) == 1
+    # another person, a file's study, a ledger alias: never a duplicate, and the message names the one that exists
+    with pytest.raises(ValueError, match=rf"a study named 'ABC-1' exists already \({made[0].id}\)"):
+        ledger.name_entity("study", "ABC 1", by="u-other", why="x")
+    with pytest.raises(ValueError, match=rf"a study named 'EXA-401' exists already \({file_study}\)"):
+        ledger.name_entity("study", "exa401", by=BY, why="x")
+    IntakeStore(ws).entities.append("alias", {"type": "study", "key": name_key("Protocol 77"), "parent": None,
+                                               "entity": file_study, "source": "person", "by": BY, "at": AT})
+    with pytest.raises(ValueError, match="'EXA-401' exists already"):
+        ledger.name_entity("study", "Protocol 77", by=BY, why="x")
+    # the same label is free for another type; only a study and a product are named; a name needs a key and a reason
+    product = ledger.name_entity("product", "ABC-1", by=BY, why="the client's name for the capsule")
+    assert product.id.startswith("pr-") and (product.type, product.source) == ("product", None)
+    for refusal in (lambda: ledger.name_entity("arm", "Cohort 1", by=BY, why="x"),
+                    lambda: ledger.name_entity("analyte", "M1", by=BY, why="x"),
+                    lambda: ledger.name_entity("study", " ", by=BY, why="x"),
+                    lambda: ledger.name_entity("study", "!!", by=BY, why="x"),
+                    lambda: ledger.name_entity("study", "B" * 81, by=BY, why="x"),
+                    lambda: ledger.name_entity("study", "ABC-2", by=BY, why=" ")):
+        with pytest.raises(ValueError):
+            refusal()
+    assert len(_entity_lines(ws)) == 3 and len(events(ws, "intake.entity")) == 2
+    # a study merged into another is that study: its old name names the one it became
+    merged = ledger.name_entity("study", "ABC-9", by=BY, why="x")
+    from modeler_project.ledger_entities import merge
+
+    merge(ledger, type="study", from_id=merged.id, into_id=file_study, link_fact=None, why="the same protocol", by=BY)
+    with pytest.raises(ValueError, match=rf"exists already \({file_study}\)"):
+        Ledger(ws).name_entity("study", "ABC-9", by=BY, why="x")
+
+
+def test_a_product_is_named_for_a_dissolution_table_that_states_only_its_batch(ws):
+    book = Book(ws)
+    batch = book.entity("batch", "L9001")                                    # a batch no product owns: the table names only it
+    other_product = book.entity("product", "Comparamide tablet")
+    owned = book.entity("batch", "R7745", parent=other_product)
+    points = [book.fact("percent_dissolved", value, {"batch": batch}, unit="%", time=time, time_unit="min",
+                        conditions={"apparatus": "paddle", "rpm": "50", "medium": "pH 6.8 buffer"})
+              for time, value in ((10.0, 41.0), (20.0, 73.0), (30.0, 92.0))]
+    covered(book, values_unassigned=3)
+    assert [v.id for v in review.unassigned(ws, reader=Ledger(ws))] == points       # a batch alone is no subject
+    # refused: a batch of another product, a product that exists (by key), both an id and a new name
+    for refusal, code in (
+            (lambda: review.assign(ws, targets=points, new_product="Exampleamide capsule", batch=owned, why="x", by=BY), "INVALID"),
+            (lambda: review.assign(ws, targets=points, new_product="comparamide TABLET", why="x", by=BY), "CONFLICT"),
+            (lambda: review.assign(ws, targets=points, product=other_product, new_product="Exampleamide capsule", why="x", by=BY),
+             "INVALID"),
+            (lambda: review.assign(ws, targets=points, batch=batch, why="x", by=BY), "INVALID")):
+        with pytest.raises(review.ReviewError) as refused:
+            refusal()
+        assert refused.value.code == code, str(refused.value)
+    assert events(ws, "intake.entity") == [] and IntakeStore(ws).review.entries() == []
+    # named, with the batch the table states: the values are the new product's, and keep their batch
+    made = review.assign(ws, targets=points, new_product="Exampleamide capsule", batch=batch,
+                         why="the client's e-mail names the product of batch L9001", by=BY)
+    reader = Ledger(ws)
+    (product,) = [e for e in reader.entities("product") if e.label == "Exampleamide capsule"]
+    assert (made.product, made.batch, made.study) == (product.id, batch, None) and product.source is None
+    values = reader.values(product=product.id)
+    assert [v.id for v in values] == points and all(v.entity.batch == batch and v.entity.study is None for v in values)
+    assert review.unassigned(ws, reader=reader) == [] and _stored(ws, book.sha).summary.values_unassigned == 0
+    (created,) = events(ws, "intake.entity")
+    assert (created.after["type"], created.after["label"], created.after["row_hash"]) == (
+        "product", "Exampleamide capsule", _entity_lines(ws)[-1].hash)
+    assert len(events(ws, "intake.assign")) == 1
+    row = next(r for r in review.subjects(ws, reader=reader) if r["subject"] == product.id)
+    assert (row["subject_type"], row["label"], row["values"]) == ("product", "Exampleamide capsule", 3)
+    card = review.card(ws, "product", product.id, reader=reader, **CARD, blinded=False)
+    assert card.values == 3 and card.label == "Exampleamide capsule"
+    assert set(draw(ws, product.id, "product", reader).sampled) | set(draw(ws, product.id, "product", reader).always) == set(points)
+    # a later assignment to that product may name the same batch again; one that leaves the batch out clears it, as an
+    # Assignment does (§13)
+    review.assign(ws, targets=points[:1], product=product.id, batch=batch, why="the same batch", by=BY)
+    review.assign(ws, targets=points[1:2], product=product.id, why="its batch is not known after all", by=BY)
+    reader.refresh()
+    assert [v.entity.batch for v in reader.values(product=product.id)] == [batch, None, batch]
+
+
+@BLIND
+def test_a_study_a_person_named_is_blinded_like_any_other(ws):
+    book = Book(ws)
+    ids = _untold_profile(book)
+    covered(book, values_unassigned=6)
+    targets = [ids["dose"], ids["lloq"], *(ids[f"c{i}"] for i in range(4))]
+    made = review.assign(ws, targets=targets, new_study="ABC-1", why="the title says ABC-1", by=BY)
+    ledger = Ledger(ws)
+    assert review.blinded_subjects(ws, ON, None) == set()                    # no external purpose yet: nothing is withheld
+    ledger.enter(entity=EntityRef(study=made.study), field="intended_use", value="external_validation",
+                 why="the plan judges the model on it", by=BY)
+    hidden = review.blinded_subjects(ws, ON, None)
+    assert hidden == {made.study} and review.is_blinded(ledger, "study", made.study, hidden)
+    shown = review.shown(ledger.values(study=made.study), hidden)
+    assert len(shown) == 7 and all(blinded and v.value is None and v.verbatim == "" and v.lloq is None for v, blinded in shown)
+    with pytest.raises(review.ReviewError) as refused:
+        review.draw_spot_check(ws, "study", made.study, reader=ledger, by=BY, blinded=True)
+    assert refused.value.code == "BLINDED"
+    assert "BLINDED" in [b.code for b in review.blockers(ws, "study", made.study, reader=ledger, **CARD, blinded=True)]
+    # and naming a study tells nothing of a blinded one: with blinding off the same study is open
+    assert review.blinded_subjects(ws, None, "low") == set()
+
+
+def test_blockers_take_the_card_already_computed_and_refuse_another_subjects(ws):
+    book = Book(ws)
+    ids = clean_study(book)
+    other_book = Book(ws, sha=OTHER, name="other.xlsx")
+    other = clean_study(other_book, "EXA-402")
+    covered(book)
+    covered(other_book)
+    reader = Ledger(ws)
+    card = review.card(ws, "study", ids["study"], reader=reader, **CARD, blinded=False)
+    alone = review.blockers(ws, "study", ids["study"], reader=reader, **CARD, blinded=False)
+    assert review.blockers(ws, "study", ids["study"], reader=reader, **CARD, blinded=False, card=card) == alone
+    assert [b.code for b in alone] == ["SPOT_CHECK"]
+    # a blinded subject's card (its checks name no value) serves as well: the blockers are the same, with BLINDED
+    hidden_card = review.card(ws, "study", ids["study"], reader=reader, **CARD, blinded=True)
+    assert [b.code for b in review.blockers(ws, "study", ids["study"], reader=reader, **CARD, blinded=True,
+                                            card=hidden_card)] == ["SPOT_CHECK", "BLINDED"]
+    with pytest.raises(review.ReviewError) as refused:                       # never another subject's card
+        review.blockers(ws, "study", other["study"], reader=reader, **CARD, blinded=False, card=card)
+    assert refused.value.code == "INVALID"
+    # the bound record takes it too, and is the same record: a confirmation computes the card once
+    assert review.bound_record(ws, "study", ids["study"], reader=reader, **CARD, card=card) == \
+        review.bound_record(ws, "study", ids["study"], reader=reader, **CARD)
+    with pytest.raises(review.ReviewError):
+        review.bound_record(ws, "study", other["study"], reader=reader, **CARD, card=card)
+    calls: list[str] = []
+    real = review._card
+    review._card = lambda *a, **k: calls.append(a[2]) or real(*a, **k)       # type: ignore[assignment]
+    try:
+        tick_all(ws, draw(ws, ids["study"], reader=reader))
+        review.prepare_confirmation(ws, None, "study", ids["study"], reader=reader, **CARD, blinded=False)
+    finally:
+        review._card = real
+    assert calls == [ids["study"]]

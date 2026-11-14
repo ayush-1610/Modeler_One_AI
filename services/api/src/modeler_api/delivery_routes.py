@@ -243,9 +243,11 @@ class _Scope:
         return review.card(self.ws, subject_type, subject, **self.card_args,  # type: ignore[arg-type]
                            blinded=self.blinded(subject_type, subject))
 
-    def blockers(self, subject_type: str, subject: str) -> Any:
+    def blockers(self, subject_type: str, subject: str, *, card: Any = None) -> Any:
+        """Every refusal of the subject's confirmation. `card`: its card when this request has computed it already,
+        so the checks run once."""
         return review.blockers(self.ws, subject_type, subject, **self.card_args,  # type: ignore[arg-type]
-                               blinded=self.blinded(subject_type, subject))
+                               blinded=self.blinded(subject_type, subject), card=card)
 
     def spot_check(self, subject_type: str, subject: str) -> tuple[Any, Any]:
         return review.latest_spot_check(self.ws, subject_type, subject, reader=self.reader,  # type: ignore[arg-type]
@@ -551,6 +553,12 @@ def _page(scope: _Scope) -> dict[str, Any]:
             parent = reader.entity(entity.parent) if entity.parent else None
             if parent is not None:
                 arms.setdefault(parent.id, []).append({"id": entity.id, "label": entity.label})
+    # and the arms (batches) its values name that no study (product) owns: a table that named only its arm or batch,
+    # assigned to the subject by a person
+    for value in reader.values():
+        for subject, part in ((value.entity.study, value.entity.arm), (value.entity.product, value.entity.batch)):
+            if subject and part and part not in {child["id"] for child in arms.get(subject, [])}:
+                arms.setdefault(subject, []).append({"id": part, "label": scope.label(part) or part})
     subjects = []
     for row in review.subjects(ws, reader=reader):
         children = arms.get(row["subject"], [])
@@ -701,7 +709,7 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
         "confirm_on": review.confirm_on(ws, values), "loaded_elsewhere": elsewhere, "values": card.values,
         "by_level": dict(card.by_level), "by_method": dict(card.by_method), "silent_loss": card.silent_loss,
         "coverage": [_summary(c) for c in card.coverage],
-        "blockers": [_blocker(b) for b in scope.blockers(subject_type, subject)],
+        "blockers": [_blocker(b) for b in scope.blockers(subject_type, subject, card=card)],
         "gaps": [{"study": g.study, "tag": g.tag, "value": g.value, "reason": g.reason} for g in card.gaps],
         # a check's message may quote a value or count the values below the LLOQ: not shown for a blinded subject
         "checks": [{"id": c.id, "code": c.code, "severity": c.severity, "message": None if blinded else c.message,
@@ -920,11 +928,17 @@ def enter_value(project_id: str, subject_type: SubjectType, subject: str, body: 
 
 
 class DeliveryAssignment(BaseModel):
+    """Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a
+    new label (`new_study`): one of them, and so a product (`product`, `new_product`). `arm` and `batch` are the
+    ledger's ids: left out, the assignment clears the arm (the batch) the values had."""
+
     targets: list[str] = Field(min_length=1)          # value ids, or an extract's id (every value of that table)
     study: str | None = None
     arm: str | None = None
     product: str | None = None
     batch: str | None = None
+    new_study: str | None = Field(default=None, max_length=80)      # a label as the person writes it
+    new_product: str | None = Field(default=None, max_length=80)
     why: str = Field(min_length=1)
 
 
@@ -936,7 +950,9 @@ class DeliveryExclusion(BaseModel):
 
 
 def assign_values(project_id: str, body: DeliveryAssignment, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """Give "study not stated" values their subject: a study (and its arm), a product (and its batch), or both."""
+    """Give "study not stated" values their subject: a study (and its arm), a product (and its batch), or both. A
+    study or a product no file's label gave an entity is named here (`new_study`, `new_product`): it is created, never
+    as a duplicate of one that exists (409, naming it), and the values are assigned to it."""
     scope = _scope(project_id, principal, store)
     with _refusals():
         targets = [_target_id(target) for target in body.targets]
@@ -944,7 +960,7 @@ def assign_values(project_id: str, body: DeliveryAssignment, principal: Writer, 
             if entity_id is not None:
                 check_id("line", entity_id)
         review.assign(scope.ws, targets=targets, study=body.study, arm=body.arm, product=body.product, batch=body.batch,
-                      why=body.why, by=principal.user_id)
+                      new_study=body.new_study, new_product=body.new_product, why=body.why, by=principal.user_id)
         scope.refresh()
         return envelope(_page(scope))
 

@@ -41,6 +41,7 @@ from .test_intake_review import (
     BY,
     CARD,
     Book,
+    _untold_profile,
     clean_study,
     cover,
     covered,
@@ -1429,3 +1430,30 @@ def test_an_individual_pk_parameter_keeps_its_subject(ws):
         ("Cmax", 13.0, "ng/mL", "individual (subject 001)"), ("Cmax", 21.5, "ng/mL", "individual (subject 002)"),
         ("Cmax", 26.7, "ng/mL", "individual (subject 003)"), ("Cmax", 20.4, "ng/mL", "arithmetic_mean")]
     assert found.reported[-1].variability == "6 SD" and not any(flag.startswith("nca_mismatch") for flag in found.flags)
+
+
+def test_a_study_a_person_named_when_assigning_is_confirmed_and_landed_like_any_other(ws):
+    """A table that names no study, assigned to a study the person names (`assign(new_study=...)`): the study has no
+    home file, so its values are its own (no cross-file flag, no link to confirm), and it lands as any study does."""
+    book = Book(ws)
+    ids = _untold_profile(book)
+    covered(book, values_unassigned=6)
+    targets = [ids["dose"], ids["lloq"], *(ids[f"c{i}"] for i in range(4))]
+    made = review.assign(ws, targets=targets, new_study="ABC-1", why="the table's title says ABC-1", by=BY)
+    reader = Ledger(ws)
+    enter(reader, made.study, n=12, route="oral", formulation="ir_tablet", food_state="fasted", intended_use="model_building",
+          salt_or_base="base", population="healthy", age_mean=33.0)
+    assert reader.pending_links(study=made.study) == []
+    plan, confirmation, done = land(ws, made.study, reader)
+    # what it holds back is what any study with these facts holds back (two facts the study record has no place for)
+    assert done.pending == plan.held and all(text.startswith("ABC-1: study facts with no place") for text in plan.held)
+    assert (confirmation.subject, confirmation.record["label"], confirmation.record["links"]) == (made.study, "ABC-1", [])
+    assert any(ref.startswith(f"{made.id}:") for ref in confirmation.record["assignments"])      # the record binds the assignment
+    (found,) = [dataset(ws, i) for i in done.datasets]
+    assert found.state is EvidenceState.ACCEPTED and found.origin is Origin.CLIENT and landing.is_delivery_dataset(found)
+    assert found.study["study_id"] == "ABC-1" and found.study["dose_mg"] == 25.0 and found.study["lloq"] == 0.5
+    assert found.source.doc_sha256 == book.sha and not [f for f in found.flags if f.startswith("cross_file")]
+    (series,) = found.series
+    assert (series.name, series.times, series.values) == ("001", (1.0, 2.0, 3.0, 4.0), (10.0, 11.0, 12.0, 13.0))
+    assert all(v.status == "confirmed" and v.cross_file is None for v in reader.values(study=made.study))
+    assert [e.after["type"] for e in events(ws, "intake.entity")] == ["study"] and len(events(ws, "intake.land")) == 1

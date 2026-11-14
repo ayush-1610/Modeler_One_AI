@@ -30,11 +30,13 @@ from fastapi.testclient import TestClient
 from openpyxl import Workbook
 from pydantic import BaseModel
 
-from modeler_api import admin_api, client_api, delivery_routes, jobs, project_api
+from modeler_agents.evals.scripted import Scripted
+from modeler_api import admin_api, agent_jobs, client_api, delivery_routes, jobs, project_api
 from modeler_api.auth import get_verifier
 from modeler_api.main import app
 from modeler_api.views.common import View
 from modeler_intake import synthetic
+from modeler_intake.document_reading import name_key
 from modeler_intake.mapping.fingerprint import layout_fingerprint
 from modeler_intake.source import parse_document, region_grid
 from modeler_project import (
@@ -57,10 +59,13 @@ from modeler_project.datasets import ObservedDataset, Origin, Series
 from modeler_project.evidence import EvidenceState, SourceRef
 from modeler_project.intake_rules import RULES_SHA256
 from modeler_project.intake_store import IntakeStore
+from modeler_project.ledger_models import Entity
 from modeler_project.ledger_view import LedgerView
 from modeler_project.mapping_cache import MappingCache
 from modeler_project.requirements import derive
 from modeler_storage.filestore import FileWriteStore
+
+from .test_intake_pipeline_api import _models, _urine_workbook
 
 pytestmark = pytest.mark.req("T-47")
 
@@ -1407,12 +1412,14 @@ def test_every_delivery_route_and_the_admin_pipeline_route_has_a_typed_answer():
     assert {"DeliveryPage", "DeliveryValue", "DeliveryRun", "DeliveryEntry", "PipelineHealth", "TriageStart"} <= set(schemas)
 
 
-def _raw_workbook() -> tuple[str, bytes]:
-    """A client's own workbook (not the template): one individual table under a title that names its study."""
+def _raw_workbook(study: str = "230-31") -> tuple[str, bytes]:
+    """A client's own workbook (not the template): one individual table under a title that names its study. The rules
+    read a study id written like "230-31" from the title; one written like "ABC-1" they do not read."""
     book = Workbook()
     sheet = book.active
     sheet.title = "Sheet1"
-    for row in (["Study 230-31, 25 mg oral tablet, fasted"], ["Subject", "Time (h)", "Conc (ng/mL)"],
+    for row in ([f"Study {study}, 25 mg oral tablet, fasted"],
+                ["Subject", "Time (h)", f"{synthetic.DRUG} plasma concentration (ng/mL)"],
                 ["001", 0.5, 10.1], ["001", 1, 22.4], ["001", 2, 15.0], ["002", 0.5, 9.8], ["002", 1, 20.0], ["002", 2, 14.1]):
         sheet.append(row)
     raw = io.BytesIO()
@@ -1452,7 +1459,8 @@ def test_reading_a_sheet_in_again_on_the_legacy_card_is_refused_once_delivery_co
     (confirmation,) = review.confirmations(p.ws)
     assert signed.json()["data"]["confirmation"]["landed"]["rejected_legacy"] == [legacy_id]
     assert dataset(p.ws, legacy_id).decision_reason == f"replaced by Delivery confirmation {confirmation.id}"
-    landed = signed.json()["data"]["confirmation"]["landed"]["datasets"]
+    (landed_id,) = landed = signed.json()["data"]["confirmation"]["landed"]["datasets"]
+    assert dataset(p.ws, landed_id).study["study_id"] == "230-31" and len(dataset(p.ws, landed_id).series) == 2
     # now the same reading is refused, with or without `replace` (which would reject what the signature landed)
     for extra in ({}, {"replace": True}):
         refused = p.post(f"client-data/{sid}:map", {**reading, "confirm": True, **extra})
@@ -1482,3 +1490,476 @@ def test_a_dose_entered_in_grams_gets_its_mg_fact_and_the_draw_shows_it_with_its
     shown = next(v for v in draw["values"] if v["value"]["id"] == derived["id"])
     assert shown["reason"].startswith("always:") and shown["wanted"] is True
     assert [(i["id"], i["value"], i["unit"]) for i in shown["inputs"]] == [(person["id"], 0.5, "g")]
+
+
+# --- a study or a product a person names when assigning ---------------------------------------------------------------------
+
+
+def _dissolution_workbook() -> tuple[str, bytes]:
+    """A dissolution table that states its batch and its method, and no product."""
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Dissolution"
+    for row in (["Batch L9001, paddle, 50 rpm, 900 mL pH 6.8 phosphate buffer"], ["Time (min)", "Mean % dissolved"],
+                [10, 41.0], [20, 73.5], [30, 92.25]):
+        sheet.append(row)
+    raw = io.BytesIO()
+    book.save(raw)
+    return "dissolution-L9001.xlsx", raw.getvalue()
+
+
+def _all_targets(values: list[dict[str, Any]]) -> list[str]:
+    """Targets that name every one of these values: a table's values by its extract, a fact by its id."""
+    return list(dict.fromkeys(v["id"].split("#")[0] for v in values))
+
+
+@pytest.mark.req("T-47", "F-403", "T-06", "F-404", "T-05")
+def test_a_person_names_the_study_of_a_table_whose_title_the_rules_do_not_read_and_it_is_confirmed_and_landed(project):
+    p = project()
+    name, data = _raw_workbook("ABC-1")
+    p.deliver((name, data), preload=False)
+    page = p.page()
+    # the title "Study ABC-1, …" is not read as a study id: no study exists, and every value is "study not stated"
+    assert page["subjects"] == [] and page["totals"]["values_unassigned"] == len(page["unassigned"]) == 10
+    assert {v["field"] for v in page["unassigned"]} == {"concentration", "analyte", "dose", "route", "food_state"}
+    targets = _all_targets(page["unassigned"])
+    body = {"targets": targets, "new_study": "ABC-1", "why": "the table's title says Study ABC-1"}
+    entities = len(IntakeStore(p.ws).entities.entries("entity"))
+    # refused, and nothing is written: a reader; a name with no letter or digit; one too long; an id and a name at once;
+    # no subject at all
+    assert p.post("delivery/values:assign", body, token="viewer").status_code == 403
+    for wrong in ({"new_study": "  "}, {"new_study": "—"}, {"new_study": "A" * 81}, {"new_study": "ABC-1", "study": "st-1"},
+                  {"new_study": None}, {"new_study": "ABC-1", "why": ""}, {"new_study": "ABC-1", "arm": "arm-99999"}):
+        refused = p.post("delivery/values:assign", {**body, **wrong})
+        assert refused.status_code in (404, 422), (wrong, refused.text)
+    invalid = p.post("delivery/values:assign", {**body, "new_study": "ABC-1", "study": "st-1"})
+    assert invalid.status_code == 422 and invalid.json()["detail"]["code"] == "INVALID"
+    assert len(IntakeStore(p.ws).entities.entries("entity")) == entities
+    assert p.events("intake.entity") == [] and p.events("intake.assign") == []
+
+    # named: the study is created and the values are its own
+    assigned = p.post("delivery/values:assign", body)
+    assert assigned.status_code == 200, assigned.text
+    page = assigned.json()["data"]
+    (row,) = page["subjects"]
+    assert (row["subject_type"], row["label"], row["values"], row["confirm_on"], row["blinded"]) == ("study", "ABC-1", 10, "delivery", False)
+    assert page["unassigned"] == [] and page["totals"]["values_unassigned"] == 0
+    line = IntakeStore(p.ws).entities.entries("entity")[-1]
+    assert (line.body["id"], line.body["label"], line.body["source"], line.body["by"]) == (row["subject"], "ABC-1", None, "u1")
+    (created,) = p.events("intake.entity")                                 # one event for the creation, with the line's hash
+    assert created.after == {"entity": row["subject"], "type": "study", "label": "ABC-1", "row_hash": line.hash}
+    assert (created.actor, created.reason) == ("u1", "the table's title says Study ABC-1")
+    (event,) = p.events("intake.assign")                                   # and the assignment's own, as before
+    assert event.after["row_hash"] == IntakeStore(p.ws).review.entries("assignment")[0].hash
+    assert [e.action for e in p.events() if e.action in ("intake.entity", "intake.assign")] == ["intake.entity", "intake.assign"]
+    # never a duplicate: the same name again, however it is spelt, is refused and names the study that exists
+    for label in ("ABC-1", "abc 1", "Abc1"):
+        again = p.post("delivery/values:assign", {**body, "new_study": label})
+        assert again.status_code == 409 and again.json()["detail"]["code"] == "CONFLICT"
+        assert f"'ABC-1' exists already ({row['subject']})" in again.json()["detail"]["message"]
+    assert len(p.events("intake.entity")) == 1 and len(IntakeStore(p.ws).entities.entries("entity")) == entities + 1
+
+    # its card: its values are its own (no cross-file value, no link to confirm), and it is reviewed like any study
+    path = p.subject("ABC-1")
+    card = p.card(path)
+    assert (card["label"], card["links"], card["values"]) == ("ABC-1", [], 10)
+    assert not any(v["cross_file"] for t in card["tables"] for v in t["values"])
+    assert "LINK_UNCONFIRMED" not in [b["code"] for b in card["blockers"]] and "UNASSIGNED_VALUES" not in [b["code"] for b in card["blockers"]]
+    assert all(v["labels"]["study"] == "ABC-1" for t in card["tables"] for v in t["values"])
+    card = _decide(p, path, {"n": 2, "intended_use": "model_building", "formulation": "ir_tablet"})
+    assert [b["code"] for b in card["blockers"]] == ["SPOT_CHECK"] and card["landing_problem"] is None
+    assert _spot_check(p, path)["state"] == "complete"
+    assert p.post(f"{path}:confirm", token="plain").json()["detail"]["code"] == "STEP_UP_REQUIRED"
+    signed = p.post(f"{path}:confirm")
+    assert signed.status_code == 200, signed.text
+    done = signed.json()["data"]
+    (confirmation,) = review.confirmations(p.ws)
+    assert confirmation.record["label"] == "ABC-1" and confirmation.record["links"] == [] and len(confirmation.record["assignments"]) == 1
+    (landed_id,) = done["confirmation"]["landed"]["datasets"]
+    landed = dataset(p.ws, landed_id)
+    assert landed.state is EvidenceState.ACCEPTED and landed.origin is Origin.CLIENT
+    assert landed.study["study_id"] == "ABC-1" and landed.study["dose_mg"] == 25.0 and landed.study["n"] == 2
+    assert landed.source.doc_sha256 == _sha(data) and not [f for f in landed.flags if f.startswith("cross_file")]
+    assert {s.name: s.values for s in landed.series} == {"001": (10.1, 22.4, 15.0), "002": (9.8, 20.0, 14.1)}
+    assert [len(p.events(a)) for a in ("signature.create", "intake.confirm", "intake.land")] == [1, 1, 1]
+    assert p.store.audit("t1").verify() is None and IntakeStore(p.ws).entities.verify() == []
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_person_names_the_product_of_a_dissolution_table_that_states_only_its_batch(project):
+    p = project()
+    workbook = synthetic.messy_workbook()
+    name, data = _dissolution_workbook()
+    p.deliver(workbook, (name, data))
+    page = p.page()
+    loose = [v for v in page["unassigned"] if v["file"] == name]
+    points = [v for v in loose if v["field"] == "percent_dissolved"]
+    # the table names its batch and no product: a batch alone is no subject, so its values are "study not stated"
+    assert len(points) == 3 and {v["labels"].get("batch") for v in points} == {"L9001"} and not any("product" in v["labels"] for v in loose)
+    (batch,) = {v["entity"]["batch"] for v in points}
+    assert points[0]["conditions"] == {"apparatus": "paddle", "medium": "phosphate", "ph": "6.8", "rpm": "50", "volume_ml": "900"}
+    body = {"targets": _all_targets(loose), "new_product": "Exampleamide capsule", "batch": batch,
+            "why": "the client's e-mail names the product of batch L9001"}
+    other_batch = next(s for s in page["subjects"] if s["label"] == "Exampleamide IR tablet")["batches"][0]["id"]
+    # refused: a product that exists, by its key; a batch of another product; a product id and a new name at once
+    exists = p.post("delivery/values:assign", {**body, "new_product": "exampleamide IR  TABLET"})
+    assert exists.status_code == 409 and "'Exampleamide IR tablet' exists already (pr-" in exists.json()["detail"]["message"]
+    assert p.post("delivery/values:assign", {**body, "batch": other_batch}).status_code == 422
+    assert p.post("delivery/values:assign", {**body, "product": "pr-1"}).status_code == 422
+    assert p.events("intake.entity") == []
+    assigned = p.post("delivery/values:assign", body)
+    assert assigned.status_code == 200, assigned.text
+    after = assigned.json()["data"]
+    row = next(s for s in after["subjects"] if s["label"] == "Exampleamide capsule")
+    assert (row["subject_type"], row["values"], row["files"], row["arms"]) == ("product", len(loose), [_sha(data)], [])
+    assert row["batches"] == [{"id": batch, "label": "L9001"}]             # the batch its values name, kept by the assignment
+    assert not [v for v in after["unassigned"] if v["file"] == name]
+    (created,) = p.events("intake.entity")
+    line = IntakeStore(p.ws).entities.entries("entity")[-1]
+    assert created.after == {"entity": row["subject"], "type": "product", "label": "Exampleamide capsule", "row_hash": line.hash}
+    assert len(p.events("intake.assign")) == 1
+    # its card, as any product's: its values with their batch, its dissolution table, its checks
+    path = f"delivery/subjects/product/{row['subject']}"
+    card = p.card(path)
+    assert (card["label"], card["values"], card["blinded"]) == ("Exampleamide capsule", len(loose), False)
+    values = [v for t in card["tables"] for v in t["values"]]
+    assert {v["labels"]["product"] for v in values} == {"Exampleamide capsule"} and {v["labels"]["batch"] for v in values} == {"L9001"}
+    assert {t["table_kind"] for t in card["tables"] if t["kind"] == "table"} == {"dissolution"}
+    assert p.post(f"{path}/spot-check:draw").status_code == 200
+    # a study and a product named in one assignment: both are created, each with its event
+    both = project(project_id="p2", beside=p)
+    both.deliver(_raw_workbook("ABC-2"), preload=False)
+    made = both.post("delivery/values:assign", {"targets": _all_targets(both.page()["unassigned"]), "new_study": "ABC-2",
+                                                "new_product": "Exampleamide oral solution", "why": "the cover letter"})
+    assert made.status_code == 200, made.text
+    assert {(s["subject_type"], s["label"]) for s in made.json()["data"]["subjects"]} == {
+        ("study", "ABC-2"), ("product", "Exampleamide oral solution")}
+    assert [e.after["type"] for e in both.events("intake.entity") if e.resource_id.startswith("p2/")] == ["study", "product"]
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_a_study_a_person_named_is_blinded_like_any_other(project):
+    p = project(blinding=True)
+    p.deliver(_raw_workbook("ABC-1"), preload=False)
+    secrets = [re.compile(r"(?<![\d.])" + re.escape(text) + r"(?!\d)") for text in ("10.1", "22.4", "9.8", "14.1")]
+    before = p.get("delivery")
+    assert len(_leaks(secrets, before.text)) == 4                         # "study not stated" values are shown
+    targets = _all_targets(before.json()["data"]["unassigned"])
+    named = p.post("delivery/values:assign", {"targets": targets, "new_study": "ABC-1", "why": "the title"})
+    path = p.subject("ABC-1")
+    assert named.status_code == 200 and p.card(path)["blinded"] is False  # naming a study blinds nothing by itself
+    value = next(v for t in p.card(path)["tables"] if t["kind"] == "table" for v in t["values"])
+    blinded = p.post(f"{path}:enter", {"field": "intended_use", "value": "external_validation", "why": "the plan says so"})
+    assert blinded.status_code == 200 and blinded.json()["data"]["blinded"] is True
+    answers = [blinded, p.get("delivery"), p.get(path), p.get("delivery/source", value=value["id"]),
+               p.get(f"delivery/mappings/{value['mapping_id']}")]
+    for answer in answers:
+        assert answer.status_code == 200 and _leaks(secrets, answer.text) == [], answer.request.url
+    rows = [v for t in p.card(path)["tables"] for v in t["values"]]
+    assert len(rows) == 11 and all(v["blinded"] and v["value"] is None and v["verbatim"] is None for v in rows)
+    assert next(s for s in p.page()["subjects"] if s["label"] == "ABC-1")["blinded"] is True
+    assert p.post(f"{path}/spot-check:draw").json()["detail"]["code"] == "BLINDED"
+    assert p.post(f"{path}:confirm").json()["detail"]["code"] == "BLINDED" and p.events("signature.create") == []
+
+
+# --- an ambiguous link, a product blinded through a study, stale draws, a mapping the table mapper made ---------------------
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_an_ambiguous_link_is_settled_by_choosing_one_of_the_studies_it_names(project):
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    first = p.subject("230-23").rsplit("/", 1)[1]
+    # another file's study 230-23 that was never joined to the workbook's (as a person who kept them apart left it)
+    store = IntakeStore(p.ws)
+    second = store.entities.append("entity", lambda seq: Entity(
+        id=f"st-{seq}", type="study", label="230-23", key=name_key("230-23"), source=f"{'c' * 64}@workbook/1.0#s:'Cover'!A1",
+        by="u1", at="2026-11-14T08:00:00.000Z").model_dump(mode="json")).body["id"]
+    late = _late_samples()                                                # a third file whose title says "Study 230-23"
+    p.deliver(late, preload=False)
+    rows = [s for s in p.page()["subjects"] if s["label"] == "230-23"]
+    assert len(rows) == 2                                                 # two candidates: nothing was joined
+    local = next(s for s in rows if s["files"] == [_sha(late[1])])["subject"]
+    assert local not in (first, second)
+    path = f"delivery/subjects/study/{local}"
+    card = p.card(path)
+    (link,) = card["links"]
+    assert (link["state"], link["study"], link["file"], link["link_fact"]) == ("ambiguous", local, late[0], None)
+    assert link["candidates"] == [{"id": first, "label": "230-23"}, {"id": second, "label": "230-23"}]
+    assert "LINK_UNCONFIRMED" in [b["code"] for b in card["blockers"]]
+    assert not any(v["cross_file"] for t in card["tables"] for v in t["values"])
+    body = {"file_sha256": link["file_sha256"], "confirmed": True, "why": "the late samples of the workbook's study"}
+    # refused: a study the link does not name, an id that is none, a reader
+    other = p.subject("231-24").rsplit("/", 1)[1]
+    assert p.post(f"{path}:link", {**body, "study": other}).status_code == 422
+    assert p.post(f"{path}:link", {**body, "study": "st-99999"}).status_code == 422
+    assert p.post(f"{path}:link", {**body, "study": "../st-1"}).status_code == 422
+    assert p.post(f"{path}:link", {**body, "study": first}, token="viewer").status_code == 403
+    assert p.events("intake.link") == [] and store.entities.entries("merge") == []
+    # one candidate refused, with the reason: it is no longer a candidate, and the link still waits
+    refused = p.post(f"{path}:link", {**body, "study": second, "confirmed": False, "why": "another protocol's 230-23"})
+    assert refused.status_code == 200, refused.text
+    (still,) = refused.json()["data"]["links"]
+    assert (still["state"], still["candidates"]) == ("ambiguous", [{"id": first, "label": "230-23"}])
+    assert refused.json()["data"]["subject"] == local and store.entities.entries("merge") == []
+    # the other chosen: the file's own study is merged into it, and the answer is the card of the study it became
+    chosen = p.post(f"{path}:link", {**body, "study": first})
+    assert chosen.status_code == 200, chosen.text
+    merged = chosen.json()["data"]
+    assert (merged["subject"], merged["label"], merged["links"]) == (first, "230-23", [])
+    assert "LINK_UNCONFIRMED" not in [b["code"] for b in merged["blockers"]]
+    joined = [v for t in merged["tables"] if t["file"] == late[0] for v in t["values"]]
+    assert joined and all(v["cross_file"] and v["entity"]["study"] == first for v in joined)
+    (merge,) = store.entities.entries("merge")
+    assert (merge.body["from_id"], merge.body["into_id"], merge.body["by"]) == (local, first, "u1")
+    events = p.events("intake.link")
+    assert [e.reason for e in events] == ["another protocol's 230-23", "the late samples of the workbook's study"]
+    assert [e.after["row_hash"] for e in events] == [line.hash for line in store.review.entries("link")]
+    # the page lists one study 230-23 now, and the old id answers with the study it became
+    (row,) = [s for s in p.page()["subjects"] if s["label"] == "230-23"]
+    assert row["subject"] == first and sorted(row["files"]) == sorted([_sha(workbook.data), _sha(late[1])])
+    assert p.card(path)["subject"] == first
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_a_product_is_blinded_through_a_blinded_studys_value_on_every_route_and_the_compound_never_is(project):
+    p = project(blinding=True)
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    assert _accept_note(p, workbook).status_code == 200
+    study_path, product_path = p.subject("230-23"), p.subject("Exampleamide IR tablet")
+    secrets = _secrets(p.ws, "230-23")
+    value = next(v for t in p.card(study_path)["tables"] for v in t["values"] if v["verbatim"] == "25.2")
+    product = next(s for s in p.page()["subjects"] if s["label"] == "Exampleamide IR tablet")
+    # a person says which product the study dosed: the study's profile is that product's too
+    assigned = p.post("delivery/values:assign", {"targets": [value["id"].split("#")[0]], "product": product["subject"],
+                                                 "batch": product["batches"][0]["id"], "why": "the study dosed this batch"})
+    assert assigned.status_code == 200, assigned.text
+    entered = p.post("delivery/subjects/compound/compound:enter", {"field": "phys.logp", "value": 2.4, "why": "the CoA"})
+    assert entered.status_code == 200
+    open_card = p.card(product_path)
+    mine = [v for t in open_card["tables"] for v in t["values"]]
+    of_study = [v for v in mine if v["labels"].get("study") == "230-23"]
+    assert open_card["blinded"] is False and len(of_study) == 42 and len(_leaks(secrets, p.get(product_path).text)) > 10
+    drawn = p.post(f"{product_path}/spot-check:draw").json()["data"]       # drawn while nothing was withheld
+    failed = next(c for c in open_card["checks"] if c["severity"] == "fail" and c["code"] != "REQUIRED_ITEM_UNDISPOSED")
+
+    blinded = p.post(f"{study_path}:enter", {"field": "intended_use", "value": "external_validation", "why": "the plan"})
+    assert blinded.status_code == 200 and blinded.json()["data"]["blinded"] is True
+    # the product is blinded with the study: every route that answers with it withholds the study's values
+    answers = [p.get("delivery"), p.get(product_path), p.get(product_path, "viewer"),
+               p.post(f"{product_path}:override", {"check_id": failed["id"], "why": "as written"}),
+               p.post(f"{product_path}:dispose", {"req_id": open_card["requirements"][0]["req_id"], "disposition": "ask_client",
+                                                  "why": "asked"}),
+               p.post(f"{product_path}:enter", {"field": "strength_mg", "value": 50, "why": "the label"}),
+               p.get("delivery/source", value=value["id"]), p.get("delivery/source", anchor=value["anchor"]),
+               p.get(f"delivery/mappings/{value['mapping_id']}")]
+    for answer in answers:
+        assert answer.status_code == 200, (answer.request.url, answer.text[:300])
+        assert _leaks(secrets, answer.text) == [], answer.request.url
+    card = p.card(product_path)
+    rows = [v for t in card["tables"] for v in t["values"]]
+    theirs = [v for v in rows if v["labels"].get("study") == "230-23"]
+    assert card["blinded"] is True and len(theirs) == 42
+    assert all(v["blinded"] and [v[k] for k in ("value", "verbatim", "spread", "lloq", "censored")] == [None] * 5 for v in theirs)
+    # the product's own values (its dissolution, its strength) are no study's: they are shown, and say so
+    own = [v for v in rows if "study" not in v["labels"]]
+    assert own and all(v["blinded"] is False for v in own) and any(v["field"] == "percent_dissolved" and v["value"] for v in own)
+    assert all(c["message"] is None and c["values"] == [] for c in card["checks"]) and card["held"] is None
+    assert "BLINDED" in [b["code"] for b in card["blockers"]]
+    assert next(s for s in p.page()["subjects"] if s["subject"] == product["subject"])["blinded"] is True
+    # its spot check can be neither drawn nor ticked, and it cannot be confirmed
+    assert p.post(f"{product_path}/spot-check:draw").json()["detail"]["code"] == "BLINDED"
+    ticks = {"draw_id": drawn["draw"]["id"], "ticks": [{"value_id": v, "ok": True} for v in drawn["wanted"]]}
+    assert p.post(f"{product_path}/spot-check", ticks).json()["detail"]["code"] == "BLINDED"
+    for token in ("t", "plain"):
+        refused = p.post(f"{product_path}:confirm", token=token)
+        assert refused.status_code == 409 and refused.json()["detail"]["code"] == "BLINDED"
+    assert p.events("signature.create") == [] and p.events("intake.spot_check") == []
+    # another product, with no value of the study, is open; and the compound's values are no study's: never blinded
+    assert p.card(p.subject("Comparamide tablet"))["blinded"] is False
+    compound = p.card("delivery/subjects/compound/compound")
+    assert compound["blinded"] is False and [v["value"] for t in compound["tables"] for v in t["values"]] == [2.4]
+    assert next(s for s in p.page()["subjects"] if s["subject_type"] == "compound")["blinded"] is False
+    assert p.post("delivery/subjects/compound/compound/spot-check:draw").status_code == 200
+
+
+@pytest.mark.req("T-47", "F-403", "T-06", "F-404", "T-05")
+def test_a_stale_draw_is_drawn_again_with_its_ok_ticks_carried_and_a_failed_tick_stays_until_the_value_is_corrected(project):
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    assert _accept_note(p, workbook).status_code == 200
+    path = p.subject("230-23")
+    _decide(p, path, FACTS_230_23)
+
+    def enter(body: dict[str, Any]) -> dict[str, Any]:
+        answer = p.post(f"{path}:enter", {**body, "why": "from the protocol"})
+        assert answer.status_code == 200, answer.text
+        return answer.json()["data"]
+
+    def ticks(spot: dict[str, Any], wrong: str | None = None) -> dict[str, Any]:
+        return {"draw_id": spot["draw"]["id"], "ticks": [{"value_id": v, "ok": v != wrong, "note": "" if v != wrong else "the file says 26.2"}
+                                                         for v in spot["wanted"]]}
+
+    # --- a draw goes stale when the subject's values change: its ticks are refused, and it is drawn again ---
+    first = p.post(f"{path}/spot-check:draw").json()["data"]
+    assert first["state"] == "drawn" and first["wanted"]
+    assert enter({"field": "age_mean", "value": 33.0})["spot_check"] == {
+        "state": "stale", "draw_id": first["draw"]["id"], "drawn": len(first["wanted"]), "wanted": 0}
+    stale = p.post(f"{path}/spot-check", ticks(first))
+    assert stale.status_code == 409 and stale.json()["detail"]["code"] == "STALE"
+    assert p.events("intake.spot_check") == []
+    second = p.post(f"{path}/spot-check:draw").json()["data"]
+    assert second["draw"]["id"] != first["draw"]["id"] and second["state"] == "drawn" and second["draw"]["carried"] == {}
+    assert p.post(f"{path}/spot-check", ticks(first)).json()["detail"]["code"] == "STALE"      # the old draw stays refused
+
+    # --- one tick says a value does not match its source: the spot check has failed ---
+    wrong = next(v["value"]["id"] for v in second["values"] if v["value"]["id"].startswith("tx-") and v["value"]["value"] is not None)
+    ticked = p.post(f"{path}/spot-check", ticks(second, wrong))
+    assert ticked.status_code == 200 and ticked.json()["data"]["state"] == "failed"
+    record = ticked.json()["data"]["record"]
+    assert [t for t in record["ticks"] if not t["ok"]] == [{"value_id": wrong, "ok": False, "note": "the file says 26.2"}]
+    ok_before = {t["value_id"] for t in record["ticks"] if t["ok"]}
+    assert [b["code"] for b in p.card(path)["blockers"]] == ["SPOT_CHECK"]
+
+    # --- another change: the next draw carries the ok ticks, and holds the failed value as failed, with no new tick ---
+    assert enter({"field": "weight_mean_kg", "value": 71.5})["spot_check"]["state"] == "stale"
+    third = p.post(f"{path}/spot-check:draw").json()["data"]
+    assert third["state"] == "failed" and third["draw"]["id"] not in (first["draw"]["id"], second["draw"]["id"])
+    by_id = {v["value"]["id"]: v for v in third["values"]}
+    assert (by_id[wrong]["reason"], by_id[wrong]["wanted"], by_id[wrong]["carried_by"], by_id[wrong]["ok"]) == (
+        "always:failed", False, None, None)
+    assert wrong in third["draw"]["always"] and wrong not in third["wanted"]
+    carried = {i for i, v in by_id.items() if v["carried_by"] is not None}
+    assert carried == ok_before & set(by_id) and len(carried) > 5
+    assert all(by_id[i]["carried_by"] == record["id"] and not by_id[i]["wanted"] for i in carried)
+    assert third["draw"]["carried"] == dict.fromkeys(sorted(carried), record["id"])
+    assert set(third["wanted"]) == set(by_id) - carried - {wrong}                     # only what is new is ticked
+    assert p.post(f"{path}/spot-check", {**ticks(third), "ticks": [*ticks(third)["ticks"], {"value_id": wrong, "ok": True}]}
+                  ).status_code == 422                                                # a failed value takes no new tick
+    again = p.post(f"{path}/spot-check", ticks(third))
+    assert again.status_code == 200 and again.json()["data"]["state"] == "failed"     # ticked, and still failed
+    refused = p.post(f"{path}:confirm")
+    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "SPOT_CHECK"
+    assert "does not match its source" in refused.json()["detail"]["blockers"][0]["detail"] and p.events("signature.create") == []
+
+    # --- only a correction clears it: the value is superseded, the draw is new, its ok ticks carry over ---
+    corrected = enter({"value": 26.2, "supersedes": wrong})
+    assert corrected["spot_check"]["state"] == "stale"
+    _decide(p, path)                                                                  # what the correction changed, reviewed
+    last = p.post(f"{path}/spot-check:draw").json()["data"]
+    assert last["state"] == "drawn" and wrong not in {v["value"]["id"] for v in last["values"]}
+    assert not [v for v in last["values"] if v["reason"] == "always:failed"]
+    assert all(v["wanted"] != (v["carried_by"] is not None) for v in last["values"])
+    assert {v["carried_by"] for v in last["values"] if v["carried_by"]} <= {record["id"], again.json()["data"]["record"]["id"]}
+    done = p.post(f"{path}/spot-check", ticks(last))
+    assert done.status_code == 200 and done.json()["data"]["state"] == "complete"
+    assert len(p.events("intake.spot_check")) == 3
+    card = p.card(path)
+    assert card["blockers"] == [] and card["spot_check"]["state"] == "complete"
+    signed = p.post(f"{path}:confirm")
+    assert signed.status_code == 200, signed.text
+    (confirmation,) = review.confirmations(p.ws)
+    assert confirmation.record["spot_check"].startswith(done.json()["data"]["record"]["id"] + ":")
+    # the signature binds the corrected value, not the one the tick refused
+    fixed = next(v["id"] for t in corrected["tables"] for v in t["values"] if v["value"] == 26.2 and v["method"] == "person")
+    assert [row[1] for row in confirmation.record["facts"] if row[0] == fixed] == ["26.2"]
+    assert wrong in confirmation.record["excluded"]                       # its table is bound without the superseded value
+    ledger = LedgerView(p.ws)
+    assert (ledger.value(wrong).status, ledger.value(wrong).superseded_by, ledger.value(fixed).status) == ("superseded", fixed, "confirmed")
+    assert len(p.events("signature.create")) == 1 and signed.json()["data"]["confirmation"]["landed"]["datasets"]
+
+
+@pytest.mark.req("T-47", "T-21", "F-403", "T-06")
+def test_a_table_the_table_mapper_mapped_blocks_until_a_person_approves_its_mapping(project, monkeypatch):
+    p = project()
+    spec = synthetic.URINE_SPEC.model_dump(mode="json", by_alias=True, exclude_none=True)
+    model = Scripted([[("propose_mapping", {"spec": spec})], []])         # a scripted model, never a live one
+    _models(monkeypatch, model)
+    data = _urine_workbook()
+    p.deliver(("urine.xlsx", data), preload=False)
+    assert model.answers == ["ACCEPTED"] and len(model.received) == 2      # code accepted its mapping; the model stopped
+    page = p.page()
+    assert page["agents"]["enabled"] is True and page["running"] is False
+    (file,) = page["deliveries"][0]["files"]
+    (region,) = file["regions"]
+    assert (region["state"], region["origin"], region["mapping_status"], file["coverage"]["silent_loss"]) == ("mapped", "llm", "proposed", 0)
+    assert [s["stage"] for s in file["run"]["stages"] if s["stage"] == "map_llm" and s["ok"]] == ["map_llm"]
+    # the mapping waits for a person: on the page, with who made it (the agent run named A4-table-mapper)
+    (waiting,) = page["mappings"]
+    (run,) = [r for r in agent_jobs.project_runs(p.store.root, "t1", "p1") if r["agent"] == "A4-table-mapper"]
+    assert (waiting["status"], waiting["origin"], waiting["by"]) == ("proposed", "llm", f"agent:{run['run_id']}")
+    assert waiting["origin_detail"].startswith("scripted/scripted prompt ") and waiting["origin_detail"].endswith(run["run_id"])
+    mapping_path = f"delivery/mappings/{waiting['mapping_id']}"
+    shown = p.get(mapping_path).json()["data"]
+    assert (shown["origin"], shown["status"], shown["kind"], shown["findings"]) == ("llm", "proposed", spec["kind"], [])
+    assert not any(ch.isdigit() for row in shown["sample"]["body"] for cell in row for ch in cell)
+    # its values are in the ledger at level new_mapping, and that blocks the study's confirmation
+    path = p.subject("230-31")
+    card = p.card(path)
+    values = [v for t in card["tables"] if t["kind"] == "table" for v in t["values"]]
+    assert values and {v["level"] for v in values} == {"new_mapping"} and {t["mapping_status"] for t in card["tables"] if t["kind"] == "table"} == {"proposed"}
+    assert [m["mapping_id"] for m in card["mappings"]] == [waiting["mapping_id"]]
+    (unapproved,) = [c for c in card["checks"] if c["code"] == "MAPPING_NOT_APPROVED"]
+    assert unapproved["severity"] == "fail" and not unapproved["overridden"] and "no person has approved" in unapproved["message"]
+    assert "CHECK_FAILED" in [b["code"] for b in card["blockers"]]
+    # everything else reviewed: the confirmation is still refused, for the mapping alone
+    reviewed = p.card(path)
+    facts = {"n": 6, "dose": 50, "route": "oral", "formulation": "ir_tablet", "intended_use": "model_building"}
+    for field, fact in facts.items():
+        assert p.post(f"{path}:enter", {"field": field, "value": fact, "why": "from the protocol",
+                                        **({"unit": "mg"} if field == "dose" else {})}).status_code == 200
+    reviewed = p.card(path)
+    for check in reviewed["checks"]:
+        if check["severity"] == "fail" and not check["overridden"] and check["code"] != "MAPPING_NOT_APPROVED":
+            if check["code"] == "REQUIRED_ITEM_UNDISPOSED":
+                for item in reviewed["requirements"]:
+                    if item["status"] == "missing" and item["req_id"] in check["message"]:
+                        assert p.post(f"{path}:dispose", {"req_id": item["req_id"], "disposition": "ask_client", "why": "asked"}).status_code == 200
+            else:
+                assert p.post(f"{path}:override", {"check_id": check["id"], "why": "as written"}).status_code == 200
+    _spot_check(p, path)
+    refused = p.post(f"{path}:confirm")
+    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "CHECK_FAILED"
+    assert refused.json()["detail"]["blockers"][0]["ids"] == [unapproved["id"]] and p.events("signature.create") == []
+
+    # --- a person approves the mapping: the file is read again from the cache, with no new model turn ---
+    approved = p.post(f"{mapping_path}:approve", {"version": waiting["version"], "note": "read against the sheet"})
+    assert approved.status_code == 200, approved.text
+    assert (approved.json()["data"]["status"], approved.json()["data"]["queued"]) == ("approved", [_sha(data)])
+    p.settle()
+    assert len(model.received) == 2 and model.answers == ["ACCEPTED"]     # the approved version is read from the cache
+    assert [r.state for r in intake_pipeline.runs(p.ws)] == ["done", "done"]
+    assert len([r for r in agent_jobs.project_runs(p.store.root, "t1", "p1") if r["agent"] == "A4-table-mapper"]) == 1
+    page = p.page()
+    (region,) = page["deliveries"][0]["files"][0]["regions"]
+    assert (region["state"], region["origin"], region["mapping_status"]) == ("mapped", "cache", "approved") and page["mappings"] == []
+    card = p.card(path)
+    assert {v["level"] for t in card["tables"] if t["kind"] == "table" for v in t["values"]} == {"approved_mapping"}
+    assert "MAPPING_NOT_APPROVED" not in {c["code"] for c in card["checks"]} and card["mappings"] == []
+    # the same values under the same mapping: the draw stands, and the confirmation is possible
+    assert card["spot_check"]["state"] == "complete" and card["blockers"] == []
+    signed = p.post(f"{path}:confirm")
+    assert signed.status_code == 200, signed.text
+    (confirmation,) = review.confirmations(p.ws)
+    assert [row[2] for row in confirmation.record["mappings"]] == ["approved"]
+    assert signed.json()["data"]["signature"]["signature_id"] == confirmation.signature_id
+    assert [len(p.events(a)) for a in ("signature.create", "intake.confirm", "intake.land")] == [1, 1, 1]
+    # urine excretion is kept in the ledger and not landed: the card said so before the signature, and the record does
+    assert any("excretion" in text for text in signed.json()["data"]["confirmation"]["held"])
+
+
+def test_a_subjects_card_is_computed_once_per_request(project, monkeypatch):
+    p = project()
+    p.deliver(synthetic.word_report())
+    path = p.subject("230-27")
+    calls: list[str] = []
+    real = review._card
+    monkeypatch.setattr(review, "_card", lambda *a, **k: calls.append(a[2]) or real(*a, **k))
+    card = p.get(path)
+    assert card.status_code == 200 and card.json()["data"]["blockers"] and card.json()["data"]["checks"]
+    assert len(calls) == 1                                    # the card and its blockers: the checks run once
+    calls.clear()
+    assert p.post(f"{path}/spot-check:draw").status_code == 200 and calls == []      # a draw needs no card

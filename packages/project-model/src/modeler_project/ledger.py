@@ -66,8 +66,19 @@ from modeler_project import ledger_compute, ledger_links
 from modeler_project.intake_records import Choice, FileRecord, LinkConfirmation, MappingEntry
 from modeler_project.intake_rules import IntakeRules
 from modeler_project.intake_store import ChainEntry
-from modeler_project.ledger_entities import EntityBook, follow_ref, home_file, label_key, merge, now, resolve
+from modeler_project.ledger_entities import (
+    PREFIX,
+    EntityBook,
+    follow_ref,
+    home_file,
+    label_key,
+    merge,
+    now,
+    resolve,
+    review_targets,
+)
 from modeler_project.ledger_models import (
+    Entity,
     EntityRef,
     EntityType,
     ExtractRef,
@@ -798,6 +809,67 @@ class Ledger(LedgerView):
         self.store.facts.append_if(decide)
         self.refresh()
         return found
+
+    # --- a study or a product a person names ----------------------------------------------------------------------
+
+    def name_entity(self, type: EntityType, label: str, *, by: str, why: str) -> Entity:
+        """A person names a study or a product that no file's label gave an entity (a table whose title the rules do
+        not read as a study id, a dissolution table that names only its batch), so that its values can be assigned to
+        it. One `entity` line, written as the resolver writes one (`ledger_entities.resolve`: the label's `name_key`
+        as its key, its id from the line's seq), with `by` the person and no source: a person's statement has no
+        anchor. Such an entity has no home file, so nothing assigned to it is a cross-file value and nothing waits for
+        a link confirmation: the assignment is the person's decision. Audited `intake.entity` with the line's hash and
+        the reason.
+
+        Decided under the entities log's lock. The same person naming the same label of the same type again (a double
+        submit, two threads) gets the entity already written and appends nothing. Never a duplicate: when an entity of
+        that type has the label's `label_key` already (a file's or another person's, followed through merges; or one a
+        ledger alias, or a person-confirmed alias of today's review record, sends the label to), ValueError names it:
+        the values are assigned to that one. ValueError too for a type a person does not name (only a study and a
+        product are subjects), a label with no letter or digit, with a control character or longer than 80
+        characters, or no reason."""
+        if type not in ("study", "product"):
+            raise ValueError(f"a person names a study or a product, not a {type}")
+        label = label.strip() if isinstance(label, str) else ""
+        key, written = name_key(label), label_key(label)
+        if not key or not written or len(label) > 80 or any(ord(ch) < 32 or ord(ch) == 127 for ch in label):
+            raise ValueError(f"a {type}'s name is at most 80 characters with a letter or a digit, on one line: {label!r}")
+        if not isinstance(why, str) or not why.strip():
+            raise ValueError(f"naming a {type} needs a reason")
+        from modeler_project.client_data import review_record
+
+        keys = frozenset((written, *review_targets(type, written, None, review_record(self.ws))))
+        found: list[Entity] = []
+
+        def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
+            book = EntityBook(entries)
+            same = {alive.id: alive for e in book.named(type, keys, None) if (alive := book.alive(e.id)) is not None}
+            same.update({alive.id: alive for alias in book.aliases if alias.type == type and alias.key == key
+                         and alias.parent is None and (alive := book.alive(alias.entity)) is not None})
+            if same:
+                mine = next((e for e in same.values() if e.source is None and e.by == by and label_key(e.label) == written),
+                            None)
+                if mine is None:
+                    other = next(iter(same.values()))
+                    raise ValueError(f"a {type} named {other.label!r} exists already ({other.id}): assign the values to it")
+                found.append(mine)
+                return []
+
+            def body(seq: int) -> dict[str, Any]:
+                entity = Entity(id=f"{PREFIX[type]}-{seq}", type=type, label=label, key=key, parent=None, source=None,
+                                by=by, at=now())
+                found.append(entity)
+                return entity.model_dump(mode="json")
+            return [("entity", body)]
+
+        written_lines = self.store.entities.append_if(decide)
+        entity = found[-1]
+        if written_lines:
+            self.store.audit(actor=by, action="intake.entity", resource_id=entity.id,
+                             after={"entity": entity.id, "type": type, "label": entity.label,
+                                    "row_hash": written_lines[0].hash}, reason=why.strip())
+            self.refresh()
+        return entity
 
     # --- derived facts and links -----------------------------------------------------------------------------------
 
