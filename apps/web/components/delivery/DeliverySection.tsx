@@ -350,8 +350,11 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
               second list of them here */}
           {page.subjects.length > 0 && (
             <p className="muted fs-13 m-0" data-testid="delivery-subjects">
-              {count(page.subjects.length, "study, product or compound", "studies, products and compounds")} read from these files, each confirmed
-              on its card in its area{areas.length ? ": " : "."}
+              {[count(page.subjects.filter((s) => s.subject_type === "study").length, "study", "studies"),
+                count(page.subjects.filter((s) => s.subject_type === "product").length, "product"),
+                page.subjects.some((s) => s.subject_type === "compound") ? "the compound's values" : ""]
+                .filter((w) => w && !w.startsWith("0 ")).join(", ")} read from these files: each is confirmed on its card in its area
+              {areas.length ? ": " : "."}
               {areas.map((a, i) => (
                 <span key={a}>{i > 0 && " · "}
                   {onOpenGroup ? <button type="button" className="link-btn" onClick={() => onOpenGroup("", a)} data-testid={`delivery-subjects-${a}`}>

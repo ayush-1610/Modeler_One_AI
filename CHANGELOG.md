@@ -106,7 +106,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   entered as free text one by one; the signer could not see the decisions made on a study.
 - **Impact:** frontend only (no API, no locked file, no ruleset). Specs updated: delivery (card on Clinical studies, the
   gate line, the loose note settled with its file, the facts form, the decisions), client-confirm, inputs-data-cards,
-  client-data (`dataset-unpromised-*`, "Use as release"), client-documents ("Done"), inputs-fill, inputs-work (where items
+  client-data (`dataset-unpromised-*`, "Use as release"), client-documents ("Done"), inputs-fill (the study's row on
+  Clinical studies; and a file's reading found under its row in the table of files, where slice 2 put it: the spec still
+  looked for it inside the delivery's section, and failed there since the fill round's merge), inputs-work (where items
   open). Deviations in the plan's §5 ("Within this plan, slice 3 as built").
 
 ### Changed — the Inputs page counts from one list of work, in one vocabulary, with one status per file (plan 2026-11-14, slice 2)

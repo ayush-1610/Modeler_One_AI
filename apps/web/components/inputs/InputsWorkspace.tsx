@@ -378,7 +378,11 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   const unlinkedProfiles = (dissolution?.profiles ?? []).filter((p) => !model.subjects.some((s) => s.kind === "product" && productOf(s)(p)));
   // up to three cards are all open; past three, the first to confirm is (the owner, 2026-11-05: "one by one")
   const opens = (list: Subject[], s: Subject) => list.length <= ONE_BY_ONE || s.key === list.find((x) => !x.done && !x.blinded)?.key;
-  const [settingsOpen, setSettingsOpen] = [cardsOpen["settings"] ?? false, (o: boolean) => setCardsOpen((was) => ({ ...was, settings: o }))];
+  // Simulation settings: shown behind "Change…", or by themselves while one needs the person
+  const settingsOpen = cardsOpen["settings"] ?? false;
+  const setSettingsOpen = (o: boolean) => setCardsOpen((was) => ({ ...was, settings: o }));
+  const settingsNeed = rows("settings").some((r) => r.state === "missing" || r.state === "conflict" || r.state === "held")
+    || panelTodo("settings").length > 0;
 
   return (
     <PageShell {...head}
@@ -550,11 +554,13 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
           <section className="settings-line" data-testid="settings-line">
             <p className="m-0">PK-Sim&apos;s default calculation methods and solver settings are used. Each study runs over its full sampling
               time. Dosing for predictions is set on Review &amp; sign.</p>
-            <button type="button" className="btn small" aria-expanded={settingsOpen || listed("settings").some((r) => r.state !== "kept") || panelTodo("settings").length > 0}
-                    onClick={() => setSettingsOpen(!settingsOpen)} data-testid="settings-change">
-              {settingsOpen ? "Hide the settings" : "Change…"}</button>
+            {/* a setting that needs the person is shown without asking; otherwise "Change…" shows them */}
+            {!settingsNeed && (
+              <button type="button" className="btn small" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
+                      data-testid="settings-change">{settingsOpen ? "Hide the settings" : "Change…"}</button>
+            )}
           </section>
-          {(settingsOpen || listed("settings").some((r) => r.state !== "kept") || panelTodo("settings").length > 0) && (
+          {(settingsOpen || settingsNeed) && (
             <>
               <InputRows rows={listed("settings")} todo={panelTodo("settings")} projectId={projectId} run={run}
                          empty={only ? "Nothing on Simulation settings needs you now." : "PK-Sim's default calculation methods are used: nothing to set."} />
